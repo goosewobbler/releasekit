@@ -1,0 +1,44 @@
+# Logs
+logs
+logs-*
+*.log
+npm-debug.log*
+
+# Coverage directory
+coverage
+*.lcov
+.nyc_output
+
+# Dependency directories
+node_modules/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional eslint cache
+.eslintcache
+
+# dotenv environment variables file
+.env
+.env.test
+.env.local
+
+# Build outputs
+dist
+dist-js
+dist-electron
+out
+build
+
+# Turbo files
+.turbo
+
+# OS files
+.DS_Store
+
+# IDE files
+.vscode
+.idea
+
+# Vitest
+.vitest

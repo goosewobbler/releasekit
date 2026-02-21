@@ -1,0 +1,134 @@
+name: Release Prepare
+
+on:
+  workflow_call:
+    inputs:
+      packages:
+        required: true
+        type: string
+      bump:
+        required: true
+        type: string
+      dry_run:
+        required: true
+        type: boolean
+    outputs:
+      has_changes:
+        description: Whether there are changes to release
+        value: ${{ jobs.prepare.outputs.has_changes }}
+      version_output:
+        description: JSON output from releasekit-version
+        value: ${{ jobs.prepare.outputs.version_output }}
+      tags:
+        description: Git tags to create
+        value: ${{ jobs.prepare.outputs.tags }}
+
+jobs:
+  prepare:
+    name: Calculate Versions
+    runs-on: ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.version.outputs.has_changes }}
+      version_output: ${{ steps.version.outputs.version_output }}
+      tags: ${{ steps.version.outputs.tags }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup workspace
+        uses: ./.github/workflows/actions/setup-workspace
+
+      - name: Build from source
+        run: pnpm build
+
+      - name: Calculate versions
+        id: version
+        run: |
+          # Build target flags
+          TARGET_FLAGS=""
+          if [ "${{ inputs.packages }}" = "version" ]; then
+            TARGET_FLAGS="--target @releasekit/version"
+          elif [ "${{ inputs.packages }}" = "notes" ]; then
+            TARGET_FLAGS="--target @releasekit/notes"
+          fi
+
+          # Build bump flags
+          BUMP_FLAGS="--bump ${{ inputs.bump }}"
+
+          # Check if prerelease
+          PRERELEASE_FLAGS=""
+          if [[ "${{ inputs.bump }}" == pre* ]]; then
+            # Extract the base bump type (premajor -> major, etc.)
+            BASE_BUMP="${{ inputs.bump }}"
+            BASE_BUMP="${BASE_BUMP#pre}"
+            BUMP_FLAGS="--bump ${BASE_BUMP}"
+            PRERELEASE_FLAGS="--prerelease next"
+          fi
+
+          # Run releasekit-version from built source
+          set +e
+          VERSION_OUTPUT=$(node packages/version/dist/index.js \
+            --json \
+            --dry-run \
+            ${BUMP_FLAGS} \
+            ${PRERELEASE_FLAGS} \
+            ${TARGET_FLAGS} \
+            2>&1)
+          EXIT_CODE=$?
+          set -e
+
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "releasekit-version failed with exit code $EXIT_CODE"
+            echo "$VERSION_OUTPUT"
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Parse the JSON output
+          TAGS=$(echo "$VERSION_OUTPUT" | jq -r '.tags | join(",")')
+          UPDATES=$(echo "$VERSION_OUTPUT" | jq -r '.updates | length')
+
+          if [ "$UPDATES" = "0" ]; then
+            echo "No version changes detected"
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+
+          # Store the full version output as a file artifact
+          echo "$VERSION_OUTPUT" > version-output.json
+
+          # Also set as output (escaped for multiline)
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "version_output<<$EOF" >> "$GITHUB_OUTPUT"
+          echo "$VERSION_OUTPUT" >> "$GITHUB_OUTPUT"
+          echo "$EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Upload version output
+        if: steps.version.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: version-output
+          path: version-output.json
+          retention-days: 1
+
+      - name: Summary
+        if: steps.version.outputs.has_changes == 'true'
+        run: |
+          echo "## Release Preparation" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Bump type:** ${{ inputs.bump }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Packages:** ${{ inputs.packages }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Dry run:** ${{ inputs.dry_run }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Updates" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat version-output.json | jq '.updates' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Tags:** ${{ steps.version.outputs.tags }}" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,10 @@
+.DS_Store
+node_modules
+.turbo
+*.log
+coverage
+dist
+# Explicitly include test fixtures
+!test/fixtures/
+!test/fixtures/**
+.aider*

@@ -1,0 +1,20 @@
+## What's Changed
+
+<% if (versions.length > 0) { %>
+<% const version = versions[0]; %>
+
+<% if (version.enhanced?.releaseNotes) { %>
+<%= version.enhanced.releaseNotes %>
+<% } else { %>
+<% if (version.entries.length > 0) { %>
+<% version.entries.forEach(function(entry) { %>
+- <% if (entry.scope) { %>**<%= entry.scope %>**: <% } %><%= entry.description %><% if (entry.issueIds) { %> (<%= entry.issueIds.join(', ') %>)<% } %>
+
+<% }); %>
+<% } %>
+<% } %>
+
+<% if (version.compareUrl) { %>
+**Full Changelog**: <%= version.compareUrl %>
+<% } %>
+<% } %>

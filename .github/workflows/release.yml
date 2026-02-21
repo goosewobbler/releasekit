@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: Packages to release
+        type: choice
+        options:
+          - all
+          - version
+          - notes
+        default: all
+      bump:
+        description: Version bump type
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - prepatch
+          - preminor
+          - premajor
+        default: patch
+      dry_run:
+        description: Dry run (no publish, no push)
+        type: boolean
+        default: true
+
+jobs:
+  prepare:
+    name: Prepare Release
+    uses: ./.github/workflows/_release-prepare.reusable.yml
+    with:
+      packages: ${{ inputs.packages }}
+      bump: ${{ inputs.bump }}
+      dry_run: ${{ inputs.dry_run }}
+
+  publish:
+    name: Publish
+    needs: prepare
+    if: needs.prepare.outputs.has_changes == 'true'
+    uses: ./.github/workflows/_release-publish.reusable.yml
+    with:
+      dry_run: ${{ inputs.dry_run }}
+      version_output: ${{ needs.prepare.outputs.version_output }}
+      tags: ${{ needs.prepare.outputs.tags }}
+    secrets:
+      DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+
+  post-release:
+    name: Post Release
+    needs: [prepare, publish]
+    if: needs.prepare.outputs.has_changes == 'true' && inputs.dry_run == false
+    uses: ./.github/workflows/_release-post.reusable.yml
+    with:
+      version_output: ${{ needs.prepare.outputs.version_output }}
+      tags: ${{ needs.prepare.outputs.tags }}
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

@@ -1,0 +1,80 @@
+{
+  "name": "@releasekit/version",
+  "version": "0.1.0",
+  "description": "A lightweight yet powerful CLI tool for automated semantic versioning based on Git history and conventional commits.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "bin": {
+    "releasekit-version": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts",
+    "dev": "tsup src/index.ts --format esm,cjs --watch --dts",
+    "clean": "rm -rf dist coverage .turbo",
+    "test": "vitest run --dir test/unit",
+    "test:unit": "vitest run --coverage --dir test/unit",
+    "test:coverage": "vitest run --coverage --dir test/unit",
+    "lint": "biome check .",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": ["version", "semver", "git", "package"],
+  "author": {
+    "name": "Sam Maister",
+    "email": "goosewobbler@protonmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/goosewobbler/releasekit",
+    "directory": "packages/version"
+  },
+  "license": "MIT",
+  "files": ["dist", "docs", "version.schema.json"],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "dependencies": {
+    "@manypkg/get-packages": "^3.1.0",
+    "@releasekit/core": "workspace:*",
+    "@types/micromatch": "^4.0.10",
+    "chalk": "catalog:",
+    "commander": "catalog:",
+    "conventional-changelog-angular": "^8.1.0",
+    "conventional-changelog-conventional-commits": "npm:conventional-changelog-conventionalcommits@^9.0.0",
+    "conventional-changelog-conventionalcommits": "^9.1.0",
+    "conventional-commits-filter": "^5.0.0",
+    "conventional-recommended-bump": "^11.2.0",
+    "figlet": "^1.10.0",
+    "git-semver-tags": "^8.0.0",
+    "micromatch": "^4.0.8",
+    "semver": "^7.7.4",
+    "smol-toml": "^1.6.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "@types/figlet": "^1.5.5",
+    "@types/node": "catalog:",
+    "@types/semver": "^7.7.1",
+    "@vitest/coverage-v8": "catalog:",
+    "tsup": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=18 || >=20"
+  }
+}

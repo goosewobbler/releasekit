@@ -1,0 +1,19 @@
+{
+  "dryRun": false,
+  "updates": [{ "packageName": "test-package", "newVersion": "1.0.0", "filePath": "package.json" }],
+  "changelogs": [
+    {
+      "packageName": "test-package",
+      "version": "1.0.0",
+      "previousVersion": null,
+      "revisionRange": "HEAD",
+      "repoUrl": "https://github.com/test/test-package",
+      "entries": [
+        { "type": "added", "description": "New feature for users" },
+        { "type": "fixed", "description": "Fixed a bug in the parser", "scope": "core" },
+        { "type": "changed", "description": "Improved performance", "issueIds": ["#123"] }
+      ]
+    }
+  ],
+  "tags": ["v1.0.0"]
+}

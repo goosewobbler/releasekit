@@ -1,0 +1,104 @@
+name: Release Post
+
+on:
+  workflow_call:
+    inputs:
+      version_output:
+        required: true
+        type: string
+      tags:
+        required: true
+        type: string
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  github-release:
+    name: Create GitHub Releases
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup workspace
+        uses: ./.github/workflows/actions/setup-workspace
+
+      - name: Build from source
+        run: pnpm build
+
+      - name: Download version output
+        uses: actions/download-artifact@v4
+        with:
+          name: version-output
+
+      - name: Generate release notes and create releases
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          IFS=',' read -ra TAG_ARRAY <<< "${{ inputs.tags }}"
+
+          for tag in "${TAG_ARRAY[@]}"; do
+            if [ -z "$tag" ]; then
+              continue
+            fi
+
+            echo "Creating GitHub Release for ${tag}..."
+
+            # Determine if this is a prerelease
+            IS_PRERELEASE=false
+            if echo "$tag" | grep -qE '\-'; then
+              IS_PRERELEASE=true
+            fi
+
+            # Generate release notes using releasekit-notes from built source
+            NOTES=""
+            if [ -f version-output.json ]; then
+              NOTES=$(node packages/notes/dist/cli.js generate \
+                --input version-output.json \
+                --output markdown \
+                ${ANTHROPIC_API_KEY:+--llm-provider anthropic --llm-model claude-sonnet-4-20250514 --llm-tasks summarize} \
+                2>/dev/null || echo "")
+            fi
+
+            # Fall back to auto-generated notes if releasekit-notes fails
+            PRERELEASE_FLAG=""
+            if [ "$IS_PRERELEASE" = "true" ]; then
+              PRERELEASE_FLAG="--prerelease"
+            fi
+
+            if [ -n "$NOTES" ]; then
+              gh release create "${tag}" \
+                --title "${tag}" \
+                --notes "${NOTES}" \
+                --draft \
+                ${PRERELEASE_FLAG}
+            else
+              gh release create "${tag}" \
+                --title "${tag}" \
+                --generate-notes \
+                --draft \
+                ${PRERELEASE_FLAG}
+            fi
+
+            echo "Created draft release for ${tag}"
+          done
+
+      - name: Summary
+        run: |
+          echo "## GitHub Releases" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Draft releases created for:" >> "$GITHUB_STEP_SUMMARY"
+          IFS=',' read -ra TAG_ARRAY <<< "${{ inputs.tags }}"
+          for tag in "${TAG_ARRAY[@]}"; do
+            if [ -n "$tag" ]; then
+              echo "- \`${tag}\`" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "> Releases are created as **drafts**. Review and publish them manually." >> "$GITHUB_STEP_SUMMARY"

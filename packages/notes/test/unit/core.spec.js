@@ -1,0 +1,86 @@
+import { describe, expect, it } from 'vitest';
+import { createTemplateContext } from '../../src/core/pipeline.js';
+import { parsePackageVersioner } from '../../src/input/package-versioner.js';
+import { renderMarkdown } from '../../src/output/markdown.js';
+
+const sampleInput = {
+    dryRun: false,
+    updates: [{ packageName: 'test-pkg', newVersion: '1.0.0', filePath: 'package.json' }],
+    changelogs: [
+        {
+            packageName: 'test-pkg',
+            version: '1.0.0',
+            previousVersion: null,
+            revisionRange: 'HEAD',
+            repoUrl: 'https://github.com/test/test-pkg',
+            entries: [
+                { type: 'added', description: 'New feature' },
+                { type: 'fixed', description: 'Fixed bug', scope: 'core' },
+            ],
+        },
+    ],
+    tags: ['v1.0.0'],
+};
+describe('Input Parser', () => {
+    it('parses package-versioner JSON', () => {
+        const result = parsePackageVersioner(JSON.stringify(sampleInput));
+        expect(result.source).toBe('package-versioner');
+        expect(result.packages).toHaveLength(1);
+        expect(result.packages[0]?.packageName).toBe('test-pkg');
+        expect(result.packages[0]?.entries).toHaveLength(2);
+    });
+    it('normalizes entry types', () => {
+        const input = {
+            ...sampleInput,
+            changelogs: [
+                {
+                    ...(sampleInput.changelogs[0] ?? {}),
+                    entries: [
+                        { type: 'feat', description: 'New feature' },
+                        { type: 'fix', description: 'Bug fix' },
+                    ],
+                },
+            ],
+        };
+        const result = parsePackageVersioner(JSON.stringify(input));
+        expect(result.packages[0]?.entries[0]?.type).toBe('added');
+        expect(result.packages[0]?.entries[1]?.type).toBe('fixed');
+    });
+    it('throws on invalid JSON', () => {
+        expect(() => parsePackageVersioner('not json')).toThrow();
+    });
+    it('throws on missing changelogs', () => {
+        expect(() => parsePackageVersioner(JSON.stringify({}))).toThrow('changelogs');
+    });
+});
+describe('Markdown Output', () => {
+    it('renders markdown from template context', () => {
+        const input = parsePackageVersioner(JSON.stringify(sampleInput));
+        const contexts = input.packages.map(createTemplateContext);
+        const markdown = renderMarkdown(contexts);
+        expect(markdown).toContain('# Changelog');
+        expect(markdown).toContain('## 1.0.0');
+        expect(markdown).toContain('### Added');
+        expect(markdown).toContain('### Fixed');
+        expect(markdown).toContain('- New feature');
+        expect(markdown).toContain('- **core**: Fixed bug');
+    });
+    it('includes comparison links when available', () => {
+        const inputWithPrev = {
+            ...sampleInput,
+            changelogs: [
+                {
+                    ...(sampleInput.changelogs[0] ?? {}),
+                    version: '1.1.0',
+                    previousVersion: 'v1.0.0',
+                },
+            ],
+        };
+        const input = parsePackageVersioner(JSON.stringify(inputWithPrev));
+        const contexts = input.packages.map(createTemplateContext);
+        const markdown = renderMarkdown(contexts);
+        expect(markdown).toContain('[Full Changelog]');
+        expect(markdown).toContain('/compare/v1.0.0...1.1.0');
+    });
+});
+//# sourceMappingURL=core.spec.js.map

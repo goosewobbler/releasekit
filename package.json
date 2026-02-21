@@ -1,0 +1,49 @@
+{
+  "name": "releasekit-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Release tooling for automated versioning and changelog generation",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/goosewobbler/releasekit"
+  },
+  "license": "MIT",
+  "author": "Sam Maister <goosewobbler@protonmail.com>",
+  "engines": {
+    "node": ">=18 || >=20",
+    "pnpm": ">=10.12.0"
+  },
+  "packageManager": "pnpm@10.27.0+sha512.72d699da16b1179c14ba9e64dc71c9a40988cbdc65c264cb0e489db7de917f20dcf4d64d8723625f2969ba52d4b7e2a1170682d9ac2a5dcaeaab732b7e16f04a",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "test:unit": "turbo run test:unit",
+    "test:coverage": "turbo run test:coverage",
+    "lint": "biome check --formatter-enabled=false --linter-enabled=true . && eslint --cache \"packages/**/*.ts\"",
+    "lint:fix": "biome check --write --formatter-enabled=false --linter-enabled=true .",
+    "format": "biome format --write .",
+    "format:check": "biome check --formatter-enabled=true --linter-enabled=false .",
+    "typecheck": "turbo run typecheck",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "clean:cache": "turbo daemon stop && rm -rf .turbo .eslintcache",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "@types/node": "catalog:",
+    "@typescript-eslint/parser": "^8.56.0",
+    "@vitest/eslint-plugin": "^1.6.9",
+    "eslint": "^10.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "tsup": "catalog:",
+    "turbo": "2.8.9",
+    "typescript": "catalog:"
+  },
+  "lint-staged": {
+    "**/*.ts": ["biome check --write", "eslint --fix --cache"],
+    "**/*.{yml,md,json}": ["biome format --write ."]
+  }
+}

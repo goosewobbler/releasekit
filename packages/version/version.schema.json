@@ -1,0 +1,148 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON schema reference"
+    },
+    "versionPrefix": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The prefix used for Git tags",
+      "default": "v"
+    },
+    "tagTemplate": {
+      "type": "string",
+      "minLength": 1,
+      "default": "${prefix}${version}",
+      "description": "Template for formatting Git tags"
+    },
+    "packageSpecificTags": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether to enable package-specific tagging behaviour"
+    },
+    "preset": {
+      "type": "string",
+      "enum": ["angular", "conventional"],
+      "default": "angular",
+      "description": "The commit message convention preset"
+    },
+    "changelogFormat": {
+      "type": "string",
+      "enum": ["keep-a-changelog", "angular"],
+      "default": "keep-a-changelog",
+      "description": "The format to use for generating changelogs"
+    },
+    "baseBranch": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The main branch for versioning",
+      "default": "main"
+    },
+    "sync": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether packages should be versioned together"
+    },
+    "packages": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "default": [],
+      "description": "Array of package names or patterns that determines which packages will be processed for versioning. When specified, only packages matching these patterns will be versioned. When empty or not specified, all workspace packages will be processed. Supports exact names (e.g., '@scope/package-a'), scope wildcards (e.g., '@scope/*'), path patterns (e.g., 'packages/**/*', 'examples/**'), and global wildcards (e.g., '*')."
+    },
+    "mainPackage": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The package to use for version determination"
+    },
+    "versionStrategy": {
+      "type": "string",
+      "enum": ["branchPattern", "commitMessage"],
+      "default": "commitMessage",
+      "description": "How to determine version changes"
+    },
+    "branchPattern": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "default": ["major:", "minor:", "patch:"],
+      "description": "Patterns to match against branch names"
+    },
+    "updateInternalDependencies": {
+      "type": "string",
+      "enum": ["major", "minor", "patch", "no-internal-update"],
+      "default": "patch",
+      "description": "How to update dependencies between packages"
+    },
+    "skip": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "default": [],
+      "description": "Packages to exclude from versioning. Supports exact package names (e.g., '@internal/docs'), scope wildcards (e.g., '@internal/*'), and path patterns (e.g., 'packages/**/test-*', 'examples/**/*')"
+    },
+    "commitMessage": {
+      "type": "string",
+      "minLength": 1,
+      "default": "chore(release): v${version}",
+      "description": "Template for commit messages. Available variables: ${version}, ${packageName}, ${scope}"
+    },
+    "prereleaseIdentifier": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identifier for prerelease versions"
+    },
+    "skipHooks": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether to skip Git hooks"
+    },
+    "writeChangelog": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether to write changelog files to disk"
+    },
+    "strictReachable": {
+      "type": "boolean",
+      "default": false,
+      "description": "Only use reachable tags (no fallback to unreachable tags)"
+    },
+    "mismatchStrategy": {
+      "type": "string",
+      "enum": ["error", "warn", "ignore", "prefer-package", "prefer-git"],
+      "default": "error",
+      "description": "How to handle version mismatches between git tags and package.json. 'error' throws and stops execution (default), 'warn' logs a warning but continues, 'prefer-package' uses package.json version, 'prefer-git' uses git tag, 'ignore' silently continues."
+    },
+    "cargo": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to enable Cargo.toml version handling"
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Specify directories to search for Cargo.toml files"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Configuration options for Rust/Cargo support"
+    }
+  },
+  "required": ["versionPrefix", "preset", "updateInternalDependencies"],
+  "additionalProperties": false
+}
