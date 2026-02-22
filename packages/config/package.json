@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@releasekit/core": "workspace:*",
-    "smol-toml": "^1.6.0",
+    "smol-toml": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

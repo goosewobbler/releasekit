@@ -62,14 +62,14 @@
     "figlet": "^1.10.0",
     "git-semver-tags": "^8.0.0",
     "micromatch": "^4.0.8",
-    "semver": "^7.7.4",
-    "smol-toml": "^1.6.0"
+    "semver": "catalog:",
+    "smol-toml": "catalog:"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
     "@types/figlet": "^1.5.5",
     "@types/node": "catalog:",
-    "@types/semver": "^7.7.1",
+    "@types/semver": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "tsup": "catalog:",
     "typescript": "catalog:",

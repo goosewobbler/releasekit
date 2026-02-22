@@ -52,14 +52,14 @@
     "@releasekit/core": "workspace:*",
     "chalk": "catalog:",
     "commander": "catalog:",
-    "semver": "^7.7.4",
-    "smol-toml": "^1.6.0",
+    "semver": "catalog:",
+    "smol-toml": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
     "@types/node": "catalog:",
-    "@types/semver": "^7.7.1",
+    "@types/semver": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "tsup": "catalog:",
     "typescript": "catalog:",
