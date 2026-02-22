@@ -41,7 +41,7 @@ describe('Git Commands', () => {
 
       const result = await commands.gitAdd(files);
 
-      expect(commandExecutor.execAsync).toHaveBeenCalledWith('git add file1.js file2.js');
+      expect(commandExecutor.execAsync).toHaveBeenCalledWith('git', ['add', 'file1.js', 'file2.js']);
       expect(result).toBe(mockExecResult);
     });
 
@@ -58,7 +58,7 @@ describe('Git Commands', () => {
 
       await commands.gitCommit(options);
 
-      expect(commandExecutor.execAsync).toHaveBeenCalledWith('git commit --no-verify -m "test commit"');
+      expect(commandExecutor.execAsync).toHaveBeenCalledWith('git', ['commit', '--no-verify', '-m', 'test commit']);
     });
 
     it('executes createGitTag with correct command', async () => {
@@ -74,7 +74,7 @@ describe('Git Commands', () => {
 
       await commands.createGitTag(options);
 
-      expect(commandExecutor.execAsync).toHaveBeenCalledWith('git tag -a -m "Version 1.0.0" v1.0.0 ');
+      expect(commandExecutor.execAsync).toHaveBeenCalledWith('git', ['tag', '-a', '-m', 'Version 1.0.0', 'v1.0.0']);
     });
 
     it('throws TAG_ALREADY_EXISTS error when tag already exists', async () => {

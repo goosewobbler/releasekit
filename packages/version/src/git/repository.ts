@@ -23,7 +23,7 @@ export function isGitRepository(directory: string): boolean {
 
   // Final check: run git command
   try {
-    execSync('git rev-parse --is-inside-work-tree', { cwd: directory });
+    execSync('git', ['rev-parse', '--is-inside-work-tree'], { cwd: directory });
     return true;
   } catch (_error) {
     return false;
@@ -35,6 +35,6 @@ export function isGitRepository(directory: string): boolean {
  * @returns Current branch name
  */
 export function getCurrentBranch(): string {
-  const result = execSync('git rev-parse --abbrev-ref HEAD');
+  const result = execSync('git', ['rev-parse', '--abbrev-ref', 'HEAD']);
   return result.toString().trim();
 }

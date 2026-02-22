@@ -23,7 +23,7 @@ export function verifyTag(tagName: string, cwd: string): TagVerificationResult {
 
   try {
     // Check if tag exists in the repository
-    execSync(`git rev-parse --verify "${tagName}"`, {
+    execSync('git', ['rev-parse', '--verify', tagName], {
       cwd,
       stdio: 'ignore',
     });

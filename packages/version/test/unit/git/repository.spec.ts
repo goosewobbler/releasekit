@@ -78,7 +78,7 @@ describe('repository', () => {
       expect(result).toBe(false);
       expect(fs.existsSync).toHaveBeenCalledWith(gitDir);
       expect(fs.statSync).toHaveBeenCalledWith(gitDir);
-      expect(commandExecutor.execSync).toHaveBeenCalledWith('git rev-parse --is-inside-work-tree', {
+      expect(commandExecutor.execSync).toHaveBeenCalledWith('git', ['rev-parse', '--is-inside-work-tree'], {
         cwd: testDir,
       });
     });
@@ -100,7 +100,7 @@ describe('repository', () => {
       expect(result).toBe(true);
       expect(fs.existsSync).toHaveBeenCalledWith(gitDir);
       expect(fs.statSync).toHaveBeenCalledWith(gitDir);
-      expect(commandExecutor.execSync).toHaveBeenCalledWith('git rev-parse --is-inside-work-tree', {
+      expect(commandExecutor.execSync).toHaveBeenCalledWith('git', ['rev-parse', '--is-inside-work-tree'], {
         cwd: testDir,
       });
     });
@@ -116,7 +116,7 @@ describe('repository', () => {
 
       // Verify
       expect(result).toBe('main');
-      expect(commandExecutor.execSync).toHaveBeenCalledWith('git rev-parse --abbrev-ref HEAD');
+      expect(commandExecutor.execSync).toHaveBeenCalledWith('git', ['rev-parse', '--abbrev-ref', 'HEAD']);
     });
   });
 });

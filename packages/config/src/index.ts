@@ -1,3 +1,4 @@
+export { type CargoManifest, isCargoToml, parseCargoToml } from './cargo.js';
 export { ConfigError } from './errors.js';
 export {
   type LoadOptions,

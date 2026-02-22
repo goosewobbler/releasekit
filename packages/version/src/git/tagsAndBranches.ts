@@ -21,17 +21,21 @@ export interface TagSearchOptions {
  */
 export function getCommitsLength(pkgRoot: string, sinceTag?: string): number {
   try {
-    let gitCommand: string;
+    let amount: string;
 
     if (sinceTag && sinceTag.trim() !== '') {
       // Use the specific tag provided
-      gitCommand = `git rev-list --count ${sinceTag}..HEAD ${pkgRoot}`;
+      amount = execSync('git', ['rev-list', '--count', `${sinceTag}..HEAD`, pkgRoot])
+        .toString()
+        .trim();
     } else {
-      // Fallback to original behavior using git describe
-      gitCommand = `git rev-list --count HEAD ^$(git describe --tags --abbrev=0) ${pkgRoot}`;
+      // Fallback: find latest tag via git describe, then count commits since it
+      const latestTag = execSync('git', ['describe', '--tags', '--abbrev=0']).toString().trim();
+      amount = execSync('git', ['rev-list', '--count', 'HEAD', `^${latestTag}`, pkgRoot])
+        .toString()
+        .trim();
     }
 
-    const amount = execSync(gitCommand).toString().trim();
     return Number(amount);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -102,11 +106,23 @@ export async function lastMergeBranchName(branches: string[], baseBranch: string
   try {
     // Escape special regex characters in branch patterns
     const escapedBranches = branches.map((branch) => escapeRegExp(branch));
-
     const branchesRegex = `${escapedBranches.join('/(.*)|')}/(.*)`;
-    const command = `git for-each-ref --sort=-committerdate --format='%(refname:short)' refs/heads --merged ${baseBranch} | grep -o -i -E "${branchesRegex}" | awk -F'[ ]' '{print $1}' | head -n 1`;
-    const { stdout } = await execAsync(command);
-    return stdout.trim();
+
+    const { stdout } = await execAsync('git', [
+      'for-each-ref',
+      '--sort=-committerdate',
+      '--format=%(refname:short)',
+      'refs/heads',
+      `--merged=${baseBranch}`,
+    ]);
+
+    const regex = new RegExp(branchesRegex, 'i');
+    const matched = stdout
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .find((b) => regex.test(b));
+    return matched ?? null;
   } catch (error) {
     console.error('Error while getting the last branch name:', error instanceof Error ? error.message : String(error));
     return null;

@@ -3,12 +3,11 @@
  */
 
 import fs from 'node:fs';
+import { parseCargoToml } from '@releasekit/config';
 import type { ReleaseType } from 'semver';
 import semver from 'semver';
-import * as TOML from 'smol-toml';
 
 import { verifyTag } from '../git/tagVerification.js';
-import type { CargoToml } from '../types.js';
 import { log } from './logging.js';
 
 // Standard bump types
@@ -54,8 +53,7 @@ export function getVersionFromCargoToml(
       return { version: initialVersion, success: false };
     }
 
-    const cargoContent = fs.readFileSync(cargoTomlPath, 'utf-8');
-    const cargo = TOML.parse(cargoContent) as CargoToml;
+    const cargo = parseCargoToml(cargoTomlPath);
 
     // Check if package section and version field exist
     if (!cargo.package?.version) {

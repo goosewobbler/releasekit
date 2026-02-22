@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { extractChangelogEntriesFromCommits } from '../../../src/changelog/commitParser.js';
 
 // Mock dependencies - vi.mock calls are hoisted to the top
-vi.mock('node:child_process', () => ({
+vi.mock('../../../src/git/commandExecutor.js', () => ({
   execSync: vi.fn(),
 }));
 
@@ -12,7 +12,7 @@ vi.mock('../../../src/utils/logging.js', () => ({
 }));
 
 // Import mocked modules
-import { execSync } from 'node:child_process';
+import { execSync } from '../../../src/git/commandExecutor.js';
 
 describe('Commit Parser', () => {
   beforeEach(() => {
@@ -36,7 +36,7 @@ describe('Commit Parser', () => {
       'revert: revert previous commit',
     ].join('---COMMIT_DELIMITER---');
 
-    vi.mocked(execSync, { partial: true }).mockReturnValue(mockGitOutput);
+    vi.mocked(execSync, { partial: true }).mockReturnValue(mockGitOutput as any);
 
     const entries = extractChangelogEntriesFromCommits('/test', 'v1.0.0..v1.1.0');
 
@@ -65,7 +65,7 @@ describe('Commit Parser', () => {
       'fix(api): another fix\n\nBREAKING CHANGE: This breaks the API',
     ].join('---COMMIT_DELIMITER---');
 
-    vi.mocked(execSync, { partial: true }).mockReturnValue(mockGitOutput);
+    vi.mocked(execSync, { partial: true }).mockReturnValue(mockGitOutput as any);
 
     const entries = extractChangelogEntriesFromCommits('/test', 'v1.0.0..v1.1.0');
 
@@ -82,7 +82,7 @@ describe('Commit Parser', () => {
       'feat(ui): add feature\n\nCloses #456\nResolves #789',
     ].join('---COMMIT_DELIMITER---');
 
-    vi.mocked(execSync, { partial: true }).mockReturnValue(mockGitOutput);
+    vi.mocked(execSync, { partial: true }).mockReturnValue(mockGitOutput as any);
 
     const entries = extractChangelogEntriesFromCommits('/test', 'v1.0.0..v1.1.0');
 
@@ -102,7 +102,7 @@ describe('Commit Parser', () => {
       '---COMMIT_DELIMITER---',
     );
 
-    vi.mocked(execSync, { partial: true }).mockReturnValue(mockGitOutput);
+    vi.mocked(execSync, { partial: true }).mockReturnValue(mockGitOutput as any);
 
     const entries = extractChangelogEntriesFromCommits('/test', 'v1.0.0..v1.1.0');
 

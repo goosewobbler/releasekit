@@ -26,17 +26,18 @@ describe('tagsAndBranches', () => {
 
   describe('getCommitsLength', () => {
     it('should return the number of commits since last tag', () => {
-      // Setup
-      vi.mocked(execSync, { partial: true }).mockReturnValue(Buffer.from('5'));
+      // Setup: first call returns the latest tag, second returns the commit count
+      vi.mocked(execSync, { partial: true })
+        .mockReturnValueOnce(Buffer.from('v0.9.0'))
+        .mockReturnValueOnce(Buffer.from('5'));
 
       // Execute
       const result = getCommitsLength('packages/test');
 
       // Verify
       expect(result).toBe(5);
-      expect(execSync).toHaveBeenCalledWith(
-        'git rev-list --count HEAD ^$(git describe --tags --abbrev=0) packages/test',
-      );
+      expect(execSync).toHaveBeenCalledWith('git', ['describe', '--tags', '--abbrev=0']);
+      expect(execSync).toHaveBeenCalledWith('git', ['rev-list', '--count', 'HEAD', '^v0.9.0', 'packages/test']);
     });
 
     it('should return 0 if command fails', () => {
@@ -108,7 +109,13 @@ describe('tagsAndBranches', () => {
 
       // Verify
       expect(result).toBe('feature/test-branch');
-      expect(execAsync).toHaveBeenCalledWith(expect.stringContaining('feature/(.*)|fix/(.*)'));
+      expect(execAsync).toHaveBeenCalledWith('git', [
+        'for-each-ref',
+        '--sort=-committerdate',
+        '--format=%(refname:short)',
+        'refs/heads',
+        '--merged=main',
+      ]);
     });
 
     it('should return null if command fails', async () => {

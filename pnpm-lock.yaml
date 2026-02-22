@@ -74,6 +74,9 @@ importers:
       '@releasekit/core':
         specifier: workspace:*
         version: link:../core
+      smol-toml:
+        specifier: ^1.6.0
+        version: 1.6.0
       zod:
         specifier: 'catalog:'
         version: 3.25.76

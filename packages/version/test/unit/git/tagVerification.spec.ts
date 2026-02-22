@@ -27,7 +27,7 @@ describe('Tag Verification', () => {
         exists: true,
         reachable: true,
       });
-      expect(mockExecSync).toHaveBeenCalledWith('git rev-parse --verify "v1.0.0"', {
+      expect(mockExecSync).toHaveBeenCalledWith('git', ['rev-parse', '--verify', 'v1.0.0'], {
         cwd: '/test/path',
         stdio: 'ignore',
       });

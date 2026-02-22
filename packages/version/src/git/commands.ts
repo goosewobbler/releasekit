@@ -43,8 +43,7 @@ export type GitProcessOptions = {
  * @returns Promise with exec result
  */
 export async function gitAdd(files: string[]) {
-  const command = `git add ${files.join(' ')}`;
-  return execAsync(command);
+  return execAsync('git', ['add', ...files]);
 }
 
 /**
@@ -53,22 +52,22 @@ export async function gitAdd(files: string[]) {
  * @returns Promise with exec result
  */
 export async function gitCommit(options: GitCommitOptions) {
-  const command = ['commit'];
+  const args = ['commit'];
   if (options.amend) {
-    command.push('--amend');
+    args.push('--amend');
   }
   if (options.author) {
-    command.push(`--author="${options.author}"`);
+    args.push('--author', options.author);
   }
   if (options.date) {
-    command.push(`--date="${options.date}"`);
+    args.push('--date', options.date);
   }
   if (options.skipHooks) {
-    command.push('--no-verify');
+    args.push('--no-verify');
   }
-  command.push(`-m "${options.message}"`);
+  args.push('-m', options.message);
 
-  return execAsync(`git ${command.join(' ')}`);
+  return execAsync('git', args);
 }
 
 /**
@@ -77,11 +76,11 @@ export async function gitCommit(options: GitCommitOptions) {
  * @returns Promise with exec result
  */
 export async function createGitTag(options: GitTagOptions) {
-  const { tag, message = '', args = '' } = options;
-  const command = `git tag -a -m "${message}" ${tag} ${args}`;
+  const { tag, message = '' } = options;
+  const args = ['tag', '-a', '-m', message, tag];
 
   try {
-    return await execAsync(command);
+    return await execAsync('git', args);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
 

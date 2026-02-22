@@ -4,10 +4,13 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import type { CargoManifest } from '@releasekit/config';
+import { isCargoToml, parseCargoToml } from '@releasekit/config';
 import * as TOML from 'smol-toml';
-import type { CargoToml } from '../types.js';
 import { addPackageUpdate } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
+
+export { isCargoToml };
 
 // Define the CargoInfo interface for internal use
 export interface CargoInfo {
@@ -15,7 +18,7 @@ export interface CargoInfo {
   version: string;
   path: string;
   dir: string;
-  content: CargoToml;
+  content: CargoManifest;
 }
 
 /**
@@ -28,8 +31,7 @@ export function getCargoInfo(cargoPath: string): CargoInfo {
   }
 
   try {
-    const fileContent = fs.readFileSync(cargoPath, 'utf8');
-    const cargo = TOML.parse(fileContent) as CargoToml;
+    const cargo = parseCargoToml(cargoPath);
 
     if (!cargo.package?.name) {
       log(`Package name not found in: ${cargoPath}`, 'error');
@@ -54,23 +56,12 @@ export function getCargoInfo(cargoPath: string): CargoInfo {
 }
 
 /**
- * Check if a file is a Cargo.toml file
- */
-export function isCargoToml(filePath: string): boolean {
-  return path.basename(filePath) === 'Cargo.toml';
-}
-
-/**
  * Update a Cargo.toml file with a new version
  * Preserves comments and formatting as much as possible
  */
 export function updateCargoVersion(cargoPath: string, version: string): void {
   try {
-    // Read the original file to preserve formatting
-    const originalContent = fs.readFileSync(cargoPath, 'utf8');
-
-    // Parse the TOML
-    const cargo = TOML.parse(originalContent) as CargoToml;
+    const cargo = parseCargoToml(cargoPath);
     const packageName = cargo.package?.name;
 
     if (!packageName) {
@@ -88,7 +79,7 @@ export function updateCargoVersion(cargoPath: string, version: string): void {
     // Strategy: Use TOML.stringify for the updated content. Note that TOML.stringify
     // does not preserve the original formatting or comments, so this is a best-effort
     // approach to update the file while maintaining its structure.
-    const updatedContent = TOML.stringify(cargo);
+    const updatedContent = TOML.stringify(cargo as Record<string, unknown>);
     fs.writeFileSync(cargoPath, updatedContent);
 
     // Track update for JSON output

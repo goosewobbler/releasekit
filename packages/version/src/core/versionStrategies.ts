@@ -2,7 +2,6 @@
  * Strategy functions for versioning using the higher-order function pattern
  */
 
-import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import * as path from 'node:path';
 import type { Package } from '@manypkg/get-packages';
@@ -10,6 +9,7 @@ import type { VersionChangelogEntry } from '@releasekit/core';
 import { extractChangelogEntriesFromCommits } from '../changelog/commitParser.js';
 import { BaseVersionError } from '../errors/baseError.js';
 import { createVersionError, VersionErrorCode } from '../errors/versionError.js';
+import { execSync } from '../git/commandExecutor.js';
 import { createGitCommitAndTag } from '../git/commands.js';
 import { getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { updatePackageVersion } from '../package/packageManagement.js';
@@ -333,7 +333,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         // Check if the tag actually exists in the repository
         if (latestTag) {
           try {
-            execSync(`git rev-parse --verify "${latestTag}"`, {
+            execSync('git', ['rev-parse', '--verify', latestTag], {
               cwd: pkgPath,
               stdio: 'ignore',
             });

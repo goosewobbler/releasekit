@@ -27,8 +27,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "zod": "catalog:",
-    "@releasekit/core": "workspace:*"
+    "@releasekit/core": "workspace:*",
+    "smol-toml": "^1.6.0",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",

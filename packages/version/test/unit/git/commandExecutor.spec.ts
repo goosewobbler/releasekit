@@ -4,8 +4,8 @@ import { execAsync, execSync } from '../../../src/git/commandExecutor.js';
 
 // Mock child_process module
 vi.mock('node:child_process', () => ({
-  exec: vi.fn(),
-  execSync: vi.fn(),
+  execFile: vi.fn(),
+  execFileSync: vi.fn(),
 }));
 
 describe('commandExecutor', () => {
@@ -20,21 +20,18 @@ describe('commandExecutor', () => {
   describe('execAsync', () => {
     it('should execute a command and return stdout and stderr', async () => {
       // Mock successful execution
-      vi.mocked(cp.exec, { partial: true }).mockImplementation(
-        (
-          _command: string,
-          _options: cp.ExecOptions | null | undefined,
-          callback?: (error: cp.ExecException | null, stdout: string | Buffer, stderr: string | Buffer) => void,
-        ) => {
+      vi.mocked(cp.execFile, { partial: true }).mockImplementation(
+        (_file: string, _args: any, _options: any, callback?: any) => {
           if (callback) callback(null, 'command output', 'command error output');
           return {} as cp.ChildProcess;
         },
       );
 
-      const result = await execAsync('test command');
+      const result = await execAsync('git', ['log', '--oneline']);
 
-      expect(cp.exec).toHaveBeenCalledWith(
-        'test command',
+      expect(cp.execFile).toHaveBeenCalledWith(
+        'git',
+        ['log', '--oneline'],
         expect.objectContaining({ maxBuffer: 1024 * 1024 * 10 }),
         expect.any(Function),
       );
@@ -43,44 +40,34 @@ describe('commandExecutor', () => {
 
     it('should reject with error when command fails', async () => {
       // Mock failed execution
-      const mockError: cp.ExecException = {
-        name: 'Error',
-        message: 'Command failed',
-        code: 1,
-      };
+      const mockError = new Error('Command failed') as cp.ExecFileException;
+      (mockError as any).code = 1;
 
-      vi.mocked(cp.exec, { partial: true }).mockImplementation(
-        (
-          _command: string,
-          _options: cp.ExecOptions | null | undefined,
-          callback?: (error: cp.ExecException | null, stdout: string | Buffer, stderr: string | Buffer) => void,
-        ) => {
+      vi.mocked(cp.execFile, { partial: true }).mockImplementation(
+        (_file: string, _args: any, _options: any, callback?: any) => {
           if (callback) callback(mockError, '', '');
           return {} as cp.ChildProcess;
         },
       );
 
-      await expect(execAsync('failing command')).rejects.toEqual(mockError);
+      await expect(execAsync('git', ['failing-cmd'])).rejects.toEqual(mockError);
     });
 
-    it('should pass options to child_process.exec', async () => {
+    it('should pass options to child_process.execFile', async () => {
       // Mock successful execution
-      vi.mocked(cp.exec, { partial: true }).mockImplementation(
-        (
-          _command: string,
-          _options: cp.ExecOptions | null | undefined,
-          callback?: (error: cp.ExecException | null, stdout: string | Buffer, stderr: string | Buffer) => void,
-        ) => {
+      vi.mocked(cp.execFile, { partial: true }).mockImplementation(
+        (_file: string, _args: any, _options: any, callback?: any) => {
           if (callback) callback(null, '', '');
           return {} as cp.ChildProcess;
         },
       );
 
       const options = { cwd: '/some/path', timeout: 1000 };
-      await execAsync('test command', options);
+      await execAsync('git', ['status'], options);
 
-      expect(cp.exec).toHaveBeenCalledWith(
-        'test command',
+      expect(cp.execFile).toHaveBeenCalledWith(
+        'git',
+        ['status'],
         expect.objectContaining({
           maxBuffer: 1024 * 1024 * 10,
           cwd: '/some/path',
@@ -93,24 +80,26 @@ describe('commandExecutor', () => {
 
   describe('execSync', () => {
     it('should execute a command synchronously and return result', () => {
-      vi.mocked(cp.execSync, { partial: true }).mockReturnValue(Buffer.from('sync output'));
+      vi.mocked(cp.execFileSync, { partial: true }).mockReturnValue(Buffer.from('sync output'));
 
-      const result = execSync('sync command');
+      const result = execSync('git', ['status']);
 
-      expect(cp.execSync).toHaveBeenCalledWith(
-        'sync command',
+      expect(cp.execFileSync).toHaveBeenCalledWith(
+        'git',
+        ['status'],
         expect.objectContaining({ maxBuffer: 1024 * 1024 * 10 }),
       );
       expect(result).toEqual(Buffer.from('sync output'));
     });
 
-    it('should pass options to child_process.execSync', () => {
-      vi.mocked(cp.execSync, { partial: true }).mockReturnValue(Buffer.from(''));
+    it('should pass options to child_process.execFileSync', () => {
+      vi.mocked(cp.execFileSync, { partial: true }).mockReturnValue(Buffer.from(''));
 
-      execSync('sync command', { cwd: '/custom/path' });
+      execSync('git', ['log'], { cwd: '/custom/path' });
 
-      expect(cp.execSync).toHaveBeenCalledWith(
-        'sync command',
+      expect(cp.execFileSync).toHaveBeenCalledWith(
+        'git',
+        ['log'],
         expect.objectContaining({
           maxBuffer: 1024 * 1024 * 10,
           cwd: '/custom/path',
@@ -118,13 +107,13 @@ describe('commandExecutor', () => {
       );
     });
 
-    it('should throw error when execSync throws', () => {
+    it('should throw error when execFileSync throws', () => {
       const syncError = new Error('Sync command failed');
-      vi.mocked(cp.execSync, { partial: true }).mockImplementation(() => {
+      vi.mocked(cp.execFileSync, { partial: true }).mockImplementation(() => {
         throw syncError;
       });
 
-      expect(() => execSync('failing sync command')).toThrow(syncError);
+      expect(() => execSync('git', ['failing-sync'])).toThrow(syncError);
     });
   });
 });

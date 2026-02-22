@@ -4,8 +4,8 @@
  * Extracts changelog entries from git commit messages
  */
 
-import { execSync } from 'node:child_process';
 import type { VersionChangelogEntry } from '@releasekit/core';
+import { execSync } from '../git/commandExecutor.js';
 import { log } from '../utils/logging.js';
 
 type ChangelogEntry = VersionChangelogEntry;
@@ -23,11 +23,10 @@ const BREAKING_CHANGE_REGEX = /BREAKING CHANGE: ([\s\S]+?)(?:\n\n|$)/;
  */
 export function extractChangelogEntriesFromCommits(projectDir: string, revisionRange: string): ChangelogEntry[] {
   try {
-    const command = `git log ${revisionRange} --pretty=format:"%B---COMMIT_DELIMITER---" --no-merges`;
-    const output = execSync(command, {
+    const output = execSync('git', ['log', revisionRange, '--pretty=format:%B---COMMIT_DELIMITER---', '--no-merges'], {
       cwd: projectDir,
       encoding: 'utf8',
-    });
+    }).toString();
 
     // Split by commit delimiter and remove empty commits
     const commits = output.split('---COMMIT_DELIMITER---').filter((commit) => commit.trim() !== '');
