@@ -1,8 +1,8 @@
 import { Octokit } from '@octokit/rest';
+import { info, success } from '@releasekit/core';
 import type { TemplateContext } from '../core/types.js';
 import { GitHubError } from '../errors/index.js';
 import { renderMarkdown } from '../output/markdown.js';
-import { info, success } from '../utils/logging.js';
 
 export interface GitHubReleaseOptions {
   token?: string;

@@ -1,5 +1,5 @@
+import { warn } from '@releasekit/core';
 import type { ChangelogEntry } from '../../core/types.js';
-import { warn } from '../../utils/logging.js';
 import type { CategorizeContext, CategorizedEntries, LLMProvider } from '../index.js';
 
 const CATEGORIZE_PROMPT = `You are categorizing changelog entries for a software release.

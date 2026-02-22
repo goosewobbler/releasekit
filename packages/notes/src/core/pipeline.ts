@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { debug, info, success, warn } from '@releasekit/core';
 import { parsePackageVersioner } from '../input/package-versioner.js';
 import { LLM_DEFAULTS } from '../llm/defaults.js';
 import type { LLMProvider } from '../llm/index.js';
@@ -14,7 +15,6 @@ import { createGitHubRelease, parseRepoUrl } from '../output/github-release.js';
 import { writeJson } from '../output/json.js';
 import { writeMarkdown } from '../output/markdown.js';
 import { renderTemplate } from '../templates/index.js';
-import { debug, info, success, warn } from '../utils/logging.js';
 import { withRetry } from '../utils/retry.js';
 import type {
   ChangelogInput,

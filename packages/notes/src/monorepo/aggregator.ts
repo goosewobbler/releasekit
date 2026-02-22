@@ -1,8 +1,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { info, success } from '@releasekit/core';
 import type { TemplateContext } from '../core/types.js';
 import { prependVersion, renderMarkdown } from '../output/markdown.js';
-import { info, success } from '../utils/logging.js';
 import { splitByPackage } from './splitter.js';
 
 export interface MonorepoOptions {
