@@ -1,0 +1,135 @@
+# @releasekit/publish
+
+Publish packages to npm and crates.io with git tagging and GitHub releases.
+
+## Features
+
+- **npm publishing** with OIDC provenance support
+- **crates.io publishing** for Rust packages
+- **Git tagging** with customizable tag templates
+- **GitHub releases** with auto-generated notes
+- **Retry logic** for flaky registry operations
+- **Dry-run mode** for safe testing
+- **JSON output** for CI integration
+- **Post-publish verification** to confirm packages are available
+
+## Installation
+
+```bash
+npm install -g @releasekit/publish
+# or
+pnpm add -g @releasekit/publish
+```
+
+## Quick Start
+
+`@releasekit/publish` reads JSON output from `@releasekit/version` and runs a publish pipeline:
+
+```bash
+# Pipe from version to publish
+releasekit-version --json | releasekit-publish
+
+# Or use an input file
+releasekit-version --json > version-output.json
+releasekit-publish --input version-output.json
+```
+
+## Pipeline Stages
+
+The publish pipeline runs in order:
+
+1. **Input** - Parse version JSON from stdin or file
+2. **Prepare** - Copy files (e.g., LICENSE), update Cargo.toml versions
+3. **Git Commit** - Create version bump commit
+4. **Git Tag** - Create git tags for each package
+5. **npm Publish** - Publish to npm registry
+6. **Cargo Publish** - Publish to crates.io
+7. **Verify** - Verify packages are available on registries
+8. **Git Push** - Push commits and tags to remote
+9. **GitHub Release** - Create GitHub releases
+
+## CLI Reference
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--input <path>` | Path to version output JSON | stdin |
+| `--config <path>` | Path to releasekit config | `releasekit.config.json` |
+| `--registry <type>` | Registry to publish to: `npm`, `cargo`, `all` | `all` |
+| `--npm-auth <method>` | NPM auth method: `oidc`, `token`, `auto` | `auto` |
+| `--dry-run` | Simulate all operations | `false` |
+| `--skip-git` | Skip git commit/tag/push | `false` |
+| `--skip-publish` | Skip registry publishing | `false` |
+| `--skip-github-release` | Skip GitHub Release creation | `false` |
+| `--skip-verification` | Skip post-publish verification | `false` |
+| `--json` | Output results as JSON | `false` |
+| `--verbose` | Verbose logging | `false` |
+
+## Integration with @releasekit/version
+
+### Pipe Directly
+
+```bash
+releasekit-version --json --dry-run | releasekit-publish --dry-run
+```
+
+### Use Output File
+
+```bash
+releasekit-version --json > version-output.json
+releasekit-publish --input version-output.json
+```
+
+### In CI (GitHub Actions)
+
+```yaml
+- name: Version
+  run: releasekit-version --json > version-output.json
+
+- name: Publish
+  run: releasekit-publish --input version-output.json
+  env:
+    NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+```
+
+## Configuration
+
+Configure via `releasekit.config.json`:
+
+```json
+{
+  "publish": {
+    "npm": {
+      "enabled": true,
+      "auth": "auto",
+      "provenance": true,
+      "access": "public",
+      "copyFiles": ["LICENSE"]
+    },
+    "cargo": {
+      "enabled": false,
+      "noVerify": false
+    },
+    "githubRelease": {
+      "enabled": true,
+      "draft": true,
+      "generateNotes": true
+    },
+    "verify": {
+      "npm": {
+        "maxAttempts": 5,
+        "initialDelay": 15000
+      },
+      "cargo": {
+        "maxAttempts": 10,
+        "initialDelay": 30000
+      }
+    }
+  }
+}
+```
+
+See [@releasekit/config](../config/README.md) for full configuration options.
+
+## License
+
+MIT
