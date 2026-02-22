@@ -1,20 +1,11 @@
-/**
- * Shared type definitions
- */
-
+import type { VersionConfig } from '@releasekit/config';
 import type { ReleaseType } from 'semver';
 
-/**
- * Git information for version calculation
- */
 export interface GitInfo {
   currentBranch: string;
   mergeBranch?: string;
 }
 
-/**
- * Common version configuration properties shared between interfaces
- */
 export interface VersionConfigBase {
   versionPrefix: string;
   type?: ReleaseType;
@@ -25,18 +16,13 @@ export interface VersionConfigBase {
   name?: string;
 }
 
-/**
- * Configuration for the versioner
- */
 export interface Config extends VersionConfigBase {
-  // Tag formatting template
-  tagTemplate: string; // Default: prefix + version (e.g. "v1.0.0")
-  packageSpecificTags?: boolean; // Default: false - Set to true to enable package-specific tagging
-
+  tagTemplate: string;
+  packageSpecificTags?: boolean;
   preset: string;
   sync: boolean;
   packages: string[];
-  mainPackage?: string; // The package to use for version determination
+  mainPackage?: string;
   updateInternalDependencies: 'major' | 'minor' | 'patch' | 'no-internal-update';
   skip?: string[];
   commitMessage?: string;
@@ -46,27 +32,19 @@ export interface Config extends VersionConfigBase {
   skipHooks?: boolean;
   dryRun?: boolean;
   latestTag?: string;
-  isPrerelease?: boolean; // Track whether prerelease was explicitly requested via --prerelease flag
-  /** How to handle version mismatches between git tags and package.json */
+  isPrerelease?: boolean;
   mismatchStrategy?: 'error' | 'warn' | 'ignore' | 'prefer-package' | 'prefer-git';
-  // Cargo configuration options
   cargo?: {
-    enabled?: boolean; // Default: true - Set to false to disable Cargo.toml version handling
-    paths?: string[]; // Optional: Specify directories to search for Cargo.toml files
+    enabled?: boolean;
+    paths?: string[];
   };
 }
 
-/**
- * Branch pattern for version strategy
- */
 export interface BranchPattern {
   pattern: string;
   releaseType: ReleaseType;
 }
 
-/**
- * Package JSON structure
- */
 export type PkgJson = {
   name: string;
   version: string;
@@ -75,9 +53,6 @@ export type PkgJson = {
   path?: string;
 };
 
-/**
- * Cargo.toml structure
- */
 export interface CargoToml {
   package?: {
     name: string;
@@ -95,9 +70,6 @@ export interface CargoToml {
   [key: string]: unknown;
 }
 
-/**
- * Cargo dependency specification
- */
 export interface CargoDepSpec {
   version?: string;
   path?: string;
@@ -111,9 +83,6 @@ export interface CargoDepSpec {
   [key: string]: unknown;
 }
 
-/**
- * Git tag formatting options
- */
 export interface TagFormat {
   tagTemplate?: string;
   prefix?: string;
@@ -121,25 +90,16 @@ export interface TagFormat {
   sync: boolean;
 }
 
-/**
- * Tag properties for format functions
- */
 export interface TagProps {
   prefix: string;
   version: string;
   packageName?: string;
 }
 
-/**
- * Version calculation options
- */
 export interface VersionOptions extends VersionConfigBase {
   latestTag: string;
 }
 
-/**
- * Git process options
- */
 export interface GitProcess {
   files: string[];
   nextTag: string;
@@ -148,12 +108,47 @@ export interface GitProcess {
   dryRun?: boolean;
 }
 
-/**
- * Package version update options
- */
 export interface PackageVersion {
   path: string;
   version: string;
   name: string;
   dryRun?: boolean;
+}
+
+export function toVersionConfig(config: VersionConfig | undefined): Config {
+  if (!config) {
+    return {
+      tagTemplate: 'v{version}',
+      packageSpecificTags: false,
+      preset: 'conventional',
+      sync: true,
+      packages: [],
+      updateInternalDependencies: 'minor',
+      versionPrefix: '',
+    };
+  }
+
+  return {
+    tagTemplate: config.tagTemplate ?? 'v{version}',
+    packageSpecificTags: config.packageSpecificTags,
+    preset: config.preset ?? 'conventional',
+    sync: config.sync ?? true,
+    packages: config.packages ?? [],
+    mainPackage: config.mainPackage,
+    updateInternalDependencies: config.updateInternalDependencies ?? 'minor',
+    skip: config.skip,
+    commitMessage: config.commitMessage,
+    versionStrategy: config.versionStrategy,
+    branchPatterns: config.branchPatterns?.map((bp: { pattern: string; releaseType: string }) => ({
+      pattern: bp.pattern,
+      releaseType: bp.releaseType as ReleaseType,
+    })),
+    defaultReleaseType: config.defaultReleaseType as ReleaseType | undefined,
+    skipHooks: config.skipHooks,
+    mismatchStrategy: config.mismatchStrategy,
+    versionPrefix: config.versionPrefix ?? '',
+    prereleaseIdentifier: config.prereleaseIdentifier,
+    baseBranch: config.baseBranch,
+    cargo: config.cargo,
+  };
 }

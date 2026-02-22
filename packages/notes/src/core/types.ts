@@ -95,7 +95,7 @@ export interface OutputConfig {
 export type MonorepoMode = 'root' | 'packages' | 'both';
 
 export interface MonorepoConfig {
-  mode: MonorepoMode;
+  mode?: MonorepoMode;
   rootPath?: string;
   packagesPath?: string;
 }

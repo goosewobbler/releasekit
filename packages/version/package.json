@@ -49,6 +49,7 @@
   },
   "dependencies": {
     "@manypkg/get-packages": "^3.1.0",
+    "@releasekit/config": "workspace:*",
     "@releasekit/core": "workspace:*",
     "@types/micromatch": "^4.0.10",
     "chalk": "catalog:",

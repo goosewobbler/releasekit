@@ -4,12 +4,8 @@ import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { loadConfig } from '../../src/core/config.js';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function withTempDir(fn: (dir: string) => void): void {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'changelog-creator-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-notes-test-'));
   try {
     fn(dir);
   } finally {
@@ -17,63 +13,36 @@ function withTempDir(fn: (dir: string) => void): void {
   }
 }
 
-function writeConfig(dir: string, obj: unknown, name = 'changelog.config.json'): string {
-  const configPath = path.join(dir, name);
-  fs.writeFileSync(configPath, JSON.stringify(obj), 'utf-8');
-  return configPath;
-}
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
 describe('loadConfig()', () => {
   afterEach(() => {
-    delete process.env.CHANGELOG_CONFIG_CONTENT;
-    delete process.env.CHANGELOG_CONFIG;
     delete process.env.TEST_API_KEY;
   });
 
   it('returns default config when no config file exists', () => {
     withTempDir((dir) => {
       const config = loadConfig(dir);
-      expect(config.output).toEqual([]);
-      expect(config.llm).toBeUndefined();
-    });
-  });
-
-  it('loads changelog.config.json from project dir', () => {
-    withTempDir((dir) => {
-      writeConfig(dir, {
-        output: [{ format: 'markdown', file: 'CHANGELOG.md' }],
-        updateStrategy: 'prepend',
-      });
-
-      const config = loadConfig(dir);
       expect(config.output[0]?.format).toBe('markdown');
+      expect(config.output[0]?.file).toBe('CHANGELOG.md');
       expect(config.updateStrategy).toBe('prepend');
     });
   });
 
-  it('loads from CHANGELOG_CONFIG_CONTENT env var', () => {
-    process.env.CHANGELOG_CONFIG_CONTENT = JSON.stringify({
-      output: [{ format: 'json', file: 'out.json' }],
-    });
-
-    const config = loadConfig(process.cwd());
-    expect(config.output[0]?.format).toBe('json');
-  });
-
-  it('CHANGELOG_CONFIG_CONTENT takes precedence over config file', () => {
+  it('loads releasekit.config.json with notes section', () => {
     withTempDir((dir) => {
-      writeConfig(dir, { output: [{ format: 'markdown' }] });
-
-      process.env.CHANGELOG_CONFIG_CONTENT = JSON.stringify({
-        output: [{ format: 'json' }],
-      });
+      fs.writeFileSync(
+        path.join(dir, 'releasekit.config.json'),
+        JSON.stringify({
+          notes: {
+            output: [{ format: 'json', file: 'out.json' }],
+            updateStrategy: 'regenerate',
+          },
+        }),
+        'utf-8',
+      );
 
       const config = loadConfig(dir);
       expect(config.output[0]?.format).toBe('json');
+      expect(config.updateStrategy).toBe('regenerate');
     });
   });
 
@@ -81,10 +50,16 @@ describe('loadConfig()', () => {
     process.env.TEST_API_KEY = 'sk-test-123';
 
     withTempDir((dir) => {
-      writeConfig(dir, {
-        output: [],
-        llm: { provider: 'openai', model: 'gpt-4o-mini', apiKey: '{env:TEST_API_KEY}' },
-      });
+      fs.writeFileSync(
+        path.join(dir, 'releasekit.config.json'),
+        JSON.stringify({
+          notes: {
+            output: [],
+            llm: { provider: 'openai', model: 'gpt-4o-mini', apiKey: '{env:TEST_API_KEY}' },
+          },
+        }),
+        'utf-8',
+      );
 
       const config = loadConfig(dir);
       expect(config.llm?.apiKey).toBe('sk-test-123');
@@ -93,10 +68,16 @@ describe('loadConfig()', () => {
 
   it('substitutes {env:MISSING_VAR} with empty string', () => {
     withTempDir((dir) => {
-      writeConfig(dir, {
-        output: [],
-        llm: { provider: 'openai', model: 'gpt-4o-mini', apiKey: '{env:DEFINITELY_NOT_SET_XYZ}' },
-      });
+      fs.writeFileSync(
+        path.join(dir, 'releasekit.config.json'),
+        JSON.stringify({
+          notes: {
+            output: [],
+            llm: { provider: 'openai', model: 'gpt-4o-mini', apiKey: '{env:DEFINITELY_NOT_SET_XYZ}' },
+          },
+        }),
+        'utf-8',
+      );
 
       const config = loadConfig(dir);
       expect(config.llm?.apiKey).toBe('');
@@ -105,14 +86,15 @@ describe('loadConfig()', () => {
 
   it('parses JSONC (strips comments)', () => {
     withTempDir((dir) => {
-      const configPath = path.join(dir, 'changelog.config.jsonc');
       fs.writeFileSync(
-        configPath,
+        path.join(dir, 'releasekit.config.json'),
         `{
   // This is a comment
-  "output": [{ "format": "markdown" }],
-  /* block comment */
-  "updateStrategy": "regenerate"
+  "notes": {
+    "output": [{ "format": "markdown" }],
+    /* block comment */
+    "updateStrategy": "regenerate"
+  }
 }`,
         'utf-8',
       );
@@ -122,20 +104,25 @@ describe('loadConfig()', () => {
     });
   });
 
-  it('explicit --config path takes precedence over project file', () => {
+  it('explicit --config path takes precedence', () => {
     withTempDir((dir) => {
-      writeConfig(dir, { output: [{ format: 'markdown' }] });
-      const explicitPath = writeConfig(dir, { output: [{ format: 'json' }] }, 'explicit.json');
+      fs.writeFileSync(
+        path.join(dir, 'releasekit.config.json'),
+        JSON.stringify({ notes: { output: [{ format: 'markdown' }] } }),
+        'utf-8',
+      );
 
-      const config = loadConfig(dir, explicitPath);
+      const customPath = path.join(dir, 'custom.json');
+      fs.writeFileSync(customPath, JSON.stringify({ notes: { output: [{ format: 'json' }] } }), 'utf-8');
+
+      const config = loadConfig(dir, customPath);
       expect(config.output[0]?.format).toBe('json');
     });
   });
 
-  it('throws ConfigError on invalid JSON', () => {
+  it('throws on invalid JSON', () => {
     withTempDir((dir) => {
-      const configPath = path.join(dir, 'changelog.config.json');
-      fs.writeFileSync(configPath, '{ not valid json }', 'utf-8');
+      fs.writeFileSync(path.join(dir, 'releasekit.config.json'), '{ not valid json }', 'utf-8');
 
       expect(() => loadConfig(dir)).toThrow();
     });

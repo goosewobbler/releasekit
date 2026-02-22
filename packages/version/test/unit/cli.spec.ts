@@ -5,39 +5,32 @@ import { VersionEngine } from '../../src/core/versionEngine.js';
 import * as indexModule from '../../src/index.js';
 import type { Config } from '../../src/types.js';
 
-// Mock dependencies
 vi.mock('../../src/config.js');
 vi.mock('../../src/core/versionEngine.js');
 vi.mock('../../src/utils/logging.js');
 vi.mock('commander', async () => {
   const actual = (await vi.importActual('commander')) as { Command: typeof Command };
 
-  // Store commands at module level to persist across instances
   const commands = new Map<string, { handler: unknown; isDefault?: boolean }>();
 
   return {
     ...actual,
     Command: vi.fn().mockImplementation(function (this: unknown) {
-      // Use function constructor instead of arrow function
       const originalCommand = new actual.Command();
 
-      // Add spies to track method calls
       originalCommand.parse = vi.fn().mockReturnThis();
 
-      // Override command method to track commands
       const originalCommandMethod = originalCommand.command.bind(originalCommand);
       originalCommand.command = vi.fn((name: string, opts?: { isDefault?: boolean }) => {
         const cmd = originalCommandMethod(name, opts);
         const originalAction = cmd.action.bind(cmd);
         cmd.action = vi.fn((handler: unknown) => {
-          // Store the command and handler
           commands.set(name, { handler, isDefault: opts?.isDefault });
           return originalAction(handler);
         });
         return cmd;
       });
 
-      // Add our custom methods via type assertion
       const extendedCommand = originalCommand as typeof originalCommand & {
         getCommandHandler: (name: string) => unknown;
         getCommands: () => Array<[string, { handler: unknown; isDefault?: boolean }]>;
@@ -72,27 +65,25 @@ describe('CLI Interface', () => {
     sync: false,
     packages: ['package-a'],
     dryRun: false,
+    tagTemplate: 'v{version}',
+    preset: 'conventional',
+    updateInternalDependencies: 'minor',
   };
 
-  // Mock VersionEngine methods for target testing
   const mockGetWorkspacePackages = vi.fn();
   const mockRun = vi.fn();
   const mockSetStrategy = vi.fn();
 
   beforeEach(() => {
-    // Create a mock process object
     mockProcess = {
       argv: ['node', 'index.js'],
-      // Fix Mock type error with appropriate type cast
       exit: vi.fn() as unknown as (code?: number | undefined) => never,
       cwd: vi.fn().mockReturnValue('/test/workspace'),
     };
 
-    // Replace global process
     global.process = mockProcess as NodeJS.Process;
 
-    // Setup mocks
-    vi.mocked(configModule.loadConfig, { partial: true }).mockResolvedValue(mockConfig as Config);
+    vi.mocked(configModule.loadConfig, { partial: true }).mockReturnValue(mockConfig as Config);
     mockGetWorkspacePackages.mockResolvedValue({
       packages: [
         { packageJson: { name: '@scope/package-a' }, dir: '/test/packages/package-a' },
@@ -111,10 +102,7 @@ describe('CLI Interface', () => {
   });
 
   afterEach(() => {
-    // Restore original process
     global.process = originalProcess;
-
-    // Clear mocks
     vi.clearAllMocks();
     mockGetWorkspacePackages.mockClear();
     mockRun.mockClear();
@@ -122,40 +110,30 @@ describe('CLI Interface', () => {
   });
 
   it('should define a default command', async () => {
-    // Call the run function, which sets up the CLI
     await indexModule.run();
 
-    // Get the commander instance
     const commanderInstance = vi.mocked(Command, { partial: true }).mock.results[0].value;
 
-    // Check if there's a default command defined
     const defaultCommand = commanderInstance.getDefaultCommand();
     expect(defaultCommand).toBe('version');
   });
 
   it('should execute the version command when no command is specified', async () => {
-    // Set argv to simulate CLI without a specific command
     mockProcess.argv = ['node', 'index.js', '--dry-run'];
 
-    // Call the run function
     await indexModule.run();
 
-    // Get the commander instance
     const commanderInstance = vi.mocked(Command, { partial: true }).mock.results[0].value;
 
-    // Check if parse was called
     expect(commanderInstance.parse).toHaveBeenCalled();
 
-    // Verify the command structure
     expect(commanderInstance.getCommands()).toContainEqual(['version', expect.objectContaining({ isDefault: true })]);
   });
 
   describe('CLI Target Handling', () => {
     it('should override config.packages when -t flag is used', async () => {
-      // Create a spy to capture the config passed to VersionEngine
       let capturedConfigFromEngine: Config | undefined;
 
-      // Set up the mock BEFORE calling run
       vi.mocked(VersionEngine, { partial: true }).mockImplementation(function (this: unknown, config: Config) {
         capturedConfigFromEngine = config;
         return {
@@ -165,26 +143,6 @@ describe('CLI Interface', () => {
         } as unknown as VersionEngine;
       });
 
-      // Mock the version command handler to capture config changes
-      const originalLoadConfig = vi.mocked(configModule.loadConfig, { partial: true });
-
-      originalLoadConfig.mockImplementation(async (_path) => {
-        const config = { ...mockConfig } as Config;
-        // Simulate the CLI target override logic
-        return config;
-      });
-
-      // Simulate CLI with target flag
-      mockProcess.argv = ['node', 'index.js', '--dry-run', '-t', '@scope/package-a'];
-
-      // Call the run function
-      await indexModule.run();
-
-      // Get the commander instance
-      const commanderInstance = vi.mocked(Command, { partial: true }).mock.results[0].value;
-      const versionHandler = commanderInstance.getCommandHandler('version');
-
-      // Simulate calling the version command handler with target options
       const mockOptions = {
         dryRun: true,
         target: '@scope/package-a',
@@ -192,10 +150,12 @@ describe('CLI Interface', () => {
         projectDir: process.cwd(),
       };
 
-      // Execute the version handler directly with mock options
+      await indexModule.run();
+      const commanderInstance = vi.mocked(Command, { partial: true }).mock.results[0].value;
+      const versionHandler = commanderInstance.getCommandHandler('version');
+
       await (versionHandler as (options: VersionCommandOptions) => Promise<void>)(mockOptions);
 
-      // Verify that config.packages was overridden with CLI targets
       expect(capturedConfigFromEngine).toBeDefined();
       expect(capturedConfigFromEngine?.packages).toEqual(['@scope/package-a']);
     });
@@ -203,7 +163,6 @@ describe('CLI Interface', () => {
     it('should parse multiple targets from comma-separated string', async () => {
       let capturedConfigFromEngine: Config | undefined;
 
-      // Set up the mock BEFORE calling run
       vi.mocked(VersionEngine, { partial: true }).mockImplementation(function (this: unknown, config: Config) {
         capturedConfigFromEngine = config;
         return {
@@ -213,7 +172,6 @@ describe('CLI Interface', () => {
         } as unknown as VersionEngine;
       });
 
-      // Simulate CLI with multiple targets
       const mockOptions = {
         dryRun: true,
         target: '@scope/package-a,@scope/package-b',
@@ -221,15 +179,12 @@ describe('CLI Interface', () => {
         projectDir: process.cwd(),
       };
 
-      // Get the version command handler
       await indexModule.run();
       const commanderInstance = vi.mocked(Command, { partial: true }).mock.results[0].value;
       const versionHandler = commanderInstance.getCommandHandler('version');
 
-      // Execute the handler
       await (versionHandler as (options: VersionCommandOptions) => Promise<void>)(mockOptions);
 
-      // Verify multiple targets were parsed correctly
       expect(capturedConfigFromEngine).toBeDefined();
       expect(capturedConfigFromEngine?.packages).toEqual(['@scope/package-a', '@scope/package-b']);
     });
@@ -237,7 +192,6 @@ describe('CLI Interface', () => {
     it('should not override config.packages when no -t flag is provided', async () => {
       let capturedConfigFromEngine: Config | undefined;
 
-      // Set up the mock BEFORE calling run
       vi.mocked(VersionEngine, { partial: true }).mockImplementation(function (this: unknown, config: Config) {
         capturedConfigFromEngine = config;
         return {
@@ -247,22 +201,18 @@ describe('CLI Interface', () => {
         } as unknown as VersionEngine;
       });
 
-      // Simulate CLI without target flag
       const mockOptions = {
         dryRun: true,
         json: false,
         projectDir: process.cwd(),
       };
 
-      // Get the version command handler
       await indexModule.run();
       const commanderInstance = vi.mocked(Command, { partial: true }).mock.results[0].value;
       const versionHandler = commanderInstance.getCommandHandler('version');
 
-      // Execute the handler
       await (versionHandler as (options: VersionCommandOptions) => Promise<void>)(mockOptions);
 
-      // Verify original config.packages is preserved
       expect(capturedConfigFromEngine).toBeDefined();
       expect(capturedConfigFromEngine?.packages).toEqual(mockConfig.packages);
     });
@@ -270,7 +220,6 @@ describe('CLI Interface', () => {
     it('should handle empty target string gracefully', async () => {
       let capturedConfigFromEngine: Config | undefined;
 
-      // Set up the mock BEFORE calling run
       vi.mocked(VersionEngine, { partial: true }).mockImplementation(function (this: unknown, config: Config) {
         capturedConfigFromEngine = config;
         return {
@@ -280,7 +229,6 @@ describe('CLI Interface', () => {
         } as unknown as VersionEngine;
       });
 
-      // Simulate CLI with empty target
       const mockOptions = {
         dryRun: true,
         target: '',
@@ -288,15 +236,12 @@ describe('CLI Interface', () => {
         projectDir: process.cwd(),
       };
 
-      // Get the version command handler
       await indexModule.run();
       const commanderInstance = vi.mocked(Command, { partial: true }).mock.results[0].value;
       const versionHandler = commanderInstance.getCommandHandler('version');
 
-      // Execute the handler
       await (versionHandler as (options: VersionCommandOptions) => Promise<void>)(mockOptions);
 
-      // Verify original config.packages is preserved (empty string = no targets)
       expect(capturedConfigFromEngine).toBeDefined();
       expect(capturedConfigFromEngine?.packages).toEqual(mockConfig.packages);
     });

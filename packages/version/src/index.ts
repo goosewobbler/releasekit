@@ -79,7 +79,7 @@ export async function run(): Promise<void> {
           }
 
           // Load config
-          const config: Config = await loadConfig(options.config);
+          const config: Config = loadConfig({ cwd: options.projectDir, configPath: options.config });
           log(`Loaded configuration from ${options.config || 'version.config.json'}`, 'info');
 
           // Override config with CLI options

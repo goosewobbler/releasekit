@@ -124,7 +124,7 @@ program
   .description('Create default configuration file')
   .option('-f, --force', 'Overwrite existing config')
   .action((options) => {
-    const configPath = 'changelog.config.json';
+    const configPath = 'releasekit.config.json';
 
     if (fs.existsSync(configPath) && !options.force) {
       error(`Config file already exists at ${configPath}. Use --force to overwrite.`);
@@ -132,9 +132,11 @@ program
     }
 
     const defaultConfig = {
-      $schema: 'https://releasekit.dev/notes/config.json',
-      output: [{ format: 'markdown', file: 'CHANGELOG.md' }],
-      updateStrategy: 'prepend',
+      $schema: 'https://releasekit.dev/schema.json',
+      notes: {
+        output: [{ format: 'markdown', file: 'CHANGELOG.md' }],
+        updateStrategy: 'prepend',
+      },
     };
 
     fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2), 'utf-8');

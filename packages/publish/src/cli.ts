@@ -14,7 +14,7 @@ program
   .description('Publish packages to registries with git tagging and GitHub releases')
   .version('0.1.0')
   .option('--input <path>', 'Path to version output JSON (default: stdin)')
-  .option('--config <path>', 'Path to publish config')
+  .option('--config <path>', 'Path to releasekit config')
   .option('--registry <type>', 'Registry to publish to (npm, cargo, all)', 'all')
   .option('--npm-auth <method>', 'NPM auth method (oidc, token, auto)', 'auto')
   .option('--dry-run', 'Simulate all operations', false)
@@ -29,7 +29,7 @@ program
     if (options.json) setJsonMode(true);
 
     try {
-      const config = loadConfig(process.cwd(), options.config);
+      const config = loadConfig({ configPath: options.config });
       const input = await parseInput(options.input);
 
       if (options.npmAuth !== 'auto') {

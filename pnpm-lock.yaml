@@ -30,6 +30,9 @@ catalogs:
     vitest:
       specifier: ^4.0.18
       version: 4.0.18
+    zod:
+      specifier: ^3.24.2
+      version: 3.25.76
 
 importers:
 
@@ -66,6 +69,28 @@ importers:
         specifier: 'catalog:'
         version: 5.9.3
 
+  packages/config:
+    dependencies:
+      '@releasekit/core':
+        specifier: workspace:*
+        version: link:../core
+      zod:
+        specifier: 'catalog:'
+        version: 3.25.76
+    devDependencies:
+      '@biomejs/biome':
+        specifier: 'catalog:'
+        version: 2.4.4
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.3.0
+      tsup:
+        specifier: 'catalog:'
+        version: 8.5.1(postcss@8.5.6)(typescript@5.9.3)(yaml@2.8.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+
   packages/core:
     dependencies:
       chalk:
@@ -93,6 +118,9 @@ importers:
       '@octokit/rest':
         specifier: ^21.1.1
         version: 21.1.1
+      '@releasekit/config':
+        specifier: workspace:*
+        version: link:../config
       '@releasekit/core':
         specifier: workspace:*
         version: link:../core
@@ -115,7 +143,7 @@ importers:
         specifier: ^4.87.0
         version: 4.104.0(zod@3.25.76)
       zod:
-        specifier: ^3.24.2
+        specifier: 'catalog:'
         version: 3.25.76
     devDependencies:
       '@biomejs/biome':
@@ -142,6 +170,9 @@ importers:
 
   packages/publish:
     dependencies:
+      '@releasekit/config':
+        specifier: workspace:*
+        version: link:../config
       '@releasekit/core':
         specifier: workspace:*
         version: link:../core
@@ -158,7 +189,7 @@ importers:
         specifier: ^1.6.0
         version: 1.6.0
       zod:
-        specifier: ^3.24.2
+        specifier: 'catalog:'
         version: 3.25.76
     devDependencies:
       '@biomejs/biome':
@@ -188,6 +219,9 @@ importers:
       '@manypkg/get-packages':
         specifier: ^3.1.0
         version: 3.1.0
+      '@releasekit/config':
+        specifier: workspace:*
+        version: link:../config
       '@releasekit/core':
         specifier: workspace:*
         version: link:../core

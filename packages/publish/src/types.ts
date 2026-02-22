@@ -1,7 +1,6 @@
+import type { PublishConfig as BasePublishConfig } from '@releasekit/config';
 import type { VersionOutput } from '@releasekit/core';
 import type { PackageManager } from './utils/package-manager.js';
-
-// ---- Config types ----
 
 export interface NpmConfig {
   enabled: boolean;
@@ -56,8 +55,6 @@ export interface PublishConfig {
   verify: VerifyConfig;
 }
 
-// ---- CLI options ----
-
 export interface PublishCliOptions {
   input?: string;
   config?: string;
@@ -71,8 +68,6 @@ export interface PublishCliOptions {
   json: boolean;
   verbose: boolean;
 }
-
-// ---- Output types ----
 
 export interface PublishResult {
   packageName: string;
@@ -116,8 +111,6 @@ export interface PublishOutput {
   githubReleases: GitHubReleaseResult[];
 }
 
-// ---- Pipeline context (internal, passed between stages) ----
-
 export interface PipelineContext {
   input: VersionOutput;
   config: PublishConfig;
@@ -125,4 +118,105 @@ export interface PipelineContext {
   packageManager: PackageManager;
   output: PublishOutput;
   cwd: string;
+}
+
+export function getDefaultConfig(): PublishConfig {
+  return {
+    npm: {
+      enabled: true,
+      auth: 'auto',
+      provenance: true,
+      access: 'public',
+      registry: 'https://registry.npmjs.org',
+      copyFiles: ['LICENSE'],
+      tag: 'latest',
+    },
+    cargo: {
+      enabled: false,
+      noVerify: false,
+      publishOrder: [],
+      clean: false,
+    },
+    git: {
+      push: true,
+      pushMethod: 'auto',
+      remote: 'origin',
+      branch: 'main',
+    },
+    githubRelease: {
+      enabled: true,
+      draft: true,
+      generateNotes: true,
+      perPackage: false,
+      prerelease: 'auto',
+    },
+    verify: {
+      npm: {
+        enabled: true,
+        maxAttempts: 5,
+        initialDelay: 15000,
+        backoffMultiplier: 2,
+      },
+      cargo: {
+        enabled: true,
+        maxAttempts: 10,
+        initialDelay: 30000,
+        backoffMultiplier: 2,
+      },
+    },
+  };
+}
+
+export function toPublishConfig(config: BasePublishConfig | undefined): PublishConfig {
+  const defaults = getDefaultConfig();
+
+  if (!config) return defaults;
+
+  return {
+    npm: {
+      enabled: config.npm?.enabled ?? defaults.npm.enabled,
+      auth: config.npm?.auth ?? defaults.npm.auth,
+      provenance: config.npm?.provenance ?? defaults.npm.provenance,
+      access: config.npm?.access ?? defaults.npm.access,
+      registry: config.npm?.registry ?? defaults.npm.registry,
+      copyFiles: config.npm?.copyFiles ?? defaults.npm.copyFiles,
+      tag: config.npm?.tag ?? defaults.npm.tag,
+    },
+    cargo: {
+      enabled: config.cargo?.enabled ?? defaults.cargo.enabled,
+      noVerify: config.cargo?.noVerify ?? defaults.cargo.noVerify,
+      publishOrder: config.cargo?.publishOrder ?? defaults.cargo.publishOrder,
+      clean: config.cargo?.clean ?? defaults.cargo.clean,
+    },
+    git: config.git
+      ? {
+          push: config.git.push ?? defaults.git.push,
+          pushMethod: config.git.pushMethod ?? defaults.git.pushMethod,
+          remote: config.git.remote ?? defaults.git.remote,
+          branch: config.git.branch ?? defaults.git.branch,
+        }
+      : defaults.git,
+    githubRelease: {
+      enabled: config.githubRelease?.enabled ?? defaults.githubRelease.enabled,
+      draft: config.githubRelease?.draft ?? defaults.githubRelease.draft,
+      generateNotes: config.githubRelease?.generateNotes ?? defaults.githubRelease.generateNotes,
+      perPackage: config.githubRelease?.perPackage ?? defaults.githubRelease.perPackage,
+      prerelease: config.githubRelease?.prerelease ?? defaults.githubRelease.prerelease,
+      notesFile: config.githubRelease?.notesFile,
+    },
+    verify: {
+      npm: {
+        enabled: config.verify?.npm?.enabled ?? defaults.verify.npm.enabled,
+        maxAttempts: config.verify?.npm?.maxAttempts ?? defaults.verify.npm.maxAttempts,
+        initialDelay: config.verify?.npm?.initialDelay ?? defaults.verify.npm.initialDelay,
+        backoffMultiplier: config.verify?.npm?.backoffMultiplier ?? defaults.verify.npm.backoffMultiplier,
+      },
+      cargo: {
+        enabled: config.verify?.cargo?.enabled ?? defaults.verify.cargo.enabled,
+        maxAttempts: config.verify?.cargo?.maxAttempts ?? defaults.verify.cargo.maxAttempts,
+        initialDelay: config.verify?.cargo?.initialDelay ?? defaults.verify.cargo.initialDelay,
+        backoffMultiplier: config.verify?.cargo?.backoffMultiplier ?? defaults.verify.cargo.backoffMultiplier,
+      },
+    },
+  };
 }

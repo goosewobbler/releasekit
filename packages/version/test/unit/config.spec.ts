@@ -1,89 +1,93 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Config } from '../../src/types.js';
-
-// Mock modules before importing anything
-vi.mock('node:process', () => ({
-  cwd: vi.fn(() => '/test/path'),
-}));
-
-vi.mock('node:fs', () => ({
-  readFile: vi.fn((_path, _encoding, callback) => {
-    // Default implementation
-    if (callback) callback(null, '{}');
-    return undefined;
-  }),
-}));
-
 import * as fs from 'node:fs';
-// Import after mocking
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
 import { loadConfig } from '../../src/config.js';
 
 describe('Config', () => {
+  const tmpDirs: string[] = [];
+
+  function createTmpDir(): string {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-version-test-'));
+    tmpDirs.push(dir);
+    return dir;
+  }
+
+  afterEach(() => {
+    for (const dir of tmpDirs) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+    tmpDirs.length = 0;
+  });
+
   describe('loadConfig', () => {
-    const mockConfig: Config = {
-      preset: 'conventional-commits',
-      packages: [],
-      versionPrefix: 'v',
-      tagTemplate: '${' + 'prefix}${' + 'version}',
-      packageTagTemplate: '${' + 'packageName}@${' + 'prefix}${' + 'version}',
-      versionStrategy: 'branchPattern' as const,
-      baseBranch: 'main',
-      sync: true,
-      branchPattern: [],
-      skip: [],
-      updateInternalDependencies: 'no-internal-update' as const,
-    };
+    it('should return default config when no config file exists', () => {
+      const dir = createTmpDir();
+      const config = loadConfig({ cwd: dir });
 
-    beforeEach(() => {
-      vi.resetAllMocks();
+      expect(config.tagTemplate).toBe('v{version}');
+      expect(config.sync).toBe(true);
+      expect(config.packages).toEqual([]);
+      expect(config.preset).toBe('conventional');
     });
 
-    it('should load config from default path when no path is provided', async () => {
-      // @ts-expect-error - Mock doesn't match exact fs.readFile signature
-      vi.mocked(fs.readFile, { partial: true }).mockImplementationOnce((_path, _encoding, callback) => {
-        if (callback) callback(null, JSON.stringify(mockConfig));
-        return undefined;
-      });
+    it('should load config from releasekit.config.json', () => {
+      const dir = createTmpDir();
+      fs.writeFileSync(
+        path.join(dir, 'releasekit.config.json'),
+        JSON.stringify({
+          version: {
+            tagTemplate: 'v{version}',
+            preset: 'angular',
+            sync: false,
+            packages: ['packages/*'],
+          },
+        }),
+      );
 
-      const config = await loadConfig();
-      expect(config).toEqual(mockConfig);
-      expect(fs.readFile).toHaveBeenCalledWith('/test/path/version.config.json', 'utf-8', expect.any(Function));
+      const config = loadConfig({ cwd: dir });
+
+      expect(config.preset).toBe('angular');
+      expect(config.sync).toBe(false);
+      expect(config.packages).toEqual(['packages/*']);
     });
 
-    it('should load config from custom path when provided', async () => {
-      // @ts-expect-error - Mock doesn't match exact fs.readFile signature
-      vi.mocked(fs.readFile, { partial: true }).mockImplementationOnce((_path, _encoding, callback) => {
-        if (callback) callback(null, JSON.stringify(mockConfig));
-        return undefined;
-      });
+    it('should load config from custom path', () => {
+      const dir = createTmpDir();
+      const customPath = path.join(dir, 'custom-config.json');
+      fs.writeFileSync(
+        customPath,
+        JSON.stringify({
+          version: {
+            tagTemplate: 'release-{version}',
+          },
+        }),
+      );
 
-      const customPath = '/custom/path/config.json';
-      const config = await loadConfig(customPath);
+      const config = loadConfig({ cwd: dir, configPath: customPath });
 
-      expect(config).toEqual(mockConfig);
-      expect(fs.readFile).toHaveBeenCalledWith(customPath, 'utf-8', expect.any(Function));
+      expect(config.tagTemplate).toBe('release-{version}');
     });
 
-    it('should reject with error when config file is not found', async () => {
-      // Mock implementation for this test
-      const fileError = new Error('File not found');
-      // @ts-expect-error - Mock doesn't match exact fs.readFile signature
-      vi.mocked(fs.readFile, { partial: true }).mockImplementationOnce((_path, _encoding, callback) => {
-        if (callback) callback(fileError);
-        return undefined;
-      });
+    it('should throw on invalid JSON', () => {
+      const dir = createTmpDir();
+      fs.writeFileSync(path.join(dir, 'releasekit.config.json'), 'not valid json');
 
-      await expect(loadConfig()).rejects.toThrow(/Could not locate the config file/);
+      expect(() => loadConfig({ cwd: dir })).toThrow();
     });
 
-    it('should reject with error when config file is invalid JSON', async () => {
-      // @ts-expect-error - Mock doesn't match exact fs.readFile signature
-      vi.mocked(fs.readFile, { partial: true }).mockImplementationOnce((_path, _encoding, callback) => {
-        if (callback) callback(null, '{invalid json}');
-        return undefined;
-      });
+    it('should throw on invalid config values', () => {
+      const dir = createTmpDir();
+      fs.writeFileSync(
+        path.join(dir, 'releasekit.config.json'),
+        JSON.stringify({
+          version: {
+            updateInternalDependencies: 'invalid-value',
+          },
+        }),
+      );
 
-      await expect(loadConfig()).rejects.toThrow(/Failed to parse config file/);
+      expect(() => loadConfig({ cwd: dir })).toThrow();
     });
   });
 });

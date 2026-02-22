@@ -48,12 +48,13 @@
     "provenance": true
   },
   "dependencies": {
+    "@releasekit/config": "workspace:*",
     "@releasekit/core": "workspace:*",
     "chalk": "catalog:",
     "commander": "catalog:",
     "semver": "^7.7.4",
     "smol-toml": "^1.6.0",
-    "zod": "^3.24.2"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
