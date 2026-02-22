@@ -150,24 +150,6 @@ describe('CLI Interface', () => {
     expect(commanderInstance.getCommands()).toContainEqual(['version', expect.objectContaining({ isDefault: true })]);
   });
 
-  it('should execute the changelog command when explicitly specified', async () => {
-    // Set argv to simulate CLI with changelog command
-    mockProcess.argv = ['node', 'index.js', 'changelog', '--dry-run'];
-
-    // Call the run function
-    await indexModule.run();
-
-    // Get the commander instance
-    const commanderInstance = vi.mocked(Command, { partial: true }).mock.results[0].value;
-
-    // Check if parse was called
-    expect(commanderInstance.parse).toHaveBeenCalled();
-
-    // Check that changelog command exists
-    const commands = commanderInstance.getCommands();
-    expect(commands.map(([cmdName]: [string, unknown]) => cmdName)).toContain('changelog');
-  });
-
   describe('CLI Target Handling', () => {
     it('should override config.packages when -t flag is used', async () => {
       // Create a spy to capture the config passed to VersionEngine

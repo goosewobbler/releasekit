@@ -1,0 +1,33 @@
+{
+  "dryRun": false,
+  "updates": [
+    {
+      "packageName": "@releasekit/version",
+      "newVersion": "0.2.0",
+      "filePath": "packages/version/package.json"
+    },
+    {
+      "packageName": "@releasekit/notes",
+      "newVersion": "0.2.0",
+      "filePath": "packages/notes/package.json"
+    }
+  ],
+  "changelogs": [
+    {
+      "packageName": "@releasekit/version",
+      "version": "0.2.0",
+      "previousVersion": "0.1.0",
+      "revisionRange": "v0.1.0..HEAD",
+      "repoUrl": "https://github.com/goosewobbler/releasekit",
+      "entries": [
+        {
+          "type": "feat",
+          "description": "Add publish support",
+          "scope": "version"
+        }
+      ]
+    }
+  ],
+  "commitMessage": "chore: release @releasekit/version@0.2.0 [skip ci]",
+  "tags": ["@releasekit/version@v0.2.0", "@releasekit/notes@v0.2.0"]
+}

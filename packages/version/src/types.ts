@@ -46,8 +46,6 @@ export interface Config extends VersionConfigBase {
   skipHooks?: boolean;
   dryRun?: boolean;
   latestTag?: string;
-  writeChangelog?: boolean; // Whether to write changelog files to disk
-  changelogFormat?: 'keep-a-changelog' | 'angular'; // Format to use for changelogs
   isPrerelease?: boolean; // Track whether prerelease was explicitly requested via --prerelease flag
   /** How to handle version mismatches between git tags and package.json */
   mismatchStrategy?: 'error' | 'warn' | 'ignore' | 'prefer-package' | 'prefer-git';

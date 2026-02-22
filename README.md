@@ -14,11 +14,11 @@ Release tooling for automated versioning and changelog generation.
 The packages are designed to work together:
 
 ```bash
-# Version packages
-@releasekit/version
+# Version packages and output JSON
+@releasekit/version --json
 
 # Generate changelogs from version output
-@releasekit/version | @releasekit/notes
+@releasekit/version --json | @releasekit/notes
 ```
 
 ## Development

@@ -1,0 +1,70 @@
+{
+  "name": "@releasekit/publish",
+  "version": "0.1.0",
+  "description": "CLI tool for publishing packages to npm and crates.io with git tagging and GitHub releases",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "bin": {
+    "releasekit-publish": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts src/cli.ts --format esm,cjs --dts",
+    "dev": "tsup src/index.ts src/cli.ts --format esm,cjs --watch --dts",
+    "clean": "rm -rf dist coverage .turbo",
+    "test": "vitest run",
+    "test:unit": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage",
+    "lint": "biome check .",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": ["publish", "npm", "cargo", "release", "ci"],
+  "author": {
+    "name": "Sam Maister",
+    "email": "goosewobbler@protonmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/goosewobbler/releasekit",
+    "directory": "packages/publish"
+  },
+  "license": "MIT",
+  "files": ["dist", "README.md", "LICENSE"],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "dependencies": {
+    "@releasekit/core": "workspace:*",
+    "chalk": "catalog:",
+    "commander": "catalog:",
+    "semver": "^7.7.4",
+    "smol-toml": "^1.6.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "@types/node": "catalog:",
+    "@types/semver": "^7.7.1",
+    "@vitest/coverage-v8": "catalog:",
+    "tsup": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=18 || >=20"
+  }
+}

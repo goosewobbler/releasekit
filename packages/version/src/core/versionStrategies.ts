@@ -6,7 +6,7 @@ import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import * as path from 'node:path';
 import type { Package } from '@manypkg/get-packages';
-import { type ChangelogEntry, updateChangelog } from '../changelog/changelogManager.js';
+import type { VersionChangelogEntry } from '@releasekit/core';
 import { extractChangelogEntriesFromCommits } from '../changelog/commitParser.js';
 import { BaseVersionError } from '../errors/baseError.js';
 import { createVersionError, VersionErrorCode } from '../errors/versionError.js';
@@ -21,6 +21,8 @@ import { log } from '../utils/logging.js';
 import { shouldProcessPackage as shouldProcessPackageUtil } from '../utils/packageMatching.js';
 import { calculateVersion } from './versionCalculator.js';
 import type { PackagesWithRoot } from './versionEngine.js';
+
+type ChangelogEntry = VersionChangelogEntry;
 
 /**
  * Available strategy types
@@ -405,11 +407,6 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         repoUrl: repoUrl || null,
         entries: changelogEntries,
       });
-
-      // Write changelog file if enabled
-      if (config.writeChangelog !== false) {
-        updateChangelog(pkgPath, packageName, nextVersion, changelogEntries, repoUrl, config.changelogFormat);
-      }
 
       // Update package.json
       const packageJsonPath = path.join(pkgPath, 'package.json');

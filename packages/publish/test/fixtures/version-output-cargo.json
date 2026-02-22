@@ -1,0 +1,18 @@
+{
+  "dryRun": false,
+  "updates": [
+    {
+      "packageName": "@zubridge/tauri",
+      "newVersion": "0.5.0",
+      "filePath": "packages/tauri/package.json"
+    },
+    {
+      "packageName": "tauri-plugin-zubridge",
+      "newVersion": "0.5.0",
+      "filePath": "packages/tauri-plugin/Cargo.toml"
+    }
+  ],
+  "changelogs": [],
+  "commitMessage": "chore: release v0.5.0 [skip ci]",
+  "tags": ["v0.5.0"]
+}

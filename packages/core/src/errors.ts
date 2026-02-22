@@ -39,6 +39,7 @@ export const EXIT_CODES = {
   GITHUB_ERROR: 6,
   GIT_ERROR: 7,
   VERSION_ERROR: 8,
+  PUBLISH_ERROR: 9,
 } as const;
 
 export type ExitCode = (typeof EXIT_CODES)[keyof typeof EXIT_CODES];

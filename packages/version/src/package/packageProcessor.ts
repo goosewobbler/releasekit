@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import path from 'node:path';
 import { exit } from 'node:process';
 import type { Package } from '@manypkg/get-packages';
-import { type ChangelogEntry, updateChangelog } from '../changelog/changelogManager.js';
+import type { VersionChangelogEntry } from '@releasekit/core';
 import { extractChangelogEntriesFromCommits } from '../changelog/commitParser.js';
 import { calculateVersion } from '../core/versionCalculator.js';
 import { createGitTag, gitAdd, gitCommit } from '../git/commands.js';
@@ -15,6 +15,8 @@ import { log } from '../utils/logging.js';
 import { getVersionFromManifests } from '../utils/manifestHelpers.js';
 import { shouldProcessPackage } from '../utils/packageMatching.js';
 import { updatePackageVersion } from './packageManagement.js';
+
+type ChangelogEntry = VersionChangelogEntry;
 
 export interface PackageProcessorOptions {
   skip?: string[];
@@ -249,11 +251,6 @@ export class PackageProcessor {
         repoUrl: repoUrl || null,
         entries: changelogEntries,
       });
-
-      // Write changelog file if enabled
-      if (this.fullConfig.writeChangelog !== false) {
-        updateChangelog(pkgPath, name, nextVersion, changelogEntries, repoUrl, this.fullConfig.changelogFormat);
-      }
 
       // Update both package.json and Cargo.toml if they exist.
       // Note: There is no priority between package.json and Cargo.toml.

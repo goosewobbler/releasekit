@@ -1,0 +1,13 @@
+{
+  "dryRun": false,
+  "updates": [
+    {
+      "packageName": "@releasekit/version",
+      "newVersion": "0.2.0-next.1",
+      "filePath": "packages/version/package.json"
+    }
+  ],
+  "changelogs": [],
+  "commitMessage": "chore: release @releasekit/version@0.2.0-next.1 [skip ci]",
+  "tags": ["@releasekit/version@v0.2.0-next.1"]
+}

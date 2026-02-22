@@ -18,9 +18,8 @@ A lightweight yet powerful CLI tool for automated semantic versioning based on G
 - Customizable through a `version.config.json` file or CLI options
 - Automatically updates `package.json` or `Cargo.toml` version
 - Creates appropriate Git tags for releases
-- Automatically generates and maintains changelogs in Keep a Changelog or Angular format
-- Integrates commit messages, breaking changes, and issue references into well-structured changelogs
 - CI/CD friendly with JSON output support
+- Changelog data included in JSON output for use with @releasekit/notes
 
 ## Supporting JavaScript and Rust Projects
 
@@ -140,8 +139,6 @@ Customize behaviour by creating a `version.config.json` file in your project roo
   "tagTemplate": "${packageName}@${prefix}${version}",
   "packageSpecificTags": true,
   "commitMessage": "chore: release ${packageName}@${version} [skip ci]",
-  "writeChangelog": true,
-  "changelogFormat": "keep-a-changelog",
   "strictReachable": false,
   "sync": true,
   "skip": [
@@ -164,8 +161,6 @@ Customize behaviour by creating a `version.config.json` file in your project roo
 - `versionPrefix`: Prefix for version numbers in tags (default: "v")
 - `tagTemplate`: Template for Git tags (default: "${prefix}${version}")
 - `commitMessage`: Template for commit messages (default: "chore(release): ${version}")
-- `writeChangelog`: Whether to write changelog files to disk (default: true). Changelog data is always available via `--json` regardless of this setting
-- `changelogFormat`: Format for changelogs - "keep-a-changelog" or "angular" (default: "keep-a-changelog")
 - `strictReachable`: Only use reachable tags, no fallback to unreachable tags (default: false)
 - `prereleaseIdentifier`: Identifier for prerelease versions (e.g., "alpha", "beta", "next") used in versions like "1.2.0-alpha.3"
 - `mismatchStrategy`: How to handle version mismatches between git tags and package.json (default: "error"). Options:
@@ -293,8 +288,9 @@ For a detailed explanation of these concepts and monorepo modes (Sync vs. Async)
 ## Documentation
 
 - [Versioning Strategies and Concepts](./docs/versioning.md) - Detailed explanation of versioning approaches
-- [CI/CD Integration](./docs/ci_cd_integration.md) - Guide for integrating with CI/CD pipelines
-- [Changelog Generation](./docs/changelogs.md) - How changelogs are automatically generated and maintained
+- [CI/CD Integration](./docs/CI_CD_INTEGRATION.md) - Guide for integrating with CI/CD pipelines
+
+For changelog generation, use [@releasekit/notes](../notes) which consumes the JSON output from this tool.
 
 For more details on available CLI options, run:
 

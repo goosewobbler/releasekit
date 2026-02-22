@@ -3,20 +3,10 @@
  * Centralizes all JSON output handling
  */
 
-import type { ChangelogEntry } from '../changelog/changelogManager.js';
+import type { VersionPackageChangelog } from '@releasekit/core';
 
-export interface PackageChangelogData {
-  packageName: string;
-  version: string;
-  previousVersion: string | null;
-  revisionRange: string;
-  repoUrl: string | null;
-  entries: ChangelogEntry[];
-}
+export type PackageChangelogData = VersionPackageChangelog;
 
-/**
- * JSON output data structure
- */
 export interface JsonOutputData {
   dryRun: boolean;
   updates: Array<{
@@ -24,7 +14,7 @@ export interface JsonOutputData {
     newVersion: string;
     filePath: string;
   }>;
-  changelogs: PackageChangelogData[];
+  changelogs: VersionPackageChangelog[];
   commitMessage?: string;
   tags: string[];
 }
@@ -76,7 +66,7 @@ export function addPackageUpdate(packageName: string, newVersion: string, filePa
 /**
  * Add changelog data for a package to the JSON output
  */
-export function addChangelogData(data: PackageChangelogData): void {
+export function addChangelogData(data: VersionPackageChangelog): void {
   if (!_jsonOutputMode) return;
 
   _jsonData.changelogs.push(data);

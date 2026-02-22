@@ -2,7 +2,6 @@
 import * as fs from 'node:fs';
 import path from 'node:path';
 import { Command } from 'commander';
-import { regenerateChangelog, writeChangelog } from './changelog/changelogRegenerator.js';
 import { loadConfig } from './config.js';
 import { VersionEngine } from './core/versionEngine.js';
 import type { Config } from './types.js';
@@ -156,67 +155,9 @@ export async function run(): Promise<void> {
               // Log the full stack trace
               console.error('Error details:');
               console.error(error.stack || error.message);
-
-              // If it's a command error, try to extract and log the underlying command output
-              if (error.message.includes('Command failed:')) {
-                const cmdOutput = error.message.split('Command failed:')[1];
-                if (cmdOutput) {
-                  console.error('Command output:', cmdOutput.trim());
-                }
-              }
             }
-          }
-
-          process.exit(1);
-        }
-      });
-
-    // Changelog command
-    program
-      .command('changelog')
-      .description('Changelog management commands')
-      .option('--regenerate', 'Regenerate a complete changelog from git history')
-      .option('-o, --output <path>', 'Output path for changelog file', 'CHANGELOG.md')
-      .option('-f, --format <format>', 'Changelog format (keep-a-changelog|angular)', 'keep-a-changelog')
-      .option('-s, --since <tag>', 'Start changelog from specific tag')
-      .option('-u, --repo-url <url>', 'Repository URL for changelog links')
-      .option('-d, --dry-run', 'Preview changelog without writing to file', false)
-      .option('-p, --project-dir <path>', 'Project directory', process.cwd())
-      .action(async (options) => {
-        if (options.regenerate) {
-          try {
-            log('Regenerating changelog from git history...', 'info');
-
-            // Validate options
-            if (options.format !== 'keep-a-changelog' && options.format !== 'angular') {
-              throw new Error('Invalid format specified. Must be either "keep-a-changelog" or "angular"');
-            }
-
-            const regenerateOptions = {
-              format: options.format,
-              since: options.since,
-              output: options.output,
-              dryRun: options.dryRun,
-              projectDir: options.projectDir,
-              repoUrl: options.repoUrl,
-            };
-
-            // Generate changelog content
-            const content = await regenerateChangelog(regenerateOptions);
-
-            // Write to file or preview
-            await writeChangelog(content, path.resolve(options.projectDir, options.output), options.dryRun);
-
-            if (!options.dryRun) {
-              log(`Changelog successfully regenerated at ${options.output}`, 'success');
-            }
-          } catch (error) {
-            log(error instanceof Error ? error.message : String(error), 'error');
             process.exit(1);
           }
-        } else {
-          // Print help for changelog command if no subcommand/flag is passed
-          program.commands.find((cmd) => cmd.name() === 'changelog')?.help();
         }
       });
 

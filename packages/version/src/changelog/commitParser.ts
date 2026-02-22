@@ -5,8 +5,10 @@
  */
 
 import { execSync } from 'node:child_process';
+import type { VersionChangelogEntry } from '@releasekit/core';
 import { log } from '../utils/logging.js';
-import type { ChangelogEntry } from './changelogManager.js';
+
+type ChangelogEntry = VersionChangelogEntry;
 
 // Regular expression to parse conventional commit messages
 const CONVENTIONAL_COMMIT_REGEX = /^(\w+)(?:\(([^)]+)\))?(!)?: (.+)(?:\n\n([\s\S]*))?/;
