@@ -1,0 +1,4 @@
+module.exports = {
+  name: 'pkg-b',
+  version: '0.1.0',
+};

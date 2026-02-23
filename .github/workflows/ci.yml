@@ -9,7 +9,6 @@ on:
     inputs:
       force_all:
         description: 'Run all tests (ignore change detection)'
-        required: false
         type: boolean
         default: false
 
@@ -33,85 +32,92 @@ jobs:
     name: Build
     needs: [detect-changes]
     if: needs.detect-changes.outputs.has_changes == 'true'
-    runs-on: ubuntu-latest
-    outputs:
-      cache_key: ${{ steps.upload.outputs.cache_key }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: ./.github/workflows/actions/setup-workspace
-
-      - name: Build
-        run: pnpm build
-
-      - name: Upload build artifacts
-        id: upload
-        uses: ./.github/workflows/actions/upload-archive
-        with:
-          name: releasekit-build
-          paths: packages/*/dist
+    uses: ./.github/workflows/_ci-build.reusable.yml
+    with:
+      os: ubuntu-latest
 
   lint:
     name: Lint
     needs: [detect-changes, build]
     if: needs.detect-changes.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - uses: ./.github/workflows/actions/setup-workspace
+      - name: Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
 
-      - uses: ./.github/workflows/actions/download-archive
+      - name: Download build artifacts
+        uses: ./.github/workflows/actions/download-archive
         with:
           name: releasekit-build
           cache_key: ${{ needs.build.outputs.cache_key }}
 
-      - run: pnpm lint
+      - name: Run lint
+        run: pnpm lint
 
   typecheck:
     name: Typecheck
     needs: [detect-changes, build]
     if: needs.detect-changes.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - uses: ./.github/workflows/actions/setup-workspace
+      - name: Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
 
-      - uses: ./.github/workflows/actions/download-archive
+      - name: Download build artifacts
+        uses: ./.github/workflows/actions/download-archive
         with:
           name: releasekit-build
           cache_key: ${{ needs.build.outputs.cache_key }}
 
-      - run: pnpm typecheck
+      - name: Run typecheck
+        run: pnpm typecheck
 
-  test:
-    name: Test
+  unit-tests:
+    name: Unit Tests
     needs: [detect-changes, build]
     if: needs.detect-changes.outputs.has_changes == 'true'
-    runs-on: ubuntu-latest
+    uses: ./.github/workflows/_ci-unit.reusable.yml
+    with:
+      os: ubuntu-latest
+      cache_key: ${{ needs.build.outputs.cache_key }}
 
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: ./.github/workflows/actions/setup-workspace
-
-      - uses: ./.github/workflows/actions/download-archive
-        with:
-          name: releasekit-build
-          cache_key: ${{ needs.build.outputs.cache_key }}
-
-      - run: pnpm test:coverage
+  e2e-tests:
+    name: E2E Tests
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_e2e == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            module-type: esm
+          - os: ubuntu-latest
+            module-type: cjs
+          - os: macos-latest
+            module-type: esm
+          - os: macos-latest
+            module-type: cjs
+          - os: windows-latest
+            module-type: esm
+          - os: windows-latest
+            module-type: cjs
+    uses: ./.github/workflows/_ci-e2e.reusable.yml
+    with:
+      os: ${{ matrix.os }}
+      module-type: ${{ matrix.module-type }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
 
   ci-status:
     name: CI Status
     if: always()
-    needs: [detect-changes, lint, typecheck, test]
+    needs: [detect-changes, lint, typecheck, unit-tests, e2e-tests]
     runs-on: ubuntu-latest
-
     steps:
       - name: Check CI results
         run: |

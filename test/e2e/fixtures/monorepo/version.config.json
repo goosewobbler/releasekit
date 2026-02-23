@@ -1,0 +1,7 @@
+{
+  "preset": "conventional-commits",
+  "packages": ["packages/*"],
+  "sync": true,
+  "versionPrefix": "v",
+  "tagTemplate": "v{version}"
+}

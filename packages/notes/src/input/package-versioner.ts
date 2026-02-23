@@ -48,7 +48,7 @@ export function parsePackageVersioner(json: string): ChangelogInput {
       issueIds: entry.issueIds,
       scope: entry.scope,
       originalType: entry.originalType,
-      breaking: entry.originalType?.includes('!'),
+      breaking: entry.breaking ?? entry.originalType?.includes('!') ?? false,
     })),
   }));
 

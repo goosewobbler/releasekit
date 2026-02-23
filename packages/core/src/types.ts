@@ -14,6 +14,7 @@ export interface VersionChangelogEntry {
   issueIds?: string[];
   scope?: string;
   originalType?: string;
+  breaking?: boolean;
 }
 
 /**

@@ -1,0 +1,50 @@
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+    outputs:
+      cache_key:
+        value: ${{ steps.upload.outputs.cache_key }}
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+jobs:
+  build:
+    name: Build [${{ inputs.os }}]
+    runs-on: ${{ inputs.os }}
+    outputs:
+      cache_key: ${{ steps.upload.outputs.cache_key }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Pack packages as tarballs
+        run: |
+          cd packages/core && pnpm pack
+          cd ../config && pnpm pack
+          cd ../version && pnpm pack
+          cd ../notes && pnpm pack
+          cd ../publish && pnpm pack
+
+      - name: Upload build artifacts
+        id: upload
+        uses: ./.github/workflows/actions/upload-archive
+        with:
+          name: releasekit-build
+          paths: |
+            packages/*/dist
+            packages/*/*.tgz

@@ -1,0 +1,39 @@
+name: E2E Tests
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+      module-type:
+        required: false
+        type: string
+        default: 'esm'
+      cache_key:
+        required: true
+        type: string
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+jobs:
+  e2e-tests:
+    name: E2E [${{ inputs.os }}] (${{ inputs.module-type }})
+    runs-on: ${{ inputs.os }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
+
+      - name: Download build artifacts
+        uses: ./.github/workflows/actions/download-archive
+        with:
+          name: releasekit-build
+          cache_key: ${{ inputs.cache_key }}
+
+      - name: Run isolated E2E tests
+        run: pnpm exec tsx scripts/test-e2e-isolated.ts --module-type=${{ inputs.module-type }} --skip-build

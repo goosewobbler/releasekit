@@ -1,0 +1,6 @@
+{
+  "name": "test-single-package",
+  "version": "0.1.0",
+  "description": "Test single package for E2E",
+  "main": "index.js"
+}

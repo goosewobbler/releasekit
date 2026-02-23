@@ -39,6 +39,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "tsup": "catalog:",
+    "tsx": "catalog:",
     "turbo": "2.8.9",
     "typescript": "catalog:"
   },

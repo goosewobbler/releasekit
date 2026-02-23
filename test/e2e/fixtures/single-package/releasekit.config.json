@@ -1,0 +1,8 @@
+{
+  "version": {
+    "preset": "conventional-commits"
+  },
+  "notes": {
+    "updateStrategy": "prepend"
+  }
+}

@@ -7,5 +7,6 @@ export {
   parsePackageVersionerFile,
   parsePackageVersionerStdin,
 } from './input/package-versioner.js';
+export { aggregateToRoot, detectMonorepo, writeMonorepoChangelogs } from './monorepo/aggregator.js';
 export { renderJson, writeJson } from './output/json.js';
 export { renderMarkdown, writeMarkdown } from './output/markdown.js';

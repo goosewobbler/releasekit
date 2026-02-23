@@ -1,0 +1,8 @@
+{
+  "name": "test-monorepo-root",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Test monorepo for E2E",
+  "license": "MIT",
+  "workspaces": ["packages/*"]
+}

@@ -1,0 +1,20 @@
+{
+  "git": {
+    "remote": "origin",
+    "branch": "main"
+  },
+  "version": {
+    "preset": "conventional-commits",
+    "sync": false,
+    "packages": ["packages/*"]
+  },
+  "notes": {
+    "updateStrategy": "prepend"
+  },
+  "publish": {
+    "npm": {
+      "enabled": true,
+      "access": "public"
+    }
+  }
+}
