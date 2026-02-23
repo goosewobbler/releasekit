@@ -8,7 +8,7 @@ on:
         type: string
     outputs:
       cache_key:
-        value: ${{ steps.upload.outputs.cache_key }}
+        value: ${{ jobs.build.outputs.cache_key }}
 
 env:
   TURBO_TELEMETRY_DISABLED: 1
