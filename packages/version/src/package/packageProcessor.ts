@@ -242,7 +242,7 @@ export class PackageProcessor {
         );
       }
 
-      // Track changelog data for JSON output (always, regardless of writeChangelog)
+      // Track changelog data for JSON output
       addChangelogData({
         packageName: name,
         version: nextVersion,
