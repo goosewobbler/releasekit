@@ -5,34 +5,122 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      force_all:
+        description: 'Run all tests (ignore change detection)'
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
 jobs:
-  lint:
-    name: Lint
+  detect-changes:
+    name: Detect Changes
+    uses: ./.github/workflows/_ci-detect-changes.reusable.yml
+    with:
+      force_all: ${{ inputs.force_all || false }}
+
+  build:
+    name: Build
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
+    outputs:
+      cache_key: ${{ steps.upload.outputs.cache_key }}
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: ./.github/workflows/actions/setup-workspace
+
+      - name: Build
+        run: pnpm build
+
+      - name: Upload build artifacts
+        id: upload
+        uses: ./.github/workflows/actions/upload-archive
+        with:
+          name: releasekit-build
+          paths: packages/*/dist
+
+  lint:
+    name: Lint
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/workflows/actions/setup-workspace
+
+      - uses: ./.github/workflows/actions/download-archive
+        with:
+          name: releasekit-build
+          cache_key: ${{ needs.build.outputs.cache_key }}
+
       - run: pnpm lint
 
   typecheck:
     name: Typecheck
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: ./.github/workflows/actions/setup-workspace
-      - run: pnpm build
+
+      - uses: ./.github/workflows/actions/download-archive
+        with:
+          name: releasekit-build
+          cache_key: ${{ needs.build.outputs.cache_key }}
+
       - run: pnpm typecheck
 
   test:
     name: Test
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: ./.github/workflows/actions/setup-workspace
-      - run: pnpm build
+
+      - uses: ./.github/workflows/actions/download-archive
+        with:
+          name: releasekit-build
+          cache_key: ${{ needs.build.outputs.cache_key }}
+
       - run: pnpm test:coverage
+
+  ci-status:
+    name: CI Status
+    if: always()
+    needs: [detect-changes, lint, typecheck, test]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check CI results
+        run: |
+          results="${{ join(needs.*.result, ' ') }}"
+          echo "Job results: $results"
+          for result in $results; do
+            if [ "$result" = "failure" ] || [ "$result" = "cancelled" ]; then
+              echo "CI failed: found job with result '$result'"
+              exit 1
+            fi
+          done
+          echo "All CI jobs passed or were skipped"

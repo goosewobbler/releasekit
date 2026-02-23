@@ -1,0 +1,55 @@
+name: 'Download Build Artifacts'
+description: 'Download build artifacts from cache or artifacts'
+
+inputs:
+  name:
+    description: 'Artifact name'
+    required: true
+  cache_key:
+    description: 'Exact cache key to use'
+    required: false
+  path:
+    description: 'Path to extract to'
+    required: false
+    default: '.'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Generate cache key
+      id: cache-key
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.cache_key }}" ]; then
+          echo "key=${{ inputs.cache_key }}" >> $GITHUB_OUTPUT
+        else
+          echo "key=${{ inputs.name }}-${{ github.run_id }}-${{ github.run_attempt }}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Try restore from cache
+      id: cache-restore
+      uses: actions/cache/restore@v4
+      with:
+        path: .artifacts/${{ inputs.name }}.zip
+        key: ${{ steps.cache-key.outputs.key }}
+
+    - name: Download from artifacts
+      if: steps.cache-restore.outputs.cache-hit != 'true'
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.name }}
+        path: .artifacts
+
+    - name: Extract artifact
+      shell: bash
+      run: |
+        mkdir -p ${{ inputs.path }}
+        if [ -f .artifacts/${{ inputs.name }}.zip ]; then
+          unzip -o .artifacts/${{ inputs.name }}.zip -d ${{ inputs.path }}
+        elif [ -f .artifacts/${{ inputs.name }} ]; then
+          unzip -o .artifacts/${{ inputs.name }} -d ${{ inputs.path }}
+        else
+          echo "Artifact not found"
+          ls -la .artifacts/ || true
+          exit 1
+        fi

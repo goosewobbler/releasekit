@@ -1,0 +1,130 @@
+name: Detect Changes
+
+on:
+  workflow_call:
+    inputs:
+      force_all:
+        description: 'Run all tests (ignore change detection)'
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      has_changes:
+        description: 'Whether there are changes to test'
+        value: ${{ jobs.detect.outputs.has_changes }}
+      run_version:
+        description: 'Whether to run version-related tests'
+        value: ${{ jobs.detect.outputs.run_version }}
+      run_publish:
+        description: 'Whether to run publish-related tests'
+        value: ${{ jobs.detect.outputs.run_publish }}
+      run_notes:
+        description: 'Whether to run notes-related tests'
+        value: ${{ jobs.detect.outputs.run_notes }}
+      run_config:
+        description: 'Whether to run config-related tests'
+        value: ${{ jobs.detect.outputs.run_config }}
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.determine.outputs.has_changes }}
+      run_version: ${{ steps.determine.outputs.run_version }}
+      run_publish: ${{ steps.determine.outputs.run_publish }}
+      run_notes: ${{ steps.determine.outputs.run_notes }}
+      run_config: ${{ steps.determine.outputs.run_config }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed files
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            version:
+              - 'packages/version/**'
+            publish:
+              - 'packages/publish/**'
+            notes:
+              - 'packages/notes/**'
+            config:
+              - 'packages/config/**'
+              - 'packages/core/**'
+            infra:
+              - '.github/workflows/**'
+              - '.github/actions/**'
+              - 'package.json'
+              - 'pnpm-workspace.yaml'
+              - 'pnpm-lock.yaml'
+              - 'turbo.json'
+              - 'tsconfig*.json'
+
+      - name: Determine what to run
+        id: determine
+        run: |
+          if [ "${{ inputs.force_all }}" = "true" ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "run_version=true" >> $GITHUB_OUTPUT
+            echo "run_publish=true" >> $GITHUB_OUTPUT
+            echo "run_notes=true" >> $GITHUB_OUTPUT
+            echo "run_config=true" >> $GITHUB_OUTPUT
+            echo "::notice::Force all mode - running all tests"
+            exit 0
+          fi
+
+          VERSION="${{ steps.changes.outputs.version }}"
+          PUBLISH="${{ steps.changes.outputs.publish }}"
+          NOTES="${{ steps.changes.outputs.notes }}"
+          CONFIG="${{ steps.changes.outputs.config }}"
+          INFRA="${{ steps.changes.outputs.infra }}"
+
+          RUN_VERSION="false"
+          RUN_PUBLISH="false"
+          RUN_NOTES="false"
+          RUN_CONFIG="false"
+
+          if [ "$VERSION" = "true" ] || [ "$INFRA" = "true" ] || [ "$CONFIG" = "true" ]; then
+            RUN_VERSION="true"
+          fi
+
+          if [ "$PUBLISH" = "true" ] || [ "$INFRA" = "true" ] || [ "$CONFIG" = "true" ]; then
+            RUN_PUBLISH="true"
+          fi
+
+          if [ "$NOTES" = "true" ] || [ "$INFRA" = "true" ] || [ "$CONFIG" = "true" ]; then
+            RUN_NOTES="true"
+          fi
+
+          if [ "$CONFIG" = "true" ] || [ "$INFRA" = "true" ]; then
+            RUN_CONFIG="true"
+          fi
+
+          HAS_CHANGES="false"
+          if [ "$RUN_VERSION" = "true" ] || [ "$RUN_PUBLISH" = "true" ] || [ "$RUN_NOTES" = "true" ] || [ "$RUN_CONFIG" = "true" ]; then
+            HAS_CHANGES="true"
+          fi
+
+          echo "has_changes=$HAS_CHANGES" >> $GITHUB_OUTPUT
+          echo "run_version=$RUN_VERSION" >> $GITHUB_OUTPUT
+          echo "run_publish=$RUN_PUBLISH" >> $GITHUB_OUTPUT
+          echo "run_notes=$RUN_NOTES" >> $GITHUB_OUTPUT
+          echo "run_config=$RUN_CONFIG" >> $GITHUB_OUTPUT
+
+          echo "## Change Detection" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Package | Changed | Run Tests |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|---------|-----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| version | $VERSION | $RUN_VERSION |" >> $GITHUB_STEP_SUMMARY
+          echo "| publish | $PUBLISH | $RUN_PUBLISH |" >> $GITHUB_STEP_SUMMARY
+          echo "| notes | $NOTES | $RUN_NOTES |" >> $GITHUB_STEP_SUMMARY
+          echo "| config/core | $CONFIG | $RUN_CONFIG |" >> $GITHUB_STEP_SUMMARY
+          echo "| infra | $INFRA | - |" >> $GITHUB_STEP_SUMMARY

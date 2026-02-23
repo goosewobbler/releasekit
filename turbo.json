@@ -1,6 +1,10 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
+  "remoteCache": {
+    "enabled": true
+  },
+  "globalEnv": ["TURBO_TOKEN", "TURBO_TEAM"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

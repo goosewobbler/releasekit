@@ -1,0 +1,48 @@
+name: 'Upload Build Artifacts'
+description: 'Upload build artifacts with caching for cross-job sharing'
+
+inputs:
+  name:
+    description: 'Artifact name'
+    required: true
+  paths:
+    description: 'Paths to include (space-separated)'
+    required: true
+  retention-days:
+    description: 'Retention days for artifact'
+    required: false
+    default: '7'
+
+outputs:
+  cache_key:
+    description: 'Cache key for downloading'
+    value: ${{ steps.cache-key.outputs.key }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Generate cache key
+      id: cache-key
+      shell: bash
+      run: |
+        echo "key=${{ inputs.name }}-${{ github.run_id }}-${{ github.run_attempt }}" >> $GITHUB_OUTPUT
+
+    - name: Create artifact archive
+      shell: bash
+      run: |
+        mkdir -p .artifacts
+        zip -r .artifacts/${{ inputs.name }}.zip ${{ inputs.paths }} -x "*/node_modules/*"
+        echo "Artifact size: $(du -h .artifacts/${{ inputs.name }}.zip | cut -f1)"
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.name }}
+        path: .artifacts/${{ inputs.name }}.zip
+        retention-days: ${{ inputs.retention-days }}
+
+    - name: Cache artifact
+      uses: actions/cache/save@v4
+      with:
+        path: .artifacts/${{ inputs.name }}.zip
+        key: ${{ steps.cache-key.outputs.key }}
