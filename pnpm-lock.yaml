@@ -320,7 +320,7 @@ importers:
         specifier: 'catalog:'
         version: 4.0.18(@types/node@25.3.0)(tsx@4.21.0)(yaml@2.8.2)
 
-  test/e2e:
+  test/integration:
     dependencies:
       '@releasekit/config':
         specifier: workspace:*
