@@ -29,4 +29,4 @@ export {
   type VerifyRegistryConfig,
   type VersionConfig,
 } from './schema.js';
-export { loadAuth, saveAuth, substituteInObject } from './substitute.js';
+export { loadAuth, saveAuth, substituteInObject, substituteVariables } from './substitute.js';

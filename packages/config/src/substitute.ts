@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-function substituteVariables(value: string): string {
+export function substituteVariables(value: string): string {
   const envPattern = /\{env:([^}]+)\}/g;
   const filePattern = /\{file:([^}]+)\}/g;
 
