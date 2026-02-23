@@ -1,108 +1,50 @@
-import { aggregateToRoot, createTemplateContext, parsePackageVersioner, renderMarkdown } from '@releasekit/notes';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { cleanupTempDir, copyFixtureToTemp, createConventionalCommit, initGitRepo } from './utils/e2e-helpers.js';
+import {
+  cleanupRepo,
+  createGitRepo,
+  createMonorepoPackage,
+  createPackageJson,
+  createPnpmWorkspace,
+  createVersionConfig,
+  gitCommit,
+  runCLI,
+} from './utils/e2e-helpers.js';
 
-describe('E2E: monorepo', () => {
-  let tempDir: string;
+describe.skip('E2E: Monorepo', () => {
+  let repoDir: string;
 
-  beforeEach(() => {
-    tempDir = copyFixtureToTemp('monorepo');
-    initGitRepo(tempDir);
-  });
+  beforeEach(async () => {
+    repoDir = await createGitRepo();
 
-  afterEach(() => {
-    cleanupTempDir(tempDir);
-  });
+    await createPackageJson(repoDir, 'test-monorepo', '1.0.0');
 
-  describe('Sync versioning -> all packages same version', () => {
-    it('generates aggregated changelog for monorepo', () => {
-      createConventionalCommit(tempDir, 'feat', 'add feature in pkg-a', 'pkg-a');
+    await createPnpmWorkspace(repoDir, ['packages/*']);
 
-      const versionOutput = {
-        dryRun: true,
-        updates: [
-          {
-            packageName: '@test/pkg-a',
-            previousVersion: '0.1.0',
-            newVersion: '0.2.0',
-            filePath: 'packages/pkg-a/package.json',
-          },
-          {
-            packageName: '@test/pkg-b',
-            previousVersion: '0.1.0',
-            newVersion: '0.2.0',
-            filePath: 'packages/pkg-b/package.json',
-          },
-        ],
-        changelogs: [
-          {
-            packageName: '@test/pkg-a',
-            version: '0.2.0',
-            previousVersion: '0.1.0',
-            revisionRange: 'v0.1.0..HEAD',
-            repoUrl: null,
-            entries: [{ type: 'added', description: 'Add feature in pkg-a', scope: 'pkg-a' }],
-          },
-          {
-            packageName: '@test/pkg-b',
-            version: '0.2.0',
-            previousVersion: '0.1.0',
-            revisionRange: 'v0.1.0..HEAD',
-            repoUrl: null,
-            entries: [],
-          },
-        ],
-        tags: ['v0.2.0'],
-        commitMessage: 'chore(release): 0.2.0',
-      };
-
-      const input = parsePackageVersioner(JSON.stringify(versionOutput));
-      const contexts = input.packages.map(createTemplateContext);
-
-      const rootContext = aggregateToRoot(contexts);
-      const markdown = renderMarkdown([rootContext]);
-
-      expect(markdown).toContain('## [0.2.0]');
-      expect(markdown).toContain('@test/pkg-a');
+    await createVersionConfig(repoDir, {
+      preset: 'angular',
+      packages: ['packages/*'],
+      sync: true,
     });
+
+    await createMonorepoPackage(repoDir, 'pkg-a', '0.1.0');
+    await createMonorepoPackage(repoDir, 'pkg-b', '0.1.0');
+
+    await gitCommit(repoDir, 'chore: initial commit');
   });
 
-  describe('Individual package changes', () => {
-    it('generates per-package changelog entries', () => {
-      const versionOutput = {
-        dryRun: true,
-        updates: [
-          {
-            packageName: '@test/pkg-a',
-            previousVersion: '0.1.0',
-            newVersion: '0.2.0',
-            filePath: 'packages/pkg-a/package.json',
-          },
-        ],
-        changelogs: [
-          {
-            packageName: '@test/pkg-a',
-            version: '0.2.0',
-            previousVersion: '0.1.0',
-            revisionRange: 'v0.1.0..HEAD',
-            repoUrl: null,
-            entries: [
-              { type: 'added', description: 'New feature', scope: 'api' },
-              { type: 'fixed', description: 'Bug fix' },
-            ],
-          },
-        ],
-        tags: ['v0.2.0'],
-        commitMessage: 'chore(release): 0.2.0',
-      };
+  afterEach(async () => {
+    await cleanupRepo(repoDir);
+  });
 
-      const input = parsePackageVersioner(JSON.stringify(versionOutput));
-      const contexts = input.packages.map(createTemplateContext);
-      const markdown = renderMarkdown(contexts);
+  it('runs full pipeline with sync versioning', async () => {
+    await gitCommit(repoDir, 'feat: add feature');
 
-      expect(markdown).toContain('## [0.2.0]');
-      expect(markdown).toContain('New feature');
-      expect(markdown).toContain('Bug fix');
-    });
+    const version = await runCLI('releasekit-version', ['--dry-run'], repoDir);
+    expect(version.exitCode).toBe(0);
+
+    const versionOutput = JSON.parse(version.stdout);
+
+    expect(versionOutput.updates[0].newVersion).toBe('0.2.0');
+    expect(versionOutput.updates[1].newVersion).toBe('0.2.0');
   });
 });

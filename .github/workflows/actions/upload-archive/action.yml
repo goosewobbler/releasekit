@@ -31,7 +31,9 @@ runs:
       shell: bash
       run: |
         mkdir -p .artifacts
-        zip -r .artifacts/${{ inputs.name }}.zip ${{ inputs.paths }} -x "*/node_modules/*"
+        # Convert multiline paths to space-separated for zip
+        PATHS=$(echo "${{ inputs.paths }}" | tr '\n' ' ' | xargs)
+        zip -r .artifacts/${{ inputs.name }}.zip $PATHS -x "*/node_modules/*"
         echo "Artifact size: $(du -h .artifacts/${{ inputs.name }}.zip | cut -f1)"
 
     - name: Upload artifact

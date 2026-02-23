@@ -1,15 +1,16 @@
 #!/usr/bin/env tsx
 /**
  * Script to run E2E tests in an isolated environment
- * Usage: pnpm tsx scripts/test-e2e-isolated.ts [--module-type=cjs|esm] [--skip-build]
+ * Usage: pnpm tsx scripts/test-e2e.ts [--module-type=cjs|esm] [--skip-build]
  *
  * This script:
  * 1. Packs releasekit packages as tarballs
  * 2. Creates an isolated temp directory with pnpm isolation settings
- * 3. Copies E2E test files and fixtures
- * 4. Installs dependencies from tarballs
- * 5. Runs vitest
- * 6. Cleans up
+ * 3. Copies E2E test files
+ * 4. Generates package.json with CLI binaries exposed
+ * 5. Installs dependencies from tarballs
+ * 6. Runs vitest
+ * 7. Cleans up
  */
 
 import { execSync } from 'node:child_process';
@@ -153,6 +154,7 @@ function createIsolatedEnvironment(options: Options, tarballs: TarballPaths): st
       '@releasekit/notes': `file:${tarballs.notes}`,
       '@releasekit/publish': `file:${tarballs.publish}`,
       '@releasekit/version': `file:${tarballs.version}`,
+      'conventional-changelog-conventionalcommits': '^9.0.0',
     },
     devDependencies: {
       '@types/node': '^22.0.0',

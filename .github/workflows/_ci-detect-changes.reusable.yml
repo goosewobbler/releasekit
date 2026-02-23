@@ -24,6 +24,9 @@ on:
       run_config:
         description: 'Whether to run config-related tests'
         value: ${{ jobs.detect.outputs.run_config }}
+      run_integration:
+        description: 'Whether to run integration tests'
+        value: ${{ jobs.detect.outputs.run_integration }}
       run_e2e:
         description: 'Whether to run E2E tests'
         value: ${{ jobs.detect.outputs.run_e2e }}
@@ -41,6 +44,7 @@ jobs:
       run_publish: ${{ steps.determine.outputs.run_publish }}
       run_notes: ${{ steps.determine.outputs.run_notes }}
       run_config: ${{ steps.determine.outputs.run_config }}
+      run_integration: ${{ steps.determine.outputs.run_integration }}
       run_e2e: ${{ steps.determine.outputs.run_e2e }}
 
     steps:
@@ -63,9 +67,12 @@ jobs:
             config:
               - 'packages/config/**'
               - 'packages/core/**'
+            integration:
+              - 'test/integration/**'
+              - '.github/workflows/_ci-integration.reusable.yml'
             e2e:
               - 'test/e2e/**'
-              - 'scripts/test-e2e-isolated.ts'
+              - 'scripts/test-e2e.ts'
               - '.github/workflows/_ci-e2e.reusable.yml'
             infra:
               - '.github/workflows/**'
@@ -85,6 +92,7 @@ jobs:
             echo "run_publish=true" >> $GITHUB_OUTPUT
             echo "run_notes=true" >> $GITHUB_OUTPUT
             echo "run_config=true" >> $GITHUB_OUTPUT
+            echo "run_integration=true" >> $GITHUB_OUTPUT
             echo "run_e2e=true" >> $GITHUB_OUTPUT
             echo "::notice::Force all mode - running all tests"
             exit 0
@@ -94,6 +102,7 @@ jobs:
           PUBLISH="${{ steps.changes.outputs.publish }}"
           NOTES="${{ steps.changes.outputs.notes }}"
           CONFIG="${{ steps.changes.outputs.config }}"
+          INTEGRATION="${{ steps.changes.outputs.integration }}"
           E2E="${{ steps.changes.outputs.e2e }}"
           INFRA="${{ steps.changes.outputs.infra }}"
 
@@ -101,6 +110,7 @@ jobs:
           RUN_PUBLISH="false"
           RUN_NOTES="false"
           RUN_CONFIG="false"
+          RUN_INTEGRATION="false"
           RUN_E2E="false"
 
           if [ "$VERSION" = "true" ] || [ "$INFRA" = "true" ] || [ "$CONFIG" = "true" ]; then
@@ -119,12 +129,16 @@ jobs:
             RUN_CONFIG="true"
           fi
 
+          if [ "$INTEGRATION" = "true" ] || [ "$INFRA" = "true" ] || [ "$NOTES" = "true" ]; then
+            RUN_INTEGRATION="true"
+          fi
+
           if [ "$E2E" = "true" ] || [ "$INFRA" = "true" ] || [ "$NOTES" = "true" ] || [ "$VERSION" = "true" ]; then
             RUN_E2E="true"
           fi
 
           HAS_CHANGES="false"
-          if [ "$RUN_VERSION" = "true" ] || [ "$RUN_PUBLISH" = "true" ] || [ "$RUN_NOTES" = "true" ] || [ "$RUN_CONFIG" = "true" ] || [ "$RUN_E2E" = "true" ]; then
+          if [ "$RUN_VERSION" = "true" ] || [ "$RUN_PUBLISH" = "true" ] || [ "$RUN_NOTES" = "true" ] || [ "$RUN_CONFIG" = "true" ] || [ "$RUN_INTEGRATION" = "true" ] || [ "$RUN_E2E" = "true" ]; then
             HAS_CHANGES="true"
           fi
 
@@ -133,6 +147,7 @@ jobs:
           echo "run_publish=$RUN_PUBLISH" >> $GITHUB_OUTPUT
           echo "run_notes=$RUN_NOTES" >> $GITHUB_OUTPUT
           echo "run_config=$RUN_CONFIG" >> $GITHUB_OUTPUT
+          echo "run_integration=$RUN_INTEGRATION" >> $GITHUB_OUTPUT
           echo "run_e2e=$RUN_E2E" >> $GITHUB_OUTPUT
 
           echo "## Change Detection" >> $GITHUB_STEP_SUMMARY
@@ -143,5 +158,6 @@ jobs:
           echo "| publish | $PUBLISH | $RUN_PUBLISH |" >> $GITHUB_STEP_SUMMARY
           echo "| notes | $NOTES | $RUN_NOTES |" >> $GITHUB_STEP_SUMMARY
           echo "| config/core | $CONFIG | $RUN_CONFIG |" >> $GITHUB_STEP_SUMMARY
+          echo "| integration | $INTEGRATION | $RUN_INTEGRATION |" >> $GITHUB_STEP_SUMMARY
           echo "| e2e | $E2E | $RUN_E2E |" >> $GITHUB_STEP_SUMMARY
           echo "| infra | $INFRA | - |" >> $GITHUB_STEP_SUMMARY

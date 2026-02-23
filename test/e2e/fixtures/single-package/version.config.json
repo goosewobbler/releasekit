@@ -1,6 +1,0 @@
-{
-  "preset": "conventional-commits",
-  "packages": ["./"],
-  "versionPrefix": "v",
-  "tagTemplate": "v{version}"
-}

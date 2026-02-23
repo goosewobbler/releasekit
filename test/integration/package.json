@@ -1,5 +1,5 @@
 {
-  "name": "@releasekit/e2e-tests",
+  "name": "@releasekit/integration-tests",
   "version": "0.1.0",
   "private": true,
   "type": "module",

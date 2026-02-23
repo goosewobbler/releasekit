@@ -1,9 +1,0 @@
-{
-  "version": {
-    "preset": "conventional-commits",
-    "sync": true
-  },
-  "notes": {
-    "updateStrategy": "prepend"
-  }
-}
