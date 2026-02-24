@@ -217,6 +217,54 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         return;
       }
 
+      // Extract changelog entries from commits
+      let changelogEntries: ChangelogEntry[] = [];
+      let revisionRange = 'HEAD';
+
+      try {
+        if (latestTag) {
+          try {
+            execSync('git', ['rev-parse', '--verify', latestTag], {
+              cwd: mainPkgPath,
+              stdio: 'ignore',
+            });
+            revisionRange = `${latestTag}..HEAD`;
+          } catch {
+            log(`Tag ${latestTag} doesn't exist, using all commits for changelog`, 'debug');
+            revisionRange = 'HEAD';
+          }
+        }
+
+        changelogEntries = extractChangelogEntriesFromCommits(mainPkgPath, revisionRange);
+
+        if (changelogEntries.length === 0) {
+          changelogEntries = [
+            {
+              type: 'changed',
+              description: `Update version to ${nextVersion}`,
+            },
+          ];
+        }
+      } catch (error) {
+        log(`Error extracting changelog entries: ${error instanceof Error ? error.message : String(error)}`, 'warning');
+        changelogEntries = [
+          {
+            type: 'changed',
+            description: `Update version to ${nextVersion}`,
+          },
+        ];
+      }
+
+      // Track changelog data for JSON output
+      addChangelogData({
+        packageName: mainPkgName || 'monorepo',
+        version: nextVersion,
+        previousVersion: latestTag || null,
+        revisionRange,
+        repoUrl: null,
+        entries: changelogEntries,
+      });
+
       // Create tag using the template
       // In sync mode with single package, respect packageSpecificTags setting
       let tagPackageName: string | null = null;

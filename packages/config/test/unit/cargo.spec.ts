@@ -1,5 +1,4 @@
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { isCargoToml, parseCargoToml } from '../../src/cargo.js';
 

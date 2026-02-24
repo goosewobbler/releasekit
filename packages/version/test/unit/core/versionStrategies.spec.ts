@@ -2,24 +2,29 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Package } from '@manypkg/get-packages';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as commitParser from '../../../src/changelog/commitParser.js';
 import * as calculator from '../../../src/core/versionCalculator.js';
 import type { PackagesWithRoot } from '../../../src/core/versionEngine.js';
 import * as strategies from '../../../src/core/versionStrategies.js';
+import * as commandExecutor from '../../../src/git/commandExecutor.js';
 import * as gitCommands from '../../../src/git/commands.js';
 import * as gitTags from '../../../src/git/tagsAndBranches.js';
 import * as packageManagement from '../../../src/package/packageManagement.js';
 import { PackageProcessor } from '../../../src/package/packageProcessor.js';
 import type { Config } from '../../../src/types.js';
 import * as formatting from '../../../src/utils/formatting.js';
+import * as jsonOutput from '../../../src/utils/jsonOutput.js';
 import * as logging from '../../../src/utils/logging.js';
 
 // Mock dependencies
 vi.mock('../../../src/git/commands.js');
 vi.mock('../../../src/git/tagsAndBranches.js');
+vi.mock('../../../src/git/commandExecutor.js');
 vi.mock('../../../src/utils/logging.js');
 vi.mock('../../../src/core/versionCalculator.js');
 vi.mock('../../../src/package/packageManagement.js');
 vi.mock('../../../src/utils/jsonOutput.js');
+vi.mock('../../../src/changelog/commitParser.js');
 vi.mock('../../../src/utils/formatting.js', () => ({
   formatVersionPrefix: vi.fn().mockReturnValue('v'),
   formatTag: vi
@@ -85,6 +90,10 @@ describe('Version Strategies', () => {
     vi.mocked(formatting.formatVersionPrefix, { partial: true }).mockReturnValue('v');
     vi.mocked(formatting.formatTag, { partial: true }).mockReturnValue('v1.1.0');
     vi.mocked(formatting.formatCommitMessage, { partial: true }).mockReturnValue('chore(release): v1.1.0');
+    vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockReturnValue([
+      { type: 'added', description: 'New feature' },
+    ]);
+    vi.mocked(commandExecutor.execSync, { partial: true }).mockReturnValue(Buffer.from(''));
 
     // Setup PackageProcessor mock
     vi.mocked(PackageProcessor.prototype.processPackages, { partial: true }).mockResolvedValue({
@@ -299,6 +308,106 @@ describe('Version Strategies', () => {
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0');
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0');
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(packageBPath, '1.1.0');
+    });
+
+    describe('Changelog generation', () => {
+      it('should extract changelog entries and call addChangelogData', async () => {
+        const config: Partial<Config> = {
+          ...defaultConfig,
+          sync: true,
+        };
+
+        const syncStrategy = strategies.createSyncStrategy(config as Config);
+
+        await syncStrategy(mockPackages);
+
+        expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith('/test/workspace', 'v1.0.0..HEAD');
+
+        expect(jsonOutput.addChangelogData).toHaveBeenCalledWith({
+          packageName: 'monorepo',
+          version: '1.1.0',
+          previousVersion: 'v1.0.0',
+          revisionRange: 'v1.0.0..HEAD',
+          repoUrl: null,
+          entries: [{ type: 'added', description: 'New feature' }],
+        });
+      });
+
+      it('should use monorepo as package name when no mainPackage specified', async () => {
+        const config: Partial<Config> = {
+          ...defaultConfig,
+          sync: true,
+        };
+
+        const syncStrategy = strategies.createSyncStrategy(config as Config);
+
+        await syncStrategy(mockPackages);
+
+        expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
+          expect.objectContaining({
+            packageName: 'monorepo',
+          }),
+        );
+      });
+
+      it('should use mainPackage name when specified', async () => {
+        const config: Partial<Config> = {
+          ...defaultConfig,
+          sync: true,
+          mainPackage: 'package-a',
+        };
+
+        const syncStrategy = strategies.createSyncStrategy(config as Config);
+
+        await syncStrategy(mockPackages);
+
+        expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
+          expect.objectContaining({
+            packageName: 'package-a',
+          }),
+        );
+      });
+
+      it('should use HEAD as revision range when no tag exists', async () => {
+        vi.mocked(git.getLatestTag, { partial: true }).mockResolvedValue('');
+
+        const config: Partial<Config> = {
+          ...defaultConfig,
+          sync: true,
+        };
+
+        const syncStrategy = strategies.createSyncStrategy(config as Config);
+
+        await syncStrategy(mockPackages);
+
+        expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith('/test/workspace', 'HEAD');
+
+        expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
+          expect.objectContaining({
+            revisionRange: 'HEAD',
+            previousVersion: null,
+          }),
+        );
+      });
+
+      it('should create fallback changelog entry when no commits found', async () => {
+        vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockReturnValue([]);
+
+        const config: Partial<Config> = {
+          ...defaultConfig,
+          sync: true,
+        };
+
+        const syncStrategy = strategies.createSyncStrategy(config as Config);
+
+        await syncStrategy(mockPackages);
+
+        expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
+          expect.objectContaining({
+            entries: [{ type: 'changed', description: 'Update version to 1.1.0' }],
+          }),
+        );
+      });
     });
   });
 
