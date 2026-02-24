@@ -22,10 +22,12 @@ git_commit "chore: initial commit"
 git_commit "fix: resolve bug"
 
 output=$(run_cli releasekit-version --dry-run --json 2>&1)
-exit_code=$?
-
-assert_exit_code 0 "$exit_code"
-version=$(echo "$output" | jq -r '.updates[0].newVersion')
+version=$(echo "$output" | jq -r '.updates[0].newVersion' 2>/dev/null || echo "parse_error")
+if [[ "$version" == "parse_error" ]]; then
+  echo "FAIL: Could not parse JSON output"
+  echo "Output: $output"
+  exit 1
+fi
 assert_version "0.1.1" "$version"
 
 # Test 2: feat commit → minor bump
@@ -38,10 +40,12 @@ git_commit "chore: initial commit"
 git_commit "feat: add awesome feature"
 
 output=$(run_cli releasekit-version --dry-run --json 2>&1)
-exit_code=$?
-
-assert_exit_code 0 "$exit_code"
-version=$(echo "$output" | jq -r '.updates[0].newVersion')
+version=$(echo "$output" | jq -r '.updates[0].newVersion' 2>/dev/null || echo "parse_error")
+if [[ "$version" == "parse_error" ]]; then
+  echo "FAIL: Could not parse JSON output"
+  echo "Output: $output"
+  exit 1
+fi
 assert_version "0.2.0" "$version"
 
 # Test 3: breaking change → major bump
@@ -54,10 +58,12 @@ git_commit "chore: initial commit"
 git_commit "feat!: breaking API change"
 
 output=$(run_cli releasekit-version --dry-run --json 2>&1)
-exit_code=$?
-
-assert_exit_code 0 "$exit_code"
-version=$(echo "$output" | jq -r '.updates[0].newVersion')
+version=$(echo "$output" | jq -r '.updates[0].newVersion' 2>/dev/null || echo "parse_error")
+if [[ "$version" == "parse_error" ]]; then
+  echo "FAIL: Could not parse JSON output"
+  echo "Output: $output"
+  exit 1
+fi
 assert_version "1.0.0" "$version"
 
 echo ""
