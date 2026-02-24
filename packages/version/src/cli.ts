@@ -122,4 +122,8 @@ async function main(): Promise<void> {
   program.parse();
 }
 
+export async function run(): Promise<void> {
+  await main();
+}
+
 main();

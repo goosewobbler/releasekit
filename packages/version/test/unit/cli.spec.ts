@@ -1,8 +1,8 @@
 import { Command } from 'commander';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as cliModule from '../../src/cli.js';
 import * as configModule from '../../src/config.js';
 import { VersionEngine } from '../../src/core/versionEngine.js';
-import * as indexModule from '../../src/index.js';
 import type { Config } from '../../src/types.js';
 
 vi.mock('../../src/config.js');
@@ -110,7 +110,7 @@ describe('CLI Interface', () => {
   });
 
   it('should define a default command', async () => {
-    await indexModule.run();
+    await cliModule.run();
 
     const commanderInstance = vi.mocked(Command, { partial: true }).mock.results[0].value;
 
@@ -121,7 +121,7 @@ describe('CLI Interface', () => {
   it('should execute the version command when no command is specified', async () => {
     mockProcess.argv = ['node', 'index.js', '--dry-run'];
 
-    await indexModule.run();
+    await cliModule.run();
 
     const commanderInstance = vi.mocked(Command, { partial: true }).mock.results[0].value;
 
@@ -150,7 +150,7 @@ describe('CLI Interface', () => {
         projectDir: process.cwd(),
       };
 
-      await indexModule.run();
+      await cliModule.run();
       const commanderInstance = vi.mocked(Command, { partial: true }).mock.results[0].value;
       const versionHandler = commanderInstance.getCommandHandler('version');
 
@@ -179,7 +179,7 @@ describe('CLI Interface', () => {
         projectDir: process.cwd(),
       };
 
-      await indexModule.run();
+      await cliModule.run();
       const commanderInstance = vi.mocked(Command, { partial: true }).mock.results[0].value;
       const versionHandler = commanderInstance.getCommandHandler('version');
 
@@ -207,7 +207,7 @@ describe('CLI Interface', () => {
         projectDir: process.cwd(),
       };
 
-      await indexModule.run();
+      await cliModule.run();
       const commanderInstance = vi.mocked(Command, { partial: true }).mock.results[0].value;
       const versionHandler = commanderInstance.getCommandHandler('version');
 
@@ -236,7 +236,7 @@ describe('CLI Interface', () => {
         projectDir: process.cwd(),
       };
 
-      await indexModule.run();
+      await cliModule.run();
       const commanderInstance = vi.mocked(Command, { partial: true }).mock.results[0].value;
       const versionHandler = commanderInstance.getCommandHandler('version');
 
