@@ -28,20 +28,41 @@ commits and designed for CI/CD pipelines.
 
 ## Usage
 
-The three CLI tools are designed to be piped together:
+Each tool can be used independently or composed together:
+
+### Preview changes (dry run)
 
 ```bash
-# 1. Calculate next versions and emit JSON
-releasekit-version --json
+# See what versions would be bumped without making changes
+releasekit-version --dry-run --json
+```
 
-# 2. Generate changelogs from the version output
+### Full release workflow
+
+```bash
+# Run version once, use output for both notes and publish
+output=$(releasekit-version --json)
+echo "$output" | releasekit-notes
+echo "$output" | releasekit-publish
+```
+
+### Changelog-only release
+
+For packages that don't need registry publishing (private packages, internal tools):
+
+```bash
 releasekit-version --json | releasekit-notes
+```
 
-# 3. Publish packages to registries, create git tags and GitHub releases
+### Version + publish (skip changelog)
+
+For quick releases where changelogs aren't needed:
+
+```bash
 releasekit-version --json | releasekit-publish
 ```
 
-Each tool can also be used independently. See the package READMEs for full CLI reference.
+See the package READMEs for full CLI reference.
 
 ## Documentation
 
