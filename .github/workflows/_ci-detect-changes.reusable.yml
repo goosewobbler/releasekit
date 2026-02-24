@@ -129,7 +129,7 @@ jobs:
             RUN_CONFIG="true"
           fi
 
-          if [ "$INTEGRATION" = "true" ] || [ "$INFRA" = "true" ] || [ "$NOTES" = "true" ] || [ "$VERSION" = "true" ] || [ "$PUBLISH" = "true" ] || [ "$CONFIG" = "true" ]; then
+          if [ "$INTEGRATION" = "true" ] || [ "$INFRA" = "true" ] || [ "$NOTES" = "true" ] || [ "$VERSION" = "true" ] || [ "$PUBLISH" = "true" ] || [ "$CONFIG" = "true" ] || [ "$E2E" = "true" ]; then
             RUN_INTEGRATION="true"
           fi
 
