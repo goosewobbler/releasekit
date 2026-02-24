@@ -1,0 +1,69 @@
+#!/bin/bash
+# E2E tests for monorepo CLI
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/helpers.sh"
+
+trap cleanup_repo EXIT
+
+echo "=== E2E: Monorepo Tests ==="
+
+cd "$SCRIPT_DIR"
+
+create_monorepo_packages() {
+  mkdir -p packages/pkg-a packages/pkg-b
+  
+  cat > package.json <<EOF
+{
+  "name": "test-monorepo",
+  "version": "0.1.0",
+  "private": true
+}
+EOF
+  
+  cat > pnpm-workspace.yaml <<EOF
+packages:
+  - 'packages/*'
+EOF
+  
+  cat > packages/pkg-a/package.json <<EOF
+{
+  "name": "@test/pkg-a",
+  "version": "0.1.0",
+  "private": true
+}
+EOF
+  
+  cat > packages/pkg-b/package.json <<EOF
+{
+  "name": "@test/pkg-b",
+  "version": "0.1.0",
+  "private": true
+}
+EOF
+}
+
+# Test: sync versioning
+echo ""
+echo "--- Test: sync versioning ---"
+create_git_repo
+create_monorepo_packages
+create_releasekit_config '{"version":{"preset":"conventionalcommits","packages":["packages/*"],"sync":true}}'
+git_commit "chore: initial commit"
+git_commit "feat: add feature"
+
+output=$(run_cli releasekit-version --dry-run --json 2>&1)
+exit_code=$?
+
+assert_exit_code 0 "$exit_code"
+
+version_a=$(echo "$output" | jq -r '.updates[0].newVersion')
+version_b=$(echo "$output" | jq -r '.updates[1].newVersion')
+
+assert_version "0.2.0" "$version_a"
+assert_version "0.2.0" "$version_b"
+
+echo ""
+echo "=== All monorepo tests passed ==="
