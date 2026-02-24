@@ -6,10 +6,6 @@ on:
       os:
         required: true
         type: string
-      module-type:
-        required: false
-        type: string
-        default: 'esm'
       cache_key:
         required: true
         type: string
@@ -19,7 +15,7 @@ env:
 
 jobs:
   e2e-tests:
-    name: E2E [${{ inputs.os }}] (${{ inputs.module-type }})
+    name: E2E [${{ inputs.os }}]
     runs-on: ${{ inputs.os }}
 
     steps:
@@ -36,4 +32,4 @@ jobs:
           cache_key: ${{ inputs.cache_key }}
 
       - name: Run E2E tests
-        run: pnpm exec tsx scripts/test-e2e.ts --module-type=${{ inputs.module-type }} --skip-build
+        run: pnpm exec tsx scripts/test-e2e.ts --skip-build

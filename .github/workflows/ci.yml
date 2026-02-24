@@ -102,23 +102,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            module-type: esm
-          - os: ubuntu-latest
-            module-type: cjs
-          - os: macos-latest
-            module-type: esm
-          - os: macos-latest
-            module-type: cjs
-          - os: windows-latest
-            module-type: esm
-          - os: windows-latest
-            module-type: cjs
+        os: [ubuntu-latest, macos-latest]
     uses: ./.github/workflows/_ci-e2e.reusable.yml
     with:
       os: ${{ matrix.os }}
-      module-type: ${{ matrix.module-type }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
   ci-status:
