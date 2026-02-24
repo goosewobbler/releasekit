@@ -26,7 +26,7 @@ git_commit "chore: initial commit"
 git_commit "feat: add awesome feature"
 
 # Step 1: Version
-version_output=$(run_cli releasekit-version --dry-run --json 2>&1)
+version_output=$(run_cli_json releasekit-version --dry-run --json)
 version_exit=$?
 
 assert_exit_code 0 "$version_exit"

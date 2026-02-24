@@ -65,6 +65,24 @@ run_cli() {
   fi
 }
 
+run_cli_json() {
+  local cmd="$1"
+  shift
+  local tmpfile
+  tmpfile=$(mktemp)
+  
+  # Run CLI, capture stdout to temp file, stderr to /dev/null
+  # The exit code is preserved
+  run_cli "$cmd" "$@" > "$tmpfile" 2>/dev/null
+  local exit_code=$?
+  
+  # Output the entire file (JSON may be multi-line)
+  cat "$tmpfile"
+  rm -f "$tmpfile"
+  
+  return $exit_code
+}
+
 assert_exit_code() {
   local expected="$1"
   local actual="$2"
