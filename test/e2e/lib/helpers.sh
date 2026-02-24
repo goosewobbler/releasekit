@@ -55,7 +55,14 @@ run_cli() {
   local cmd="$1"
   shift
   local pkg_name="${cmd#releasekit-}"
-  node "$RELEASEKIT_ROOT/packages/$pkg_name/dist/cli.js" "$@"
+  
+  if [[ -d "$RELEASEKIT_ROOT/packages/$pkg_name" ]]; then
+    # Running from repo root
+    node "$RELEASEKIT_ROOT/packages/$pkg_name/dist/cli.js" "$@"
+  else
+    # Running in isolated environment (node_modules)
+    node "$RELEASEKIT_ROOT/@releasekit/$pkg_name/dist/cli.js" "$@"
+  fi
 }
 
 assert_exit_code() {
