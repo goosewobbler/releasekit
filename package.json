@@ -6,7 +6,7 @@
   "description": "Release tooling for automated versioning and changelog generation",
   "repository": {
     "type": "git",
-    "url": "https://github.com/goosewobbler/releasekit"
+    "url": "git+https://github.com/goosewobbler/releasekit.git"
   },
   "license": "MIT",
   "author": "Sam Maister <goosewobbler@protonmail.com>",
