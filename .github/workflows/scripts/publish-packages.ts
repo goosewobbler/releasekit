@@ -33,7 +33,7 @@ function main(): void {
 
   const versionOutput: VersionOutput = JSON.parse(fs.readFileSync(versionOutputPath, 'utf-8'));
 
-  const packages = ['@releasekit/version', '@releasekit/notes', '@releasekit/publish'];
+  const packages = ['@releasekit/version', '@releasekit/notes', '@releasekit/publish', '@releasekit/release'];
 
   for (const packageName of packages) {
     const update = versionOutput.updates.find((u) => u.packageName === packageName);

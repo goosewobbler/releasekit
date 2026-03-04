@@ -53,6 +53,10 @@ jobs:
             TARGET_FLAGS="--target @releasekit/version"
           elif [ "${{ inputs.packages }}" = "notes" ]; then
             TARGET_FLAGS="--target @releasekit/notes"
+          elif [ "${{ inputs.packages }}" = "publish" ]; then
+            TARGET_FLAGS="--target @releasekit/publish"
+          elif [ "${{ inputs.packages }}" = "release" ]; then
+            TARGET_FLAGS="--target @releasekit/release"
           fi
 
           # Build bump flags

@@ -10,6 +10,8 @@ on:
           - all
           - version
           - notes
+          - publish
+          - release
         default: all
       bump:
         description: Version bump type
