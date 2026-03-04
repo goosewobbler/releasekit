@@ -46,7 +46,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Apply version bumps
-        run: node packages/version/dist/index.js --json ${{ inputs.dry_run && '--dry-run' || '' }}
+        run: pnpm exec tsx packages/version/src/cli.ts --json ${{ inputs.dry_run && '--dry-run' || '' }}
 
       - name: Build packages
         run: pnpm build
@@ -82,7 +82,7 @@ jobs:
 
       - name: Publish packages
         if: ${{ !inputs.dry_run }}
-        run: npx tsx .github/workflows/scripts/publish-packages.ts version-output.json false
+        run: pnpm exec tsx .github/workflows/scripts/publish-packages.ts version-output.json false
 
       - name: Summary
         run: |
