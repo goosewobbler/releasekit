@@ -24,11 +24,15 @@ export interface LLMContext {
   previousVersion?: string;
 }
 
-export interface EnhanceContext extends LLMContext {}
+export interface EnhanceContext extends LLMContext {
+  style?: string;
+}
 
 export interface SummarizeContext extends LLMContext {}
 
-export interface CategorizeContext extends LLMContext {}
+export interface CategorizeContext extends LLMContext {
+  categories?: Array<{ name: string; description: string }>;
+}
 
 export interface ReleaseNotesContext extends LLMContext {
   date?: string;

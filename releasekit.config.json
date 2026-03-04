@@ -1,0 +1,38 @@
+{
+  "version": {
+    "preset": "angular",
+    "sync": false,
+    "baseBranch": "main",
+    "versionPrefix": "v",
+    "packages": ["packages/version", "packages/notes", "packages/publish", "packages/release"],
+    "tagTemplate": "${packageName}@v${version}",
+    "commitMessage": "chore: release ${packageName}@${version} [skip ci]",
+    "prereleaseIdentifier": "next",
+    "packageSpecificTags": true
+  },
+  "notes": {
+    "output": [{ "format": "markdown", "file": "CHANGELOG.md" }],
+    "templates": {
+      "path": "./templates/release-notes/release.liquid",
+      "engine": "liquid"
+    },
+    "llm": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-20250514",
+      "tasks": {
+        "enhance": true,
+        "categorize": true
+      },
+      "categories": [
+        { "name": "New", "description": "New features and additions" },
+        { "name": "Fixed", "description": "Bug fixes" },
+        { "name": "Documentation", "description": "Documentation updates" },
+        {
+          "name": "Developer",
+          "description": "Internal changes: CI, dependencies, testing, code quality, build system, infrastructure. Always assign a scope for subcategory label (e.g. CI, Dependencies, Testing, Code Quality, Build System)."
+        }
+      ],
+      "style": "Use past tense descriptions. Be concise. Focus on what changed, not implementation details."
+    }
+  }
+}

@@ -80,6 +80,8 @@ async function processWithLLM(context: TemplateContext, config: Config): Promise
     version: context.version,
     previousVersion: context.previousVersion ?? undefined,
     date: context.date,
+    categories: config.llm.categories,
+    style: config.llm.style,
   };
 
   const enhanced: EnhancedData = {

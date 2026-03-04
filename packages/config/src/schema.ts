@@ -129,6 +129,11 @@ export const LLMTasksConfigSchema = z.object({
   releaseNotes: z.boolean().optional(),
 });
 
+export const LLMCategorySchema = z.object({
+  name: z.string(),
+  description: z.string(),
+});
+
 export const LLMConfigSchema = z.object({
   provider: z.string(),
   model: z.string(),
@@ -138,6 +143,8 @@ export const LLMConfigSchema = z.object({
   concurrency: z.number().int().positive().optional(),
   retry: LLMRetryConfigSchema.optional(),
   tasks: LLMTasksConfigSchema.optional(),
+  categories: z.array(LLMCategorySchema).optional(),
+  style: z.string().optional(),
 });
 
 export const TemplateConfigSchema = z.object({

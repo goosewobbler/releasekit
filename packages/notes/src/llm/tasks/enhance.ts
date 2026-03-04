@@ -7,10 +7,10 @@ Given a technical commit message, rewrite it as a clear, user-friendly changelog
 
 Rules:
 - Be concise (1-2 sentences max)
-- Use present tense ("Add feature" not "Added feature")
 - Focus on user impact, not implementation details
 - Don't use technical jargon unless necessary
 - Preserve the scope if mentioned (e.g., "core:", "api:")
+{{style}}
 
 Original entry:
 Type: {{type}}
@@ -24,7 +24,9 @@ export async function enhanceEntry(
   entry: ChangelogEntry,
   _context: EnhanceContext,
 ): Promise<string> {
-  const prompt = ENHANCE_PROMPT.replace('{{type}}', entry.type)
+  const styleText = _context.style ? `- ${_context.style}` : '- Use present tense ("Add feature" not "Added feature")';
+  const prompt = ENHANCE_PROMPT.replace('{{style}}', styleText)
+    .replace('{{type}}', entry.type)
     .replace('{{#if scope}}Scope: {{scope}}{{/if}}', entry.scope ? `Scope: ${entry.scope}` : '')
     .replace('{{description}}', entry.description);
 

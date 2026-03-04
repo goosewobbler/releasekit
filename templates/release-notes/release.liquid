@@ -1,0 +1,48 @@
+{%- for version in versions %}
+{%- if version.enhanced.categories %}
+{%- for pair in version.enhanced.categories %}
+
+### {{ pair[0] }}:
+{%- for entry in pair[1] %}
+- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+{%- endfor %}
+{%- endfor %}
+{%- else %}
+{%- assign added = version.entries | where: "type", "added" %}
+{%- assign changed = version.entries | where: "type", "changed" %}
+{%- assign fixed = version.entries | where: "type", "fixed" %}
+{%- assign removed = version.entries | where: "type", "removed" %}
+{%- if added.size > 0 %}
+
+### New:
+{%- for entry in added %}
+- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+{%- endfor %}
+{%- endif %}
+{%- if fixed.size > 0 %}
+
+### Fixed:
+{%- for entry in fixed %}
+- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+{%- endfor %}
+{%- endif %}
+{%- if changed.size > 0 %}
+
+### Changed:
+{%- for entry in changed %}
+- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+{%- endfor %}
+{%- endif %}
+{%- if removed.size > 0 %}
+
+### Removed:
+{%- for entry in removed %}
+- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+{%- endfor %}
+{%- endif %}
+{%- endif %}
+{%- if version.compareUrl %}
+
+**Full Changelog**: {{ version.compareUrl }}
+{%- endif %}
+{% endfor %}

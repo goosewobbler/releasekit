@@ -82,6 +82,8 @@ export interface LLMConfig {
     categorize?: boolean;
     releaseNotes?: boolean;
   };
+  categories?: Array<{ name: string; description: string }>;
+  style?: string;
 }
 
 export type OutputFormat = 'markdown' | 'github-release' | 'json';
