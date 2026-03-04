@@ -1,7 +1,7 @@
 {
   "name": "@releasekit/version",
   "version": "0.1.0",
-  "description": "A lightweight yet powerful CLI tool for automated semantic versioning based on Git history and conventional commits.",
+  "description": "Semantic versioning based on Git history and conventional commits",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

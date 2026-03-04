@@ -1,7 +1,7 @@
 {
   "name": "@releasekit/notes",
   "version": "0.1.0",
-  "description": "CLI tool for generating changelogs with LLM-powered enhancement and flexible templating",
+  "description": "Changelog generation with LLM-powered enhancement and flexible templating",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

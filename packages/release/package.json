@@ -1,7 +1,7 @@
 {
   "name": "@releasekit/release",
   "version": "0.1.0",
-  "description": "Unified CLI for automated releases: version, changelog, and publish in a single command",
+  "description": "Unified release pipeline: version, changelog, and publish in a single command",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

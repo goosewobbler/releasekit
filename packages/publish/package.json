@@ -1,7 +1,7 @@
 {
   "name": "@releasekit/publish",
   "version": "0.1.0",
-  "description": "CLI tool for publishing packages to npm and crates.io with git tagging and GitHub releases",
+  "description": "Publish packages to npm and crates.io with git tagging and GitHub releases",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
