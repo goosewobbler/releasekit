@@ -59,7 +59,7 @@ export function getCargoInfo(cargoPath: string): CargoInfo {
  * Update a Cargo.toml file with a new version
  * Preserves comments and formatting as much as possible
  */
-export function updateCargoVersion(cargoPath: string, version: string): void {
+export function updateCargoVersion(cargoPath: string, version: string, dryRun = false): void {
   try {
     const cargo = parseCargoToml(cargoPath);
     const packageName = cargo.package?.name;
@@ -68,24 +68,26 @@ export function updateCargoVersion(cargoPath: string, version: string): void {
       throw new Error(`No package name found in ${cargoPath}`);
     }
 
-    // Update the version
-    if (!cargo.package) {
-      cargo.package = { name: packageName, version };
-    } else {
-      cargo.package.version = version;
-    }
+    if (!dryRun) {
+      // Update the version
+      if (!cargo.package) {
+        cargo.package = { name: packageName, version };
+      } else {
+        cargo.package.version = version;
+      }
 
-    // Write back to the file, preserving format
-    // Strategy: Use TOML.stringify for the updated content. Note that TOML.stringify
-    // does not preserve the original formatting or comments, so this is a best-effort
-    // approach to update the file while maintaining its structure.
-    const updatedContent = TOML.stringify(cargo as Record<string, unknown>);
-    fs.writeFileSync(cargoPath, updatedContent);
+      // Write back to the file, preserving format
+      // Strategy: Use TOML.stringify for the updated content. Note that TOML.stringify
+      // does not preserve the original formatting or comments, so this is a best-effort
+      // approach to update the file while maintaining its structure.
+      const updatedContent = TOML.stringify(cargo as Record<string, unknown>);
+      fs.writeFileSync(cargoPath, updatedContent);
+    }
 
     // Track update for JSON output
     addPackageUpdate(packageName, version, cargoPath);
 
-    log(`Updated Cargo.toml at ${cargoPath} to version ${version}`, 'success');
+    log(`${dryRun ? '[DRY RUN] Would update' : 'Updated'} Cargo.toml at ${cargoPath} to version ${version}`, 'success');
   } catch (error) {
     log(`Failed to update Cargo.toml at ${cargoPath}`, 'error');
     if (error instanceof Error) {

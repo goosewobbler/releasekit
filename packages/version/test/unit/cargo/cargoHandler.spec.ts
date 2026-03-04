@@ -135,6 +135,31 @@ describe('Cargo Handler', () => {
       expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', '2.0.0', mockCargoPath);
     });
 
+    it('should not write to disk when dryRun is true', () => {
+      vi.mocked(jsonOutput.addPackageUpdate, { partial: true }).mockImplementation(() => {});
+
+      updateCargoVersion(mockCargoPath, '2.0.0', true);
+
+      // Should NOT write to the file
+      expect(fs.writeFileSync).not.toHaveBeenCalled();
+      // Should NOT even call TOML.stringify since we're not writing
+      expect(TOML.stringify).not.toHaveBeenCalled();
+
+      // Should still track the update and log
+      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', '2.0.0', mockCargoPath);
+      expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('[DRY RUN] Would update'), 'success');
+    });
+
+    it('should write to disk when dryRun is false', () => {
+      vi.mocked(jsonOutput.addPackageUpdate, { partial: true }).mockImplementation(() => {});
+
+      updateCargoVersion(mockCargoPath, '2.0.0', false);
+
+      expect(TOML.stringify).toHaveBeenCalled();
+      expect(fs.writeFileSync).toHaveBeenCalledWith(mockCargoPath, 'mocked stringified TOML');
+      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', '2.0.0', mockCargoPath);
+    });
+
     it('should handle errors when updating Cargo.toml', () => {
       vi.mocked(parseCargoToml, { partial: true }).mockImplementation(() => {
         throw new Error('Update error');

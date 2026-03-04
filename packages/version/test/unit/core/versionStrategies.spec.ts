@@ -176,11 +176,11 @@ describe('Version Strategies', () => {
       );
 
       // Check root package update
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0');
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined);
 
       // Check workspace packages update
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0');
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageBPath, '1.1.0');
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0', undefined);
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageBPath, '1.1.0', undefined);
 
       // Check commit and tag
       expect(git.createGitCommitAndTag).toHaveBeenCalledWith(
@@ -215,9 +215,9 @@ describe('Version Strategies', () => {
       );
 
       // Still updates all packages
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0');
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0');
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageBPath, '1.1.0');
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined);
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0', undefined);
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageBPath, '1.1.0', undefined);
     });
 
     it('should fall back to root package if mainPackage is not found', async () => {
@@ -305,9 +305,9 @@ describe('Version Strategies', () => {
       await syncStrategy(mockPackages);
 
       // Verify package-b was skipped
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0');
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0');
-      expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(packageBPath, '1.1.0');
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined);
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0', undefined);
+      expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(packageBPath, '1.1.0', undefined);
     });
 
     describe('Changelog generation', () => {
@@ -438,8 +438,12 @@ describe('Version Strategies', () => {
       );
 
       // Check only package-a update
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0');
-      expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(packageBPath, expect.anything());
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0', undefined);
+      expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
+        packageBPath,
+        expect.anything(),
+        expect.anything(),
+      );
 
       // Check commit and tag (includes both package.json and Cargo.toml since cargo is enabled by default)
       expect(git.createGitCommitAndTag).toHaveBeenCalledWith(
@@ -519,8 +523,12 @@ describe('Version Strategies', () => {
         }),
       );
 
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageBPath, '1.1.0');
-      expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(packageAPath, expect.anything());
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageBPath, '1.1.0', undefined);
+      expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
+        packageAPath,
+        expect.anything(),
+        expect.anything(),
+      );
     });
 
     it('should throw if mainPackage is not found', async () => {
@@ -586,12 +594,14 @@ describe('Version Strategies', () => {
         expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/package.json',
           '1.1.0',
+          undefined,
         );
 
         // Verify Cargo.toml was also updated
         expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/Cargo.toml',
           '1.1.0',
+          false,
         );
       });
 
@@ -612,10 +622,12 @@ describe('Version Strategies', () => {
         expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/package.json',
           '1.1.0',
+          undefined,
         );
         expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/Cargo.toml',
           '1.1.0',
+          false,
         );
       });
 
@@ -638,11 +650,13 @@ describe('Version Strategies', () => {
         expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/package.json',
           '1.1.0',
+          undefined,
         );
 
         // Verify Cargo.toml was NOT updated
         expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/Cargo.toml',
+          expect.anything(),
           expect.anything(),
         );
       });
@@ -675,11 +689,13 @@ describe('Version Strategies', () => {
         expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/package.json',
           '1.1.0',
+          undefined,
         );
 
         // Verify Cargo.toml update was not attempted (file doesn't exist)
         expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/Cargo.toml',
+          expect.anything(),
           expect.anything(),
         );
       });
@@ -705,10 +721,12 @@ describe('Version Strategies', () => {
         expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/package.json',
           '1.2.0-next.0',
+          undefined,
         );
         expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/Cargo.toml',
           '1.2.0-next.0',
+          false,
         );
       });
 
@@ -732,11 +750,13 @@ describe('Version Strategies', () => {
         expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/package.json',
           '1.1.0',
+          undefined,
         );
 
         // Verify NO Cargo.toml files were updated (even though paths were specified)
         expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
           expect.stringContaining('Cargo.toml'),
+          expect.anything(),
           expect.anything(),
         );
       });

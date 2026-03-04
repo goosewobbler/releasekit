@@ -261,7 +261,7 @@ export class PackageProcessor {
 
       // Always update package.json if it exists
       if (fs.existsSync(packageJsonPath)) {
-        updatePackageVersion(packageJsonPath, nextVersion);
+        updatePackageVersion(packageJsonPath, nextVersion, this.dryRun);
       }
 
       // Check if Cargo.toml handling is enabled (default to true if not specified)
@@ -280,7 +280,7 @@ export class PackageProcessor {
             log(`Checking cargo path for ${name}: ${resolvedCargoPath}`, 'debug');
             if (fs.existsSync(resolvedCargoPath)) {
               log(`Found Cargo.toml for ${name} at ${resolvedCargoPath}, updating...`, 'debug');
-              updatePackageVersion(resolvedCargoPath, nextVersion);
+              updatePackageVersion(resolvedCargoPath, nextVersion, this.dryRun);
             } else {
               log(`Cargo.toml not found at ${resolvedCargoPath}`, 'debug');
             }
@@ -291,7 +291,7 @@ export class PackageProcessor {
           log(`Checking default cargo path for ${name}: ${cargoTomlPath}`, 'debug');
           if (fs.existsSync(cargoTomlPath)) {
             log(`Found Cargo.toml for ${name} at ${cargoTomlPath}, updating...`, 'debug');
-            updatePackageVersion(cargoTomlPath, nextVersion);
+            updatePackageVersion(cargoTomlPath, nextVersion, this.dryRun);
           } else {
             log(`Cargo.toml not found for ${name} at ${cargoTomlPath}`, 'debug');
           }

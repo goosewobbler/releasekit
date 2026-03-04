@@ -340,7 +340,11 @@ describe('Package Processor', () => {
       const result = await processor.processPackages([mockPackages[0]]);
 
       // Should update package-a
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith('/path/to/package-a/package.json', '1.1.0');
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/path/to/package-a/package.json',
+        '1.1.0',
+        false,
+      );
 
       // Should create a tag
       expect(gitCommands.createGitTag).toHaveBeenCalledWith({
@@ -506,6 +510,7 @@ describe('Package Processor', () => {
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
         expect.stringContaining('package-a'),
         expect.any(String),
+        expect.anything(),
       );
     });
 
@@ -524,6 +529,7 @@ describe('Package Processor', () => {
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         expect.stringContaining('package-a'),
         expect.any(String),
+        false,
       );
     });
 

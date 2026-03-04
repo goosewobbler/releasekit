@@ -112,10 +112,10 @@ Then optionally use the "packages" config to target specific package names:
 /**
  * Update a package file (package.json or Cargo.toml) with a new version
  */
-export function updatePackageVersion(packagePath: string, version: string): void {
+export function updatePackageVersion(packagePath: string, version: string, dryRun = false): void {
   // Handle Cargo.toml files separately
   if (isCargoToml(packagePath)) {
-    updateCargoVersion(packagePath, version);
+    updateCargoVersion(packagePath, version, dryRun);
     return;
   }
 
@@ -125,13 +125,18 @@ export function updatePackageVersion(packagePath: string, version: string): void
     const packageJson = JSON.parse(packageContent);
     const packageName = packageJson.name;
 
-    packageJson.version = version;
-    fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+    if (!dryRun) {
+      packageJson.version = version;
+      fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+    }
 
     // Track update for JSON output
     addPackageUpdate(packageName, version, packagePath);
 
-    log(`Updated package.json at ${packagePath} to version ${version}`, 'success');
+    log(
+      `${dryRun ? '[DRY RUN] Would update' : 'Updated'} package.json at ${packagePath} to version ${version}`,
+      'success',
+    );
   } catch (error) {
     log(`Failed to update package.json at ${packagePath}`, 'error');
     if (error instanceof Error) {

@@ -144,6 +144,34 @@ describe('Package Management Module', () => {
       expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', newVersion, mockPackagePath);
     });
 
+    it('should not write to disk when dryRun is true', () => {
+      const newVersion = '2.0.0';
+
+      updatePackageVersion(mockPackagePath, newVersion, true);
+
+      // Should NOT write to the file
+      expect(fs.writeFileSync).not.toHaveBeenCalled();
+
+      // Should still track the update and log
+      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', newVersion, mockPackagePath);
+      expect(logging.log).toHaveBeenCalledWith(
+        `[DRY RUN] Would update package.json at ${mockPackagePath} to version ${newVersion}`,
+        'success',
+      );
+    });
+
+    it('should write to disk when dryRun is false', () => {
+      const newVersion = '2.0.0';
+
+      updatePackageVersion(mockPackagePath, newVersion, false);
+
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        mockPackagePath,
+        `${JSON.stringify({ ...mockPackageContent, version: newVersion }, null, 2)}\n`,
+      );
+      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', newVersion, mockPackagePath);
+    });
+
     it('should handle errors when updating package version', () => {
       const newVersion = '2.0.0';
       const error = new Error('Failed to write file');

@@ -50,7 +50,7 @@ function shouldProcessPackage(pkg: Package, config: Config): boolean {
  * @param cargoConfig - The cargo configuration from config
  * @returns Array of Cargo.toml file paths that were updated
  */
-function updateCargoFiles(packageDir: string, version: string, cargoConfig: Config['cargo']): string[] {
+function updateCargoFiles(packageDir: string, version: string, cargoConfig: Config['cargo'], dryRun = false): string[] {
   const updatedFiles: string[] = [];
 
   // Check if Cargo.toml handling is enabled (default to true if not specified)
@@ -67,7 +67,7 @@ function updateCargoFiles(packageDir: string, version: string, cargoConfig: Conf
     for (const cargoPath of cargoPaths) {
       const resolvedCargoPath = path.resolve(packageDir, cargoPath, 'Cargo.toml');
       if (fs.existsSync(resolvedCargoPath)) {
-        updatePackageVersion(resolvedCargoPath, version);
+        updatePackageVersion(resolvedCargoPath, version, dryRun);
         updatedFiles.push(resolvedCargoPath);
       }
     }
@@ -75,7 +75,7 @@ function updateCargoFiles(packageDir: string, version: string, cargoConfig: Conf
     // Default behaviour: check for Cargo.toml in the root package directory
     const cargoTomlPath = path.join(packageDir, 'Cargo.toml');
     if (fs.existsSync(cargoTomlPath)) {
-      updatePackageVersion(cargoTomlPath, version);
+      updatePackageVersion(cargoTomlPath, version, dryRun);
       updatedFiles.push(cargoTomlPath);
     }
   }
@@ -169,13 +169,13 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         if (packages.root) {
           const rootPkgPath = path.join(packages.root, 'package.json');
           if (fs.existsSync(rootPkgPath)) {
-            updatePackageVersion(rootPkgPath, nextVersion);
+            updatePackageVersion(rootPkgPath, nextVersion, dryRun);
             files.push(rootPkgPath);
             updatedPackages.push('root');
             processedPaths.add(rootPkgPath);
 
             // Handle Cargo.toml files in root
-            const rootCargoFiles = updateCargoFiles(packages.root, nextVersion, config.cargo);
+            const rootCargoFiles = updateCargoFiles(packages.root, nextVersion, config.cargo, dryRun);
             files.push(...rootCargoFiles);
           }
         } else {
@@ -199,13 +199,13 @@ export function createSyncStrategy(config: Config): StrategyFunction {
           continue;
         }
 
-        updatePackageVersion(packageJsonPath, nextVersion);
+        updatePackageVersion(packageJsonPath, nextVersion, dryRun);
         files.push(packageJsonPath);
         updatedPackages.push(pkg.packageJson.name);
         processedPaths.add(packageJsonPath);
 
         // Handle Cargo.toml files for this package
-        const pkgCargoFiles = updateCargoFiles(pkg.dir, nextVersion, config.cargo);
+        const pkgCargoFiles = updateCargoFiles(pkg.dir, nextVersion, config.cargo, dryRun);
         files.push(...pkgCargoFiles);
       }
 
@@ -458,13 +458,13 @@ export function createSingleStrategy(config: Config): StrategyFunction {
 
       // Update package.json
       const packageJsonPath = path.join(pkgPath, 'package.json');
-      updatePackageVersion(packageJsonPath, nextVersion);
+      updatePackageVersion(packageJsonPath, nextVersion, dryRun);
 
       // Track all files that need to be committed
       const filesToCommit: string[] = [packageJsonPath];
 
       // Handle Cargo.toml files for this package
-      const cargoFiles = updateCargoFiles(pkgPath, nextVersion, config.cargo);
+      const cargoFiles = updateCargoFiles(pkgPath, nextVersion, config.cargo, dryRun);
       filesToCommit.push(...cargoFiles);
 
       log(`Updated package ${packageName} to version ${nextVersion}`, 'success');
