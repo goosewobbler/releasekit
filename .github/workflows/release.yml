@@ -58,5 +58,8 @@ jobs:
     with:
       version_output: ${{ needs.prepare.outputs.version_output }}
       tags: ${{ needs.prepare.outputs.tags }}
+      ollama_base_url: ${{ vars.OLLAMA_BASE_URL }}
+      ollama_model: ${{ vars.OLLAMA_MODEL }}
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}

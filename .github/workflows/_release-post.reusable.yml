@@ -9,8 +9,18 @@ on:
       tags:
         required: true
         type: string
+      ollama_base_url:
+        required: false
+        type: string
+        default: 'https://ollama.com/api'
+      ollama_model:
+        required: false
+        type: string
+        default: 'minimax-m2.5:cloud'
     secrets:
       ANTHROPIC_API_KEY:
+        required: false
+      OLLAMA_API_KEY:
         required: false
 
 permissions:
@@ -40,8 +50,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          OLLAMA_BASE_URL: ${{ inputs.ollama_base_url }}
+          OLLAMA_MODEL: ${{ inputs.ollama_model }}
         run: |
           IFS=',' read -ra TAG_ARRAY <<< "${{ inputs.tags }}"
+
+          # Build LLM flags based on available secrets
+          LLM_FLAGS=""
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            LLM_FLAGS="--llm-provider anthropic --llm-model claude-sonnet-4-20250514 --llm-tasks summarize"
+          elif [ -n "$OLLAMA_API_KEY" ]; then
+            LLM_FLAGS="--llm-provider ollama --llm-model $OLLAMA_MODEL --llm-tasks summarize"
+          fi
 
           for tag in "${TAG_ARRAY[@]}"; do
             if [ -z "$tag" ]; then
@@ -62,7 +83,7 @@ jobs:
               NOTES=$(node packages/notes/dist/cli.js generate \
                 --input version-output.json \
                 --output markdown \
-                ${ANTHROPIC_API_KEY:+--llm-provider anthropic --llm-model claude-sonnet-4-20250514 --llm-tasks summarize} \
+                ${LLM_FLAGS:+ $LLM_FLAGS} \
                 2>/dev/null || echo "")
             fi
 
