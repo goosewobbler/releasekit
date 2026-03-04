@@ -1,5 +1,6 @@
 # ReleaseKit
 
+[![release npm](https://img.shields.io/npm/v/@releasekit/release.svg?label=@releasekit/release)](https://www.npmjs.com/package/@releasekit/release)
 [![version npm](https://img.shields.io/npm/v/@releasekit/version.svg)](https://www.npmjs.com/package/@releasekit/version)
 [![publish npm](https://img.shields.io/npm/v/@releasekit/publish.svg?label=@releasekit/publish)](https://www.npmjs.com/package/@releasekit/publish)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
@@ -11,6 +12,7 @@ commits and designed for CI/CD pipelines.
 
 | Package | Description |
 |---------|-------------|
+| [@releasekit/release](./packages/release) | **Unified CLI** — run version, notes, and publish in a single command |
 | [@releasekit/version](./packages/version) | Semantic versioning based on Git history and conventional commits |
 | [@releasekit/notes](./packages/notes) | Changelog generation with LLM-powered enhancement and flexible templating |
 | [@releasekit/publish](./packages/publish) | Publish packages to npm and crates.io with git tagging and GitHub releases |
@@ -28,37 +30,39 @@ commits and designed for CI/CD pipelines.
 
 ## Usage
 
-Each tool can be used independently or composed together:
-
-### Preview changes (dry run)
+### Unified release (recommended)
 
 ```bash
-# See what versions would be bumped without making changes
-releasekit-version --dry-run --json
+# Preview the full release pipeline
+releasekit release --dry-run
+
+# Run a full release: version, changelog, and publish
+releasekit release
+
+# Skip changelog generation
+releasekit release --skip-notes
+
+# Force a patch bump
+releasekit release --bump patch
 ```
 
-### Full release workflow
+### Composable tools
+
+Each tool can also be used independently or piped together:
 
 ```bash
+# Preview changes (dry run)
+releasekit-version --dry-run --json
+
 # Run version once, use output for both notes and publish
 output=$(releasekit-version --json)
 echo "$output" | releasekit-notes
 echo "$output" | releasekit-publish
-```
 
-### Changelog-only release
-
-For packages that don't need registry publishing (private packages, internal tools):
-
-```bash
+# Changelog-only (no publishing)
 releasekit-version --json | releasekit-notes
-```
 
-### Version + publish (skip changelog)
-
-For quick releases where changelogs aren't needed:
-
-```bash
+# Publish-only (no changelog)
 releasekit-version --json | releasekit-publish
 ```
 
@@ -66,6 +70,7 @@ See the package READMEs for full CLI reference.
 
 ## Documentation
 
+- [@releasekit/release — README](./packages/release/README.md)
 - [@releasekit/version — README](./packages/version/README.md)
 - [@releasekit/version — Versioning strategies](./packages/version/docs/versioning.md)
 - [@releasekit/version — CI/CD integration](./packages/version/docs/CI_CD_INTEGRATION.md)

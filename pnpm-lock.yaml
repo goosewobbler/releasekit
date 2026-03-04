@@ -244,6 +244,49 @@ importers:
         specifier: 'catalog:'
         version: 4.0.18(@types/node@25.3.0)(tsx@4.21.0)(yaml@2.8.2)
 
+  packages/release:
+    dependencies:
+      '@releasekit/config':
+        specifier: workspace:*
+        version: link:../config
+      '@releasekit/core':
+        specifier: workspace:*
+        version: link:../core
+      '@releasekit/notes':
+        specifier: workspace:*
+        version: link:../notes
+      '@releasekit/publish':
+        specifier: workspace:*
+        version: link:../publish
+      '@releasekit/version':
+        specifier: workspace:*
+        version: link:../version
+      commander:
+        specifier: 'catalog:'
+        version: 14.0.3
+    devDependencies:
+      '@biomejs/biome':
+        specifier: 'catalog:'
+        version: 2.4.4
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.3.0
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.7.1
+      '@vitest/coverage-v8':
+        specifier: 'catalog:'
+        version: 4.0.18(vitest@4.0.18(@types/node@25.3.0)(tsx@4.21.0)(yaml@2.8.2))
+      tsup:
+        specifier: 'catalog:'
+        version: 8.5.1(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.0.18(@types/node@25.3.0)(tsx@4.21.0)(yaml@2.8.2)
+
   packages/version:
     dependencies:
       '@manypkg/get-packages':
