@@ -61,7 +61,7 @@ jobs:
           if [ -n "$ANTHROPIC_API_KEY" ]; then
             LLM_FLAGS="--llm-provider anthropic --llm-model claude-sonnet-4-20250514 --llm-tasks summarize"
           elif [ -n "$OLLAMA_API_KEY" ]; then
-            LLM_FLAGS="--llm-provider ollama --llm-model $OLLAMA_MODEL --llm-tasks summarize"
+            LLM_FLAGS="--llm-provider ollama --llm-model $OLLAMA_MODEL --llm-base-url $OLLAMA_BASE_URL --llm-tasks summarize"
           fi
 
           for tag in "${TAG_ARRAY[@]}"; do

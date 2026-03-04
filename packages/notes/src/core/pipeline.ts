@@ -87,34 +87,58 @@ async function processWithLLM(context: TemplateContext, config: Config): Promise
   };
 
   try {
+    info(`Using LLM provider: ${config.llm.provider}${config.llm.model ? ` (${config.llm.model})` : ''}`);
+    if (config.llm.baseURL) {
+      info(`LLM base URL: ${config.llm.baseURL}`);
+    }
+
     const rawProvider = createProvider(config.llm);
     const retryOpts = config.llm.retry ?? LLM_DEFAULTS.retry;
     const provider: LLMProvider = {
       name: rawProvider.name,
       complete: (prompt, opts) => withRetry(() => rawProvider.complete(prompt, opts), retryOpts),
     };
+
+    const activeTasks = Object.entries(tasks)
+      .filter(([, enabled]) => enabled)
+      .map(([name]) => name);
+    info(`Running LLM tasks: ${activeTasks.join(', ')}`);
+
     if (tasks.enhance) {
-      debug('Enhancing entries with LLM');
+      info('Enhancing entries with LLM...');
       enhanced.entries = await enhanceEntries(provider, context.entries, llmContext, config.llm.concurrency);
+      info(`Enhanced ${enhanced.entries.length} entries`);
     }
 
     if (tasks.summarize) {
-      debug('Summarizing entries with LLM');
+      info('Summarizing entries with LLM...');
       enhanced.summary = await summarizeEntries(provider, enhanced.entries, llmContext);
+      if (enhanced.summary) {
+        info('Summary generated successfully');
+        debug(`Summary: ${enhanced.summary.substring(0, 100)}...`);
+      } else {
+        warn('Summary generation returned empty result');
+      }
     }
 
     if (tasks.categorize) {
-      debug('Categorizing entries with LLM');
+      info('Categorizing entries with LLM...');
       const categorized = await categorizeEntries(provider, enhanced.entries, llmContext);
       enhanced.categories = {};
       for (const cat of categorized) {
         enhanced.categories[cat.category] = cat.entries;
       }
+      info(`Created ${categorized.length} categories`);
     }
 
     if (tasks.releaseNotes) {
-      debug('Generating release notes with LLM');
+      info('Generating release notes with LLM...');
       enhanced.releaseNotes = await generateReleaseNotes(provider, enhanced.entries, llmContext);
+      if (enhanced.releaseNotes) {
+        info('Release notes generated successfully');
+      } else {
+        warn('Release notes generation returned empty result');
+      }
     }
 
     return {
@@ -185,11 +209,9 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
 
   let contexts = input.packages.map(createTemplateContext);
 
-  if (config.llm && !process.env.CHANGELOG_NO_LLM && !dryRun) {
+  if (config.llm && !process.env.CHANGELOG_NO_LLM) {
     info('Processing with LLM enhancement');
     contexts = await Promise.all(contexts.map((ctx) => processWithLLM(ctx, config)));
-  } else if (config.llm && dryRun) {
-    info('Skipping LLM processing in dry-run mode');
   }
 
   for (const output of config.output) {

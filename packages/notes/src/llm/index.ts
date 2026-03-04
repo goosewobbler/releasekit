@@ -60,6 +60,7 @@ export function createProvider(config: LLMConfig): LLMProvider {
 
     case 'ollama':
       return new OllamaProvider({
+        apiKey,
         baseURL: config.baseURL,
         model: config.model,
       });

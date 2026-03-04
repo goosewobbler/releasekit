@@ -4,13 +4,17 @@ import { BaseLLMProvider } from './base.js';
 import { LLM_DEFAULTS } from './defaults.js';
 
 export interface OllamaConfig {
+  apiKey?: string;
   baseURL?: string;
   model?: string;
 }
 
-interface OllamaGenerateRequest {
+interface OllamaChatRequest {
   model: string;
-  prompt: string;
+  messages: Array<{
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+  }>;
   stream?: boolean;
   options?: {
     num_predict?: number;
@@ -18,8 +22,11 @@ interface OllamaGenerateRequest {
   };
 }
 
-interface OllamaGenerateResponse {
-  response: string;
+interface OllamaChatResponse {
+  message: {
+    role: string;
+    content: string;
+  };
   done: boolean;
 }
 
@@ -27,18 +34,20 @@ export class OllamaProvider extends BaseLLMProvider {
   readonly name = 'ollama';
   private baseURL: string;
   private model: string;
+  private apiKey?: string;
 
   constructor(config: OllamaConfig = {}) {
     super();
 
     this.baseURL = config.baseURL ?? process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434';
     this.model = config.model ?? LLM_DEFAULTS.models.ollama;
+    this.apiKey = config.apiKey ?? process.env.OLLAMA_API_KEY;
   }
 
   async complete(prompt: string, options?: CompleteOptions): Promise<string> {
-    const requestBody: OllamaGenerateRequest = {
+    const requestBody: OllamaChatRequest = {
       model: this.model,
-      prompt,
+      messages: [{ role: 'user', content: prompt }],
       stream: false,
       options: {
         num_predict: this.getMaxTokens(options),
@@ -47,11 +56,16 @@ export class OllamaProvider extends BaseLLMProvider {
     };
 
     try {
-      const response = await fetch(`${this.baseURL}/api/generate`, {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (this.apiKey) {
+        headers['Authorization'] = `Bearer ${this.apiKey}`;
+      }
+      const baseUrl = this.baseURL.endsWith('/api') ? this.baseURL.slice(0, -4) : this.baseURL;
+      const response = await fetch(`${baseUrl}/api/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(requestBody),
       });
 
@@ -60,13 +74,13 @@ export class OllamaProvider extends BaseLLMProvider {
         throw new LLMError(`Ollama request failed: ${response.status} ${text}`);
       }
 
-      const data = (await response.json()) as OllamaGenerateResponse;
+      const data = (await response.json()) as OllamaChatResponse;
 
-      if (!data.response) {
+      if (!data.message?.content) {
         throw new LLMError('Empty response from Ollama');
       }
 
-      return data.response;
+      return data.message.content;
     } catch (error) {
       if (error instanceof LLMError) throw error;
 

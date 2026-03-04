@@ -27,6 +27,7 @@ program
   .option('--monorepo <mode>', 'Monorepo mode (root|packages|both)')
   .option('--llm-provider <provider>', 'LLM provider')
   .option('--llm-model <model>', 'LLM model')
+  .option('--llm-base-url <url>', 'LLM base URL (for openai-compatible provider)')
   .option('--llm-tasks <tasks>', 'Comma-separated LLM tasks')
   .option('--no-llm', 'Disable LLM processing')
   .option('--config <path>', 'Config file path')
@@ -62,11 +63,13 @@ program
       }
 
       if (options.llm === false) {
+        info('LLM processing disabled via --no-llm flag');
         delete config.llm;
-      } else if (options.llmProvider || options.llmModel || options.llmTasks) {
+      } else if (options.llmProvider || options.llmModel || options.llmBaseUrl || options.llmTasks) {
         config.llm = config.llm ?? { provider: 'openai-compatible', model: '' };
         if (options.llmProvider) config.llm.provider = options.llmProvider;
         if (options.llmModel) config.llm.model = options.llmModel;
+        if (options.llmBaseUrl) config.llm.baseURL = options.llmBaseUrl;
         if (options.llmTasks) {
           const taskNames = (options.llmTasks as string).split(',').map((t: string) => t.trim());
           config.llm.tasks = {
@@ -75,6 +78,17 @@ program
             categorize: taskNames.includes('categorize'),
             releaseNotes: taskNames.includes('release-notes') || taskNames.includes('releaseNotes'),
           };
+        }
+        info(`LLM configured: ${config.llm.provider}${config.llm.model ? ` (${config.llm.model})` : ''}`);
+        if (config.llm.baseURL) {
+          info(`LLM base URL: ${config.llm.baseURL}`);
+        }
+        const taskList = Object.entries(config.llm.tasks || {})
+          .filter(([, enabled]) => enabled)
+          .map(([name]) => name)
+          .join(', ');
+        if (taskList) {
+          info(`LLM tasks: ${taskList}`);
         }
       }
 
@@ -113,7 +127,11 @@ program
         await runPipeline(input, config, options.dryRun ?? false);
       }
 
-      success('Changelog generation complete');
+      if (options.dryRun) {
+        info('Dry run complete - no files were written');
+      } else {
+        success('Changelog generation complete');
+      }
     } catch (err) {
       handleError(err);
     }
@@ -194,9 +212,9 @@ function increaseVerbosity(_: string, previous: number): number {
 }
 
 function setVerbosity(level: number): void {
-  // 0 = error (default), 1 = warn (-v), 2 = info (-vv), 3 = debug (-vvv), 4+ = trace (-vvvv)
-  const levels = ['error', 'warn', 'info', 'debug', 'trace'] as const;
-  setLogLevel(levels[Math.min(level, levels.length - 1)] ?? 'error');
+  // 0 = info (default), 1 = debug (-v), 2 = trace (-vv)
+  const levels = ['info', 'debug', 'trace'] as const;
+  setLogLevel(levels[Math.min(level, levels.length - 1)] ?? 'info');
 }
 
 async function readStdin(): Promise<string> {

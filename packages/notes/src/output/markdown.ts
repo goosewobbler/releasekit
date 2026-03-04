@@ -63,6 +63,11 @@ function formatVersion(context: TemplateContext): string {
     lines.push('');
   }
 
+  if (context.enhanced?.summary) {
+    lines.push(context.enhanced.summary);
+    lines.push('');
+  }
+
   const grouped = groupEntriesByType(context.entries);
 
   for (const [type, entries] of grouped) {
