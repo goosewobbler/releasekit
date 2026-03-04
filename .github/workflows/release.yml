@@ -58,6 +58,8 @@ jobs:
     needs: [prepare, publish]
     if: needs.prepare.outputs.has_changes == 'true' && inputs.dry_run == false
     uses: ./.github/workflows/_release-post.reusable.yml
+    permissions:
+      contents: write
     with:
       version_output: ${{ needs.prepare.outputs.version_output }}
       tags: ${{ needs.prepare.outputs.tags }}
