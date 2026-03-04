@@ -1,6 +1,6 @@
 # Bootstrap Guide — First Release
 
-This document covers the one-time setup required before the self-referential release workflow can operate autonomously. After this is done, every subsequent release uses `@releasekit/version` to version itself and `@releasekit/notes` to write its own GitHub Release notes.
+This document covers the one-time setup required before the self-referential release workflow can operate autonomously. After this is done, every subsequent release uses the ReleaseKit tools to version, changelog, and publish themselves.
 
 ## Overview
 
@@ -26,17 +26,12 @@ The packages must exist on NPM before OIDC trusted publishing will work. Publish
 pnpm install
 pnpm build
 
-# Publish @releasekit/version
-cd packages/version
-# Confirm version is 0.1.0 in package.json before proceeding
-npm publish --access public
-
-# Publish @releasekit/notes
-cd ../notes
-# Confirm version is 0.1.0 in package.json before proceeding
-npm publish --access public
-
-cd ../..
+# Publish each public package
+# Confirm version is 0.1.0 in each package.json before proceeding
+cd packages/version && npm publish --access public && cd ../..
+cd packages/notes && npm publish --access public && cd ../..
+cd packages/publish && npm publish --access public && cd ../..
+cd packages/release && npm publish --access public && cd ../..
 ```
 
 > If either package name is already taken on NPM, you'll need to either claim it or adjust the scope.
@@ -49,7 +44,7 @@ OIDC trusted publishing means the release workflow authenticates to NPM without 
 
 1. Log in to [npmjs.com](https://www.npmjs.com) and go to your account settings
 2. Navigate to **Access Tokens** → **Generate New Token** → **Granular Access Token**
-3. For each package (`@releasekit/version`, `@releasekit/notes`):
+3. For each package (`@releasekit/version`, `@releasekit/notes`, `@releasekit/publish`, `@releasekit/release`):
    - Go to the package page → **Settings** → **Publish access**
    - Enable **Automated publishing** under the **Publishing** section
    - Select **GitHub Actions** as the publishing environment
@@ -145,8 +140,9 @@ Before the first automated release, tag the initial commit so `@releasekit/versi
 # Tag the initial state for each package
 git tag @releasekit/version@v0.1.0
 git tag @releasekit/notes@v0.1.0
-git push origin @releasekit/version@v0.1.0
-git push origin @releasekit/notes@v0.1.0
+git tag @releasekit/publish@v0.1.0
+git tag @releasekit/release@v0.1.0
+git push origin --tags
 ```
 
 These tags match the `tagTemplate` in `version.config.json`:
@@ -177,11 +173,11 @@ Review the workflow output. When satisfied:
 
 The workflow will:
 
-1. Build both packages from source
-2. Run `node packages/version/dist/index.js` to calculate version bumps and update `package.json` files
+1. Build all packages from source
+2. Run `@releasekit/version` to calculate version bumps and update `package.json` files
 3. Commit the version bumps with `[skip ci]` in the message and push the git tags
 4. Publish to NPM via OIDC
-5. Run `node packages/notes/dist/cli.js` to generate release notes using the Anthropic API
+5. Run `@releasekit/notes` to generate release notes using the Anthropic API
 6. Create GitHub Releases for each package with the generated notes
 
 ---
@@ -212,9 +208,11 @@ After bootstrap, all future releases run entirely through the GitHub Actions wor
 ```
 Release workflow triggered
   └── Build from source (turbo build)
-       └── @releasekit/version (built) → calculates + applies version bumps
-            └── @releasekit/notes (built) → generates GitHub Release notes
-                 └── GitHub Release created
+       └── @releasekit/version → calculates + applies version bumps
+            └── @releasekit/notes → generates changelogs and GitHub Release notes
+                 └── @releasekit/publish → publishes to npm, creates tags + GitHub Releases
 ```
+
+Alternatively, the unified `releasekit release` command can run all three steps in a single invocation.
 
 No manual `npm publish` or version editing is ever needed again.
