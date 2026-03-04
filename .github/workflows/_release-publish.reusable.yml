@@ -45,11 +45,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Apply version bumps
-        run: pnpm exec tsx packages/version/src/cli.ts --json ${{ inputs.dry_run && '--dry-run' || '' }}
-
       - name: Build packages
         run: pnpm build
+
+      - name: Apply version bumps
+        run: node packages/version/dist/cli.js --json ${{ inputs.dry_run && '--dry-run' || '' }}
 
       - name: Save version output
         env:
