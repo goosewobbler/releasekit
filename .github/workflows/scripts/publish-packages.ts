@@ -19,7 +19,7 @@ function getNpmTag(version: string): string {
 
 function publishPackage(packageDir: string, packageName: string, npmTag: string): void {
   console.log(`Publishing ${packageName} with tag ${npmTag} from ${packageDir}...`);
-  execSync(`npm publish --tag ${npmTag} --provenance --access public --registry https://registry.npmjs.org`, {
+  execSync(`npm publish --tag ${npmTag} --provenance --access public`, {
     stdio: 'inherit',
     cwd: packageDir,
   });

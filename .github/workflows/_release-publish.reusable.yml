@@ -123,6 +123,34 @@ jobs:
             fi
           done
 
+      - name: Configure npm for OIDC publishing
+        if: ${{ !inputs.dry_run }}
+        run: |
+          echo "=== Debug: .npmrc locations ==="
+          echo "NPM_CONFIG_USERCONFIG=${NPM_CONFIG_USERCONFIG:-not set}"
+          echo "--- ~/.npmrc ---"
+          cat ~/.npmrc 2>/dev/null || echo "(not found)"
+          echo "--- .npmrc ---"
+          cat .npmrc 2>/dev/null || echo "(not found)"
+          echo "--- $NPM_CONFIG_USERCONFIG ---"
+          cat "$NPM_CONFIG_USERCONFIG" 2>/dev/null || echo "(not found)"
+          echo "=== npm config list ==="
+          npm config list
+          echo "=== Stripping _authToken and always-auth ==="
+          # setup-node writes _authToken=${NODE_AUTH_TOKEN} which blocks OIDC
+          for f in ~/.npmrc .npmrc "${NPM_CONFIG_USERCONFIG:-/dev/null}"; do
+            if [ -f "$f" ]; then
+              sed -i '/_authToken/d' "$f"
+              sed -i '/always-auth/d' "$f"
+              echo "Cleaned $f:"
+              cat "$f"
+            fi
+          done
+          echo "=== npm config list (after cleanup) ==="
+          npm config list
+          echo "=== NODE_AUTH_TOKEN set? ==="
+          [ -n "${NODE_AUTH_TOKEN:-}" ] && echo "yes (length ${#NODE_AUTH_TOKEN})" || echo "no"
+
       - name: Publish packages
         if: ${{ !inputs.dry_run }}
         run: pnpm exec tsx .github/workflows/scripts/publish-packages.ts version-output.json false
