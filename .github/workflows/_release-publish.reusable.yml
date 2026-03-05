@@ -100,7 +100,7 @@ jobs:
           VERSION_OUTPUT: ${{ inputs.version_output }}
         run: echo "$VERSION_OUTPUT" > version-output.json
 
-      - name: Commit and tag
+      - name: Commit and tag locally
         if: ${{ !inputs.dry_run }}
         run: |
           git add -A
@@ -121,12 +121,15 @@ jobs:
             fi
           done
 
-          git push origin HEAD
-          git push origin --tags
-
       - name: Publish packages
         if: ${{ !inputs.dry_run }}
         run: pnpm exec tsx .github/workflows/scripts/publish-packages.ts version-output.json false
+
+      - name: Push commits and tags
+        if: ${{ !inputs.dry_run }}
+        run: |
+          git push origin HEAD
+          git push origin --tags
 
       - name: Summary
         run: |
