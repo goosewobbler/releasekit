@@ -1,5 +1,7 @@
 import { warn } from '@releasekit/core';
 import type { ChangelogEntry } from '../../core/types.js';
+import { withRetry } from '../../utils/retry.js';
+import { LLM_DEFAULTS } from '../defaults.js';
 import type { CategorizeContext, CategorizedEntries, EnhanceContext, LLMProvider } from '../index.js';
 
 interface CombinedResult {
@@ -54,56 +56,62 @@ export async function enhanceAndCategorize(
     return { enhancedEntries: [], categories: [] };
   }
 
-  const prompt = buildPrompt(entries, context.categories, context.style);
+  const retryOpts = LLM_DEFAULTS.retry;
 
   try {
-    const response = await provider.complete(prompt);
+    // Wrap entire operation (LLM call + JSON parsing) in retry
+    return await withRetry(async () => {
+      const prompt = buildPrompt(entries, context.categories, context.style);
+      const response = await provider.complete(prompt);
 
-    const cleaned = response
-      .replace(/^```(?:json)?\n?/, '')
-      .replace(/\n?```$/, '')
-      .trim();
-    const parsed = JSON.parse(cleaned);
+      const cleaned = response
+        .replace(/^```(?:json)?\n?/, '')
+        .replace(/\n?```$/, '')
+        .trim();
+      const parsed = JSON.parse(cleaned);
 
-    if (!Array.isArray(parsed.entries)) {
-      throw new Error('Response missing "entries" array');
-    }
-
-    // Build enhanced entries
-    const enhancedEntries: ChangelogEntry[] = entries.map((original, i) => {
-      const result = parsed.entries[i];
-      if (!result) return original;
-
-      return {
-        ...original,
-        description: result.description || original.description,
-        scope: result.scope || original.scope,
-      };
-    });
-
-    // Group into categories
-    const categoryMap = new Map<string, ChangelogEntry[]>();
-
-    for (let i = 0; i < parsed.entries.length; i++) {
-      const result = parsed.entries[i];
-      const category = result?.category || 'General';
-      const entry = enhancedEntries[i];
-      if (!entry) continue;
-
-      if (!categoryMap.has(category)) {
-        categoryMap.set(category, []);
+      if (!Array.isArray(parsed.entries)) {
+        throw new Error('Response missing "entries" array');
       }
-      categoryMap.get(category)!.push(entry);
-    }
 
-    const categories: CategorizedEntries[] = [];
-    for (const [category, catEntries] of categoryMap) {
-      categories.push({ category, entries: catEntries });
-    }
+      // Build enhanced entries
+      const enhancedEntries: ChangelogEntry[] = entries.map((original, i) => {
+        const result = parsed.entries[i];
+        if (!result) return original;
 
-    return { enhancedEntries, categories };
+        return {
+          ...original,
+          description: result.description || original.description,
+          scope: result.scope || original.scope,
+        };
+      });
+
+      // Group into categories
+      const categoryMap = new Map<string, ChangelogEntry[]>();
+
+      for (let i = 0; i < parsed.entries.length; i++) {
+        const result = parsed.entries[i];
+        const category = result?.category || 'General';
+        const entry = enhancedEntries[i];
+        if (!entry) continue;
+
+        if (!categoryMap.has(category)) {
+          categoryMap.set(category, []);
+        }
+        categoryMap.get(category)!.push(entry);
+      }
+
+      const categories: CategorizedEntries[] = [];
+      for (const [category, catEntries] of categoryMap) {
+        categories.push({ category, entries: catEntries });
+      }
+
+      return { enhancedEntries, categories };
+    }, retryOpts);
   } catch (error) {
-    warn(`Combined enhance+categorize failed: ${error instanceof Error ? error.message : String(error)}`);
+    warn(
+      `Combined enhance+categorize failed after ${retryOpts.maxAttempts} attempts: ${error instanceof Error ? error.message : String(error)}`,
+    );
     // Fall back to uncategorized original entries
     return {
       enhancedEntries: entries,

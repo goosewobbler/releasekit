@@ -327,6 +327,44 @@ describe('enhanceAndCategorize()', () => {
     expect(provider.callCount).toBe(0);
   });
 
+  it('retries on invalid JSON and succeeds on subsequent attempt', async () => {
+    let callCount = 0;
+    const validResponse = JSON.stringify({
+      entries: [
+        { description: 'Success after retry', category: 'New', scope: null },
+        { description: 'Fixed', category: 'Fixed', scope: null },
+        { description: 'Changed', category: 'Changed', scope: null },
+      ],
+    });
+    const provider: LLMProvider & { callCount: number } = {
+      name: 'mock-retry',
+      get callCount() {
+        return callCount;
+      },
+      async complete(): Promise<string> {
+        callCount++;
+        if (callCount < 3) {
+          return 'invalid json { missing';
+        }
+        return validResponse;
+      },
+    };
+
+    const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
+
+    expect(provider.callCount).toBe(3);
+    expect(result.enhancedEntries[0]?.description).toBe('Success after retry');
+    expect(result.categories).toHaveLength(3);
+  });
+
+  it('retries up to 3 times on persistent failures', async () => {
+    const provider = makeMockProvider('always invalid json');
+    const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
+
+    expect(provider.callCount).toBe(3);
+    expect(result.categories[0]?.category).toBe('General');
+  });
+
   it('handles partial LLM response (fewer entries than input)', async () => {
     const response = JSON.stringify({
       entries: [
