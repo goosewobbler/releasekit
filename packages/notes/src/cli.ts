@@ -30,6 +30,7 @@ program
   .option('--llm-base-url <url>', 'LLM base URL (for openai-compatible provider)')
   .option('--llm-tasks <tasks>', 'Comma-separated LLM tasks')
   .option('--no-llm', 'Disable LLM processing')
+  .option('--target <package>', 'Filter to a specific package name')
   .option('--config <path>', 'Config file path')
   .option('--dry-run', 'Preview without writing')
   .option('--regenerate', 'Regenerate entire changelog')
@@ -101,6 +102,16 @@ program
       }
 
       const input = parsePackageVersioner(inputJson);
+
+      if (options.target) {
+        const before = input.packages.length;
+        input.packages = input.packages.filter((p) => p.packageName === options.target);
+        if (input.packages.length === 0) {
+          info(`No changelog found for package "${options.target}" (had ${before} package(s))`);
+          return;
+        }
+        info(`Filtered to package: ${options.target}`);
+      }
 
       if (options.monorepo || config.monorepo) {
         const monorepoMode = options.monorepo ?? config.monorepo?.mode ?? 'both';

@@ -72,26 +72,24 @@ jobs:
 
             echo "Creating GitHub Release for ${tag}..."
 
-            # Determine if this is a prerelease
-            IS_PRERELEASE=false
-            if echo "$tag" | grep -qE '\-'; then
-              IS_PRERELEASE=true
-            fi
+            # Extract package name from tag (e.g. @releasekit/version@v0.2.0 -> @releasekit/version)
+            PACKAGE_NAME="${tag%@v*}"
 
-            # Generate release notes using releasekit-notes from built source
+            # Generate release notes for this specific package
             NOTES=""
             if [ -f version-output.json ]; then
               NOTES=$(node packages/notes/dist/cli.js generate \
                 --input version-output.json \
+                --target "${PACKAGE_NAME}" \
                 --output markdown \
                 --template ./templates/release-notes/release.liquid \
                 ${LLM_FLAGS:+ $LLM_FLAGS} \
                 || echo "")
             fi
 
-            # Fall back to auto-generated notes if releasekit-notes fails
+            # Determine if this is a prerelease
             PRERELEASE_FLAG=""
-            if [ "$IS_PRERELEASE" = "true" ]; then
+            if echo "$tag" | grep -qE '\-'; then
               PRERELEASE_FLAG="--prerelease"
             fi
 
