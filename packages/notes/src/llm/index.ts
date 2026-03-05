@@ -15,6 +15,7 @@ export { OpenAICompatibleProvider } from './openai-compatible.js';
 export type { LLMProvider } from './provider.js';
 export { categorizeEntries } from './tasks/categorize.js';
 export { enhanceEntries, enhanceEntry } from './tasks/enhance.js';
+export { enhanceAndCategorize } from './tasks/enhance-and-categorize.js';
 export { generateReleaseNotes } from './tasks/release-notes.js';
 export { summarizeEntries } from './tasks/summarize.js';
 

@@ -7,6 +7,7 @@ import type { LLMProvider } from '../llm/index.js';
 import {
   categorizeEntries,
   createProvider,
+  enhanceAndCategorize,
   enhanceEntries,
   generateReleaseNotes,
   summarizeEntries,
@@ -106,10 +107,32 @@ async function processWithLLM(context: TemplateContext, config: Config): Promise
       .map(([name]) => name);
     info(`Running LLM tasks: ${activeTasks.join(', ')}`);
 
-    if (tasks.enhance) {
-      info('Enhancing entries with LLM...');
-      enhanced.entries = await enhanceEntries(provider, context.entries, llmContext, config.llm.concurrency);
-      info(`Enhanced ${enhanced.entries.length} entries`);
+    if (tasks.enhance && tasks.categorize) {
+      // Combined single-call: enhance + categorize in one LLM request
+      info('Enhancing and categorizing entries with LLM (single call)...');
+      const result = await enhanceAndCategorize(provider, context.entries, llmContext);
+      enhanced.entries = result.enhancedEntries;
+      enhanced.categories = {};
+      for (const cat of result.categories) {
+        enhanced.categories[cat.category] = cat.entries;
+      }
+      info(`Enhanced ${enhanced.entries.length} entries into ${result.categories.length} categories`);
+    } else {
+      if (tasks.enhance) {
+        info('Enhancing entries with LLM...');
+        enhanced.entries = await enhanceEntries(provider, context.entries, llmContext, config.llm.concurrency);
+        info(`Enhanced ${enhanced.entries.length} entries`);
+      }
+
+      if (tasks.categorize) {
+        info('Categorizing entries with LLM...');
+        const categorized = await categorizeEntries(provider, enhanced.entries, llmContext);
+        enhanced.categories = {};
+        for (const cat of categorized) {
+          enhanced.categories[cat.category] = cat.entries;
+        }
+        info(`Created ${categorized.length} categories`);
+      }
     }
 
     if (tasks.summarize) {
@@ -121,16 +144,6 @@ async function processWithLLM(context: TemplateContext, config: Config): Promise
       } else {
         warn('Summary generation returned empty result');
       }
-    }
-
-    if (tasks.categorize) {
-      info('Categorizing entries with LLM...');
-      const categorized = await categorizeEntries(provider, enhanced.entries, llmContext);
-      enhanced.categories = {};
-      for (const cat of categorized) {
-        enhanced.categories[cat.category] = cat.entries;
-      }
-      info(`Created ${categorized.length} categories`);
     }
 
     if (tasks.releaseNotes) {

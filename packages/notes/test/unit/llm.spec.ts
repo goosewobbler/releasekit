@@ -3,6 +3,7 @@ import type { ChangelogEntry } from '../../src/core/types.js';
 import type { LLMProvider } from '../../src/llm/provider.js';
 import { categorizeEntries } from '../../src/llm/tasks/categorize.js';
 import { enhanceEntries, enhanceEntry } from '../../src/llm/tasks/enhance.js';
+import { enhanceAndCategorize } from '../../src/llm/tasks/enhance-and-categorize.js';
 import { generateReleaseNotes } from '../../src/llm/tasks/release-notes.js';
 import { summarizeEntries } from '../../src/llm/tasks/summarize.js';
 
@@ -203,6 +204,144 @@ describe('categorizeEntries()', () => {
     const result = await categorizeEntries(provider, sampleEntries, llmContext);
     const core = result.find((c) => c.category === 'Core');
     expect(core?.entries).toHaveLength(1); // only index 0 is valid
+  });
+});
+
+// ---------------------------------------------------------------------------
+// enhanceAndCategorize (combined single-call)
+// ---------------------------------------------------------------------------
+
+describe('enhanceAndCategorize()', () => {
+  it('parses valid response into enhanced entries and categories', async () => {
+    const response = JSON.stringify({
+      entries: [
+        { description: 'Added real-time streaming to the API', category: 'New', scope: null },
+        { description: 'Fixed null pointer in parser', category: 'Fixed', scope: null },
+        { description: 'Refactored config loading', category: 'Developer', scope: 'Code Quality' },
+      ],
+    });
+    const provider = makeMockProvider(response);
+    const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
+
+    expect(result.enhancedEntries).toHaveLength(3);
+    expect(result.enhancedEntries[0]?.description).toBe('Added real-time streaming to the API');
+    expect(result.enhancedEntries[2]?.scope).toBe('Code Quality');
+
+    expect(result.categories).toHaveLength(3);
+    expect(result.categories.find((c) => c.category === 'New')?.entries).toHaveLength(1);
+    expect(result.categories.find((c) => c.category === 'Fixed')?.entries).toHaveLength(1);
+    expect(result.categories.find((c) => c.category === 'Developer')?.entries).toHaveLength(1);
+  });
+
+  it('makes exactly one provider call', async () => {
+    const response = JSON.stringify({
+      entries: [
+        { description: 'a', category: 'General', scope: null },
+        { description: 'b', category: 'General', scope: null },
+        { description: 'c', category: 'General', scope: null },
+      ],
+    });
+    const provider = makeMockProvider(response);
+    await enhanceAndCategorize(provider, sampleEntries, llmContext);
+    expect(provider.callCount).toBe(1);
+  });
+
+  it('preserves original entry fields (type, issueIds)', async () => {
+    const response = JSON.stringify({
+      entries: [
+        { description: 'New desc', category: 'New', scope: null },
+        { description: 'Fixed desc', category: 'Fixed', scope: null },
+        { description: 'Changed desc', category: 'Changed', scope: null },
+      ],
+    });
+    const provider = makeMockProvider(response);
+    const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
+
+    expect(result.enhancedEntries[0]?.type).toBe('added');
+    expect(result.enhancedEntries[1]?.type).toBe('fixed');
+    expect(result.enhancedEntries[2]?.type).toBe('changed');
+  });
+
+  it('preserves original scope when LLM returns null scope', async () => {
+    const response = JSON.stringify({
+      entries: [
+        { description: 'New desc', category: 'New', scope: null },
+        { description: 'Fixed desc', category: 'Fixed', scope: null },
+        { description: 'Changed desc', category: 'Changed', scope: null },
+      ],
+    });
+    const provider = makeMockProvider(response);
+    const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
+
+    // First entry had scope 'api' originally
+    expect(result.enhancedEntries[0]?.scope).toBe('api');
+  });
+
+  it('strips markdown code fences before parsing', async () => {
+    const response =
+      '```json\n' +
+      JSON.stringify({
+        entries: [
+          { description: 'a', category: 'General', scope: null },
+          { description: 'b', category: 'General', scope: null },
+          { description: 'c', category: 'General', scope: null },
+        ],
+      }) +
+      '\n```';
+    const provider = makeMockProvider(response);
+    const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
+    expect(result.enhancedEntries).toHaveLength(3);
+  });
+
+  it('falls back to General category on invalid JSON', async () => {
+    const provider = makeMockProvider('not valid json');
+    const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
+
+    expect(result.enhancedEntries).toHaveLength(3);
+    expect(result.enhancedEntries[0]?.description).toBe('Add streaming support'); // original preserved
+    expect(result.categories).toHaveLength(1);
+    expect(result.categories[0]?.category).toBe('General');
+  });
+
+  it('falls back when response is missing entries array', async () => {
+    const provider = makeMockProvider(JSON.stringify({ categories: {} }));
+    const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
+
+    expect(result.enhancedEntries[0]?.description).toBe('Add streaming support');
+    expect(result.categories[0]?.category).toBe('General');
+  });
+
+  it('handles provider error gracefully', async () => {
+    const provider = makeFailingProvider(0);
+    const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
+
+    expect(result.enhancedEntries).toHaveLength(3);
+    expect(result.categories[0]?.category).toBe('General');
+  });
+
+  it('returns empty results for empty entries', async () => {
+    const provider = makeMockProvider('{}');
+    const result = await enhanceAndCategorize(provider, [], llmContext);
+    expect(result.enhancedEntries).toHaveLength(0);
+    expect(result.categories).toHaveLength(0);
+    expect(provider.callCount).toBe(0);
+  });
+
+  it('handles partial LLM response (fewer entries than input)', async () => {
+    const response = JSON.stringify({
+      entries: [
+        { description: 'Only first', category: 'New', scope: null },
+        // missing entries 1 and 2
+      ],
+    });
+    const provider = makeMockProvider(response);
+    const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
+
+    expect(result.enhancedEntries).toHaveLength(3);
+    expect(result.enhancedEntries[0]?.description).toBe('Only first');
+    // Missing entries fall back to originals
+    expect(result.enhancedEntries[1]?.description).toBe('Fix null pointer in parser');
+    expect(result.enhancedEntries[2]?.description).toBe('Refactor config loading');
   });
 });
 
