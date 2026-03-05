@@ -34,15 +34,19 @@ function buildCustomCategorizePrompt(categories: Array<{ name: string; descripti
     }
   }
 
+  const scopeValidationInstructions = scopeInstructions
+    ? `\n\nIMPORTANT: When assigning scopes, you MUST ONLY use scopes from the predefined list above. DO NOT use scopes from conventional commit messages (like "version", "core", "api", etc.). If an entry does not fit any of the predefined scopes, leave the scope as null.`
+    : '';
+
   return `You are categorizing changelog entries for a software release.
 
 Given the following entries, group them into the specified categories. Only use the categories listed below in this exact order:
 
 Categories:
-${categoryList}${scopeInstructions}
+${categoryList}${scopeInstructions}${scopeValidationInstructions}
 Output a JSON object with two fields:
 - "categories": an object where keys are category names and values are arrays of entry indices (0-based)
-- "scopes": an object where keys are entry indices (as strings) and values are scope labels
+- "scopes": an object where keys are entry indices (as strings) and values are scope labels. Only include entries that have a valid scope from the predefined list.
 
 Entries:
 {{entries}}
@@ -59,9 +63,11 @@ export async function categorizeEntries(
     return [];
   }
 
-  const entriesText = entries
-    .map((e, i) => `${i}. [${e.type}]${e.scope ? ` (${e.scope})` : ''}: ${e.description}`)
-    .join('\n');
+  // Create a copy of entries with scopes cleared for LLM processing
+  // The LLM will assign new scopes only from the predefined valid list
+  const entriesCopy: ChangelogEntry[] = entries.map((e) => ({ ...e, scope: undefined }));
+
+  const entriesText = entriesCopy.map((e, i) => `${i}. [${e.type}]: ${e.description}`).join('\n');
 
   const hasCustomCategories = context.categories && context.categories.length > 0;
   const promptTemplate = hasCustomCategories
@@ -86,17 +92,17 @@ export async function categorizeEntries(
       const categoryMap = parsed.categories as Record<string, unknown>;
       const scopeMap = (parsed.scopes || {}) as Record<string, string>;
 
-      // Apply scopes to entries
+      // Apply scopes to entries (only if LLM provided a valid scope)
       for (const [indexStr, scope] of Object.entries(scopeMap)) {
         const idx = Number.parseInt(indexStr, 10);
-        if (entries[idx] && scope) {
-          entries[idx] = { ...entries[idx], scope: scope as string };
+        if (entriesCopy[idx] && scope && scope.trim()) {
+          entriesCopy[idx] = { ...entriesCopy[idx], scope: scope.trim() };
         }
       }
 
       for (const [category, rawIndices] of Object.entries(categoryMap)) {
         const indices = Array.isArray(rawIndices) ? rawIndices : [];
-        const categoryEntries = indices.map((i) => entries[i]).filter((e): e is ChangelogEntry => e !== undefined);
+        const categoryEntries = indices.map((i) => entriesCopy[i]).filter((e): e is ChangelogEntry => e !== undefined);
 
         if (categoryEntries.length > 0) {
           result.push({ category, entries: categoryEntries });
@@ -108,7 +114,7 @@ export async function categorizeEntries(
 
       for (const [category, rawIndices] of Object.entries(categoryMap)) {
         const indices = Array.isArray(rawIndices) ? rawIndices : [];
-        const categoryEntries = indices.map((i) => entries[i]).filter((e): e is ChangelogEntry => e !== undefined);
+        const categoryEntries = indices.map((i) => entriesCopy[i]).filter((e): e is ChangelogEntry => e !== undefined);
 
         if (categoryEntries.length > 0) {
           result.push({ category, entries: categoryEntries });
@@ -121,6 +127,7 @@ export async function categorizeEntries(
     warn(
       `LLM categorization failed, falling back to General: ${error instanceof Error ? error.message : String(error)}`,
     );
-    return [{ category: 'General', entries }];
+    // Return entries (with scopes cleared) on error
+    return [{ category: 'General', entries: entriesCopy }];
   }
 }

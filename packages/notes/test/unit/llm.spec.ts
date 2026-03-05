@@ -205,6 +205,46 @@ describe('categorizeEntries()', () => {
     const core = result.find((c) => c.category === 'Core');
     expect(core?.entries).toHaveLength(1); // only index 0 is valid
   });
+
+  it('clears existing scopes from entries before categorization', async () => {
+    const entriesWithScopes: ChangelogEntry[] = [
+      { type: 'added', description: 'Add feature', scope: 'version' },
+      { type: 'fixed', description: 'Fix bug', scope: 'notes' },
+    ];
+    const provider = makeMockProvider(JSON.stringify({ General: [0, 1] }));
+    const result = await categorizeEntries(provider, entriesWithScopes, llmContext);
+
+    // Scopes should be cleared since LLM didn't assign new ones
+    expect(result[0]?.entries[0]?.scope).toBeUndefined();
+    expect(result[0]?.entries[1]?.scope).toBeUndefined();
+  });
+
+  it('applies scopes from LLM response when provided', async () => {
+    const entriesWithoutScopes: ChangelogEntry[] = [
+      { type: 'added', description: 'Update dependencies' },
+      { type: 'fixed', description: 'Fix bug' },
+    ];
+    const provider = makeMockProvider(
+      JSON.stringify({
+        categories: { Developer: [0], Fixed: [1] },
+        scopes: { '0': 'Dependencies' },
+      }),
+    );
+
+    const result = await categorizeEntries(provider, entriesWithoutScopes, {
+      ...llmContext,
+      categories: [
+        { name: 'Developer', description: 'Internal changes. MUST assign a scope from: Dependencies, CI' },
+        { name: 'Fixed', description: 'Bug fixes' },
+      ],
+    });
+
+    const devCategory = result.find((c) => c.category === 'Developer');
+    expect(devCategory?.entries[0]?.scope).toBe('Dependencies');
+
+    const fixedCategory = result.find((c) => c.category === 'Fixed');
+    expect(fixedCategory?.entries[0]?.scope).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------
