@@ -3,42 +3,54 @@
   "updates": [
     {
       "packageName": "@releasekit/version",
-      "newVersion": "0.2.0-next.10",
+      "newVersion": "0.2.0-next.11",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/version/package.json"
     },
     {
       "packageName": "@releasekit/notes",
-      "newVersion": "0.2.0-next.10",
+      "newVersion": "0.2.0-next.11",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/notes/package.json"
     },
     {
       "packageName": "@releasekit/publish",
-      "newVersion": "0.2.0-next.10",
+      "newVersion": "0.2.0-next.11",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/publish/package.json"
     },
     {
       "packageName": "@releasekit/release",
-      "newVersion": "0.2.0-next.10",
+      "newVersion": "0.2.0-next.11",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/release/package.json"
     }
   ],
   "changelogs": [
     {
       "packageName": "@releasekit/version",
-      "version": "0.2.0-next.10",
-      "previousVersion": "@releasekit/version@v0.2.0-next.9",
-      "revisionRange": "@releasekit/version@v0.2.0-next.9..HEAD",
+      "version": "0.2.0-next.11",
+      "previousVersion": "@releasekit/version@v0.2.0-next.10",
+      "revisionRange": "@releasekit/version@v0.2.0-next.10..HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
         {
           "type": "changed",
-          "description": "enhance version extraction for compare URLs",
+          "description": "bump amannn/action-semantic-pull-request from 5 to 6",
+          "scope": "deps",
+          "originalType": "chore"
+        },
+        {
+          "type": "added",
+          "description": "add functions to identify repo-level commits and check package touches",
+          "scope": "version",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "update version handling in generateCompareUrl function",
           "scope": "notes",
           "originalType": "refactor"
         },
         {
           "type": "added",
-          "description": "add functions to extract changelog entries with commit hashes",
+          "description": "add functions to identify repo-level commits and check package touches",
           "scope": "version",
           "originalType": "feat"
         }
@@ -46,20 +58,32 @@
     },
     {
       "packageName": "@releasekit/notes",
-      "version": "0.2.0-next.10",
-      "previousVersion": "@releasekit/notes@v0.2.0-next.9",
-      "revisionRange": "@releasekit/notes@v0.2.0-next.9..HEAD",
+      "version": "0.2.0-next.11",
+      "previousVersion": "@releasekit/notes@v0.2.0-next.10",
+      "revisionRange": "@releasekit/notes@v0.2.0-next.10..HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
         {
+          "type": "changed",
+          "description": "bump amannn/action-semantic-pull-request from 5 to 6",
+          "scope": "deps",
+          "originalType": "chore"
+        },
+        {
           "type": "added",
-          "description": "add functions to extract changelog entries with commit hashes",
+          "description": "add functions to identify repo-level commits and check package touches",
           "scope": "version",
           "originalType": "feat"
         },
         {
           "type": "changed",
-          "description": "enhance version extraction for compare URLs",
+          "description": "update version handling in generateCompareUrl function",
+          "scope": "notes",
+          "originalType": "refactor"
+        },
+        {
+          "type": "changed",
+          "description": "update version handling in generateCompareUrl function",
           "scope": "notes",
           "originalType": "refactor"
         }
@@ -67,20 +91,26 @@
     },
     {
       "packageName": "@releasekit/publish",
-      "version": "0.2.0-next.10",
-      "previousVersion": "@releasekit/publish@v0.2.0-next.9",
-      "revisionRange": "@releasekit/publish@v0.2.0-next.9..HEAD",
+      "version": "0.2.0-next.11",
+      "previousVersion": "@releasekit/publish@v0.2.0-next.10",
+      "revisionRange": "@releasekit/publish@v0.2.0-next.10..HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
         {
+          "type": "changed",
+          "description": "bump amannn/action-semantic-pull-request from 5 to 6",
+          "scope": "deps",
+          "originalType": "chore"
+        },
+        {
           "type": "added",
-          "description": "add functions to extract changelog entries with commit hashes",
+          "description": "add functions to identify repo-level commits and check package touches",
           "scope": "version",
           "originalType": "feat"
         },
         {
           "type": "changed",
-          "description": "enhance version extraction for compare URLs",
+          "description": "update version handling in generateCompareUrl function",
           "scope": "notes",
           "originalType": "refactor"
         }
@@ -88,20 +118,26 @@
     },
     {
       "packageName": "@releasekit/release",
-      "version": "0.2.0-next.10",
-      "previousVersion": "@releasekit/release@v0.2.0-next.9",
-      "revisionRange": "@releasekit/release@v0.2.0-next.9..HEAD",
+      "version": "0.2.0-next.11",
+      "previousVersion": "@releasekit/release@v0.2.0-next.10",
+      "revisionRange": "@releasekit/release@v0.2.0-next.10..HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
         {
+          "type": "changed",
+          "description": "bump amannn/action-semantic-pull-request from 5 to 6",
+          "scope": "deps",
+          "originalType": "chore"
+        },
+        {
           "type": "added",
-          "description": "add functions to extract changelog entries with commit hashes",
+          "description": "add functions to identify repo-level commits and check package touches",
           "scope": "version",
           "originalType": "feat"
         },
         {
           "type": "changed",
-          "description": "enhance version extraction for compare URLs",
+          "description": "update version handling in generateCompareUrl function",
           "scope": "notes",
           "originalType": "refactor"
         }
@@ -109,10 +145,10 @@
     }
   ],
   "tags": [
-    "@releasekit/version@v0.2.0-next.10",
-    "@releasekit/notes@v0.2.0-next.10",
-    "@releasekit/publish@v0.2.0-next.10",
-    "@releasekit/release@v0.2.0-next.10"
+    "@releasekit/version@v0.2.0-next.11",
+    "@releasekit/notes@v0.2.0-next.11",
+    "@releasekit/publish@v0.2.0-next.11",
+    "@releasekit/release@v0.2.0-next.11"
   ],
-  "commitMessage": "chore(release): @releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.10"
+  "commitMessage": "chore(release): @releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.11"
 }
