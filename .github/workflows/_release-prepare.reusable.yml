@@ -64,7 +64,11 @@ jobs:
 
           # Check if prerelease
           PRERELEASE_FLAGS=""
-          if [[ "${{ inputs.bump }}" == pre* ]]; then
+          if [ "${{ inputs.bump }}" = "prerelease" ]; then
+            # Increment existing prerelease counter (e.g. 0.2.0-next.0 -> 0.2.0-next.1)
+            BUMP_FLAGS="--bump prerelease"
+            PRERELEASE_FLAGS="--prerelease next"
+          elif [[ "${{ inputs.bump }}" == pre* ]]; then
             # Extract the base bump type (premajor -> major, etc.)
             BASE_BUMP="${{ inputs.bump }}"
             BASE_BUMP="${BASE_BUMP#pre}"
