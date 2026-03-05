@@ -138,6 +138,11 @@ export function writeMarkdown(outputPath: string, contexts: TemplateContext[], c
     fs.mkdirSync(dir, { recursive: true });
   }
 
+  if (outputPath === '-') {
+    process.stdout.write(content);
+    return;
+  }
+
   if (config.updateStrategy === 'prepend' && fs.existsSync(outputPath) && contexts.length === 1) {
     const firstContext = contexts[0];
     if (firstContext) {

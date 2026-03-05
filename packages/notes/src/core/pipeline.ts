@@ -210,6 +210,11 @@ async function generateWithTemplate(
     return;
   }
 
+  if (outputPath === '-') {
+    process.stdout.write(result.content);
+    return;
+  }
+
   const dir = path.dirname(outputPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });

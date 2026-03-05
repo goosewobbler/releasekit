@@ -19,16 +19,15 @@ describe('GitError', () => {
 
     it('should inherit logError functionality from base class', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const error = new GitError('Git error', 'GIT_CODE', ['Suggestion 1']);
 
       error.logError();
 
-      expect(errorSpy).toHaveBeenCalledTimes(1);
+      // error + header + 1 suggestion = 3 calls
+      expect(errorSpy).toHaveBeenCalledTimes(3);
       expect(errorSpy.mock.calls[0]?.[0]).toContain('Git error');
-      expect(logSpy).toHaveBeenCalledTimes(2);
-      expect(logSpy.mock.calls[0]?.[0]).toContain('Suggested solutions');
-      expect(logSpy.mock.calls[1]?.[0]).toContain('1. Suggestion 1');
+      expect(errorSpy.mock.calls[1]?.[0]).toContain('Suggested solutions');
+      expect(errorSpy.mock.calls[2]?.[0]).toContain('1. Suggestion 1');
     });
   });
 
@@ -103,43 +102,39 @@ describe('GitError', () => {
   describe('Suggestions integration', () => {
     it('should log TAG_ALREADY_EXISTS error with suggestions', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const error = createGitError(GitErrorCode.TAG_ALREADY_EXISTS);
 
       error.logError();
 
-      expect(errorSpy).toHaveBeenCalledTimes(1);
+      // error + header + 3 suggestions = 5 calls
+      expect(errorSpy).toHaveBeenCalledTimes(5);
       expect(errorSpy.mock.calls[0]?.[0]).toContain('Git tag already exists');
-      expect(logSpy).toHaveBeenCalledTimes(4); // header + 3 suggestions
-      expect(logSpy.mock.calls[1]?.[0]).toContain('Delete the existing tag');
-      expect(logSpy.mock.calls[2]?.[0]).toContain('Use a different version');
-      expect(logSpy.mock.calls[3]?.[0]).toContain('Check if this version was already released');
+      expect(errorSpy.mock.calls[2]?.[0]).toContain('Delete the existing tag');
+      expect(errorSpy.mock.calls[3]?.[0]).toContain('Use a different version');
+      expect(errorSpy.mock.calls[4]?.[0]).toContain('Check if this version was already released');
     });
 
     it('should log NOT_GIT_REPO error with suggestions', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const error = createGitError(GitErrorCode.NOT_GIT_REPO);
 
       error.logError();
 
-      expect(errorSpy).toHaveBeenCalledTimes(1);
+      // error + header + 2 suggestions = 4 calls
+      expect(errorSpy).toHaveBeenCalledTimes(4);
       expect(errorSpy.mock.calls[0]?.[0]).toContain('Not a git repository');
-      expect(logSpy).toHaveBeenCalledTimes(3); // header + 2 suggestions
-      expect(logSpy.mock.calls[1]?.[0]).toContain('Initialize git repository');
-      expect(logSpy.mock.calls[2]?.[0]).toContain('Ensure you are in the correct directory');
+      expect(errorSpy.mock.calls[2]?.[0]).toContain('Initialize git repository');
+      expect(errorSpy.mock.calls[3]?.[0]).toContain('Ensure you are in the correct directory');
     });
 
     it('should not log suggestions for error codes without them', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const error = createGitError(GitErrorCode.GIT_ERROR);
 
       error.logError();
 
       expect(errorSpy).toHaveBeenCalledTimes(1);
       expect(errorSpy.mock.calls[0]?.[0]).toContain('Git operation failed');
-      expect(logSpy).not.toHaveBeenCalled();
     });
   });
 });

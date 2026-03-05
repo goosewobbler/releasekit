@@ -21,7 +21,6 @@ describe('Error Handling Integration', () => {
 
     it('should demonstrate the old vs new error handling pattern', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const gitError = createGitError(GitErrorCode.TAG_ALREADY_EXISTS);
       const versionError = createVersionError(VersionErrorCode.PACKAGES_NOT_FOUND);
 
@@ -40,9 +39,8 @@ describe('Error Handling Integration', () => {
       expect(errorMessages.some((m: string) => m.includes('Git tag already exists'))).toBe(true);
       expect(errorMessages.some((m: string) => m.includes('Failed to get packages information'))).toBe(true);
 
-      // Suggestions were logged via console.log
-      const logMessages = logSpy.mock.calls.map((c) => c[0]);
-      expect(logMessages.some((m: string) => m.includes('Suggested solutions'))).toBe(true);
+      // Suggestions were also logged via console.error (new behavior)
+      expect(errorMessages.some((m: string) => m.includes('Suggested solutions'))).toBe(true);
     });
 
     it('should maintain backward compatibility with existing error types', () => {
@@ -58,7 +56,6 @@ describe('Error Handling Integration', () => {
 
     it('should provide consistent error logging behavior across error types', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const gitError = createGitError(GitErrorCode.NOT_GIT_REPO);
       const versionError = createVersionError(VersionErrorCode.INVALID_CONFIG);
@@ -67,15 +64,11 @@ describe('Error Handling Integration', () => {
       versionError.logError();
 
       // Both errors logged via console.error
-      expect(errorSpy).toHaveBeenCalledTimes(2);
+      // Each error: 1 error message + 1 header + N suggestions
+      // NOT_GIT_REPO: 1 + 1 + 2 = 4, INVALID_CONFIG: 1 + 1 + 3 = 5, total = 9
+      expect(errorSpy).toHaveBeenCalledTimes(9);
       expect(errorSpy.mock.calls[0]?.[0]).toContain('Not a git repository');
-      expect(errorSpy.mock.calls[1]?.[0]).toContain('Invalid configuration');
-
-      // Suggestions logged via console.log (NOT_GIT_REPO has 2, INVALID_CONFIG has 3)
-      // Each set: 1 header + N suggestions
-      // NOT_GIT_REPO: 1 + 2 = 3, INVALID_CONFIG: 1 + 3 = 4, total = 7
-      const suggestionCalls = logSpy.mock.calls.filter((call) => call[0].toString().match(/\d+\. /));
-      expect(suggestionCalls).toHaveLength(5); // 2 + 3 suggestions
+      expect(errorSpy.mock.calls[4]?.[0]).toContain('Invalid configuration');
     });
   });
 
@@ -111,15 +104,13 @@ describe('Error Handling Integration', () => {
 
     it('should handle errors without suggestions gracefully', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const simpleGitError = createGitError(GitErrorCode.GIT_ERROR);
 
       simpleGitError.logError();
 
+      // Just the error message, no suggestions header
       expect(errorSpy).toHaveBeenCalledTimes(1);
       expect(errorSpy.mock.calls[0]?.[0]).toContain('Git operation failed');
-      // No suggestions → no console.log calls
-      expect(logSpy).not.toHaveBeenCalled();
     });
   });
 

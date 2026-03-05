@@ -87,16 +87,13 @@ describe('getExitCode()', () => {
 describe('logError()', () => {
   it('prints error message and suggestions', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const err = new InputParseError('bad input');
     err.logError();
 
-    // The core logError uses log(message, 'error') which calls console.error
+    // All log output now goes to console.error (stderr)
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('bad input'));
-    // Suggestions are logged via console.log at 'info' level
-    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Suggested solutions'));
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Suggested solutions'));
 
     errorSpy.mockRestore();
-    logSpy.mockRestore();
   });
 });

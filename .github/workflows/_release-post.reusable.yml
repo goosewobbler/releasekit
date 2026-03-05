@@ -81,7 +81,7 @@ jobs:
               NOTES=$(node packages/notes/dist/cli.js generate \
                 --input version-output.json \
                 --target "${PACKAGE_NAME}" \
-                --output markdown \
+                --output markdown:- \
                 --template ./templates/release-notes/release.liquid \
                 ${LLM_FLAGS:+ $LLM_FLAGS} \
                 || echo "")

@@ -38,56 +38,49 @@ describe('BaseVersionError', () => {
   describe('logError method', () => {
     it('should log error message without suggestions', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const error = new TestVersionError('Test error message', 'TEST_CODE');
 
       error.logError();
 
       expect(errorSpy).toHaveBeenCalledTimes(1);
       expect(errorSpy.mock.calls[0]?.[0]).toContain('Test error message');
-      expect(logSpy).not.toHaveBeenCalled();
     });
 
     it('should log error message with suggestions', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const suggestions = ['First suggestion', 'Second suggestion', 'Third suggestion'];
       const error = new TestVersionError('Test error message', 'TEST_CODE', suggestions);
 
       error.logError();
 
-      expect(errorSpy).toHaveBeenCalledTimes(1);
+      // error + header + 3 suggestions = 5 console.error calls
+      expect(errorSpy).toHaveBeenCalledTimes(5);
       expect(errorSpy.mock.calls[0]?.[0]).toContain('Test error message');
-      // Suggestions header + 3 suggestions = 4 console.log calls
-      expect(logSpy).toHaveBeenCalledTimes(4);
-      expect(logSpy.mock.calls[0]?.[0]).toContain('Suggested solutions');
-      expect(logSpy.mock.calls[1]?.[0]).toContain('1. First suggestion');
-      expect(logSpy.mock.calls[2]?.[0]).toContain('2. Second suggestion');
-      expect(logSpy.mock.calls[3]?.[0]).toContain('3. Third suggestion');
+      expect(errorSpy.mock.calls[1]?.[0]).toContain('Suggested solutions');
+      expect(errorSpy.mock.calls[2]?.[0]).toContain('1. First suggestion');
+      expect(errorSpy.mock.calls[3]?.[0]).toContain('2. Second suggestion');
+      expect(errorSpy.mock.calls[4]?.[0]).toContain('3. Third suggestion');
     });
 
     it('should not log suggestions if array is empty', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const error = new TestVersionError('Test error message', 'TEST_CODE', []);
 
       error.logError();
 
       expect(errorSpy).toHaveBeenCalledTimes(1);
-      expect(logSpy).not.toHaveBeenCalled();
     });
 
     it('should handle single suggestion correctly', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const error = new TestVersionError('Test error', 'TEST_CODE', ['Only suggestion']);
 
       error.logError();
 
-      expect(errorSpy).toHaveBeenCalledTimes(1);
-      expect(logSpy).toHaveBeenCalledTimes(2);
-      expect(logSpy.mock.calls[0]?.[0]).toContain('Suggested solutions');
-      expect(logSpy.mock.calls[1]?.[0]).toContain('1. Only suggestion');
+      // error + header + 1 suggestion = 3 calls
+      expect(errorSpy).toHaveBeenCalledTimes(3);
+      expect(errorSpy.mock.calls[1]?.[0]).toContain('Suggested solutions');
+      expect(errorSpy.mock.calls[2]?.[0]).toContain('1. Only suggestion');
     });
   });
 

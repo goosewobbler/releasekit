@@ -19,16 +19,15 @@ describe('VersionError', () => {
 
     it('should inherit logError functionality from base class', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const error = new VersionError('Version error', 'VERSION_CODE', ['Fix suggestion']);
 
       error.logError();
 
-      expect(errorSpy).toHaveBeenCalledTimes(1);
+      // error + header + 1 suggestion = 3 calls
+      expect(errorSpy).toHaveBeenCalledTimes(3);
       expect(errorSpy.mock.calls[0]?.[0]).toContain('Version error');
-      expect(logSpy).toHaveBeenCalledTimes(2);
-      expect(logSpy.mock.calls[0]?.[0]).toContain('Suggested solutions');
-      expect(logSpy.mock.calls[1]?.[0]).toContain('1. Fix suggestion');
+      expect(errorSpy.mock.calls[1]?.[0]).toContain('Suggested solutions');
+      expect(errorSpy.mock.calls[2]?.[0]).toContain('1. Fix suggestion');
     });
   });
 
@@ -147,44 +146,41 @@ describe('VersionError', () => {
   describe('Suggestions integration', () => {
     it('should log CONFIG_REQUIRED error with suggestions', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const error = createVersionError(VersionErrorCode.CONFIG_REQUIRED);
 
       error.logError();
 
-      expect(errorSpy).toHaveBeenCalledTimes(1);
+      // error + header + 2 suggestions = 4 calls
+      expect(errorSpy).toHaveBeenCalledTimes(4);
       expect(errorSpy.mock.calls[0]?.[0]).toContain('Configuration is required');
-      expect(logSpy).toHaveBeenCalledTimes(3); // header + 2 suggestions
-      expect(logSpy.mock.calls[0]?.[0]).toContain('Suggested solutions');
-      expect(logSpy.mock.calls[1]?.[0]).toContain('Create a version.config.json');
-      expect(logSpy.mock.calls[2]?.[0]).toContain('Check the documentation');
+      expect(errorSpy.mock.calls[1]?.[0]).toContain('Suggested solutions');
+      expect(errorSpy.mock.calls[2]?.[0]).toContain('Create a version.config.json');
+      expect(errorSpy.mock.calls[3]?.[0]).toContain('Check the documentation');
     });
 
     it('should log PACKAGES_NOT_FOUND error with comprehensive suggestions', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const error = createVersionError(VersionErrorCode.PACKAGES_NOT_FOUND);
 
       error.logError();
 
-      expect(errorSpy).toHaveBeenCalledTimes(1);
+      // error + header + 3 suggestions = 5 calls
+      expect(errorSpy).toHaveBeenCalledTimes(5);
       expect(errorSpy.mock.calls[0]?.[0]).toContain('Failed to get packages information');
-      expect(logSpy).toHaveBeenCalledTimes(4); // header + 3 suggestions
     });
 
     it('should log VERSION_CALCULATION_ERROR with specific suggestions', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const error = createVersionError(VersionErrorCode.VERSION_CALCULATION_ERROR);
 
       error.logError();
 
-      expect(errorSpy).toHaveBeenCalledTimes(1);
+      // error + header + 3 suggestions = 5 calls
+      expect(errorSpy).toHaveBeenCalledTimes(5);
       expect(errorSpy.mock.calls[0]?.[0]).toContain('Failed to calculate version');
-      expect(logSpy).toHaveBeenCalledTimes(4); // header + 3 suggestions
-      expect(logSpy.mock.calls[1]?.[0]).toContain('Ensure git repository has commits');
-      expect(logSpy.mock.calls[2]?.[0]).toContain('Check conventional commit message format');
-      expect(logSpy.mock.calls[3]?.[0]).toContain('Verify git tags are properly formatted');
+      expect(errorSpy.mock.calls[2]?.[0]).toContain('Ensure git repository has commits');
+      expect(errorSpy.mock.calls[3]?.[0]).toContain('Check conventional commit message format');
+      expect(errorSpy.mock.calls[4]?.[0]).toContain('Verify git tags are properly formatted');
     });
   });
 });

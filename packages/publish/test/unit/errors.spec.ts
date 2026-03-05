@@ -34,25 +34,26 @@ describe('PublishError', () => {
 
     it('should log error with suggestions', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const error = new BasePublishError('test error', 'CODE', ['fix this', 'try that']);
       error.logError();
 
-      expect(errorSpy).toHaveBeenCalledTimes(1);
+      // All output goes to stderr: error + header + 2 suggestions = 4 calls
+      expect(errorSpy).toHaveBeenCalledTimes(4);
       expect(errorSpy.mock.calls[0]?.[0]).toContain('test error');
-      expect(logSpy).toHaveBeenCalledTimes(3); // header + 2 suggestions
+
+      errorSpy.mockRestore();
     });
 
     it('should log error without suggestions when none provided', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const error = new BasePublishError('test error', 'CODE');
       error.logError();
 
       expect(errorSpy).toHaveBeenCalledTimes(1);
-      expect(logSpy).not.toHaveBeenCalled();
+
+      errorSpy.mockRestore();
     });
   });
 
