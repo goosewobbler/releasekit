@@ -3,33 +3,45 @@
   "updates": [
     {
       "packageName": "@releasekit/version",
-      "newVersion": "0.2.0-next.7",
+      "newVersion": "0.2.0-next.8",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/version/package.json"
     },
     {
       "packageName": "@releasekit/notes",
-      "newVersion": "0.2.0-next.7",
+      "newVersion": "0.2.0-next.8",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/notes/package.json"
     },
     {
       "packageName": "@releasekit/publish",
-      "newVersion": "0.2.0-next.7",
+      "newVersion": "0.2.0-next.8",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/publish/package.json"
     },
     {
       "packageName": "@releasekit/release",
-      "newVersion": "0.2.0-next.7",
+      "newVersion": "0.2.0-next.8",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/release/package.json"
     }
   ],
   "changelogs": [
     {
       "packageName": "@releasekit/version",
-      "version": "0.2.0-next.7",
-      "previousVersion": "v0.2.0-next.6",
+      "version": "0.2.0-next.8",
+      "previousVersion": "v0.2.0-next.7",
       "revisionRange": "HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
+        {
+          "type": "added",
+          "description": "add strictReachable option to version configuration",
+          "scope": "config",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.7",
+          "scope": "release",
+          "originalType": "chore"
+        },
         {
           "type": "changed",
           "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.6",
@@ -167,11 +179,17 @@
     },
     {
       "packageName": "@releasekit/notes",
-      "version": "0.2.0-next.7",
-      "previousVersion": "v0.2.0-next.6",
+      "version": "0.2.0-next.8",
+      "previousVersion": "v0.2.0-next.7",
       "revisionRange": "HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
+        {
+          "type": "changed",
+          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.7",
+          "scope": "release",
+          "originalType": "chore"
+        },
         {
           "type": "added",
           "description": "implement retry logic for LLM calls",
@@ -320,11 +338,17 @@
     },
     {
       "packageName": "@releasekit/publish",
-      "version": "0.2.0-next.7",
-      "previousVersion": "v0.2.0-next.6",
+      "version": "0.2.0-next.8",
+      "previousVersion": "v0.2.0-next.7",
       "revisionRange": "HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
+        {
+          "type": "changed",
+          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.7",
+          "scope": "release",
+          "originalType": "chore"
+        },
         {
           "type": "changed",
           "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.6",
@@ -427,11 +451,17 @@
     },
     {
       "packageName": "@releasekit/release",
-      "version": "0.2.0-next.7",
-      "previousVersion": "v0.2.0-next.6",
+      "version": "0.2.0-next.8",
+      "previousVersion": "v0.2.0-next.7",
       "revisionRange": "HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
+        {
+          "type": "changed",
+          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.7",
+          "scope": "release",
+          "originalType": "chore"
+        },
         {
           "type": "changed",
           "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.6",
@@ -508,10 +538,10 @@
     }
   ],
   "tags": [
-    "@releasekit/version@v0.2.0-next.7",
-    "@releasekit/notes@v0.2.0-next.7",
-    "@releasekit/publish@v0.2.0-next.7",
-    "@releasekit/release@v0.2.0-next.7"
+    "@releasekit/version@v0.2.0-next.8",
+    "@releasekit/notes@v0.2.0-next.8",
+    "@releasekit/publish@v0.2.0-next.8",
+    "@releasekit/release@v0.2.0-next.8"
   ],
-  "commitMessage": "chore(release): @releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.7"
+  "commitMessage": "chore(release): @releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.8"
 }
