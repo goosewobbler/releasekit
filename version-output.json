@@ -3,86 +3,116 @@
   "updates": [
     {
       "packageName": "@releasekit/version",
-      "newVersion": "0.2.0-next.9",
+      "newVersion": "0.2.0-next.10",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/version/package.json"
     },
     {
       "packageName": "@releasekit/notes",
-      "newVersion": "0.2.0-next.9",
+      "newVersion": "0.2.0-next.10",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/notes/package.json"
     },
     {
       "packageName": "@releasekit/publish",
-      "newVersion": "0.2.0-next.9",
+      "newVersion": "0.2.0-next.10",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/publish/package.json"
     },
     {
       "packageName": "@releasekit/release",
-      "newVersion": "0.2.0-next.9",
+      "newVersion": "0.2.0-next.10",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/release/package.json"
     }
   ],
   "changelogs": [
     {
       "packageName": "@releasekit/version",
-      "version": "0.2.0-next.9",
-      "previousVersion": "@releasekit/version@v0.2.0-next.8",
-      "revisionRange": "@releasekit/version@v0.2.0-next.8..HEAD",
+      "version": "0.2.0-next.10",
+      "previousVersion": "@releasekit/version@v0.2.0-next.9",
+      "revisionRange": "@releasekit/version@v0.2.0-next.9..HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
         {
-          "type": "fixed",
-          "description": "improve tag retrieval for package-specific versions",
-          "scope": "tags",
-          "originalType": "fix"
+          "type": "changed",
+          "description": "enhance version extraction for compare URLs",
+          "scope": "notes",
+          "originalType": "refactor"
+        },
+        {
+          "type": "added",
+          "description": "add functions to extract changelog entries with commit hashes",
+          "scope": "version",
+          "originalType": "feat"
         }
       ]
     },
     {
       "packageName": "@releasekit/notes",
-      "version": "0.2.0-next.9",
-      "previousVersion": "@releasekit/notes@v0.2.0-next.8",
-      "revisionRange": "@releasekit/notes@v0.2.0-next.8..HEAD",
+      "version": "0.2.0-next.10",
+      "previousVersion": "@releasekit/notes@v0.2.0-next.9",
+      "revisionRange": "@releasekit/notes@v0.2.0-next.9..HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
         {
+          "type": "added",
+          "description": "add functions to extract changelog entries with commit hashes",
+          "scope": "version",
+          "originalType": "feat"
+        },
+        {
           "type": "changed",
-          "description": "Update version to 0.2.0-next.9"
+          "description": "enhance version extraction for compare URLs",
+          "scope": "notes",
+          "originalType": "refactor"
         }
       ]
     },
     {
       "packageName": "@releasekit/publish",
-      "version": "0.2.0-next.9",
-      "previousVersion": "@releasekit/publish@v0.2.0-next.8",
-      "revisionRange": "@releasekit/publish@v0.2.0-next.8..HEAD",
+      "version": "0.2.0-next.10",
+      "previousVersion": "@releasekit/publish@v0.2.0-next.9",
+      "revisionRange": "@releasekit/publish@v0.2.0-next.9..HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
         {
+          "type": "added",
+          "description": "add functions to extract changelog entries with commit hashes",
+          "scope": "version",
+          "originalType": "feat"
+        },
+        {
           "type": "changed",
-          "description": "Update version to 0.2.0-next.9"
+          "description": "enhance version extraction for compare URLs",
+          "scope": "notes",
+          "originalType": "refactor"
         }
       ]
     },
     {
       "packageName": "@releasekit/release",
-      "version": "0.2.0-next.9",
-      "previousVersion": "@releasekit/release@v0.2.0-next.8",
-      "revisionRange": "@releasekit/release@v0.2.0-next.8..HEAD",
+      "version": "0.2.0-next.10",
+      "previousVersion": "@releasekit/release@v0.2.0-next.9",
+      "revisionRange": "@releasekit/release@v0.2.0-next.9..HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
         {
+          "type": "added",
+          "description": "add functions to extract changelog entries with commit hashes",
+          "scope": "version",
+          "originalType": "feat"
+        },
+        {
           "type": "changed",
-          "description": "Update version to 0.2.0-next.9"
+          "description": "enhance version extraction for compare URLs",
+          "scope": "notes",
+          "originalType": "refactor"
         }
       ]
     }
   ],
   "tags": [
-    "@releasekit/version@v0.2.0-next.9",
-    "@releasekit/notes@v0.2.0-next.9",
-    "@releasekit/publish@v0.2.0-next.9",
-    "@releasekit/release@v0.2.0-next.9"
+    "@releasekit/version@v0.2.0-next.10",
+    "@releasekit/notes@v0.2.0-next.10",
+    "@releasekit/publish@v0.2.0-next.10",
+    "@releasekit/release@v0.2.0-next.10"
   ],
-  "commitMessage": "chore(release): @releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.9"
+  "commitMessage": "chore(release): @releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.10"
 }
