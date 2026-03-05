@@ -3,33 +3,39 @@
   "updates": [
     {
       "packageName": "@releasekit/version",
-      "newVersion": "0.2.0-next.5",
+      "newVersion": "0.2.0-next.6",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/version/package.json"
     },
     {
       "packageName": "@releasekit/notes",
-      "newVersion": "0.2.0-next.5",
+      "newVersion": "0.2.0-next.6",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/notes/package.json"
     },
     {
       "packageName": "@releasekit/publish",
-      "newVersion": "0.2.0-next.5",
+      "newVersion": "0.2.0-next.6",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/publish/package.json"
     },
     {
       "packageName": "@releasekit/release",
-      "newVersion": "0.2.0-next.5",
+      "newVersion": "0.2.0-next.6",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/release/package.json"
     }
   ],
   "changelogs": [
     {
       "packageName": "@releasekit/version",
-      "version": "0.2.0-next.5",
-      "previousVersion": "v0.2.0-next.4",
+      "version": "0.2.0-next.6",
+      "previousVersion": "v0.2.0-next.5",
       "revisionRange": "HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
+        {
+          "type": "changed",
+          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.5",
+          "scope": "release",
+          "originalType": "chore"
+        },
         {
           "type": "fixed",
           "description": "allow markdown output to be written to stdout",
@@ -155,11 +161,23 @@
     },
     {
       "packageName": "@releasekit/notes",
-      "version": "0.2.0-next.5",
-      "previousVersion": "v0.2.0-next.4",
+      "version": "0.2.0-next.6",
+      "previousVersion": "v0.2.0-next.5",
       "revisionRange": "HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
+        {
+          "type": "changed",
+          "description": "simplify logging message for LLM processing",
+          "scope": "pipeline",
+          "originalType": "refactor"
+        },
+        {
+          "type": "changed",
+          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.5",
+          "scope": "release",
+          "originalType": "chore"
+        },
         {
           "type": "fixed",
           "description": "allow markdown output to be written to stdout",
@@ -284,11 +302,17 @@
     },
     {
       "packageName": "@releasekit/publish",
-      "version": "0.2.0-next.5",
-      "previousVersion": "v0.2.0-next.4",
+      "version": "0.2.0-next.6",
+      "previousVersion": "v0.2.0-next.5",
       "revisionRange": "HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
+        {
+          "type": "changed",
+          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.5",
+          "scope": "release",
+          "originalType": "chore"
+        },
         {
           "type": "fixed",
           "description": "allow markdown output to be written to stdout",
@@ -379,11 +403,17 @@
     },
     {
       "packageName": "@releasekit/release",
-      "version": "0.2.0-next.5",
-      "previousVersion": "v0.2.0-next.4",
+      "version": "0.2.0-next.6",
+      "previousVersion": "v0.2.0-next.5",
       "revisionRange": "HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
+        {
+          "type": "changed",
+          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.5",
+          "scope": "release",
+          "originalType": "chore"
+        },
         {
           "type": "changed",
           "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.4",
@@ -448,10 +478,10 @@
     }
   ],
   "tags": [
-    "@releasekit/version@v0.2.0-next.5",
-    "@releasekit/notes@v0.2.0-next.5",
-    "@releasekit/publish@v0.2.0-next.5",
-    "@releasekit/release@v0.2.0-next.5"
+    "@releasekit/version@v0.2.0-next.6",
+    "@releasekit/notes@v0.2.0-next.6",
+    "@releasekit/publish@v0.2.0-next.6",
+    "@releasekit/release@v0.2.0-next.6"
   ],
-  "commitMessage": "chore(release): @releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.5"
+  "commitMessage": "chore(release): @releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.6"
 }
