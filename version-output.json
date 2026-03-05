@@ -3,545 +3,86 @@
   "updates": [
     {
       "packageName": "@releasekit/version",
-      "newVersion": "0.2.0-next.8",
+      "newVersion": "0.2.0-next.9",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/version/package.json"
     },
     {
       "packageName": "@releasekit/notes",
-      "newVersion": "0.2.0-next.8",
+      "newVersion": "0.2.0-next.9",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/notes/package.json"
     },
     {
       "packageName": "@releasekit/publish",
-      "newVersion": "0.2.0-next.8",
+      "newVersion": "0.2.0-next.9",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/publish/package.json"
     },
     {
       "packageName": "@releasekit/release",
-      "newVersion": "0.2.0-next.8",
+      "newVersion": "0.2.0-next.9",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/release/package.json"
     }
   ],
   "changelogs": [
     {
       "packageName": "@releasekit/version",
-      "version": "0.2.0-next.8",
-      "previousVersion": "v0.2.0-next.7",
-      "revisionRange": "HEAD",
+      "version": "0.2.0-next.9",
+      "previousVersion": "@releasekit/version@v0.2.0-next.8",
+      "revisionRange": "@releasekit/version@v0.2.0-next.8..HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
         {
-          "type": "added",
-          "description": "add strictReachable option to version configuration",
-          "scope": "config",
-          "originalType": "feat"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.7",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.6",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.5",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
           "type": "fixed",
-          "description": "allow markdown output to be written to stdout",
-          "scope": "output",
+          "description": "improve tag retrieval for package-specific versions",
+          "scope": "tags",
           "originalType": "fix"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.4",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.3",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.2",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "fixed",
-          "description": "refine commit extraction logic in changelog parser",
-          "originalType": "fix"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.1",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "update package versions to 0.2.0-next.0 for all releasekit packages",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "update Node.js version requirements and add .nvmrc file",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "downgrade package versions to 0.1.0 for @releasekit/publish, @releasekit/release, and @releasekit/version",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "update package descriptions and READMEs",
-          "originalType": "docs"
-        },
-        {
-          "type": "changed",
-          "description": "npm fixes",
-          "originalType": "chore"
-        },
-        {
-          "type": "fixed",
-          "description": "fix dry run update bug, add tests",
-          "scope": "version",
-          "originalType": "fix"
-        },
-        {
-          "type": "added",
-          "description": "`release` package",
-          "originalType": "feat"
-        },
-        {
-          "type": "fixed",
-          "description": "implement changelog generation in sync versioning strategy",
-          "originalType": "fix"
-        },
-        {
-          "type": "added",
-          "description": "add run function to CLI and update tests",
-          "originalType": "feat"
-        },
-        {
-          "type": "changed",
-          "description": "refactor versioning CLI and enhance build process",
-          "originalType": "refactor"
-        },
-        {
-          "type": "changed",
-          "description": "simplify changelog comments in version strategies",
-          "originalType": "docs"
-        },
-        {
-          "type": "changed",
-          "description": "add more deps to catalog",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "improved code sharing",
-          "originalType": "refactor"
-        },
-        {
-          "type": "added",
-          "description": "add `@releasekit/config` package for shared configuration management",
-          "originalType": "feat"
-        },
-        {
-          "type": "added",
-          "description": "implement `@releasekit/publish` package for publishing to npm and crates.io",
-          "originalType": "feat"
-        },
-        {
-          "type": "changed",
-          "description": "Initialize ReleaseKit monorepo with core packages, CI/CD workflows, and configuration files"
         }
       ]
     },
     {
       "packageName": "@releasekit/notes",
-      "version": "0.2.0-next.8",
-      "previousVersion": "v0.2.0-next.7",
-      "revisionRange": "HEAD",
+      "version": "0.2.0-next.9",
+      "previousVersion": "@releasekit/notes@v0.2.0-next.8",
+      "revisionRange": "@releasekit/notes@v0.2.0-next.8..HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
         {
           "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.7",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "added",
-          "description": "implement retry logic for LLM calls",
-          "scope": "enhance-and-categorize",
-          "originalType": "feat"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.6",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "simplify logging message for LLM processing",
-          "scope": "pipeline",
-          "originalType": "refactor"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.5",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "fixed",
-          "description": "allow markdown output to be written to stdout",
-          "scope": "output",
-          "originalType": "fix"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.4",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.3",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "added",
-          "description": "implement enhanceAndCategorize function for combined LLM processing",
-          "originalType": "feat"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.2",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "enhance release workflow and notes generation for specific packages",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.1",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "update package versions to 0.2.0-next.0 for all releasekit packages",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "update release workflow and enhance type safety in categorization",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "refine npm publishing workflow and improve type handling in categorization",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "update Node.js version requirements and add .nvmrc file",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "downgrade version of @releasekit/notes to 0.1.0 to align with versioning strategy",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "added",
-          "description": "introduce releasekit configuration and enhance LLM processing",
-          "originalType": "feat"
-        },
-        {
-          "type": "changed",
-          "description": "update package descriptions and READMEs",
-          "originalType": "docs"
-        },
-        {
-          "type": "added",
-          "description": "enhance LLM configuration and processing",
-          "originalType": "feat"
-        },
-        {
-          "type": "changed",
-          "description": "npm fixes",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "add tsx support and enhance CI workflows",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "remove compiled artifacts",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "migrate logging utilities to `@releasekit/core`",
-          "originalType": "refactor"
-        },
-        {
-          "type": "added",
-          "description": "add `@releasekit/config` package for shared configuration management",
-          "originalType": "feat"
-        },
-        {
-          "type": "added",
-          "description": "implement `@releasekit/publish` package for publishing to npm and crates.io",
-          "originalType": "feat"
-        },
-        {
-          "type": "changed",
-          "description": "Initialize ReleaseKit monorepo with core packages, CI/CD workflows, and configuration files"
+          "description": "Update version to 0.2.0-next.9"
         }
       ]
     },
     {
       "packageName": "@releasekit/publish",
-      "version": "0.2.0-next.8",
-      "previousVersion": "v0.2.0-next.7",
-      "revisionRange": "HEAD",
+      "version": "0.2.0-next.9",
+      "previousVersion": "@releasekit/publish@v0.2.0-next.8",
+      "revisionRange": "@releasekit/publish@v0.2.0-next.8..HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
         {
           "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.7",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.6",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.5",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "fixed",
-          "description": "allow markdown output to be written to stdout",
-          "scope": "output",
-          "originalType": "fix"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.4",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.3",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.2",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.1",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "update package versions to 0.2.0-next.0 for all releasekit packages",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "update Node.js version requirements and add .nvmrc file",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "downgrade package versions to 0.1.0 for @releasekit/publish, @releasekit/release, and @releasekit/version",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "update package descriptions and READMEs",
-          "originalType": "docs"
-        },
-        {
-          "type": "changed",
-          "description": "npm fixes",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "add Code of Conduct, Contributing guidelines, and Security Policy",
-          "originalType": "docs"
-        },
-        {
-          "type": "changed",
-          "description": "add more deps to catalog",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "improved code sharing",
-          "originalType": "refactor"
-        },
-        {
-          "type": "added",
-          "description": "add `@releasekit/config` package for shared configuration management",
-          "originalType": "feat"
-        },
-        {
-          "type": "added",
-          "description": "implement `@releasekit/publish` package for publishing to npm and crates.io",
-          "originalType": "feat"
+          "description": "Update version to 0.2.0-next.9"
         }
       ]
     },
     {
       "packageName": "@releasekit/release",
-      "version": "0.2.0-next.8",
-      "previousVersion": "v0.2.0-next.7",
-      "revisionRange": "HEAD",
+      "version": "0.2.0-next.9",
+      "previousVersion": "@releasekit/release@v0.2.0-next.8",
+      "revisionRange": "@releasekit/release@v0.2.0-next.8..HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
         {
           "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.7",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.6",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.5",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.4",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.3",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.2",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.1",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "update package versions to 0.2.0-next.0 for all releasekit packages",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "update Node.js version requirements and add .nvmrc file",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "downgrade package versions to 0.1.0 for @releasekit/publish, @releasekit/release, and @releasekit/version",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0",
-          "scope": "release",
-          "originalType": "chore"
-        },
-        {
-          "type": "changed",
-          "description": "update package descriptions and READMEs",
-          "originalType": "docs"
-        },
-        {
-          "type": "changed",
-          "description": "npm fixes",
-          "originalType": "chore"
-        },
-        {
-          "type": "added",
-          "description": "`release` package",
-          "originalType": "feat"
+          "description": "Update version to 0.2.0-next.9"
         }
       ]
     }
   ],
   "tags": [
-    "@releasekit/version@v0.2.0-next.8",
-    "@releasekit/notes@v0.2.0-next.8",
-    "@releasekit/publish@v0.2.0-next.8",
-    "@releasekit/release@v0.2.0-next.8"
+    "@releasekit/version@v0.2.0-next.9",
+    "@releasekit/notes@v0.2.0-next.9",
+    "@releasekit/publish@v0.2.0-next.9",
+    "@releasekit/release@v0.2.0-next.9"
   ],
-  "commitMessage": "chore(release): @releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.8"
+  "commitMessage": "chore(release): @releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.9"
 }
