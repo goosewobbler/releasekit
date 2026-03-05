@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { extractChangelogEntriesFromCommits } from '../../../src/changelog/commitParser.js';
+import {
+  extractAllChangelogEntriesWithHash,
+  extractChangelogEntriesFromCommits,
+  extractChangelogEntriesWithHash,
+} from '../../../src/changelog/commitParser.js';
 
 // Mock dependencies - vi.mock calls are hoisted to the top
 vi.mock('../../../src/git/commandExecutor.js', () => ({
@@ -124,5 +128,92 @@ describe('Commit Parser', () => {
 
     // Should return empty array on error
     expect(entries).toEqual([]);
+  });
+
+  describe('extractChangelogEntriesWithHash', () => {
+    it('extracts changelog entries with commit hashes', () => {
+      const mockGitOutput = ['abc123|||feat(core): add new feature', 'def456|||fix(ui): resolve layout issue'].join(
+        '---COMMIT_DELIMITER---',
+      );
+
+      vi.mocked(execSync, { partial: true }).mockReturnValue(mockGitOutput as any);
+
+      const entries = extractChangelogEntriesWithHash('/test', 'v1.0.0..v1.1.0');
+
+      expect(entries).toHaveLength(2);
+      expect(entries[0].hash).toBe('abc123');
+      expect(entries[0].entry.description).toBe('add new feature');
+      expect(entries[1].hash).toBe('def456');
+      expect(entries[1].entry.description).toBe('resolve layout issue');
+    });
+
+    it('filters commits to package path', () => {
+      const mockGitOutput = 'abc123|||feat(core): add new feature';
+
+      vi.mocked(execSync, { partial: true }).mockReturnValue(mockGitOutput as any);
+
+      extractChangelogEntriesWithHash('/test', 'v1.0.0..v1.1.0');
+
+      // Verify -- was added to filter to package path
+      const calls = vi.mocked(execSync).mock.calls;
+      expect(calls.length).toBeGreaterThan(0);
+      const gitArgs = calls[0][1] as string[];
+      expect(gitArgs).toContain('--');
+      expect(gitArgs).toContain('.');
+    });
+  });
+
+  describe('extractAllChangelogEntriesWithHash', () => {
+    it('extracts all changelog entries including repo-level commits', () => {
+      const mockGitOutput = [
+        'abc123|||feat(core): add new feature',
+        'def456|||chore(deps): bump actions/upload-artifact from 4 to 7',
+      ].join('---COMMIT_DELIMITER---');
+
+      vi.mocked(execSync, { partial: true }).mockReturnValue(mockGitOutput as any);
+
+      const entries = extractAllChangelogEntriesWithHash('/test', 'v1.0.0..v1.1.0');
+
+      expect(entries).toHaveLength(2);
+      expect(entries[0].hash).toBe('abc123');
+      expect(entries[1].hash).toBe('def456');
+      expect(entries[1].entry.description).toBe('bump actions/upload-artifact from 4 to 7');
+    });
+
+    it('does not filter to package path', () => {
+      const mockGitOutput = 'abc123|||feat(core): add new feature';
+
+      vi.mocked(execSync, { partial: true }).mockReturnValue(mockGitOutput as any);
+
+      extractAllChangelogEntriesWithHash('/test', 'v1.0.0..v1.1.0');
+
+      // Verify -- was NOT added (no path filtering)
+      const calls = vi.mocked(execSync).mock.calls;
+      expect(calls.length).toBeGreaterThan(0);
+      const gitArgs = calls[0][1] as string[];
+      expect(gitArgs).not.toContain('--');
+    });
+
+    it('can identify global commits not in any package', () => {
+      // Simulate: all commits (including CI) vs package-only commits
+      const allCommits = [
+        { hash: 'aaa111', entry: { type: 'added', description: 'feat: new feature', scope: 'core' } },
+        { hash: 'bbb222', entry: { type: 'changed', description: 'chore: update CI', scope: undefined } },
+        { hash: 'ccc333', entry: { type: 'fixed', description: 'fix: bug fix', scope: 'api' } },
+      ];
+
+      const packageCommits = [
+        { hash: 'aaa111', entry: { type: 'added', description: 'feat: new feature', scope: 'core' } },
+        { hash: 'ccc333', entry: { type: 'fixed', description: 'fix: bug fix', scope: 'api' } },
+      ];
+
+      // Global commits are those in all but not in package
+      const packageHashes = new Set(packageCommits.map((c) => c.hash));
+      const globalCommits = allCommits.filter((c) => !packageHashes.has(c.hash));
+
+      expect(globalCommits).toHaveLength(1);
+      expect(globalCommits[0].hash).toBe('bbb222');
+      expect(globalCommits[0].entry.description).toBe('chore: update CI');
+    });
   });
 });

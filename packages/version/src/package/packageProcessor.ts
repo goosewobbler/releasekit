@@ -3,7 +3,11 @@ import path from 'node:path';
 import { exit } from 'node:process';
 import type { Package } from '@manypkg/get-packages';
 import type { VersionChangelogEntry } from '@releasekit/core';
-import { extractChangelogEntriesFromCommits } from '../changelog/commitParser.js';
+import {
+  extractAllChangelogEntriesWithHash,
+  extractChangelogEntriesFromCommits,
+  extractChangelogEntriesWithHash,
+} from '../changelog/commitParser.js';
 import { calculateVersion } from '../core/versionCalculator.js';
 import { createGitTag, gitAdd, gitCommit } from '../git/commands.js';
 import { getLatestTagForPackage } from '../git/tagsAndBranches.js';
@@ -201,6 +205,20 @@ export class PackageProcessor {
         }
 
         changelogEntries = extractChangelogEntriesFromCommits(pkgPath, revisionRange);
+
+        // Also extract all commits in the revision range to find repo-level commits
+        // that don't belong to any specific package (e.g., CI changes)
+        const allCommitsWithHash = extractAllChangelogEntriesWithHash(pkgPath, revisionRange);
+        const packageCommitsWithHash = extractChangelogEntriesWithHash(pkgPath, revisionRange);
+
+        const packageCommitHashes = new Set(packageCommitsWithHash.map((c) => c.hash));
+        const globalCommits = allCommitsWithHash.filter((c) => !packageCommitHashes.has(c.hash)).map((c) => c.entry);
+
+        // Add global commits that don't belong to any package to this package's changelog
+        if (globalCommits.length > 0) {
+          log(`Adding ${globalCommits.length} global commit(s) to ${name} changelog`, 'debug');
+          changelogEntries = [...globalCommits, ...changelogEntries];
+        }
 
         // If we have no entries but we're definitely changing versions,
         // add a minimal entry about the version change

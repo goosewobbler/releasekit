@@ -16,18 +16,90 @@ const CONVENTIONAL_COMMIT_REGEX = /^(\w+)(?:\(([^)]+)\))?(!)?: (.+)(?:\n\n([\s\S
 const BREAKING_CHANGE_REGEX = /BREAKING CHANGE: ([\s\S]+?)(?:\n\n|$)/;
 
 /**
+ * Extract changelog entries from Git commits (with commit hashes for tracking)
+ */
+export interface CommitWithHash {
+  hash: string;
+  entry: ChangelogEntry;
+}
+
+export function extractChangelogEntriesWithHash(projectDir: string, revisionRange: string): CommitWithHash[] {
+  try {
+    const args = ['log', revisionRange, '--pretty=format:%H|||%B---COMMIT_DELIMITER---', '--no-merges', '--', '.'];
+    const output = execSync('git', args, { cwd: projectDir, encoding: 'utf8' }).toString();
+
+    const commits = output.split('---COMMIT_DELIMITER---').filter((commit) => commit.trim() !== '');
+
+    return commits
+      .map((commit) => {
+        const [hash, ...messageParts] = commit.split('|||');
+        const message = messageParts.join('|||').trim();
+        const entry = parseCommitMessage(message);
+        if (entry && hash) {
+          return { hash: hash.trim(), entry };
+        }
+        return null;
+      })
+      .filter((item): item is CommitWithHash => item !== null);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log(`Error extracting commits with hash: ${errorMessage}`, 'error');
+    return [];
+  }
+}
+
+export function extractAllChangelogEntriesWithHash(projectDir: string, revisionRange: string): CommitWithHash[] {
+  try {
+    const args = ['log', revisionRange, '--pretty=format:%H|||%B---COMMIT_DELIMITER---', '--no-merges'];
+    const output = execSync('git', args, { cwd: projectDir, encoding: 'utf8' }).toString();
+
+    const commits = output.split('---COMMIT_DELIMITER---').filter((commit) => commit.trim() !== '');
+
+    return commits
+      .map((commit) => {
+        const [hash, ...messageParts] = commit.split('|||');
+        const message = messageParts.join('|||').trim();
+        const entry = parseCommitMessage(message);
+        if (entry && hash) {
+          return { hash: hash.trim(), entry };
+        }
+        return null;
+      })
+      .filter((item): item is CommitWithHash => item !== null);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log(`Error extracting all commits with hash: ${errorMessage}`, 'error');
+    return [];
+  }
+}
+
+/**
  * Extract changelog entries from Git commits
  * @param projectDir Directory to run git commands from
  * @param revisionRange Git revision range (e.g., "v1.0.0..v1.1.0" or tag name)
  * @returns Array of changelog entries
  */
 export function extractChangelogEntriesFromCommits(projectDir: string, revisionRange: string): ChangelogEntry[] {
+  return extractCommitsFromGitLog(projectDir, revisionRange, true);
+}
+
+/**
+ * Extract ALL changelog entries from Git commits (including repo-level commits that don't affect any package)
+ * @param projectDir Directory to run git commands from
+ * @param revisionRange Git revision range (e.g., "v1.0.0..v1.1.0" or tag name)
+ * @returns Array of changelog entries (including global commits not tied to any package)
+ */
+export function extractAllChangelogEntries(projectDir: string, revisionRange: string): ChangelogEntry[] {
+  return extractCommitsFromGitLog(projectDir, revisionRange, false);
+}
+
+function extractCommitsFromGitLog(projectDir: string, revisionRange: string, filterToPath: boolean): ChangelogEntry[] {
   try {
-    const output = execSync(
-      'git',
-      ['log', revisionRange, '--pretty=format:%B---COMMIT_DELIMITER---', '--no-merges', '--', '.'],
-      { cwd: projectDir, encoding: 'utf8' },
-    ).toString();
+    const args = ['log', revisionRange, '--pretty=format:%B---COMMIT_DELIMITER---', '--no-merges'];
+    if (filterToPath) {
+      args.push('--', '.');
+    }
+    const output = execSync('git', args, { cwd: projectDir, encoding: 'utf8' }).toString();
 
     // Split by commit delimiter and remove empty commits
     const commits = output.split('---COMMIT_DELIMITER---').filter((commit) => commit.trim() !== '');
