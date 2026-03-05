@@ -44,7 +44,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
+    "@anthropic-ai/sdk": "^0.78.0",
     "@octokit/rest": "^21.1.1",
     "@releasekit/config": "workspace:*",
     "@releasekit/core": "workspace:*",
