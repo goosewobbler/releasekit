@@ -98,7 +98,7 @@ export async function enhanceAndCategorize(
         if (!categoryMap.has(category)) {
           categoryMap.set(category, []);
         }
-        categoryMap.get(category)!.push(entry);
+        categoryMap.get(category)?.push(entry);
       }
 
       const categories: CategorizedEntries[] = [];
