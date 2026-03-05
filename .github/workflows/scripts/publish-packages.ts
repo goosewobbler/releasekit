@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 interface PackageUpdate {
   packageName: string;
   newVersion: string;
+  filePath: string;
 }
 
 interface VersionOutput {
@@ -15,10 +17,11 @@ function getNpmTag(version: string): string {
   return version.includes('-') ? 'next' : 'latest';
 }
 
-function publishPackage(packageName: string, npmTag: string): void {
-  console.log(`Publishing ${packageName} with tag ${npmTag}...`);
-  execSync(`pnpm --filter ${packageName} publish --tag ${npmTag} --no-git-checks --provenance --access public`, {
+function publishPackage(packageDir: string, packageName: string, npmTag: string): void {
+  console.log(`Publishing ${packageName} with tag ${npmTag} from ${packageDir}...`);
+  execSync(`npm publish --tag ${npmTag} --provenance --access public`, {
     stdio: 'inherit',
+    cwd: packageDir,
   });
 }
 
@@ -44,11 +47,12 @@ function main(): void {
     }
 
     const npmTag = getNpmTag(update.newVersion);
+    const packageDir = path.dirname(path.resolve(update.filePath));
 
     if (dryRun) {
       console.log(`[DRY RUN] Would publish ${packageName}@${update.newVersion} with tag ${npmTag}`);
     } else {
-      publishPackage(packageName, npmTag);
+      publishPackage(packageDir, packageName, npmTag);
     }
   }
 }
