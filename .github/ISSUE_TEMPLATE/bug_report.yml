@@ -13,6 +13,7 @@ body:
       label: Package
       description: Which package is affected?
       options:
+        - "@releasekit/release"
         - "@releasekit/version"
         - "@releasekit/notes"
         - "@releasekit/publish"

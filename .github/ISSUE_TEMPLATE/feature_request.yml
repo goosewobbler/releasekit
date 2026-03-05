@@ -13,6 +13,7 @@ body:
       label: Scope / package
       description: Which area does this affect?
       options:
+        - "@releasekit/release"
         - "@releasekit/version"
         - "@releasekit/notes"
         - "@releasekit/publish"
