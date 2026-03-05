@@ -50,7 +50,7 @@ export async function categorizeEntries(
 
   const hasCustomCategories = context.categories && context.categories.length > 0;
   const promptTemplate = hasCustomCategories
-    ? buildCustomCategorizePrompt(context.categories!)
+    ? buildCustomCategorizePrompt(context.categories as Array<{ name: string; description: string }>)
     : DEFAULT_CATEGORIZE_PROMPT;
 
   const prompt = promptTemplate.replace('{{entries}}', entriesText);
