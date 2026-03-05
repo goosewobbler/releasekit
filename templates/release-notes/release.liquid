@@ -1,16 +1,44 @@
+{%- comment -%}
+Release notes template matching wdio-electron-service format.
+Categories are ordered: New → Fixed → Changed → Removed → Documentation → Developer
+Developer entries use bolded subcategory labels.
+{%- endcomment -%}
 {%- for version in versions %}
 {%- if version.enhanced.categories %}
+{%- comment -%}Define category order{%- endcomment -%}
+{%- assign ordered_categories = "New,Fixed,Changed,Removed,Documentation,Developer" | split: "," %}
+{%- comment -%}Build a lookup map{%- endcomment -%}
+{%- assign category_map = "" %}
 {%- for pair in version.enhanced.categories %}
+{%- assign category_name = pair[0] %}
+{%- assign category_entries = pair[1] %}
+{%- endfor %}
+{%- comment -%}Output categories in order{%- endcomment -%}
+{%- for cat_name in ordered_categories %}
+{%- for pair in version.enhanced.categories %}
+{%- if pair[0] == cat_name %}
+{%- assign entries = pair[1] %}
+{%- if entries.size > 0 %}
 
-### {{ pair[0] }}:
-{%- for entry in pair[1] %}
-- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+### {{ cat_name }}:
+{%- for entry in entries %}
+{%- if cat_name == "Developer" and entry.scope %}
+- **{{ entry.scope }}**: {{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+{%- elsif entry.scope %}
+- **{{ entry.scope }}**: {{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+{%- else %}
+- {{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+{%- endif %}
 {%- endfor %}
 {%- endfor %}
 {%- else %}
+{%- comment -%}Fallback to conventional commit types with custom ordering{%- endcomment -%}
 {%- assign added = version.entries | where: "type", "added" %}
-{%- assign changed = version.entries | where: "type", "changed" %}
 {%- assign fixed = version.entries | where: "type", "fixed" %}
+{%- assign changed = version.entries | where: "type", "changed" %}
 {%- assign removed = version.entries | where: "type", "removed" %}
 {%- if added.size > 0 %}
 

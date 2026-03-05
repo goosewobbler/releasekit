@@ -16,15 +16,30 @@ Output only valid JSON, nothing else:`;
 function buildCustomCategorizePrompt(categories: Array<{ name: string; description: string }>): string {
   const categoryList = categories.map((c) => `- "${c.name}": ${c.description}`).join('\n');
 
+  // Extract Developer category scopes if specified in description
+  const developerCategory = categories.find((c) => c.name === 'Developer');
+  let scopeInstructions = '';
+
+  if (developerCategory) {
+    // Look for predefined scopes in description (format: "MUST assign a scope from: A, B, C")
+    const scopeMatch = developerCategory.description.match(/from:\s*([^.]+)/);
+    if (scopeMatch?.[1]) {
+      const scopes = scopeMatch[1]
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (scopes.length > 0) {
+        scopeInstructions = `\n\nFor the "Developer" category, you MUST assign a scope from this exact list: ${scopes.join(', ')}.\n`;
+      }
+    }
+  }
+
   return `You are categorizing changelog entries for a software release.
 
-Given the following entries, group them into the specified categories. Only use the categories listed below.
+Given the following entries, group them into the specified categories. Only use the categories listed below in this exact order:
 
 Categories:
-${categoryList}
-
-For entries in categories that involve internal/developer changes, set a "scope" field on those entries with a short subcategory label (e.g., "CI", "Dependencies", "Testing", "Code Quality", "Build System").
-
+${categoryList}${scopeInstructions}
 Output a JSON object with two fields:
 - "categories": an object where keys are category names and values are arrays of entry indices (0-based)
 - "scopes": an object where keys are entry indices (as strings) and values are scope labels

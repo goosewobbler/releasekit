@@ -109,7 +109,7 @@ async function processWithLLM(context: TemplateContext, config: Config): Promise
 
     if (tasks.enhance && tasks.categorize) {
       // Combined single-call: enhance + categorize in one LLM request
-      info('Enhancing and categorizing entries with LLM (single call)...');
+      info('Enhancing and categorizing entries with LLM...');
       const result = await enhanceAndCategorize(provider, context.entries, llmContext);
       enhanced.entries = result.enhancedEntries;
       enhanced.categories = {};
