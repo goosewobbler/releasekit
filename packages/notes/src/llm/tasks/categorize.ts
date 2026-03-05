@@ -68,7 +68,7 @@ export async function categorizeEntries(
 
     if (hasCustomCategories && parsed.categories) {
       // Custom categories format: { categories: { ... }, scopes: { ... } }
-      const categoryMap = parsed.categories as Record<string, number[]>;
+      const categoryMap = parsed.categories as Record<string, unknown>;
       const scopeMap = (parsed.scopes || {}) as Record<string, string>;
 
       // Apply scopes to entries
@@ -79,7 +79,8 @@ export async function categorizeEntries(
         }
       }
 
-      for (const [category, indices] of Object.entries(categoryMap)) {
+      for (const [category, rawIndices] of Object.entries(categoryMap)) {
+        const indices = Array.isArray(rawIndices) ? rawIndices : [];
         const categoryEntries = indices.map((i) => entries[i]).filter((e): e is ChangelogEntry => e !== undefined);
 
         if (categoryEntries.length > 0) {
@@ -88,9 +89,10 @@ export async function categorizeEntries(
       }
     } else {
       // Default format: { "Category": [0, 1, 2] }
-      const categoryMap = parsed as Record<string, number[]>;
+      const categoryMap = parsed as Record<string, unknown>;
 
-      for (const [category, indices] of Object.entries(categoryMap)) {
+      for (const [category, rawIndices] of Object.entries(categoryMap)) {
+        const indices = Array.isArray(rawIndices) ? rawIndices : [];
         const categoryEntries = indices.map((i) => entries[i]).filter((e): e is ChangelogEntry => e !== undefined);
 
         if (categoryEntries.length > 0) {
