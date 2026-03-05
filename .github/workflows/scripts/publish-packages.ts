@@ -19,14 +19,9 @@ function getNpmTag(version: string): string {
 
 function publishPackage(packageDir: string, packageName: string, npmTag: string): void {
   console.log(`Publishing ${packageName} with tag ${npmTag} from ${packageDir}...`);
-  // Strip NODE_AUTH_TOKEN and pnpm's verify-deps-before-run so npm uses OIDC auth
-  const env = { ...process.env };
-  delete env.NODE_AUTH_TOKEN;
-  delete env.npm_config_verify_deps_before_run;
-  execSync(`npm publish --tag ${npmTag} --provenance --access public`, {
+  execSync(`npm publish --tag ${npmTag} --provenance --access public --registry https://registry.npmjs.org`, {
     stdio: 'inherit',
     cwd: packageDir,
-    env,
   });
 }
 
