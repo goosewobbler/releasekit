@@ -32,6 +32,83 @@
       "entries": [
         {
           "type": "changed",
+          "description": "update npm publishing workflow to unset NODE_AUTH_TOKEN",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "enhance npm publishing workflow with OIDC configuration",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "streamline npm publish process by specifying registry URL",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update npm publish command and add registry URL",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "refactor package publishing function to include package directory",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update Node.js version requirements and add .nvmrc file",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "improve release workflow by ensuring local tags are deleted before creation",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "downgrade version of @releasekit/notes to 0.1.0 to align with versioning strategy",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "downgrade package versions to 0.1.0 for @releasekit/publish, @releasekit/release, and @releasekit/version",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "refine release workflow by separating commit and push steps",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "add mismatch strategy to releasekit configuration",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update package publishing command to include provenance and public access",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "enhance release workflows with package and bump inputs",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.0",
+          "scope": "release",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0",
+          "scope": "release",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
           "description": "update release workflows to support prerelease versioning",
           "originalType": "chore"
         },
@@ -247,6 +324,83 @@
       "revisionRange": "HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
+        {
+          "type": "changed",
+          "description": "update npm publishing workflow to unset NODE_AUTH_TOKEN",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "enhance npm publishing workflow with OIDC configuration",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "streamline npm publish process by specifying registry URL",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update npm publish command and add registry URL",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "refactor package publishing function to include package directory",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update Node.js version requirements and add .nvmrc file",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "improve release workflow by ensuring local tags are deleted before creation",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "downgrade version of @releasekit/notes to 0.1.0 to align with versioning strategy",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "downgrade package versions to 0.1.0 for @releasekit/publish, @releasekit/release, and @releasekit/version",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "refine release workflow by separating commit and push steps",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "add mismatch strategy to releasekit configuration",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update package publishing command to include provenance and public access",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "enhance release workflows with package and bump inputs",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.0",
+          "scope": "release",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0",
+          "scope": "release",
+          "originalType": "chore"
+        },
         {
           "type": "changed",
           "description": "update release workflows to support prerelease versioning",
@@ -466,6 +620,83 @@
       "entries": [
         {
           "type": "changed",
+          "description": "update npm publishing workflow to unset NODE_AUTH_TOKEN",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "enhance npm publishing workflow with OIDC configuration",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "streamline npm publish process by specifying registry URL",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update npm publish command and add registry URL",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "refactor package publishing function to include package directory",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update Node.js version requirements and add .nvmrc file",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "improve release workflow by ensuring local tags are deleted before creation",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "downgrade version of @releasekit/notes to 0.1.0 to align with versioning strategy",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "downgrade package versions to 0.1.0 for @releasekit/publish, @releasekit/release, and @releasekit/version",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "refine release workflow by separating commit and push steps",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "add mismatch strategy to releasekit configuration",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update package publishing command to include provenance and public access",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "enhance release workflows with package and bump inputs",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.0",
+          "scope": "release",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0",
+          "scope": "release",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
           "description": "update release workflows to support prerelease versioning",
           "originalType": "chore"
         },
@@ -681,6 +912,83 @@
       "revisionRange": "HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
+        {
+          "type": "changed",
+          "description": "update npm publishing workflow to unset NODE_AUTH_TOKEN",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "enhance npm publishing workflow with OIDC configuration",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "streamline npm publish process by specifying registry URL",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update npm publish command and add registry URL",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "refactor package publishing function to include package directory",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update Node.js version requirements and add .nvmrc file",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "improve release workflow by ensuring local tags are deleted before creation",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "downgrade version of @releasekit/notes to 0.1.0 to align with versioning strategy",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "downgrade package versions to 0.1.0 for @releasekit/publish, @releasekit/release, and @releasekit/version",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "refine release workflow by separating commit and push steps",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "add mismatch strategy to releasekit configuration",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update package publishing command to include provenance and public access",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "enhance release workflows with package and bump inputs",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.0",
+          "scope": "release",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0",
+          "scope": "release",
+          "originalType": "chore"
+        },
         {
           "type": "changed",
           "description": "update release workflows to support prerelease versioning",
