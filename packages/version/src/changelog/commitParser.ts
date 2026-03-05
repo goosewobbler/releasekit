@@ -23,10 +23,11 @@ const BREAKING_CHANGE_REGEX = /BREAKING CHANGE: ([\s\S]+?)(?:\n\n|$)/;
  */
 export function extractChangelogEntriesFromCommits(projectDir: string, revisionRange: string): ChangelogEntry[] {
   try {
-    const output = execSync('git', ['log', revisionRange, '--pretty=format:%B---COMMIT_DELIMITER---', '--no-merges'], {
-      cwd: projectDir,
-      encoding: 'utf8',
-    }).toString();
+    const output = execSync(
+      'git',
+      ['log', revisionRange, '--pretty=format:%B---COMMIT_DELIMITER---', '--no-merges', '--', '.'],
+      { cwd: projectDir, encoding: 'utf8' },
+    ).toString();
 
     // Split by commit delimiter and remove empty commits
     const commits = output.split('---COMMIT_DELIMITER---').filter((commit) => commit.trim() !== '');
