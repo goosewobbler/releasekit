@@ -5,6 +5,7 @@
     "baseBranch": "main",
     "versionPrefix": "v",
     "packages": ["packages/version", "packages/notes", "packages/publish", "packages/release"],
+    "mismatchStrategy": "prefer-package",
     "tagTemplate": "${packageName}@v${version}",
     "commitMessage": "chore: release ${packageName}@${version} [skip ci]",
     "prereleaseIdentifier": "next",
