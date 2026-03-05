@@ -26,11 +26,13 @@
       },
       "categories": [
         { "name": "New", "description": "New features and additions" },
-        { "name": "Fixed", "description": "Bug fixes" },
+        { "name": "Fixed", "description": "Bug fixes including security and performance fixes" },
+        { "name": "Changed", "description": "Changes to existing functionality" },
+        { "name": "Removed", "description": "Features that were removed" },
         { "name": "Documentation", "description": "Documentation updates" },
         {
           "name": "Developer",
-          "description": "Internal changes: CI, dependencies, testing, code quality, build system, infrastructure. Always assign a scope for subcategory label (e.g. CI, Dependencies, Testing, Code Quality, Build System)."
+          "description": "Internal changes. MUST assign a scope from: Dependencies, CI, Testing, Build System, Code Quality, Infrastructure, Tooling, Performance, Security"
         }
       ],
       "style": "Use past tense descriptions. Be concise. Focus on what changed, not implementation details."
