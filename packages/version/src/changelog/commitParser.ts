@@ -74,6 +74,95 @@ export function extractAllChangelogEntriesWithHash(projectDir: string, revisionR
 }
 
 /**
+ * Check if a commit touches any of the given package directories (excluding shared packages)
+ * @param projectDir Root directory to run git commands from
+ * @param commitHash The commit hash to check
+ * @param packageDirs Array of package directory paths (relative to projectDir)
+ * @param sharedPackageDirs Array of shared package directory paths that should be treated as repo-level (e.g., ['packages/config', 'packages/core'])
+ * @returns true if the commit touches any non-shared package directory
+ */
+export function commitTouchesAnyPackage(
+  projectDir: string,
+  commitHash: string,
+  packageDirs: string[],
+  sharedPackageDirs: string[] = [],
+): boolean {
+  try {
+    // Get the list of files changed in this commit
+    const output = execSync('git', ['diff-tree', '--no-commit-id', '--name-only', '-r', commitHash], {
+      cwd: projectDir,
+      encoding: 'utf8',
+    })
+      .toString()
+      .trim();
+
+    if (!output) {
+      return false;
+    }
+
+    const changedFiles = output.split('\n');
+
+    // Check if any changed file is within any non-shared package directory
+    return changedFiles.some((file) => {
+      return packageDirs.some((pkgDir) => {
+        // Skip if this is a shared package
+        if (sharedPackageDirs.some((sharedDir) => pkgDir.includes(sharedDir))) {
+          return false;
+        }
+        // Normalize paths for comparison
+        const normalizedFile = file.replace(/\\/g, '/');
+        const normalizedPkgDir = pkgDir.replace(/\\/g, '/').replace(/^\.\//, '');
+        return normalizedFile.startsWith(normalizedPkgDir);
+      });
+    });
+  } catch (error) {
+    log(
+      `Error checking if commit ${commitHash} touches packages: ${error instanceof Error ? error.message : String(error)}`,
+      'debug',
+    );
+    return false;
+  }
+}
+
+/**
+ * Extract repo-level changelog entries that don't touch any non-shared package directory
+ * @param projectDir Directory to run git commands from
+ * @param revisionRange Git revision range
+ * @param packageDirs Array of package directory paths (relative to projectDir)
+ * @param sharedPackageDirs Array of shared package directory paths that should be treated as repo-level
+ * @returns Array of repo-level changelog entries
+ */
+export function extractRepoLevelChangelogEntries(
+  projectDir: string,
+  revisionRange: string,
+  packageDirs: string[],
+  sharedPackageDirs: string[] = [],
+): ChangelogEntry[] {
+  try {
+    // Get all commits with hashes
+    const allCommits = extractAllChangelogEntriesWithHash(projectDir, revisionRange);
+
+    // Filter to only commits that don't touch any non-shared package directory
+    const repoLevelCommits = allCommits.filter((commit) => {
+      const touchesPackage = commitTouchesAnyPackage(projectDir, commit.hash, packageDirs, sharedPackageDirs);
+      return !touchesPackage;
+    });
+
+    if (repoLevelCommits.length > 0) {
+      log(
+        `Found ${repoLevelCommits.length} repo-level commit(s) (including shared packages: ${sharedPackageDirs.join(', ')})`,
+        'debug',
+      );
+    }
+
+    return repoLevelCommits.map((c) => c.entry);
+  } catch (error) {
+    log(`Error extracting repo-level commits: ${error instanceof Error ? error.message : String(error)}`, 'warning');
+    return [];
+  }
+}
+
+/**
  * Extract changelog entries from Git commits
  * @param projectDir Directory to run git commands from
  * @param revisionRange Git revision range (e.g., "v1.0.0..v1.1.0" or tag name)

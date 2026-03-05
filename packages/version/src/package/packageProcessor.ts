@@ -3,11 +3,7 @@ import path from 'node:path';
 import { exit } from 'node:process';
 import type { Package } from '@manypkg/get-packages';
 import type { VersionChangelogEntry } from '@releasekit/core';
-import {
-  extractAllChangelogEntriesWithHash,
-  extractChangelogEntriesFromCommits,
-  extractChangelogEntriesWithHash,
-} from '../changelog/commitParser.js';
+import { extractChangelogEntriesFromCommits, extractRepoLevelChangelogEntries } from '../changelog/commitParser.js';
 import { calculateVersion } from '../core/versionCalculator.js';
 import { createGitTag, gitAdd, gitCommit } from '../git/commands.js';
 import { getLatestTagForPackage } from '../git/tagsAndBranches.js';
@@ -206,18 +202,26 @@ export class PackageProcessor {
 
         changelogEntries = extractChangelogEntriesFromCommits(pkgPath, revisionRange);
 
-        // Also extract all commits in the revision range to find repo-level commits
-        // that don't belong to any specific package (e.g., CI changes)
-        const allCommitsWithHash = extractAllChangelogEntriesWithHash(pkgPath, revisionRange);
-        const packageCommitsWithHash = extractChangelogEntriesWithHash(pkgPath, revisionRange);
+        // Also extract repo-level commits (those that don't touch any non-shared package directory)
+        // These include CI changes, infrastructure updates, and changes to shared packages (config, core)
+        // that affect all packages
+        const allPackageDirs = packages.map((p) => p.dir);
+        // Define shared packages that should be included in all package changelogs
+        const sharedPackageNames = ['config', 'core', '@releasekit/config', '@releasekit/core'];
+        const sharedPackageDirs = packages
+          .filter((p) => sharedPackageNames.includes(p.packageJson.name))
+          .map((p) => p.dir);
+        const repoLevelEntries = extractRepoLevelChangelogEntries(
+          pkgPath,
+          revisionRange,
+          allPackageDirs,
+          sharedPackageDirs,
+        );
 
-        const packageCommitHashes = new Set(packageCommitsWithHash.map((c) => c.hash));
-        const globalCommits = allCommitsWithHash.filter((c) => !packageCommitHashes.has(c.hash)).map((c) => c.entry);
-
-        // Add global commits that don't belong to any package to this package's changelog
-        if (globalCommits.length > 0) {
-          log(`Adding ${globalCommits.length} global commit(s) to ${name} changelog`, 'debug');
-          changelogEntries = [...globalCommits, ...changelogEntries];
+        // Add repo-level commits to this package's changelog
+        if (repoLevelEntries.length > 0) {
+          log(`Adding ${repoLevelEntries.length} repo-level commit(s) to ${name} changelog`, 'debug');
+          changelogEntries = [...repoLevelEntries, ...changelogEntries];
         }
 
         // If we have no entries but we're definitely changing versions,

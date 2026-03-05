@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  commitTouchesAnyPackage,
   extractAllChangelogEntriesWithHash,
   extractChangelogEntriesFromCommits,
   extractChangelogEntriesWithHash,
+  extractRepoLevelChangelogEntries,
 } from '../../../src/changelog/commitParser.js';
 
 // Mock dependencies - vi.mock calls are hoisted to the top
@@ -214,6 +216,159 @@ describe('Commit Parser', () => {
       expect(globalCommits).toHaveLength(1);
       expect(globalCommits[0].hash).toBe('bbb222');
       expect(globalCommits[0].entry.description).toBe('chore: update CI');
+    });
+  });
+
+  describe('commitTouchesAnyPackage', () => {
+    it('returns true when commit touches a package directory', () => {
+      const mockDiffOutput = Buffer.from('packages/version/src/index.ts\npackages/version/package.json');
+
+      vi.mocked(execSync, { partial: true }).mockReturnValue(mockDiffOutput as any);
+
+      const result = commitTouchesAnyPackage('/test', 'abc123', ['packages/version', 'packages/notes']);
+
+      expect(result).toBe(true);
+      expect(execSync).toHaveBeenCalledWith(
+        'git',
+        ['diff-tree', '--no-commit-id', '--name-only', '-r', 'abc123'],
+        expect.any(Object),
+      );
+    });
+
+    it('returns false when commit only touches repo-level files', () => {
+      const mockDiffOutput = Buffer.from('.github/workflows/ci.yml\nREADME.md');
+
+      vi.mocked(execSync, { partial: true }).mockReturnValue(mockDiffOutput as any);
+
+      const result = commitTouchesAnyPackage('/test', 'abc123', ['packages/version', 'packages/notes']);
+
+      expect(result).toBe(false);
+    });
+
+    it('returns false when commit has no changed files', () => {
+      vi.mocked(execSync, { partial: true }).mockReturnValue(Buffer.from('') as any);
+
+      const result = commitTouchesAnyPackage('/test', 'abc123', ['packages/version']);
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('extractRepoLevelChangelogEntries', () => {
+    it('extracts only commits that do not touch any package directory', () => {
+      // First call: get all commits with hash
+      // Second call: check which files commit aaa111 touches
+      // Third call: check which files commit bbb222 touches
+      vi.mocked(execSync, { partial: true })
+        .mockReturnValueOnce(
+          Buffer.from(
+            'aaa123|||feat(version): add feature\n---COMMIT_DELIMITER---\nbbb456|||chore(ci): update workflow',
+          ),
+        )
+        .mockReturnValueOnce(Buffer.from('packages/version/src/feature.ts')) // aaa123 touches version package
+        .mockReturnValueOnce(Buffer.from('.github/workflows/ci.yml')); // bbb456 only touches CI
+
+      const entries = extractRepoLevelChangelogEntries('/test', 'v1.0.0..v1.1.0', ['packages/version']);
+
+      // Should only include the CI commit
+      expect(entries).toHaveLength(1);
+      expect(entries[0].description).toBe('update workflow');
+    });
+
+    it('returns empty array when all commits touch packages', () => {
+      vi.mocked(execSync, { partial: true })
+        .mockReturnValueOnce(
+          Buffer.from('abc123|||feat(version): feature\n---COMMIT_DELIMITER---\ndef456|||fix(notes): bugfix'),
+        )
+        .mockReturnValueOnce(Buffer.from('packages/version/src/index.ts'))
+        .mockReturnValueOnce(Buffer.from('packages/notes/src/index.ts'));
+
+      const entries = extractRepoLevelChangelogEntries('/test', 'v1.0.0..v1.1.0', [
+        'packages/version',
+        'packages/notes',
+      ]);
+
+      expect(entries).toHaveLength(0);
+    });
+
+    it('includes commit in all packages when it touches shared directories', () => {
+      // This tests that commits touching shared directories are treated as repo-level
+      vi.mocked(execSync, { partial: true })
+        .mockReturnValueOnce(Buffer.from('shared123|||chore: update shared config'))
+        .mockReturnValueOnce(Buffer.from('shared/config.js')); // touches shared dir, not a package
+
+      const entries = extractRepoLevelChangelogEntries('/test', 'v1.0.0..v1.1.0', ['packages/version']);
+
+      expect(entries).toHaveLength(1);
+      expect(entries[0].description).toBe('update shared config');
+    });
+
+    it('treats commits to shared packages as repo-level and includes them in all packages', () => {
+      // A commit to a shared package (like config/core) should be repo-level
+      vi.mocked(execSync, { partial: true })
+        .mockReturnValueOnce(Buffer.from('core123|||feat(core): add new utility'))
+        .mockReturnValueOnce(Buffer.from('packages/core/src/index.ts')); // touches core package
+
+      const entries = extractRepoLevelChangelogEntries(
+        '/test',
+        'v1.0.0..v1.1.0',
+        ['packages/version', 'packages/core'],
+        ['packages/core'],
+      );
+
+      // Should be treated as repo-level because core is in sharedPackageDirs
+      expect(entries).toHaveLength(1);
+      expect(entries[0].description).toBe('add new utility');
+    });
+
+    it('excludes commits to non-shared packages from repo-level', () => {
+      // A commit to a regular package should NOT be repo-level
+      vi.mocked(execSync, { partial: true })
+        .mockReturnValueOnce(Buffer.from('version123|||feat(version): add feature'))
+        .mockReturnValueOnce(Buffer.from('packages/version/src/index.ts')); // touches version package
+
+      const entries = extractRepoLevelChangelogEntries(
+        '/test',
+        'v1.0.0..v1.1.0',
+        ['packages/version', 'packages/core'],
+        ['packages/core'],
+      );
+
+      // Should NOT be repo-level because version is not in sharedPackageDirs
+      expect(entries).toHaveLength(0);
+    });
+  });
+
+  describe('commitTouchesAnyPackage with shared packages', () => {
+    it('returns false for shared packages when sharedPackageDirs is provided', () => {
+      const mockDiffOutput = Buffer.from('packages/core/src/index.ts\npackages/core/package.json');
+
+      vi.mocked(execSync, { partial: true }).mockReturnValue(mockDiffOutput as any);
+
+      // When checking with sharedPackageDirs containing 'packages/core', touching core should return false
+      const result = commitTouchesAnyPackage(
+        '/test',
+        'abc123',
+        ['packages/version', 'packages/core'],
+        ['packages/core'],
+      );
+
+      expect(result).toBe(false);
+    });
+
+    it('returns true for non-shared packages even when other packages are shared', () => {
+      const mockDiffOutput = Buffer.from('packages/version/src/index.ts');
+
+      vi.mocked(execSync, { partial: true }).mockReturnValue(mockDiffOutput as any);
+
+      const result = commitTouchesAnyPackage(
+        '/test',
+        'abc123',
+        ['packages/version', 'packages/core'],
+        ['packages/core'],
+      );
+
+      expect(result).toBe(true);
     });
   });
 });
