@@ -121,8 +121,8 @@ describe('compareUrl: platform detection', () => {
 
   it('generates compare URL for package-specific tags', () => {
     const ctx = createTemplateContext({
-      packageName: 'pkg',
-      version: '@releasekit/version@v0.2.0-next.9',
+      packageName: '@releasekit/version',
+      version: '0.2.0-next.9',
       previousVersion: '@releasekit/version@v0.2.0-next.8',
       revisionRange: '@releasekit/version@v0.2.0-next.8..HEAD',
       repoUrl: 'https://github.com/goosewobbler/releasekit',

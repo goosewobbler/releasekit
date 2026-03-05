@@ -101,7 +101,8 @@ describe('Markdown Output', () => {
       changelogs: [
         {
           ...(sampleInput.changelogs[0] ?? {}),
-          version: '@releasekit/version@v0.2.0-next.9',
+          packageName: '@releasekit/version',
+          version: '0.2.0-next.9',
           previousVersion: '@releasekit/version@v0.2.0-next.8',
         },
       ],

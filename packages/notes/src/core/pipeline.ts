@@ -26,20 +26,24 @@ import type {
   TemplateContext,
 } from './types.js';
 
-function extractVersionFromTag(tag: string): string {
-  // For package-specific tags like @releasekit/version@v0.2.0, keep the full tag
-  // For plain version tags like v1.0.0 or 1.0.0, extract just the version
-  if (tag.includes('@') && !tag.startsWith('@')) {
-    // This is a package-specific tag like @scope/package@v1.0.0 - keep as is
-    return tag;
-  }
-  // Plain version tag - remove leading 'v' if present
-  return tag.replace(/^v/, '');
-}
+function generateCompareUrl(repoUrl: string, from: string, to: string, packageName?: string): string {
+  // Check if using package-specific tags (from version contains @ and package name)
+  const isPackageSpecific = from.includes('@') && packageName && from.includes(packageName);
 
-function generateCompareUrl(repoUrl: string, from: string, to: string): string {
-  const fromVersion = extractVersionFromTag(from);
-  const toVersion = extractVersionFromTag(to);
+  let fromVersion: string;
+  let toVersion: string;
+
+  if (isPackageSpecific) {
+    // For package-specific tags, construct full tag format for both from and to
+    // from: @releasekit/version@v0.2.0-next.9 -> keep as is
+    // to: 0.2.0-next.10 -> @releasekit/version@v0.2.0-next.10
+    fromVersion = from;
+    toVersion = `${packageName}@${to.startsWith('v') ? '' : 'v'}${to}`;
+  } else {
+    // Plain version tags - remove leading 'v' if present for consistency
+    fromVersion = from.replace(/^v/, '');
+    toVersion = to.replace(/^v/, '');
+  }
 
   if (/gitlab\.com/i.test(repoUrl)) {
     return `${repoUrl}/-/compare/${fromVersion}...${toVersion}`;
@@ -53,7 +57,9 @@ function generateCompareUrl(repoUrl: string, from: string, to: string): string {
 
 export function createTemplateContext(pkg: PackageChangelog): TemplateContext {
   const compareUrl =
-    pkg.repoUrl && pkg.previousVersion ? generateCompareUrl(pkg.repoUrl, pkg.previousVersion, pkg.version) : undefined;
+    pkg.repoUrl && pkg.previousVersion
+      ? generateCompareUrl(pkg.repoUrl, pkg.previousVersion, pkg.version, pkg.packageName)
+      : undefined;
 
   return {
     packageName: pkg.packageName,
