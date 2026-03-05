@@ -3,6 +3,12 @@ name: Release Publish
 on:
   workflow_call:
     inputs:
+      packages:
+        required: true
+        type: string
+      bump:
+        required: true
+        type: string
       dry_run:
         required: true
         type: boolean
@@ -49,7 +55,45 @@ jobs:
         run: pnpm build
 
       - name: Apply version bumps
-        run: node packages/version/dist/cli.js --json ${{ inputs.dry_run && '--dry-run' || '' }}
+        run: |
+          # Build target flags
+          TARGET_FLAGS=""
+          if [ "${{ inputs.packages }}" = "version" ]; then
+            TARGET_FLAGS="--target @releasekit/version"
+          elif [ "${{ inputs.packages }}" = "notes" ]; then
+            TARGET_FLAGS="--target @releasekit/notes"
+          elif [ "${{ inputs.packages }}" = "publish" ]; then
+            TARGET_FLAGS="--target @releasekit/publish"
+          elif [ "${{ inputs.packages }}" = "release" ]; then
+            TARGET_FLAGS="--target @releasekit/release"
+          fi
+
+          # Build bump flags
+          BUMP_FLAGS="--bump ${{ inputs.bump }}"
+
+          # Check if prerelease
+          PRERELEASE_FLAGS=""
+          if [ "${{ inputs.bump }}" = "prerelease" ]; then
+            BUMP_FLAGS="--bump prerelease"
+            PRERELEASE_FLAGS="--prerelease next"
+          elif [[ "${{ inputs.bump }}" == pre* ]]; then
+            BASE_BUMP="${{ inputs.bump }}"
+            BASE_BUMP="${BASE_BUMP#pre}"
+            BUMP_FLAGS="--bump ${BASE_BUMP}"
+            PRERELEASE_FLAGS="--prerelease next"
+          fi
+
+          DRY_RUN_FLAG=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            DRY_RUN_FLAG="--dry-run"
+          fi
+
+          node packages/version/dist/cli.js \
+            --json \
+            ${BUMP_FLAGS} \
+            ${PRERELEASE_FLAGS} \
+            ${TARGET_FLAGS} \
+            ${DRY_RUN_FLAG}
 
       - name: Save version output
         env:

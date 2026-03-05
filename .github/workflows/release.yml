@@ -48,6 +48,8 @@ jobs:
       id-token: write
       contents: write
     with:
+      packages: ${{ inputs.packages }}
+      bump: ${{ inputs.bump }}
       dry_run: ${{ inputs.dry_run }}
       version_output: ${{ needs.prepare.outputs.version_output }}
       tags: ${{ needs.prepare.outputs.tags }}
