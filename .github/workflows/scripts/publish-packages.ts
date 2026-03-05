@@ -17,7 +17,7 @@ function getNpmTag(version: string): string {
 
 function publishPackage(packageName: string, npmTag: string): void {
   console.log(`Publishing ${packageName} with tag ${npmTag}...`);
-  execSync(`pnpm --filter ${packageName} publish --tag ${npmTag} --no-git-checks`, {
+  execSync(`pnpm --filter ${packageName} publish --tag ${npmTag} --no-git-checks --provenance --access public`, {
     stdio: 'inherit',
   });
 }
