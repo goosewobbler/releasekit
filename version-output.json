@@ -3,33 +3,45 @@
   "updates": [
     {
       "packageName": "@releasekit/version",
-      "newVersion": "0.2.0-next.4",
+      "newVersion": "0.2.0-next.5",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/version/package.json"
     },
     {
       "packageName": "@releasekit/notes",
-      "newVersion": "0.2.0-next.4",
+      "newVersion": "0.2.0-next.5",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/notes/package.json"
     },
     {
       "packageName": "@releasekit/publish",
-      "newVersion": "0.2.0-next.4",
+      "newVersion": "0.2.0-next.5",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/publish/package.json"
     },
     {
       "packageName": "@releasekit/release",
-      "newVersion": "0.2.0-next.4",
+      "newVersion": "0.2.0-next.5",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/release/package.json"
     }
   ],
   "changelogs": [
     {
       "packageName": "@releasekit/version",
-      "version": "0.2.0-next.4",
-      "previousVersion": "v0.2.0-next.3",
+      "version": "0.2.0-next.5",
+      "previousVersion": "v0.2.0-next.4",
       "revisionRange": "HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
+        {
+          "type": "fixed",
+          "description": "allow markdown output to be written to stdout",
+          "scope": "output",
+          "originalType": "fix"
+        },
+        {
+          "type": "changed",
+          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.4",
+          "scope": "release",
+          "originalType": "chore"
+        },
         {
           "type": "changed",
           "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.3",
@@ -143,11 +155,23 @@
     },
     {
       "packageName": "@releasekit/notes",
-      "version": "0.2.0-next.4",
-      "previousVersion": "v0.2.0-next.3",
+      "version": "0.2.0-next.5",
+      "previousVersion": "v0.2.0-next.4",
       "revisionRange": "HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
+        {
+          "type": "fixed",
+          "description": "allow markdown output to be written to stdout",
+          "scope": "output",
+          "originalType": "fix"
+        },
+        {
+          "type": "changed",
+          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.4",
+          "scope": "release",
+          "originalType": "chore"
+        },
         {
           "type": "changed",
           "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.3",
@@ -260,11 +284,23 @@
     },
     {
       "packageName": "@releasekit/publish",
-      "version": "0.2.0-next.4",
-      "previousVersion": "v0.2.0-next.3",
+      "version": "0.2.0-next.5",
+      "previousVersion": "v0.2.0-next.4",
       "revisionRange": "HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
+        {
+          "type": "fixed",
+          "description": "allow markdown output to be written to stdout",
+          "scope": "output",
+          "originalType": "fix"
+        },
+        {
+          "type": "changed",
+          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.4",
+          "scope": "release",
+          "originalType": "chore"
+        },
         {
           "type": "changed",
           "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.3",
@@ -343,11 +379,17 @@
     },
     {
       "packageName": "@releasekit/release",
-      "version": "0.2.0-next.4",
-      "previousVersion": "v0.2.0-next.3",
+      "version": "0.2.0-next.5",
+      "previousVersion": "v0.2.0-next.4",
       "revisionRange": "HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
+        {
+          "type": "changed",
+          "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.4",
+          "scope": "release",
+          "originalType": "chore"
+        },
         {
           "type": "changed",
           "description": "@releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.3",
@@ -406,10 +448,10 @@
     }
   ],
   "tags": [
-    "@releasekit/version@v0.2.0-next.4",
-    "@releasekit/notes@v0.2.0-next.4",
-    "@releasekit/publish@v0.2.0-next.4",
-    "@releasekit/release@v0.2.0-next.4"
+    "@releasekit/version@v0.2.0-next.5",
+    "@releasekit/notes@v0.2.0-next.5",
+    "@releasekit/publish@v0.2.0-next.5",
+    "@releasekit/release@v0.2.0-next.5"
   ],
-  "commitMessage": "chore(release): @releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.4"
+  "commitMessage": "chore(release): @releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.5"
 }
