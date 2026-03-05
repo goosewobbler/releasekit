@@ -1,0 +1,902 @@
+{
+  "dryRun": true,
+  "updates": [
+    {
+      "packageName": "@releasekit/version",
+      "newVersion": "0.2.0-next.0",
+      "filePath": "/home/runner/work/releasekit/releasekit/packages/version/package.json"
+    },
+    {
+      "packageName": "@releasekit/notes",
+      "newVersion": "0.2.0-next.0",
+      "filePath": "/home/runner/work/releasekit/releasekit/packages/notes/package.json"
+    },
+    {
+      "packageName": "@releasekit/publish",
+      "newVersion": "0.2.0-next.0",
+      "filePath": "/home/runner/work/releasekit/releasekit/packages/publish/package.json"
+    },
+    {
+      "packageName": "@releasekit/release",
+      "newVersion": "0.2.0-next.0",
+      "filePath": "/home/runner/work/releasekit/releasekit/packages/release/package.json"
+    }
+  ],
+  "changelogs": [
+    {
+      "packageName": "@releasekit/version",
+      "version": "0.2.0-next.0",
+      "previousVersion": "v0.1.0",
+      "revisionRange": "HEAD",
+      "repoUrl": "https://github.com/goosewobbler/releasekit",
+      "entries": [
+        {
+          "type": "changed",
+          "description": "update release workflows to support prerelease versioning",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "enhance release workflows with improved summary formatting and package details",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update release workflow to use built version of CLI for version bumps",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update release workflow to use pnpm for script execution",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update release workflow permissions for contents",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update release workflow permissions",
+          "originalType": "chore"
+        },
+        {
+          "type": "added",
+          "description": "introduce releasekit configuration and enhance LLM processing",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "update package descriptions and READMEs",
+          "originalType": "docs"
+        },
+        {
+          "type": "added",
+          "description": "enhance LLM configuration and processing",
+          "originalType": "feat"
+        },
+        {
+          "type": "added",
+          "description": "enhance release workflow with Ollama integration",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "npm fixes",
+          "originalType": "chore"
+        },
+        {
+          "type": "fixed",
+          "description": "fix dry run update bug, add tests",
+          "scope": "version",
+          "originalType": "fix"
+        },
+        {
+          "type": "changed",
+          "description": "update bootstrap doc for new package",
+          "originalType": "docs"
+        },
+        {
+          "type": "changed",
+          "description": "update ci for new package",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "add automation plan",
+          "originalType": "docs"
+        },
+        {
+          "type": "added",
+          "description": "`release` package",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "show realistic usage patterns for composable tools",
+          "originalType": "docs"
+        },
+        {
+          "type": "fixed",
+          "description": "run integration tests when E2E files change",
+          "scope": "ci",
+          "originalType": "fix"
+        },
+        {
+          "type": "fixed",
+          "description": "implement changelog generation in sync versioning strategy",
+          "originalType": "fix"
+        },
+        {
+          "type": "changed",
+          "description": "update CI workflows to include additional conditions and OS support",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "enhance CLI execution logic for package handling",
+          "originalType": "refactor"
+        },
+        {
+          "type": "added",
+          "description": "add run function to CLI and update tests",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "simplify E2E testing workflow and update dependencies",
+          "originalType": "refactor"
+        },
+        {
+          "type": "changed",
+          "description": "refactor versioning CLI and enhance build process",
+          "originalType": "refactor"
+        },
+        {
+          "type": "changed",
+          "description": "update lockfile",
+          "originalType": "chore"
+        },
+        {
+          "type": "added",
+          "description": "add integration testing workflow and enhance CI configuration",
+          "originalType": "feat"
+        },
+        {
+          "type": "fixed",
+          "description": "update cache key output in CI workflow",
+          "originalType": "fix"
+        },
+        {
+          "type": "changed",
+          "description": "bump github/codeql-action from 3 to 4",
+          "scope": "deps",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "bump actions/checkout from 4 to 6",
+          "scope": "deps",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "add tsx support and enhance CI workflows",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "remove compiled artifacts",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "simplify changelog comments in version strategies",
+          "originalType": "docs"
+        },
+        {
+          "type": "changed",
+          "description": "enhance CI/CD workflows and configuration management",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "add issue templates for bug reports and feature requests",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "add Code of Conduct, Contributing guidelines, and Security Policy",
+          "originalType": "docs"
+        },
+        {
+          "type": "changed",
+          "description": "add more deps to catalog",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "improved code sharing",
+          "originalType": "refactor"
+        },
+        {
+          "type": "changed",
+          "description": "migrate logging utilities to `@releasekit/core`",
+          "originalType": "refactor"
+        },
+        {
+          "type": "added",
+          "description": "add `@releasekit/config` package for shared configuration management",
+          "originalType": "feat"
+        },
+        {
+          "type": "added",
+          "description": "implement `@releasekit/publish` package for publishing to npm and crates.io",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "Initialize ReleaseKit monorepo with core packages, CI/CD workflows, and configuration files"
+        }
+      ]
+    },
+    {
+      "packageName": "@releasekit/notes",
+      "version": "0.2.0-next.0",
+      "previousVersion": "v0.1.0",
+      "revisionRange": "HEAD",
+      "repoUrl": "https://github.com/goosewobbler/releasekit",
+      "entries": [
+        {
+          "type": "changed",
+          "description": "update release workflows to support prerelease versioning",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "enhance release workflows with improved summary formatting and package details",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update release workflow to use built version of CLI for version bumps",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update release workflow to use pnpm for script execution",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update release workflow permissions for contents",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update release workflow permissions",
+          "originalType": "chore"
+        },
+        {
+          "type": "added",
+          "description": "introduce releasekit configuration and enhance LLM processing",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "update package descriptions and READMEs",
+          "originalType": "docs"
+        },
+        {
+          "type": "added",
+          "description": "enhance LLM configuration and processing",
+          "originalType": "feat"
+        },
+        {
+          "type": "added",
+          "description": "enhance release workflow with Ollama integration",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "npm fixes",
+          "originalType": "chore"
+        },
+        {
+          "type": "fixed",
+          "description": "fix dry run update bug, add tests",
+          "scope": "version",
+          "originalType": "fix"
+        },
+        {
+          "type": "changed",
+          "description": "update bootstrap doc for new package",
+          "originalType": "docs"
+        },
+        {
+          "type": "changed",
+          "description": "update ci for new package",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "add automation plan",
+          "originalType": "docs"
+        },
+        {
+          "type": "added",
+          "description": "`release` package",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "show realistic usage patterns for composable tools",
+          "originalType": "docs"
+        },
+        {
+          "type": "fixed",
+          "description": "run integration tests when E2E files change",
+          "scope": "ci",
+          "originalType": "fix"
+        },
+        {
+          "type": "fixed",
+          "description": "implement changelog generation in sync versioning strategy",
+          "originalType": "fix"
+        },
+        {
+          "type": "changed",
+          "description": "update CI workflows to include additional conditions and OS support",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "enhance CLI execution logic for package handling",
+          "originalType": "refactor"
+        },
+        {
+          "type": "added",
+          "description": "add run function to CLI and update tests",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "simplify E2E testing workflow and update dependencies",
+          "originalType": "refactor"
+        },
+        {
+          "type": "changed",
+          "description": "refactor versioning CLI and enhance build process",
+          "originalType": "refactor"
+        },
+        {
+          "type": "changed",
+          "description": "update lockfile",
+          "originalType": "chore"
+        },
+        {
+          "type": "added",
+          "description": "add integration testing workflow and enhance CI configuration",
+          "originalType": "feat"
+        },
+        {
+          "type": "fixed",
+          "description": "update cache key output in CI workflow",
+          "originalType": "fix"
+        },
+        {
+          "type": "changed",
+          "description": "bump github/codeql-action from 3 to 4",
+          "scope": "deps",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "bump actions/checkout from 4 to 6",
+          "scope": "deps",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "add tsx support and enhance CI workflows",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "remove compiled artifacts",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "simplify changelog comments in version strategies",
+          "originalType": "docs"
+        },
+        {
+          "type": "changed",
+          "description": "enhance CI/CD workflows and configuration management",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "add issue templates for bug reports and feature requests",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "add Code of Conduct, Contributing guidelines, and Security Policy",
+          "originalType": "docs"
+        },
+        {
+          "type": "changed",
+          "description": "add more deps to catalog",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "improved code sharing",
+          "originalType": "refactor"
+        },
+        {
+          "type": "changed",
+          "description": "migrate logging utilities to `@releasekit/core`",
+          "originalType": "refactor"
+        },
+        {
+          "type": "added",
+          "description": "add `@releasekit/config` package for shared configuration management",
+          "originalType": "feat"
+        },
+        {
+          "type": "added",
+          "description": "implement `@releasekit/publish` package for publishing to npm and crates.io",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "Initialize ReleaseKit monorepo with core packages, CI/CD workflows, and configuration files"
+        }
+      ]
+    },
+    {
+      "packageName": "@releasekit/publish",
+      "version": "0.2.0-next.0",
+      "previousVersion": "v0.1.0",
+      "revisionRange": "HEAD",
+      "repoUrl": "https://github.com/goosewobbler/releasekit",
+      "entries": [
+        {
+          "type": "changed",
+          "description": "update release workflows to support prerelease versioning",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "enhance release workflows with improved summary formatting and package details",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update release workflow to use built version of CLI for version bumps",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update release workflow to use pnpm for script execution",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update release workflow permissions for contents",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update release workflow permissions",
+          "originalType": "chore"
+        },
+        {
+          "type": "added",
+          "description": "introduce releasekit configuration and enhance LLM processing",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "update package descriptions and READMEs",
+          "originalType": "docs"
+        },
+        {
+          "type": "added",
+          "description": "enhance LLM configuration and processing",
+          "originalType": "feat"
+        },
+        {
+          "type": "added",
+          "description": "enhance release workflow with Ollama integration",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "npm fixes",
+          "originalType": "chore"
+        },
+        {
+          "type": "fixed",
+          "description": "fix dry run update bug, add tests",
+          "scope": "version",
+          "originalType": "fix"
+        },
+        {
+          "type": "changed",
+          "description": "update bootstrap doc for new package",
+          "originalType": "docs"
+        },
+        {
+          "type": "changed",
+          "description": "update ci for new package",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "add automation plan",
+          "originalType": "docs"
+        },
+        {
+          "type": "added",
+          "description": "`release` package",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "show realistic usage patterns for composable tools",
+          "originalType": "docs"
+        },
+        {
+          "type": "fixed",
+          "description": "run integration tests when E2E files change",
+          "scope": "ci",
+          "originalType": "fix"
+        },
+        {
+          "type": "fixed",
+          "description": "implement changelog generation in sync versioning strategy",
+          "originalType": "fix"
+        },
+        {
+          "type": "changed",
+          "description": "update CI workflows to include additional conditions and OS support",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "enhance CLI execution logic for package handling",
+          "originalType": "refactor"
+        },
+        {
+          "type": "added",
+          "description": "add run function to CLI and update tests",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "simplify E2E testing workflow and update dependencies",
+          "originalType": "refactor"
+        },
+        {
+          "type": "changed",
+          "description": "refactor versioning CLI and enhance build process",
+          "originalType": "refactor"
+        },
+        {
+          "type": "changed",
+          "description": "update lockfile",
+          "originalType": "chore"
+        },
+        {
+          "type": "added",
+          "description": "add integration testing workflow and enhance CI configuration",
+          "originalType": "feat"
+        },
+        {
+          "type": "fixed",
+          "description": "update cache key output in CI workflow",
+          "originalType": "fix"
+        },
+        {
+          "type": "changed",
+          "description": "bump github/codeql-action from 3 to 4",
+          "scope": "deps",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "bump actions/checkout from 4 to 6",
+          "scope": "deps",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "add tsx support and enhance CI workflows",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "remove compiled artifacts",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "simplify changelog comments in version strategies",
+          "originalType": "docs"
+        },
+        {
+          "type": "changed",
+          "description": "enhance CI/CD workflows and configuration management",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "add issue templates for bug reports and feature requests",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "add Code of Conduct, Contributing guidelines, and Security Policy",
+          "originalType": "docs"
+        },
+        {
+          "type": "changed",
+          "description": "add more deps to catalog",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "improved code sharing",
+          "originalType": "refactor"
+        },
+        {
+          "type": "changed",
+          "description": "migrate logging utilities to `@releasekit/core`",
+          "originalType": "refactor"
+        },
+        {
+          "type": "added",
+          "description": "add `@releasekit/config` package for shared configuration management",
+          "originalType": "feat"
+        },
+        {
+          "type": "added",
+          "description": "implement `@releasekit/publish` package for publishing to npm and crates.io",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "Initialize ReleaseKit monorepo with core packages, CI/CD workflows, and configuration files"
+        }
+      ]
+    },
+    {
+      "packageName": "@releasekit/release",
+      "version": "0.2.0-next.0",
+      "previousVersion": "v0.1.0",
+      "revisionRange": "HEAD",
+      "repoUrl": "https://github.com/goosewobbler/releasekit",
+      "entries": [
+        {
+          "type": "changed",
+          "description": "update release workflows to support prerelease versioning",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "enhance release workflows with improved summary formatting and package details",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update release workflow to use built version of CLI for version bumps",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update release workflow to use pnpm for script execution",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update release workflow permissions for contents",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "update release workflow permissions",
+          "originalType": "chore"
+        },
+        {
+          "type": "added",
+          "description": "introduce releasekit configuration and enhance LLM processing",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "update package descriptions and READMEs",
+          "originalType": "docs"
+        },
+        {
+          "type": "added",
+          "description": "enhance LLM configuration and processing",
+          "originalType": "feat"
+        },
+        {
+          "type": "added",
+          "description": "enhance release workflow with Ollama integration",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "npm fixes",
+          "originalType": "chore"
+        },
+        {
+          "type": "fixed",
+          "description": "fix dry run update bug, add tests",
+          "scope": "version",
+          "originalType": "fix"
+        },
+        {
+          "type": "changed",
+          "description": "update bootstrap doc for new package",
+          "originalType": "docs"
+        },
+        {
+          "type": "changed",
+          "description": "update ci for new package",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "add automation plan",
+          "originalType": "docs"
+        },
+        {
+          "type": "added",
+          "description": "`release` package",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "show realistic usage patterns for composable tools",
+          "originalType": "docs"
+        },
+        {
+          "type": "fixed",
+          "description": "run integration tests when E2E files change",
+          "scope": "ci",
+          "originalType": "fix"
+        },
+        {
+          "type": "fixed",
+          "description": "implement changelog generation in sync versioning strategy",
+          "originalType": "fix"
+        },
+        {
+          "type": "changed",
+          "description": "update CI workflows to include additional conditions and OS support",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "enhance CLI execution logic for package handling",
+          "originalType": "refactor"
+        },
+        {
+          "type": "added",
+          "description": "add run function to CLI and update tests",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "simplify E2E testing workflow and update dependencies",
+          "originalType": "refactor"
+        },
+        {
+          "type": "changed",
+          "description": "refactor versioning CLI and enhance build process",
+          "originalType": "refactor"
+        },
+        {
+          "type": "changed",
+          "description": "update lockfile",
+          "originalType": "chore"
+        },
+        {
+          "type": "added",
+          "description": "add integration testing workflow and enhance CI configuration",
+          "originalType": "feat"
+        },
+        {
+          "type": "fixed",
+          "description": "update cache key output in CI workflow",
+          "originalType": "fix"
+        },
+        {
+          "type": "changed",
+          "description": "bump github/codeql-action from 3 to 4",
+          "scope": "deps",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "bump actions/checkout from 4 to 6",
+          "scope": "deps",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "add tsx support and enhance CI workflows",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "remove compiled artifacts",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "simplify changelog comments in version strategies",
+          "originalType": "docs"
+        },
+        {
+          "type": "changed",
+          "description": "enhance CI/CD workflows and configuration management",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "add issue templates for bug reports and feature requests",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "add Code of Conduct, Contributing guidelines, and Security Policy",
+          "originalType": "docs"
+        },
+        {
+          "type": "changed",
+          "description": "add more deps to catalog",
+          "originalType": "chore"
+        },
+        {
+          "type": "changed",
+          "description": "improved code sharing",
+          "originalType": "refactor"
+        },
+        {
+          "type": "changed",
+          "description": "migrate logging utilities to `@releasekit/core`",
+          "originalType": "refactor"
+        },
+        {
+          "type": "added",
+          "description": "add `@releasekit/config` package for shared configuration management",
+          "originalType": "feat"
+        },
+        {
+          "type": "added",
+          "description": "implement `@releasekit/publish` package for publishing to npm and crates.io",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "Initialize ReleaseKit monorepo with core packages, CI/CD workflows, and configuration files"
+        }
+      ]
+    }
+  ],
+  "tags": [
+    "@releasekit/version@v0.2.0-next.0",
+    "@releasekit/notes@v0.2.0-next.0",
+    "@releasekit/publish@v0.2.0-next.0",
+    "@releasekit/release@v0.2.0-next.0"
+  ],
+  "commitMessage": "chore(release): @releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.0"
+}
