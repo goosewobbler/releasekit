@@ -31,6 +31,7 @@ export async function calculateVersion(config: Config, options: VersionOptions):
     branchPattern,
     baseBranch,
     mismatchStrategy,
+    strictReachable,
   } = config;
   const {
     latestTag,
@@ -77,7 +78,13 @@ export async function calculateVersion(config: Config, options: VersionOptions):
       const packageVersion =
         manifestResult.manifestFound && manifestResult.version ? manifestResult.version : undefined;
 
-      versionSource = await getBestVersionSource(latestTag, packageVersion, packageDir, mismatchStrategy);
+      versionSource = await getBestVersionSource(
+        latestTag,
+        packageVersion,
+        packageDir,
+        mismatchStrategy,
+        strictReachable,
+      );
       log(`Using version source: ${versionSource.source} (${versionSource.reason})`, 'info');
     }
 

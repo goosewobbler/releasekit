@@ -230,6 +230,13 @@ export function createSyncStrategy(config: Config): StrategyFunction {
             });
             revisionRange = `${latestTag}..HEAD`;
           } catch {
+            if (config.strictReachable) {
+              throw new Error(
+                `Cannot generate changelog: tag '${latestTag}' is not reachable from the current commit. ` +
+                  `When strictReachable is enabled, all tags must be reachable. ` +
+                  `To allow fallback to all commits, set strictReachable to false.`,
+              );
+            }
             log(`Tag ${latestTag} doesn't exist, using all commits for changelog`, 'debug');
             revisionRange = 'HEAD';
           }
@@ -388,6 +395,13 @@ export function createSingleStrategy(config: Config): StrategyFunction {
             // Tag exists, get commits since that tag
             revisionRange = `${latestTag}..HEAD`;
           } catch {
+            if (config.strictReachable) {
+              throw new Error(
+                `Cannot generate changelog: tag '${latestTag}' is not reachable from the current commit. ` +
+                  `When strictReachable is enabled, all tags must be reachable. ` +
+                  `To allow fallback to all commits, set strictReachable to false.`,
+              );
+            }
             // Tag doesn't exist, get all commits
             log(`Tag ${latestTag} doesn't exist, using all commits for changelog`, 'debug');
             revisionRange = 'HEAD';

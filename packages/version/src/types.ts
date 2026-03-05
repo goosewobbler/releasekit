@@ -14,6 +14,7 @@ export interface VersionConfigBase {
   baseBranch?: string;
   path?: string;
   name?: string;
+  strictReachable?: boolean;
 }
 
 export interface Config extends VersionConfigBase {
@@ -34,6 +35,7 @@ export interface Config extends VersionConfigBase {
   latestTag?: string;
   isPrerelease?: boolean;
   mismatchStrategy?: 'error' | 'warn' | 'ignore' | 'prefer-package' | 'prefer-git';
+  strictReachable?: boolean;
   cargo?: {
     enabled?: boolean;
     paths?: string[];

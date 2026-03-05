@@ -186,6 +186,43 @@ describe('Tag Verification', () => {
       );
     });
 
+    it('should throw error when tag is unreachable and strictReachable is true', async () => {
+      // Mock execSync to fail (tag doesn't exist)
+      mockExecSync.mockImplementation(() => {
+        throw new Error('unknown revision or path not in the working tree');
+      });
+
+      await expect(getBestVersionSource('v1.0.0', '1.0.0', '/test/path', 'error', true)).rejects.toThrow(
+        "Git tag 'v1.0.0' is not reachable from the current commit",
+      );
+    });
+
+    it('should throw error when tag is unreachable, strictReachable is true, and no package version', async () => {
+      // Mock execSync to fail (tag doesn't exist)
+      mockExecSync.mockImplementation(() => {
+        throw new Error('unknown revision or path not in the working tree');
+      });
+
+      await expect(getBestVersionSource('v1.0.0', undefined, '/test/path', 'error', true)).rejects.toThrow(
+        "Git tag 'v1.0.0' is not reachable from the current commit",
+      );
+    });
+
+    it('should fallback to package version when strictReachable is false (default)', async () => {
+      // Mock execSync to fail (tag doesn't exist)
+      mockExecSync.mockImplementation(() => {
+        throw new Error('unknown revision or path not in the working tree');
+      });
+
+      const result = await getBestVersionSource('v1.0.0', '1.0.0', '/test/path', 'error', false);
+
+      expect(result).toEqual({
+        source: 'package',
+        version: '1.0.0',
+        reason: 'Git tag unreachable',
+      });
+    });
+
     it('should use package version when no tag provided', async () => {
       const result = await getBestVersionSource(undefined, '1.0.0', '/test/path');
 

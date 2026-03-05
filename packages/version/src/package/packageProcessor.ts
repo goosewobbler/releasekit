@@ -184,7 +184,14 @@ export class PackageProcessor {
             // Tag exists and is reachable, get commits since that tag
             revisionRange = `${latestTag}..HEAD`;
           } else {
-            // Tag doesn't exist or is unreachable, get all commits
+            // Tag doesn't exist or is unreachable
+            if (this.config.strictReachable) {
+              throw new Error(
+                `Cannot generate changelog: tag '${latestTag}' is not reachable from the current commit. ` +
+                  `When strictReachable is enabled, all tags must be reachable. ` +
+                  `To allow fallback to all commits, set strictReachable to false.`,
+              );
+            }
             log(`Tag ${latestTag} is unreachable (${verification.error}), using all commits for changelog`, 'debug');
             revisionRange = 'HEAD';
           }

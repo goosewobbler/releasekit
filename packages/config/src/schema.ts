@@ -42,6 +42,7 @@ export const VersionConfigSchema = z.object({
   versionPrefix: z.string().default(''),
   prereleaseIdentifier: z.string().optional(),
   baseBranch: z.string().optional(),
+  strictReachable: z.boolean().default(false),
   cargo: VersionCargoConfigSchema.optional(),
 });
 

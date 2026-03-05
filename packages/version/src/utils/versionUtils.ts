@@ -256,6 +256,7 @@ export async function getBestVersionSource(
   packageVersion: string | undefined,
   cwd: string,
   mismatchStrategy: 'error' | 'warn' | 'ignore' | 'prefer-package' | 'prefer-git' = 'error',
+  strictReachable = false,
 ): Promise<VersionSourceResult> {
   // No tag provided - use package version or fallback to initial
   if (!tagName?.trim()) {
@@ -267,8 +268,17 @@ export async function getBestVersionSource(
   // Verify tag existence and reachability
   const verification = verifyTag(tagName, cwd);
 
-  // Tag unreachable - use package version or fallback to initial
+  // Tag unreachable - handle based on strictReachable flag
   if (!verification.exists || !verification.reachable) {
+    // When strictReachable is true, don't allow fallback to unreachable tags
+    if (strictReachable) {
+      throw new Error(
+        `Git tag '${tagName}' is not reachable from the current commit. ` +
+          `The tag exists but cannot be reached from HEAD, which usually means you're on a different branch or the tag is orphaned. ` +
+          `To allow fallback to package version, set strictReachable to false in your configuration.`,
+      );
+    }
+
     if (packageVersion) {
       log(
         `Git tag '${tagName}' unreachable (${verification.error}), using package version: ${packageVersion}`,
