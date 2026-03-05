@@ -153,7 +153,9 @@ jobs:
 
       - name: Publish packages
         if: ${{ !inputs.dry_run }}
-        run: pnpm exec tsx .github/workflows/scripts/publish-packages.ts version-output.json false
+        run: |
+          unset NODE_AUTH_TOKEN
+          pnpm exec tsx .github/workflows/scripts/publish-packages.ts version-output.json false
 
       - name: Push commits and tags
         if: ${{ !inputs.dry_run }}
