@@ -46,7 +46,7 @@ describe('logger', () => {
 
   describe('setQuietMode', () => {
     it('suppresses non-error messages when true', () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       setQuietMode(true);
       info('This should not appear');
@@ -70,7 +70,7 @@ describe('logger', () => {
 
   describe('setJsonMode', () => {
     it('suppresses non-error messages in json mode', () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       setJsonMode(true);
       info('This should not appear');
@@ -94,7 +94,7 @@ describe('logger', () => {
 
   describe('log', () => {
     it('logs to console.log for non-error levels', () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       log('Test message', 'info');
 
@@ -117,7 +117,7 @@ describe('logger', () => {
     });
 
     it('respects log level hierarchy', () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       setLogLevel('warn');
       info('This should not appear');
@@ -130,7 +130,7 @@ describe('logger', () => {
     });
 
     it('defaults to info level', () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       log('Default level message');
 
@@ -154,7 +154,7 @@ describe('logger', () => {
     });
 
     it('warn logs with warn level', () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       warn('Warn message');
 
@@ -165,7 +165,7 @@ describe('logger', () => {
     });
 
     it('info logs with info level', () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       info('Info message');
 
@@ -176,7 +176,7 @@ describe('logger', () => {
     });
 
     it('success logs with [SUCCESS] prefix', () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       success('Operation completed');
 
@@ -188,7 +188,7 @@ describe('logger', () => {
     });
 
     it('debug logs with debug level', () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       setLogLevel('debug');
       debug('Debug message');
@@ -200,7 +200,7 @@ describe('logger', () => {
     });
 
     it('trace logs with trace level', () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       setLogLevel('trace');
       trace('Trace message');
@@ -212,7 +212,7 @@ describe('logger', () => {
     });
 
     it('success respects quiet mode', () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       setQuietMode(true);
       success('This should not appear');
@@ -223,7 +223,7 @@ describe('logger', () => {
     });
 
     it('success respects log level filtering', () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       setLogLevel('warn');
       success('This should not appear');

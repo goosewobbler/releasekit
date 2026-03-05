@@ -52,30 +52,26 @@ describe('ReleaseKitError', () => {
 
   it('logError logs message and suggestions', () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
     const error = new TestError('Test message', ['Suggestion 1', 'Suggestion 2']);
     error.logError();
 
-    expect(consoleSpy).toHaveBeenCalled();
-    expect(logSpy).toHaveBeenCalled();
+    // error message + "Suggested solutions:" + 2 suggestions = 4 calls
+    expect(consoleSpy.mock.calls.length).toBeGreaterThanOrEqual(4);
 
     consoleSpy.mockRestore();
-    logSpy.mockRestore();
   });
 
   it('logError handles empty suggestions gracefully', () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
     const error = new TestError('Test message', []);
     error.logError();
 
-    expect(consoleSpy).toHaveBeenCalled();
-    expect(logSpy).not.toHaveBeenCalled();
+    // Only the error message, no suggestions
+    expect(consoleSpy).toHaveBeenCalledTimes(1);
 
     consoleSpy.mockRestore();
-    logSpy.mockRestore();
   });
 
   it('isReleaseKitError returns true for ReleaseKitError', () => {

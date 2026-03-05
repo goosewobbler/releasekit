@@ -63,11 +63,7 @@ export function log(message: string, level: LogLevel = 'info'): void {
 
   const formatted = COLORS[level](`${PREFIXES[level]} ${message}`);
 
-  if (level === 'error') {
-    console.error(formatted);
-  } else {
-    console.log(formatted);
-  }
+  console.error(formatted);
 }
 
 export function error(message: string): void {
@@ -84,7 +80,7 @@ export function info(message: string): void {
 
 export function success(message: string): void {
   if (!shouldLog('info')) return;
-  console.log(chalk.green(`[SUCCESS] ${message}`));
+  console.error(chalk.green(`[SUCCESS] ${message}`));
 }
 
 export function debug(message: string): void {
