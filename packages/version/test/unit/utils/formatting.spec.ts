@@ -185,6 +185,31 @@ describe('formatting', () => {
       expect(result).toBe('Release version 1.0.0');
       expect(logSpy).not.toHaveBeenCalled();
     });
+
+    it('should handle additional context keys with special regex characters', () => {
+      const result = formatCommitMessage(
+        '${' + 'test.key} ${' + 'test*key} ${' + 'test+key} ${' + 'test?key}',
+        '1.0.0',
+        undefined,
+        {
+          'test.key': 'dot',
+          'test*key': 'star',
+          'test+key': 'plus',
+          'test?key': 'question',
+        },
+      );
+      expect(result).toBe('dot star plus question');
+    });
+
+    it('should handle additional context keys with regex metacharacters', () => {
+      const result = formatCommitMessage('${' + 'a$b} ${' + 'c^d} ${' + 'e|f} ${' + 'g[h]}', '1.0.0', undefined, {
+        a$b: 'dollar',
+        'c^d': 'caret',
+        'e|f': 'pipe',
+        'g[h]': 'bracket',
+      });
+      expect(result).toBe('dollar caret pipe bracket');
+    });
   });
 
   describe('formatTag with context-aware warnings', () => {

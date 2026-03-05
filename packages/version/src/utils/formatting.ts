@@ -85,7 +85,7 @@ export function formatCommitMessage(
   if (additionalContext) {
     for (const [key, value] of Object.entries(additionalContext)) {
       const placeholder = `\${${key}}`;
-      result = result.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
+      result = result.replace(new RegExp(placeholder.replace(/[\][.*+?^${}()|\\]/g, '\\$&'), 'g'), value);
     }
   }
 
