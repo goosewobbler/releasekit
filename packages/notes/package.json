@@ -1,6 +1,6 @@
 {
   "name": "@releasekit/notes",
-  "version": "0.2.0-next.6",
+  "version": "0.2.0-next.7",
   "description": "Changelog generation with LLM-powered enhancement and flexible templating",
   "type": "module",
   "main": "./dist/index.cjs",
