@@ -10,7 +10,9 @@ export function getGitConfig(key: string, cwd?: string): string | undefined {
 
 export function setGitConfig(key: string, value?: string, cwd?: string) {
   if (value) {
-    execSync(`git config --local ${key} "${value.replace(/"/g, '"')}"`, { cwd });
+    // Escape double quotes to prevent shell injection
+    const escapedValue = value.replace(/"/g, '\\"');
+    execSync(`git config --local ${key} "${escapedValue}"`, { cwd });
   } else {
     // Unset if value is undefined
     execSync(`git config --local --unset ${key}`, { cwd });
