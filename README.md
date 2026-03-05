@@ -1,8 +1,5 @@
 # ReleaseKit
 
-[![release npm](https://img.shields.io/npm/v/@releasekit/release.svg?label=@releasekit/release)](https://www.npmjs.com/package/@releasekit/release)
-[![version npm](https://img.shields.io/npm/v/@releasekit/version.svg)](https://www.npmjs.com/package/@releasekit/version)
-[![publish npm](https://img.shields.io/npm/v/@releasekit/publish.svg?label=@releasekit/publish)](https://www.npmjs.com/package/@releasekit/publish)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 Lightweight, composable release tooling for JavaScript and Rust projects. Built on conventional
@@ -10,14 +7,14 @@ commits and designed for CI/CD pipelines.
 
 ## Packages
 
-| Package | Description |
-|---------|-------------|
-| [@releasekit/release](./packages/release) | **Unified CLI** — run version, notes, and publish in a single command |
-| [@releasekit/version](./packages/version) | Semantic versioning based on Git history and conventional commits |
-| [@releasekit/notes](./packages/notes) | Changelog generation with LLM-powered enhancement and flexible templating |
-| [@releasekit/publish](./packages/publish) | Publish packages to npm and crates.io with git tagging and GitHub releases |
-| [@releasekit/config](./packages/config) | *(internal)* Shared config loading and schema validation |
-| [@releasekit/core](./packages/core) | *(internal)* Shared types and utilities |
+| Package | Version | Description |
+|---------|---------|-------------|
+| [@releasekit/release](./packages/release) | [![npm](https://img.shields.io/npm/v/@releasekit/release.svg)](https://www.npmjs.com/package/@releasekit/release) | **Unified CLI** — run version, notes, and publish in a single command |
+| [@releasekit/version](./packages/version) | [![npm](https://img.shields.io/npm/v/@releasekit/version.svg)](https://www.npmjs.com/package/@releasekit/version) | Semantic versioning based on Git history and conventional commits |
+| [@releasekit/notes](./packages/notes) | [![npm](https://img.shields.io/npm/v/@releasekit/notes.svg)](https://www.npmjs.com/package/@releasekit/notes) | Changelog generation with LLM-powered enhancement and flexible templating |
+| [@releasekit/publish](./packages/publish) | [![npm](https://img.shields.io/npm/v/@releasekit/publish.svg)](https://www.npmjs.com/package/@releasekit/publish) | Publish packages to npm and crates.io with git tagging and GitHub releases |
+| [@releasekit/config](./packages/config) | — | *(internal)* Shared config loading and schema validation |
+| [@releasekit/core](./packages/core) | — | *(internal)* Shared types and utilities |
 
 ## Features
 
