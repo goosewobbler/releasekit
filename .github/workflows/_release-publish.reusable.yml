@@ -117,6 +117,8 @@ jobs:
           for tag in "${TAG_ARRAY[@]}"; do
             if [ -n "$tag" ]; then
               echo "Creating tag: ${tag}"
+              # Delete local tag if it exists (e.g., from previous run)
+              git tag -d "${tag}" 2>/dev/null || true
               git tag -a "${tag}" -m "Release ${tag}"
             fi
           done
