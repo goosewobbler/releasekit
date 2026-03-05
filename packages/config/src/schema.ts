@@ -87,7 +87,12 @@ export const VerifyRegistryConfigSchema = z.object({
 });
 
 export const VerifyConfigSchema = z.object({
-  npm: VerifyRegistryConfigSchema.default({}),
+  npm: VerifyRegistryConfigSchema.default({
+    enabled: true,
+    maxAttempts: 5,
+    initialDelay: 15000,
+    backoffMultiplier: 2,
+  }),
   cargo: VerifyRegistryConfigSchema.default({
     enabled: true,
     maxAttempts: 10,
@@ -98,16 +103,48 @@ export const VerifyConfigSchema = z.object({
 
 export const PublishConfigSchema = z.object({
   git: PublishGitConfigSchema.optional(),
-  npm: NpmConfigSchema.default({}),
-  cargo: CargoPublishConfigSchema.default({}),
-  githubRelease: GitHubReleaseConfigSchema.default({}),
-  verify: VerifyConfigSchema.default({}),
+  npm: NpmConfigSchema.default({
+    enabled: true,
+    auth: 'auto',
+    provenance: true,
+    access: 'public',
+    registry: 'https://registry.npmjs.org',
+    copyFiles: ['LICENSE'],
+    tag: 'latest',
+  }),
+  cargo: CargoPublishConfigSchema.default({
+    enabled: false,
+    noVerify: false,
+    publishOrder: [],
+    clean: false,
+  }),
+  githubRelease: GitHubReleaseConfigSchema.default({
+    enabled: true,
+    draft: true,
+    generateNotes: true,
+    perPackage: false,
+    prerelease: 'auto',
+  }),
+  verify: VerifyConfigSchema.default({
+    npm: {
+      enabled: true,
+      maxAttempts: 5,
+      initialDelay: 15000,
+      backoffMultiplier: 2,
+    },
+    cargo: {
+      enabled: true,
+      maxAttempts: 10,
+      initialDelay: 30000,
+      backoffMultiplier: 2,
+    },
+  }),
 });
 
 export const OutputConfigSchema = z.object({
   format: z.enum(['markdown', 'github-release', 'json']),
   file: z.string().optional(),
-  options: z.record(z.unknown()).optional(),
+  options: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const LLMOptionsSchema = z.object({
