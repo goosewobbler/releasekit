@@ -26,15 +26,29 @@ import type {
   TemplateContext,
 } from './types.js';
 
+function extractVersionFromTag(tag: string): string {
+  // For package-specific tags like @releasekit/version@v0.2.0, keep the full tag
+  // For plain version tags like v1.0.0 or 1.0.0, extract just the version
+  if (tag.includes('@') && !tag.startsWith('@')) {
+    // This is a package-specific tag like @scope/package@v1.0.0 - keep as is
+    return tag;
+  }
+  // Plain version tag - remove leading 'v' if present
+  return tag.replace(/^v/, '');
+}
+
 function generateCompareUrl(repoUrl: string, from: string, to: string): string {
+  const fromVersion = extractVersionFromTag(from);
+  const toVersion = extractVersionFromTag(to);
+
   if (/gitlab\.com/i.test(repoUrl)) {
-    return `${repoUrl}/-/compare/${from}...${to}`;
+    return `${repoUrl}/-/compare/${fromVersion}...${toVersion}`;
   }
   if (/bitbucket\.org/i.test(repoUrl)) {
-    return `${repoUrl}/branches/compare/${from}..${to}`;
+    return `${repoUrl}/branches/compare/${fromVersion}..${toVersion}`;
   }
   // GitHub and generic git hosts
-  return `${repoUrl}/compare/${from}...${to}`;
+  return `${repoUrl}/compare/${fromVersion}...${toVersion}`;
 }
 
 export function createTemplateContext(pkg: PackageChangelog): TemplateContext {

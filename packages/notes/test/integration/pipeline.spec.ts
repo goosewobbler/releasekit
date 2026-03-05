@@ -74,7 +74,7 @@ describe('Pipeline: package-versioner → markdown', () => {
     const contexts = input.packages.map(createTemplateContext);
     const markdown = renderMarkdown(contexts);
 
-    expect(markdown).toContain('[Full Changelog](https://github.com/acme/my-lib/compare/v1.0.0...2.0.0)');
+    expect(markdown).toContain('[Full Changelog](https://github.com/acme/my-lib/compare/1.0.0...2.0.0)');
   });
 
   it('populates compareUrls in document context', () => {
@@ -83,7 +83,7 @@ describe('Pipeline: package-versioner → markdown', () => {
     const doc = createDocumentContext(contexts, 'https://github.com/acme/my-lib');
 
     expect(doc.compareUrls).toBeDefined();
-    expect(doc.compareUrls?.['2.0.0']).toBe('https://github.com/acme/my-lib/compare/v1.0.0...2.0.0');
+    expect(doc.compareUrls?.['2.0.0']).toBe('https://github.com/acme/my-lib/compare/1.0.0...2.0.0');
   });
 });
 
@@ -106,17 +106,32 @@ describe('compareUrl: platform detection', () => {
 
   it('generates GitHub compare URL', () => {
     const ctx = makeCtx('https://github.com/org/repo');
-    expect(ctx.compareUrl).toBe('https://github.com/org/repo/compare/v1.0.0...2.0.0');
+    expect(ctx.compareUrl).toBe('https://github.com/org/repo/compare/1.0.0...2.0.0');
   });
 
   it('generates GitLab compare URL', () => {
     const ctx = makeCtx('https://gitlab.com/org/repo');
-    expect(ctx.compareUrl).toBe('https://gitlab.com/org/repo/-/compare/v1.0.0...2.0.0');
+    expect(ctx.compareUrl).toBe('https://gitlab.com/org/repo/-/compare/1.0.0...2.0.0');
   });
 
   it('generates Bitbucket compare URL', () => {
     const ctx = makeCtx('https://bitbucket.org/org/repo');
-    expect(ctx.compareUrl).toBe('https://bitbucket.org/org/repo/branches/compare/v1.0.0..2.0.0');
+    expect(ctx.compareUrl).toBe('https://bitbucket.org/org/repo/branches/compare/1.0.0..2.0.0');
+  });
+
+  it('generates compare URL for package-specific tags', () => {
+    const ctx = createTemplateContext({
+      packageName: 'pkg',
+      version: '@releasekit/version@v0.2.0-next.9',
+      previousVersion: '@releasekit/version@v0.2.0-next.8',
+      revisionRange: '@releasekit/version@v0.2.0-next.8..HEAD',
+      repoUrl: 'https://github.com/goosewobbler/releasekit',
+      date: '2026-01-01',
+      entries: [],
+    });
+    expect(ctx.compareUrl).toBe(
+      'https://github.com/goosewobbler/releasekit/compare/@releasekit/version@v0.2.0-next.8...@releasekit/version@v0.2.0-next.9',
+    );
   });
 
   it('omits compareUrl when no previousVersion', () => {

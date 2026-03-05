@@ -92,6 +92,26 @@ describe('Markdown Output', () => {
     const markdown = renderMarkdown(contexts);
 
     expect(markdown).toContain('[Full Changelog]');
-    expect(markdown).toContain('/compare/v1.0.0...1.1.0');
+    expect(markdown).toContain('/compare/1.0.0...1.1.0');
+  });
+
+  it('includes full package-specific tag in comparison link', () => {
+    const inputWithPrev = {
+      ...sampleInput,
+      changelogs: [
+        {
+          ...(sampleInput.changelogs[0] ?? {}),
+          version: '@releasekit/version@v0.2.0-next.9',
+          previousVersion: '@releasekit/version@v0.2.0-next.8',
+        },
+      ],
+    };
+
+    const input = parsePackageVersioner(JSON.stringify(inputWithPrev));
+    const contexts = input.packages.map(createTemplateContext);
+    const markdown = renderMarkdown(contexts);
+
+    expect(markdown).toContain('[Full Changelog]');
+    expect(markdown).toContain('/compare/@releasekit/version@v0.2.0-next.8...@releasekit/version@v0.2.0-next.9');
   });
 });
