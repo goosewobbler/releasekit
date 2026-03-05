@@ -1,0 +1,570 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://releasekit.dev/schema.json",
+  "title": "ReleaseKit Configuration",
+  "description": "Configuration schema for ReleaseKit - Automated versioning, changelog generation, and publishing",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON schema reference URL"
+    },
+    "git": {
+      "type": "object",
+      "description": "Git configuration",
+      "additionalProperties": false,
+      "properties": {
+        "remote": {
+          "type": "string",
+          "default": "origin",
+          "description": "Git remote name"
+        },
+        "branch": {
+          "type": "string",
+          "default": "main",
+          "description": "Default branch name"
+        },
+        "pushMethod": {
+          "type": "string",
+          "enum": ["auto", "ssh", "https"],
+          "default": "auto",
+          "description": "Method for pushing to remote"
+        },
+        "push": {
+          "type": "boolean",
+          "description": "Whether to push changes to remote"
+        }
+      }
+    },
+    "monorepo": {
+      "type": "object",
+      "description": "Monorepo configuration",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["root", "packages", "both"],
+          "description": "Changelog aggregation mode"
+        },
+        "rootPath": {
+          "type": "string",
+          "description": "Path to root changelog"
+        },
+        "packagesPath": {
+          "type": "string",
+          "description": "Path to packages directory"
+        },
+        "mainPackage": {
+          "type": "string",
+          "description": "Main package name for versioning"
+        }
+      }
+    },
+    "version": {
+      "type": "object",
+      "description": "Versioning configuration",
+      "additionalProperties": false,
+      "properties": {
+        "tagTemplate": {
+          "type": "string",
+          "default": "v{version}",
+          "description": "Template for Git tags"
+        },
+        "packageSpecificTags": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable package-specific tagging"
+        },
+        "preset": {
+          "type": "string",
+          "default": "conventional",
+          "description": "Commit convention preset"
+        },
+        "sync": {
+          "type": "boolean",
+          "default": true,
+          "description": "Sync versions across packages"
+        },
+        "packages": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Packages to include in versioning"
+        },
+        "mainPackage": {
+          "type": "string",
+          "description": "Package to use for version determination"
+        },
+        "updateInternalDependencies": {
+          "type": "string",
+          "enum": ["major", "minor", "patch", "no-internal-update"],
+          "default": "minor",
+          "description": "How to bump internal dependencies"
+        },
+        "skip": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Packages to exclude from versioning"
+        },
+        "commitMessage": {
+          "type": "string",
+          "description": "Template for release commit messages"
+        },
+        "versionStrategy": {
+          "type": "string",
+          "enum": ["branchPattern", "commitMessage"],
+          "default": "commitMessage",
+          "description": "Strategy for determining version bumps"
+        },
+        "branchPatterns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pattern": { "type": "string" },
+              "releaseType": {
+                "type": "string",
+                "enum": ["major", "minor", "patch", "prerelease"]
+              }
+            },
+            "required": ["pattern", "releaseType"]
+          },
+          "description": "Branch name patterns for version determination"
+        },
+        "defaultReleaseType": {
+          "type": "string",
+          "enum": ["major", "minor", "patch", "prerelease"],
+          "description": "Default release type when no pattern matches"
+        },
+        "skipHooks": {
+          "type": "boolean",
+          "description": "Skip Git hooks when committing"
+        },
+        "mismatchStrategy": {
+          "type": "string",
+          "enum": ["error", "warn", "ignore", "prefer-package", "prefer-git"],
+          "default": "warn",
+          "description": "How to handle version mismatches"
+        },
+        "versionPrefix": {
+          "type": "string",
+          "default": "",
+          "description": "Prefix for version tags"
+        },
+        "prereleaseIdentifier": {
+          "type": "string",
+          "description": "Identifier for prerelease versions (e.g., 'alpha', 'beta')"
+        },
+        "baseBranch": {
+          "type": "string",
+          "description": "Base branch for versioning"
+        },
+        "strictReachable": {
+          "type": "boolean",
+          "default": false,
+          "description": "Only use reachable tags"
+        },
+        "cargo": {
+          "type": "object",
+          "description": "Cargo/Rust configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable Cargo.toml version handling"
+            },
+            "paths": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Directories to search for Cargo.toml files"
+            }
+          }
+        }
+      }
+    },
+    "publish": {
+      "type": "object",
+      "description": "Publishing configuration",
+      "additionalProperties": false,
+      "properties": {
+        "git": {
+          "type": "object",
+          "description": "Git publishing options",
+          "properties": {
+            "push": {
+              "type": "boolean",
+              "default": true,
+              "description": "Push tags and commits to remote"
+            },
+            "pushMethod": {
+              "type": "string",
+              "enum": ["auto", "ssh", "https"],
+              "description": "Push method override"
+            },
+            "remote": {
+              "type": "string",
+              "description": "Remote name override"
+            },
+            "branch": {
+              "type": "string",
+              "description": "Branch name override"
+            }
+          }
+        },
+        "npm": {
+          "type": "object",
+          "description": "NPM publishing configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable NPM publishing"
+            },
+            "auth": {
+              "type": "string",
+              "enum": ["auto", "oidc", "token"],
+              "default": "auto",
+              "description": "Authentication method"
+            },
+            "provenance": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable npm provenance attestation"
+            },
+            "access": {
+              "type": "string",
+              "enum": ["public", "restricted"],
+              "default": "public",
+              "description": "Package access level"
+            },
+            "registry": {
+              "type": "string",
+              "default": "https://registry.npmjs.org",
+              "description": "NPM registry URL"
+            },
+            "copyFiles": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": ["LICENSE"],
+              "description": "Files to copy to package before publishing"
+            },
+            "tag": {
+              "type": "string",
+              "default": "latest",
+              "description": "NPM dist tag"
+            }
+          }
+        },
+        "cargo": {
+          "type": "object",
+          "description": "Cargo publishing configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable Cargo publishing"
+            },
+            "noVerify": {
+              "type": "boolean",
+              "default": false,
+              "description": "Skip verification before publish"
+            },
+            "publishOrder": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": [],
+              "description": "Order in which to publish packages"
+            },
+            "clean": {
+              "type": "boolean",
+              "default": false,
+              "description": "Clean before publishing"
+            }
+          }
+        },
+        "githubRelease": {
+          "type": "object",
+          "description": "GitHub Release configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable GitHub releases"
+            },
+            "draft": {
+              "type": "boolean",
+              "default": true,
+              "description": "Create as draft release"
+            },
+            "generateNotes": {
+              "type": "boolean",
+              "default": true,
+              "description": "Auto-generate release notes"
+            },
+            "perPackage": {
+              "type": "boolean",
+              "default": false,
+              "description": "Create separate release per package"
+            },
+            "prerelease": {
+              "oneOf": [{ "type": "boolean" }, { "type": "string", "enum": ["auto"] }],
+              "default": "auto",
+              "description": "Mark as prerelease"
+            },
+            "notesFile": {
+              "type": "string",
+              "description": "File containing release notes"
+            }
+          }
+        },
+        "verify": {
+          "type": "object",
+          "description": "Registry verification configuration",
+          "properties": {
+            "npm": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Verify NPM publish"
+                },
+                "maxAttempts": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 5,
+                  "description": "Maximum verification attempts"
+                },
+                "initialDelay": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 15000,
+                  "description": "Initial delay in milliseconds"
+                },
+                "backoffMultiplier": {
+                  "type": "number",
+                  "minimum": 1,
+                  "default": 2,
+                  "description": "Exponential backoff multiplier"
+                }
+              }
+            },
+            "cargo": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Verify Cargo publish"
+                },
+                "maxAttempts": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 10,
+                  "description": "Maximum verification attempts"
+                },
+                "initialDelay": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 30000,
+                  "description": "Initial delay in milliseconds"
+                },
+                "backoffMultiplier": {
+                  "type": "number",
+                  "minimum": 1,
+                  "default": 2,
+                  "description": "Exponential backoff multiplier"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "object",
+      "description": "Changelog generation configuration",
+      "additionalProperties": false,
+      "properties": {
+        "input": {
+          "type": "object",
+          "description": "Input source configuration",
+          "properties": {
+            "source": {
+              "type": "string",
+              "description": "Input source type"
+            },
+            "file": {
+              "type": "string",
+              "description": "Input file path"
+            }
+          }
+        },
+        "output": {
+          "type": "array",
+          "description": "Output configurations",
+          "default": [{ "format": "markdown", "file": "CHANGELOG.md" }],
+          "items": {
+            "type": "object",
+            "properties": {
+              "format": {
+                "type": "string",
+                "enum": ["markdown", "github-release", "json"],
+                "description": "Output format"
+              },
+              "file": {
+                "type": "string",
+                "description": "Output file path"
+              },
+              "options": {
+                "type": "object",
+                "description": "Format-specific options"
+              }
+            },
+            "required": ["format"]
+          }
+        },
+        "monorepo": {
+          "$ref": "#/properties/monorepo"
+        },
+        "templates": {
+          "type": "object",
+          "description": "Template configuration",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Path to custom templates"
+            },
+            "engine": {
+              "type": "string",
+              "enum": ["handlebars", "liquid", "ejs"],
+              "description": "Template engine"
+            }
+          }
+        },
+        "llm": {
+          "type": "object",
+          "description": "LLM configuration for enhanced changelogs",
+          "properties": {
+            "provider": {
+              "type": "string",
+              "description": "LLM provider (e.g., 'anthropic', 'openai', 'ollama')"
+            },
+            "model": {
+              "type": "string",
+              "description": "Model identifier"
+            },
+            "baseURL": {
+              "type": "string",
+              "description": "Custom API base URL"
+            },
+            "apiKey": {
+              "type": "string",
+              "description": "API key (consider using environment variables)"
+            },
+            "options": {
+              "type": "object",
+              "description": "LLM request options",
+              "properties": {
+                "timeout": {
+                  "type": "integer",
+                  "description": "Request timeout in milliseconds"
+                },
+                "maxTokens": {
+                  "type": "integer",
+                  "description": "Maximum tokens to generate"
+                },
+                "temperature": {
+                  "type": "number",
+                  "description": "Sampling temperature"
+                }
+              }
+            },
+            "concurrency": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Number of concurrent LLM requests"
+            },
+            "retry": {
+              "type": "object",
+              "description": "Retry configuration",
+              "properties": {
+                "maxAttempts": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Maximum retry attempts"
+                },
+                "initialDelay": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Initial retry delay in milliseconds"
+                },
+                "maxDelay": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Maximum retry delay in milliseconds"
+                },
+                "backoffFactor": {
+                  "type": "number",
+                  "minimum": 1,
+                  "description": "Exponential backoff factor"
+                }
+              }
+            },
+            "tasks": {
+              "type": "object",
+              "description": "LLM task toggles",
+              "properties": {
+                "summarize": {
+                  "type": "boolean",
+                  "description": "Enable summarization"
+                },
+                "enhance": {
+                  "type": "boolean",
+                  "description": "Enable entry enhancement"
+                },
+                "categorize": {
+                  "type": "boolean",
+                  "description": "Enable categorization"
+                },
+                "releaseNotes": {
+                  "type": "boolean",
+                  "description": "Enable release note generation"
+                }
+              }
+            },
+            "categories": {
+              "type": "array",
+              "description": "Custom categories for Developer section",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Category name"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Category description"
+                  }
+                },
+                "required": ["name", "description"]
+              }
+            },
+            "style": {
+              "type": "string",
+              "description": "Writing style for LLM-generated content"
+            }
+          }
+        },
+        "updateStrategy": {
+          "type": "string",
+          "enum": ["prepend", "regenerate"],
+          "default": "prepend",
+          "description": "How to update existing changelog"
+        }
+      }
+    }
+  }
+}

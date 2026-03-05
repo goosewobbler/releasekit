@@ -1,4 +1,5 @@
 {
+  "$schema": "./releasekit.schema.json",
   "version": {
     "preset": "angular",
     "sync": false,
