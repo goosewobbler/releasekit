@@ -4,7 +4,7 @@ description: Setup Node.js, pnpm, and install dependencies
 inputs:
   node-version:
     description: Node.js version
-    default: '20'
+    default: '24'
 
 runs:
   using: composite
@@ -17,7 +17,6 @@ runs:
       with:
         node-version: ${{ inputs.node-version }}
         cache: pnpm
-        registry-url: https://registry.npmjs.org
 
     - name: Install dependencies
       shell: bash

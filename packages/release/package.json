@@ -64,6 +64,6 @@
     "vitest": "catalog:"
   },
   "engines": {
-    "node": ">=18 || >=20"
+    "node": ">=20"
   }
 }
