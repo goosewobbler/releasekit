@@ -406,7 +406,13 @@ export class PackageProcessor {
     let commitMessage = this.commitMessageTemplate || 'chore(release): publish packages';
 
     // Construct commit message: Use template if only one package, otherwise list names.
-    const placeholderRegex = /\$\{[^}]+\}/; // Matches placeholders like ${variableName}
+    // Limit commit message length and use safer regex to prevent ReDoS
+    const MAX_COMMIT_MSG_LENGTH = 10000;
+    if (commitMessage.length > MAX_COMMIT_MSG_LENGTH) {
+      log('Commit message template too long, truncating', 'warning');
+      commitMessage = commitMessage.slice(0, MAX_COMMIT_MSG_LENGTH);
+    }
+    const placeholderRegex = /\$\{[^{}$]{1,1000}\}/; // Matches placeholders like ${variableName}
     if (updatedPackagesInfo.length === 1 && placeholderRegex.test(commitMessage)) {
       // If template has any placeholders and only one package, format it with package name
       const packageName = updatedPackagesInfo[0].name;

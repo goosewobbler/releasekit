@@ -2,9 +2,17 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
+const MAX_INPUT_LENGTH = 10000;
+
 export function substituteVariables(value: string): string {
-  const envPattern = /\{env:([^}]+)\}/g;
-  const filePattern = /\{file:([^}]+)\}/g;
+  // Limit input length to prevent ReDoS attacks
+  if (value.length > MAX_INPUT_LENGTH) {
+    throw new Error(`Input too long: ${value.length} characters (max ${MAX_INPUT_LENGTH})`);
+  }
+
+  // Use safer regex patterns with length limits for capture groups
+  const envPattern = /\{env:([^}]{1,1000})\}/g;
+  const filePattern = /\{file:([^}]{1,1000})\}/g;
 
   let result = value;
 

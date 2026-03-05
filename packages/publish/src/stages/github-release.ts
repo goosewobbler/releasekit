@@ -37,7 +37,10 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
 
   for (const tag of tagsToRelease) {
     // Determine if this is a pre-release
-    const versionMatch = tag.match(/(\d+\.\d+\.\d+.*)$/);
+    // Limit tag length and use safer regex to prevent ReDoS
+    const MAX_TAG_LENGTH = 1000;
+    const truncatedTag = tag.length > MAX_TAG_LENGTH ? tag.slice(0, MAX_TAG_LENGTH) : tag;
+    const versionMatch = truncatedTag.match(/(\d{1,20}\.\d{1,20}\.\d{1,20}(?:[-+.]?[a-zA-Z0-9.-]{0,100})?)$/);
     const version = versionMatch?.[1] ?? '';
     const isPreRel =
       config.githubRelease.prerelease === 'auto'
