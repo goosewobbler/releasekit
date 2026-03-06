@@ -3,152 +3,418 @@
   "updates": [
     {
       "packageName": "@releasekit/version",
-      "newVersion": "0.2.0-next.11",
+      "newVersion": "0.2.0-next.12",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/version/package.json"
     },
     {
       "packageName": "@releasekit/notes",
-      "newVersion": "0.2.0-next.11",
+      "newVersion": "0.2.0-next.12",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/notes/package.json"
     },
     {
       "packageName": "@releasekit/publish",
-      "newVersion": "0.2.0-next.11",
+      "newVersion": "0.2.0-next.12",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/publish/package.json"
     },
     {
       "packageName": "@releasekit/release",
-      "newVersion": "0.2.0-next.11",
+      "newVersion": "0.2.0-next.12",
       "filePath": "/home/runner/work/releasekit/releasekit/packages/release/package.json"
     }
   ],
   "changelogs": [
     {
       "packageName": "@releasekit/version",
-      "version": "0.2.0-next.11",
-      "previousVersion": "@releasekit/version@v0.2.0-next.10",
-      "revisionRange": "@releasekit/version@v0.2.0-next.10..HEAD",
+      "version": "0.2.0-next.12",
+      "previousVersion": "@releasekit/version@v0.2.0-next.11",
+      "revisionRange": "@releasekit/version@v0.2.0-next.11..HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
         {
           "type": "changed",
-          "description": "bump amannn/action-semantic-pull-request from 5 to 6",
-          "scope": "deps",
+          "description": "remove the Bootstrap Guide document, which outlined the initial setup for the self-referential release workflow. This document is no longer needed as the workflow has been streamlined and automated.",
+          "originalType": "docs"
+        },
+        {
+          "type": "fixed",
+          "description": "codeQL alert no. 9: Useless regular-expression character escape",
+          "originalType": "fix"
+        },
+        {
+          "type": "changed",
+          "description": "add release package to issue templates",
           "originalType": "chore"
         },
         {
           "type": "added",
-          "description": "add functions to identify repo-level commits and check package touches",
-          "scope": "version",
+          "description": "enhance Verify and Publish configuration schemas",
+          "scope": "config",
           "originalType": "feat"
         },
         {
           "type": "changed",
-          "description": "update version handling in generateCompareUrl function",
+          "description": "update zod and other package versions",
           "scope": "notes",
-          "originalType": "refactor"
+          "originalType": "chore"
+        },
+        {
+          "type": "fixed",
+          "description": "enhance escaping in setGitConfig to prevent shell injection",
+          "scope": "version",
+          "originalType": "fix"
         },
         {
           "type": "added",
-          "description": "add functions to identify repo-level commits and check package touches",
-          "scope": "version",
+          "description": "add JSON schema for ReleaseKit configuration",
           "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "update deps",
+          "originalType": "chore"
+        },
+        {
+          "type": "added",
+          "description": "enhance categorizeEntries to validate scopes and clear existing ones",
+          "scope": "notes",
+          "originalType": "feat"
+        },
+        {
+          "type": "fixed",
+          "description": "use optional chaining for categoryMap updates",
+          "scope": "notes",
+          "originalType": "fix"
+        },
+        {
+          "type": "added",
+          "description": "implement input length limits and safer regex patterns to prevent ReDoS attacks",
+          "scope": "config, publish, version",
+          "originalType": "feat"
+        },
+        {
+          "type": "fixed",
+          "description": "improve regex handling in formatCommitMessage for special characters",
+          "scope": "version",
+          "originalType": "fix"
+        },
+        {
+          "type": "fixed",
+          "description": "escape double quotes in setGitConfig to prevent shell injection",
+          "scope": "version",
+          "originalType": "fix"
+        },
+        {
+          "type": "fixed",
+          "description": "codeQL alert no. 9: Useless regular-expression character escape",
+          "originalType": "fix"
+        },
+        {
+          "type": "fixed",
+          "description": "enhance escaping in setGitConfig to prevent shell injection",
+          "scope": "version",
+          "originalType": "fix"
+        },
+        {
+          "type": "changed",
+          "description": "update deps",
+          "originalType": "chore"
+        },
+        {
+          "type": "added",
+          "description": "implement input length limits and safer regex patterns to prevent ReDoS attacks",
+          "scope": "config, publish, version",
+          "originalType": "feat"
+        },
+        {
+          "type": "fixed",
+          "description": "improve regex handling in formatCommitMessage for special characters",
+          "scope": "version",
+          "originalType": "fix"
+        },
+        {
+          "type": "fixed",
+          "description": "escape double quotes in setGitConfig to prevent shell injection",
+          "scope": "version",
+          "originalType": "fix"
         }
       ]
     },
     {
       "packageName": "@releasekit/notes",
-      "version": "0.2.0-next.11",
-      "previousVersion": "@releasekit/notes@v0.2.0-next.10",
-      "revisionRange": "@releasekit/notes@v0.2.0-next.10..HEAD",
+      "version": "0.2.0-next.12",
+      "previousVersion": "@releasekit/notes@v0.2.0-next.11",
+      "revisionRange": "@releasekit/notes@v0.2.0-next.11..HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
         {
           "type": "changed",
-          "description": "bump amannn/action-semantic-pull-request from 5 to 6",
-          "scope": "deps",
+          "description": "remove the Bootstrap Guide document, which outlined the initial setup for the self-referential release workflow. This document is no longer needed as the workflow has been streamlined and automated.",
+          "originalType": "docs"
+        },
+        {
+          "type": "fixed",
+          "description": "codeQL alert no. 9: Useless regular-expression character escape",
+          "originalType": "fix"
+        },
+        {
+          "type": "changed",
+          "description": "add release package to issue templates",
           "originalType": "chore"
         },
         {
           "type": "added",
-          "description": "add functions to identify repo-level commits and check package touches",
-          "scope": "version",
+          "description": "enhance Verify and Publish configuration schemas",
+          "scope": "config",
           "originalType": "feat"
         },
         {
           "type": "changed",
-          "description": "update version handling in generateCompareUrl function",
+          "description": "update zod and other package versions",
           "scope": "notes",
-          "originalType": "refactor"
+          "originalType": "chore"
+        },
+        {
+          "type": "fixed",
+          "description": "enhance escaping in setGitConfig to prevent shell injection",
+          "scope": "version",
+          "originalType": "fix"
+        },
+        {
+          "type": "added",
+          "description": "add JSON schema for ReleaseKit configuration",
+          "originalType": "feat"
         },
         {
           "type": "changed",
-          "description": "update version handling in generateCompareUrl function",
+          "description": "update deps",
+          "originalType": "chore"
+        },
+        {
+          "type": "added",
+          "description": "enhance categorizeEntries to validate scopes and clear existing ones",
           "scope": "notes",
-          "originalType": "refactor"
+          "originalType": "feat"
+        },
+        {
+          "type": "fixed",
+          "description": "use optional chaining for categoryMap updates",
+          "scope": "notes",
+          "originalType": "fix"
+        },
+        {
+          "type": "added",
+          "description": "implement input length limits and safer regex patterns to prevent ReDoS attacks",
+          "scope": "config, publish, version",
+          "originalType": "feat"
+        },
+        {
+          "type": "fixed",
+          "description": "improve regex handling in formatCommitMessage for special characters",
+          "scope": "version",
+          "originalType": "fix"
+        },
+        {
+          "type": "fixed",
+          "description": "escape double quotes in setGitConfig to prevent shell injection",
+          "scope": "version",
+          "originalType": "fix"
+        },
+        {
+          "type": "changed",
+          "description": "update zod and other package versions",
+          "scope": "notes",
+          "originalType": "chore"
+        },
+        {
+          "type": "added",
+          "description": "enhance categorizeEntries to validate scopes and clear existing ones",
+          "scope": "notes",
+          "originalType": "feat"
+        },
+        {
+          "type": "fixed",
+          "description": "use optional chaining for categoryMap updates",
+          "scope": "notes",
+          "originalType": "fix"
         }
       ]
     },
     {
       "packageName": "@releasekit/publish",
-      "version": "0.2.0-next.11",
-      "previousVersion": "@releasekit/publish@v0.2.0-next.10",
-      "revisionRange": "@releasekit/publish@v0.2.0-next.10..HEAD",
+      "version": "0.2.0-next.12",
+      "previousVersion": "@releasekit/publish@v0.2.0-next.11",
+      "revisionRange": "@releasekit/publish@v0.2.0-next.11..HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
         {
           "type": "changed",
-          "description": "bump amannn/action-semantic-pull-request from 5 to 6",
-          "scope": "deps",
+          "description": "remove the Bootstrap Guide document, which outlined the initial setup for the self-referential release workflow. This document is no longer needed as the workflow has been streamlined and automated.",
+          "originalType": "docs"
+        },
+        {
+          "type": "fixed",
+          "description": "codeQL alert no. 9: Useless regular-expression character escape",
+          "originalType": "fix"
+        },
+        {
+          "type": "changed",
+          "description": "add release package to issue templates",
           "originalType": "chore"
         },
         {
           "type": "added",
-          "description": "add functions to identify repo-level commits and check package touches",
-          "scope": "version",
+          "description": "enhance Verify and Publish configuration schemas",
+          "scope": "config",
           "originalType": "feat"
         },
         {
           "type": "changed",
-          "description": "update version handling in generateCompareUrl function",
+          "description": "update zod and other package versions",
           "scope": "notes",
-          "originalType": "refactor"
+          "originalType": "chore"
+        },
+        {
+          "type": "fixed",
+          "description": "enhance escaping in setGitConfig to prevent shell injection",
+          "scope": "version",
+          "originalType": "fix"
+        },
+        {
+          "type": "added",
+          "description": "add JSON schema for ReleaseKit configuration",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "update deps",
+          "originalType": "chore"
+        },
+        {
+          "type": "added",
+          "description": "enhance categorizeEntries to validate scopes and clear existing ones",
+          "scope": "notes",
+          "originalType": "feat"
+        },
+        {
+          "type": "fixed",
+          "description": "use optional chaining for categoryMap updates",
+          "scope": "notes",
+          "originalType": "fix"
+        },
+        {
+          "type": "added",
+          "description": "implement input length limits and safer regex patterns to prevent ReDoS attacks",
+          "scope": "config, publish, version",
+          "originalType": "feat"
+        },
+        {
+          "type": "fixed",
+          "description": "improve regex handling in formatCommitMessage for special characters",
+          "scope": "version",
+          "originalType": "fix"
+        },
+        {
+          "type": "fixed",
+          "description": "escape double quotes in setGitConfig to prevent shell injection",
+          "scope": "version",
+          "originalType": "fix"
+        },
+        {
+          "type": "added",
+          "description": "implement input length limits and safer regex patterns to prevent ReDoS attacks",
+          "scope": "config, publish, version",
+          "originalType": "feat"
         }
       ]
     },
     {
       "packageName": "@releasekit/release",
-      "version": "0.2.0-next.11",
-      "previousVersion": "@releasekit/release@v0.2.0-next.10",
-      "revisionRange": "@releasekit/release@v0.2.0-next.10..HEAD",
+      "version": "0.2.0-next.12",
+      "previousVersion": "@releasekit/release@v0.2.0-next.11",
+      "revisionRange": "@releasekit/release@v0.2.0-next.11..HEAD",
       "repoUrl": "https://github.com/goosewobbler/releasekit",
       "entries": [
         {
           "type": "changed",
-          "description": "bump amannn/action-semantic-pull-request from 5 to 6",
-          "scope": "deps",
+          "description": "remove the Bootstrap Guide document, which outlined the initial setup for the self-referential release workflow. This document is no longer needed as the workflow has been streamlined and automated.",
+          "originalType": "docs"
+        },
+        {
+          "type": "fixed",
+          "description": "codeQL alert no. 9: Useless regular-expression character escape",
+          "originalType": "fix"
+        },
+        {
+          "type": "changed",
+          "description": "add release package to issue templates",
           "originalType": "chore"
         },
         {
           "type": "added",
-          "description": "add functions to identify repo-level commits and check package touches",
-          "scope": "version",
+          "description": "enhance Verify and Publish configuration schemas",
+          "scope": "config",
           "originalType": "feat"
         },
         {
           "type": "changed",
-          "description": "update version handling in generateCompareUrl function",
+          "description": "update zod and other package versions",
           "scope": "notes",
-          "originalType": "refactor"
+          "originalType": "chore"
+        },
+        {
+          "type": "fixed",
+          "description": "enhance escaping in setGitConfig to prevent shell injection",
+          "scope": "version",
+          "originalType": "fix"
+        },
+        {
+          "type": "added",
+          "description": "add JSON schema for ReleaseKit configuration",
+          "originalType": "feat"
+        },
+        {
+          "type": "changed",
+          "description": "update deps",
+          "originalType": "chore"
+        },
+        {
+          "type": "added",
+          "description": "enhance categorizeEntries to validate scopes and clear existing ones",
+          "scope": "notes",
+          "originalType": "feat"
+        },
+        {
+          "type": "fixed",
+          "description": "use optional chaining for categoryMap updates",
+          "scope": "notes",
+          "originalType": "fix"
+        },
+        {
+          "type": "added",
+          "description": "implement input length limits and safer regex patterns to prevent ReDoS attacks",
+          "scope": "config, publish, version",
+          "originalType": "feat"
+        },
+        {
+          "type": "fixed",
+          "description": "improve regex handling in formatCommitMessage for special characters",
+          "scope": "version",
+          "originalType": "fix"
+        },
+        {
+          "type": "fixed",
+          "description": "escape double quotes in setGitConfig to prevent shell injection",
+          "scope": "version",
+          "originalType": "fix"
         }
       ]
     }
   ],
   "tags": [
-    "@releasekit/version@v0.2.0-next.11",
-    "@releasekit/notes@v0.2.0-next.11",
-    "@releasekit/publish@v0.2.0-next.11",
-    "@releasekit/release@v0.2.0-next.11"
+    "@releasekit/version@v0.2.0-next.12",
+    "@releasekit/notes@v0.2.0-next.12",
+    "@releasekit/publish@v0.2.0-next.12",
+    "@releasekit/release@v0.2.0-next.12"
   ],
-  "commitMessage": "chore(release): @releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.11"
+  "commitMessage": "chore(release): @releasekit/version, @releasekit/notes, @releasekit/publish, @releasekit/release 0.2.0-next.12"
 }
