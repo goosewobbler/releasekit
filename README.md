@@ -73,7 +73,6 @@ See the package READMEs for full CLI reference.
 - [@releasekit/version — CI/CD integration](./packages/version/docs/CI_CD_INTEGRATION.md)
 - [@releasekit/notes — README](./packages/notes/README.md)
 - [@releasekit/publish — README](./packages/publish/README.md)
-- [Bootstrap guide](./BOOTSTRAP.md) — first-time setup for self-hosted releases
 - [Contributing](./CONTRIBUTING.md)
 
 ## Development
