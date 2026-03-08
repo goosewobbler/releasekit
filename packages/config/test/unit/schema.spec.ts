@@ -4,13 +4,17 @@ import {
   CargoPublishConfigSchema,
   GitConfigSchema,
   GitHubReleaseConfigSchema,
+  LLMCategorySchema,
   LLMConfigSchema,
+  LLMPromptsConfigSchema,
   MonorepoConfigSchema,
   NotesConfigSchema,
   NpmConfigSchema,
   OutputConfigSchema,
   PublishConfigSchema,
   ReleaseKitConfigSchema,
+  ScopeConfigSchema,
+  ScopeRulesSchema,
   TemplateConfigSchema,
   VerifyConfigSchema,
   VersionConfigSchema,
@@ -211,6 +215,128 @@ describe('OutputConfigSchema', () => {
     expect(result.file).toBe('CHANGELOG.md');
     expect(result.options).toEqual({ header: 'Changelog' });
   });
+
+  it('accepts per-output templates', () => {
+    const result = OutputConfigSchema.parse({
+      format: 'markdown',
+      file: 'RELEASE_NOTES.md',
+      templates: { path: './templates/release.liquid', engine: 'liquid' },
+    });
+    expect(result.templates?.path).toBe('./templates/release.liquid');
+    expect(result.templates?.engine).toBe('liquid');
+  });
+});
+
+describe('LLMCategorySchema', () => {
+  it('requires name and description', () => {
+    const result = LLMCategorySchema.parse({ name: 'New', description: 'New features' });
+    expect(result.name).toBe('New');
+    expect(result.description).toBe('New features');
+  });
+
+  it('accepts optional scopes array', () => {
+    const result = LLMCategorySchema.parse({
+      name: 'Developer',
+      description: 'Internal changes',
+      scopes: ['CI', 'Dependencies', 'Testing'],
+    });
+    expect(result.scopes).toEqual(['CI', 'Dependencies', 'Testing']);
+  });
+
+  it('allows empty scopes array', () => {
+    const result = LLMCategorySchema.parse({ name: 'New', description: 'Features', scopes: [] });
+    expect(result.scopes).toEqual([]);
+  });
+});
+
+describe('ScopeRulesSchema', () => {
+  it('applies defaults', () => {
+    const result = ScopeRulesSchema.parse({});
+    expect(result.caseSensitive).toBe(false);
+    expect(result.invalidScopeAction).toBe('remove');
+  });
+
+  it('accepts all invalidScopeAction values', () => {
+    for (const action of ['remove', 'keep', 'fallback'] as const) {
+      expect(ScopeRulesSchema.parse({ invalidScopeAction: action }).invalidScopeAction).toBe(action);
+    }
+  });
+
+  it('accepts allowed scopes and fallbackScope', () => {
+    const result = ScopeRulesSchema.parse({
+      allowed: ['CI', 'Dependencies'],
+      fallbackScope: 'Other',
+    });
+    expect(result.allowed).toEqual(['CI', 'Dependencies']);
+    expect(result.fallbackScope).toBe('Other');
+  });
+
+  it('rejects invalid invalidScopeAction', () => {
+    expect(() => ScopeRulesSchema.parse({ invalidScopeAction: 'invalid' })).toThrow();
+  });
+});
+
+describe('ScopeConfigSchema', () => {
+  it('defaults mode to unrestricted', () => {
+    const result = ScopeConfigSchema.parse({});
+    expect(result.mode).toBe('unrestricted');
+  });
+
+  it('accepts all mode values', () => {
+    for (const mode of ['restricted', 'packages', 'none', 'unrestricted'] as const) {
+      expect(ScopeConfigSchema.parse({ mode }).mode).toBe(mode);
+    }
+  });
+
+  it('accepts optional rules', () => {
+    const result = ScopeConfigSchema.parse({
+      mode: 'restricted',
+      rules: { allowed: ['CI'], caseSensitive: true },
+    });
+    expect(result.rules?.allowed).toEqual(['CI']);
+    expect(result.rules?.caseSensitive).toBe(true);
+  });
+
+  it('rejects invalid mode', () => {
+    expect(() => ScopeConfigSchema.parse({ mode: 'invalid' })).toThrow();
+  });
+});
+
+describe('LLMPromptsConfigSchema', () => {
+  it('accepts empty object', () => {
+    const result = LLMPromptsConfigSchema.parse({});
+    expect(result).toEqual({});
+  });
+
+  it('accepts instructions for all task types', () => {
+    const result = LLMPromptsConfigSchema.parse({
+      instructions: {
+        enhance: 'Use active voice',
+        categorize: 'Prefer Developer for CI',
+        enhanceAndCategorize: 'Combined instructions',
+        summarize: 'Keep it brief',
+        releaseNotes: 'Blog style',
+      },
+    });
+    expect(result.instructions?.enhance).toBe('Use active voice');
+    expect(result.instructions?.releaseNotes).toBe('Blog style');
+  });
+
+  it('accepts templates for task types', () => {
+    const result = LLMPromptsConfigSchema.parse({
+      templates: { categorize: 'Custom prompt: {{entries}}' },
+    });
+    expect(result.templates?.categorize).toBe('Custom prompt: {{entries}}');
+  });
+
+  it('accepts both instructions and templates', () => {
+    const result = LLMPromptsConfigSchema.parse({
+      instructions: { enhance: 'Use active voice' },
+      templates: { categorize: 'Custom prompt' },
+    });
+    expect(result.instructions?.enhance).toBe('Use active voice');
+    expect(result.templates?.categorize).toBe('Custom prompt');
+  });
 });
 
 describe('LLMConfigSchema', () => {
@@ -247,6 +373,45 @@ describe('LLMConfigSchema', () => {
     expect(result.options?.timeout).toBe(30000);
     expect(result.retry?.maxAttempts).toBe(3);
     expect(result.tasks?.summarize).toBe(true);
+  });
+
+  it('accepts scopes config', () => {
+    const result = LLMConfigSchema.parse({
+      provider: 'openai',
+      model: 'gpt-4',
+      scopes: {
+        mode: 'restricted',
+        rules: { allowed: ['CI', 'Dependencies'], invalidScopeAction: 'remove' },
+      },
+    });
+    expect(result.scopes?.mode).toBe('restricted');
+    expect(result.scopes?.rules?.allowed).toEqual(['CI', 'Dependencies']);
+  });
+
+  it('accepts prompts config', () => {
+    const result = LLMConfigSchema.parse({
+      provider: 'openai',
+      model: 'gpt-4',
+      prompts: {
+        instructions: { categorize: 'Custom instruction' },
+        templates: { releaseNotes: 'Full custom prompt' },
+      },
+    });
+    expect(result.prompts?.instructions?.categorize).toBe('Custom instruction');
+    expect(result.prompts?.templates?.releaseNotes).toBe('Full custom prompt');
+  });
+
+  it('accepts categories with scopes', () => {
+    const result = LLMConfigSchema.parse({
+      provider: 'openai',
+      model: 'gpt-4',
+      categories: [
+        { name: 'Developer', description: 'Internal', scopes: ['CI', 'Testing'] },
+        { name: 'New', description: 'Features' },
+      ],
+    });
+    expect(result.categories?.[0]?.scopes).toEqual(['CI', 'Testing']);
+    expect(result.categories?.[1]?.scopes).toBeUndefined();
   });
 });
 
