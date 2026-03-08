@@ -1,5 +1,5 @@
 import { loadAuth } from '../core/config.js';
-import type { ChangelogEntry, LLMConfig } from '../core/types.js';
+import type { ChangelogEntry, LLMCategory, LLMConfig, LLMPromptsConfig, ScopeConfig } from '../core/types.js';
 import { LLMError } from '../errors/index.js';
 import { AnthropicProvider } from './anthropic.js';
 import { OllamaProvider } from './ollama.js';
@@ -27,16 +27,22 @@ export interface LLMContext {
 
 export interface EnhanceContext extends LLMContext {
   style?: string;
+  prompts?: LLMPromptsConfig;
 }
 
-export interface SummarizeContext extends LLMContext {}
+export interface SummarizeContext extends LLMContext {
+  prompts?: LLMPromptsConfig;
+}
 
 export interface CategorizeContext extends LLMContext {
-  categories?: Array<{ name: string; description: string }>;
+  categories?: LLMCategory[];
+  scopes?: ScopeConfig;
+  prompts?: LLMPromptsConfig;
 }
 
 export interface ReleaseNotesContext extends LLMContext {
   date?: string;
+  prompts?: LLMPromptsConfig;
 }
 
 export interface CategorizedEntries {

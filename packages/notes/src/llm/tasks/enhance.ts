@@ -1,8 +1,9 @@
 import type { ChangelogEntry } from '../../core/types.js';
 import { LLM_DEFAULTS } from '../defaults.js';
 import type { EnhanceContext, LLMProvider } from '../index.js';
+import { resolvePrompt } from '../prompts.js';
 
-const ENHANCE_PROMPT = `You are improving changelog entries for a software project.
+const DEFAULT_ENHANCE_PROMPT = `You are improving changelog entries for a software project.
 Given a technical commit message, rewrite it as a clear, user-friendly changelog entry.
 
 Rules:
@@ -22,14 +23,15 @@ Rewritten description (only output the new description, nothing else):`;
 export async function enhanceEntry(
   provider: LLMProvider,
   entry: ChangelogEntry,
-  _context: EnhanceContext,
+  context: EnhanceContext,
 ): Promise<string> {
-  const styleText = _context.style ? `- ${_context.style}` : '- Use present tense ("Add feature" not "Added feature")';
-  const prompt = ENHANCE_PROMPT.replace('{{style}}', styleText)
+  const styleText = context.style ? `- ${context.style}` : '- Use present tense ("Add feature" not "Added feature")';
+  const defaultPrompt = DEFAULT_ENHANCE_PROMPT.replace('{{style}}', styleText)
     .replace('{{type}}', entry.type)
     .replace('{{#if scope}}Scope: {{scope}}{{/if}}', entry.scope ? `Scope: ${entry.scope}` : '')
     .replace('{{description}}', entry.description);
 
+  const prompt = resolvePrompt('enhance', defaultPrompt, context.prompts);
   const response = await provider.complete(prompt);
 
   return response.trim();

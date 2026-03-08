@@ -68,6 +68,37 @@ export interface LLMOptions {
   temperature?: number;
 }
 
+export interface ScopeRules {
+  allowed?: string[];
+  caseSensitive?: boolean;
+  invalidScopeAction?: 'remove' | 'keep' | 'fallback';
+  fallbackScope?: string;
+}
+
+export interface ScopeConfig {
+  mode?: 'restricted' | 'packages' | 'none' | 'unrestricted';
+  rules?: ScopeRules;
+}
+
+export interface LLMPromptOverrides {
+  enhance?: string;
+  categorize?: string;
+  enhanceAndCategorize?: string;
+  summarize?: string;
+  releaseNotes?: string;
+}
+
+export interface LLMPromptsConfig {
+  instructions?: LLMPromptOverrides;
+  templates?: LLMPromptOverrides;
+}
+
+export interface LLMCategory {
+  name: string;
+  description: string;
+  scopes?: string[];
+}
+
 export interface LLMConfig {
   provider: string;
   model: string;
@@ -82,8 +113,10 @@ export interface LLMConfig {
     categorize?: boolean;
     releaseNotes?: boolean;
   };
-  categories?: Array<{ name: string; description: string }>;
+  categories?: LLMCategory[];
   style?: string;
+  scopes?: ScopeConfig;
+  prompts?: LLMPromptsConfig;
 }
 
 export type OutputFormat = 'markdown' | 'github-release' | 'json';
@@ -92,6 +125,7 @@ export interface OutputConfig {
   format: OutputFormat;
   file?: string;
   options?: Record<string, unknown>;
+  templates?: TemplateConfig;
 }
 
 export type MonorepoMode = 'root' | 'packages' | 'both';

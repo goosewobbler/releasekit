@@ -219,6 +219,63 @@ describe('categorizeEntries()', () => {
     expect(result[0]?.entries[1]?.scope).toBeUndefined();
   });
 
+  it('validates scopes against restricted scope config', async () => {
+    const entries: ChangelogEntry[] = [
+      { type: 'added', description: 'Update CI config' },
+      { type: 'fixed', description: 'Fix deps' },
+    ];
+    const provider = makeMockProvider(
+      JSON.stringify({
+        categories: { Developer: [0, 1] },
+        scopes: { '0': 'CI', '1': 'InvalidScope' },
+      }),
+    );
+
+    const result = await categorizeEntries(provider, entries, {
+      ...llmContext,
+      categories: [{ name: 'Developer', description: 'Internal', scopes: ['CI', 'Dependencies'] }],
+      scopes: { mode: 'restricted' },
+    });
+
+    const dev = result.find((c) => c.category === 'Developer');
+    expect(dev?.entries[0]?.scope).toBe('CI');
+    expect(dev?.entries[1]?.scope).toBeUndefined(); // InvalidScope removed
+  });
+
+  it('strips all scopes when scope mode is none', async () => {
+    const entries: ChangelogEntry[] = [{ type: 'added', description: 'Update CI' }];
+    const provider = makeMockProvider(
+      JSON.stringify({
+        categories: { Developer: [0] },
+        scopes: { '0': 'CI' },
+      }),
+    );
+
+    const result = await categorizeEntries(provider, entries, {
+      ...llmContext,
+      categories: [{ name: 'Developer', description: 'Internal', scopes: ['CI'] }],
+      scopes: { mode: 'none' },
+    });
+
+    expect(result[0]?.entries[0]?.scope).toBeUndefined();
+  });
+
+  it('passes prompt instructions to the provider', async () => {
+    let capturedPrompt = '';
+    const provider = makeMockProvider((prompt) => {
+      capturedPrompt = prompt;
+      return JSON.stringify({ General: [0] });
+    });
+
+    await categorizeEntries(provider, [{ type: 'added', description: 'Test' }], {
+      ...llmContext,
+      prompts: { instructions: { categorize: 'Always use the Developer category.' } },
+    });
+
+    expect(capturedPrompt).toContain('Always use the Developer category.');
+    expect(capturedPrompt).toContain('Additional instructions:');
+  });
+
   it('applies scopes from LLM response when provided', async () => {
     const entriesWithoutScopes: ChangelogEntry[] = [
       { type: 'added', description: 'Update dependencies' },
@@ -234,7 +291,7 @@ describe('categorizeEntries()', () => {
     const result = await categorizeEntries(provider, entriesWithoutScopes, {
       ...llmContext,
       categories: [
-        { name: 'Developer', description: 'Internal changes. MUST assign a scope from: Dependencies, CI' },
+        { name: 'Developer', description: 'Internal changes', scopes: ['Dependencies', 'CI'] },
         { name: 'Fixed', description: 'Bug fixes' },
       ],
     });
@@ -403,6 +460,51 @@ describe('enhanceAndCategorize()', () => {
 
     expect(provider.callCount).toBe(3);
     expect(result.categories[0]?.category).toBe('General');
+  });
+
+  it('validates scopes against restricted scope config', async () => {
+    const response = JSON.stringify({
+      entries: [
+        { description: 'Updated CI', category: 'Developer', scope: 'CI' },
+        { description: 'Fixed bug', category: 'Fixed', scope: 'InvalidScope' },
+        { description: 'Refactored', category: 'Developer', scope: 'Code Quality' },
+      ],
+    });
+    const provider = makeMockProvider(response);
+    const result = await enhanceAndCategorize(provider, sampleEntries, {
+      ...llmContext,
+      categories: [
+        { name: 'Developer', description: 'Internal', scopes: ['CI', 'Dependencies'] },
+        { name: 'Fixed', description: 'Bug fixes' },
+      ],
+      scopes: { mode: 'restricted' },
+    });
+
+    expect(result.enhancedEntries[0]?.scope).toBe('CI'); // allowed
+    expect(result.enhancedEntries[1]?.scope).toBeUndefined(); // InvalidScope removed
+    expect(result.enhancedEntries[2]?.scope).toBeUndefined(); // Code Quality not in allowed list
+  });
+
+  it('passes prompt instructions to the provider', async () => {
+    let capturedPrompt = '';
+    const provider = makeMockProvider((prompt) => {
+      capturedPrompt = prompt;
+      return JSON.stringify({
+        entries: [
+          { description: 'a', category: 'General', scope: null },
+          { description: 'b', category: 'General', scope: null },
+          { description: 'c', category: 'General', scope: null },
+        ],
+      });
+    });
+
+    await enhanceAndCategorize(provider, sampleEntries, {
+      ...llmContext,
+      prompts: { instructions: { enhanceAndCategorize: 'Focus on user impact.' } },
+    });
+
+    expect(capturedPrompt).toContain('Focus on user impact.');
+    expect(capturedPrompt).toContain('Additional instructions:');
   });
 
   it('handles partial LLM response (fewer entries than input)', async () => {

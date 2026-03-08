@@ -1,8 +1,10 @@
 import { warn } from '@releasekit/core';
-import type { ChangelogEntry } from '../../core/types.js';
+import type { ChangelogEntry, LLMCategory } from '../../core/types.js';
 import { withRetry } from '../../utils/retry.js';
 import { LLM_DEFAULTS } from '../defaults.js';
 import type { CategorizeContext, CategorizedEntries, EnhanceContext, LLMProvider } from '../index.js';
+import { resolvePrompt } from '../prompts.js';
+import { getAllowedScopesFromCategories, validateEntryScopes } from '../scopes.js';
 
 interface CombinedResult {
   enhancedEntries: ChangelogEntry[];
@@ -11,7 +13,7 @@ interface CombinedResult {
 
 function buildPrompt(
   entries: ChangelogEntry[],
-  categories: Array<{ name: string; description: string }> | undefined,
+  categories: LLMCategory[] | undefined,
   style: string | undefined,
 ): string {
   const entriesText = entries
@@ -21,8 +23,25 @@ function buildPrompt(
   const styleText = style || 'Use present tense ("Add feature" not "Added feature"). Be concise.';
 
   const categorySection = categories
-    ? `Categories (use ONLY these):\n${categories.map((c) => `- "${c.name}": ${c.description}`).join('\n')}`
+    ? `Categories (use ONLY these):\n${categories
+        .map((c) => {
+          const scopeInfo = c.scopes?.length ? ` Allowed scopes: ${c.scopes.join(', ')}.` : '';
+          return `- "${c.name}": ${c.description}${scopeInfo}`;
+        })
+        .join('\n')}`
     : `Categories: Group into meaningful categories (e.g., "New", "Fixed", "Changed", "Removed").`;
+
+  let scopeInstruction = '';
+  if (categories) {
+    const scopeMap = getAllowedScopesFromCategories(categories);
+    if (scopeMap.size > 0) {
+      const parts: string[] = [];
+      for (const [catName, scopes] of scopeMap) {
+        parts.push(`For "${catName}" entries, assign a scope from: ${scopes.join(', ')}.`);
+      }
+      scopeInstruction = `\n${parts.join('\n')}\nOnly use scopes from these predefined lists. Set scope to null if no scope applies.`;
+    }
+  }
 
   return `You are generating release notes for a software project. Given the following changelog entries, do two things:
 
@@ -34,9 +53,7 @@ Style guidelines:
 - Be concise (1 short sentence per entry)
 - Focus on what changed, not implementation details
 
-${categorySection}
-
-${categories ? 'For entries in categories involving internal/developer changes, set a "scope" field with a short subcategory label (e.g., "CI", "Dependencies", "Testing").' : ''}
+${categorySection}${scopeInstruction}
 
 Entries:
 ${entriesText}
@@ -59,9 +76,9 @@ export async function enhanceAndCategorize(
   const retryOpts = LLM_DEFAULTS.retry;
 
   try {
-    // Wrap entire operation (LLM call + JSON parsing) in retry
     return await withRetry(async () => {
-      const prompt = buildPrompt(entries, context.categories, context.style);
+      const defaultPrompt = buildPrompt(entries, context.categories, context.style);
+      const prompt = resolvePrompt('enhanceAndCategorize', defaultPrompt, context.prompts);
       const response = await provider.complete(prompt);
 
       const cleaned = response
@@ -86,13 +103,16 @@ export async function enhanceAndCategorize(
         };
       });
 
+      // Post-process: validate scopes against config
+      const validatedEntries = validateEntryScopes(enhancedEntries, context.scopes, context.categories);
+
       // Group into categories
       const categoryMap = new Map<string, ChangelogEntry[]>();
 
       for (let i = 0; i < parsed.entries.length; i++) {
         const result = parsed.entries[i];
         const category = result?.category || 'General';
-        const entry = enhancedEntries[i];
+        const entry = validatedEntries[i];
         if (!entry) continue;
 
         if (!categoryMap.has(category)) {
@@ -106,13 +126,12 @@ export async function enhanceAndCategorize(
         categories.push({ category, entries: catEntries });
       }
 
-      return { enhancedEntries, categories };
+      return { enhancedEntries: validatedEntries, categories };
     }, retryOpts);
   } catch (error) {
     warn(
       `Combined enhance+categorize failed after ${retryOpts.maxAttempts} attempts: ${error instanceof Error ? error.message : String(error)}`,
     );
-    // Fall back to uncategorized original entries
     return {
       enhancedEntries: entries,
       categories: [{ category: 'General', entries }],

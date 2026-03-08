@@ -1,7 +1,8 @@
 import type { ChangelogEntry } from '../../core/types.js';
 import type { LLMProvider, SummarizeContext } from '../index.js';
+import { resolvePrompt } from '../prompts.js';
 
-const SUMMARIZE_PROMPT = `You are creating a summary of changes for a software release.
+const DEFAULT_SUMMARIZE_PROMPT = `You are creating a summary of changes for a software release.
 
 Given the following changelog entries, create a brief summary (2-3 sentences) that captures the main themes of this release.
 
@@ -13,7 +14,7 @@ Summary (only output the summary, nothing else):`;
 export async function summarizeEntries(
   provider: LLMProvider,
   entries: ChangelogEntry[],
-  _context: SummarizeContext,
+  context: SummarizeContext,
 ): Promise<string> {
   if (entries.length === 0) {
     return '';
@@ -21,7 +22,8 @@ export async function summarizeEntries(
 
   const entriesText = entries.map((e) => `- [${e.type}]${e.scope ? ` (${e.scope})` : ''}: ${e.description}`).join('\n');
 
-  const prompt = SUMMARIZE_PROMPT.replace('{{entries}}', entriesText);
+  const defaultPrompt = DEFAULT_SUMMARIZE_PROMPT.replace('{{entries}}', entriesText);
+  const prompt = resolvePrompt('summarize', defaultPrompt, context.prompts);
 
   const response = await provider.complete(prompt);
 
