@@ -141,10 +141,16 @@ export const PublishConfigSchema = z.object({
   }),
 });
 
+export const TemplateConfigSchema = z.object({
+  path: z.string().optional(),
+  engine: z.enum(['handlebars', 'liquid', 'ejs']).optional(),
+});
+
 export const OutputConfigSchema = z.object({
   format: z.enum(['markdown', 'github-release', 'json']),
   file: z.string().optional(),
   options: z.record(z.string(), z.unknown()).optional(),
+  templates: TemplateConfigSchema.optional(),
 });
 
 export const LLMOptionsSchema = z.object({
@@ -170,6 +176,32 @@ export const LLMTasksConfigSchema = z.object({
 export const LLMCategorySchema = z.object({
   name: z.string(),
   description: z.string(),
+  scopes: z.array(z.string()).optional(),
+});
+
+export const ScopeRulesSchema = z.object({
+  allowed: z.array(z.string()).optional(),
+  caseSensitive: z.boolean().default(false),
+  invalidScopeAction: z.enum(['remove', 'keep', 'fallback']).default('remove'),
+  fallbackScope: z.string().optional(),
+});
+
+export const ScopeConfigSchema = z.object({
+  mode: z.enum(['restricted', 'packages', 'none', 'unrestricted']).default('unrestricted'),
+  rules: ScopeRulesSchema.optional(),
+});
+
+export const LLMPromptOverridesSchema = z.object({
+  enhance: z.string().optional(),
+  categorize: z.string().optional(),
+  enhanceAndCategorize: z.string().optional(),
+  summarize: z.string().optional(),
+  releaseNotes: z.string().optional(),
+});
+
+export const LLMPromptsConfigSchema = z.object({
+  instructions: LLMPromptOverridesSchema.optional(),
+  templates: LLMPromptOverridesSchema.optional(),
 });
 
 export const LLMConfigSchema = z.object({
@@ -183,11 +215,8 @@ export const LLMConfigSchema = z.object({
   tasks: LLMTasksConfigSchema.optional(),
   categories: z.array(LLMCategorySchema).optional(),
   style: z.string().optional(),
-});
-
-export const TemplateConfigSchema = z.object({
-  path: z.string().optional(),
-  engine: z.enum(['handlebars', 'liquid', 'ejs']).optional(),
+  scopes: ScopeConfigSchema.optional(),
+  prompts: LLMPromptsConfigSchema.optional(),
 });
 
 export const NotesInputConfigSchema = z.object({
@@ -224,6 +253,11 @@ export type VerifyConfig = z.infer<typeof VerifyConfigSchema>;
 export type PublishConfig = z.infer<typeof PublishConfigSchema>;
 export type OutputConfig = z.infer<typeof OutputConfigSchema>;
 export type LLMConfig = z.infer<typeof LLMConfigSchema>;
+export type LLMCategory = z.infer<typeof LLMCategorySchema>;
+export type ScopeRules = z.infer<typeof ScopeRulesSchema>;
+export type ScopeConfig = z.infer<typeof ScopeConfigSchema>;
+export type LLMPromptOverrides = z.infer<typeof LLMPromptOverridesSchema>;
+export type LLMPromptsConfig = z.infer<typeof LLMPromptsConfigSchema>;
 export type TemplateConfig = z.infer<typeof TemplateConfigSchema>;
 export type NotesConfig = z.infer<typeof NotesConfigSchema>;
 export type ReleaseKitConfig = z.infer<typeof ReleaseKitConfigSchema>;

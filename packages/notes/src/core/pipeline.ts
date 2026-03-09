@@ -103,6 +103,8 @@ async function processWithLLM(context: TemplateContext, config: Config): Promise
     date: context.date,
     categories: config.llm.categories,
     style: config.llm.style,
+    scopes: config.llm.scopes,
+    prompts: config.llm.prompts,
   };
 
   const enhanced: EnhancedData = {
@@ -178,7 +180,6 @@ async function processWithLLM(context: TemplateContext, config: Config): Promise
 
     return {
       ...context,
-      entries: enhanced.entries,
       enhanced,
     };
   } catch (error) {
@@ -260,9 +261,11 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
     switch (output.format) {
       case 'markdown': {
         const file = output.file ?? 'CHANGELOG.md';
+        const effectiveTemplateConfig = output.templates ?? config.templates;
 
-        if (config.templates?.path || output.options?.template) {
-          await generateWithTemplate(contexts, config, file, dryRun);
+        if (effectiveTemplateConfig?.path || output.options?.template) {
+          const configWithTemplate = { ...config, templates: effectiveTemplateConfig };
+          await generateWithTemplate(contexts, configWithTemplate, file, dryRun);
         } else {
           writeMarkdown(file, contexts, config, dryRun);
         }

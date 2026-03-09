@@ -1,7 +1,8 @@
 import type { ChangelogEntry } from '../../core/types.js';
 import type { LLMProvider, ReleaseNotesContext } from '../index.js';
+import { resolvePrompt } from '../prompts.js';
 
-const RELEASE_NOTES_PROMPT = `You are writing release notes for a software project.
+const DEFAULT_RELEASE_NOTES_PROMPT = `You are writing release notes for a software project.
 
 Create engaging, user-friendly release notes for the following changes.
 
@@ -41,7 +42,7 @@ export async function generateReleaseNotes(
     })
     .join('\n');
 
-  const prompt = RELEASE_NOTES_PROMPT.replace('{{version}}', context.version ?? 'v1.0.0')
+  const defaultPrompt = DEFAULT_RELEASE_NOTES_PROMPT.replace('{{version}}', context.version ?? 'v1.0.0')
     .replace(
       '{{#if previousVersion}}Previous version: {{previousVersion}}{{/if}}',
       context.previousVersion ? `Previous version: ${context.previousVersion}` : '',
@@ -49,6 +50,7 @@ export async function generateReleaseNotes(
     .replace('{{date}}', context.date ?? new Date().toISOString().split('T')[0] ?? '')
     .replace('{{entries}}', entriesText);
 
+  const prompt = resolvePrompt('releaseNotes', defaultPrompt, context.prompts);
   const response = await provider.complete(prompt);
 
   return response.trim();
