@@ -22,8 +22,9 @@
       }
     ],
     "llm": {
-      "provider": "anthropic",
-      "model": "claude-sonnet-4-20250514",
+      "provider": "ollama",
+      "model": "minimax-m2.5:cloud",
+      "baseURL": "https://ollama.com/api",
       "tasks": {
         "enhance": true,
         "categorize": true

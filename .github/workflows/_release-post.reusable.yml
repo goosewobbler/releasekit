@@ -58,15 +58,6 @@ jobs:
         run: |
           IFS=',' read -ra TAG_ARRAY <<< "${{ inputs.tags }}"
 
-          # Build LLM flags based on available secrets
-          # LLM tasks and categories are configured in releasekit.config.json
-          LLM_FLAGS=""
-          if [ -n "$ANTHROPIC_API_KEY" ]; then
-            LLM_FLAGS="--llm-provider anthropic --llm-model claude-sonnet-4-20250514 --llm-tasks enhance,categorize"
-          elif [ -n "$OLLAMA_API_KEY" ]; then
-            LLM_FLAGS="--llm-provider ollama --llm-model $OLLAMA_MODEL --llm-base-url $OLLAMA_BASE_URL --llm-tasks enhance,categorize"
-          fi
-
           for tag in "${TAG_ARRAY[@]}"; do
             if [ -z "$tag" ]; then
               continue
@@ -85,7 +76,7 @@ jobs:
                 --target "${PACKAGE_NAME}" \
                 --output markdown:- \
                 --template ./templates/release-notes/release.liquid \
-                ${LLM_FLAGS:+ $LLM_FLAGS} \
+                ${LLM_FLAGS:+$LLM_FLAGS} \
                 || echo "")
             fi
 
