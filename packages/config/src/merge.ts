@@ -15,6 +15,7 @@ export function mergeGitConfig(topLevel?: GitConfig, packageLevel?: PublishGitCo
     remote: packageLevel.remote ?? base.remote,
     branch: packageLevel.branch ?? base.branch,
     pushMethod: packageLevel.pushMethod ?? base.pushMethod,
+    httpsTokenEnv: packageLevel.httpsTokenEnv ?? base.httpsTokenEnv,
     push: packageLevel.push,
   };
 }
