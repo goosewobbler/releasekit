@@ -48,8 +48,9 @@ export async function runGitPushStage(ctx: PipelineContext): Promise<void> {
     }
   }
 
-  const httpsTokenEnv = config.git.httpsTokenEnv ?? 'GITHUB_TOKEN';
-  const httpsToken = process.env[httpsTokenEnv];
+  // Only attempt token-based HTTPS auth when explicitly configured.
+  const httpsTokenEnv = config.git.httpsTokenEnv;
+  const httpsToken = httpsTokenEnv ? process.env[httpsTokenEnv] : undefined;
 
   try {
     // If using HTTPS and a token is available, push directly to an authed URL.
