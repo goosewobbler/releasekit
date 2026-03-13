@@ -53,7 +53,12 @@ export function createNpmSubprocessIsolation(options: {
     }
   })();
 
-  const lines: string[] = [`registry=${registryUrl}`, 'always-auth=false'];
+  const lines: string[] = [`registry=${registryUrl}`];
+
+  if (authMethod === 'oidc') {
+    // Prevent setup-node's always-auth=true from forcing token lookups during OIDC publishing.
+    lines.push('always-auth=false');
+  }
 
   if (authMethod === 'token' && token) {
     // Use registry-scoped token to avoid affecting other registries.
@@ -74,11 +79,12 @@ export function createNpmSubprocessIsolation(options: {
       // Ensure npm and tools that read npm_config_* pick up our temp file
       NPM_CONFIG_USERCONFIG: npmrcPath,
       npm_config_userconfig: npmrcPath,
-      NPM_CONFIG_ALWAYS_AUTH: 'false',
-      npm_config_always_auth: 'false',
       // Auth-specific hardening
       ...(isOidc
         ? {
+            // Prevent setup-node's always-auth from forcing token lookups
+            NPM_CONFIG_ALWAYS_AUTH: 'false',
+            npm_config_always_auth: 'false',
             // Explicitly prevent token-based publishing from being selected implicitly
             NODE_AUTH_TOKEN: undefined,
             NPM_TOKEN: undefined,
