@@ -82,13 +82,21 @@ releasekit-publish --input version-output.json
 ### In CI (GitHub Actions)
 
 ```yaml
+- name: Configure permissions (OIDC + git pushes)
+  # at job level:
+  # permissions:
+  #   id-token: write
+  #   contents: write
+
 - name: Version
   run: releasekit-version --json > version-output.json
 
 - name: Publish
   run: releasekit-publish --input version-output.json
+  # For OIDC trusted publishing: no npm token needed (recommended).
+  # For token-based publishing: set NPM_TOKEN (or NODE_AUTH_TOKEN).
   env:
-    NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ## Configuration
@@ -104,6 +112,10 @@ Configure via `releasekit.config.json`:
       "provenance": true,
       "access": "public",
       "copyFiles": ["LICENSE"]
+    },
+    "git": {
+      "pushMethod": "auto",
+      "httpsTokenEnv": "GITHUB_TOKEN"
     },
     "cargo": {
       "enabled": false,

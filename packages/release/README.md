@@ -75,7 +75,8 @@ If no releasable changes are found after step 1, the command exits with code 0 a
   run: releasekit release
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    # For OIDC trusted publishing: no npm token needed (recommended).
+    # For token-based publishing: set NPM_TOKEN (or NODE_AUTH_TOKEN).
 ```
 
 ### Automated releases on push to main
