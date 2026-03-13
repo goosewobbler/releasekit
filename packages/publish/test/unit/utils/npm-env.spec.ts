@@ -52,11 +52,14 @@ describe('npm env isolation', () => {
 
     expect(iso.env.NPM_CONFIG_USERCONFIG).toBeTruthy();
     expect(iso.env.NODE_AUTH_TOKEN).toBe('npm_test_token');
+    // always-auth should not be set for token auth (only relevant for OIDC)
+    expect(iso.env.NPM_CONFIG_ALWAYS_AUTH).toBeUndefined();
 
     const npmrcPath = iso.env.NPM_CONFIG_USERCONFIG as string;
     createdPaths.push(npmrcPath);
     const content = fs.readFileSync(npmrcPath, 'utf-8');
     expect(content).toContain('//registry.npmjs.org/:_authToken=npm_test_token');
+    expect(content).not.toContain('always-auth');
 
     iso.cleanup();
   });
