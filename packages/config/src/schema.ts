@@ -4,6 +4,11 @@ export const GitConfigSchema = z.object({
   remote: z.string().default('origin'),
   branch: z.string().default('main'),
   pushMethod: z.enum(['auto', 'ssh', 'https']).default('auto'),
+  /**
+   * Optional env var name containing a GitHub token for HTTPS pushes.
+   * When set, publish steps can use this token without mutating git remotes.
+   */
+  httpsTokenEnv: z.string().optional(),
   push: z.boolean().optional(),
 });
 
@@ -68,6 +73,7 @@ export const PublishGitConfigSchema = z.object({
   pushMethod: z.enum(['auto', 'ssh', 'https']).optional(),
   remote: z.string().optional(),
   branch: z.string().optional(),
+  httpsTokenEnv: z.string().optional(),
 });
 
 export const GitHubReleaseConfigSchema = z.object({
