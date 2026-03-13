@@ -27,7 +27,7 @@ env:
 
 jobs:
   publish:
-    name: Release (dogfood releasekit)
+    name: Release
     runs-on: ubuntu-latest
 
     steps:
