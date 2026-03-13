@@ -35,12 +35,12 @@
     "@types/node": "catalog:",
     "@typescript-eslint/parser": "^8.56.1",
     "@vitest/eslint-plugin": "^1.6.9",
-    "eslint": "^10.0.2",
+    "eslint": "^10.0.3",
     "husky": "^9.1.7",
     "lint-staged": "^16.3.2",
     "tsup": "catalog:",
     "tsx": "catalog:",
-    "turbo": "2.8.13",
+    "turbo": "2.8.14",
     "typescript": "catalog:"
   },
   "lint-staged": {
