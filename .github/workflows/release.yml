@@ -42,7 +42,7 @@ jobs:
   publish:
     name: Publish
     needs: prepare
-    if: needs.prepare.outputs.has_changes == 'true'
+    if: ${{ needs.prepare.outputs.has_changes == 'true' }}
     uses: ./.github/workflows/_release-publish.reusable.yml
     permissions:
       id-token: write
@@ -51,23 +51,5 @@ jobs:
       packages: ${{ inputs.packages }}
       bump: ${{ inputs.bump }}
       dry_run: ${{ inputs.dry_run }}
-      version_output: ${{ needs.prepare.outputs.version_output }}
-      tags: ${{ needs.prepare.outputs.tags }}
     secrets:
       DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
-
-  post-release:
-    name: Post Release
-    needs: [prepare, publish]
-    if: needs.prepare.outputs.has_changes == 'true' && inputs.dry_run == false
-    uses: ./.github/workflows/_release-post.reusable.yml
-    permissions:
-      contents: write
-    with:
-      version_output: ${{ needs.prepare.outputs.version_output }}
-      tags: ${{ needs.prepare.outputs.tags }}
-      ollama_base_url: ${{ vars.OLLAMA_BASE_URL }}
-      ollama_model: ${{ vars.OLLAMA_MODEL }}
-    secrets:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}

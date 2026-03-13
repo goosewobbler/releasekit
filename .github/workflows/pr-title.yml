@@ -28,7 +28,9 @@ jobs:
             ci
             chore
             revert
+            e2e
           requireScope: false
+          wip: true
           subjectPattern: ^(?![A-Z]).+$
           subjectPatternError: |
             The subject "{subject}" found in the pull request title "{title}"
