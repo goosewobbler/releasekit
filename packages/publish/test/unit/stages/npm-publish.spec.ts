@@ -52,6 +52,7 @@ function createContext(cwd: string, overrides?: Partial<PipelineContext>): Pipel
 
 describe('npm-publish stage', () => {
   const tmpDirs: string[] = [];
+  const originalEnv = { ...process.env };
 
   function createTmpDir(): string {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-npm-test-'));
@@ -70,6 +71,7 @@ describe('npm-publish stage', () => {
   });
 
   afterEach(() => {
+    process.env = { ...originalEnv };
     for (const dir of tmpDirs) {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -83,6 +85,7 @@ describe('npm-publish stage', () => {
     fs.mkdirSync(pkgDir, { recursive: true });
     fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: '@test/pkg', version: '1.0.0' }));
 
+    process.env.NPM_TOKEN = 'npm_test_token';
     const ctx = createContext(dir);
     await runNpmPublishStage(ctx);
 
@@ -94,6 +97,10 @@ describe('npm-publish stage', () => {
     expect(args).toEqual(expect.arrayContaining(['--filter', '@test/pkg']));
     expect(args).toEqual(expect.arrayContaining(['--access', 'public']));
     expect(args).toEqual(expect.arrayContaining(['--tag', 'latest']));
+
+    const options = call?.[2];
+    expect(options?.env?.NPM_CONFIG_USERCONFIG).toBeTruthy();
+    expect(options?.env?.NODE_AUTH_TOKEN).toBe('npm_test_token');
 
     expect(ctx.output.npm).toHaveLength(1);
     expect(ctx.output.npm[0]?.success).toBe(true);
@@ -159,6 +166,7 @@ describe('npm-publish stage', () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const { detectNpmAuth } = await import('../../../src/utils/auth.js');
     vi.mocked(detectNpmAuth).mockReturnValue('oidc');
+    process.env.NODE_AUTH_TOKEN = 'should_be_ignored';
 
     const dir = createTmpDir();
     const pkgDir = path.join(dir, 'packages', 'pkg');
@@ -170,6 +178,10 @@ describe('npm-publish stage', () => {
 
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
     expect(args).toContain('--provenance');
+
+    const options = vi.mocked(execCommand).mock.calls[0]?.[2];
+    expect(options?.env?.NPM_CONFIG_USERCONFIG).toBeTruthy();
+    expect(options?.env?.NODE_AUTH_TOKEN).toBeUndefined();
   });
 
   it('should not add --provenance when token auth', async () => {
