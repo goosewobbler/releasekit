@@ -14,8 +14,22 @@ export interface ExecResult {
   exitCode: number;
 }
 
+function redactArg(arg: string): string {
+  try {
+    const url = new URL(arg);
+    if (url.username || url.password) {
+      url.username = url.username ? '***' : '';
+      url.password = url.password ? '***' : '';
+      return url.toString();
+    }
+  } catch {
+    // not a URL
+  }
+  return arg;
+}
+
 export async function execCommand(file: string, args: string[], options: ExecOptions = {}): Promise<ExecResult> {
-  const displayCommand = options.label ?? [file, ...args].join(' ');
+  const displayCommand = options.label ?? [file, ...args.map(redactArg)].join(' ');
 
   if (options.dryRun) {
     info(`[DRY RUN] Would execute: ${displayCommand}`);
