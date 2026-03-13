@@ -48,6 +48,7 @@ describe('git-push stage', () => {
     const { detectGitPushMethod } = await import('../../../src/utils/auth.js');
     vi.mocked(execCommand).mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
     vi.mocked(detectGitPushMethod).mockResolvedValue('https');
+    delete process.env.GITHUB_TOKEN;
   });
 
   it('should push commits and tags', async () => {
@@ -63,6 +64,28 @@ describe('git-push stage', () => {
     expect(calls[1]?.[0]).toBe('git');
     expect(calls[1]?.[1]).toEqual(['push', 'origin', '--tags']);
     expect(ctx.output.git.pushed).toBe(true);
+  });
+
+  it('should push using authed GitHub URL when https token is available', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    process.env.GITHUB_TOKEN = 'gh_test_token';
+
+    vi.mocked(execCommand).mockImplementation(async (file, args) => {
+      if (file === 'git' && Array.isArray(args) && args[0] === 'remote' && args[1] === 'get-url') {
+        return { stdout: 'https://github.com/org/repo.git\n', stderr: '', exitCode: 0 };
+      }
+      return { stdout: '', stderr: '', exitCode: 0 };
+    });
+
+    const ctx = createContext();
+    await runGitPushStage(ctx);
+
+    const calls = vi.mocked(execCommand).mock.calls;
+    // First call should be remote get-url, then push branch, then push tags.
+    expect(calls[0]?.[1]).toEqual(['remote', 'get-url', 'origin']);
+    expect(calls[1]?.[1]?.[0]).toBe('push');
+    expect((calls[1]?.[1] as string[])[1]).toContain('https://x-access-token:gh_test_token@github.com/org/repo.git');
+    expect((calls[2]?.[1] as string[])[1]).toContain('https://x-access-token:gh_test_token@github.com/org/repo.git');
   });
 
   it('should skip when push disabled in config', async () => {

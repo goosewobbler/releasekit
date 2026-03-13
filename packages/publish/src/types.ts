@@ -24,6 +24,7 @@ export interface GitConfig {
   pushMethod: 'auto' | 'ssh' | 'https';
   remote: string;
   branch: string;
+  httpsTokenEnv?: string;
 }
 
 export interface GitHubReleaseConfig {
@@ -142,6 +143,7 @@ export function getDefaultConfig(): PublishConfig {
       pushMethod: 'auto',
       remote: 'origin',
       branch: 'main',
+      httpsTokenEnv: undefined,
     },
     githubRelease: {
       enabled: true,
@@ -194,6 +196,7 @@ export function toPublishConfig(config: BasePublishConfig | undefined): PublishC
           pushMethod: config.git.pushMethod ?? defaults.git.pushMethod,
           remote: config.git.remote ?? defaults.git.remote,
           branch: config.git.branch ?? defaults.git.branch,
+          httpsTokenEnv: config.git.httpsTokenEnv ?? defaults.git.httpsTokenEnv,
         }
       : defaults.git,
     githubRelease: {

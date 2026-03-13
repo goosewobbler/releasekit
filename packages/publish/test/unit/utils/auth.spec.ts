@@ -7,6 +7,7 @@ describe('auth utils', () => {
   beforeEach(() => {
     delete process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
     delete process.env.NPM_TOKEN;
+    delete process.env.NODE_AUTH_TOKEN;
     delete process.env.CARGO_REGISTRY_TOKEN;
   });
 
@@ -26,6 +27,11 @@ describe('auth utils', () => {
 
     it('should return "token" when NPM_TOKEN is set', () => {
       process.env.NPM_TOKEN = 'npm_abc123';
+      expect(detectNpmAuth()).toBe('token');
+    });
+
+    it('should return "token" when NODE_AUTH_TOKEN is set', () => {
+      process.env.NODE_AUTH_TOKEN = 'npm_abc123';
       expect(detectNpmAuth()).toBe('token');
     });
 

@@ -4,7 +4,7 @@ export function detectNpmAuth(): 'oidc' | 'token' | null {
   if (process.env.ACTIONS_ID_TOKEN_REQUEST_URL) {
     return 'oidc';
   }
-  if (process.env.NPM_TOKEN) {
+  if (process.env.NPM_TOKEN || process.env.NODE_AUTH_TOKEN) {
     return 'token';
   }
   return null;
