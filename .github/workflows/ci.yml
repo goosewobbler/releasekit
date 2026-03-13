@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
+    tags:
+      - v[0-9]+.[0-9]+.[0-9]+*
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -13,7 +15,7 @@ on:
         default: false
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:

@@ -12,15 +12,9 @@ on:
       dry_run:
         required: true
         type: boolean
-      version_output:
-        required: true
-        type: string
-      tags:
-        required: true
-        type: string
     secrets:
       DEPLOY_KEY:
-        required: true
+        required: false
 
 permissions:
   id-token: write
@@ -33,20 +27,28 @@ env:
 
 jobs:
   publish:
-    name: Version, Build & Publish
+    name: Release (dogfood releasekit)
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout (SSH)
+        if: ${{ !inputs.dry_run }}
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ssh-key: ${{ secrets.DEPLOY_KEY }}
 
+      - name: Checkout (read-only)
+        if: ${{ inputs.dry_run }}
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
       - name: Setup workspace
         uses: ./.github/workflows/actions/setup-workspace
 
       - name: Configure git
+        if: ${{ !inputs.dry_run }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -54,7 +56,9 @@ jobs:
       - name: Build packages
         run: pnpm build
 
-      - name: Apply version bumps
+      - name: Run releasekit
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           # Build target flags
           TARGET_FLAGS=""
@@ -88,88 +92,18 @@ jobs:
             DRY_RUN_FLAG="--dry-run"
           fi
 
-          node packages/version/dist/cli.js \
-            --json \
+          node packages/release/dist/cli.js release \
             ${BUMP_FLAGS} \
             ${PRERELEASE_FLAGS} \
             ${TARGET_FLAGS} \
             ${DRY_RUN_FLAG}
 
-      - name: Save version output
-        env:
-          VERSION_OUTPUT: ${{ inputs.version_output }}
-        run: echo "$VERSION_OUTPUT" > version-output.json
-
-      - name: Commit and tag locally
-        if: ${{ !inputs.dry_run }}
-        run: |
-          git add -A
-
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-            exit 0
-          fi
-
-          COMMIT_MSG=$(jq -r '.commitMessage // "chore: release [skip ci]"' version-output.json)
-          git commit -m "${COMMIT_MSG}"
-
-          IFS=',' read -ra TAG_ARRAY <<< "${{ inputs.tags }}"
-          for tag in "${TAG_ARRAY[@]}"; do
-            if [ -n "$tag" ]; then
-              echo "Creating tag: ${tag}"
-              # Delete local tag if it exists (e.g., from previous run)
-              git tag -d "${tag}" 2>/dev/null || true
-              git tag -a "${tag}" -m "Release ${tag}"
-            fi
-          done
-
-      - name: Configure npm for OIDC publishing
-        if: ${{ !inputs.dry_run }}
-        run: |
-          # setup-node writes _authToken=${NODE_AUTH_TOKEN} and always-auth to .npmrc
-          # which blocks OIDC trusted publishing — strip them, keep registry URL
-          for f in ~/.npmrc .npmrc "${NPM_CONFIG_USERCONFIG:-/dev/null}"; do
-            if [ -f "$f" ]; then
-              sed -i '/_authToken/d' "$f"
-              sed -i '/always-auth/d' "$f"
-            fi
-          done
-
-      - name: Publish packages
-        if: ${{ !inputs.dry_run }}
-        run: |
-          unset NODE_AUTH_TOKEN
-          unset npm_config_verify_deps_before_run
-          pnpm exec tsx .github/workflows/scripts/publish-packages.ts version-output.json false
-
-      - name: Push commits and tags
-        if: ${{ !inputs.dry_run }}
-        run: |
-          git push origin HEAD
-          git push origin --tags
-
       - name: Summary
         run: |
-          echo "## Publish Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Release Results" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             echo "> **Dry run** — no packages were published or pushed" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
-
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "### Packages" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Package | Version |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|---------|---------|" >> "$GITHUB_STEP_SUMMARY"
-          jq -r '.updates[] | "| `\(.packageName)` | \(.newVersion) |"' version-output.json >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-
-          echo "### Tags" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          IFS=',' read -ra TAG_ARRAY <<< "${{ inputs.tags }}"
-          for tag in "${TAG_ARRAY[@]}"; do
-            if [ -n "$tag" ]; then
-              echo "- \`${tag}\`" >> "$GITHUB_STEP_SUMMARY"
-            fi
-          done
