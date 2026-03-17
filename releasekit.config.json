@@ -10,7 +10,8 @@
     "tagTemplate": "${packageName}@v${version}",
     "commitMessage": "chore: release ${packageName}@${version} [skip ci]",
     "prereleaseIdentifier": "next",
-    "packageSpecificTags": true
+    "packageSpecificTags": true,
+    "skipHooks": true
   },
   "notes": {
     "output": [
