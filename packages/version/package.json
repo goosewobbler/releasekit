@@ -1,6 +1,6 @@
 {
   "name": "@releasekit/version",
-  "version": "0.2.0-next.12",
+  "version": "0.2.0",
   "description": "Semantic versioning based on Git history and conventional commits",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -31,7 +31,12 @@
     "lint": "biome check .",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": ["version", "semver", "git", "package"],
+  "keywords": [
+    "version",
+    "semver",
+    "git",
+    "package"
+  ],
   "author": {
     "name": "Sam Maister",
     "email": "goosewobbler@protonmail.com"
@@ -42,7 +47,11 @@
     "directory": "packages/version"
   },
   "license": "MIT",
-  "files": ["dist", "docs", "version.schema.json"],
+  "files": [
+    "dist",
+    "docs",
+    "version.schema.json"
+  ],
   "publishConfig": {
     "access": "public"
   },
