@@ -225,9 +225,10 @@ async function generateWithTemplate(
   const result = renderTemplate(templatePath, documentContext, config.templates?.engine);
 
   if (dryRun) {
-    info('--- Changelog Preview ---');
-    console.log(result.content);
-    info('--- End Preview ---');
+    info(`Would write templated output to ${outputPath}`);
+    debug('--- Changelog Preview ---');
+    debug(result.content);
+    debug('--- End Preview ---');
     return;
   }
 
