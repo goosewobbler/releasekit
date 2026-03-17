@@ -95,7 +95,8 @@ jobs:
             DRY_RUN_FLAG="--dry-run"
           fi
 
-          # Run releasekit and capture JSON output
+          # Run releasekit and capture JSON output (stdout only)
+          # stderr goes to a temp file so we can surface it on failure
           set +e
           RELEASE_OUTPUT=$(node packages/release/dist/cli.js release \
             --json \
@@ -103,13 +104,13 @@ jobs:
             ${PRERELEASE_FLAGS} \
             ${TARGET_FLAGS} \
             ${DRY_RUN_FLAG} \
-            2>&1)
+            2>/tmp/release_stderr)
           EXIT_CODE=$?
           set -e
 
           if [ $EXIT_CODE -ne 0 ]; then
             echo "releasekit failed with exit code $EXIT_CODE"
-            echo "$RELEASE_OUTPUT"
+            cat /tmp/release_stderr
             exit $EXIT_CODE
           fi
 
