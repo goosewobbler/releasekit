@@ -27,6 +27,7 @@ interface TarballPaths {
   version: string;
   config: string;
   publish: string;
+  release: string;
 }
 
 function log(message: string): void {
@@ -66,7 +67,7 @@ async function buildAndPackPackages(): Promise<TarballPaths> {
 
   execCommand('pnpm build', rootDir, 'Building packages');
 
-  const packages = ['core', 'config', 'version', 'notes', 'publish'];
+  const packages = ['core', 'config', 'version', 'notes', 'publish', 'release'];
   const tarballs: Partial<TarballPaths> = {};
 
   for (const pkg of packages) {
@@ -94,7 +95,7 @@ async function buildAndPackPackages(): Promise<TarballPaths> {
 function findExistingTarballs(): TarballPaths {
   log('Finding existing tarballs...');
 
-  const packages = ['core', 'config', 'version', 'notes', 'publish'];
+  const packages = ['core', 'config', 'version', 'notes', 'publish', 'release'];
   const tarballs: Partial<TarballPaths> = {};
 
   for (const pkg of packages) {
@@ -136,6 +137,7 @@ function createIsolatedEnvironment(tarballs: TarballPaths): string {
       '@releasekit/notes': `file:${tarballs.notes}`,
       '@releasekit/publish': `file:${tarballs.publish}`,
       '@releasekit/version': `file:${tarballs.version}`,
+      '@releasekit/release': `file:${tarballs.release}`,
       'conventional-changelog-angular': '^8.1.0',
       'conventional-changelog-conventionalcommits': '^9.0.0',
     },
@@ -146,6 +148,7 @@ function createIsolatedEnvironment(tarballs: TarballPaths): string {
         '@releasekit/notes': `file:${tarballs.notes}`,
         '@releasekit/publish': `file:${tarballs.publish}`,
         '@releasekit/version': `file:${tarballs.version}`,
+        '@releasekit/release': `file:${tarballs.release}`,
       },
     },
   };

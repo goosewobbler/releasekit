@@ -54,8 +54,15 @@ EOF
 run_cli() {
   local cmd="$1"
   shift
-  local pkg_name="${cmd#releasekit-}"
-  
+
+  # Map command name to package name
+  local pkg_name
+  if [[ "$cmd" == "releasekit" ]]; then
+    pkg_name="release"
+  else
+    pkg_name="${cmd#releasekit-}"
+  fi
+
   if [[ -d "$RELEASEKIT_ROOT/packages/$pkg_name" ]]; then
     # Running from repo root
     node "$RELEASEKIT_ROOT/packages/$pkg_name/dist/cli.js" "$@"
