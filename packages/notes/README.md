@@ -1,6 +1,6 @@
 # @releasekit/notes
 
-Changelog generation with LLM-powered enhancement and flexible templating.
+Changelog generation from conventional commits with LLM-powered enhancement and flexible templating
 
 ## Features
 

@@ -21,8 +21,9 @@ commits and designed for CI/CD pipelines.
 - **Conventional Commits** — automatically derives the next semver bump from commit history
 - **Monorepo support** — versions packages independently or in sync, with per-package git tags
 - **JavaScript + Rust** — handles `package.json` and `Cargo.toml` side by side
-- **CI/CD first** — JSON output mode for scriptable pipelines; OIDC-based npm publishing
-- **LLM-enhanced changelogs** — optional AI summarisation via Anthropic, OpenAI, or local models
+- **CI/CD first** — JSON output mode for scriptable pipelines; OIDC or token-based npm publishing
+- **Changelog generation** — auto-generated from conventional commits with flexible templating
+- **LLM-enhanced release notes** — optional AI summarisation via Anthropic, OpenAI, or local models
 - **Composable** — use each tool independently or pipe them together
 
 ## Usage
