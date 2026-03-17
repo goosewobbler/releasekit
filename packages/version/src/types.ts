@@ -1,4 +1,4 @@
-import type { VersionConfig } from '@releasekit/config';
+import type { GitConfig, VersionConfig } from '@releasekit/config';
 import type { ReleaseType } from 'semver';
 
 export interface GitInfo {
@@ -87,7 +87,7 @@ export interface PackageVersion {
   dryRun?: boolean;
 }
 
-export function toVersionConfig(config: VersionConfig | undefined): Config {
+export function toVersionConfig(config: VersionConfig | undefined, gitConfig?: GitConfig): Config {
   if (!config) {
     return {
       tagTemplate: 'v{version}',
@@ -97,6 +97,8 @@ export function toVersionConfig(config: VersionConfig | undefined): Config {
       packages: [],
       updateInternalDependencies: 'minor',
       versionPrefix: '',
+      baseBranch: gitConfig?.branch,
+      skipHooks: gitConfig?.skipHooks,
     };
   }
 
@@ -116,11 +118,11 @@ export function toVersionConfig(config: VersionConfig | undefined): Config {
       releaseType: bp.releaseType as ReleaseType,
     })),
     defaultReleaseType: config.defaultReleaseType as ReleaseType | undefined,
-    skipHooks: config.skipHooks,
+    skipHooks: gitConfig?.skipHooks,
     mismatchStrategy: config.mismatchStrategy,
     versionPrefix: config.versionPrefix ?? '',
     prereleaseIdentifier: config.prereleaseIdentifier,
-    baseBranch: config.baseBranch,
+    baseBranch: gitConfig?.branch,
     cargo: config.cargo,
   };
 }

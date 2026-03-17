@@ -10,6 +10,7 @@ export const GitConfigSchema = z.object({
    */
   httpsTokenEnv: z.string().optional(),
   push: z.boolean().optional(),
+  skipHooks: z.boolean().optional(),
 });
 
 export const MonorepoConfigSchema = z.object({
@@ -42,11 +43,9 @@ export const VersionConfigSchema = z.object({
   versionStrategy: z.enum(['branchPattern', 'commitMessage']).default('commitMessage'),
   branchPatterns: z.array(BranchPatternSchema).optional(),
   defaultReleaseType: z.enum(['major', 'minor', 'patch', 'prerelease']).optional(),
-  skipHooks: z.boolean().optional(),
   mismatchStrategy: z.enum(['error', 'warn', 'ignore', 'prefer-package', 'prefer-git']).default('warn'),
   versionPrefix: z.string().default(''),
   prereleaseIdentifier: z.string().optional(),
-  baseBranch: z.string().optional(),
   strictReachable: z.boolean().default(false),
   cargo: VersionCargoConfigSchema.optional(),
 });

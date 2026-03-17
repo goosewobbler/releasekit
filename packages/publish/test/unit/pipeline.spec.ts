@@ -120,6 +120,29 @@ describe('pipeline', () => {
     expect(runVerifyStage).not.toHaveBeenCalled();
   });
 
+  it('should skip git-commit stage but pre-populate output when skipGitCommit is set', async () => {
+    const { runGitCommitStage } = await import('../../src/stages/git-commit.js');
+    const { runGitPushStage } = await import('../../src/stages/git-push.js');
+
+    const inputWithCommit: VersionOutput = {
+      dryRun: false,
+      updates: [],
+      changelogs: [],
+      commitMessage: 'chore(release): v1.0.0',
+      tags: ['v1.0.0', 'pkg-a@v1.0.0'],
+    };
+
+    const result = await runPipeline(inputWithCommit, getDefaultConfig(), {
+      ...defaultOptions,
+      skipGitCommit: true,
+    });
+
+    expect(runGitCommitStage).not.toHaveBeenCalled();
+    expect(runGitPushStage).toHaveBeenCalled();
+    expect(result.git.committed).toBe(true);
+    expect(result.git.tags).toEqual(['v1.0.0', 'pkg-a@v1.0.0']);
+  });
+
   it('should skip github release when --skip-github-release', async () => {
     const { runGithubReleaseStage } = await import('../../src/stages/github-release.js');
 

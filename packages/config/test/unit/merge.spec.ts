@@ -65,6 +65,28 @@ describe('mergeGitConfig', () => {
     const result = mergeGitConfig(undefined, { push: false });
     expect(result?.push).toBe(false);
   });
+
+  it('inherits skipHooks from topLevel', () => {
+    const topLevel: GitConfig = {
+      remote: 'origin',
+      branch: 'main',
+      pushMethod: 'auto',
+      skipHooks: true,
+    };
+    const result = mergeGitConfig(topLevel, {});
+    expect(result?.skipHooks).toBe(true);
+  });
+
+  it('overrides skipHooks from packageLevel', () => {
+    const topLevel: GitConfig = {
+      remote: 'origin',
+      branch: 'main',
+      pushMethod: 'auto',
+      skipHooks: true,
+    };
+    const result = mergeGitConfig(topLevel, { skipHooks: false });
+    expect(result?.skipHooks).toBe(false);
+  });
 });
 
 describe('deepMerge', () => {

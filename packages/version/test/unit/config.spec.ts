@@ -89,5 +89,33 @@ describe('Config', () => {
 
       expect(() => loadConfig({ cwd: dir })).toThrow();
     });
+
+    it('should read baseBranch from top-level git.branch', () => {
+      const dir = createTmpDir();
+      fs.writeFileSync(
+        path.join(dir, 'releasekit.config.json'),
+        JSON.stringify({
+          git: { branch: 'develop' },
+          version: { preset: 'angular' },
+        }),
+      );
+
+      const config = loadConfig({ cwd: dir });
+      expect(config.baseBranch).toBe('develop');
+    });
+
+    it('should read skipHooks from top-level git.skipHooks', () => {
+      const dir = createTmpDir();
+      fs.writeFileSync(
+        path.join(dir, 'releasekit.config.json'),
+        JSON.stringify({
+          git: { skipHooks: true },
+          version: { preset: 'angular' },
+        }),
+      );
+
+      const config = loadConfig({ cwd: dir });
+      expect(config.skipHooks).toBe(true);
+    });
   });
 });

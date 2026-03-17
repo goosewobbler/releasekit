@@ -1,17 +1,19 @@
 {
   "$schema": "./releasekit.schema.json",
+  "git": {
+    "branch": "main",
+    "skipHooks": true
+  },
   "version": {
     "preset": "angular",
     "sync": false,
-    "baseBranch": "main",
     "versionPrefix": "v",
     "packages": ["packages/version", "packages/notes", "packages/publish", "packages/release"],
     "mismatchStrategy": "prefer-package",
     "tagTemplate": "${packageName}@v${version}",
     "commitMessage": "chore: release ${packageName}@${version} [skip ci]",
     "prereleaseIdentifier": "next",
-    "packageSpecificTags": true,
-    "skipHooks": true
+    "packageSpecificTags": true
   },
   "notes": {
     "output": [
@@ -62,9 +64,5 @@
       "style": "Use past tense descriptions. Be concise. Focus on what changed, not implementation details."
     }
   },
-  "publish": {
-    "git": {
-      "skipHooks": true
-    }
-  }
+  "publish": {}
 }

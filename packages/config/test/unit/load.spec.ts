@@ -179,6 +179,34 @@ describe('loadPublishConfig', () => {
     const result = loadPublishConfig();
     expect(result?.git?.remote).toBe('origin');
   });
+
+  it('inherits skipHooks from top-level git config', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(
+      JSON.stringify({
+        git: { skipHooks: true },
+        publish: {},
+      }),
+    );
+
+    const result = loadPublishConfig();
+    expect(result?.git?.skipHooks).toBe(true);
+  });
+
+  it('allows publish git to override top-level skipHooks', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(
+      JSON.stringify({
+        git: { skipHooks: true },
+        publish: {
+          git: { skipHooks: false },
+        },
+      }),
+    );
+
+    const result = loadPublishConfig();
+    expect(result?.git?.skipHooks).toBe(false);
+  });
 });
 
 describe('loadNotesConfig', () => {
