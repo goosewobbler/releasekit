@@ -20,7 +20,7 @@ cleanup_repo() {
 create_git_repo() {
   REPO_DIR=$(mktemp -d)
   cd "$REPO_DIR"
-  git init
+  git init -q -b main
   git config user.email "test@test.com"
   git config user.name "Test User"
 }
@@ -29,7 +29,7 @@ git_commit() {
   local message="$1"
   echo "$message" > ".commit-$(date +%s)"
   git add -A
-  git commit -m "$message"
+  git commit -q -m "$message"
 }
 
 create_package_json() {
