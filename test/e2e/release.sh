@@ -48,7 +48,7 @@ create_releasekit_config '{"version":{"preset":"angular","packages":["./"]}}'
 git_commit "chore: initial commit"
 
 set +e
-release_output=$(run_cli releasekit release --dry-run --json --project-dir "$REPO_DIR" 2>&1)
+release_output=$(run_cli_json releasekit release --dry-run --json --project-dir "$REPO_DIR")
 release_exit=$?
 set -e
 
