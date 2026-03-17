@@ -21,8 +21,10 @@ create_releasekit_config '{"version":{"preset":"angular","packages":["./"]}}'
 git_commit "chore: initial commit"
 git_commit "feat: add new feature"
 
+set +e
 release_output=$(run_cli_json releasekit release --dry-run --json --project-dir "$REPO_DIR")
 release_exit=$?
+set -e
 
 assert_exit_code 0 "$release_exit"
 
@@ -45,7 +47,6 @@ create_package_json "test-release-no-changes" "0.1.0"
 create_releasekit_config '{"version":{"preset":"angular","packages":["./"]}}'
 git_commit "chore: initial commit"
 
-# Only a chore commit — no version bump expected
 set +e
 release_output=$(run_cli releasekit release --dry-run --json --project-dir "$REPO_DIR" 2>&1)
 release_exit=$?
@@ -66,8 +67,10 @@ create_releasekit_config '{"version":{"preset":"angular","packages":["./"]}}'
 git_commit "chore: initial commit"
 git_commit "fix: resolve edge case"
 
+set +e
 release_output=$(run_cli_json releasekit release --dry-run --json --project-dir "$REPO_DIR")
 release_exit=$?
+set -e
 
 assert_exit_code 0 "$release_exit"
 

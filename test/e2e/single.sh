@@ -21,7 +21,9 @@ create_releasekit_config '{"version":{"preset":"conventionalcommits","packages":
 git_commit "chore: initial commit"
 git_commit "fix: resolve bug"
 
+set +e
 output=$(run_cli_json releasekit-version --dry-run --json)
+set -e
 version=$(echo "$output" | jq -r '.updates[0].newVersion' 2>/dev/null || echo "parse_error")
 if [[ "$version" == "parse_error" ]]; then
   echo "FAIL: Could not parse JSON output"
@@ -39,7 +41,9 @@ create_releasekit_config '{"version":{"preset":"conventionalcommits","packages":
 git_commit "chore: initial commit"
 git_commit "feat: add awesome feature"
 
+set +e
 output=$(run_cli_json releasekit-version --dry-run --json)
+set -e
 version=$(echo "$output" | jq -r '.updates[0].newVersion' 2>/dev/null || echo "parse_error")
 if [[ "$version" == "parse_error" ]]; then
   echo "FAIL: Could not parse JSON output"
@@ -57,7 +61,9 @@ create_releasekit_config '{"version":{"preset":"conventionalcommits","packages":
 git_commit "chore: initial commit"
 git_commit "feat!: breaking API change"
 
+set +e
 output=$(run_cli_json releasekit-version --dry-run --json)
+set -e
 version=$(echo "$output" | jq -r '.updates[0].newVersion' 2>/dev/null || echo "parse_error")
 if [[ "$version" == "parse_error" ]]; then
   echo "FAIL: Could not parse JSON output"

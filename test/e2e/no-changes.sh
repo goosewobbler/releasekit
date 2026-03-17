@@ -24,8 +24,10 @@ git_commit "chore: initial commit"
 git_commit "chore: update README"
 git_commit "chore: cleanup"
 
+set +e
 output=$(run_cli_json releasekit-version --dry-run --json)
 exit_code=$?
+set -e
 
 # With only chore commits and no existing tags, it may still create an initial release
 # This is expected behavior. The test verifies the CLI doesn't crash.

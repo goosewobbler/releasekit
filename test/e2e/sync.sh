@@ -53,7 +53,9 @@ create_releasekit_config '{"version":{"preset":"conventionalcommits","packages":
 git_commit "chore: initial commit"
 git_commit "feat: add awesome feature"
 
+set +e
 output=$(run_cli_json releasekit-version --dry-run --json)
+set -e
 
 # Verify version
 version=$(echo "$output" | jq -r '.updates[0].newVersion')
