@@ -20,7 +20,7 @@ cleanup_repo() {
 create_git_repo() {
   REPO_DIR=$(mktemp -d)
   cd "$REPO_DIR"
-  git init
+  git init -q -b main
   git config user.email "test@test.com"
   git config user.name "Test User"
 }
@@ -29,7 +29,7 @@ git_commit() {
   local message="$1"
   echo "$message" > ".commit-$(date +%s)"
   git add -A
-  git commit -m "$message"
+  git commit -q -m "$message"
 }
 
 create_package_json() {
@@ -54,8 +54,15 @@ EOF
 run_cli() {
   local cmd="$1"
   shift
-  local pkg_name="${cmd#releasekit-}"
-  
+
+  # Map command name to package name
+  local pkg_name
+  if [[ "$cmd" == "releasekit" ]]; then
+    pkg_name="release"
+  else
+    pkg_name="${cmd#releasekit-}"
+  fi
+
   if [[ -d "$RELEASEKIT_ROOT/packages/$pkg_name" ]]; then
     # Running from repo root
     node "$RELEASEKIT_ROOT/packages/$pkg_name/dist/cli.js" "$@"
@@ -68,18 +75,24 @@ run_cli() {
 run_cli_json() {
   local cmd="$1"
   shift
-  local tmpfile
+  local tmpfile stderrfile
   tmpfile=$(mktemp)
-  
-  # Run CLI, capture stdout to temp file, stderr to /dev/null
+  stderrfile=$(mktemp)
+
+  # Run CLI, capture stdout to temp file, stderr to separate file
   # The exit code is preserved
-  run_cli "$cmd" "$@" > "$tmpfile" 2>/dev/null
+  run_cli "$cmd" "$@" > "$tmpfile" 2>"$stderrfile"
   local exit_code=$?
-  
-  # Output the entire file (JSON may be multi-line)
+
+  if [ $exit_code -ne 0 ] && [ -s "$stderrfile" ]; then
+    echo "CLI stderr:" >&2
+    cat "$stderrfile" >&2
+  fi
+
+  # Output the JSON (stdout only)
   cat "$tmpfile"
-  rm -f "$tmpfile"
-  
+  rm -f "$tmpfile" "$stderrfile"
+
   return $exit_code
 }
 

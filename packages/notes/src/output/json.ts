@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { info, success } from '@releasekit/core';
+import { debug, info, success } from '@releasekit/core';
 import type { TemplateContext } from '../core/types.js';
 
 export function renderJson(contexts: TemplateContext[]): string {
@@ -24,9 +24,10 @@ export function writeJson(outputPath: string, contexts: TemplateContext[], dryRu
   const content = renderJson(contexts);
 
   if (dryRun) {
-    info('--- JSON Output Preview ---');
-    console.log(content);
-    info('--- End Preview ---');
+    info(`Would write JSON output to ${outputPath}`);
+    debug('--- JSON Output Preview ---');
+    debug(content);
+    debug('--- End Preview ---');
     return;
   }
 

@@ -21,8 +21,10 @@ create_releasekit_config '{"version":{"preset":"conventionalcommits","packages":
 git_commit "chore: initial commit"
 git_commit "feat: add feature"
 
+set +e
 output=$(run_cli_json releasekit-version --dry-run --json --prerelease)
 exit_code=$?
+set -e
 
 assert_exit_code 0 "$exit_code"
 version=$(echo "$output" | jq -r '.updates[0].newVersion')
@@ -43,8 +45,10 @@ create_releasekit_config '{"version":{"preset":"conventionalcommits","packages":
 git_commit "chore: initial commit"
 git_commit "feat: add feature"
 
+set +e
 output=$(run_cli_json releasekit-version --dry-run --json --prerelease=beta)
 exit_code=$?
+set -e
 
 assert_exit_code 0 "$exit_code"
 version=$(echo "$output" | jq -r '.updates[0].newVersion')

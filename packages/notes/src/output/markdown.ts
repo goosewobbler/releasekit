@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { info, success } from '@releasekit/core';
+import { debug, info, success } from '@releasekit/core';
 import type { ChangelogEntry, Config, TemplateContext } from '../core/types.js';
 
 const TYPE_ORDER: ChangelogEntry['type'][] = ['added', 'changed', 'deprecated', 'removed', 'fixed', 'security'];
@@ -127,9 +127,10 @@ export function writeMarkdown(outputPath: string, contexts: TemplateContext[], c
   const content = renderMarkdown(contexts);
 
   if (dryRun) {
-    info('--- Changelog Preview ---');
-    console.log(content);
-    info('--- End Preview ---');
+    info(`Would write changelog to ${outputPath}`);
+    debug('--- Changelog Preview ---');
+    debug(content);
+    debug('--- End Preview ---');
     return;
   }
 

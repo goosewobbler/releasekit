@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { info, success } from '@releasekit/core';
+import { debug, info, success } from '@releasekit/core';
 import type { TemplateContext } from '../core/types.js';
 import { prependVersion, renderMarkdown } from '../output/markdown.js';
 import { splitByPackage } from './splitter.js';
@@ -13,8 +13,8 @@ export interface MonorepoOptions {
 
 function writeFile(outputPath: string, content: string, dryRun: boolean): void {
   if (dryRun) {
-    info(`[DRY RUN] Would write to ${outputPath}`);
-    console.log(content);
+    info(`Would write to ${outputPath}`);
+    debug(content);
     return;
   }
 

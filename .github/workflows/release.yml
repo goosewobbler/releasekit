@@ -30,20 +30,14 @@ on:
         type: boolean
         default: true
 
-jobs:
-  prepare:
-    name: Prepare Release
-    uses: ./.github/workflows/_release-prepare.reusable.yml
-    with:
-      packages: ${{ inputs.packages }}
-      bump: ${{ inputs.bump }}
-      dry_run: ${{ inputs.dry_run }}
+concurrency:
+  group: release
+  cancel-in-progress: false
 
-  publish:
-    name: Publish
-    needs: prepare
-    if: ${{ needs.prepare.outputs.has_changes == 'true' }}
-    uses: ./.github/workflows/_release-publish.reusable.yml
+jobs:
+  release:
+    name: Release
+    uses: ./.github/workflows/_release.reusable.yml
     permissions:
       id-token: write
       contents: write

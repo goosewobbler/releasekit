@@ -39,6 +39,7 @@ jobs:
           cd ../version && pnpm pack
           cd ../notes && pnpm pack
           cd ../publish && pnpm pack
+          cd ../release && pnpm pack
 
       - name: Upload build artifacts
         id: upload

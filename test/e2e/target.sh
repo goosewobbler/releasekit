@@ -63,8 +63,10 @@ echo "change" > packages/pkg-b/change.txt
 git_commit "fix(pkg-b): fix bug in pkg-b"
 
 # Target only pkg-b
+set +e
 output=$(run_cli_json releasekit-version --dry-run --json --target @test/pkg-b)
 exit_code=$?
+set -e
 
 assert_exit_code 0 "$exit_code"
 
