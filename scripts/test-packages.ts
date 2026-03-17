@@ -212,7 +212,7 @@ function testReleaseDryRun(dir: string): void {
   // Run releasekit release --dry-run --json using the installed binary
   const releasekitBin = join(dir, 'node_modules', '.bin', 'releasekit');
   const output = execCommand(
-    `node ${releasekitBin} release --dry-run --json --project-dir ${repoDir}`,
+    `node "${releasekitBin}" release --dry-run --json --project-dir "${repoDir}"`,
     dir,
     'Running releasekit release --dry-run --json',
   );
