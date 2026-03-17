@@ -112,8 +112,8 @@ function buildAndPack(): Record<PackageName, string> {
   }
 
   log('📦 Packages packed:');
-  for (const [pkg, path] of Object.entries(tarballs)) {
-    log(`   ${pkg}: ${path}`);
+  for (const [pkg, tgzPath] of Object.entries(tarballs)) {
+    log(`   ${pkg}: ${tgzPath}`);
   }
 
   return tarballs as Record<PackageName, string>;
@@ -130,8 +130,8 @@ function findExistingTarballs(): Record<PackageName, string> {
   }
 
   log('📦 Found tarballs:');
-  for (const [pkg, path] of Object.entries(tarballs)) {
-    log(`   ${pkg}: ${path}`);
+  for (const [pkg, tgzPath] of Object.entries(tarballs)) {
+    log(`   ${pkg}: ${tgzPath}`);
   }
 
   return tarballs as Record<PackageName, string>;
