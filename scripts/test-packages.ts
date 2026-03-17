@@ -184,9 +184,9 @@ function testReleaseDryRun(dir: string): void {
   const repoDir = join(dir, 'test-repo');
   mkdirSync(repoDir, { recursive: true });
 
-  execSync('git init', { cwd: repoDir, stdio: 'pipe' });
-  execSync('git config user.email "test@test.com"', { cwd: repoDir, stdio: 'pipe' });
-  execSync('git config user.name "Test User"', { cwd: repoDir, stdio: 'pipe' });
+  execCommand('git init', repoDir, 'Initializing git repo');
+  execCommand('git config user.email "test@test.com"', repoDir, 'Configuring git email');
+  execCommand('git config user.name "Test User"', repoDir, 'Configuring git name');
 
   // Create a package.json and config
   writeFileSync(
@@ -200,14 +200,10 @@ function testReleaseDryRun(dir: string): void {
     }),
   );
 
-  execSync('git add -A && git commit -m "chore: initial commit"', {
-    cwd: repoDir,
-    stdio: 'pipe',
-  });
-  execSync('echo "change" > feature.txt && git add -A && git commit -m "feat: add feature"', {
-    cwd: repoDir,
-    stdio: 'pipe',
-  });
+  execCommand('git add -A && git commit -m "chore: initial commit"', repoDir, 'Creating initial commit');
+
+  writeFileSync(join(repoDir, 'feature.txt'), 'change');
+  execCommand('git add -A && git commit -m "feat: add feature"', repoDir, 'Creating feature commit');
 
   // Run releasekit release --dry-run --json using the installed binary
   const releasekitBin = join(dir, 'node_modules', '.bin', 'releasekit');
@@ -228,10 +224,8 @@ function testReleaseDryRun(dir: string): void {
     }
     log(`✅ Release dry-run produced valid output: ${result.versionOutput.updates.length} update(s)`);
   } catch (error) {
-    if (error instanceof SyntaxError) {
-      console.error('Failed to parse release output as JSON:');
-      console.error(output);
-    }
+    console.error('Release output validation failed:');
+    console.error(output);
     throw error;
   }
 }
