@@ -1,0 +1,161 @@
+name: Release
+
+on:
+  workflow_call:
+    inputs:
+      packages:
+        required: true
+        type: string
+      bump:
+        required: true
+        type: string
+      dry_run:
+        required: true
+        type: boolean
+    secrets:
+      DEPLOY_KEY:
+        required: false
+
+permissions:
+  id-token: write
+  contents: write
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (SSH)
+        if: ${{ !inputs.dry_run }}
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+
+      - name: Checkout (read-only)
+        if: ${{ inputs.dry_run }}
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup workspace
+        uses: ./.github/workflows/actions/setup-workspace
+
+      - name: Configure git
+        if: ${{ !inputs.dry_run }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Run releasekit
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          INPUT_PACKAGES: ${{ inputs.packages }}
+          INPUT_BUMP: ${{ inputs.bump }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          # Build target flags
+          TARGET_FLAGS=""
+          if [ "$INPUT_PACKAGES" = "version" ]; then
+            TARGET_FLAGS="--target @releasekit/version"
+          elif [ "$INPUT_PACKAGES" = "notes" ]; then
+            TARGET_FLAGS="--target @releasekit/notes"
+          elif [ "$INPUT_PACKAGES" = "publish" ]; then
+            TARGET_FLAGS="--target @releasekit/publish"
+          elif [ "$INPUT_PACKAGES" = "release" ]; then
+            TARGET_FLAGS="--target @releasekit/release"
+          fi
+
+          # Build bump flags
+          BUMP_FLAGS="--bump $INPUT_BUMP"
+
+          # Check if prerelease
+          PRERELEASE_FLAGS=""
+          if [ "$INPUT_BUMP" = "prerelease" ]; then
+            BUMP_FLAGS="--bump prerelease"
+            PRERELEASE_FLAGS="--prerelease next"
+          elif [[ "$INPUT_BUMP" == pre* ]]; then
+            BASE_BUMP="${INPUT_BUMP#pre}"
+            BUMP_FLAGS="--bump ${BASE_BUMP}"
+            PRERELEASE_FLAGS="--prerelease next"
+          fi
+
+          DRY_RUN_FLAG=""
+          if [ "$INPUT_DRY_RUN" = "true" ]; then
+            DRY_RUN_FLAG="--dry-run"
+          fi
+
+          # Run releasekit and capture JSON output
+          set +e
+          RELEASE_OUTPUT=$(node packages/release/dist/cli.js release \
+            --json \
+            ${BUMP_FLAGS} \
+            ${PRERELEASE_FLAGS} \
+            ${TARGET_FLAGS} \
+            ${DRY_RUN_FLAG} \
+            2>&1)
+          EXIT_CODE=$?
+          set -e
+
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "releasekit failed with exit code $EXIT_CODE"
+            echo "$RELEASE_OUTPUT"
+            exit $EXIT_CODE
+          fi
+
+          # Check if output is valid JSON (releasekit returns null for no changes)
+          if echo "$RELEASE_OUTPUT" | jq -e '.versionOutput' > /dev/null 2>&1; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "$RELEASE_OUTPUT" > release-output.json
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Summary
+        env:
+          INPUT_BUMP: ${{ inputs.bump }}
+          INPUT_PACKAGES: ${{ inputs.packages }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+          HAS_CHANGES: ${{ steps.release.outputs.has_changes }}
+        run: |
+          echo "## Release" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Setting | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Bump type | \`${INPUT_BUMP}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Packages | \`${INPUT_PACKAGES}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Dry run | \`${INPUT_DRY_RUN}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$HAS_CHANGES" != "true" ]; then
+            echo "> **No releasable changes found**" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if [ "$INPUT_DRY_RUN" = "true" ]; then
+            echo "> **Dry run** — no packages were published or pushed" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          echo "### Package Updates" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Package | Version |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---------|---------|" >> "$GITHUB_STEP_SUMMARY"
+          jq -r '.versionOutput.updates[] | "| `\(.packageName)` | \(.newVersion) |"' release-output.json >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "### Tags" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          jq -r '.versionOutput.tags[]' release-output.json | while read -r tag; do
+            echo "- \`${tag}\`" >> "$GITHUB_STEP_SUMMARY"
+          done
