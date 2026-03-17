@@ -121,4 +121,23 @@ describe('git-commit stage', () => {
     expect(execCommand).toHaveBeenCalledTimes(4);
     expect(ctx.output.git.tags).toEqual(['a@v1.0.0', 'b@v1.0.0']);
   });
+
+  it('should pass --no-verify when skipHooks is true', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    const ctx = createContext({
+      config: {
+        ...getDefaultConfig(),
+        git: {
+          ...getDefaultConfig().git,
+          skipHooks: true,
+        },
+      },
+    });
+
+    await runGitCommitStage(ctx);
+
+    const calls = vi.mocked(execCommand).mock.calls;
+    const commitCall = calls[1];
+    expect(commitCall?.[1]).toContain('--no-verify');
+  });
 });

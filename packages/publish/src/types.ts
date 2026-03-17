@@ -25,6 +25,7 @@ export interface GitConfig {
   remote: string;
   branch: string;
   httpsTokenEnv?: string;
+  skipHooks?: boolean;
 }
 
 export interface GitHubReleaseConfig {
@@ -144,6 +145,7 @@ export function getDefaultConfig(): PublishConfig {
       remote: 'origin',
       branch: 'main',
       httpsTokenEnv: undefined,
+      skipHooks: false,
     },
     githubRelease: {
       enabled: true,
@@ -197,6 +199,7 @@ export function toPublishConfig(config: BasePublishConfig | undefined): PublishC
           remote: config.git.remote ?? defaults.git.remote,
           branch: config.git.branch ?? defaults.git.branch,
           httpsTokenEnv: config.git.httpsTokenEnv ?? defaults.git.httpsTokenEnv,
+          skipHooks: config.git.skipHooks ?? defaults.git.skipHooks,
         }
       : defaults.git,
     githubRelease: {

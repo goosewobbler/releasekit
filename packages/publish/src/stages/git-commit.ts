@@ -6,8 +6,9 @@ import { execCommand } from '../utils/exec.js';
 
 /** Error strategy: THROWS. Git is a prerequisite — failure halts pipeline. */
 export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
-  const { input, cliOptions, cwd } = ctx;
+  const { input, config, cliOptions, cwd } = ctx;
   const dryRun = cliOptions.dryRun;
+  const skipHooks = config.git.skipHooks ?? false;
 
   if (!input.commitMessage) {
     info('No commit message provided, skipping git commit');
@@ -36,8 +37,14 @@ export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
   }
 
   // Create commit
+  const commitArgs = ['commit'];
+  if (skipHooks) {
+    commitArgs.push('--no-verify');
+  }
+  commitArgs.push('-m', input.commitMessage);
+
   try {
-    await execCommand('git', ['commit', '-m', input.commitMessage], {
+    await execCommand('git', commitArgs, {
       cwd,
       dryRun,
       label: `git commit -m "${input.commitMessage}"`,

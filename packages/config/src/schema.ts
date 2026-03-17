@@ -74,6 +74,7 @@ export const PublishGitConfigSchema = z.object({
   remote: z.string().optional(),
   branch: z.string().optional(),
   httpsTokenEnv: z.string().optional(),
+  skipHooks: z.boolean().optional(),
 });
 
 export const GitHubReleaseConfigSchema = z.object({
