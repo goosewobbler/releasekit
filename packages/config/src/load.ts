@@ -70,6 +70,8 @@ export function loadPublishConfig(options?: LoadOptions): PublishConfig | undefi
           pushMethod: mergedGit.pushMethod,
           remote: mergedGit.remote,
           branch: mergedGit.branch,
+          httpsTokenEnv: mergedGit.httpsTokenEnv,
+          skipHooks: config.publish.git?.skipHooks,
         }
       : undefined,
   };

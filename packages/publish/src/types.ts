@@ -64,6 +64,7 @@ export interface PublishCliOptions {
   npmAuth: 'auto' | 'oidc' | 'token';
   dryRun: boolean;
   skipGit: boolean;
+  skipGitCommit?: boolean;
   skipPublish: boolean;
   skipGithubRelease: boolean;
   skipVerification: boolean;

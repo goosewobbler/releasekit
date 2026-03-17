@@ -107,6 +107,9 @@ async function runPublishStep(versionOutput: VersionOutput, options: ReleaseOpti
     registry: 'all' as const,
     npmAuth: 'auto' as const,
     skipGit: options.skipGit,
+    // The version step already created the commit and tags —
+    // skip the publish step's git-commit stage to avoid double-committing.
+    skipGitCommit: true,
     skipPublish: false,
     skipGithubRelease: options.skipGithubRelease,
     skipVerification: options.skipVerification,

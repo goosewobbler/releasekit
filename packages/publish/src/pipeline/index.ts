@@ -57,7 +57,13 @@ export async function runPipeline(
     await runPrepareStage(ctx);
 
     // Stage 3: Git commit + tag
-    if (!options.skipGit) {
+    // When skipGitCommit is set, the caller (e.g. unified release CLI)
+    // already created the commit and tags in the version step.
+    // Pre-populate the output so push and github-release stages work.
+    if (options.skipGitCommit && !options.skipGit) {
+      ctx.output.git.committed = !!input.commitMessage;
+      ctx.output.git.tags = [...input.tags];
+    } else if (!options.skipGit) {
       await runGitCommitStage(ctx);
     }
 
