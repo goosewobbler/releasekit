@@ -75,18 +75,24 @@ run_cli() {
 run_cli_json() {
   local cmd="$1"
   shift
-  local tmpfile
+  local tmpfile stderrfile
   tmpfile=$(mktemp)
-  
-  # Run CLI, capture stdout to temp file, stderr to /dev/null
+  stderrfile=$(mktemp)
+
+  # Run CLI, capture stdout to temp file, stderr to separate file
   # The exit code is preserved
-  run_cli "$cmd" "$@" > "$tmpfile" 2>/dev/null
+  run_cli "$cmd" "$@" > "$tmpfile" 2>"$stderrfile"
   local exit_code=$?
-  
-  # Output the entire file (JSON may be multi-line)
+
+  if [ $exit_code -ne 0 ] && [ -s "$stderrfile" ]; then
+    echo "CLI stderr:" >&2
+    cat "$stderrfile" >&2
+  fi
+
+  # Output the JSON (stdout only)
   cat "$tmpfile"
-  rm -f "$tmpfile"
-  
+  rm -f "$tmpfile" "$stderrfile"
+
   return $exit_code
 }
 
