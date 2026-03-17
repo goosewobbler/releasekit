@@ -8,7 +8,7 @@ source "$SCRIPT_DIR/lib/helpers.sh"
 
 trap cleanup_repo EXIT
 
-echo "=== E2E: Unified Release CLI Tests ==="
+echo "=== E2E: Release CLI Tests ==="
 
 cd "$SCRIPT_DIR"
 
@@ -32,7 +32,7 @@ assert_version "0.2.0" "$version"
 notes_generated=$(echo "$release_output" | jq -r '.notesGenerated')
 assert_contains "$notes_generated" "true"
 
-echo "PASS: Unified release CLI dry-run succeeded"
+echo "PASS: Release CLI dry-run succeeded"
 
 cleanup_repo
 REPO_DIR=""
@@ -77,4 +77,4 @@ assert_version "1.0.1" "$version"
 echo "PASS: Fix commit produces patch bump"
 
 echo ""
-echo "=== All unified release CLI tests passed ==="
+echo "=== All release CLI tests passed ==="
