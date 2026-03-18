@@ -26,7 +26,7 @@
     ],
     "llm": {
       "provider": "ollama",
-      "model": "minimax-m2.5:cloud",
+      "model": "minimax-m2.7:cloud",
       "baseURL": "https://ollama.com/api",
       "tasks": {
         "enhance": true,
