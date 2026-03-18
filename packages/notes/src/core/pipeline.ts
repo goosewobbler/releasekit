@@ -266,7 +266,8 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
   const files: string[] = [];
 
   for (const output of config.output) {
-    info(`Generating ${output.format} output`);
+    const outputLabel = output.file ? `${output.format} output → ${output.file}` : `${output.format} output`;
+    info(`Generating ${outputLabel}`);
 
     switch (output.format) {
       case 'markdown': {

@@ -4,7 +4,7 @@ import { createDocumentContext, createTemplateContext } from '../../src/core/pip
 import { parseConventionalChangelog, parseConventionalChangelogFile } from '../../src/input/conventional-changelog.js';
 import { parsePackageVersioner } from '../../src/input/package-versioner.js';
 import { aggregateToRoot, splitByPackage } from '../../src/monorepo/index.js';
-import { renderMarkdown } from '../../src/output/markdown.js';
+import { formatVersion, renderMarkdown } from '../../src/output/markdown.js';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -268,5 +268,47 @@ describe('Monorepo: aggregation and splitting', () => {
     const markdown = renderMarkdown([root]);
     expect(markdown).toContain('@acme/core');
     expect(markdown).toContain('@acme/ui');
+  });
+
+  it('root changelog renders per-package sections with package names in headers', () => {
+    const markdown = renderMarkdown([pkgA, pkgB], { includePackageName: true });
+
+    // Each package gets its own version header with package name
+    expect(markdown).toContain('## @acme/core@1.0.0');
+    expect(markdown).toContain('## @acme/ui@1.0.0');
+    // Entries are in their respective sections
+    expect(markdown).toContain('- Core init');
+    expect(markdown).toContain('- Button alignment');
+  });
+
+  it('per-package changelogs omit package name from headers', () => {
+    const markdown = renderMarkdown([pkgA]);
+
+    expect(markdown).toContain('## 1.0.0');
+    expect(markdown).not.toContain('@acme/core@');
+  });
+
+  it('formatVersion includes package name only when requested', () => {
+    const withName = formatVersion(pkgA, { includePackageName: true });
+    const withoutName = formatVersion(pkgA);
+
+    expect(withName).toContain('## @acme/core@1.0.0');
+    expect(withoutName).toContain('## 1.0.0');
+    expect(withoutName).not.toContain('@acme/core');
+  });
+
+  it('root changelog with previousVersion uses bracketed headers', () => {
+    const pkgWithPrev = createTemplateContext({
+      packageName: '@acme/core',
+      version: '2.0.0',
+      previousVersion: 'v1.0.0',
+      revisionRange: 'v1.0.0..HEAD',
+      repoUrl: null,
+      date: '2026-02-01',
+      entries: [{ type: 'added', description: 'New feature' }],
+    });
+
+    const markdown = renderMarkdown([pkgWithPrev], { includePackageName: true });
+    expect(markdown).toContain('## [@acme/core@2.0.0]');
   });
 });

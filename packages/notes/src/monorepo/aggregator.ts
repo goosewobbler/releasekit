@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { debug, info, success } from '@releasekit/core';
 import type { TemplateContext } from '../core/types.js';
-import { prependVersion, renderMarkdown } from '../output/markdown.js';
+import { formatVersion, prependVersion, renderMarkdown } from '../output/markdown.js';
 import { splitByPackage } from './splitter.js';
 
 export interface MonorepoOptions {
@@ -62,14 +62,25 @@ export function writeMonorepoChangelogs(
   const files: string[] = [];
 
   if (options.mode === 'root' || options.mode === 'both') {
-    const aggregated = aggregateToRoot(contexts);
     const rootPath = path.join(options.rootPath, 'CHANGELOG.md');
+    // Root changelog includes package names since it aggregates multiple packages
+    const fmtOpts = { includePackageName: true };
 
     info(`Writing root changelog to ${rootPath}`);
-    const rootContent =
-      config.updateStrategy === 'prepend' && fs.existsSync(rootPath)
-        ? prependVersion(rootPath, aggregated)
-        : renderMarkdown([aggregated]);
+    let rootContent: string;
+    if (config.updateStrategy === 'prepend' && fs.existsSync(rootPath)) {
+      // Build new sections and prepend to existing file
+      const newSections = contexts.map((ctx) => formatVersion(ctx, fmtOpts)).join('\n');
+      const existing = fs.readFileSync(rootPath, 'utf-8');
+      const headerEnd = existing.indexOf('\n## ');
+      if (headerEnd >= 0) {
+        rootContent = `${existing.slice(0, headerEnd)}\n\n${newSections}\n${existing.slice(headerEnd + 1)}`;
+      } else {
+        rootContent = renderMarkdown(contexts, fmtOpts);
+      }
+    } else {
+      rootContent = renderMarkdown(contexts, fmtOpts);
+    }
     if (writeFile(rootPath, rootContent, dryRun)) {
       files.push(rootPath);
     }

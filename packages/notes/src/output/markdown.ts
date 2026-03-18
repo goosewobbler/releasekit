@@ -50,10 +50,17 @@ function formatEntry(entry: ChangelogEntry): string {
   return line;
 }
 
-export function formatVersion(context: TemplateContext): string {
+export interface FormatVersionOptions {
+  /** Include the package name in the version header (e.g. `## [pkg@1.0.0]`). */
+  includePackageName?: boolean;
+}
+
+export function formatVersion(context: TemplateContext, options?: FormatVersionOptions): string {
   const lines: string[] = [];
 
-  const versionHeader = context.previousVersion ? `## [${context.version}]` : `## ${context.version}`;
+  const versionLabel =
+    options?.includePackageName && context.packageName ? `${context.packageName}@${context.version}` : context.version;
+  const versionHeader = context.previousVersion ? `## [${versionLabel}]` : `## ${versionLabel}`;
 
   lines.push(`${versionHeader} - ${context.date}`);
   lines.push('');
@@ -94,17 +101,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 `;
 }
 
-export function renderMarkdown(contexts: TemplateContext[]): string {
+export function renderMarkdown(contexts: TemplateContext[], options?: FormatVersionOptions): string {
   const sections: string[] = [formatHeader()];
 
   for (const context of contexts) {
-    sections.push(formatVersion(context));
+    sections.push(formatVersion(context, options));
   }
 
   return sections.join('\n');
 }
 
-export function prependVersion(existingPath: string, context: TemplateContext): string {
+export function prependVersion(existingPath: string, context: TemplateContext, options?: FormatVersionOptions): string {
   let existing = '';
 
   if (fs.existsSync(existingPath)) {
@@ -115,7 +122,7 @@ export function prependVersion(existingPath: string, context: TemplateContext): 
       const header = existing.slice(0, headerEnd);
       const body = existing.slice(headerEnd + 1);
 
-      const newVersion = formatVersion(context);
+      const newVersion = formatVersion(context, options);
       return `${header}\n\n${newVersion}\n${body}`;
     }
   }
