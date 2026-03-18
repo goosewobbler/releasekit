@@ -1,6 +1,6 @@
 # @releasekit/notes
 
-Changelog generation from conventional commits with LLM-powered enhancement and flexible templating
+Release notes and changelog generation from conventional commits with LLM-powered enhancement and flexible templating
 
 ## Features
 
