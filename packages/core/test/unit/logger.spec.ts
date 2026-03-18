@@ -69,13 +69,14 @@ describe('logger', () => {
   });
 
   describe('setJsonMode', () => {
-    it('suppresses non-error messages in json mode', () => {
+    it('still logs non-error messages to stderr in json mode', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       setJsonMode(true);
-      info('This should not appear');
+      info('This should appear on stderr');
 
-      expect(consoleSpy).not.toHaveBeenCalled();
+      expect(consoleSpy).toHaveBeenCalled();
+      expect(consoleSpy.mock.calls[0]?.[0]).toContain('This should appear on stderr');
 
       consoleSpy.mockRestore();
     });

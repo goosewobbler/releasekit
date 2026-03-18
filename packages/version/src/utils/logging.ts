@@ -60,17 +60,13 @@ export function log(message: string, level: LogLevel = 'info'): void {
       chalkFn = chalk.blue;
   }
 
-  // In JSON mode, only output errors and send them to stderr
+  const formattedMessage = level === 'debug' ? `[DEBUG] ${message}` : message;
+
+  // In JSON mode, send all logs to stderr so they don't pollute JSON stdout
   if (isJsonOutputMode()) {
-    if (level === 'error') {
-      // Apply color for test expectations, but output plain message
-      chalkFn(message);
-      console.error(message);
-    }
+    console.error(chalkFn(formattedMessage));
     return;
   }
-
-  const formattedMessage = level === 'debug' ? `[DEBUG] ${message}` : message;
 
   // In non-JSON mode, output errors to stderr, other logs to stdout
   if (level === 'error') {

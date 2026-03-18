@@ -95,22 +95,23 @@ describe('Logging Utilities', () => {
       process.env.DEBUG = originalDebug;
     });
 
-    it('should not log non-error messages when in JSON output mode', () => {
+    it('should redirect all messages to stderr in JSON output mode', () => {
       vi.mocked(jsonOutput.isJsonOutputMode, { partial: true }).mockReturnValue(true);
 
       log('Info message', 'info');
 
+      // In JSON mode, logs go to stderr instead of stdout to avoid polluting JSON output
       expect(console.log).not.toHaveBeenCalled();
-      expect(console.error).not.toHaveBeenCalled();
+      expect(console.error).toHaveBeenCalledWith('BLUE:Info message');
     });
 
-    it('should log error messages even when in JSON output mode', () => {
+    it('should log error messages to stderr in JSON output mode', () => {
       vi.mocked(jsonOutput.isJsonOutputMode, { partial: true }).mockReturnValue(true);
 
       log('Error message', 'error');
 
       expect(chalk.red).toHaveBeenCalledWith('Error message');
-      expect(console.error).toHaveBeenCalledWith('Error message');
+      expect(console.error).toHaveBeenCalledWith('RED:Error message');
     });
   });
 });

@@ -34,7 +34,6 @@ export interface LoggerOptions {
 
 let currentLevel: LogLevel = 'info';
 let quietMode = false;
-let jsonMode = false;
 
 export function setLogLevel(level: LogLevel): void {
   currentLevel = level;
@@ -44,8 +43,13 @@ export function setQuietMode(quiet: boolean): void {
   quietMode = quiet;
 }
 
-export function setJsonMode(json: boolean): void {
-  jsonMode = json;
+/**
+ * No-op retained for API compatibility.
+ * JSON mode no longer suppresses stderr logging — JSON goes to stdout,
+ * logs go to stderr, so they don't interfere.
+ */
+export function setJsonMode(_json: boolean): void {
+  // intentionally empty
 }
 
 export function getLogLevel(): LogLevel {
@@ -53,7 +57,8 @@ export function getLogLevel(): LogLevel {
 }
 
 function shouldLog(level: LogLevel): boolean {
-  if (jsonMode && level !== 'error') return false;
+  // JSON mode no longer suppresses stderr logging — JSON output goes to stdout,
+  // logs go to stderr, so they don't interfere with each other.
   if (quietMode && level !== 'error') return false;
   return LOG_LEVELS[level] <= LOG_LEVELS[currentLevel];
 }
