@@ -33,9 +33,17 @@ export function substituteVariables(value: string): string {
   return result;
 }
 
+const SOLE_REFERENCE_PATTERN = /^\{(?:env|file):[^}]+\}$/;
+
 export function substituteInObject<T>(obj: T): T {
   if (typeof obj === 'string') {
-    return substituteVariables(obj) as T;
+    const result = substituteVariables(obj);
+    // When the entire string was a single {env:…} or {file:…} reference that
+    // resolved to nothing, return undefined so downstream ?? fallbacks work.
+    if (result === '' && SOLE_REFERENCE_PATTERN.test(obj)) {
+      return undefined as T;
+    }
+    return result as T;
   }
 
   if (Array.isArray(obj)) {

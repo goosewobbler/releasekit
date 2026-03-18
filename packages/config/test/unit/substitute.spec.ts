@@ -151,6 +151,27 @@ describe('substituteInObject', () => {
     expect(result).toEqual([]);
   });
 
+  it('returns undefined for sole {env:MISSING} reference that resolves to empty', () => {
+    const obj = { apiKey: '{env:DOES_NOT_EXIST_XYZ}' };
+    const result = substituteInObject(obj);
+    expect(result.apiKey).toBeUndefined();
+  });
+
+  it('returns empty string for partial {env:MISSING} within a larger string', () => {
+    const obj = { url: 'https://{env:DOES_NOT_EXIST_XYZ}:8080' };
+    const result = substituteInObject(obj);
+    expect(result.url).toBe('https://:8080');
+  });
+
+  it('returns undefined for sole {file:MISSING} reference that resolves to empty', () => {
+    mockedFs.readFileSync.mockImplementation(() => {
+      throw new Error('ENOENT');
+    });
+    const obj = { secret: '{file:/nonexistent/path}' };
+    const result = substituteInObject(obj);
+    expect(result.secret).toBeUndefined();
+  });
+
   it('substitutes in deeply nested structures', () => {
     const obj = {
       level1: {
