@@ -14,7 +14,7 @@ import {
 } from '../llm/index.js';
 import { createGitHubRelease, parseRepoUrl } from '../output/github-release.js';
 import { writeJson } from '../output/json.js';
-import { formatVersion, writeMarkdown } from '../output/markdown.js';
+import { type FormatVersionOptions, formatVersion, writeMarkdown } from '../output/markdown.js';
 import { renderTemplate } from '../templates/index.js';
 import { withRetry } from '../utils/retry.js';
 import type {
@@ -266,6 +266,12 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
 
   const files: string[] = [];
 
+  // Include package name in version headers when there are multiple packages
+  // or when the single package has a scoped name (monorepo package like @scope/pkg)
+  const fmtOpts: FormatVersionOptions = {
+    includePackageName: contexts.length > 1 || contexts.some((c) => c.packageName.includes('/')),
+  };
+
   for (const output of config.output) {
     const file = output.file ?? (output.format === 'json' ? 'changelog.json' : 'CHANGELOG.md');
     const isChangelog = /changelog/i.test(file);
@@ -282,7 +288,7 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
             const configWithTemplate = { ...config, templates: effectiveTemplateConfig };
             await generateWithTemplate(contexts, configWithTemplate, file, dryRun);
           } else {
-            writeMarkdown(file, contexts, config, dryRun);
+            writeMarkdown(file, contexts, config, dryRun, fmtOpts);
           }
           if (!dryRun) files.push(file);
         } catch (error) {

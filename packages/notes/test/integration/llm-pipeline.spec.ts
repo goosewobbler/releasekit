@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { runPipeline } from '../../src/core/pipeline.js';
 import type { ChangelogInput, Config } from '../../src/core/types.js';
 import type { LLMProvider } from '../../src/llm/provider.js';
@@ -180,5 +183,76 @@ describe('Pipeline: LLM error fallback', () => {
     };
 
     await expect(runPipeline(sampleInput, config, false)).resolves.not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Pipeline: package name in changelog headers
+// ---------------------------------------------------------------------------
+
+describe('Pipeline: package name in changelog headers', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-pipeline-test-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('includes scoped package name in version header', async () => {
+    const scopedInput: ChangelogInput = {
+      source: 'package-versioner',
+      packages: [
+        {
+          packageName: '@releasekit/notes',
+          version: '0.3.0',
+          previousVersion: 'v0.2.0',
+          revisionRange: 'v0.2.0..HEAD',
+          repoUrl: 'https://github.com/goosewobbler/releasekit',
+          date: '2026-03-18',
+          entries: [{ type: 'added', description: 'New feature' }],
+        },
+      ],
+    };
+
+    const outFile = path.join(tmpDir, 'CHANGELOG.md');
+    const config: Config = {
+      output: [{ format: 'markdown', file: outFile }],
+    };
+
+    await runPipeline(scopedInput, config, false);
+
+    const content = fs.readFileSync(outFile, 'utf-8');
+    expect(content).toContain('## [@releasekit/notes@0.3.0]');
+  });
+
+  it('omits package name for unscoped packages', async () => {
+    const unscopedInput: ChangelogInput = {
+      source: 'package-versioner',
+      packages: [
+        {
+          packageName: 'my-lib',
+          version: '2.0.0',
+          previousVersion: 'v1.0.0',
+          revisionRange: 'v1.0.0..HEAD',
+          repoUrl: 'https://github.com/acme/my-lib',
+          date: '2026-01-15',
+          entries: [{ type: 'added', description: 'New feature' }],
+        },
+      ],
+    };
+
+    const outFile = path.join(tmpDir, 'CHANGELOG.md');
+    const config: Config = {
+      output: [{ format: 'markdown', file: outFile }],
+    };
+
+    await runPipeline(unscopedInput, config, false);
+
+    const content = fs.readFileSync(outFile, 'utf-8');
+    expect(content).toContain('## [2.0.0]');
+    expect(content).not.toContain('my-lib@');
   });
 });

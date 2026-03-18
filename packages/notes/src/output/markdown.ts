@@ -130,8 +130,14 @@ export function prependVersion(existingPath: string, context: TemplateContext, o
   return renderMarkdown([context]);
 }
 
-export function writeMarkdown(outputPath: string, contexts: TemplateContext[], config: Config, dryRun: boolean): void {
-  const content = renderMarkdown(contexts);
+export function writeMarkdown(
+  outputPath: string,
+  contexts: TemplateContext[],
+  config: Config,
+  dryRun: boolean,
+  options?: FormatVersionOptions,
+): void {
+  const content = renderMarkdown(contexts, options);
 
   const label = /changelog/i.test(outputPath) ? 'Changelog' : 'Release notes';
 
@@ -156,7 +162,7 @@ export function writeMarkdown(outputPath: string, contexts: TemplateContext[], c
   if (config.updateStrategy === 'prepend' && fs.existsSync(outputPath) && contexts.length === 1) {
     const firstContext = contexts[0];
     if (firstContext) {
-      const updated = prependVersion(outputPath, firstContext);
+      const updated = prependVersion(outputPath, firstContext, options);
       fs.writeFileSync(outputPath, updated, 'utf-8');
     }
   } else {
