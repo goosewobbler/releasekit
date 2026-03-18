@@ -1,6 +1,6 @@
 {
   "name": "@releasekit/release",
-  "version": "0.2.0",
+  "version": "0.3.0-next.0",
   "description": "Unified release pipeline: version, changelog, and publish in a single command",
   "type": "module",
   "main": "./dist/index.cjs",
