@@ -4,11 +4,10 @@ import * as readline from 'node:readline';
 import { error, info, setLogLevel, setQuietMode, success } from '@releasekit/core';
 import { Command } from 'commander';
 import { getDefaultConfig, loadConfig, saveAuth } from './core/config.js';
-import { createTemplateContext, runPipeline } from './core/pipeline.js';
+import { runPipeline } from './core/pipeline.js';
 import type { OutputConfig } from './core/types.js';
 import { EXIT_CODES, getExitCode, NotesError } from './errors/index.js';
 import { parsePackageVersioner } from './input/package-versioner.js';
-import { detectMonorepo, writeMonorepoChangelogs } from './monorepo/index.js';
 
 const program = new Command();
 
@@ -113,30 +112,12 @@ program
         info(`Filtered to package: ${options.target}`);
       }
 
-      if (options.monorepo || config.monorepo) {
-        const monorepoMode = options.monorepo ?? config.monorepo?.mode ?? 'both';
-        const detected = detectMonorepo(process.cwd());
-
-        if (!detected.isMonorepo) {
-          info('No monorepo detected, using single package mode');
-          await runPipeline(input, config, options.dryRun ?? false);
-        } else {
-          info(`Monorepo detected with packages at ${detected.packagesPath}`);
-          const contexts = input.packages.map(createTemplateContext);
-          writeMonorepoChangelogs(
-            contexts,
-            {
-              rootPath: config.monorepo?.rootPath ?? process.cwd(),
-              packagesPath: config.monorepo?.packagesPath ?? detected.packagesPath,
-              mode: monorepoMode as 'root' | 'packages' | 'both',
-            },
-            config,
-            options.dryRun ?? false,
-          );
-        }
-      } else {
-        await runPipeline(input, config, options.dryRun ?? false);
+      // Set monorepo mode from CLI flag if provided (runPipeline handles writing)
+      if (options.monorepo) {
+        config.monorepo = { ...config.monorepo, mode: options.monorepo as 'root' | 'packages' | 'both' };
       }
+
+      await runPipeline(input, config, options.dryRun ?? false);
 
       if (options.dryRun) {
         info('Dry run complete - no files were written');

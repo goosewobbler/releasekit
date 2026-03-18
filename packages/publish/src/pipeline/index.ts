@@ -42,6 +42,8 @@ export async function runPipeline(
     cliOptions: options,
     packageManager: detectPackageManager(cwd),
     cwd,
+    releaseNotes: options.releaseNotes,
+    additionalFiles: options.additionalFiles,
     output: {
       dryRun: options.dryRun,
       git: { committed: false, tags: [], pushed: false },
@@ -57,8 +59,7 @@ export async function runPipeline(
     await runPrepareStage(ctx);
 
     // Stage 3: Git commit + tag
-    // When skipGitCommit is set, the caller (e.g. unified release CLI)
-    // already created the commit and tags in the version step.
+    // When skipGitCommit is set, the caller already created the commit and tags.
     // Pre-populate the output so push and github-release stages work.
     if (options.skipGitCommit && !options.skipGit) {
       ctx.output.git.committed = !!input.commitMessage;

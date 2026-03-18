@@ -1,8 +1,113 @@
 import * as fs from 'node:fs';
+import type { VersionPackageChangelog } from '@releasekit/core';
 import { debug, info, success, warn } from '@releasekit/core';
 import type { GitHubReleaseResult, PipelineContext } from '../types.js';
 import { execCommand } from '../utils/exec.js';
 import { isPrerelease } from '../utils/semver.js';
+
+/**
+ * Resolve notes for a given tag based on the `releaseNotes` config.
+ *
+ * Resolution order for 'auto':
+ *   1. In-memory per-package notes from the notes pipeline (ctx.releaseNotes)
+ *   2. Per-package changelog entries from the version output
+ *   3. GitHub's auto-generated notes (--generate-notes flag)
+ *
+ * Other values:
+ *   'github' → always --generate-notes
+ *   'none'   → no notes body
+ *   string   → read that file path
+ */
+function resolveNotes(
+  notesSetting: string,
+  tag: string,
+  changelogs: VersionPackageChangelog[],
+  pipelineNotes?: Record<string, string>,
+): { body?: string; useGithubNotes: boolean } {
+  if (notesSetting === 'none') {
+    return { useGithubNotes: false };
+  }
+
+  if (notesSetting === 'github') {
+    return { useGithubNotes: true };
+  }
+
+  // Explicit file path
+  if (notesSetting !== 'auto') {
+    const body = readFileIfExists(notesSetting);
+    if (body) return { body, useGithubNotes: false };
+    debug(`Notes file not found: ${notesSetting}, falling back to GitHub auto-notes`);
+    return { useGithubNotes: true };
+  }
+
+  // 'auto' mode — layered fallback
+
+  // 1. Try in-memory per-package notes from the notes pipeline
+  if (pipelineNotes) {
+    const body = findNotesForTag(tag, pipelineNotes);
+    if (body) return { body, useGithubNotes: false };
+  }
+
+  // 2. Try per-package changelog from version output
+  const packageBody = formatChangelogForTag(tag, changelogs);
+  if (packageBody) {
+    return { body: packageBody, useGithubNotes: false };
+  }
+
+  // 3. Fall back to GitHub auto-notes
+  return { useGithubNotes: true };
+}
+
+/** Check if a tag is version-only (e.g., "v1.0.0") vs package-specific (e.g., "pkg@v1.0.0"). */
+function isVersionOnlyTag(tag: string): boolean {
+  return /^v?\d+\.\d+\.\d+/.test(tag);
+}
+
+/** Match a tag to a package name in the notes map. */
+function findNotesForTag(tag: string, notes: Record<string, string>): string | undefined {
+  // Boundary-aware match: tag format is "packageName@vX.Y.Z"
+  for (const [packageName, body] of Object.entries(notes)) {
+    if (tag.startsWith(`${packageName}@`) && body.trim()) {
+      return body;
+    }
+  }
+  // Single-package fallback: only for version-only tags (e.g., "v1.0.0")
+  // not for package-specific tags (e.g., "pkg@v1.0.0", "@scope/pkg@v1.0.0")
+  const entries = Object.values(notes).filter((b) => b.trim());
+  if (entries.length === 1 && isVersionOnlyTag(tag)) return entries[0];
+  return undefined;
+}
+
+function readFileIfExists(filePath: string): string | undefined {
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8').trim();
+    return content || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Extract the package name from a tag (e.g., '@releasekit/version@v0.2.0' → '@releasekit/version')
+ * and format that package's changelog entries into markdown.
+ */
+function formatChangelogForTag(tag: string, changelogs: VersionPackageChangelog[]): string | undefined {
+  if (changelogs.length === 0) return undefined;
+
+  // Try to match tag to a package changelog (boundary-aware: "packageName@vX.Y.Z")
+  const changelog = changelogs.find((c) => tag.startsWith(`${c.packageName}@`));
+
+  // For single-package repos with version-only tags, use the first changelog
+  const target = changelog ?? (changelogs.length === 1 && isVersionOnlyTag(tag) ? changelogs[0] : undefined);
+  if (!target || target.entries.length === 0) return undefined;
+
+  const lines: string[] = [];
+  for (const entry of target.entries) {
+    const scope = entry.scope ? `**${entry.scope}:** ` : '';
+    lines.push(`- ${scope}${entry.description}`);
+  }
+  return lines.join('\n');
+}
 
 /** Error strategy: CATCHES per-tag. Non-critical. */
 export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void> {
@@ -19,16 +124,6 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
   if (tags.length === 0) {
     info('No tags available for GitHub release');
     return;
-  }
-
-  // Read notes file if provided
-  let notesBody: string | undefined;
-  if (config.githubRelease.notesFile) {
-    try {
-      notesBody = fs.readFileSync(config.githubRelease.notesFile, 'utf-8');
-    } catch {
-      debug(`Could not read notes file: ${config.githubRelease.notesFile}`);
-    }
   }
 
   const firstTag = tags[0];
@@ -66,9 +161,16 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
       ghArgs.push('--prerelease');
     }
 
-    if (notesBody) {
-      ghArgs.push('--notes', notesBody);
-    } else if (config.githubRelease.generateNotes) {
+    // Resolve notes for this tag
+    const { body, useGithubNotes } = resolveNotes(
+      config.githubRelease.releaseNotes,
+      tag,
+      ctx.input.changelogs,
+      ctx.releaseNotes,
+    );
+    if (body) {
+      ghArgs.push('--notes', body);
+    } else if (useGithubNotes) {
       ghArgs.push('--generate-notes');
     }
 

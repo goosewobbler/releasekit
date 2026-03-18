@@ -11,11 +11,12 @@ export interface MonorepoOptions {
   mode: 'root' | 'packages' | 'both';
 }
 
-function writeFile(outputPath: string, content: string, dryRun: boolean): void {
+/** Write a file and return true if written (not dry-run). */
+function writeFile(outputPath: string, content: string, dryRun: boolean): boolean {
   if (dryRun) {
     info(`Would write to ${outputPath}`);
     debug(content);
-    return;
+    return false;
   }
 
   const dir = path.dirname(outputPath);
@@ -25,6 +26,7 @@ function writeFile(outputPath: string, content: string, dryRun: boolean): void {
 
   fs.writeFileSync(outputPath, content, 'utf-8');
   success(`Changelog written to ${outputPath}`);
+  return true;
 }
 
 export function aggregateToRoot(contexts: TemplateContext[]): TemplateContext {
@@ -56,7 +58,9 @@ export function writeMonorepoChangelogs(
   options: MonorepoOptions,
   config: { updateStrategy?: 'prepend' | 'regenerate' },
   dryRun: boolean,
-): void {
+): string[] {
+  const files: string[] = [];
+
   if (options.mode === 'root' || options.mode === 'both') {
     const aggregated = aggregateToRoot(contexts);
     const rootPath = path.join(options.rootPath, 'CHANGELOG.md');
@@ -66,7 +70,9 @@ export function writeMonorepoChangelogs(
       config.updateStrategy === 'prepend' && fs.existsSync(rootPath)
         ? prependVersion(rootPath, aggregated)
         : renderMarkdown([aggregated]);
-    writeFile(rootPath, rootContent, dryRun);
+    if (writeFile(rootPath, rootContent, dryRun)) {
+      files.push(rootPath);
+    }
   }
 
   if (options.mode === 'packages' || options.mode === 'both') {
@@ -85,12 +91,16 @@ export function writeMonorepoChangelogs(
           config.updateStrategy === 'prepend' && fs.existsSync(changelogPath)
             ? prependVersion(changelogPath, ctx)
             : renderMarkdown([ctx]);
-        writeFile(changelogPath, pkgContent, dryRun);
+        if (writeFile(changelogPath, pkgContent, dryRun)) {
+          files.push(changelogPath);
+        }
       } else {
         info(`Could not find directory for package ${packageName}, skipping`);
       }
     }
   }
+
+  return files;
 }
 
 function buildPackageDirMap(rootPath: string, packagesPath: string): Map<string, string> {

@@ -50,7 +50,7 @@ function formatEntry(entry: ChangelogEntry): string {
   return line;
 }
 
-function formatVersion(context: TemplateContext): string {
+export function formatVersion(context: TemplateContext): string {
   const lines: string[] = [];
 
   const versionHeader = context.previousVersion ? `## [${context.version}]` : `## ${context.version}`;

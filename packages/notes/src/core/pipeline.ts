@@ -14,7 +14,7 @@ import {
 } from '../llm/index.js';
 import { createGitHubRelease, parseRepoUrl } from '../output/github-release.js';
 import { writeJson } from '../output/json.js';
-import { writeMarkdown } from '../output/markdown.js';
+import { formatVersion, writeMarkdown } from '../output/markdown.js';
 import { renderTemplate } from '../templates/index.js';
 import { withRetry } from '../utils/retry.js';
 import type {
@@ -246,7 +246,14 @@ async function generateWithTemplate(
   success(`Changelog written to ${outputPath} (using ${result.engine} template)`);
 }
 
-export async function runPipeline(input: ChangelogInput, config: Config, dryRun: boolean): Promise<void> {
+export interface PipelineResult {
+  /** Per-package rendered markdown keyed by package name. */
+  packageNotes: Record<string, string>;
+  /** File paths that were written to disk. */
+  files: string[];
+}
+
+export async function runPipeline(input: ChangelogInput, config: Config, dryRun: boolean): Promise<PipelineResult> {
   debug(`Processing ${input.packages.length} package(s)`);
 
   let contexts = input.packages.map(createTemplateContext);
@@ -256,25 +263,37 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
     contexts = await Promise.all(contexts.map((ctx) => processWithLLM(ctx, config)));
   }
 
+  const files: string[] = [];
+
   for (const output of config.output) {
     info(`Generating ${output.format} output`);
 
     switch (output.format) {
       case 'markdown': {
         const file = output.file ?? 'CHANGELOG.md';
-        const effectiveTemplateConfig = output.templates ?? config.templates;
+        try {
+          const effectiveTemplateConfig = output.templates ?? config.templates;
 
-        if (effectiveTemplateConfig?.path || output.options?.template) {
-          const configWithTemplate = { ...config, templates: effectiveTemplateConfig };
-          await generateWithTemplate(contexts, configWithTemplate, file, dryRun);
-        } else {
-          writeMarkdown(file, contexts, config, dryRun);
+          if (effectiveTemplateConfig?.path || output.options?.template) {
+            const configWithTemplate = { ...config, templates: effectiveTemplateConfig };
+            await generateWithTemplate(contexts, configWithTemplate, file, dryRun);
+          } else {
+            writeMarkdown(file, contexts, config, dryRun);
+          }
+          if (!dryRun) files.push(file);
+        } catch (error) {
+          warn(`Failed to write ${file}: ${error instanceof Error ? error.message : String(error)}`);
         }
         break;
       }
       case 'json': {
         const file = output.file ?? 'changelog.json';
-        writeJson(file, contexts, dryRun);
+        try {
+          writeJson(file, contexts, dryRun);
+          if (!dryRun) files.push(file);
+        } catch (error) {
+          warn(`Failed to write ${file}: ${error instanceof Error ? error.message : String(error)}`);
+        }
         break;
       }
       case 'github-release': {
@@ -311,9 +330,38 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
       }
     }
   }
+
+  // Write monorepo changelogs if configured
+  if (config.monorepo?.mode) {
+    const { detectMonorepo, writeMonorepoChangelogs } = await import('../monorepo/aggregator.js');
+    const cwd = process.cwd();
+    const detected = detectMonorepo(cwd);
+
+    if (detected.isMonorepo) {
+      const monoFiles = writeMonorepoChangelogs(
+        contexts,
+        {
+          rootPath: config.monorepo.rootPath ?? cwd,
+          packagesPath: config.monorepo.packagesPath ?? detected.packagesPath,
+          mode: config.monorepo.mode,
+        },
+        config,
+        dryRun,
+      );
+      files.push(...monoFiles);
+    }
+  }
+
+  // Build per-package rendered markdown from the (possibly LLM-enhanced) contexts
+  const packageNotes: Record<string, string> = {};
+  for (const ctx of contexts) {
+    packageNotes[ctx.packageName] = formatVersion(ctx);
+  }
+
+  return { packageNotes, files };
 }
 
-export async function processInput(inputJson: string, config: Config, dryRun: boolean): Promise<void> {
+export async function processInput(inputJson: string, config: Config, dryRun: boolean): Promise<PipelineResult> {
   const input = parsePackageVersioner(inputJson);
-  await runPipeline(input, config, dryRun);
+  return runPipeline(input, config, dryRun);
 }
