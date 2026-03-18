@@ -19,6 +19,16 @@ runs:
         cache: pnpm
         registry-url: https://registry.npmjs.org
 
+    - name: Create bin stubs
+      shell: bash
+      run: |
+        # Create placeholder dist/cli.js files so pnpm install can create bin symlinks.
+        # These get overwritten by the real build step that follows.
+        for pkg in packages/version packages/notes packages/publish packages/release; do
+          mkdir -p "$pkg/dist"
+          [ -f "$pkg/dist/cli.js" ] || echo '#!/usr/bin/env node' > "$pkg/dist/cli.js"
+        done
+
     - name: Install dependencies
       shell: bash
       run: pnpm install --frozen-lockfile
