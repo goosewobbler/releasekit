@@ -243,7 +243,8 @@ async function generateWithTemplate(
   }
 
   fs.writeFileSync(outputPath, result.content, 'utf-8');
-  success(`Changelog written to ${outputPath} (using ${result.engine} template)`);
+  const label = /changelog/i.test(outputPath) ? 'Changelog' : 'Release notes';
+  success(`${label} written to ${outputPath} (using ${result.engine} template)`);
 }
 
 export interface PipelineResult {
@@ -266,8 +267,10 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
   const files: string[] = [];
 
   for (const output of config.output) {
-    const outputLabel = output.file ? `${output.format} output → ${output.file}` : `${output.format} output`;
-    info(`Generating ${outputLabel}`);
+    const file = output.file ?? (output.format === 'json' ? 'changelog.json' : 'CHANGELOG.md');
+    const isChangelog = /changelog/i.test(file);
+    const outputKind = isChangelog ? 'changelog' : 'release notes';
+    info(`Generating ${outputKind} → ${file}`);
 
     switch (output.format) {
       case 'markdown': {

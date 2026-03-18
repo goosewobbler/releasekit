@@ -133,9 +133,11 @@ export function prependVersion(existingPath: string, context: TemplateContext, o
 export function writeMarkdown(outputPath: string, contexts: TemplateContext[], config: Config, dryRun: boolean): void {
   const content = renderMarkdown(contexts);
 
+  const label = /changelog/i.test(outputPath) ? 'Changelog' : 'Release notes';
+
   if (dryRun) {
-    info(`Would write changelog to ${outputPath}`);
-    debug('--- Changelog Preview ---');
+    info(`Would write ${label.toLowerCase()} to ${outputPath}`);
+    debug('--- Preview ---');
     debug(content);
     debug('--- End Preview ---');
     return;
@@ -161,5 +163,5 @@ export function writeMarkdown(outputPath: string, contexts: TemplateContext[], c
     fs.writeFileSync(outputPath, content, 'utf-8');
   }
 
-  success(`Changelog written to ${outputPath}`);
+  success(`${label} written to ${outputPath}`);
 }
