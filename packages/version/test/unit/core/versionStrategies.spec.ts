@@ -182,14 +182,9 @@ describe('Version Strategies', () => {
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0', undefined);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageBPath, '1.1.0', undefined);
 
-      // Check commit and tag
-      expect(git.createGitCommitAndTag).toHaveBeenCalledWith(
-        expect.arrayContaining([rootPackagePath, packageAPath, packageBPath]),
-        'v1.1.0',
-        'chore(release): v1.1.0',
-        undefined,
-        undefined,
-      );
+      // Check tag and commit message tracked for JSON output (git ops now handled by publish)
+      expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore(release): v1.1.0');
     });
 
     it('should use mainPackage for version calculation when specified', async () => {
@@ -288,7 +283,8 @@ describe('Version Strategies', () => {
 
       // Verify no updates were made
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalled();
-      expect(git.createGitCommitAndTag).not.toHaveBeenCalled();
+      expect(jsonOutput.addTag).not.toHaveBeenCalled();
+      expect(jsonOutput.setCommitMessage).not.toHaveBeenCalled();
       expect(logging.log).toHaveBeenCalledWith('No version change needed', 'info');
     });
 
@@ -445,14 +441,9 @@ describe('Version Strategies', () => {
         expect.anything(),
       );
 
-      // Check commit and tag (includes both package.json and Cargo.toml since cargo is enabled by default)
-      expect(git.createGitCommitAndTag).toHaveBeenCalledWith(
-        [packageAPath, '/test/workspace/packages/a/Cargo.toml'],
-        'v1.1.0',
-        'chore(release): v1.1.0',
-        undefined,
-        undefined,
-      );
+      // Check tag and commit message tracked for JSON output (git ops now handled by publish)
+      expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore(release): v1.1.0');
     });
 
     it('should use packageName in commit message template', async () => {
@@ -560,7 +551,8 @@ describe('Version Strategies', () => {
 
       // Verify no updates were made
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalled();
-      expect(git.createGitCommitAndTag).not.toHaveBeenCalled();
+      expect(jsonOutput.addTag).not.toHaveBeenCalled();
+      expect(jsonOutput.setCommitMessage).not.toHaveBeenCalled();
       expect(logging.log).toHaveBeenCalledWith('No version change needed for package-a', 'info');
     });
 

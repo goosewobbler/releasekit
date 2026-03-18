@@ -126,7 +126,7 @@ describe('runRelease', () => {
     mockNotesLoadConfig.mockReturnValue(mockNotesConfig);
     mockNotesGetDefaultConfig.mockReturnValue({ output: [{ format: 'markdown', file: 'CHANGELOG.md' }] });
     mockParsePackageVersioner.mockReturnValue({ source: 'package-versioner', packages: [] });
-    mockNotesRunPipeline.mockResolvedValue(undefined);
+    mockNotesRunPipeline.mockResolvedValue({ packageNotes: {}, files: [] });
     mockPublishLoadConfig.mockReturnValue(mockPublishConfig);
     mockPublishRunPipeline.mockResolvedValue(mockPublishOutput);
 

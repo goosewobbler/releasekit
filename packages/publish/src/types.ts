@@ -31,10 +31,10 @@ export interface GitConfig {
 export interface GitHubReleaseConfig {
   enabled: boolean;
   draft: boolean;
-  generateNotes: boolean;
   perPackage: boolean;
   prerelease: 'auto' | boolean;
-  notesFile?: string;
+  /** 'auto' | 'github' | 'none' | file path */
+  releaseNotes: string;
 }
 
 export interface VerifyRegistryConfig {
@@ -70,6 +70,10 @@ export interface PublishCliOptions {
   skipVerification: boolean;
   json: boolean;
   verbose: boolean;
+  /** Per-package release notes keyed by package name, from the notes pipeline. */
+  releaseNotes?: Record<string, string>;
+  /** Additional files to stage in the git commit (e.g., changelog files from the notes step). */
+  additionalFiles?: string[];
 }
 
 export interface PublishResult {
@@ -121,6 +125,10 @@ export interface PipelineContext {
   packageManager: PackageManager;
   output: PublishOutput;
   cwd: string;
+  /** Per-package release notes keyed by package name, passed from the notes pipeline. */
+  releaseNotes?: Record<string, string>;
+  /** Additional files to stage in the git commit (e.g., changelog files from the notes step). */
+  additionalFiles?: string[];
 }
 
 export function getDefaultConfig(): PublishConfig {
@@ -151,9 +159,9 @@ export function getDefaultConfig(): PublishConfig {
     githubRelease: {
       enabled: true,
       draft: true,
-      generateNotes: true,
-      perPackage: false,
+      perPackage: true,
       prerelease: 'auto',
+      releaseNotes: 'auto',
     },
     verify: {
       npm: {
@@ -206,10 +214,9 @@ export function toPublishConfig(config: BasePublishConfig | undefined): PublishC
     githubRelease: {
       enabled: config.githubRelease?.enabled ?? defaults.githubRelease.enabled,
       draft: config.githubRelease?.draft ?? defaults.githubRelease.draft,
-      generateNotes: config.githubRelease?.generateNotes ?? defaults.githubRelease.generateNotes,
       perPackage: config.githubRelease?.perPackage ?? defaults.githubRelease.perPackage,
       prerelease: config.githubRelease?.prerelease ?? defaults.githubRelease.prerelease,
-      notesFile: config.githubRelease?.notesFile,
+      releaseNotes: config.githubRelease?.releaseNotes ?? defaults.githubRelease.releaseNotes,
     },
     verify: {
       npm: {

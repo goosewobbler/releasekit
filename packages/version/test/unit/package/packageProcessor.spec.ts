@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as cargoHandler from '../../../src/cargo/cargoHandler.js';
 import * as calculator from '../../../src/core/versionCalculator.js';
 import * as versionCalculatorModule from '../../../src/core/versionCalculator.js';
-import * as gitCommands from '../../../src/git/commands.js';
 import * as gitTags from '../../../src/git/tagsAndBranches.js';
 import * as packageManagement from '../../../src/package/packageManagement.js';
 import { PackageProcessor } from '../../../src/package/packageProcessor.js';
@@ -19,7 +18,6 @@ import * as manifestHelpers from '../../../src/utils/manifestHelpers.js';
 vi.mock('node:path');
 vi.mock('node:process');
 vi.mock('../../../src/package/packageManagement.js');
-vi.mock('../../../src/git/commands.js');
 vi.mock('../../../src/git/tagsAndBranches.js');
 vi.mock('../../../src/utils/logging.js');
 vi.mock('../../../src/utils/formatting.js', () => ({
@@ -128,7 +126,6 @@ describe('Package Processor', () => {
     versionPrefix: 'v',
     commitMessageTemplate: 'chore(release): ${version}',
     dryRun: false,
-    skipHooks: false,
     getLatestTag: mockGetLatestTag,
     config: {
       branchPattern: ['feature/*'],
@@ -150,11 +147,6 @@ describe('Package Processor', () => {
     vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
     vi.spyOn(versionCalculatorModule, 'calculateVersion').mockResolvedValue('1.1.0');
 
-    // Git mocks
-    vi.spyOn(gitCommands, 'createGitTag').mockResolvedValue({ stdout: '', stderr: '' });
-    vi.spyOn(gitCommands, 'gitAdd').mockResolvedValue({ stdout: '', stderr: '' });
-    vi.spyOn(gitCommands, 'gitCommit').mockResolvedValue({ stdout: '', stderr: '' });
-
     // Formatting mocks
     vi.spyOn(formatting, 'formatVersionPrefix').mockReturnValue('v');
     vi.spyOn(formatting, 'formatTag').mockImplementation((version, prefix) => `${prefix}${version}`);
@@ -168,7 +160,6 @@ describe('Package Processor', () => {
     );
 
     // Default mock implementations
-    vi.spyOn(gitCommands, 'gitProcess').mockResolvedValue(undefined);
     vi.spyOn(packageManagement, 'updatePackageVersion').mockImplementation(() => undefined);
 
     // Ensure direct import is mocked correctly too
@@ -346,11 +337,8 @@ describe('Package Processor', () => {
         false,
       );
 
-      // Should create a tag
-      expect(gitCommands.createGitTag).toHaveBeenCalledWith({
-        tag: 'v1.1.0',
-        message: 'chore(release): package-a 1.1.0',
-      });
+      // Should track the tag via JSON output (git ops now handled by publish)
+      expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
 
       // Should return the updated package info
       expect(result.updatedPackages).toEqual([
@@ -363,24 +351,15 @@ describe('Package Processor', () => {
       expect(result.tags).toContain('v1.1.0');
     });
 
-    it('should create a commit for all updated packages', async () => {
+    it('should track commit message for all updated packages', async () => {
       const processor = new PackageProcessor({
         ...defaultOptions,
       });
 
       const result = await processor.processPackages(mockPackages);
 
-      // Should add all package.json files
-      expect(gitCommands.gitAdd).toHaveBeenCalledWith([
-        '/path/to/package-a/package.json',
-        '/path/to/package-b/package.json',
-      ]);
-
-      // Should create a commit with both packages
-      expect(gitCommands.gitCommit).toHaveBeenCalledWith({
-        message: 'chore(release): package-a, package-b 1.1.0',
-        skipHooks: false,
-      });
+      // Should track commit message via JSON output (git ops handled by publish)
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore(release): package-a, package-b 1.1.0');
 
       // Should return info for both packages
       expect(result.updatedPackages).toHaveLength(2);
@@ -388,23 +367,14 @@ describe('Package Processor', () => {
       expect(result.updatedPackages[1].name).toBe('package-b');
     });
 
-    it('should handle errors during tag creation gracefully', async () => {
-      const tagError = new Error('Failed to create tag');
-      vi.spyOn(gitCommands, 'createGitTag').mockRejectedValue(tagError);
-
+    it('should track tags via JSON output without creating git tags', async () => {
       const processor = new PackageProcessor(defaultOptions);
 
-      // Should not throw, but log the error
       await processor.processPackages([mockPackages[0]]);
 
-      expect(logging.log).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to create tag v1.1.0 for package-a'),
-        'error',
-      );
-
-      // Should still continue with the commit
-      expect(gitCommands.gitAdd).toHaveBeenCalled();
-      expect(gitCommands.gitCommit).toHaveBeenCalled();
+      // Tags are tracked via JSON output, not created directly
+      expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalled();
     });
 
     it('should handle dry run mode', async () => {
@@ -415,14 +385,8 @@ describe('Package Processor', () => {
 
       await processor.processPackages([mockPackages[0]]);
 
-      // Should not make actual changes
-      expect(gitCommands.createGitTag).not.toHaveBeenCalled();
-      expect(gitCommands.gitAdd).not.toHaveBeenCalled();
-      expect(gitCommands.gitCommit).not.toHaveBeenCalled();
-
       // Should log what would have been done
       expect(logging.log).toHaveBeenCalledWith('[DRY RUN] Would create tag: v1.1.0', 'info');
-      expect(logging.log).toHaveBeenCalledWith('[DRY RUN] Would add files:', 'info');
       expect(logging.log).toHaveBeenCalledWith(expect.stringMatching(/\[DRY RUN\] Would commit with message:/), 'info');
     });
 
@@ -434,11 +398,7 @@ describe('Package Processor', () => {
 
       await processor.processPackages([mockPackages[0]]);
 
-      expect(gitCommands.gitCommit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: 'release: v1.1.0 of packages',
-        }),
-      );
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('release: v1.1.0 of packages');
     });
 
     it('should replace packageName placeholder in commit message template for single package', async () => {
@@ -454,11 +414,7 @@ describe('Package Processor', () => {
 
       await processor.processPackages([mockPackages[0]]);
 
-      expect(gitCommands.gitCommit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: 'chore: release package-a@1.1.0 [skip-ci]',
-        }),
-      );
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a@1.1.0 [skip-ci]');
     });
 
     it('should use generic commit message format with multiple packages', async () => {
@@ -470,11 +426,7 @@ describe('Package Processor', () => {
       await processor.processPackages(mockPackages);
 
       // Should use a generic message with package names when multiple packages
-      expect(gitCommands.gitCommit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: 'chore(release): package-a, package-b 1.1.0',
-        }),
-      );
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore(release): package-a, package-b 1.1.0');
     });
 
     it('should process all packages when no filters are applied', async () => {
@@ -489,9 +441,8 @@ describe('Package Processor', () => {
       expect(result.updatedPackages.length).toBe(3);
       expect(result.tags.length).toBe(3);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledTimes(3);
-      expect(gitCommands.gitProcess).toHaveBeenCalledTimes(0); // gitProcess is not directly called
-      expect(gitCommands.gitAdd).toHaveBeenCalledTimes(1);
-      expect(gitCommands.gitCommit).toHaveBeenCalledTimes(1);
+      expect(jsonOutput.addTag).toHaveBeenCalledTimes(3);
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledTimes(1);
     });
 
     it('should skip specified packages', async () => {
@@ -564,21 +515,19 @@ describe('Package Processor', () => {
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalled();
     });
 
-    it('should handle when Git process fails', async () => {
+    it('should track version metadata without performing git operations', async () => {
       const processor = new PackageProcessor({
         getLatestTag: gitTags.getLatestTag,
         config: {},
         fullConfig: mockConfig,
       });
 
-      // Mock gitAdd to throw an error
-      const error = new Error('Git commit failed');
-      vi.spyOn(gitCommands, 'gitAdd').mockRejectedValue(error);
+      const result = await processor.processPackages(mockPackages);
 
-      // The processor might handle the error internally, so just verify logging
-      await processor.processPackages(mockPackages);
-
-      expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('Failed'), 'error');
+      // Version tracks metadata only — git ops are handled by publish
+      expect(jsonOutput.addTag).toHaveBeenCalledTimes(3);
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledTimes(1);
+      expect(result.updatedPackages.length).toBe(3);
     });
 
     it('should construct commit message with package details', async () => {
@@ -590,16 +539,10 @@ describe('Package Processor', () => {
 
       await processor.processPackages(mockPackages);
 
-      expect(gitCommands.gitCommit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining('chore(release)'),
-        }),
-      );
-
-      expect(gitCommands.gitAdd).toHaveBeenCalledWith(expect.arrayContaining([expect.stringContaining('package-a')]));
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith(expect.stringContaining('chore(release)'));
     });
 
-    it('should include both package.json and Cargo.toml in git commit for hybrid packages', async () => {
+    it('should update both package.json and Cargo.toml for hybrid packages', async () => {
       // Mock fs.existsSync to return true for both package.json and Cargo.toml
       vi.spyOn(fs, 'existsSync').mockImplementation((_path) => {
         return true; // Consider all files exist
@@ -622,9 +565,16 @@ describe('Package Processor', () => {
 
       await processor.processPackages([hybridPackage]);
 
-      // Both package.json and Cargo.toml should be added to git
-      expect(gitCommands.gitAdd).toHaveBeenCalledWith(
-        expect.arrayContaining(['/path/to/hybrid-package/package.json', '/path/to/hybrid-package/Cargo.toml']),
+      // Both package.json and Cargo.toml should be updated
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/path/to/hybrid-package/package.json',
+        '1.1.0',
+        false,
+      );
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/path/to/hybrid-package/Cargo.toml',
+        '1.1.0',
+        false,
       );
     });
   });
@@ -659,10 +609,6 @@ describe('Package Processor', () => {
         content: { package: { name: 'rust-package', version: '1.0.0' } },
       });
 
-      // Git mocks
-      vi.spyOn(gitCommands, 'createGitTag').mockResolvedValue({ stdout: '', stderr: '' });
-      vi.spyOn(gitCommands, 'gitAdd').mockResolvedValue({ stdout: '', stderr: '' });
-      vi.spyOn(gitCommands, 'gitCommit').mockResolvedValue({ stdout: '', stderr: '' });
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
 
       // Formatting mocks
@@ -830,7 +776,6 @@ describe('Package Processor', () => {
       // Mock other necessary functions
       vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
       vi.spyOn(fs, 'existsSync').mockReturnValue(true);
-      vi.spyOn(gitCommands, 'createGitTag').mockResolvedValue({ stdout: '', stderr: '' });
       vi.spyOn(packageManagement, 'updatePackageVersion').mockImplementation(() => undefined);
       vi.spyOn(path, 'join').mockImplementation((...args) => args.join('/'));
 
@@ -853,11 +798,8 @@ describe('Package Processor', () => {
 
       await processor.processPackages([rustPackage]);
 
-      // Instead of checking the spy call, verify the tag was created with the correct format
-      expect(gitCommands.createGitTag).toHaveBeenCalledWith({
-        tag: 'ver1.1.0',
-        message: expect.anything(),
-      });
+      // Verify the tag was tracked via JSON output with the correct format
+      expect(jsonOutput.addTag).toHaveBeenCalledWith('ver1.1.0');
     });
   });
 
@@ -889,11 +831,6 @@ describe('Package Processor', () => {
         }
         return '';
       });
-
-      // Git mocks
-      vi.spyOn(gitCommands, 'createGitTag').mockResolvedValue({ stdout: '', stderr: '' });
-      vi.spyOn(gitCommands, 'gitAdd').mockResolvedValue({ stdout: '', stderr: '' });
-      vi.spyOn(gitCommands, 'gitCommit').mockResolvedValue({ stdout: '', stderr: '' });
 
       // Mock escapeRegExp to fix the error
       vi.spyOn(formatting, 'escapeRegExp').mockImplementation((str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
@@ -972,8 +909,8 @@ describe('Package Processor', () => {
         }),
       );
       expect(manifestSpy).toHaveBeenCalled();
-      // Verify that a tag was created, indicating successful processing
-      expect(gitCommands.createGitTag).toHaveBeenCalled();
+      // Verify that a tag was tracked, indicating successful processing
+      expect(jsonOutput.addTag).toHaveBeenCalled();
     });
 
     it('should handle errors when getting package-specific tag', async () => {
@@ -1007,8 +944,8 @@ describe('Package Processor', () => {
           tagTemplate: undefined,
         }),
       );
-      // Verify that a tag was created, indicating successful processing
-      expect(gitCommands.createGitTag).toHaveBeenCalled();
+      // Verify that a tag was tracked, indicating successful processing
+      expect(jsonOutput.addTag).toHaveBeenCalled();
     });
 
     it('should handle case where all tag resolution methods fail', async () => {
@@ -1049,8 +986,8 @@ describe('Package Processor', () => {
         }),
       );
       expect(manifestHelpers.getVersionFromManifests).toHaveBeenCalled();
-      // Verify that a tag was created, indicating successful processing
-      expect(gitCommands.createGitTag).toHaveBeenCalled();
+      // Verify that a tag was tracked, indicating successful processing
+      expect(jsonOutput.addTag).toHaveBeenCalled();
     });
   });
 
@@ -1118,11 +1055,6 @@ describe('Package Processor', () => {
       // Mock fs.existsSync
       vi.spyOn(fs, 'existsSync').mockReturnValue(true);
 
-      // Git mocks
-      vi.spyOn(gitCommands, 'createGitTag').mockResolvedValue({ stdout: '', stderr: '' });
-      vi.spyOn(gitCommands, 'gitAdd').mockResolvedValue({ stdout: '', stderr: '' });
-      vi.spyOn(gitCommands, 'gitCommit').mockResolvedValue({ stdout: '', stderr: '' });
-
       // Mock escapeRegExp to fix the error
       vi.spyOn(formatting, 'escapeRegExp').mockImplementation((str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
 
@@ -1145,11 +1077,8 @@ describe('Package Processor', () => {
 
       await processor.processPackages([packageA]);
 
-      // Verify custom tag format was used
-      expect(gitCommands.createGitTag).toHaveBeenCalledWith({
-        tag: 'release/v1.1.0',
-        message: expect.anything(),
-      });
+      // Verify custom tag format was tracked
+      expect(jsonOutput.addTag).toHaveBeenCalledWith('release/v1.1.0');
     });
 
     it('should use custom tagTemplate for package-specific tags', async () => {
@@ -1170,11 +1099,8 @@ describe('Package Processor', () => {
 
       await processor.processPackages([packageA]);
 
-      // Verify custom package tag format was used
-      expect(gitCommands.createGitTag).toHaveBeenCalledWith({
-        tag: 'package-a/v1.1.0',
-        message: expect.anything(),
-      });
+      // Verify custom package tag format was tracked
+      expect(jsonOutput.addTag).toHaveBeenCalledWith('package-a/v1.1.0');
     });
 
     it('should use custom versionPrefix in tags', async () => {
@@ -1194,7 +1120,6 @@ describe('Package Processor', () => {
       // Mock other necessary functions
       vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
       vi.spyOn(fs, 'existsSync').mockReturnValue(true);
-      vi.spyOn(gitCommands, 'createGitTag').mockResolvedValue({ stdout: '', stderr: '' });
       vi.spyOn(packageManagement, 'updatePackageVersion').mockImplementation(() => undefined);
       vi.spyOn(path, 'join').mockImplementation((...args) => args.join('/'));
 
@@ -1217,11 +1142,8 @@ describe('Package Processor', () => {
 
       await processor.processPackages([packageA]);
 
-      // Instead of checking the spy call, verify the tag was created with the correct format
-      expect(gitCommands.createGitTag).toHaveBeenCalledWith({
-        tag: 'ver1.1.0',
-        message: expect.anything(),
-      });
+      // Verify the tag was tracked via JSON output with the correct format
+      expect(jsonOutput.addTag).toHaveBeenCalledWith('ver1.1.0');
     });
   });
 });

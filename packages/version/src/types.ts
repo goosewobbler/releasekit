@@ -30,7 +30,6 @@ export interface Config extends VersionConfigBase {
   versionStrategy?: 'branchPattern' | 'commitMessage';
   branchPatterns?: BranchPattern[];
   defaultReleaseType?: ReleaseType;
-  skipHooks?: boolean;
   dryRun?: boolean;
   latestTag?: string;
   isPrerelease?: boolean;
@@ -76,7 +75,6 @@ export interface GitProcess {
   files: string[];
   nextTag: string;
   commitMessage: string;
-  skipHooks?: boolean;
   dryRun?: boolean;
 }
 
@@ -98,7 +96,6 @@ export function toVersionConfig(config: VersionConfig | undefined, gitConfig?: G
       updateInternalDependencies: 'minor',
       versionPrefix: '',
       baseBranch: gitConfig?.branch,
-      skipHooks: gitConfig?.skipHooks,
     };
   }
 
@@ -118,7 +115,6 @@ export function toVersionConfig(config: VersionConfig | undefined, gitConfig?: G
       releaseType: bp.releaseType as ReleaseType,
     })),
     defaultReleaseType: config.defaultReleaseType as ReleaseType | undefined,
-    skipHooks: gitConfig?.skipHooks,
     mismatchStrategy: config.mismatchStrategy,
     versionPrefix: config.versionPrefix ?? '',
     prereleaseIdentifier: config.prereleaseIdentifier,

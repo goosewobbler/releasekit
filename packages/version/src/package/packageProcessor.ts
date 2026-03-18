@@ -1,11 +1,9 @@
 import * as fs from 'node:fs';
 import path from 'node:path';
-import { exit } from 'node:process';
 import type { Package } from '@manypkg/get-packages';
 import type { VersionChangelogEntry } from '@releasekit/core';
 import { extractChangelogEntriesFromCommits, extractRepoLevelChangelogEntries } from '../changelog/commitParser.js';
 import { calculateVersion } from '../core/versionCalculator.js';
-import { createGitTag, gitAdd, gitCommit } from '../git/commands.js';
 import { getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { verifyTag } from '../git/tagVerification.js';
 import type { Config, VersionConfigBase } from '../types.js';
@@ -24,7 +22,6 @@ export interface PackageProcessorOptions {
   tagTemplate?: string;
   commitMessageTemplate?: string;
   dryRun?: boolean;
-  skipHooks?: boolean;
   getLatestTag: () => Promise<string | null>;
   config: Omit<VersionConfigBase, 'versionPrefix' | 'path' | 'name'>;
   // Config needed for version calculation
@@ -47,7 +44,6 @@ export class PackageProcessor {
   private tagTemplate?: string;
   private commitMessageTemplate: string;
   private dryRun: boolean;
-  private skipHooks: boolean;
   private getLatestTag: () => Promise<string | null>;
   private config: Omit<VersionConfigBase, 'versionPrefix' | 'path' | 'name'>;
   // Config for version calculation
@@ -59,7 +55,6 @@ export class PackageProcessor {
     this.tagTemplate = options.tagTemplate;
     this.commitMessageTemplate = options.commitMessageTemplate || '';
     this.dryRun = options.dryRun || false;
-    this.skipHooks = options.skipHooks || false;
     this.getLatestTag = options.getLatestTag;
     this.config = options.config;
     this.fullConfig = options.fullConfig;
@@ -337,23 +332,14 @@ export class PackageProcessor {
         this.tagTemplate,
         this.fullConfig.packageSpecificTags,
       );
-      const tagMessage = `chore(release): ${name} ${nextVersion}`;
-
-      // Track tag for JSON output
+      // Track tag for JSON output (git ops now handled by publish)
       addTag(packageTag);
       tags.push(packageTag);
 
-      if (!this.dryRun) {
-        try {
-          await createGitTag({ tag: packageTag, message: tagMessage });
-          log(`Created tag: ${packageTag}`, 'success');
-        } catch (tagError) {
-          log(`Failed to create tag ${packageTag} for ${name}: ${(tagError as Error).message}`, 'error');
-          log((tagError as Error).stack || 'No stack trace available', 'error');
-          // Continue processing other packages even if tagging fails
-        }
-      } else {
+      if (this.dryRun) {
         log(`[DRY RUN] Would create tag: ${packageTag}`, 'info');
+      } else {
+        log(`Version ${nextVersion} prepared (tag: ${packageTag})`, 'success');
       }
 
       // Collect info for the final commit
@@ -366,80 +352,27 @@ export class PackageProcessor {
       return { updatedPackages: [], tags };
     }
 
-    // Collect all files that need to be committed (both package.json and Cargo.toml)
-    const filesToCommit: string[] = [];
-    for (const info of updatedPackagesInfo) {
-      const packageJsonPath = path.join(info.path, 'package.json');
-
-      if (fs.existsSync(packageJsonPath)) {
-        filesToCommit.push(packageJsonPath);
-      }
-
-      // Check if Cargo.toml handling is enabled (default to true if not specified)
-      const cargoEnabled = this.fullConfig.cargo?.enabled !== false;
-
-      if (cargoEnabled) {
-        // Check for cargo paths configuration
-        const cargoPaths = this.fullConfig.cargo?.paths;
-
-        if (cargoPaths && cargoPaths.length > 0) {
-          // If paths are specified, only include those Cargo.toml files
-          for (const cargoPath of cargoPaths) {
-            const resolvedCargoPath = path.resolve(info.path, cargoPath, 'Cargo.toml');
-            if (fs.existsSync(resolvedCargoPath)) {
-              filesToCommit.push(resolvedCargoPath);
-            }
-          }
-        } else {
-          // Default behaviour: check for Cargo.toml in the root package directory
-          const cargoTomlPath = path.join(info.path, 'Cargo.toml');
-          if (fs.existsSync(cargoTomlPath)) {
-            filesToCommit.push(cargoTomlPath);
-          }
-        }
-      }
-    }
-
+    // Build commit message for JSON output (git ops now handled by publish)
     const packageNames = updatedPackagesInfo.map((p) => p.name).join(', ');
-    // Use the version from the first updated package as representative
     const representativeVersion = updatedPackagesInfo[0]?.version || 'multiple';
     let commitMessage = this.commitMessageTemplate || 'chore(release): publish packages';
 
-    // Construct commit message: Use template if only one package, otherwise list names.
-    // Limit commit message length and use safer regex to prevent ReDoS
     const MAX_COMMIT_MSG_LENGTH = 10000;
     if (commitMessage.length > MAX_COMMIT_MSG_LENGTH) {
       log('Commit message template too long, truncating', 'warning');
       commitMessage = commitMessage.slice(0, MAX_COMMIT_MSG_LENGTH);
     }
-    const placeholderRegex = /\$\{[^{}$]{1,1000}\}/; // Matches placeholders like ${variableName}
+    const placeholderRegex = /\$\{[^{}$]{1,1000}\}/;
     if (updatedPackagesInfo.length === 1 && placeholderRegex.test(commitMessage)) {
-      // If template has any placeholders and only one package, format it with package name
       const packageName = updatedPackagesInfo[0].name;
       commitMessage = formatCommitMessage(commitMessage, representativeVersion, packageName);
     } else {
-      // Otherwise, use a generic message listing packages and representative version
       commitMessage = `chore(release): ${packageNames} ${representativeVersion}`;
     }
 
-    // Track commit message for JSON output
     setCommitMessage(commitMessage);
 
-    if (!this.dryRun) {
-      try {
-        await gitAdd(filesToCommit);
-        await gitCommit({ message: commitMessage, skipHooks: this.skipHooks });
-        log(`Created commit for targeted release: ${packageNames}`, 'success');
-      } catch (commitError) {
-        log('Failed to create commit for targeted release.', 'error');
-        console.error(commitError);
-        exit(1); // Exit if commit fails
-      }
-    } else {
-      log('[DRY RUN] Would add files:', 'info');
-      for (const file of filesToCommit) {
-        log(`  - ${file}`, 'info');
-      }
+    if (this.dryRun) {
       log(`[DRY RUN] Would commit with message: "${commitMessage}"`, 'info');
     }
 

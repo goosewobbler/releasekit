@@ -9,6 +9,8 @@ export async function runRelease(options: ReleaseOptions): Promise<ReleaseOutput
   if (options.json) setJsonMode(true);
 
   // --- Step 1: Version ---
+  // Writes version bumps to disk but does NOT commit or tag.
+  // Git operations are handled by the publish step's git-commit stage.
   info('Running version analysis...');
   const versionOutput = await runVersionStep(options);
 
@@ -24,18 +26,23 @@ export async function runRelease(options: ReleaseOptions): Promise<ReleaseOutput
 
   // --- Step 2: Notes ---
   let notesGenerated = false;
+  let packageNotes: Record<string, string> | undefined;
+  let notesFiles: string[] = [];
   if (!options.skipNotes) {
     info('Generating release notes...');
-    await runNotesStep(versionOutput, options);
+    const notesResult = await runNotesStep(versionOutput, options);
+    packageNotes = notesResult.packageNotes;
+    notesFiles = notesResult.files;
     notesGenerated = true;
     success('Release notes generated');
   }
 
   // --- Step 3: Publish ---
+  // The publish step's git-commit stage commits version bumps + changelogs + tags.
   let publishOutput: ReleaseOutput['publishOutput'];
   if (!options.skipPublish) {
     info('Publishing...');
-    publishOutput = await runPublishStep(versionOutput, options);
+    publishOutput = await runPublishStep(versionOutput, options, packageNotes, notesFiles);
     success('Publish complete');
   }
 
@@ -84,7 +91,12 @@ async function runVersionStep(options: ReleaseOptions): Promise<VersionOutput> {
   return getJsonData() as VersionOutput;
 }
 
-async function runNotesStep(versionOutput: VersionOutput, options: ReleaseOptions): Promise<void> {
+interface NotesStepResult {
+  packageNotes: Record<string, string>;
+  files: string[];
+}
+
+async function runNotesStep(versionOutput: VersionOutput, options: ReleaseOptions): Promise<NotesStepResult> {
   const { parsePackageVersioner, runPipeline, loadConfig, getDefaultConfig } = await import('@releasekit/notes');
 
   const config = loadConfig(options.projectDir, options.config);
@@ -94,10 +106,17 @@ async function runNotesStep(versionOutput: VersionOutput, options: ReleaseOption
   }
 
   const input = parsePackageVersioner(JSON.stringify(versionOutput));
-  await runPipeline(input, config, options.dryRun);
+  const result = await runPipeline(input, config, options.dryRun);
+
+  return { packageNotes: result.packageNotes, files: result.files };
 }
 
-async function runPublishStep(versionOutput: VersionOutput, options: ReleaseOptions) {
+async function runPublishStep(
+  versionOutput: VersionOutput,
+  options: ReleaseOptions,
+  releaseNotes?: Record<string, string>,
+  additionalFiles?: string[],
+) {
   const { runPipeline, loadConfig } = await import('@releasekit/publish');
 
   const config = loadConfig({ configPath: options.config });
@@ -107,14 +126,13 @@ async function runPublishStep(versionOutput: VersionOutput, options: ReleaseOpti
     registry: 'all' as const,
     npmAuth: 'auto' as const,
     skipGit: options.skipGit,
-    // The version step already created the commit and tags —
-    // skip the publish step's git-commit stage to avoid double-committing.
-    skipGitCommit: true,
     skipPublish: false,
     skipGithubRelease: options.skipGithubRelease,
     skipVerification: options.skipVerification,
     json: options.json,
     verbose: options.verbose,
+    releaseNotes,
+    additionalFiles,
   };
 
   return runPipeline(versionOutput, config, publishOptions);

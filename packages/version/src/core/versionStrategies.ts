@@ -10,13 +10,12 @@ import { extractChangelogEntriesFromCommits } from '../changelog/commitParser.js
 import { BaseVersionError } from '../errors/baseError.js';
 import { createVersionError, VersionErrorCode } from '../errors/versionError.js';
 import { execSync } from '../git/commandExecutor.js';
-import { createGitCommitAndTag } from '../git/commands.js';
 import { getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { updatePackageVersion } from '../package/packageManagement.js';
 import { PackageProcessor } from '../package/packageProcessor.js';
 import type { Config } from '../types.js';
 import { formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
-import { addChangelogData } from '../utils/jsonOutput.js';
+import { addChangelogData, addTag, setCommitMessage } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { shouldProcessPackage as shouldProcessPackageUtil } from '../utils/packageMatching.js';
 import { calculateVersion } from './versionCalculator.js';
@@ -97,7 +96,6 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         commitMessage = `chore(release): v\${version}`,
         prereleaseIdentifier,
         dryRun,
-        skipHooks,
         mainPackage,
       } = config;
 
@@ -292,8 +290,15 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       );
       const formattedCommitMessage = formatCommitMessage(commitMessage, nextVersion, commitPackageName, undefined);
 
-      // Use the Git service functions
-      await createGitCommitAndTag(files, nextTag, formattedCommitMessage, skipHooks, dryRun);
+      // Track tag and commit message for JSON output (git ops now handled by publish)
+      addTag(nextTag);
+      setCommitMessage(formattedCommitMessage);
+
+      if (!dryRun) {
+        log(`Version ${nextVersion} prepared (tag: ${nextTag})`, 'success');
+      } else {
+        log(`Would create tag: ${nextTag}`, 'info');
+      }
     } catch (error) {
       if (BaseVersionError.isVersionError(error)) {
         log(`Synced Strategy failed: ${error.message} (${error.code})`, 'error');
@@ -312,14 +317,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
 export function createSingleStrategy(config: Config): StrategyFunction {
   return async (packages: PackagesWithRoot): Promise<void> => {
     try {
-      const {
-        mainPackage,
-        versionPrefix,
-        tagTemplate,
-        commitMessage = `chore(release): \${version}`,
-        dryRun,
-        skipHooks,
-      } = config;
+      const { mainPackage, versionPrefix, tagTemplate, commitMessage = `chore(release): \${version}`, dryRun } = config;
 
       // Use mainPackage if specified, otherwise use the first package from the resolved packages
       let packageName: string | undefined;
@@ -483,14 +481,15 @@ export function createSingleStrategy(config: Config): StrategyFunction {
 
       log(`Updated package ${packageName} to version ${nextVersion}`, 'success');
 
-      // Create tag and commit
+      // Track tag and commit message for JSON output (git ops now handled by publish)
       const tagName = formatTag(nextVersion, formattedPrefix, packageName, tagTemplate, config.packageSpecificTags);
-
       const commitMsg = formatCommitMessage(commitMessage, nextVersion, packageName);
 
+      addTag(tagName);
+      setCommitMessage(commitMsg);
+
       if (!dryRun) {
-        await createGitCommitAndTag(filesToCommit, tagName, commitMsg, skipHooks, dryRun);
-        log(`Created tag: ${tagName}`, 'success');
+        log(`Version ${nextVersion} prepared (tag: ${tagName})`, 'success');
       } else {
         log(`Would create tag: ${tagName}`, 'info');
       }
@@ -522,7 +521,6 @@ export function createAsyncStrategy(config: Config): StrategyFunction {
     tagTemplate: config.tagTemplate,
     commitMessageTemplate: config.commitMessage || '',
     dryRun: config.dryRun || false,
-    skipHooks: config.skipHooks || false,
     getLatestTag: dependencies.getLatestTag,
     fullConfig: config,
     // Extract common version configuration properties

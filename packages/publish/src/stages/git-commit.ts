@@ -15,8 +15,11 @@ export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
     return;
   }
 
-  // Stage all updated files
+  // Stage all updated files (version bumps + any additional files like changelogs)
   const filePaths = input.updates.map((u) => path.resolve(cwd, u.filePath));
+  if (ctx.additionalFiles) {
+    filePaths.push(...ctx.additionalFiles.map((f) => path.resolve(cwd, f)));
+  }
 
   if (filePaths.length === 0) {
     info('No files to commit');
