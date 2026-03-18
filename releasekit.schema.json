@@ -34,6 +34,14 @@
         "push": {
           "type": "boolean",
           "description": "Whether to push changes to remote"
+        },
+        "httpsTokenEnv": {
+          "type": "string",
+          "description": "Environment variable name containing a GitHub token for HTTPS pushes"
+        },
+        "skipHooks": {
+          "type": "boolean",
+          "description": "Skip Git hooks when committing"
         }
       }
     },
@@ -137,10 +145,6 @@
           "enum": ["major", "minor", "patch", "prerelease"],
           "description": "Default release type when no pattern matches"
         },
-        "skipHooks": {
-          "type": "boolean",
-          "description": "Skip Git hooks when committing"
-        },
         "mismatchStrategy": {
           "type": "string",
           "enum": ["error", "warn", "ignore", "prefer-package", "prefer-git"],
@@ -209,6 +213,14 @@
             "branch": {
               "type": "string",
               "description": "Branch name override"
+            },
+            "httpsTokenEnv": {
+              "type": "string",
+              "description": "Environment variable name containing a GitHub token for HTTPS pushes"
+            },
+            "skipHooks": {
+              "type": "boolean",
+              "description": "Skip Git hooks when committing"
             }
           }
         },
@@ -416,6 +428,21 @@
               "options": {
                 "type": "object",
                 "description": "Format-specific options"
+              },
+              "templates": {
+                "type": "object",
+                "description": "Per-output template configuration",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Path to custom template"
+                  },
+                  "engine": {
+                    "type": "string",
+                    "enum": ["handlebars", "liquid", "ejs"],
+                    "description": "Template engine"
+                  }
+                }
               }
             },
             "required": ["format"]
@@ -543,6 +570,11 @@
                   "description": {
                     "type": "string",
                     "description": "Category description"
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Scopes belonging to this category"
                   }
                 },
                 "required": ["name", "description"]
@@ -551,6 +583,72 @@
             "style": {
               "type": "string",
               "description": "Writing style for LLM-generated content"
+            },
+            "scopes": {
+              "type": "object",
+              "description": "Scope validation configuration",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": ["restricted", "packages", "none", "unrestricted"],
+                  "default": "unrestricted",
+                  "description": "Scope validation mode"
+                },
+                "rules": {
+                  "type": "object",
+                  "description": "Scope rules",
+                  "properties": {
+                    "allowed": {
+                      "type": "array",
+                      "items": { "type": "string" },
+                      "description": "Allowed scope names"
+                    },
+                    "caseSensitive": {
+                      "type": "boolean",
+                      "default": false,
+                      "description": "Whether scope matching is case-sensitive"
+                    },
+                    "invalidScopeAction": {
+                      "type": "string",
+                      "enum": ["remove", "keep", "fallback"],
+                      "default": "remove",
+                      "description": "What to do with invalid scopes"
+                    },
+                    "fallbackScope": {
+                      "type": "string",
+                      "description": "Scope to use when invalidScopeAction is 'fallback'"
+                    }
+                  }
+                }
+              }
+            },
+            "prompts": {
+              "type": "object",
+              "description": "Custom LLM prompt overrides",
+              "properties": {
+                "instructions": {
+                  "type": "object",
+                  "description": "Custom instruction overrides",
+                  "properties": {
+                    "enhance": { "type": "string" },
+                    "categorize": { "type": "string" },
+                    "enhanceAndCategorize": { "type": "string" },
+                    "summarize": { "type": "string" },
+                    "releaseNotes": { "type": "string" }
+                  }
+                },
+                "templates": {
+                  "type": "object",
+                  "description": "Custom template overrides",
+                  "properties": {
+                    "enhance": { "type": "string" },
+                    "categorize": { "type": "string" },
+                    "enhanceAndCategorize": { "type": "string" },
+                    "summarize": { "type": "string" },
+                    "releaseNotes": { "type": "string" }
+                  }
+                }
+              }
             }
           }
         },
