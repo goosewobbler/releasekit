@@ -96,7 +96,7 @@ jobs:
           fi
 
           # Run releasekit and capture JSON output (stdout only)
-          # stderr goes to a temp file so we can surface it on failure
+          # stderr is tee'd so logs appear in the workflow AND are captured for failure diagnostics
           set +e
           RELEASE_OUTPUT=$(node packages/release/dist/cli.js release \
             --json \
@@ -104,13 +104,12 @@ jobs:
             ${PRERELEASE_FLAGS} \
             ${TARGET_FLAGS} \
             ${DRY_RUN_FLAG} \
-            2>/tmp/release_stderr)
+            2> >(tee /tmp/release_stderr >&2))
           EXIT_CODE=$?
           set -e
 
           if [ $EXIT_CODE -ne 0 ]; then
-            echo "releasekit failed with exit code $EXIT_CODE"
-            cat /tmp/release_stderr
+            echo "::error::releasekit failed with exit code $EXIT_CODE"
             exit $EXIT_CODE
           fi
 
