@@ -60,7 +60,7 @@ export class OllamaProvider extends BaseLLMProvider {
         'Content-Type': 'application/json',
       };
       if (this.apiKey) {
-        headers['Authorization'] = `Bearer ${this.apiKey}`;
+        headers.Authorization = `Bearer ${this.apiKey}`;
       }
       const baseUrl = this.baseURL.endsWith('/api') ? this.baseURL.slice(0, -4) : this.baseURL;
       const response = await fetch(`${baseUrl}/api/chat`, {

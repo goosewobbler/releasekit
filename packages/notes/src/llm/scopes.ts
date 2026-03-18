@@ -65,7 +65,6 @@ export function validateScope(
       return scope;
     case 'fallback':
       return rules?.fallbackScope;
-    case 'remove':
     default:
       return undefined;
   }
