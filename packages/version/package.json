@@ -1,6 +1,6 @@
 {
   "name": "@releasekit/version",
-  "version": "0.3.0-next.0",
+  "version": "0.3.0-next.1",
   "description": "Semantic versioning based on Git history and conventional commits",
   "type": "module",
   "main": "./dist/index.cjs",
