@@ -47,3 +47,4 @@ jobs:
       dry_run: ${{ inputs.dry_run }}
     secrets:
       DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
