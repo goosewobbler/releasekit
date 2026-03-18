@@ -79,10 +79,17 @@ export const PublishGitConfigSchema = z.object({
 export const GitHubReleaseConfigSchema = z.object({
   enabled: z.boolean().default(true),
   draft: z.boolean().default(true),
-  generateNotes: z.boolean().default(true),
-  perPackage: z.boolean().default(false),
+  perPackage: z.boolean().default(true),
   prerelease: z.union([z.literal('auto'), z.boolean()]).default('auto'),
-  notesFile: z.string().optional(),
+  /**
+   * Controls how release notes are sourced for GitHub releases.
+   * - 'auto': Use RELEASE_NOTES.md if it exists, then per-package changelog
+   *   data from the version output, then GitHub's auto-generated notes.
+   * - 'github': Always use GitHub's auto-generated notes.
+   * - 'none': No notes body.
+   * - Any other string: Treated as a file path to read notes from.
+   */
+  releaseNotes: z.union([z.literal('auto'), z.literal('github'), z.literal('none'), z.string()]).default('auto'),
 });
 
 export const VerifyRegistryConfigSchema = z.object({
@@ -127,9 +134,9 @@ export const PublishConfigSchema = z.object({
   githubRelease: GitHubReleaseConfigSchema.default({
     enabled: true,
     draft: true,
-    generateNotes: true,
-    perPackage: false,
+    perPackage: true,
     prerelease: 'auto',
+    releaseNotes: 'auto',
   }),
   verify: VerifyConfigSchema.default({
     npm: {

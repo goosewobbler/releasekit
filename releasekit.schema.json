@@ -297,14 +297,9 @@
               "default": true,
               "description": "Create as draft release"
             },
-            "generateNotes": {
-              "type": "boolean",
-              "default": true,
-              "description": "Auto-generate release notes"
-            },
             "perPackage": {
               "type": "boolean",
-              "default": false,
+              "default": true,
               "description": "Create separate release per package"
             },
             "prerelease": {
@@ -312,9 +307,10 @@
               "default": "auto",
               "description": "Mark as prerelease"
             },
-            "notesFile": {
+            "releaseNotes": {
               "type": "string",
-              "description": "File containing release notes"
+              "default": "auto",
+              "description": "How to source release notes. 'auto': RELEASE_NOTES.md → per-package changelog → GitHub auto-notes. 'github': GitHub auto-notes. 'none': no notes. Any other string: file path."
             }
           }
         },

@@ -163,15 +163,24 @@ describe('GitHubReleaseConfigSchema', () => {
     const result = GitHubReleaseConfigSchema.parse({});
     expect(result.enabled).toBe(true);
     expect(result.draft).toBe(true);
-    expect(result.generateNotes).toBe(true);
-    expect(result.perPackage).toBe(false);
+    expect(result.perPackage).toBe(true);
     expect(result.prerelease).toBe('auto');
+    expect(result.releaseNotes).toBe('auto');
   });
 
   it('accepts prerelease as boolean or auto', () => {
     expect(GitHubReleaseConfigSchema.parse({ prerelease: true }).prerelease).toBe(true);
     expect(GitHubReleaseConfigSchema.parse({ prerelease: false }).prerelease).toBe(false);
     expect(GitHubReleaseConfigSchema.parse({ prerelease: 'auto' }).prerelease).toBe('auto');
+  });
+
+  it('accepts releaseNotes as auto, github, none, or file path', () => {
+    expect(GitHubReleaseConfigSchema.parse({ releaseNotes: 'auto' }).releaseNotes).toBe('auto');
+    expect(GitHubReleaseConfigSchema.parse({ releaseNotes: 'github' }).releaseNotes).toBe('github');
+    expect(GitHubReleaseConfigSchema.parse({ releaseNotes: 'none' }).releaseNotes).toBe('none');
+    expect(GitHubReleaseConfigSchema.parse({ releaseNotes: './RELEASE_NOTES.md' }).releaseNotes).toBe(
+      './RELEASE_NOTES.md',
+    );
   });
 });
 
