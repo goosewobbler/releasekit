@@ -66,7 +66,7 @@ describe('loadConfig()', () => {
     });
   });
 
-  it('substitutes {env:MISSING_VAR} with empty string', () => {
+  it('treats unresolved {env:MISSING_VAR} as undefined (absent)', () => {
     withTempDir((dir) => {
       fs.writeFileSync(
         path.join(dir, 'releasekit.config.json'),
@@ -80,7 +80,7 @@ describe('loadConfig()', () => {
       );
 
       const config = loadConfig(dir);
-      expect(config.llm?.apiKey).toBe('');
+      expect(config.llm?.apiKey).toBeUndefined();
     });
   });
 
