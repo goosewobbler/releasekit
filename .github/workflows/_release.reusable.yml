@@ -55,8 +55,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Build packages
-        run: pnpm build
+      - name: Install releasekit from npm
+        run: pnpm add -g @releasekit/release
 
       - name: Run releasekit
         id: release
@@ -101,7 +101,7 @@ jobs:
           # Run releasekit and capture JSON output (stdout only)
           # stderr is tee'd so logs appear in the workflow AND are captured for failure diagnostics
           set +e
-          RELEASE_OUTPUT=$(node packages/release/dist/cli.js release \
+          RELEASE_OUTPUT=$(releasekit release \
             --json \
             ${BUMP_FLAGS} \
             ${PRERELEASE_FLAGS} \
