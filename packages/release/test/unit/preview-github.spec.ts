@@ -1,0 +1,91 @@
+import { describe, expect, it, vi } from 'vitest';
+import { findPreviewComment, postOrUpdateComment } from '../../src/preview-github.js';
+
+function createMockOctokit(comments: { id: number; body: string }[] = []) {
+  const listComments = vi.fn();
+  const createComment = vi.fn().mockResolvedValue({});
+  const updateComment = vi.fn().mockResolvedValue({});
+
+  const paginate = {
+    iterator: vi.fn().mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { data: comments };
+      },
+    }),
+  };
+
+  return {
+    octokit: {
+      paginate,
+      rest: {
+        issues: {
+          listComments,
+          createComment,
+          updateComment,
+        },
+      },
+    } as unknown as Parameters<typeof findPreviewComment>[0],
+    mocks: { listComments, createComment, updateComment, paginate },
+  };
+}
+
+describe('findPreviewComment', () => {
+  it('returns comment ID when marker is found', async () => {
+    const { octokit } = createMockOctokit([
+      { id: 1, body: 'Some other comment' },
+      { id: 2, body: '<!-- releasekit-preview -->\n## Release Preview' },
+    ]);
+
+    const result = await findPreviewComment(octokit, 'owner', 'repo', 1);
+    expect(result).toBe(2);
+  });
+
+  it('returns null when no marker comment exists', async () => {
+    const { octokit } = createMockOctokit([
+      { id: 1, body: 'Regular comment' },
+      { id: 2, body: 'Another comment' },
+    ]);
+
+    const result = await findPreviewComment(octokit, 'owner', 'repo', 1);
+    expect(result).toBeNull();
+  });
+
+  it('returns null when no comments exist', async () => {
+    const { octokit } = createMockOctokit([]);
+
+    const result = await findPreviewComment(octokit, 'owner', 'repo', 1);
+    expect(result).toBeNull();
+  });
+});
+
+describe('postOrUpdateComment', () => {
+  it('creates a new comment when none exists', async () => {
+    const { octokit, mocks } = createMockOctokit([]);
+    const body = '<!-- releasekit-preview -->\n## Release Preview';
+
+    await postOrUpdateComment(octokit, 'owner', 'repo', 1, body);
+
+    expect(mocks.createComment).toHaveBeenCalledWith({
+      owner: 'owner',
+      repo: 'repo',
+      issue_number: 1,
+      body,
+    });
+    expect(mocks.updateComment).not.toHaveBeenCalled();
+  });
+
+  it('updates existing comment when marker is found', async () => {
+    const { octokit, mocks } = createMockOctokit([{ id: 42, body: '<!-- releasekit-preview -->\nOld content' }]);
+    const body = '<!-- releasekit-preview -->\n## Release Preview (updated)';
+
+    await postOrUpdateComment(octokit, 'owner', 'repo', 1, body);
+
+    expect(mocks.updateComment).toHaveBeenCalledWith({
+      owner: 'owner',
+      repo: 'repo',
+      comment_id: 42,
+      body,
+    });
+    expect(mocks.createComment).not.toHaveBeenCalled();
+  });
+});

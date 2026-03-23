@@ -1,0 +1,36 @@
+name: Release Preview
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: release-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  preview:
+    name: Release Preview
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Release preview
+        run: npx releasekit preview
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

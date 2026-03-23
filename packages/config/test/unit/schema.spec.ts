@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BranchPatternSchema,
   CargoPublishConfigSchema,
+  CIConfigSchema,
   GitConfigSchema,
   GitHubReleaseConfigSchema,
   LLMCategorySchema,
@@ -446,6 +447,34 @@ describe('NotesConfigSchema', () => {
   });
 });
 
+describe('CIConfigSchema', () => {
+  it('applies defaults', () => {
+    const result = CIConfigSchema.parse({});
+    expect(result.prPreview).toBe(true);
+    expect(result.autoRelease).toBe(false);
+    expect(result.skipPatterns).toEqual([]);
+    expect(result.minChanges).toBe(1);
+  });
+
+  it('accepts valid values', () => {
+    const result = CIConfigSchema.parse({
+      prPreview: false,
+      autoRelease: true,
+      skipPatterns: ['chore(deps):', 'ci:'],
+      minChanges: 3,
+    });
+    expect(result.prPreview).toBe(false);
+    expect(result.autoRelease).toBe(true);
+    expect(result.skipPatterns).toEqual(['chore(deps):', 'ci:']);
+    expect(result.minChanges).toBe(3);
+  });
+
+  it('rejects non-positive minChanges', () => {
+    expect(() => CIConfigSchema.parse({ minChanges: 0 })).toThrow();
+    expect(() => CIConfigSchema.parse({ minChanges: -1 })).toThrow();
+  });
+});
+
 describe('ReleaseKitConfigSchema', () => {
   it('accepts empty object', () => {
     const result = ReleaseKitConfigSchema.parse({});
@@ -459,12 +488,15 @@ describe('ReleaseKitConfigSchema', () => {
       version: { preset: 'conventional' },
       publish: { npm: { enabled: true } },
       notes: { updateStrategy: 'prepend' },
+      ci: { prPreview: true, autoRelease: false },
     });
     expect(result.git?.remote).toBe('origin');
     expect(result.monorepo?.mode).toBe('packages');
     expect(result.version?.preset).toBe('conventional');
     expect(result.publish?.npm.enabled).toBe(true);
     expect(result.notes?.updateStrategy).toBe('prepend');
+    expect(result.ci?.prPreview).toBe(true);
+    expect(result.ci?.autoRelease).toBe(false);
   });
 
   it('rejects invalid nested values', () => {

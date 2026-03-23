@@ -1,0 +1,37 @@
+name: Release Preview
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: release-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  pull-requests: write
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+jobs:
+  preview:
+    name: Release Preview
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup workspace
+        uses: ./.github/workflows/actions/setup-workspace
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Release preview
+        run: node packages/release/dist/cli.js preview
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

@@ -246,14 +246,23 @@ export const NotesConfigSchema = z.object({
   updateStrategy: z.enum(['prepend', 'regenerate']).default('prepend'),
 });
 
+export const CIConfigSchema = z.object({
+  prPreview: z.boolean().default(true),
+  autoRelease: z.boolean().default(false),
+  skipPatterns: z.array(z.string()).default([]),
+  minChanges: z.number().int().positive().default(1),
+});
+
 export const ReleaseKitConfigSchema = z.object({
   git: GitConfigSchema.optional(),
   monorepo: MonorepoConfigSchema.optional(),
   version: VersionConfigSchema.optional(),
   publish: PublishConfigSchema.optional(),
   notes: NotesConfigSchema.optional(),
+  ci: CIConfigSchema.optional(),
 });
 
+export type CIConfig = z.infer<typeof CIConfigSchema>;
 export type GitConfig = z.infer<typeof GitConfigSchema>;
 export type MonorepoConfig = z.infer<typeof MonorepoConfigSchema>;
 export type VersionConfig = z.infer<typeof VersionConfigSchema>;

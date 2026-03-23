@@ -1,7 +1,14 @@
 import * as fs from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigError } from '../../src/errors.js';
-import { loadConfig, loadGitConfig, loadNotesConfig, loadPublishConfig, loadVersionConfig } from '../../src/load.js';
+import {
+  loadCIConfig,
+  loadConfig,
+  loadGitConfig,
+  loadNotesConfig,
+  loadPublishConfig,
+  loadVersionConfig,
+} from '../../src/load.js';
 
 vi.mock('node:fs', () => ({
   existsSync: vi.fn(),
@@ -259,6 +266,33 @@ describe('loadGitConfig', () => {
     mockedFs.readFileSync.mockReturnValue('{}');
 
     const result = loadGitConfig();
+    expect(result).toBeUndefined();
+  });
+});
+
+describe('loadCIConfig', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns CI config from loaded config', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(
+      JSON.stringify({
+        ci: { prPreview: false, autoRelease: true },
+      }),
+    );
+
+    const result = loadCIConfig();
+    expect(result?.prPreview).toBe(false);
+    expect(result?.autoRelease).toBe(true);
+  });
+
+  it('returns undefined when no CI config', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue('{}');
+
+    const result = loadCIConfig();
     expect(result).toBeUndefined();
   });
 });

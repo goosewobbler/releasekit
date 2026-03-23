@@ -246,6 +246,9 @@ importers:
 
   packages/release:
     dependencies:
+      '@octokit/rest':
+        specifier: ^22.0.1
+        version: 22.0.1
       '@releasekit/config':
         specifier: workspace:*
         version: link:../config

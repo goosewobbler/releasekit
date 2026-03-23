@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 import { EXIT_CODES } from '@releasekit/core';
 import { Command } from 'commander';
+import { runPreview } from './preview.js';
 import { runRelease } from './release.js';
 import type { ReleaseOptions } from './types.js';
 
 const program = new Command();
 
+program.name('releasekit').description('Unified release pipeline: version, changelog, and publish').version('0.1.0');
+
 program
-  .name('releasekit')
-  .description('Unified release pipeline: version, changelog, and publish')
-  .version('0.1.0')
   .command('release', { isDefault: true })
   .description('Run the full release pipeline')
   .option('-c, --config <path>', 'Path to config file')
@@ -57,6 +57,29 @@ program
         // No releasable changes — exit cleanly
         process.exit(0);
       }
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exit(EXIT_CODES.GENERAL_ERROR);
+    }
+  });
+
+program
+  .command('preview')
+  .description('Post a release preview comment on the current pull request')
+  .option('-c, --config <path>', 'Path to config file')
+  .option('--project-dir <path>', 'Project directory', process.cwd())
+  .option('--pr <number>', 'PR number (auto-detected from GitHub Actions)')
+  .option('--repo <owner/repo>', 'Repository (auto-detected from GITHUB_REPOSITORY)')
+  .option('-d, --dry-run', 'Print comment markdown to stdout instead of posting', false)
+  .action(async (opts) => {
+    try {
+      await runPreview({
+        config: opts.config,
+        projectDir: opts.projectDir,
+        pr: opts.pr,
+        repo: opts.repo,
+        dryRun: opts.dryRun,
+      });
     } catch (error) {
       console.error(error instanceof Error ? error.message : String(error));
       process.exit(EXIT_CODES.GENERAL_ERROR);
