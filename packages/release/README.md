@@ -48,6 +48,8 @@ If no releasable changes are found after step 1, the command exits with code 0 a
 
 ## CLI Reference
 
+### `releasekit release`
+
 | Flag | Description | Default |
 |------|-------------|---------|
 | `-c, --config <path>` | Path to config file | `releasekit.config.json` |
@@ -65,6 +67,22 @@ If no releasable changes are found after step 1, the command exits with code 0 a
 | `-v, --verbose` | Verbose logging | `false` |
 | `-q, --quiet` | Suppress non-error output | `false` |
 | `--project-dir <path>` | Project directory | cwd |
+
+### `releasekit preview`
+
+Posts a release preview comment on a pull request showing what would be released if merged.
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-c, --config <path>` | Path to config file | `releasekit.config.json` |
+| `-d, --dry-run` | Print comment markdown to stdout instead of posting | `false` |
+| `-p, --prerelease [id]` | Force prerelease preview (auto-detected by default) | — |
+| `--stable` | Force stable release preview (graduation from prerelease) | `false` |
+| `--pr <number>` | PR number (auto-detected from GitHub Actions) | — |
+| `--repo <owner/repo>` | Repository (auto-detected from `GITHUB_REPOSITORY`) | — |
+| `--project-dir <path>` | Project directory | cwd |
+
+The preview command reads PR labels to determine release behavior. See [CI Configuration](#ci-configuration) for label configuration.
 
 ## Usage Examples
 
@@ -151,6 +169,98 @@ See the individual package READMEs for configuration details:
 - [@releasekit/version](../version/README.md) — versioning options
 - [@releasekit/notes](../notes/README.md) — changelog options
 - [@releasekit/publish](../publish/README.md) — publishing options
+
+### CI Configuration
+
+The `ci` section controls automation behavior:
+
+```jsonc
+{
+  "ci": {
+    // How releases are delivered
+    "releaseStrategy": "direct",       // "manual" | "direct" | "standing-pr" | "scheduled"
+
+    // What triggers a release
+    "releaseTrigger": "label",         // "commit" | "label"
+
+    // Enable/disable PR preview comments
+    "prPreview": true,
+
+    // Customise PR label names
+    "labels": {
+      "stable": "release:stable",
+      "prerelease": "release:prerelease",
+      "skip": "release:skip",
+      "major": "release:major",
+      "minor": "release:minor",
+      "patch": "release:patch"
+    }
+  }
+}
+```
+
+#### Release Trigger
+
+**`label`** (default) — A PR label (`release:patch`, `release:minor`, or `release:major`) is required to trigger a release. The label determines the bump type. PRs without a release label will not trigger a release when merged.
+
+**`commit`** — Conventional commits drive the bump type automatically. Every merge can trigger a release. Use the `release:skip` label to prevent a release, or `release:major` to override the commit-derived bump to major.
+
+Both modes support `release:stable` and `release:prerelease` as modifiers.
+
+#### Release Strategy
+
+| Strategy | Description |
+|----------|-------------|
+| `direct` | Release is triggered when a PR is merged to the main branch |
+| `manual` | Releases are triggered manually (e.g. via `workflow_dispatch`) |
+| `standing-pr` | Changes accumulate in a standing release PR *(planned)* |
+| `scheduled` | Releases are triggered on a schedule *(planned)* |
+
+### PR Preview
+
+The `releasekit preview` command posts a comment on pull requests showing what would be released. It reads PR labels from GitHub and adapts its messaging based on `releaseStrategy` and `releaseTrigger`.
+
+Add this workflow to `.github/workflows/release-preview.yml`:
+
+```yaml
+name: Release Preview
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, labeled, unlabeled]
+
+concurrency:
+  group: release-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  preview:
+    name: Release Preview
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Release preview
+        run: npx releasekit preview
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+```
+
+A template is also available at [`templates/workflows/release-preview.yml`](../../templates/workflows/release-preview.yml).
 
 ## License
 

@@ -18,6 +18,7 @@ This is an internal package that handles configuration loading, schema validatio
 | `loadNotesConfig(options)` | Load notes-specific config |
 | `loadGitConfig(options)` | Load shared git config |
 | `loadMonorepoConfig(options)` | Load monorepo config |
+| `loadCIConfig(options)` | Load CI automation config |
 
 ### Schema Types
 
@@ -28,6 +29,8 @@ This is an internal package that handles configuration loading, schema validatio
 | `VersionConfig` | Version config type |
 | `PublishConfig` | Publish config type |
 | `NotesConfig` | Notes config type |
+| `CIConfig` | CI automation config type |
+| `CILabelsConfig` | CI label names config type |
 
 ### Cargo Utilities
 
@@ -83,7 +86,7 @@ const data = parseJsonc('{ "key": "value" // comment\n}');
 
 ReleaseKit uses a single `releasekit.config.json` file:
 
-```json
+```jsonc
 {
   "git": {
     "remote": "origin",
@@ -101,6 +104,10 @@ ReleaseKit uses a single `releasekit.config.json` file:
   },
   "notes": {
     "output": [{ "format": "markdown", "file": "CHANGELOG.md" }]
+  },
+  "ci": {
+    "releaseStrategy": "direct",
+    "releaseTrigger": "label"
   }
 }
 ```
