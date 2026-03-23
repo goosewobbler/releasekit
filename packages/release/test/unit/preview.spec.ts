@@ -86,7 +86,7 @@ describe('runPreview', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
 
-    mockLoadCIConfig.mockReturnValue(undefined);
+    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
     mockLoadConfig.mockReturnValue({});
     mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
     mockRunRelease.mockResolvedValue({
@@ -127,7 +127,7 @@ describe('runPreview', () => {
   });
 
   it('runs when CI config enables preview', async () => {
-    mockLoadCIConfig.mockReturnValue({ prPreview: true });
+    mockLoadCIConfig.mockReturnValue({ prPreview: true, releaseTrigger: 'commit' });
 
     await runPreview({ projectDir: '/test', dryRun: false });
 
@@ -252,8 +252,8 @@ describe('runPreview', () => {
 
   // --- Release strategy tests ---
 
-  it('uses manual strategy messaging by default (no CI config)', async () => {
-    mockLoadCIConfig.mockReturnValue(undefined);
+  it('uses direct strategy messaging by default (no CI config)', async () => {
+    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
 
     await runPreview({ projectDir: '/test', dryRun: false });
 
@@ -262,12 +262,12 @@ describe('runPreview', () => {
       'owner',
       'repo',
       1,
-      expect.stringContaining('If released, this PR would include:'),
+      expect.stringContaining('This PR will trigger the following release when merged:'),
     );
   });
 
   it('uses direct strategy messaging when configured', async () => {
-    mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'direct' });
+    mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'direct', releaseTrigger: 'commit' });
 
     await runPreview({ projectDir: '/test', dryRun: false });
 
@@ -281,7 +281,7 @@ describe('runPreview', () => {
   });
 
   it('uses manual strategy messaging when explicitly configured', async () => {
-    mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'manual' });
+    mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'manual', releaseTrigger: 'commit' });
 
     await runPreview({ projectDir: '/test', dryRun: false });
 
@@ -295,7 +295,7 @@ describe('runPreview', () => {
   });
 
   it('uses scheduled strategy no-changes message', async () => {
-    mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'scheduled' });
+    mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'scheduled', releaseTrigger: 'commit' });
     mockRunRelease.mockResolvedValue(null);
 
     await runPreview({ projectDir: '/test', dryRun: false });
@@ -331,6 +331,7 @@ describe('runPreview', () => {
 
   it('uses custom label names from CI config', async () => {
     mockLoadCIConfig.mockReturnValue({
+      releaseTrigger: 'commit',
       labels: {
         stable: 'grad',
         prerelease: 'pre',
@@ -387,6 +388,7 @@ describe('runPreview', () => {
   // --- Commit mode: skip and major labels ---
 
   it('skip label shows skip banner in commit mode', async () => {
+    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
     mockFetchPRLabels.mockResolvedValue(['release:skip']);
 
     await runPreview({ projectDir: '/test', dryRun: false });
@@ -418,6 +420,7 @@ describe('runPreview', () => {
   });
 
   it('skip label takes priority over major label in commit mode', async () => {
+    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
     mockFetchPRLabels.mockResolvedValue(['release:skip', 'release:major']);
 
     await runPreview({ projectDir: '/test', dryRun: false });

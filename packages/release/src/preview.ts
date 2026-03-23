@@ -55,7 +55,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   // Apply label-driven overrides
   const { options: effectiveOptions, labelContext } = await applyLabelOverrides(options, ciConfig, context);
 
-  const strategy = ciConfig?.releaseStrategy ?? 'manual';
+  const strategy = ciConfig?.releaseStrategy ?? 'direct';
 
   // Label mode with no bump label — skip dry-run entirely
   if (labelContext.noBumpLabel) {
@@ -167,7 +167,7 @@ async function applyLabelOverrides(
   ciConfig: CIConfig | undefined,
   context: PreviewContext | undefined,
 ): Promise<LabelOverrideResult> {
-  const trigger = ciConfig?.releaseTrigger ?? 'commit';
+  const trigger = ciConfig?.releaseTrigger ?? 'label';
   const defaultLabelContext: LabelContext = { trigger, skip: false, noBumpLabel: false };
 
   if (!context) {

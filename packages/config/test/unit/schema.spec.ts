@@ -450,8 +450,8 @@ describe('NotesConfigSchema', () => {
 describe('CIConfigSchema', () => {
   it('applies defaults', () => {
     const result = CIConfigSchema.parse({});
-    expect(result.releaseStrategy).toBe('manual');
-    expect(result.releaseTrigger).toBe('commit');
+    expect(result.releaseStrategy).toBe('direct');
+    expect(result.releaseTrigger).toBe('label');
     expect(result.prPreview).toBe(true);
     expect(result.autoRelease).toBe(false);
     expect(result.skipPatterns).toEqual([]);
