@@ -517,4 +517,44 @@ describe('runPreview', () => {
     // skip is irrelevant — minor label triggers the release
     expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor' }));
   });
+
+  it('noBumpLabel prints to stdout in dry-run mode', async () => {
+    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await runPreview({ projectDir: '/test', dryRun: true });
+
+    expect(mockRunRelease).not.toHaveBeenCalled();
+    expect(consoleSpy).toHaveBeenCalled();
+    const output = consoleSpy.mock.calls[0]?.[0] as string;
+    expect(output).toContain('No release label detected');
+    expect(mockPostOrUpdateComment).not.toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+  });
+
+  it('uses custom label names in label mode', async () => {
+    mockLoadCIConfig.mockReturnValue({
+      releaseTrigger: 'label',
+      labels: {
+        stable: 'grad',
+        prerelease: 'pre',
+        skip: 'skip',
+        major: 'bump:major',
+        minor: 'bump:minor',
+        patch: 'bump:patch',
+      },
+    });
+    mockFetchPRLabels.mockResolvedValue(['bump:minor']);
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor' }));
+  });
+
+  it('CLI --bump flag is passed through to runRelease', async () => {
+    await runPreview({ projectDir: '/test', dryRun: false, bump: 'patch' });
+
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'patch' }));
+  });
 });

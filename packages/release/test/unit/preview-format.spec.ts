@@ -200,6 +200,14 @@ describe('formatPreviewComment', () => {
       });
       expect(result).toContain('labeled for a **patch** release');
     });
+
+    it('shows major label banner in label mode', () => {
+      const result = formatPreviewComment(releaseOutput, {
+        labelContext: { trigger: 'label', skip: false, bumpLabel: 'major', noBumpLabel: false },
+      });
+      expect(result).toContain('[!NOTE]');
+      expect(result).toContain('labeled for a **major** release');
+    });
   });
 
   it('handles single package without changelogs', () => {
