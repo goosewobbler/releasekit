@@ -3,6 +3,7 @@ name: Release Preview
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, labeled, unlabeled]
 
 concurrency:
   group: release-preview-${{ github.event.pull_request.number }}

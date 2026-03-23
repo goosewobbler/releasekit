@@ -89,6 +89,63 @@ describe('formatPreviewComment', () => {
     expect(result).not.toContain('### Packages');
   });
 
+  // --- Strategy-specific messaging ---
+
+  describe('release strategy messaging', () => {
+    it('uses manual intro by default', () => {
+      const result = formatPreviewComment(releaseOutput);
+      expect(result).toContain('If released, this PR would include:');
+    });
+
+    it('uses manual intro when strategy is manual', () => {
+      const result = formatPreviewComment(releaseOutput, { strategy: 'manual' });
+      expect(result).toContain('If released, this PR would include:');
+    });
+
+    it('uses direct intro when strategy is direct', () => {
+      const result = formatPreviewComment(releaseOutput, { strategy: 'direct' });
+      expect(result).toContain('This PR will trigger the following release when merged:');
+    });
+
+    it('uses standing-pr intro without existing PR number', () => {
+      const result = formatPreviewComment(releaseOutput, { strategy: 'standing-pr' });
+      expect(result).toContain('Merging this PR will create a new release PR with the following changes:');
+    });
+
+    it('uses standing-pr intro with existing PR number', () => {
+      const result = formatPreviewComment(releaseOutput, { strategy: 'standing-pr', standingPrNumber: 99 });
+      expect(result).toContain('These changes will be added to the release PR (#99) when merged:');
+    });
+
+    it('uses scheduled intro when strategy is scheduled', () => {
+      const result = formatPreviewComment(releaseOutput, { strategy: 'scheduled' });
+      expect(result).toContain('These changes will be included in the next scheduled release:');
+    });
+
+    // No-changes messages per strategy
+
+    it('shows manual no-changes message by default', () => {
+      const result = formatPreviewComment(null);
+      expect(result).toContain('> No releasable changes detected.');
+      expect(result).not.toContain('will not trigger');
+    });
+
+    it('shows direct no-changes message', () => {
+      const result = formatPreviewComment(null, { strategy: 'direct' });
+      expect(result).toContain('Merging this PR will not trigger a release');
+    });
+
+    it('shows standing-pr no-changes message', () => {
+      const result = formatPreviewComment(null, { strategy: 'standing-pr' });
+      expect(result).toContain('will not affect the release PR');
+    });
+
+    it('shows scheduled no-changes message', () => {
+      const result = formatPreviewComment(null, { strategy: 'scheduled' });
+      expect(result).toContain('will not be included in the next scheduled release');
+    });
+  });
+
   it('handles single package without changelogs', () => {
     const output: ReleaseOutput = {
       versionOutput: {

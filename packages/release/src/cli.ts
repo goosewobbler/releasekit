@@ -70,6 +70,8 @@ program
   .option('--project-dir <path>', 'Project directory', process.cwd())
   .option('--pr <number>', 'PR number (auto-detected from GitHub Actions)')
   .option('--repo <owner/repo>', 'Repository (auto-detected from GITHUB_REPOSITORY)')
+  .option('-p, --prerelease [identifier]', 'Force prerelease preview (auto-detected by default)')
+  .option('--stable', 'Force stable release preview (graduation from prerelease)', false)
   .option('-d, --dry-run', 'Print comment markdown to stdout instead of posting', false)
   .action(async (opts) => {
     try {
@@ -78,6 +80,8 @@ program
         projectDir: opts.projectDir,
         pr: opts.pr,
         repo: opts.repo,
+        prerelease: opts.prerelease,
+        stable: opts.stable,
         dryRun: opts.dryRun,
       });
     } catch (error) {

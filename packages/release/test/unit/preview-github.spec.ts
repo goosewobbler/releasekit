@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { findPreviewComment, postOrUpdateComment } from '../../src/preview-github.js';
+import { fetchPRLabels, findPreviewComment, postOrUpdateComment } from '../../src/preview-github.js';
 
 function createMockOctokit(comments: { id: number; body: string }[] = []) {
   const listComments = vi.fn();
   const createComment = vi.fn().mockResolvedValue({});
   const updateComment = vi.fn().mockResolvedValue({});
+  const getIssue = vi.fn().mockResolvedValue({ data: { labels: [] } });
 
   const paginate = {
     iterator: vi.fn().mockReturnValue({
@@ -22,10 +23,11 @@ function createMockOctokit(comments: { id: number; body: string }[] = []) {
           listComments,
           createComment,
           updateComment,
+          get: getIssue,
         },
       },
     } as unknown as Parameters<typeof findPreviewComment>[0],
-    mocks: { listComments, createComment, updateComment, paginate },
+    mocks: { listComments, createComment, updateComment, getIssue, paginate },
   };
 }
 
@@ -87,5 +89,35 @@ describe('postOrUpdateComment', () => {
       body,
     });
     expect(mocks.createComment).not.toHaveBeenCalled();
+  });
+});
+
+describe('fetchPRLabels', () => {
+  it('returns label names from PR', async () => {
+    const { octokit, mocks } = createMockOctokit();
+    mocks.getIssue.mockResolvedValue({
+      data: { labels: [{ name: 'release:stable' }, { name: 'bug' }] },
+    });
+
+    const labels = await fetchPRLabels(octokit, 'owner', 'repo', 1);
+    expect(labels).toEqual(['release:stable', 'bug']);
+  });
+
+  it('handles string labels', async () => {
+    const { octokit, mocks } = createMockOctokit();
+    mocks.getIssue.mockResolvedValue({
+      data: { labels: ['release:stable', 'enhancement'] },
+    });
+
+    const labels = await fetchPRLabels(octokit, 'owner', 'repo', 1);
+    expect(labels).toEqual(['release:stable', 'enhancement']);
+  });
+
+  it('returns empty array when no labels', async () => {
+    const { octokit, mocks } = createMockOctokit();
+    mocks.getIssue.mockResolvedValue({ data: { labels: [] } });
+
+    const labels = await fetchPRLabels(octokit, 'owner', 'repo', 1);
+    expect(labels).toEqual([]);
   });
 });

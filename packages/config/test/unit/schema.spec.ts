@@ -450,28 +450,65 @@ describe('NotesConfigSchema', () => {
 describe('CIConfigSchema', () => {
   it('applies defaults', () => {
     const result = CIConfigSchema.parse({});
+    expect(result.releaseStrategy).toBe('manual');
     expect(result.prPreview).toBe(true);
     expect(result.autoRelease).toBe(false);
     expect(result.skipPatterns).toEqual([]);
     expect(result.minChanges).toBe(1);
+    expect(result.labels).toEqual({
+      stable: 'release:stable',
+      prerelease: 'release:prerelease',
+      skip: 'release:skip',
+      major: 'release:major',
+    });
   });
 
   it('accepts valid values', () => {
     const result = CIConfigSchema.parse({
+      releaseStrategy: 'direct',
       prPreview: false,
       autoRelease: true,
       skipPatterns: ['chore(deps):', 'ci:'],
       minChanges: 3,
     });
+    expect(result.releaseStrategy).toBe('direct');
     expect(result.prPreview).toBe(false);
     expect(result.autoRelease).toBe(true);
     expect(result.skipPatterns).toEqual(['chore(deps):', 'ci:']);
     expect(result.minChanges).toBe(3);
   });
 
+  it('accepts all releaseStrategy values', () => {
+    for (const strategy of ['manual', 'direct', 'standing-pr', 'scheduled'] as const) {
+      expect(CIConfigSchema.parse({ releaseStrategy: strategy }).releaseStrategy).toBe(strategy);
+    }
+  });
+
+  it('rejects invalid releaseStrategy', () => {
+    expect(() => CIConfigSchema.parse({ releaseStrategy: 'invalid' })).toThrow();
+  });
+
   it('rejects non-positive minChanges', () => {
     expect(() => CIConfigSchema.parse({ minChanges: 0 })).toThrow();
     expect(() => CIConfigSchema.parse({ minChanges: -1 })).toThrow();
+  });
+
+  it('accepts custom label names', () => {
+    const result = CIConfigSchema.parse({
+      labels: { stable: 'stable', prerelease: 'pre', skip: 'no-release', major: 'breaking' },
+    });
+    expect(result.labels.stable).toBe('stable');
+    expect(result.labels.prerelease).toBe('pre');
+    expect(result.labels.skip).toBe('no-release');
+    expect(result.labels.major).toBe('breaking');
+  });
+
+  it('applies label defaults for partial labels config', () => {
+    const result = CIConfigSchema.parse({ labels: { stable: 'custom-stable' } });
+    expect(result.labels.stable).toBe('custom-stable');
+    expect(result.labels.prerelease).toBe('release:prerelease');
+    expect(result.labels.skip).toBe('release:skip');
+    expect(result.labels.major).toBe('release:major');
   });
 });
 

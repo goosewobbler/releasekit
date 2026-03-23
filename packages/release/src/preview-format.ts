@@ -1,6 +1,8 @@
 import type { VersionPackageChangelog } from '@releasekit/core';
 import type { ReleaseOutput } from './types.js';
 
+export type ReleaseStrategy = 'manual' | 'direct' | 'standing-pr' | 'scheduled';
+
 const MARKER = '<!-- releasekit-preview -->';
 const FOOTER = '*Updated automatically by [ReleaseKit](https://github.com/goosewobbler/releasekit)*';
 
@@ -22,18 +24,52 @@ const TYPE_LABELS: Record<string, string> = {
   revert: 'Reverts',
 };
 
-export function formatPreviewComment(result: ReleaseOutput | null): string {
+export interface FormatOptions {
+  strategy?: ReleaseStrategy;
+  standingPrNumber?: number;
+}
+
+function getNoChangesMessage(strategy: ReleaseStrategy): string {
+  switch (strategy) {
+    case 'direct':
+      return '> No releasable changes detected. Merging this PR will not trigger a release.';
+    case 'standing-pr':
+      return '> No releasable changes detected. Merging this PR will not affect the release PR.';
+    case 'scheduled':
+      return '> No releasable changes detected. These changes will not be included in the next scheduled release.';
+    default:
+      return '> No releasable changes detected.';
+  }
+}
+
+function getIntroMessage(strategy: ReleaseStrategy, standingPrNumber?: number): string {
+  switch (strategy) {
+    case 'direct':
+      return 'This PR will trigger the following release when merged:';
+    case 'standing-pr':
+      return standingPrNumber
+        ? `These changes will be added to the release PR (#${standingPrNumber}) when merged:`
+        : 'Merging this PR will create a new release PR with the following changes:';
+    case 'scheduled':
+      return 'These changes will be included in the next scheduled release:';
+    default:
+      return 'If released, this PR would include:';
+  }
+}
+
+export function formatPreviewComment(result: ReleaseOutput | null, options?: FormatOptions): string {
+  const strategy = options?.strategy ?? 'manual';
   const lines: string[] = [MARKER, '', '## Release Preview', ''];
 
   if (!result) {
-    lines.push('> [!NOTE]', '> No releasable changes detected. Merging this PR will not trigger a release.');
+    lines.push('> [!NOTE]', getNoChangesMessage(strategy));
     lines.push('', '---', FOOTER);
     return lines.join('\n');
   }
 
   const { versionOutput } = result;
 
-  lines.push('This PR will trigger the following release when merged:', '');
+  lines.push(getIntroMessage(strategy, options?.standingPrNumber), '');
 
   // Package updates table
   lines.push('### Packages', '');

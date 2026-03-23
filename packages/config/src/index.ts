@@ -15,6 +15,7 @@ export { parseJsonc } from './parse.js';
 export {
   type CargoPublishConfig,
   type CIConfig,
+  type CILabelsConfig,
   type GitConfig,
   type GitHubReleaseConfig,
   type LLMCategory,

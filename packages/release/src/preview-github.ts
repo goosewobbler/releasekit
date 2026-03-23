@@ -33,6 +33,23 @@ export async function findPreviewComment(
 }
 
 /**
+ * Fetch the label names on a PR.
+ */
+export async function fetchPRLabels(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  prNumber: number,
+): Promise<string[]> {
+  const { data } = await octokit.rest.issues.get({
+    owner,
+    repo,
+    issue_number: prNumber,
+  });
+  return (data.labels ?? []).map((label) => (typeof label === 'string' ? label : (label.name ?? '')));
+}
+
+/**
  * Create or update the release preview comment on a PR.
  */
 export async function postOrUpdateComment(
