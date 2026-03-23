@@ -4,6 +4,7 @@ import { info, success, warn } from '@releasekit/core';
 import type { PreviewContext } from './preview-context.js';
 import { resolvePreviewContext } from './preview-context.js';
 import { detectPrerelease } from './preview-detect.js';
+import type { LabelContext } from './preview-format.js';
 import { formatPreviewComment } from './preview-format.js';
 import { createOctokit, fetchPRLabels, postOrUpdateComment } from './preview-github.js';
 import { runRelease } from './release.js';
@@ -16,7 +17,22 @@ export interface PreviewOptions {
   dryRun: boolean;
   prerelease?: string | boolean;
   stable?: boolean;
+  bump?: string;
 }
+
+interface LabelOverrideResult {
+  options: PreviewOptions;
+  labelContext: LabelContext;
+}
+
+const DEFAULT_LABELS = {
+  stable: 'release:stable',
+  prerelease: 'release:prerelease',
+  skip: 'release:skip',
+  major: 'release:major',
+  minor: 'release:minor',
+  patch: 'release:patch',
+};
 
 export async function runPreview(options: PreviewOptions): Promise<void> {
   // Check if preview is enabled in config
@@ -36,8 +52,24 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
     }
   }
 
-  // Apply label-driven overrides (only when we have GitHub context and no explicit CLI flags)
-  const effectiveOptions = await applyLabelOverrides(options, ciConfig, context);
+  // Apply label-driven overrides
+  const { options: effectiveOptions, labelContext } = await applyLabelOverrides(options, ciConfig, context);
+
+  const strategy = ciConfig?.releaseStrategy ?? 'manual';
+
+  // Label mode with no bump label — skip dry-run entirely
+  if (labelContext.noBumpLabel) {
+    const commentBody = formatPreviewComment(null, { strategy, labelContext });
+    if (!context) {
+      console.log(commentBody);
+      return;
+    }
+    info(`Posting preview comment on PR #${context.prNumber}...`);
+    const octokit = createOctokit(context.token);
+    await postOrUpdateComment(octokit, context.owner, context.repo, context.prNumber, commentBody);
+    success(`Preview comment posted on PR #${context.prNumber}`);
+    return;
+  }
 
   // Determine prerelease mode
   const releaseConfig = loadConfig({ cwd: effectiveOptions.projectDir, configPath: effectiveOptions.config });
@@ -53,6 +85,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
     config: effectiveOptions.config,
     dryRun: true,
     sync: false,
+    bump: effectiveOptions.bump,
     prerelease: prereleaseFlag,
     skipNotes: true,
     skipPublish: true,
@@ -66,8 +99,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   });
 
   // Format the comment
-  const strategy = ciConfig?.releaseStrategy ?? 'manual';
-  const commentBody = formatPreviewComment(result, { strategy });
+  const commentBody = formatPreviewComment(result, { strategy, labelContext });
 
   if (!context) {
     // Dry-run mode or GitHub context unavailable — print to stdout
@@ -115,35 +147,37 @@ function resolvePrerelease(
 /**
  * Apply PR label-driven overrides to preview options.
  *
- * Label overrides only apply when:
- * - We have a GitHub context (can fetch labels)
- * - The corresponding CLI flag was NOT explicitly set
+ * Behavior depends on `releaseTrigger`:
  *
- * Priority (highest to lowest):
- * 1. CLI flags (--stable, --prerelease)
- * 2. PR labels (ci.labels.stable, ci.labels.prerelease)
- * 3. Auto-detection from package versions
+ * **commit mode** (default):
+ * - `skip` label → marks release as skipped (preview still shows what would release)
+ * - `major` label → forces major bump override
+ * - `stable`/`prerelease` labels → modifier overrides (when CLI flags unset)
+ *
+ * **label mode**:
+ * - `major`/`minor`/`patch` labels → required to trigger release, determines bump type
+ * - No bump label → no release (noBumpLabel = true)
+ * - `stable`/`prerelease` labels → modifier overrides on top
+ * - `skip` label → ignored (redundant, no bump label already means no release)
+ *
+ * CLI flags always take highest priority over labels.
  */
 async function applyLabelOverrides(
   options: PreviewOptions,
   ciConfig: CIConfig | undefined,
   context: PreviewContext | undefined,
-): Promise<PreviewOptions> {
+): Promise<LabelOverrideResult> {
+  const trigger = ciConfig?.releaseTrigger ?? 'commit';
+  const defaultLabelContext: LabelContext = { trigger, skip: false, noBumpLabel: false };
+
   if (!context) {
-    return options;
+    return {
+      options,
+      labelContext: { ...defaultLabelContext, noBumpLabel: trigger === 'label' },
+    };
   }
 
-  // If both --stable and --prerelease are unset, check PR labels
-  if (options.stable || options.prerelease !== undefined) {
-    return options;
-  }
-
-  const labels = ciConfig?.labels ?? {
-    stable: 'release:stable',
-    prerelease: 'release:prerelease',
-    skip: 'release:skip',
-    major: 'release:major',
-  };
+  const labels = ciConfig?.labels ?? DEFAULT_LABELS;
 
   let prLabels: string[];
   try {
@@ -151,18 +185,57 @@ async function applyLabelOverrides(
     prLabels = await fetchPRLabels(octokit, context.owner, context.repo, context.prNumber);
   } catch {
     warn('Could not fetch PR labels — skipping label-driven overrides');
-    return options;
+    return {
+      options,
+      labelContext: { ...defaultLabelContext, noBumpLabel: trigger === 'label' },
+    };
   }
 
   const result = { ...options };
+  const labelContext: LabelContext = { trigger, skip: false, noBumpLabel: false };
 
-  if (prLabels.includes(labels.stable)) {
-    info(`PR label "${labels.stable}" detected — using stable release preview`);
-    result.stable = true;
-  } else if (prLabels.includes(labels.prerelease)) {
-    info(`PR label "${labels.prerelease}" detected — using prerelease preview`);
-    result.prerelease = true;
+  if (trigger === 'commit') {
+    // Skip label check
+    if (prLabels.includes(labels.skip)) {
+      info(`PR label "${labels.skip}" detected — release will be skipped`);
+      labelContext.skip = true;
+    }
+
+    // Major label override (only if not skipped)
+    if (!labelContext.skip && prLabels.includes(labels.major)) {
+      info(`PR label "${labels.major}" detected — forcing major release`);
+      labelContext.bumpLabel = 'major';
+      result.bump = 'major';
+    }
+  } else {
+    // Label mode: bump label required
+    if (prLabels.includes(labels.major)) {
+      info(`PR label "${labels.major}" detected — major release`);
+      labelContext.bumpLabel = 'major';
+      result.bump = 'major';
+    } else if (prLabels.includes(labels.minor)) {
+      info(`PR label "${labels.minor}" detected — minor release`);
+      labelContext.bumpLabel = 'minor';
+      result.bump = 'minor';
+    } else if (prLabels.includes(labels.patch)) {
+      info(`PR label "${labels.patch}" detected — patch release`);
+      labelContext.bumpLabel = 'patch';
+      result.bump = 'patch';
+    } else {
+      labelContext.noBumpLabel = true;
+    }
   }
 
-  return result;
+  // Stable/prerelease label modifiers (both modes, only when CLI flags unset)
+  if (!options.stable && options.prerelease === undefined) {
+    if (prLabels.includes(labels.stable)) {
+      info(`PR label "${labels.stable}" detected — using stable release preview`);
+      result.stable = true;
+    } else if (prLabels.includes(labels.prerelease)) {
+      info(`PR label "${labels.prerelease}" detected — using prerelease preview`);
+      result.prerelease = true;
+    }
+  }
+
+  return { options: result, labelContext };
 }

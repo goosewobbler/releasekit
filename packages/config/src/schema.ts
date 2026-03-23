@@ -251,10 +251,13 @@ export const CILabelsConfigSchema = z.object({
   prerelease: z.string().default('release:prerelease'),
   skip: z.string().default('release:skip'),
   major: z.string().default('release:major'),
+  minor: z.string().default('release:minor'),
+  patch: z.string().default('release:patch'),
 });
 
 export const CIConfigSchema = z.object({
-  releaseStrategy: z.enum(['manual', 'direct', 'standing-pr', 'scheduled']).default('manual'),
+  releaseStrategy: z.enum(['manual', 'direct', 'standing-pr', 'scheduled']).default('direct'),
+  releaseTrigger: z.enum(['commit', 'label']).default('label'),
   prPreview: z.boolean().default(true),
   autoRelease: z.boolean().default(false),
   skipPatterns: z.array(z.string()).default([]),
@@ -264,6 +267,8 @@ export const CIConfigSchema = z.object({
     prerelease: 'release:prerelease',
     skip: 'release:skip',
     major: 'release:major',
+    minor: 'release:minor',
+    patch: 'release:patch',
   }),
 });
 

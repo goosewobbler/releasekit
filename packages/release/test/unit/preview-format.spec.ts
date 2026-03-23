@@ -146,6 +146,62 @@ describe('formatPreviewComment', () => {
     });
   });
 
+  // --- Label context banners ---
+
+  describe('label context banners', () => {
+    it('shows no banner when no labelContext', () => {
+      const result = formatPreviewComment(releaseOutput);
+      expect(result).not.toContain('[!WARNING]');
+      expect(result).not.toContain('[!IMPORTANT]');
+      expect(result).not.toContain('labeled for');
+    });
+
+    it('shows skip banner in commit mode', () => {
+      const result = formatPreviewComment(releaseOutput, {
+        labelContext: { trigger: 'commit', skip: true, noBumpLabel: false },
+      });
+      expect(result).toContain('[!WARNING]');
+      expect(result).toContain('This PR is marked to skip release.');
+      // Still shows the preview content underneath
+      expect(result).toContain('### Packages');
+    });
+
+    it('shows major override banner in commit mode', () => {
+      const result = formatPreviewComment(releaseOutput, {
+        labelContext: { trigger: 'commit', skip: false, bumpLabel: 'major', noBumpLabel: false },
+      });
+      expect(result).toContain('[!IMPORTANT]');
+      expect(result).toContain('labeled for a **major** release');
+    });
+
+    it('shows "no release label" message in label mode with no bump label', () => {
+      const result = formatPreviewComment(null, {
+        labelContext: { trigger: 'label', skip: false, noBumpLabel: true },
+      });
+      expect(result).toContain('No release label detected');
+      expect(result).toContain('release:patch');
+      expect(result).toContain('release:minor');
+      expect(result).toContain('release:major');
+      expect(result).not.toContain('### Packages');
+    });
+
+    it('shows bump label banner in label mode', () => {
+      const result = formatPreviewComment(releaseOutput, {
+        labelContext: { trigger: 'label', skip: false, bumpLabel: 'minor', noBumpLabel: false },
+      });
+      expect(result).toContain('[!NOTE]');
+      expect(result).toContain('labeled for a **minor** release');
+      expect(result).toContain('### Packages');
+    });
+
+    it('shows patch label banner in label mode', () => {
+      const result = formatPreviewComment(releaseOutput, {
+        labelContext: { trigger: 'label', skip: false, bumpLabel: 'patch', noBumpLabel: false },
+      });
+      expect(result).toContain('labeled for a **patch** release');
+    });
+  });
+
   it('handles single package without changelogs', () => {
     const output: ReleaseOutput = {
       versionOutput: {

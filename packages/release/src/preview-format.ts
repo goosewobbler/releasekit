@@ -24,9 +24,17 @@ const TYPE_LABELS: Record<string, string> = {
   revert: 'Reverts',
 };
 
+export interface LabelContext {
+  trigger: 'commit' | 'label';
+  skip: boolean;
+  bumpLabel?: string;
+  noBumpLabel: boolean;
+}
+
 export interface FormatOptions {
   strategy?: ReleaseStrategy;
   standingPrNumber?: number;
+  labelContext?: LabelContext;
 }
 
 function getNoChangesMessage(strategy: ReleaseStrategy): string {
@@ -57,9 +65,47 @@ function getIntroMessage(strategy: ReleaseStrategy, standingPrNumber?: number): 
   }
 }
 
+function getLabelBanner(labelContext?: LabelContext): string[] {
+  if (!labelContext) return [];
+
+  if (labelContext.trigger === 'commit') {
+    if (labelContext.skip) {
+      return ['> [!WARNING]', '> This PR is marked to skip release.', ''];
+    }
+    if (labelContext.bumpLabel === 'major') {
+      return ['> [!IMPORTANT]', '> This PR is labeled for a **major** release.', ''];
+    }
+  }
+
+  if (labelContext.trigger === 'label') {
+    if (labelContext.noBumpLabel) {
+      return [
+        '> [!NOTE]',
+        '> No release label detected. Add a `release:patch`, `release:minor`, or `release:major` label to trigger a release.',
+        '',
+      ];
+    }
+    if (labelContext.bumpLabel) {
+      return ['> [!NOTE]', `> This PR is labeled for a **${labelContext.bumpLabel}** release.`, ''];
+    }
+  }
+
+  return [];
+}
+
 export function formatPreviewComment(result: ReleaseOutput | null, options?: FormatOptions): string {
   const strategy = options?.strategy ?? 'manual';
+  const labelContext = options?.labelContext;
   const lines: string[] = [MARKER, '', '## Release Preview', ''];
+
+  // Insert label-driven banner
+  lines.push(...getLabelBanner(labelContext));
+
+  // Label mode with no bump label — early return
+  if (labelContext?.noBumpLabel) {
+    lines.push('', '---', FOOTER);
+    return lines.join('\n');
+  }
 
   if (!result) {
     lines.push('> [!NOTE]', getNoChangesMessage(strategy));

@@ -451,6 +451,7 @@ describe('CIConfigSchema', () => {
   it('applies defaults', () => {
     const result = CIConfigSchema.parse({});
     expect(result.releaseStrategy).toBe('manual');
+    expect(result.releaseTrigger).toBe('commit');
     expect(result.prPreview).toBe(true);
     expect(result.autoRelease).toBe(false);
     expect(result.skipPatterns).toEqual([]);
@@ -460,6 +461,8 @@ describe('CIConfigSchema', () => {
       prerelease: 'release:prerelease',
       skip: 'release:skip',
       major: 'release:major',
+      minor: 'release:minor',
+      patch: 'release:patch',
     });
   });
 
@@ -493,14 +496,33 @@ describe('CIConfigSchema', () => {
     expect(() => CIConfigSchema.parse({ minChanges: -1 })).toThrow();
   });
 
+  it('accepts all releaseTrigger values', () => {
+    for (const trigger of ['commit', 'label'] as const) {
+      expect(CIConfigSchema.parse({ releaseTrigger: trigger }).releaseTrigger).toBe(trigger);
+    }
+  });
+
+  it('rejects invalid releaseTrigger', () => {
+    expect(() => CIConfigSchema.parse({ releaseTrigger: 'invalid' })).toThrow();
+  });
+
   it('accepts custom label names', () => {
     const result = CIConfigSchema.parse({
-      labels: { stable: 'stable', prerelease: 'pre', skip: 'no-release', major: 'breaking' },
+      labels: {
+        stable: 'stable',
+        prerelease: 'pre',
+        skip: 'no-release',
+        major: 'breaking',
+        minor: 'feat',
+        patch: 'fix',
+      },
     });
     expect(result.labels.stable).toBe('stable');
     expect(result.labels.prerelease).toBe('pre');
     expect(result.labels.skip).toBe('no-release');
     expect(result.labels.major).toBe('breaking');
+    expect(result.labels.minor).toBe('feat');
+    expect(result.labels.patch).toBe('fix');
   });
 
   it('applies label defaults for partial labels config', () => {
@@ -509,6 +531,8 @@ describe('CIConfigSchema', () => {
     expect(result.labels.prerelease).toBe('release:prerelease');
     expect(result.labels.skip).toBe('release:skip');
     expect(result.labels.major).toBe('release:major');
+    expect(result.labels.minor).toBe('release:minor');
+    expect(result.labels.patch).toBe('release:patch');
   });
 });
 

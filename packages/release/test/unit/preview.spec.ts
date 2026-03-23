@@ -309,7 +309,7 @@ describe('runPreview', () => {
     );
   });
 
-  // --- PR label override tests ---
+  // --- PR label override tests (commit mode) ---
 
   it('applies stable label override from PR labels', async () => {
     mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'next' });
@@ -317,7 +317,6 @@ describe('runPreview', () => {
 
     await runPreview({ projectDir: '/test', dryRun: false });
 
-    // stable label means no prerelease flag
     expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: undefined }));
   });
 
@@ -332,7 +331,14 @@ describe('runPreview', () => {
 
   it('uses custom label names from CI config', async () => {
     mockLoadCIConfig.mockReturnValue({
-      labels: { stable: 'grad', prerelease: 'pre', skip: 'skip', major: 'major' },
+      labels: {
+        stable: 'grad',
+        prerelease: 'pre',
+        skip: 'skip',
+        major: 'major',
+        minor: 'minor',
+        patch: 'patch',
+      },
     });
     mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'next' });
     mockFetchPRLabels.mockResolvedValue(['grad']);
@@ -342,24 +348,21 @@ describe('runPreview', () => {
     expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: undefined }));
   });
 
-  it('CLI --stable flag takes priority over PR labels', async () => {
+  it('CLI --stable flag takes priority over prerelease PR label', async () => {
     mockFetchPRLabels.mockResolvedValue(['release:prerelease']);
     mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
 
     await runPreview({ projectDir: '/test', dryRun: false, stable: true });
 
     expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: undefined }));
-    // Should not even fetch labels when CLI flag is set
-    expect(mockFetchPRLabels).not.toHaveBeenCalled();
   });
 
-  it('CLI --prerelease flag takes priority over PR labels', async () => {
+  it('CLI --prerelease flag takes priority over stable PR label', async () => {
     mockFetchPRLabels.mockResolvedValue(['release:stable']);
 
     await runPreview({ projectDir: '/test', dryRun: false, prerelease: 'beta' });
 
     expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: 'beta' }));
-    expect(mockFetchPRLabels).not.toHaveBeenCalled();
   });
 
   it('skips label fetch in dry-run mode', async () => {
@@ -377,8 +380,138 @@ describe('runPreview', () => {
 
     await runPreview({ projectDir: '/test', dryRun: false });
 
-    // Should still complete successfully
     expect(mockRunRelease).toHaveBeenCalled();
     expect(mockPostOrUpdateComment).toHaveBeenCalled();
+  });
+
+  // --- Commit mode: skip and major labels ---
+
+  it('skip label shows skip banner in commit mode', async () => {
+    mockFetchPRLabels.mockResolvedValue(['release:skip']);
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    // Still runs dry-run to show what would release
+    expect(mockRunRelease).toHaveBeenCalled();
+    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+      expect.anything(),
+      'owner',
+      'repo',
+      1,
+      expect.stringContaining('marked to skip release'),
+    );
+  });
+
+  it('major label forces major bump in commit mode', async () => {
+    mockFetchPRLabels.mockResolvedValue(['release:major']);
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major' }));
+    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+      expect.anything(),
+      'owner',
+      'repo',
+      1,
+      expect.stringContaining('labeled for a **major** release'),
+    );
+  });
+
+  it('skip label takes priority over major label in commit mode', async () => {
+    mockFetchPRLabels.mockResolvedValue(['release:skip', 'release:major']);
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: undefined }));
+    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+      expect.anything(),
+      'owner',
+      'repo',
+      1,
+      expect.stringContaining('marked to skip release'),
+    );
+  });
+
+  it('major and prerelease labels compose in commit mode', async () => {
+    mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
+    mockFetchPRLabels.mockResolvedValue(['release:major', 'release:prerelease']);
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major', prerelease: true }));
+  });
+
+  // --- Label trigger mode ---
+
+  it('shows "add a label" message when no bump label in label mode', async () => {
+    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+    mockFetchPRLabels.mockResolvedValue([]);
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    expect(mockRunRelease).not.toHaveBeenCalled();
+    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+      expect.anything(),
+      'owner',
+      'repo',
+      1,
+      expect.stringContaining('No release label detected'),
+    );
+  });
+
+  it('release:patch label triggers patch preview in label mode', async () => {
+    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+    mockFetchPRLabels.mockResolvedValue(['release:patch']);
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'patch' }));
+  });
+
+  it('release:minor label triggers minor preview in label mode', async () => {
+    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+    mockFetchPRLabels.mockResolvedValue(['release:minor']);
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor' }));
+  });
+
+  it('release:major label triggers major preview in label mode', async () => {
+    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+    mockFetchPRLabels.mockResolvedValue(['release:major']);
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major' }));
+  });
+
+  it('highest bump label wins when multiple present in label mode', async () => {
+    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+    mockFetchPRLabels.mockResolvedValue(['release:patch', 'release:major']);
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major' }));
+  });
+
+  it('bump label and prerelease label compose in label mode', async () => {
+    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+    mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
+    mockFetchPRLabels.mockResolvedValue(['release:minor', 'release:prerelease']);
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor', prerelease: true }));
+  });
+
+  it('skip label is ignored in label mode', async () => {
+    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+    mockFetchPRLabels.mockResolvedValue(['release:skip', 'release:minor']);
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    // skip is irrelevant — minor label triggers the release
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor' }));
   });
 });
