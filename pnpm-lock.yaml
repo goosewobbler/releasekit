@@ -148,12 +148,6 @@ importers:
       '@octokit/rest':
         specifier: ^22.0.1
         version: 22.0.1
-      '@releasekit/config':
-        specifier: workspace:*
-        version: link:../config
-      '@releasekit/core':
-        specifier: workspace:*
-        version: link:../core
       chalk:
         specifier: 'catalog:'
         version: 5.6.2
@@ -172,6 +166,9 @@ importers:
       openai:
         specifier: ^6.27.0
         version: 6.27.0(zod@4.3.6)
+      smol-toml:
+        specifier: 'catalog:'
+        version: 1.6.0
       zod:
         specifier: 'catalog:'
         version: 4.3.6
@@ -179,6 +176,12 @@ importers:
       '@biomejs/biome':
         specifier: 'catalog:'
         version: 2.4.6
+      '@releasekit/config':
+        specifier: workspace:*
+        version: link:../config
+      '@releasekit/core':
+        specifier: workspace:*
+        version: link:../core
       '@types/ejs':
         specifier: ^3.1.5
         version: 3.1.5
@@ -200,12 +203,6 @@ importers:
 
   packages/publish:
     dependencies:
-      '@releasekit/config':
-        specifier: workspace:*
-        version: link:../config
-      '@releasekit/core':
-        specifier: workspace:*
-        version: link:../core
       chalk:
         specifier: 'catalog:'
         version: 5.6.2
@@ -225,6 +222,12 @@ importers:
       '@biomejs/biome':
         specifier: 'catalog:'
         version: 2.4.6
+      '@releasekit/config':
+        specifier: workspace:*
+        version: link:../config
+      '@releasekit/core':
+        specifier: workspace:*
+        version: link:../core
       '@types/node':
         specifier: 'catalog:'
         version: 22.19.15
@@ -246,12 +249,6 @@ importers:
 
   packages/release:
     dependencies:
-      '@releasekit/config':
-        specifier: workspace:*
-        version: link:../config
-      '@releasekit/core':
-        specifier: workspace:*
-        version: link:../core
       '@releasekit/notes':
         specifier: workspace:*
         version: link:../notes
@@ -261,6 +258,9 @@ importers:
       '@releasekit/version':
         specifier: workspace:*
         version: link:../version
+      chalk:
+        specifier: 'catalog:'
+        version: 5.6.2
       commander:
         specifier: 'catalog:'
         version: 14.0.3
@@ -268,6 +268,12 @@ importers:
       '@biomejs/biome':
         specifier: 'catalog:'
         version: 2.4.6
+      '@releasekit/config':
+        specifier: workspace:*
+        version: link:../config
+      '@releasekit/core':
+        specifier: workspace:*
+        version: link:../core
       '@types/node':
         specifier: 'catalog:'
         version: 22.19.15
@@ -292,12 +298,6 @@ importers:
       '@manypkg/get-packages':
         specifier: ^3.1.0
         version: 3.1.0
-      '@releasekit/config':
-        specifier: workspace:*
-        version: link:../config
-      '@releasekit/core':
-        specifier: workspace:*
-        version: link:../core
       '@types/micromatch':
         specifier: ^4.0.10
         version: 4.0.10
@@ -337,10 +337,19 @@ importers:
       smol-toml:
         specifier: 'catalog:'
         version: 1.6.0
+      zod:
+        specifier: 'catalog:'
+        version: 4.3.6
     devDependencies:
       '@biomejs/biome':
         specifier: 'catalog:'
         version: 2.4.6
+      '@releasekit/config':
+        specifier: workspace:*
+        version: link:../config
+      '@releasekit/core':
+        specifier: workspace:*
+        version: link:../core
       '@types/figlet':
         specifier: ^1.5.5
         version: 1.7.0
