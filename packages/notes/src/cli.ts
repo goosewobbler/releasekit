@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import * as fs from 'node:fs';
 import * as readline from 'node:readline';
-import { error, info, setLogLevel, setQuietMode, success } from '@releasekit/core';
+import { EXIT_CODES, error, info, setLogLevel, setQuietMode, success } from '@releasekit/core';
 import { Command } from 'commander';
 import { getDefaultConfig, loadConfig, saveAuth } from './core/config.js';
 import { runPipeline } from './core/pipeline.js';
 import type { OutputConfig } from './core/types.js';
-import { EXIT_CODES, getExitCode, NotesError } from './errors/index.js';
+import { getExitCode, NotesError } from './errors/index.js';
 import { parsePackageVersioner } from './input/package-versioner.js';
 
 const program = new Command();
