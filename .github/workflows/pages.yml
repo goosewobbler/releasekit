@@ -6,7 +6,6 @@ on:
     paths:
       - 'releasekit.schema.json'
       - 'packages/version/version.schema.json'
-      - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 permissions:
