@@ -3,6 +3,9 @@ name: Package Tests
 on:
   workflow_call:
     inputs:
+      os:
+        required: true
+        type: string
       cache_key:
         required: true
         type: string
@@ -12,8 +15,8 @@ env:
 
 jobs:
   package-tests:
-    name: Package Tests
-    runs-on: ubuntu-latest
+    name: Package Tests [${{ inputs.os }}]
+    runs-on: ${{ inputs.os }}
 
     steps:
       - name: Checkout Repository

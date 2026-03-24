@@ -101,8 +101,13 @@ jobs:
     name: Package Tests
     needs: [detect-changes, build]
     if: needs.detect-changes.outputs.has_changes == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     uses: ./.github/workflows/_ci-package-tests.reusable.yml
     with:
+      os: ${{ matrix.os }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
   e2e-tests:
