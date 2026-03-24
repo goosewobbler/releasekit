@@ -249,6 +249,9 @@ importers:
 
   packages/release:
     dependencies:
+      '@releasekit/config':
+        specifier: workspace:*
+        version: link:../config
       '@releasekit/notes':
         specifier: workspace:*
         version: link:../notes
@@ -274,9 +277,6 @@ importers:
       '@biomejs/biome':
         specifier: 'catalog:'
         version: 2.4.6
-      '@releasekit/config':
-        specifier: workspace:*
-        version: link:../config
       '@releasekit/core':
         specifier: workspace:*
         version: link:../core
