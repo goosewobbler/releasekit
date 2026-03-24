@@ -19,6 +19,8 @@ npm install -g @releasekit/notes
 pnpm add -g @releasekit/notes
 ```
 
+> **Note:** This package is ESM only and requires Node.js 20+.
+
 ## Quick Start
 
 ```bash
