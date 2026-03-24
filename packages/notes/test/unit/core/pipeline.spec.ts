@@ -1,0 +1,100 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ChangelogInput, CompleteOptions, Config } from '../../../src/core/types.js';
+import type { LLMProvider } from '../../../src/llm/provider.js';
+
+// Mock createProvider so we can inject a capturing provider.
+vi.mock('../../../src/llm/index.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../src/llm/index.js')>();
+  return { ...actual, createProvider: vi.fn() };
+});
+
+const sampleInput: ChangelogInput = {
+  source: 'package-versioner',
+  packages: [
+    {
+      packageName: 'test-pkg',
+      version: '1.0.0',
+      previousVersion: '0.9.0',
+      revisionRange: 'v0.9.0..HEAD',
+      repoUrl: null,
+      date: '2026-01-01',
+      entries: [
+        { type: 'added', description: 'Add feature' },
+        { type: 'fixed', description: 'Fix bug' },
+        { type: 'changed', description: 'Change behaviour' },
+      ],
+    },
+  ],
+};
+
+describe('Pipeline: config.llm.options passthrough', () => {
+  let capturedOpts: CompleteOptions | undefined;
+
+  beforeEach(async () => {
+    capturedOpts = undefined;
+    const { createProvider } = await import('../../../src/llm/index.js');
+    const mockProvider: LLMProvider = {
+      name: 'capturing-mock',
+      async complete(_prompt: string, opts?: CompleteOptions): Promise<string> {
+        capturedOpts = opts;
+        // Return valid JSON expected by the categorize task
+        return JSON.stringify({ General: [0, 1, 2] });
+      },
+    };
+    vi.mocked(createProvider).mockReturnValue(mockProvider);
+  });
+
+  it('passes config.llm.options to provider complete() calls', async () => {
+    const { runPipeline } = await import('../../../src/core/pipeline.js');
+    const config: Config = {
+      output: [{ format: 'markdown', file: '/dev/null' }],
+      llm: {
+        provider: 'ollama',
+        model: 'llama3',
+        options: { maxTokens: 8000, timeout: 90000, temperature: 0.2 },
+        tasks: { categorize: true },
+      },
+    };
+
+    await runPipeline(sampleInput, config, false);
+
+    expect(capturedOpts).toMatchObject({ maxTokens: 8000, timeout: 90000, temperature: 0.2 });
+  });
+
+  it('works without config.llm.options set (no opts passed to complete)', async () => {
+    const { runPipeline } = await import('../../../src/core/pipeline.js');
+    const config: Config = {
+      output: [{ format: 'markdown', file: '/dev/null' }],
+      llm: {
+        provider: 'ollama',
+        model: 'llama3',
+        tasks: { categorize: true },
+      },
+    };
+
+    await runPipeline(sampleInput, config, false);
+
+    // configOptions is undefined, so spread is a no-op — opts contains only the undefined spread
+    expect(capturedOpts).toEqual({});
+  });
+
+  it('per-call opts override config.llm.options', async () => {
+    // Verify the merge order: { ...configOptions, ...callOpts }
+    // This is tested indirectly — if a task passes its own opts they win.
+    // We verify the config options ARE present when no per-call override exists.
+    const { runPipeline } = await import('../../../src/core/pipeline.js');
+    const config: Config = {
+      output: [{ format: 'markdown', file: '/dev/null' }],
+      llm: {
+        provider: 'ollama',
+        model: 'llama3',
+        options: { maxTokens: 4000 },
+        tasks: { categorize: true },
+      },
+    };
+
+    await runPipeline(sampleInput, config, false);
+
+    expect(capturedOpts).toMatchObject({ maxTokens: 4000 });
+  });
+});

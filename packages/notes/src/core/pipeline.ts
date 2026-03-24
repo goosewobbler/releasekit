@@ -119,9 +119,13 @@ async function processWithLLM(context: TemplateContext, config: Config): Promise
 
     const rawProvider = createProvider(config.llm);
     const retryOpts = config.llm.retry ?? LLM_DEFAULTS.retry;
+    const configOptions = config.llm.options;
     const provider: LLMProvider = {
       name: rawProvider.name,
-      complete: (prompt, opts) => withRetry(() => rawProvider.complete(prompt, opts), retryOpts),
+      // Merge user-configured options (timeout, maxTokens, temperature) as base defaults,
+      // allowing any per-call overrides to take precedence.
+      complete: (prompt, opts) =>
+        withRetry(() => rawProvider.complete(prompt, { ...configOptions, ...opts }), retryOpts),
     };
 
     const activeTasks = Object.entries(tasks)
