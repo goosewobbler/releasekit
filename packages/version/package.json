@@ -22,8 +22,8 @@
     "releasekit-version": "dist/cli.js"
   },
   "scripts": {
-    "build": "tsup src/index.ts src/cli.ts --format esm,cjs --dts",
-    "dev": "tsup src/index.ts src/cli.ts --format esm,cjs --watch --dts",
+    "build": "tsup",
+    "dev": "tsup --watch",
     "clean": "rm -rf dist coverage .turbo",
     "test": "vitest run --dir test/unit",
     "test:unit": "vitest run --coverage --dir test/unit",
@@ -31,12 +31,7 @@
     "lint": "biome check .",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": [
-    "version",
-    "semver",
-    "git",
-    "package"
-  ],
+  "keywords": ["version", "semver", "git", "package"],
   "author": {
     "name": "Sam Maister",
     "email": "goosewobbler@protonmail.com"
@@ -47,18 +42,12 @@
     "directory": "packages/version"
   },
   "license": "MIT",
-  "files": [
-    "dist",
-    "docs",
-    "version.schema.json"
-  ],
+  "files": ["dist", "docs", "version.schema.json"],
   "publishConfig": {
     "access": "public"
   },
   "dependencies": {
     "@manypkg/get-packages": "^3.1.0",
-    "@releasekit/config": "workspace:*",
-    "@releasekit/core": "workspace:*",
     "@types/micromatch": "^4.0.10",
     "chalk": "catalog:",
     "commander": "catalog:",
@@ -71,10 +60,13 @@
     "git-semver-tags": "^8.0.1",
     "micromatch": "^4.0.8",
     "semver": "catalog:",
-    "smol-toml": "catalog:"
+    "smol-toml": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
+    "@releasekit/config": "workspace:*",
+    "@releasekit/core": "workspace:*",
     "@types/figlet": "^1.5.5",
     "@types/node": "catalog:",
     "@types/semver": "catalog:",

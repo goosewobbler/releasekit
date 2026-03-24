@@ -22,8 +22,8 @@
     "releasekit-publish": "dist/cli.js"
   },
   "scripts": {
-    "build": "tsup src/index.ts src/cli.ts --format esm,cjs --dts",
-    "dev": "tsup src/index.ts src/cli.ts --format esm,cjs --watch --dts",
+    "build": "tsup",
+    "dev": "tsup --watch",
     "clean": "rm -rf dist coverage .turbo",
     "test": "vitest run",
     "test:unit": "vitest run --coverage",
@@ -31,13 +31,7 @@
     "lint": "biome check .",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": [
-    "publish",
-    "npm",
-    "cargo",
-    "release",
-    "ci"
-  ],
+  "keywords": ["publish", "npm", "cargo", "release", "ci"],
   "author": {
     "name": "Sam Maister",
     "email": "goosewobbler@protonmail.com"
@@ -48,17 +42,11 @@
     "directory": "packages/publish"
   },
   "license": "MIT",
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
+  "files": ["dist", "README.md", "LICENSE"],
   "publishConfig": {
     "access": "public"
   },
   "dependencies": {
-    "@releasekit/config": "workspace:*",
-    "@releasekit/core": "workspace:*",
     "chalk": "catalog:",
     "commander": "catalog:",
     "semver": "catalog:",
@@ -67,6 +55,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
+    "@releasekit/config": "workspace:*",
+    "@releasekit/core": "workspace:*",
     "@types/node": "catalog:",
     "@types/semver": "catalog:",
     "@vitest/coverage-v8": "catalog:",
