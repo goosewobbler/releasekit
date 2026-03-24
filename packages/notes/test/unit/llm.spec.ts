@@ -184,6 +184,15 @@ describe('categorizeEntries()', () => {
     expect(result[0]?.entries).toHaveLength(3);
   });
 
+  it('extracts JSON when model adds preamble text', async () => {
+    const response = 'Here is the categorization:\n{"General": [0, 1, 2]}';
+    const provider = makeMockProvider(response);
+    const result = await categorizeEntries(provider, sampleEntries, llmContext);
+
+    expect(result[0]?.category).toBe('General');
+    expect(result[0]?.entries).toHaveLength(3);
+  });
+
   it('should fall back to General category on invalid JSON', async () => {
     const provider = makeMockProvider('not valid json at all');
     const result = await categorizeEntries(provider, sampleEntries, llmContext);
@@ -372,6 +381,21 @@ describe('enhanceAndCategorize()', () => {
 
     // First entry had scope 'api' originally
     expect(result.enhancedEntries[0]?.scope).toBe('api');
+  });
+
+  it('extracts JSON when model adds preamble text', async () => {
+    const json = JSON.stringify({
+      entries: [
+        { description: 'a', category: 'General', scope: null },
+        { description: 'b', category: 'General', scope: null },
+        { description: 'c', category: 'General', scope: null },
+      ],
+    });
+    const response = `Here is the enhanced output:\n${json}`;
+    const provider = makeMockProvider(response);
+    const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
+    expect(result.enhancedEntries).toHaveLength(3);
+    expect(result.categories[0]?.category).toBe('General');
   });
 
   it('strips markdown code fences before parsing', async () => {

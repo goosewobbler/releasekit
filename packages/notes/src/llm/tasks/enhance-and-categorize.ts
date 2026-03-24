@@ -1,5 +1,6 @@
 import { warn } from '@releasekit/core';
 import type { ChangelogEntry, LLMCategory } from '../../core/types.js';
+import { extractJsonFromResponse } from '../../utils/json.js';
 import { withRetry } from '../../utils/retry.js';
 import { LLM_DEFAULTS } from '../defaults.js';
 import type { CategorizeContext, CategorizedEntries, EnhanceContext, LLMProvider } from '../index.js';
@@ -81,11 +82,7 @@ export async function enhanceAndCategorize(
       const prompt = resolvePrompt('enhanceAndCategorize', defaultPrompt, context.prompts);
       const response = await provider.complete(prompt);
 
-      const cleaned = response
-        .replace(/^```(?:json)?\n?/, '')
-        .replace(/\n?```$/, '')
-        .trim();
-      const parsed = JSON.parse(cleaned);
+      const parsed = JSON.parse(extractJsonFromResponse(response));
 
       if (!Array.isArray(parsed.entries)) {
         throw new Error('Response missing "entries" array');
