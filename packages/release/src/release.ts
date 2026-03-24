@@ -46,7 +46,7 @@ export async function runRelease(options: ReleaseOptions): Promise<ReleaseOutput
     success('Publish complete');
   }
 
-  return { versionOutput, notesGenerated, publishOutput };
+  return { versionOutput, notesGenerated, packageNotes, publishOutput };
 }
 
 async function runVersionStep(options: ReleaseOptions): Promise<VersionOutput> {

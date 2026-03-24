@@ -126,7 +126,10 @@ describe('runRelease', () => {
     mockNotesLoadConfig.mockReturnValue(mockNotesConfig);
     mockNotesGetDefaultConfig.mockReturnValue({ output: [{ format: 'markdown', file: 'CHANGELOG.md' }] });
     mockParsePackageVersioner.mockReturnValue({ source: 'package-versioner', packages: [] });
-    mockNotesRunPipeline.mockResolvedValue({ packageNotes: {}, files: [] });
+    mockNotesRunPipeline.mockResolvedValue({
+      packageNotes: { 'test-pkg': '## [1.1.0] - 2026-01-01\n\n### Added\n- New feature\n' },
+      files: [],
+    });
     mockPublishLoadConfig.mockReturnValue(mockPublishConfig);
     mockPublishRunPipeline.mockResolvedValue(mockPublishOutput);
 
@@ -326,6 +329,18 @@ describe('runRelease', () => {
     const result = await runRelease(defaultOptions);
 
     expect(result?.versionOutput).toEqual(versionOutputWithChanges);
+  });
+
+  it('should return packageNotes from the notes step', async () => {
+    const result = await runRelease(defaultOptions);
+
+    expect(result?.packageNotes).toEqual({ 'test-pkg': '## [1.1.0] - 2026-01-01\n\n### Added\n- New feature\n' });
+  });
+
+  it('should not include packageNotes when notes step is skipped', async () => {
+    const result = await runRelease({ ...defaultOptions, skipNotes: true });
+
+    expect(result?.packageNotes).toBeUndefined();
   });
 
   it('should propagate version step errors', async () => {
