@@ -1,12 +1,12 @@
-import { readFileSync } from 'node:fs';
 import { defineConfig } from 'tsup';
-
-const pkg = JSON.parse(readFileSync('package.json', 'utf-8'));
 
 export default defineConfig({
   entry: ['src/index.ts', 'src/cli.ts'],
   format: ['esm', 'cjs'],
   dts: { resolve: ['@releasekit/core', '@releasekit/config'] },
   noExternal: ['@releasekit/core', '@releasekit/config'],
-  external: Object.keys(pkg.dependencies ?? {}),
+  // Externalize all bare specifiers (packages). noExternal takes precedence,
+  // so core/config are still bundled. This avoids relying on tsup's
+  // auto-externalization which can break with noExternal + pnpm workspaces.
+  external: [/^[^.]/],
 });
