@@ -97,7 +97,7 @@ interface NotesStepResult {
 }
 
 async function runNotesStep(versionOutput: VersionOutput, options: ReleaseOptions): Promise<NotesStepResult> {
-  const { parsePackageVersioner, runPipeline, loadConfig, getDefaultConfig } = await import('@releasekit/notes');
+  const { parseVersionOutput, runPipeline, loadConfig, getDefaultConfig } = await import('@releasekit/notes');
 
   const config = loadConfig(options.projectDir, options.config);
 
@@ -105,7 +105,7 @@ async function runNotesStep(versionOutput: VersionOutput, options: ReleaseOption
     config.output = getDefaultConfig().output;
   }
 
-  const input = parsePackageVersioner(JSON.stringify(versionOutput));
+  const input = parseVersionOutput(JSON.stringify(versionOutput));
   const result = await runPipeline(input, config, options.dryRun);
 
   return { packageNotes: result.packageNotes, files: result.files };

@@ -27,13 +27,13 @@ vi.mock('@releasekit/version', () => ({
 const mockNotesRunPipeline = vi.fn();
 const mockNotesLoadConfig = vi.fn();
 const mockNotesGetDefaultConfig = vi.fn();
-const mockParsePackageVersioner = vi.fn();
+const mockParseVersionOutput = vi.fn();
 
 vi.mock('@releasekit/notes', () => ({
   runPipeline: (...args: unknown[]) => mockNotesRunPipeline(...args),
   loadConfig: (...args: unknown[]) => mockNotesLoadConfig(...args),
   getDefaultConfig: () => mockNotesGetDefaultConfig(),
-  parsePackageVersioner: (...args: unknown[]) => mockParsePackageVersioner(...args),
+  parseVersionOutput: (...args: unknown[]) => mockParseVersionOutput(...args),
 }));
 
 const mockPublishRunPipeline = vi.fn();
@@ -125,7 +125,7 @@ describe('runRelease', () => {
     mockGetJsonData.mockReturnValue(versionOutputWithChanges);
     mockNotesLoadConfig.mockReturnValue(mockNotesConfig);
     mockNotesGetDefaultConfig.mockReturnValue({ output: [{ format: 'markdown', file: 'CHANGELOG.md' }] });
-    mockParsePackageVersioner.mockReturnValue({ source: 'package-versioner', packages: [] });
+    mockParseVersionOutput.mockReturnValue({ source: 'version', packages: [] });
     mockNotesRunPipeline.mockResolvedValue({
       packageNotes: { 'test-pkg': '## [1.1.0] - 2026-01-01\n\n### Added\n- New feature\n' },
       files: [],
@@ -316,7 +316,7 @@ describe('runRelease', () => {
   it('should pass version output to notes as JSON', async () => {
     await runRelease(defaultOptions);
 
-    expect(mockParsePackageVersioner).toHaveBeenCalledWith(JSON.stringify(versionOutputWithChanges));
+    expect(mockParseVersionOutput).toHaveBeenCalledWith(JSON.stringify(versionOutputWithChanges));
   });
 
   it('should pass version output to publish pipeline', async () => {
