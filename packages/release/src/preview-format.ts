@@ -118,7 +118,7 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
   const pkgCount = versionOutput.updates.length;
   const pkgSummary =
     pkgCount === 1
-      ? `${versionOutput.updates[0].packageName} ${versionOutput.updates[0].newVersion}`
+      ? `${versionOutput.updates[0]?.packageName} ${versionOutput.updates[0]?.newVersion}`
       : `${pkgCount} packages`;
 
   lines.push('<details>', `<summary><b>Release Preview</b> — ${pkgSummary}</summary>`, '');
