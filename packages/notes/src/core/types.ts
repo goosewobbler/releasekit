@@ -34,10 +34,15 @@ export interface ChangelogInput {
   };
 }
 
+export interface EnhancedCategory {
+  name: string;
+  entries: ChangelogEntry[];
+}
+
 export interface EnhancedData {
   entries: ChangelogEntry[];
   summary?: string;
-  categories?: Record<string, ChangelogEntry[]>;
+  categories?: EnhancedCategory[];
   releaseNotes?: string;
 }
 
