@@ -7,7 +7,7 @@ import { getDefaultConfig, loadConfig, saveAuth } from './core/config.js';
 import { runPipeline } from './core/pipeline.js';
 import type { OutputConfig } from './core/types.js';
 import { getExitCode, NotesError } from './errors/index.js';
-import { parsePackageVersioner } from './input/package-versioner.js';
+import { parseVersionOutput } from './input/version-output.js';
 
 const program = new Command();
 
@@ -100,7 +100,7 @@ program
         inputJson = await readStdin();
       }
 
-      const input = parsePackageVersioner(inputJson);
+      const input = parseVersionOutput(inputJson);
 
       if (options.target) {
         const before = input.packages.length;

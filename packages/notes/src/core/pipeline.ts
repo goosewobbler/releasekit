@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { debug, info, success, warn } from '@releasekit/core';
-import { parsePackageVersioner } from '../input/package-versioner.js';
+import { parseVersionOutput } from '../input/version-output.js';
 import { LLM_DEFAULTS } from '../llm/defaults.js';
 import type { LLMProvider } from '../llm/index.js';
 import {
@@ -386,6 +386,6 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
 }
 
 export async function processInput(inputJson: string, config: Config, dryRun: boolean): Promise<PipelineResult> {
-  const input = parsePackageVersioner(inputJson);
+  const input = parseVersionOutput(inputJson);
   return runPipeline(input, config, dryRun);
 }

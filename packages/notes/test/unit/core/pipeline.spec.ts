@@ -10,7 +10,7 @@ vi.mock('../../../src/llm/index.js', async (importOriginal) => {
 });
 
 const sampleInput: ChangelogInput = {
-  source: 'package-versioner',
+  source: 'version',
   packages: [
     {
       packageName: 'test-pkg',

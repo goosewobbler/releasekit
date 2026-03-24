@@ -33,7 +33,7 @@ function makeMockProvider(response = 'Enhanced description'): LLMProvider & { ca
 // ---------------------------------------------------------------------------
 
 const sampleInput: ChangelogInput = {
-  source: 'package-versioner',
+  source: 'version',
   packages: [
     {
       packageName: 'my-lib',
@@ -202,7 +202,7 @@ describe('Pipeline: package name in changelog headers', () => {
 
   it('should include scoped package name in version header', async () => {
     const scopedInput: ChangelogInput = {
-      source: 'package-versioner',
+      source: 'version',
       packages: [
         {
           packageName: '@releasekit/notes',
@@ -229,7 +229,7 @@ describe('Pipeline: package name in changelog headers', () => {
 
   it('should omit package name for unscoped packages', async () => {
     const unscopedInput: ChangelogInput = {
-      source: 'package-versioner',
+      source: 'version',
       packages: [
         {
           packageName: 'my-lib',

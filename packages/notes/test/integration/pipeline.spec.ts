@@ -2,7 +2,7 @@ import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createDocumentContext, createTemplateContext } from '../../src/core/pipeline.js';
 import { parseConventionalChangelog, parseConventionalChangelogFile } from '../../src/input/conventional-changelog.js';
-import { parsePackageVersioner } from '../../src/input/package-versioner.js';
+import { parseVersionOutput } from '../../src/input/version-output.js';
 import { aggregateToRoot, splitByPackage } from '../../src/monorepo/index.js';
 import { formatVersion, renderMarkdown } from '../../src/output/markdown.js';
 
@@ -10,7 +10,7 @@ import { formatVersion, renderMarkdown } from '../../src/output/markdown.js';
 // Fixtures
 // ---------------------------------------------------------------------------
 
-const packageVersionerFixture = {
+const versionOutputFixture = {
   dryRun: false,
   updates: [{ packageName: 'my-lib', newVersion: '2.0.0', filePath: 'package.json' }],
   changelogs: [
@@ -50,12 +50,12 @@ const sampleChangelog = `
 `.trim();
 
 // ---------------------------------------------------------------------------
-// Full pipeline: package-versioner → markdown
+// Full pipeline: version output → markdown
 // ---------------------------------------------------------------------------
 
-describe('Pipeline: package-versioner → markdown', () => {
+describe('Pipeline: version output → markdown', () => {
   it('should produce a valid changelog with version header', () => {
-    const input = parsePackageVersioner(JSON.stringify(packageVersionerFixture));
+    const input = parseVersionOutput(JSON.stringify(versionOutputFixture));
     const contexts = input.packages.map(createTemplateContext);
     const markdown = renderMarkdown(contexts);
 
@@ -70,7 +70,7 @@ describe('Pipeline: package-versioner → markdown', () => {
   });
 
   it('should include a GitHub comparison link', () => {
-    const input = parsePackageVersioner(JSON.stringify(packageVersionerFixture));
+    const input = parseVersionOutput(JSON.stringify(versionOutputFixture));
     const contexts = input.packages.map(createTemplateContext);
     const markdown = renderMarkdown(contexts);
 
@@ -78,7 +78,7 @@ describe('Pipeline: package-versioner → markdown', () => {
   });
 
   it('should populate compareUrls in document context', () => {
-    const input = parsePackageVersioner(JSON.stringify(packageVersionerFixture));
+    const input = parseVersionOutput(JSON.stringify(versionOutputFixture));
     const contexts = input.packages.map(createTemplateContext);
     const doc = createDocumentContext(contexts, 'https://github.com/acme/my-lib');
 
@@ -119,7 +119,7 @@ describe('compareUrl: platform detection', () => {
     expect(ctx.compareUrl).toBe('https://bitbucket.org/org/repo/branches/compare/1.0.0..2.0.0');
   });
 
-  it('should generate compare URL for package-specific tags', () => {
+  it('should generate compare URL for package-specific version tags', () => {
     const ctx = createTemplateContext({
       packageName: '@releasekit/version',
       version: '0.2.0-next.9',

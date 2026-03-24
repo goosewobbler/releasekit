@@ -23,7 +23,7 @@ export interface PackageChangelog {
   entries: ChangelogEntry[];
 }
 
-export type InputSource = 'package-versioner' | 'conventional-changelog' | 'git-log' | 'manual';
+export type InputSource = 'version' | 'conventional-changelog' | 'git-log' | 'manual';
 
 export interface ChangelogInput {
   source: InputSource;
