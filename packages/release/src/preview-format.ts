@@ -96,25 +96,33 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
 export function formatPreviewComment(result: ReleaseOutput | null, options?: FormatOptions): string {
   const strategy = options?.strategy ?? 'manual';
   const labelContext = options?.labelContext;
-  const lines: string[] = [MARKER, '', '## Release Preview', ''];
+  const lines: string[] = [MARKER, ''];
 
-  // Insert label-driven banner
-  lines.push(...getLabelBanner(labelContext));
-
-  // Label mode with no bump label — early return
-  if (labelContext?.noBumpLabel) {
-    lines.push('', '---', FOOTER);
-    return lines.join('\n');
-  }
+  // Insert label-driven banner (outside the details block)
+  const banner = getLabelBanner(labelContext);
 
   if (!result) {
-    lines.push('> [!NOTE]', getNoChangesMessage(strategy));
-    lines.push('', '---', FOOTER);
+    // No changes or noBumpLabel — simple collapsed comment
+    lines.push('<details>', '<summary><b>Release Preview</b> — no release</summary>', '');
+    lines.push(...banner);
+    if (labelContext?.noBumpLabel) {
+      // noBumpLabel already has its own message in the banner
+    } else {
+      lines.push('> [!NOTE]', getNoChangesMessage(strategy));
+    }
+    lines.push('', '---', FOOTER, '</details>');
     return lines.join('\n');
   }
 
   const { versionOutput } = result;
+  const pkgCount = versionOutput.updates.length;
+  const pkgSummary =
+    pkgCount === 1
+      ? `${versionOutput.updates[0].packageName} ${versionOutput.updates[0].newVersion}`
+      : `${pkgCount} packages`;
 
+  lines.push('<details>', `<summary><b>Release Preview</b> — ${pkgSummary}</summary>`, '');
+  lines.push(...banner);
   lines.push(getIntroMessage(strategy, options?.standingPrNumber), '');
 
   // Package updates table
@@ -142,7 +150,7 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
     lines.push('');
   }
 
-  lines.push('---', FOOTER);
+  lines.push('---', FOOTER, '</details>');
   return lines.join('\n');
 }
 

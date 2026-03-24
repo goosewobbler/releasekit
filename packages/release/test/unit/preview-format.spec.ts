@@ -46,6 +46,32 @@ describe('formatPreviewComment', () => {
     expect(result.startsWith('<!-- releasekit-preview -->')).toBe(true);
   });
 
+  it('wraps entire comment in a collapsed details element', () => {
+    const result = formatPreviewComment(releaseOutput);
+    expect(result).toContain('<details>');
+    expect(result).toContain('<summary><b>Release Preview</b>');
+    expect(result).toMatch(/<\/details>\s*$/);
+  });
+
+  it('shows package count in summary for multiple packages', () => {
+    const result = formatPreviewComment(releaseOutput);
+    expect(result).toContain('<summary><b>Release Preview</b> — 2 packages</summary>');
+  });
+
+  it('shows package name and version in summary for single package', () => {
+    const singlePkg: ReleaseOutput = {
+      versionOutput: {
+        dryRun: true,
+        updates: [{ packageName: 'my-lib', newVersion: '1.0.0', filePath: 'package.json' }],
+        changelogs: [],
+        tags: ['v1.0.0'],
+      },
+      notesGenerated: false,
+    };
+    const result = formatPreviewComment(singlePkg);
+    expect(result).toContain('<summary><b>Release Preview</b> — my-lib 1.0.0</summary>');
+  });
+
   it('includes package table', () => {
     const result = formatPreviewComment(releaseOutput);
     expect(result).toContain('| `@releasekit/version` | 0.3.1 |');
@@ -84,6 +110,7 @@ describe('formatPreviewComment', () => {
   it('shows no-changes message when result is null', () => {
     const result = formatPreviewComment(null);
     expect(result).toContain('<!-- releasekit-preview -->');
+    expect(result).toContain('<summary><b>Release Preview</b> — no release</summary>');
     expect(result).toContain('No releasable changes detected');
     expect(result).toContain('[!NOTE]');
     expect(result).not.toContain('### Packages');

@@ -446,20 +446,14 @@ describe('runPreview', () => {
 
   // --- Label trigger mode ---
 
-  it('shows "add a label" message when no bump label in label mode', async () => {
+  it('skips entirely when no bump label in label mode', async () => {
     mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
     mockFetchPRLabels.mockResolvedValue([]);
 
     await runPreview({ projectDir: '/test', dryRun: false });
 
     expect(mockRunRelease).not.toHaveBeenCalled();
-    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
-      expect.anything(),
-      'owner',
-      'repo',
-      1,
-      expect.stringContaining('No release label detected'),
-    );
+    expect(mockPostOrUpdateComment).not.toHaveBeenCalled();
   });
 
   it('release:patch label triggers patch preview in label mode', async () => {
@@ -518,16 +512,14 @@ describe('runPreview', () => {
     expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor' }));
   });
 
-  it('noBumpLabel prints to stdout in dry-run mode', async () => {
+  it('noBumpLabel skips entirely in dry-run mode', async () => {
     mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
     await runPreview({ projectDir: '/test', dryRun: true });
 
     expect(mockRunRelease).not.toHaveBeenCalled();
-    expect(consoleSpy).toHaveBeenCalled();
-    const output = consoleSpy.mock.calls[0]?.[0] as string;
-    expect(output).toContain('No release label detected');
+    expect(consoleSpy).not.toHaveBeenCalled();
     expect(mockPostOrUpdateComment).not.toHaveBeenCalled();
 
     consoleSpy.mockRestore();

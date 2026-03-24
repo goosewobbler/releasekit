@@ -57,17 +57,9 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
 
   const strategy = ciConfig?.releaseStrategy ?? 'direct';
 
-  // Label mode with no bump label — skip dry-run entirely
+  // Label mode with no bump label — skip entirely, no comment posted
   if (labelContext.noBumpLabel) {
-    const commentBody = formatPreviewComment(null, { strategy, labelContext });
-    if (!context) {
-      console.log(commentBody);
-      return;
-    }
-    info(`Posting preview comment on PR #${context.prNumber}...`);
-    const octokit = createOctokit(context.token);
-    await postOrUpdateComment(octokit, context.owner, context.repo, context.prNumber, commentBody);
-    success(`Preview comment posted on PR #${context.prNumber}`);
+    info('No release label detected — skipping preview');
     return;
   }
 
