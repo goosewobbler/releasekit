@@ -84,7 +84,7 @@ describe('aggregateToRoot', () => {
     expect(result.previousVersion).toBe('1.0.0');
   });
 
-  it('handles empty contexts array', () => {
+  it('should handle empty contexts array', () => {
     const result = aggregateToRoot([]);
 
     expect(result.packageName).toBe('monorepo');
@@ -98,7 +98,7 @@ describe('detectMonorepo', () => {
     vi.clearAllMocks();
   });
 
-  it('detects pnpm monorepo from pnpm-workspace.yaml', () => {
+  it('should detect pnpm monorepo from pnpm-workspace.yaml', () => {
     mockedFs.existsSync.mockImplementation((path) => {
       return path.toString().includes('pnpm-workspace.yaml');
     });
@@ -113,7 +113,7 @@ packages:
     expect(result.packagesPath).toBe('packages');
   });
 
-  it('detects npm/yarn workspaces from package.json', () => {
+  it('should detect npm/yarn workspaces from package.json', () => {
     mockedFs.existsSync.mockImplementation((path) => {
       return path.toString().includes('package.json') && !path.toString().includes('pnpm-workspace');
     });
@@ -129,7 +129,7 @@ packages:
     expect(result.packagesPath).toBe('packages');
   });
 
-  it('detects yarn 2 workspaces format', () => {
+  it('should detect yarn 2 workspaces format', () => {
     mockedFs.existsSync.mockImplementation((path) => {
       return path.toString().includes('package.json') && !path.toString().includes('pnpm-workspace');
     });
@@ -147,7 +147,7 @@ packages:
     expect(result.packagesPath).toBe('packages');
   });
 
-  it('returns false for non-monorepo', () => {
+  it('should return false for non-monorepo', () => {
     mockedFs.existsSync.mockReturnValue(false);
 
     const result = detectMonorepo('/project');
@@ -156,7 +156,7 @@ packages:
     expect(result.packagesPath).toBe('');
   });
 
-  it('extracts packages path from glob patterns', () => {
+  it('should extract packages path from glob patterns', () => {
     mockedFs.existsSync.mockImplementation((path) => {
       return path.toString().includes('pnpm-workspace.yaml');
     });
@@ -170,7 +170,7 @@ packages:
     expect(result.packagesPath).toBe('apps');
   });
 
-  it('handles nested glob patterns', () => {
+  it('should handle nested glob patterns', () => {
     mockedFs.existsSync.mockImplementation((path) => {
       return path.toString().includes('pnpm-workspace.yaml');
     });
@@ -198,7 +198,7 @@ packages:
     expect(result.packagesPath).toBe('packages');
   });
 
-  it('handles invalid JSON in package.json gracefully', () => {
+  it('should handle invalid JSON in package.json gracefully', () => {
     mockedFs.existsSync.mockImplementation((path) => {
       return path.toString().includes('package.json') && !path.toString().includes('pnpm-workspace');
     });

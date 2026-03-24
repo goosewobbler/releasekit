@@ -36,7 +36,7 @@ describe('Liquid Engine', () => {
     expect(result).toBe('- New feature- Bug fix');
   });
 
-  it('handles conditionals', () => {
+  it('should handle conditionals', () => {
     const template = '{% if previousVersion %}Has previous{% else %}No previous{% endif %}';
     const result = renderLiquid(template, sampleContext);
     expect(result).toBe('No previous');
@@ -81,13 +81,13 @@ describe('EJS Engine', () => {
 });
 
 describe('Template Loader', () => {
-  it('detects single file mode', () => {
+  it('should detect single file mode', () => {
     const templatePath = path.join(process.cwd(), 'templates', 'keep-a-changelog', 'document.liquid');
     const mode = detectTemplateMode(templatePath);
     expect(mode).toBe('single');
   });
 
-  it('detects composable mode for directory', () => {
+  it('should detect composable mode for directory', () => {
     const templatePath = path.join(process.cwd(), 'templates', 'keep-a-changelog');
     const mode = detectTemplateMode(templatePath);
     expect(mode).toBe('composable');

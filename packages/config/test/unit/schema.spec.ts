@@ -21,7 +21,7 @@ import {
 } from '../../src/schema.js';
 
 describe('GitConfigSchema', () => {
-  it('applies defaults for missing fields', () => {
+  it('should apply defaults for missing fields', () => {
     const result = GitConfigSchema.parse({});
     expect(result).toEqual({
       remote: 'origin',
@@ -30,7 +30,7 @@ describe('GitConfigSchema', () => {
     });
   });
 
-  it('accepts valid values', () => {
+  it('should accept valid values', () => {
     const result = GitConfigSchema.parse({
       remote: 'upstream',
       branch: 'develop',
@@ -43,25 +43,25 @@ describe('GitConfigSchema', () => {
     expect(result.push).toBe(false);
   });
 
-  it('rejects invalid pushMethod', () => {
+  it('should reject invalid pushMethod', () => {
     expect(() => GitConfigSchema.parse({ pushMethod: 'invalid' })).toThrow();
   });
 });
 
 describe('MonorepoConfigSchema', () => {
-  it('accepts empty object', () => {
+  it('should accept empty object', () => {
     const result = MonorepoConfigSchema.parse({});
     expect(result).toEqual({});
   });
 
-  it('accepts valid mode values', () => {
+  it('should accept valid mode values', () => {
     for (const mode of ['root', 'packages', 'both'] as const) {
       const result = MonorepoConfigSchema.parse({ mode });
       expect(result.mode).toBe(mode);
     }
   });
 
-  it('rejects invalid mode', () => {
+  it('should reject invalid mode', () => {
     expect(() => MonorepoConfigSchema.parse({ mode: 'invalid' })).toThrow();
   });
 });
@@ -76,7 +76,7 @@ describe('BranchPatternSchema', () => {
     expect(result.releaseType).toBe('minor');
   });
 
-  it('rejects invalid releaseType', () => {
+  it('should reject invalid releaseType', () => {
     expect(() =>
       BranchPatternSchema.parse({
         pattern: 'release/*',
@@ -87,7 +87,7 @@ describe('BranchPatternSchema', () => {
 });
 
 describe('VersionConfigSchema', () => {
-  it('applies defaults', () => {
+  it('should apply defaults', () => {
     const result = VersionConfigSchema.parse({});
     expect(result.tagTemplate).toBe('v{version}');
     expect(result.packageSpecificTags).toBe(false);
@@ -100,7 +100,7 @@ describe('VersionConfigSchema', () => {
     expect(result.versionPrefix).toBe('');
   });
 
-  it('accepts branchPatterns', () => {
+  it('should accept branchPatterns', () => {
     const result = VersionConfigSchema.parse({
       versionStrategy: 'branchPattern',
       branchPatterns: [
@@ -112,7 +112,7 @@ describe('VersionConfigSchema', () => {
     expect(result.branchPatterns).toHaveLength(2);
   });
 
-  it('accepts cargo config', () => {
+  it('should accept cargo config', () => {
     const result = VersionConfigSchema.parse({
       cargo: {
         enabled: true,
@@ -125,7 +125,7 @@ describe('VersionConfigSchema', () => {
 });
 
 describe('NpmConfigSchema', () => {
-  it('applies defaults', () => {
+  it('should apply defaults', () => {
     const result = NpmConfigSchema.parse({});
     expect(result.enabled).toBe(true);
     expect(result.auth).toBe('auto');
@@ -136,12 +136,12 @@ describe('NpmConfigSchema', () => {
     expect(result.tag).toBe('latest');
   });
 
-  it('accepts valid access values', () => {
+  it('should accept valid access values', () => {
     expect(NpmConfigSchema.parse({ access: 'public' }).access).toBe('public');
     expect(NpmConfigSchema.parse({ access: 'restricted' }).access).toBe('restricted');
   });
 
-  it('accepts valid auth values', () => {
+  it('should accept valid auth values', () => {
     for (const auth of ['auto', 'oidc', 'token'] as const) {
       expect(NpmConfigSchema.parse({ auth }).auth).toBe(auth);
     }
@@ -149,7 +149,7 @@ describe('NpmConfigSchema', () => {
 });
 
 describe('CargoPublishConfigSchema', () => {
-  it('applies defaults', () => {
+  it('should apply defaults', () => {
     const result = CargoPublishConfigSchema.parse({});
     expect(result.enabled).toBe(false);
     expect(result.noVerify).toBe(false);
@@ -159,7 +159,7 @@ describe('CargoPublishConfigSchema', () => {
 });
 
 describe('GitHubReleaseConfigSchema', () => {
-  it('applies defaults', () => {
+  it('should apply defaults', () => {
     const result = GitHubReleaseConfigSchema.parse({});
     expect(result.enabled).toBe(true);
     expect(result.draft).toBe(true);
@@ -168,13 +168,13 @@ describe('GitHubReleaseConfigSchema', () => {
     expect(result.releaseNotes).toBe('auto');
   });
 
-  it('accepts prerelease as boolean or auto', () => {
+  it('should accept prerelease as boolean or auto', () => {
     expect(GitHubReleaseConfigSchema.parse({ prerelease: true }).prerelease).toBe(true);
     expect(GitHubReleaseConfigSchema.parse({ prerelease: false }).prerelease).toBe(false);
     expect(GitHubReleaseConfigSchema.parse({ prerelease: 'auto' }).prerelease).toBe('auto');
   });
 
-  it('accepts releaseNotes as auto, github, none, or file path', () => {
+  it('should accept releaseNotes as auto, github, none, or file path', () => {
     expect(GitHubReleaseConfigSchema.parse({ releaseNotes: 'auto' }).releaseNotes).toBe('auto');
     expect(GitHubReleaseConfigSchema.parse({ releaseNotes: 'github' }).releaseNotes).toBe('github');
     expect(GitHubReleaseConfigSchema.parse({ releaseNotes: 'none' }).releaseNotes).toBe('none');
@@ -185,7 +185,7 @@ describe('GitHubReleaseConfigSchema', () => {
 });
 
 describe('VerifyConfigSchema', () => {
-  it('applies defaults', () => {
+  it('should apply defaults', () => {
     const result = VerifyConfigSchema.parse({});
     expect(result.npm.enabled).toBe(true);
     expect(result.npm.maxAttempts).toBe(5);
@@ -195,7 +195,7 @@ describe('VerifyConfigSchema', () => {
 });
 
 describe('PublishConfigSchema', () => {
-  it('applies defaults for npm and cargo', () => {
+  it('should apply defaults for npm and cargo', () => {
     const result = PublishConfigSchema.parse({});
     expect(result.npm.enabled).toBe(true);
     expect(result.cargo.enabled).toBe(false);
@@ -209,13 +209,13 @@ describe('OutputConfigSchema', () => {
     expect(result.format).toBe('markdown');
   });
 
-  it('accepts all format values', () => {
+  it('should accept all format values', () => {
     for (const format of ['markdown', 'github-release', 'json'] as const) {
       expect(OutputConfigSchema.parse({ format }).format).toBe(format);
     }
   });
 
-  it('accepts optional file and options', () => {
+  it('should accept optional file and options', () => {
     const result = OutputConfigSchema.parse({
       format: 'markdown',
       file: 'CHANGELOG.md',
@@ -225,7 +225,7 @@ describe('OutputConfigSchema', () => {
     expect(result.options).toEqual({ header: 'Changelog' });
   });
 
-  it('accepts per-output templates', () => {
+  it('should accept per-output templates', () => {
     const result = OutputConfigSchema.parse({
       format: 'markdown',
       file: 'RELEASE_NOTES.md',
@@ -243,7 +243,7 @@ describe('LLMCategorySchema', () => {
     expect(result.description).toBe('New features');
   });
 
-  it('accepts optional scopes array', () => {
+  it('should accept optional scopes array', () => {
     const result = LLMCategorySchema.parse({
       name: 'Developer',
       description: 'Internal changes',
@@ -252,26 +252,26 @@ describe('LLMCategorySchema', () => {
     expect(result.scopes).toEqual(['CI', 'Dependencies', 'Testing']);
   });
 
-  it('allows empty scopes array', () => {
+  it('should allow empty scopes array', () => {
     const result = LLMCategorySchema.parse({ name: 'New', description: 'Features', scopes: [] });
     expect(result.scopes).toEqual([]);
   });
 });
 
 describe('ScopeRulesSchema', () => {
-  it('applies defaults', () => {
+  it('should apply defaults', () => {
     const result = ScopeRulesSchema.parse({});
     expect(result.caseSensitive).toBe(false);
     expect(result.invalidScopeAction).toBe('remove');
   });
 
-  it('accepts all invalidScopeAction values', () => {
+  it('should accept all invalidScopeAction values', () => {
     for (const action of ['remove', 'keep', 'fallback'] as const) {
       expect(ScopeRulesSchema.parse({ invalidScopeAction: action }).invalidScopeAction).toBe(action);
     }
   });
 
-  it('accepts allowed scopes and fallbackScope', () => {
+  it('should accept allowed scopes and fallbackScope', () => {
     const result = ScopeRulesSchema.parse({
       allowed: ['CI', 'Dependencies'],
       fallbackScope: 'Other',
@@ -280,7 +280,7 @@ describe('ScopeRulesSchema', () => {
     expect(result.fallbackScope).toBe('Other');
   });
 
-  it('rejects invalid invalidScopeAction', () => {
+  it('should reject invalid invalidScopeAction', () => {
     expect(() => ScopeRulesSchema.parse({ invalidScopeAction: 'invalid' })).toThrow();
   });
 });
@@ -291,13 +291,13 @@ describe('ScopeConfigSchema', () => {
     expect(result.mode).toBe('unrestricted');
   });
 
-  it('accepts all mode values', () => {
+  it('should accept all mode values', () => {
     for (const mode of ['restricted', 'packages', 'none', 'unrestricted'] as const) {
       expect(ScopeConfigSchema.parse({ mode }).mode).toBe(mode);
     }
   });
 
-  it('accepts optional rules', () => {
+  it('should accept optional rules', () => {
     const result = ScopeConfigSchema.parse({
       mode: 'restricted',
       rules: { allowed: ['CI'], caseSensitive: true },
@@ -306,18 +306,18 @@ describe('ScopeConfigSchema', () => {
     expect(result.rules?.caseSensitive).toBe(true);
   });
 
-  it('rejects invalid mode', () => {
+  it('should reject invalid mode', () => {
     expect(() => ScopeConfigSchema.parse({ mode: 'invalid' })).toThrow();
   });
 });
 
 describe('LLMPromptsConfigSchema', () => {
-  it('accepts empty object', () => {
+  it('should accept empty object', () => {
     const result = LLMPromptsConfigSchema.parse({});
     expect(result).toEqual({});
   });
 
-  it('accepts instructions for all task types', () => {
+  it('should accept instructions for all task types', () => {
     const result = LLMPromptsConfigSchema.parse({
       instructions: {
         enhance: 'Use active voice',
@@ -331,14 +331,14 @@ describe('LLMPromptsConfigSchema', () => {
     expect(result.instructions?.releaseNotes).toBe('Blog style');
   });
 
-  it('accepts templates for task types', () => {
+  it('should accept templates for task types', () => {
     const result = LLMPromptsConfigSchema.parse({
       templates: { categorize: 'Custom prompt: {{entries}}' },
     });
     expect(result.templates?.categorize).toBe('Custom prompt: {{entries}}');
   });
 
-  it('accepts both instructions and templates', () => {
+  it('should accept both instructions and templates', () => {
     const result = LLMPromptsConfigSchema.parse({
       instructions: { enhance: 'Use active voice' },
       templates: { categorize: 'Custom prompt' },
@@ -355,7 +355,7 @@ describe('LLMConfigSchema', () => {
     expect(result.model).toBe('gpt-4');
   });
 
-  it('accepts optional fields', () => {
+  it('should accept optional fields', () => {
     const result = LLMConfigSchema.parse({
       provider: 'openai',
       model: 'gpt-4',
@@ -384,7 +384,7 @@ describe('LLMConfigSchema', () => {
     expect(result.tasks?.summarize).toBe(true);
   });
 
-  it('accepts scopes config', () => {
+  it('should accept scopes config', () => {
     const result = LLMConfigSchema.parse({
       provider: 'openai',
       model: 'gpt-4',
@@ -397,7 +397,7 @@ describe('LLMConfigSchema', () => {
     expect(result.scopes?.rules?.allowed).toEqual(['CI', 'Dependencies']);
   });
 
-  it('accepts prompts config', () => {
+  it('should accept prompts config', () => {
     const result = LLMConfigSchema.parse({
       provider: 'openai',
       model: 'gpt-4',
@@ -410,7 +410,7 @@ describe('LLMConfigSchema', () => {
     expect(result.prompts?.templates?.releaseNotes).toBe('Full custom prompt');
   });
 
-  it('accepts categories with scopes', () => {
+  it('should accept categories with scopes', () => {
     const result = LLMConfigSchema.parse({
       provider: 'openai',
       model: 'gpt-4',
@@ -425,12 +425,12 @@ describe('LLMConfigSchema', () => {
 });
 
 describe('TemplateConfigSchema', () => {
-  it('accepts empty object', () => {
+  it('should accept empty object', () => {
     const result = TemplateConfigSchema.parse({});
     expect(result).toEqual({});
   });
 
-  it('accepts valid engine values', () => {
+  it('should accept valid engine values', () => {
     for (const engine of ['handlebars', 'liquid', 'ejs'] as const) {
       const result = TemplateConfigSchema.parse({ engine });
       expect(result.engine).toBe(engine);
@@ -439,7 +439,7 @@ describe('TemplateConfigSchema', () => {
 });
 
 describe('NotesConfigSchema', () => {
-  it('applies defaults', () => {
+  it('should apply defaults', () => {
     const result = NotesConfigSchema.parse({});
     expect(result.updateStrategy).toBe('prepend');
     expect(result.output).toEqual([{ format: 'markdown', file: 'CHANGELOG.md' }]);
@@ -447,12 +447,12 @@ describe('NotesConfigSchema', () => {
 });
 
 describe('ReleaseKitConfigSchema', () => {
-  it('accepts empty object', () => {
+  it('should accept empty object', () => {
     const result = ReleaseKitConfigSchema.parse({});
     expect(result).toEqual({});
   });
 
-  it('accepts all sections', () => {
+  it('should accept all sections', () => {
     const result = ReleaseKitConfigSchema.parse({
       git: { remote: 'origin' },
       monorepo: { mode: 'packages' },
@@ -467,7 +467,7 @@ describe('ReleaseKitConfigSchema', () => {
     expect(result.notes?.updateStrategy).toBe('prepend');
   });
 
-  it('rejects invalid nested values', () => {
+  it('should reject invalid nested values', () => {
     expect(() =>
       ReleaseKitConfigSchema.parse({
         version: { versionStrategy: 'invalid' },

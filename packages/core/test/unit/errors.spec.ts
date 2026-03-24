@@ -17,12 +17,12 @@ describe('ReleaseKitError', () => {
     expect(error).toBeInstanceOf(Error);
   });
 
-  it('sets name to constructor name', () => {
+  it('should set name to constructor name', () => {
     const error = new TestError('Test message');
     expect(error.name).toBe('TestError');
   });
 
-  it('preserves message', () => {
+  it('should preserve message', () => {
     const error = new TestError('Something went wrong');
     expect(error.message).toBe('Something went wrong');
   });
@@ -37,7 +37,7 @@ describe('ReleaseKitError', () => {
     expect(error.suggestions).toEqual(['Try this', 'Or try that']);
   });
 
-  it('accepts custom suggestions', () => {
+  it('should accept custom suggestions', () => {
     const error = new TestError('Test message', ['Custom suggestion']);
     expect(error.suggestions).toEqual(['Custom suggestion']);
   });

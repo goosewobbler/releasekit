@@ -69,7 +69,7 @@ describe('Pipeline: package-versioner → markdown', () => {
     expect(markdown).toContain('- Simplify config loading');
   });
 
-  it('includes a GitHub comparison link', () => {
+  it('should include a GitHub comparison link', () => {
     const input = parsePackageVersioner(JSON.stringify(packageVersionerFixture));
     const contexts = input.packages.map(createTemplateContext);
     const markdown = renderMarkdown(contexts);
@@ -134,7 +134,7 @@ describe('compareUrl: platform detection', () => {
     );
   });
 
-  it('omits compareUrl when no previousVersion', () => {
+  it('should omit compareUrl when no previousVersion', () => {
     const ctx = createTemplateContext({
       packageName: 'pkg',
       version: '1.0.0',
@@ -153,7 +153,7 @@ describe('compareUrl: platform detection', () => {
 // ---------------------------------------------------------------------------
 
 describe('Parser: conventional-changelog', () => {
-  it('extracts all versions', () => {
+  it('should extract all versions', () => {
     const result = parseConventionalChangelog(sampleChangelog, 'my-lib');
     expect(result.source).toBe('conventional-changelog');
     expect(result.packages).toHaveLength(2);
@@ -161,13 +161,13 @@ describe('Parser: conventional-changelog', () => {
     expect(result.packages[1]?.version).toBe('1.0.0');
   });
 
-  it('parses dates', () => {
+  it('should parse dates', () => {
     const result = parseConventionalChangelog(sampleChangelog, 'my-lib');
     expect(result.packages[0]?.date).toBe('2026-01-15');
     expect(result.packages[1]?.date).toBe('2025-09-15');
   });
 
-  it('sets previousVersion from the next block', () => {
+  it('should set previousVersion from the next block', () => {
     const result = parseConventionalChangelog(sampleChangelog, 'my-lib');
     expect(result.packages[0]?.previousVersion).toBe('1.0.0');
     expect(result.packages[1]?.previousVersion).toBeNull();
@@ -180,14 +180,14 @@ describe('Parser: conventional-changelog', () => {
     expect(added.some((e) => e.description === 'New plugin system')).toBe(true);
   });
 
-  it('extracts scope', () => {
+  it('should extract scope', () => {
     const result = parseConventionalChangelog(sampleChangelog, 'my-lib');
     const apiEntry = result.packages[0]?.entries.find((e) => e.scope === 'api');
     expect(apiEntry).toBeDefined();
     expect(apiEntry?.description).toBe('Batch operations');
   });
 
-  it('extracts issue IDs', () => {
+  it('should extract issue IDs', () => {
     const result = parseConventionalChangelog(sampleChangelog, 'my-lib');
     const fixedEntry = result.packages[0]?.entries.find((e) => e.type === 'fixed');
     expect(fixedEntry?.issueIds).toContain('#38');
@@ -204,7 +204,7 @@ describe('Parser: conventional-changelog', () => {
     expect(markdown).toContain('Initial release');
   });
 
-  it('parses a real fixture file', () => {
+  it('should parse a real fixture file', () => {
     const fixturePath = path.join(process.cwd(), 'test', 'fixtures', 'sample-changelog.md');
     const result = parseConventionalChangelogFile(fixturePath, 'my-lib');
     expect(result.packages.length).toBeGreaterThanOrEqual(3);
@@ -214,11 +214,11 @@ describe('Parser: conventional-changelog', () => {
     expect(v2?.entries.some((e) => e.breaking)).toBe(true);
   });
 
-  it('throws on empty content', () => {
+  it('should throw on empty content', () => {
     expect(() => parseConventionalChangelog('', 'pkg')).toThrow();
   });
 
-  it('throws when no version headers found', () => {
+  it('should throw when no version headers found', () => {
     expect(() => parseConventionalChangelog('# Just a title\nSome text.', 'pkg')).toThrow();
   });
 });

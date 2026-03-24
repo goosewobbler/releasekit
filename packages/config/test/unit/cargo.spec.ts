@@ -13,7 +13,7 @@ describe('parseCargoToml', () => {
     vi.clearAllMocks();
   });
 
-  it('parses valid Cargo.toml content', () => {
+  it('should parse valid Cargo.toml content', () => {
     mockedFs.readFileSync.mockReturnValue(`
       [package]
       name = "my-crate"
@@ -30,7 +30,7 @@ describe('parseCargoToml', () => {
     expect(result.dependencies?.serde).toBe('1.0');
   });
 
-  it('parses minimal Cargo.toml', () => {
+  it('should parse minimal Cargo.toml', () => {
     mockedFs.readFileSync.mockReturnValue(`
       [package]
       name = "minimal"
@@ -41,7 +41,7 @@ describe('parseCargoToml', () => {
     expect(result.package?.name).toBe('minimal');
   });
 
-  it('parses complex dependencies', () => {
+  it('should parse complex dependencies', () => {
     mockedFs.readFileSync.mockReturnValue(`
       [dependencies]
       serde = { version = "1.0", features = ["derive"] }
@@ -54,7 +54,7 @@ describe('parseCargoToml', () => {
     expect(result.dependencies?.tokio).toEqual({ version: '1.0', optional: true });
   });
 
-  it('parses dev and build dependencies', () => {
+  it('should parse dev and build dependencies', () => {
     mockedFs.readFileSync.mockReturnValue(`
       [dev-dependencies]
       tempfile = "3.0"
@@ -79,20 +79,20 @@ describe('parseCargoToml', () => {
 });
 
 describe('isCargoToml', () => {
-  it('returns true for Cargo.toml', () => {
+  it('should return true for Cargo.toml', () => {
     expect(isCargoToml('Cargo.toml')).toBe(true);
     expect(isCargoToml('/path/to/Cargo.toml')).toBe(true);
     expect(isCargoToml('./relative/Cargo.toml')).toBe(true);
   });
 
-  it('returns false for other files', () => {
+  it('should return false for other files', () => {
     expect(isCargoToml('package.json')).toBe(false);
     expect(isCargoToml('Cargo.lock')).toBe(false);
     expect(isCargoToml('cargo.toml')).toBe(false);
     expect(isCargoToml('CARGO.TOML')).toBe(false);
   });
 
-  it('handles edge cases', () => {
+  it('should handle edge cases', () => {
     expect(isCargoToml('')).toBe(false);
     expect(isCargoToml('/')).toBe(false);
   });

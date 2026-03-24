@@ -18,7 +18,7 @@ describe('loadConfig()', () => {
     delete process.env.TEST_API_KEY;
   });
 
-  it('returns default config when no config file exists', () => {
+  it('should return default config when no config file exists', () => {
     withTempDir((dir) => {
       const config = loadConfig(dir);
       expect(config.output[0]?.format).toBe('markdown');
@@ -27,7 +27,7 @@ describe('loadConfig()', () => {
     });
   });
 
-  it('loads releasekit.config.json with notes section', () => {
+  it('should load releasekit.config.json with notes section', () => {
     withTempDir((dir) => {
       fs.writeFileSync(
         path.join(dir, 'releasekit.config.json'),
@@ -84,7 +84,7 @@ describe('loadConfig()', () => {
     });
   });
 
-  it('parses JSONC (strips comments)', () => {
+  it('should parse JSONC (strips comments)', () => {
     withTempDir((dir) => {
       fs.writeFileSync(
         path.join(dir, 'releasekit.config.json'),
@@ -120,7 +120,7 @@ describe('loadConfig()', () => {
     });
   });
 
-  it('throws on invalid JSON', () => {
+  it('should throw on invalid JSON', () => {
     withTempDir((dir) => {
       fs.writeFileSync(path.join(dir, 'releasekit.config.json'), '{ not valid json }', 'utf-8');
 

@@ -3,12 +3,12 @@ import { deepMerge, mergeGitConfig } from '../../src/merge.js';
 import type { GitConfig, PublishGitConfig } from '../../src/schema.js';
 
 describe('mergeGitConfig', () => {
-  it('returns undefined when both inputs are undefined', () => {
+  it('should return undefined when both inputs are undefined', () => {
     const result = mergeGitConfig(undefined, undefined);
     expect(result).toBeUndefined();
   });
 
-  it('returns topLevel when packageLevel is undefined', () => {
+  it('should return topLevel when packageLevel is undefined', () => {
     const topLevel: GitConfig = {
       remote: 'upstream',
       branch: 'develop',
@@ -20,7 +20,7 @@ describe('mergeGitConfig', () => {
     expect(result?.pushMethod).toBe('ssh');
   });
 
-  it('returns packageLevel with topLevel defaults when topLevel is undefined', () => {
+  it('should return packageLevel with topLevel defaults when topLevel is undefined', () => {
     const result = mergeGitConfig(undefined, { remote: 'origin' } as PublishGitConfig);
     expect(result?.remote).toBe('origin');
     expect(result?.branch).toBe('main');
@@ -44,7 +44,7 @@ describe('mergeGitConfig', () => {
     expect(result?.pushMethod).toBe('auto');
   });
 
-  it('preserves topLevel values when packageLevel does not override', () => {
+  it('should preserve topLevel values when packageLevel does not override', () => {
     const topLevel: GitConfig = {
       remote: 'origin',
       branch: 'main',
@@ -61,7 +61,7 @@ describe('mergeGitConfig', () => {
     expect(result?.push).toBe(false);
   });
 
-  it('includes push from packageLevel', () => {
+  it('should include push from packageLevel', () => {
     const result = mergeGitConfig(undefined, { push: false });
     expect(result?.push).toBe(false);
   });
@@ -90,17 +90,17 @@ describe('mergeGitConfig', () => {
 });
 
 describe('deepMerge', () => {
-  it('returns undefined when both inputs are undefined', () => {
+  it('should return undefined when both inputs are undefined', () => {
     const result = deepMerge(undefined, undefined);
     expect(result).toBeUndefined();
   });
 
-  it('returns source when target is undefined', () => {
+  it('should return source when target is undefined', () => {
     const result = deepMerge(undefined, { a: 1 });
     expect(result).toEqual({ a: 1 });
   });
 
-  it('returns target when source is undefined', () => {
+  it('should return target when source is undefined', () => {
     const result = deepMerge({ a: 1 }, undefined);
     expect(result).toEqual({ a: 1 });
   });
@@ -142,21 +142,21 @@ describe('deepMerge', () => {
     expect(result).toEqual({ arr: [4, 5] });
   });
 
-  it('sets null values from source', () => {
+  it('should set null values from source', () => {
     const target = { a: 1, b: 2 };
     const source = { a: null, c: 3 } as Record<string, unknown>;
     const result = deepMerge(target, source);
     expect(result).toEqual({ a: null, b: 2, c: 3 });
   });
 
-  it('preserves null values in target when source does not override', () => {
+  it('should preserve null values in target when source does not override', () => {
     const target = { a: null } as Record<string, unknown>;
     const source = { b: 2 };
     const result = deepMerge(target, source);
     expect(result).toEqual({ a: null, b: 2 });
   });
 
-  it('handles deeply nested structures', () => {
+  it('should handle deeply nested structures', () => {
     const target = {
       a: {
         b: {
@@ -195,14 +195,14 @@ describe('deepMerge', () => {
     expect(target).toEqual({ a: { b: 1 } });
   });
 
-  it('handles primitive values in source', () => {
+  it('should handle primitive values in source', () => {
     const target = { a: { nested: true } } as Record<string, unknown>;
     const source = { a: 'string' };
     const result = deepMerge(target, source);
     expect(result).toEqual({ a: 'string' });
   });
 
-  it('handles primitive values in target when source has object', () => {
+  it('should handle primitive values in target when source has object', () => {
     const target = { a: 'string' };
     const source = { a: { nested: true } } as Record<string, unknown>;
     const result = deepMerge(target, source);

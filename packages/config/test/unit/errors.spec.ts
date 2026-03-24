@@ -18,12 +18,12 @@ describe('ConfigError', () => {
     expect(error.suggestions).toContain('Run with --verbose for more details');
   });
 
-  it('accepts custom suggestions', () => {
+  it('should accept custom suggestions', () => {
     const error = new ConfigError('Test message', ['Custom suggestion 1', 'Custom suggestion 2']);
     expect(error.suggestions).toEqual(['Custom suggestion 1', 'Custom suggestion 2']);
   });
 
-  it('preserves message', () => {
+  it('should preserve message', () => {
     const error = new ConfigError('Something went wrong');
     expect(error.message).toBe('Something went wrong');
   });

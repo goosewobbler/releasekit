@@ -51,13 +51,13 @@ describe('Error classes', () => {
 });
 
 describe('ReleaseKitError.isReleaseKitError()', () => {
-  it('returns true for NotesError subclasses', () => {
+  it('should return true for NotesError subclasses', () => {
     expect(ReleaseKitError.isReleaseKitError(new InputParseError('x'))).toBe(true);
     expect(ReleaseKitError.isReleaseKitError(new LLMError('x'))).toBe(true);
     expect(ReleaseKitError.isReleaseKitError(new ConfigError('x'))).toBe(true);
   });
 
-  it('returns false for plain errors and non-errors', () => {
+  it('should return false for plain errors and non-errors', () => {
     expect(ReleaseKitError.isReleaseKitError(new Error('x'))).toBe(false);
     expect(ReleaseKitError.isReleaseKitError('string')).toBe(false);
     expect(ReleaseKitError.isReleaseKitError(null)).toBe(false);
@@ -65,7 +65,7 @@ describe('ReleaseKitError.isReleaseKitError()', () => {
 });
 
 describe('getExitCode()', () => {
-  it('maps each error type to the correct exit code', () => {
+  it('should map each error type to the correct exit code', () => {
     expect(getExitCode(new ConfigError('x'))).toBe(EXIT_CODES.CONFIG_ERROR);
     expect(getExitCode(new InputParseError('x'))).toBe(EXIT_CODES.INPUT_ERROR);
     expect(getExitCode(new TemplateError('x'))).toBe(EXIT_CODES.TEMPLATE_ERROR);

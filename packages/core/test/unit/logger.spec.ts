@@ -30,7 +30,7 @@ describe('logger', () => {
   });
 
   describe('setLogLevel / getLogLevel', () => {
-    it('sets and gets log level', () => {
+    it('should set and gets log level', () => {
       setLogLevel('debug');
       expect(getLogLevel()).toBe('debug');
     });
@@ -45,7 +45,7 @@ describe('logger', () => {
   });
 
   describe('setQuietMode', () => {
-    it('suppresses non-error messages when true', () => {
+    it('should suppress non-error messages when true', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       setQuietMode(true);
@@ -117,7 +117,7 @@ describe('logger', () => {
       consoleSpy.mockRestore();
     });
 
-    it('respects log level hierarchy', () => {
+    it('should respect log level hierarchy', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       setLogLevel('warn');

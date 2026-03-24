@@ -77,7 +77,7 @@ describe('Git Commands', () => {
       expect(commandExecutor.execAsync).toHaveBeenCalledWith('git', ['tag', '-a', '-m', 'Version 1.0.0', 'v1.0.0']);
     });
 
-    it('throws TAG_ALREADY_EXISTS error when tag already exists', async () => {
+    it('should throw TAG_ALREADY_EXISTS error when tag already exists', async () => {
       const options: GitTagOptions = {
         tag: 'v1.0.0',
         message: 'Version 1.0.0',
@@ -130,13 +130,13 @@ describe('Git Commands', () => {
   });
 
   describe('createGitCommitAndTag', () => {
-    it('throws error if no files provided', async () => {
+    it('should throw error if no files provided', async () => {
       await expect(commands.createGitCommitAndTag([], 'v1.0.0', 'test commit')).rejects.toThrow(
         /No files specified for commit/,
       );
     });
 
-    it('throws error if no commit message provided', async () => {
+    it('should throw error if no commit message provided', async () => {
       await expect(commands.createGitCommitAndTag(['file1.js'], 'v1.0.0', '')).rejects.toThrow(
         /Commit message is required/,
       );

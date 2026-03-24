@@ -50,7 +50,7 @@ describe('renderJson', () => {
     expect(parsed.versions).toHaveLength(2);
   });
 
-  it('includes all entry fields', () => {
+  it('should include all entry fields', () => {
     const contexts: TemplateContext[] = [
       makeContext({
         entries: [
@@ -77,14 +77,14 @@ describe('renderJson', () => {
     expect(entry.originalType).toBe('feat');
   });
 
-  it('handles empty contexts array', () => {
+  it('should handle empty contexts array', () => {
     const result = renderJson([]);
     const parsed = JSON.parse(result);
 
     expect(parsed.versions).toEqual([]);
   });
 
-  it('formats JSON with indentation', () => {
+  it('should format JSON with indentation', () => {
     const contexts: TemplateContext[] = [makeContext()];
 
     const result = renderJson(contexts);
@@ -93,7 +93,7 @@ describe('renderJson', () => {
     expect(result).toContain('  ');
   });
 
-  it('includes compareUrl when present', () => {
+  it('should include compareUrl when present', () => {
     const contexts: TemplateContext[] = [
       makeContext({
         compareUrl: 'https://github.com/owner/repo/compare/v0.9.0...v1.0.0',
@@ -106,7 +106,7 @@ describe('renderJson', () => {
     expect(parsed.versions[0].compareUrl).toBe('https://github.com/owner/repo/compare/v0.9.0...v1.0.0');
   });
 
-  it('handles null previousVersion', () => {
+  it('should handle null previousVersion', () => {
     const contexts: TemplateContext[] = [makeContext()];
 
     const result = renderJson(contexts);

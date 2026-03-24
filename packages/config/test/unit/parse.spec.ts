@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { parseJsonc } from '../../src/parse.js';
 
 describe('parseJsonc', () => {
-  it('parses valid JSON', () => {
+  it('should parse valid JSON', () => {
     const result = parseJsonc('{"key": "value"}');
     expect(result).toEqual({ key: 'value' });
   });
 
-  it('parses JSON with single-line comments', () => {
+  it('should parse JSON with single-line comments', () => {
     const jsonc = `{
       // This is a comment
       "key": "value"
@@ -16,7 +16,7 @@ describe('parseJsonc', () => {
     expect(result).toEqual({ key: 'value' });
   });
 
-  it('parses JSON with multi-line comments', () => {
+  it('should parse JSON with multi-line comments', () => {
     const jsonc = `{
       /* This is a
          multi-line comment */
@@ -26,19 +26,19 @@ describe('parseJsonc', () => {
     expect(result).toEqual({ key: 'value' });
   });
 
-  it('parses JSON with trailing comments', () => {
+  it('should parse JSON with trailing comments', () => {
     const jsonc = `{"key": "value"} // trailing comment`;
     const result = parseJsonc(jsonc);
     expect(result).toEqual({ key: 'value' });
   });
 
-  it('parses JSON with inline comments', () => {
+  it('should parse JSON with inline comments', () => {
     const jsonc = `{"key": "value" /* inline */}`;
     const result = parseJsonc(jsonc);
     expect(result).toEqual({ key: 'value' });
   });
 
-  it('parses JSON with multiple comments', () => {
+  it('should parse JSON with multiple comments', () => {
     const jsonc = `{
       // Comment 1
       "key1": "value1",
@@ -49,7 +49,7 @@ describe('parseJsonc', () => {
     expect(result).toEqual({ key1: 'value1', key2: 'value2' });
   });
 
-  it('parses nested objects', () => {
+  it('should parse nested objects', () => {
     const jsonc = `{
       "outer": {
         // Inner comment
@@ -60,7 +60,7 @@ describe('parseJsonc', () => {
     expect(result).toEqual({ outer: { inner: 'value' } });
   });
 
-  it('parses arrays', () => {
+  it('should parse arrays', () => {
     const jsonc = `{
       "items": [1, 2, 3]
     }`;
@@ -68,7 +68,7 @@ describe('parseJsonc', () => {
     expect(result).toEqual({ items: [1, 2, 3] });
   });
 
-  it('parses numbers, booleans, and null', () => {
+  it('should parse numbers, booleans, and null', () => {
     const jsonc = `{
       "num": 42,
       "bool": true,
@@ -78,27 +78,27 @@ describe('parseJsonc', () => {
     expect(result).toEqual({ num: 42, bool: true, nil: null });
   });
 
-  it('throws on invalid JSON', () => {
+  it('should throw on invalid JSON', () => {
     expect(() => parseJsonc('{ invalid }')).toThrow();
   });
 
-  it('throws on unclosed braces', () => {
+  it('should throw on unclosed braces', () => {
     expect(() => parseJsonc('{"key": "value"')).toThrow();
   });
 
-  it('handles empty object', () => {
+  it('should handle empty object', () => {
     const result = parseJsonc('{}');
     expect(result).toEqual({});
   });
 
-  it('handles empty string after trimming', () => {
+  it('should handle empty string after trimming', () => {
     const jsonc = `
       // Just a comment
     `;
     expect(() => parseJsonc(jsonc)).toThrow();
   });
 
-  it('preserves string content with comment-like characters', () => {
+  it('should preserve string content with comment-like characters', () => {
     const jsonc = `{
       "url": "https://example.com/path?q=1&a=2"
     }`;

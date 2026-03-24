@@ -19,13 +19,13 @@ describe('loadConfig', () => {
     vi.resetModules();
   });
 
-  it('returns empty object when config file does not exist', () => {
+  it('should return empty object when config file does not exist', () => {
     mockedFs.existsSync.mockReturnValue(false);
     const result = loadConfig();
     expect(result).toEqual({});
   });
 
-  it('loads and parses valid config file', () => {
+  it('should load and parses valid config file', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(
       JSON.stringify({
@@ -39,26 +39,26 @@ describe('loadConfig', () => {
     expect(result.version?.preset).toBe('conventional');
   });
 
-  it('accepts custom cwd', () => {
+  it('should accept custom cwd', () => {
     mockedFs.existsSync.mockReturnValue(false);
     loadConfig({ cwd: '/custom/path' });
     expect(mockedFs.existsSync).toHaveBeenCalledWith('/custom/path/releasekit.config.json');
   });
 
-  it('accepts custom configPath', () => {
+  it('should accept custom configPath', () => {
     mockedFs.existsSync.mockReturnValue(false);
     loadConfig({ configPath: '/custom/path/my-config.json' });
     expect(mockedFs.existsSync).toHaveBeenCalledWith('/custom/path/my-config.json');
   });
 
-  it('throws ConfigError on invalid JSON', () => {
+  it('should throw ConfigError on invalid JSON', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue('{ invalid json }');
 
     expect(() => loadConfig()).toThrow(ConfigError);
   });
 
-  it('throws ConfigError on schema validation failure', () => {
+  it('should throw ConfigError on schema validation failure', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(
       JSON.stringify({
@@ -69,7 +69,7 @@ describe('loadConfig', () => {
     expect(() => loadConfig()).toThrow(ConfigError);
   });
 
-  it('parses JSONC with comments', () => {
+  it('should parse JSONC with comments', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(`{
       // This is a comment
@@ -99,7 +99,7 @@ describe('loadVersionConfig', () => {
     vi.clearAllMocks();
   });
 
-  it('returns version config from loaded config', () => {
+  it('should return version config from loaded config', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(
       JSON.stringify({
@@ -112,7 +112,7 @@ describe('loadVersionConfig', () => {
     expect(result?.sync).toBe(false);
   });
 
-  it('returns undefined when no version config', () => {
+  it('should return undefined when no version config', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue('{}');
 
@@ -126,7 +126,7 @@ describe('loadPublishConfig', () => {
     vi.clearAllMocks();
   });
 
-  it('returns publish config from loaded config', () => {
+  it('should return publish config from loaded config', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(
       JSON.stringify({
@@ -142,7 +142,7 @@ describe('loadPublishConfig', () => {
     expect(result?.npm.access).toBe('public');
   });
 
-  it('returns undefined when no publish config', () => {
+  it('should return undefined when no publish config', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue('{}');
 
@@ -193,7 +193,7 @@ describe('loadPublishConfig', () => {
     expect(result?.git?.skipHooks).toBe(true);
   });
 
-  it('allows publish git to override top-level skipHooks', () => {
+  it('should allow publish git to override top-level skipHooks', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(
       JSON.stringify({
@@ -214,7 +214,7 @@ describe('loadNotesConfig', () => {
     vi.clearAllMocks();
   });
 
-  it('returns notes config from loaded config', () => {
+  it('should return notes config from loaded config', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(
       JSON.stringify({
@@ -226,7 +226,7 @@ describe('loadNotesConfig', () => {
     expect(result?.updateStrategy).toBe('regenerate');
   });
 
-  it('returns undefined when no notes config', () => {
+  it('should return undefined when no notes config', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue('{}');
 
@@ -240,7 +240,7 @@ describe('loadGitConfig', () => {
     vi.clearAllMocks();
   });
 
-  it('returns git config from loaded config', () => {
+  it('should return git config from loaded config', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(
       JSON.stringify({
@@ -254,7 +254,7 @@ describe('loadGitConfig', () => {
     expect(result?.pushMethod).toBe('ssh');
   });
 
-  it('returns undefined when no git config', () => {
+  it('should return undefined when no git config', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue('{}');
 

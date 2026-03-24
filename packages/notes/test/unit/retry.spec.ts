@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { withRetry } from '../../src/utils/retry.js';
 
 describe('withRetry()', () => {
-  it('returns the value on first successful call', async () => {
+  it('should return the value on first successful call', async () => {
     const result = await withRetry(async () => 'success', { maxAttempts: 3, initialDelay: 0 });
     expect(result).toBe('success');
   });
@@ -61,7 +61,7 @@ describe('withRetry()', () => {
     expect(calls).toBe(1);
   });
 
-  it('preserves the error type from the last attempt', async () => {
+  it('should preserve the error type from the last attempt', async () => {
     class CustomError extends Error {}
     await expect(
       withRetry(

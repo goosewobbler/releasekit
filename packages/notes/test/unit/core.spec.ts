@@ -23,7 +23,7 @@ const sampleInput = {
 };
 
 describe('Input Parser', () => {
-  it('parses package-versioner JSON', () => {
+  it('should parse package-versioner JSON', () => {
     const result = parsePackageVersioner(JSON.stringify(sampleInput));
 
     expect(result.source).toBe('package-versioner');
@@ -52,11 +52,11 @@ describe('Input Parser', () => {
     expect(result.packages[0]?.entries[1]?.type).toBe('fixed');
   });
 
-  it('throws on invalid JSON', () => {
+  it('should throw on invalid JSON', () => {
     expect(() => parsePackageVersioner('not json')).toThrow();
   });
 
-  it('throws on missing changelogs', () => {
+  it('should throw on missing changelogs', () => {
     expect(() => parsePackageVersioner(JSON.stringify({}))).toThrow('changelogs');
   });
 });
@@ -75,7 +75,7 @@ describe('Markdown Output', () => {
     expect(markdown).toContain('- **core**: Fixed bug');
   });
 
-  it('includes comparison links when available', () => {
+  it('should include comparison links when available', () => {
     const inputWithPrev = {
       ...sampleInput,
       changelogs: [
@@ -95,7 +95,7 @@ describe('Markdown Output', () => {
     expect(markdown).toContain('/compare/1.0.0...1.1.0');
   });
 
-  it('includes full package-specific tag in comparison link', () => {
+  it('should include full package-specific tag in comparison link', () => {
     const inputWithPrev = {
       ...sampleInput,
       changelogs: [

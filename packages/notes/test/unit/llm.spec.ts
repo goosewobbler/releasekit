@@ -50,7 +50,7 @@ const llmContext = { packageName: 'my-lib', version: '2.0.0', previousVersion: '
 // ---------------------------------------------------------------------------
 
 describe('enhanceEntry()', () => {
-  it('returns the provider response as the new description', async () => {
+  it('should return the provider response as the new description', async () => {
     const provider = makeMockProvider('Add real-time streaming to the API');
     const entry = sampleEntries[0];
     if (!entry) throw new Error('No sample entry');
@@ -88,7 +88,7 @@ describe('enhanceEntries()', () => {
     expect(result.every((e) => e.description === 'Enhanced description')).toBe(true);
   });
 
-  it('preserves other entry fields (type, scope, issueIds)', async () => {
+  it('should preserve other entry fields (type, scope, issueIds)', async () => {
     const provider = makeMockProvider('New description');
     const result = await enhanceEntries(provider, sampleEntries, llmContext);
 
@@ -97,7 +97,7 @@ describe('enhanceEntries()', () => {
     expect(result[1]?.type).toBe('fixed');
   });
 
-  it('falls back to original entry when enhancement fails', async () => {
+  it('should fall back to original entry when enhancement fails', async () => {
     // fails on all calls
     const provider = makeFailingProvider(0);
     const result = await enhanceEntries(provider, sampleEntries, llmContext);
@@ -143,7 +143,7 @@ describe('enhanceEntries()', () => {
 // ---------------------------------------------------------------------------
 
 describe('summarizeEntries()', () => {
-  it('returns the provider response as the summary', async () => {
+  it('should return the provider response as the summary', async () => {
     const provider = makeMockProvider('Major release with streaming and fixes.');
     const result = await summarizeEntries(provider, sampleEntries, llmContext);
     expect(result).toBe('Major release with streaming and fixes.');
@@ -161,7 +161,7 @@ describe('summarizeEntries()', () => {
 // ---------------------------------------------------------------------------
 
 describe('categorizeEntries()', () => {
-  it('parses valid JSON response into categories', async () => {
+  it('should parse valid JSON response into categories', async () => {
     const jsonResponse = JSON.stringify({ 'New Features': [0], 'Bug Fixes': [1, 2] });
     const provider = makeMockProvider(jsonResponse);
     const result = await categorizeEntries(provider, sampleEntries, llmContext);
@@ -184,7 +184,7 @@ describe('categorizeEntries()', () => {
     expect(result[0]?.entries).toHaveLength(3);
   });
 
-  it('falls back to General category on invalid JSON', async () => {
+  it('should fall back to General category on invalid JSON', async () => {
     const provider = makeMockProvider('not valid json at all');
     const result = await categorizeEntries(provider, sampleEntries, llmContext);
 
@@ -193,7 +193,7 @@ describe('categorizeEntries()', () => {
     expect(result[0]?.entries).toHaveLength(3);
   });
 
-  it('returns empty array for empty entries', async () => {
+  it('should return empty array for empty entries', async () => {
     const provider = makeMockProvider('{}');
     const result = await categorizeEntries(provider, [], llmContext);
     expect(result).toHaveLength(0);
@@ -219,7 +219,7 @@ describe('categorizeEntries()', () => {
     expect(result[0]?.entries[1]?.scope).toBeUndefined();
   });
 
-  it('validates scopes against restricted scope config', async () => {
+  it('should validate scopes against restricted scope config', async () => {
     const entries: ChangelogEntry[] = [
       { type: 'added', description: 'Update CI config' },
       { type: 'fixed', description: 'Fix deps' },
@@ -276,7 +276,7 @@ describe('categorizeEntries()', () => {
     expect(capturedPrompt).toContain('Additional instructions:');
   });
 
-  it('applies scopes from LLM response when provided', async () => {
+  it('should apply scopes from LLM response when provided', async () => {
     const entriesWithoutScopes: ChangelogEntry[] = [
       { type: 'added', description: 'Update dependencies' },
       { type: 'fixed', description: 'Fix bug' },
@@ -309,7 +309,7 @@ describe('categorizeEntries()', () => {
 // ---------------------------------------------------------------------------
 
 describe('enhanceAndCategorize()', () => {
-  it('parses valid response into enhanced entries and categories', async () => {
+  it('should parse valid response into enhanced entries and categories', async () => {
     const response = JSON.stringify({
       entries: [
         { description: 'Added real-time streaming to the API', category: 'New', scope: null },
@@ -343,7 +343,7 @@ describe('enhanceAndCategorize()', () => {
     expect(provider.callCount).toBe(1);
   });
 
-  it('preserves original entry fields (type, issueIds)', async () => {
+  it('should preserve original entry fields (type, issueIds)', async () => {
     const response = JSON.stringify({
       entries: [
         { description: 'New desc', category: 'New', scope: null },
@@ -359,7 +359,7 @@ describe('enhanceAndCategorize()', () => {
     expect(result.enhancedEntries[2]?.type).toBe('changed');
   });
 
-  it('preserves original scope when LLM returns null scope', async () => {
+  it('should preserve original scope when LLM returns null scope', async () => {
     const response = JSON.stringify({
       entries: [
         { description: 'New desc', category: 'New', scope: null },
@@ -390,7 +390,7 @@ describe('enhanceAndCategorize()', () => {
     expect(result.enhancedEntries).toHaveLength(3);
   });
 
-  it('falls back to General category on invalid JSON', async () => {
+  it('should fall back to General category on invalid JSON', async () => {
     const provider = makeMockProvider('not valid json');
     const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
 
@@ -400,7 +400,7 @@ describe('enhanceAndCategorize()', () => {
     expect(result.categories[0]?.category).toBe('General');
   });
 
-  it('falls back when response is missing entries array', async () => {
+  it('should fall back when response is missing entries array', async () => {
     const provider = makeMockProvider(JSON.stringify({ categories: {} }));
     const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
 
@@ -408,7 +408,7 @@ describe('enhanceAndCategorize()', () => {
     expect(result.categories[0]?.category).toBe('General');
   });
 
-  it('handles provider error gracefully', async () => {
+  it('should handle provider error gracefully', async () => {
     const provider = makeFailingProvider(0);
     const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
 
@@ -416,7 +416,7 @@ describe('enhanceAndCategorize()', () => {
     expect(result.categories[0]?.category).toBe('General');
   });
 
-  it('returns empty results for empty entries', async () => {
+  it('should return empty results for empty entries', async () => {
     const provider = makeMockProvider('{}');
     const result = await enhanceAndCategorize(provider, [], llmContext);
     expect(result.enhancedEntries).toHaveLength(0);
@@ -462,7 +462,7 @@ describe('enhanceAndCategorize()', () => {
     expect(result.categories[0]?.category).toBe('General');
   });
 
-  it('validates scopes against restricted scope config', async () => {
+  it('should validate scopes against restricted scope config', async () => {
     const response = JSON.stringify({
       entries: [
         { description: 'Updated CI', category: 'Developer', scope: 'CI' },
@@ -507,7 +507,7 @@ describe('enhanceAndCategorize()', () => {
     expect(capturedPrompt).toContain('Additional instructions:');
   });
 
-  it('handles partial LLM response (fewer entries than input)', async () => {
+  it('should handle partial LLM response (fewer entries than input)', async () => {
     const response = JSON.stringify({
       entries: [
         { description: 'Only first', category: 'New', scope: null },
@@ -530,7 +530,7 @@ describe('enhanceAndCategorize()', () => {
 // ---------------------------------------------------------------------------
 
 describe('generateReleaseNotes()', () => {
-  it('returns the provider response', async () => {
+  it('should return the provider response', async () => {
     const notes = 'This release adds streaming support and fixes a critical bug.';
     const provider = makeMockProvider(notes);
     const context = { ...llmContext, date: '2026-01-15' };
