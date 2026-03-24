@@ -6,7 +6,7 @@
  * 1. Packs all packages as tarballs (via pnpm pack)
  * 2. Creates an isolated temp directory with strict pnpm settings
  * 3. Installs only that package (with sibling overrides for internal deps)
- * 4. Runs smoke tests (ESM import, CJS require, CLI --help)
+ * 4. Runs smoke tests (ESM import + CLI --help)
  * 5. For @releasekit/release: runs a full dry-run in a temp git repo
  *
  * Usage:
@@ -19,7 +19,7 @@
  */
 
 import { execSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -170,19 +170,11 @@ function createPackageJson(dir: string, pkg: string, tarballs: Record<PackageNam
   );
 }
 
-function testEsmImport(dir: string, pkg: string): void {
+function testImport(dir: string, pkg: string): void {
   execCommand(
-    `node -e "import('@releasekit/${pkg}').then(() => console.log('ESM import ok'))"`,
+    `node -e "import('@releasekit/${pkg}').then(() => console.log('import ok'))"`,
     dir,
-    `Testing ESM import of @releasekit/${pkg}`,
-  );
-}
-
-function testCjsRequire(dir: string, pkg: string): void {
-  execCommand(
-    `node -e "require('@releasekit/${pkg}'); console.log('CJS require ok')"`,
-    dir,
-    `Testing CJS require of @releasekit/${pkg}`,
+    `Testing import of @releasekit/${pkg}`,
   );
 }
 
@@ -193,7 +185,7 @@ function testCli(dir: string, binName: string): void {
 function testReleaseDryRun(dir: string): void {
   // Create a temp git repo with conventional commits
   const repoDir = join(dir, 'test-repo');
-  execSync(`mkdir -p "${repoDir}"`, { shell: process.platform === 'win32' ? 'cmd.exe' : '/bin/sh' });
+  mkdirSync(repoDir, { recursive: true });
 
   execCommand('git init', repoDir, 'Initializing git repo');
   execCommand('git config user.email "test@test.com"', repoDir, 'Configuring git email');
@@ -254,8 +246,7 @@ function testPackage(pkg: PackageName, tarballs: Record<PackageName, string>): v
     createPackageJson(tempDir, pkg, tarballs);
     execCommandInherit('pnpm install', tempDir, `Installing @releasekit/${pkg}`);
 
-    testEsmImport(tempDir, pkg);
-    testCjsRequire(tempDir, pkg);
+    testImport(tempDir, pkg);
     testCli(tempDir, BIN_NAMES[pkg]);
 
     // For release package: test full dry-run
