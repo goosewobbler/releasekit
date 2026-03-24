@@ -146,9 +146,19 @@ if (result) {
 
 ## Configuration
 
-All configuration is shared via `releasekit.config.json`. The release command reads the `version`, `notes`, and `publish` sections as needed.
+Create a `releasekit.config.json` in your project root. Add `$schema` for editor autocompletion and validation:
 
-See the individual package READMEs for configuration details:
+```json
+{
+  "$schema": "https://goosewobbler.github.io/releasekit/schema.json",
+  "version": {
+    "preset": "angular",
+    "packages": ["./"]
+  }
+}
+```
+
+The release command reads the `version`, `notes`, and `publish` sections. See the individual package READMEs for all available options:
 
 - [@releasekit/version](../version/README.md) — versioning options
 - [@releasekit/notes](../notes/README.md) — changelog options

@@ -18,7 +18,6 @@ commits and designed for CI/CD pipelines.
 
 ## Features
 
-- **ESM only** — all packages are native ES modules and require Node.js 20+
 - **Conventional Commits** — automatically derives the next semver bump from commit history
 - **Monorepo support** — versions packages independently or in sync, with per-package git tags
 - **JavaScript + Rust** — handles `package.json` and `Cargo.toml` side by side
