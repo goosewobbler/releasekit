@@ -142,10 +142,8 @@ export function writeMarkdown(
   const label = /changelog/i.test(outputPath) ? 'Changelog' : 'Release notes';
 
   if (dryRun) {
-    info(`Would write ${label.toLowerCase()} to ${outputPath}`);
-    debug('--- Preview ---');
-    debug(content);
-    debug('--- End Preview ---');
+    info(`[DRY RUN] ${label} preview (would write to ${outputPath}):`);
+    info(content);
     return;
   }
 
