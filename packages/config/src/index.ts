@@ -7,6 +7,7 @@ export {
   loadMonorepoConfig,
   loadNotesConfig,
   loadPublishConfig,
+  loadReleaseConfig,
   loadVersionConfig,
 } from './load.js';
 export { deepMerge, mergeGitConfig } from './merge.js';
@@ -25,6 +26,8 @@ export {
   type OutputConfig,
   type PublishConfig,
   type PublishGitConfig,
+  type ReleaseCIConfig,
+  type ReleaseConfig,
   type ReleaseKitConfig,
   ReleaseKitConfigSchema,
   type ScopeConfig,

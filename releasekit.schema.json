@@ -659,6 +659,46 @@
           "description": "How to update existing changelog"
         }
       }
+    },
+    "release": {
+      "type": "object",
+      "description": "Release pipeline automation configuration",
+      "additionalProperties": false,
+      "properties": {
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["version", "notes", "publish"]
+          },
+          "description": "Which steps to run by default. Omitting a step is equivalent to --skip-<step>."
+        },
+        "ci": {
+          "type": "object",
+          "description": "CI-specific automation settings",
+          "additionalProperties": false,
+          "properties": {
+            "skipPatterns": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Commit message prefixes that prevent a release (e.g. 'chore(deps):', 'ci:')"
+            },
+            "minChanges": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Minimum number of packages with releasable changes required to trigger a release"
+            },
+            "githubRelease": {
+              "type": "boolean",
+              "description": "Whether to create GitHub releases in automation mode"
+            },
+            "notes": {
+              "type": "boolean",
+              "description": "Whether to generate changelogs in automation mode"
+            }
+          }
+        }
+      }
     }
   }
 }

@@ -246,12 +246,25 @@ export const NotesConfigSchema = z.object({
   updateStrategy: z.enum(['prepend', 'regenerate']).default('prepend'),
 });
 
+export const ReleaseCIConfigSchema = z.object({
+  skipPatterns: z.array(z.string()).optional(),
+  minChanges: z.number().int().positive().optional(),
+  githubRelease: z.boolean().optional(),
+  notes: z.boolean().optional(),
+});
+
+export const ReleaseConfigSchema = z.object({
+  steps: z.array(z.enum(['version', 'notes', 'publish'])).optional(),
+  ci: ReleaseCIConfigSchema.optional(),
+});
+
 export const ReleaseKitConfigSchema = z.object({
   git: GitConfigSchema.optional(),
   monorepo: MonorepoConfigSchema.optional(),
   version: VersionConfigSchema.optional(),
   publish: PublishConfigSchema.optional(),
   notes: NotesConfigSchema.optional(),
+  release: ReleaseConfigSchema.optional(),
 });
 
 export type GitConfig = z.infer<typeof GitConfigSchema>;
@@ -273,4 +286,6 @@ export type LLMPromptOverrides = z.infer<typeof LLMPromptOverridesSchema>;
 export type LLMPromptsConfig = z.infer<typeof LLMPromptsConfigSchema>;
 export type TemplateConfig = z.infer<typeof TemplateConfigSchema>;
 export type NotesConfig = z.infer<typeof NotesConfigSchema>;
+export type ReleaseCIConfig = z.infer<typeof ReleaseCIConfigSchema>;
+export type ReleaseConfig = z.infer<typeof ReleaseConfigSchema>;
 export type ReleaseKitConfig = z.infer<typeof ReleaseKitConfigSchema>;

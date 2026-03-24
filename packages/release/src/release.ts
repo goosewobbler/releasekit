@@ -1,12 +1,59 @@
+import { execSync } from 'node:child_process';
+import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput } from '@releasekit/core';
 import { info, setJsonMode, setLogLevel, setQuietMode, success } from '@releasekit/core';
 import type { ReleaseType } from 'semver';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
 
-export async function runRelease(options: ReleaseOptions): Promise<ReleaseOutput | null> {
+function getHeadCommitMessage(): string | null {
+  try {
+    return execSync('git log -1 --pretty=%s', { encoding: 'utf-8' }).trim();
+  } catch {
+    return null;
+  }
+}
+
+export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseOutput | null> {
+  // Work on a copy so config-driven overrides never mutate the caller's object
+  const options = { ...inputOptions };
+
   if (options.verbose) setLogLevel('debug');
   if (options.quiet) setQuietMode(true);
   if (options.json) setJsonMode(true);
+
+  // Load release config for automation behavior
+  const releaseKitConfig = loadReleaseKitConfig({ cwd: options.projectDir, configPath: options.config });
+  const releaseConfig = releaseKitConfig.release;
+
+  // Apply skipPatterns: exit early if HEAD commit matches a skip pattern
+  if (releaseConfig?.ci?.skipPatterns?.length) {
+    const headCommit = getHeadCommitMessage();
+    if (headCommit) {
+      const matchedPattern = releaseConfig.ci.skipPatterns.find((p) => headCommit.startsWith(p));
+      if (matchedPattern) {
+        info(`Skipping release: commit message matches skip pattern "${matchedPattern}"`);
+        return null;
+      }
+    }
+  }
+
+  // Apply steps config: absent steps become skipped (CLI --skip-* flags still win)
+  if (releaseConfig?.steps) {
+    if (!releaseConfig.steps.includes('notes') && !options.skipNotes) {
+      options.skipNotes = true;
+    }
+    if (!releaseConfig.steps.includes('publish') && !options.skipPublish) {
+      options.skipPublish = true;
+    }
+  }
+
+  // Apply ci overrides
+  if (releaseConfig?.ci?.notes === false && !options.skipNotes) {
+    options.skipNotes = true;
+  }
+  if (releaseConfig?.ci?.githubRelease === false && !options.skipGithubRelease) {
+    options.skipGithubRelease = true;
+  }
 
   // --- Step 1: Version ---
   // Writes version bumps to disk but does NOT commit or tag.
@@ -16,6 +63,14 @@ export async function runRelease(options: ReleaseOptions): Promise<ReleaseOutput
 
   if (versionOutput.updates.length === 0) {
     info('No releasable changes found');
+    return null;
+  }
+
+  // Apply minChanges threshold
+  if (releaseConfig?.ci?.minChanges !== undefined && versionOutput.updates.length < releaseConfig.ci.minChanges) {
+    info(
+      `Skipping release: ${versionOutput.updates.length} package(s) to update, minimum is ${releaseConfig.ci.minChanges}`,
+    );
     return null;
   }
 
