@@ -47,11 +47,14 @@
     "access": "public"
   },
   "dependencies": {
+    "@octokit/rest": "catalog:",
     "@releasekit/notes": "workspace:*",
     "@releasekit/publish": "workspace:*",
     "@releasekit/version": "workspace:*",
     "chalk": "catalog:",
-    "commander": "catalog:"
+    "commander": "catalog:",
+    "smol-toml": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
