@@ -1,0 +1,42 @@
+name: Deploy Schema to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'releasekit.schema.json'
+      - 'packages/version/version.schema.json'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Prepare Pages content
+        run: |
+          mkdir -p _site
+          cp releasekit.schema.json _site/schema.json
+          cp packages/version/version.schema.json _site/version.schema.json
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
