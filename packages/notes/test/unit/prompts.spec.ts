@@ -20,12 +20,12 @@ Rewritten description (only output the new description, nothing else):`;
 // ---------------------------------------------------------------------------
 
 describe('resolvePrompt()', () => {
-  it('returns default prompt when no config provided', () => {
+  it('should return default prompt when no config provided', () => {
     const result = resolvePrompt('categorize', DEFAULT_PROMPT_WITH_JSON);
     expect(result).toBe(DEFAULT_PROMPT_WITH_JSON);
   });
 
-  it('returns default prompt when config has no overrides for the task', () => {
+  it('should return default prompt when config has no overrides for the task', () => {
     const config: LLMPromptsConfig = {
       instructions: { enhance: 'some instruction' },
     };
@@ -33,7 +33,7 @@ describe('resolvePrompt()', () => {
     expect(result).toBe(DEFAULT_PROMPT_WITH_JSON);
   });
 
-  it('returns full template replacement when templates[task] is set', () => {
+  it('should return full template replacement when templates[task] is set', () => {
     const customTemplate = 'My custom categorize prompt: {{entries}}';
     const config: LLMPromptsConfig = {
       templates: { categorize: customTemplate },
@@ -75,7 +75,7 @@ describe('resolvePrompt()', () => {
     expect(result).not.toContain('This should be ignored');
   });
 
-  it('works for all task names', () => {
+  it('should work for all task names', () => {
     for (const task of ['enhance', 'categorize', 'enhanceAndCategorize', 'summarize', 'releaseNotes'] as const) {
       const config: LLMPromptsConfig = {
         instructions: { [task]: `Custom instruction for ${task}` },

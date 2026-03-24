@@ -84,7 +84,7 @@ describe('LLM tasks: enhance', () => {
     expect(provider.callCount).toBe(3);
   });
 
-  it('preserves original entry when provider fails', async () => {
+  it('should preserve original entry when provider fails', async () => {
     const provider: LLMProvider = {
       name: 'failing',
       async complete(): Promise<string> {
@@ -97,7 +97,7 @@ describe('LLM tasks: enhance', () => {
     expect(result[1]?.description).toBe('Fix null pointer');
   });
 
-  it('respects the concurrency parameter', async () => {
+  it('should respect the concurrency parameter', async () => {
     const _callOrder: number[] = [];
     let activeCount = 0;
     let maxActive = 0;
@@ -125,7 +125,7 @@ describe('LLM tasks: enhance', () => {
 });
 
 describe('LLM tasks: summarize', () => {
-  it('returns the summary from the provider', async () => {
+  it('should return the summary from the provider', async () => {
     const provider = makeMockProvider('This release brings streaming and fixes.');
     const summary = await summarizeEntries(provider, sampleInput.packages[0]?.entries, {
       packageName: 'my-lib',
@@ -137,7 +137,7 @@ describe('LLM tasks: summarize', () => {
 });
 
 describe('LLM tasks: categorize', () => {
-  it('groups entries by category from JSON response', async () => {
+  it('should group entries by category from JSON response', async () => {
     const entries = sampleInput.packages[0]?.entries;
     const jsonResponse = JSON.stringify({ Features: [0], Fixes: [1], Maintenance: [2] });
     const provider = makeMockProvider(jsonResponse);
@@ -148,7 +148,7 @@ describe('LLM tasks: categorize', () => {
     expect(result.find((c) => c.category === 'Fixes')?.entries[0]?.description).toBe('Fix null pointer');
   });
 
-  it('falls back to General on invalid JSON and does not throw', async () => {
+  it('should fall back to General on invalid JSON and does not throw', async () => {
     const provider = makeMockProvider('not json');
     const result = await categorizeEntries(provider, sampleInput.packages[0]?.entries, {});
     expect(result[0]?.category).toBe('General');
@@ -157,7 +157,7 @@ describe('LLM tasks: categorize', () => {
 });
 
 describe('LLM tasks: release notes', () => {
-  it('returns release notes from the provider', async () => {
+  it('should return release notes from the provider', async () => {
     const notes = '## v2.0.0\n\nThis release adds streaming and fixes a null pointer.';
     const provider = makeMockProvider(notes);
     const result = await generateReleaseNotes(provider, sampleInput.packages[0]?.entries, {
@@ -201,7 +201,7 @@ describe('Pipeline: package name in changelog headers', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('includes scoped package name in version header', async () => {
+  it('should include scoped package name in version header', async () => {
     const scopedInput: ChangelogInput = {
       source: 'package-versioner',
       packages: [
@@ -228,7 +228,7 @@ describe('Pipeline: package name in changelog headers', () => {
     expect(content).toContain('## [@releasekit/notes@0.3.0]');
   });
 
-  it('omits package name for unscoped packages', async () => {
+  it('should omit package name for unscoped packages', async () => {
     const unscopedInput: ChangelogInput = {
       source: 'package-versioner',
       packages: [

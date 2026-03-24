@@ -26,7 +26,7 @@ describe('Commit Parser', () => {
     vi.resetAllMocks();
   });
 
-  it('extracts changelog entries from conventional commits', () => {
+  it('should extract changelog entries from conventional commits', () => {
     // Mock git output with conventional commits
     const mockGitOutput = [
       'feat(core): add new feature',
@@ -64,7 +64,7 @@ describe('Commit Parser', () => {
     );
   });
 
-  it('extracts breaking changes from commit messages', () => {
+  it('should extract breaking changes from commit messages', () => {
     // Mock git output with breaking changes
     const mockGitOutput = [
       'feat(core)!: breaking change',
@@ -81,7 +81,7 @@ describe('Commit Parser', () => {
     expect(entries[1].description).toContain('**BREAKING**');
   });
 
-  it('extracts issue IDs from commit messages', () => {
+  it('should extract issue IDs from commit messages', () => {
     // Mock git output with issue references
     const mockGitOutput = [
       'fix(api): fix bug\n\nFixes #123',
@@ -102,7 +102,7 @@ describe('Commit Parser', () => {
     expect(featureEntry?.issueIds).toContain('#789');
   });
 
-  it('handles non-conventional commits', () => {
+  it('should handle non-conventional commits', () => {
     // Mock git output with non-conventional commits
     const mockGitOutput = ['Add new feature', 'Fix bug in login', 'Merge pull request #123', 'v1.0.0'].join(
       '---COMMIT_DELIMITER---',
@@ -120,7 +120,7 @@ describe('Commit Parser', () => {
     expect(entries.map((e) => e.description)).toContain('Fix bug in login');
   });
 
-  it('handles errors when extracting commits', () => {
+  it('should handle errors when extracting commits', () => {
     // Mock execSync to throw an error
     vi.mocked(execSync, { partial: true }).mockImplementation(() => {
       throw new Error('Git command failed');
@@ -133,7 +133,7 @@ describe('Commit Parser', () => {
   });
 
   describe('extractChangelogEntriesWithHash', () => {
-    it('extracts changelog entries with commit hashes', () => {
+    it('should extract changelog entries with commit hashes', () => {
       const mockGitOutput = ['abc123|||feat(core): add new feature', 'def456|||fix(ui): resolve layout issue'].join(
         '---COMMIT_DELIMITER---',
       );
@@ -149,7 +149,7 @@ describe('Commit Parser', () => {
       expect(entries[1].entry.description).toBe('resolve layout issue');
     });
 
-    it('filters commits to package path', () => {
+    it('should filter commits to package path', () => {
       const mockGitOutput = 'abc123|||feat(core): add new feature';
 
       vi.mocked(execSync, { partial: true }).mockReturnValue(mockGitOutput as any);
@@ -166,7 +166,7 @@ describe('Commit Parser', () => {
   });
 
   describe('extractAllChangelogEntriesWithHash', () => {
-    it('extracts all changelog entries including repo-level commits', () => {
+    it('should extract all changelog entries including repo-level commits', () => {
       const mockGitOutput = [
         'abc123|||feat(core): add new feature',
         'def456|||chore(deps): bump actions/upload-artifact from 4 to 7',
@@ -220,7 +220,7 @@ describe('Commit Parser', () => {
   });
 
   describe('commitTouchesAnyPackage', () => {
-    it('returns true when commit touches a package directory', () => {
+    it('should return true when commit touches a package directory', () => {
       const mockDiffOutput = Buffer.from('packages/version/src/index.ts\npackages/version/package.json');
 
       vi.mocked(execSync, { partial: true }).mockReturnValue(mockDiffOutput as any);
@@ -235,7 +235,7 @@ describe('Commit Parser', () => {
       );
     });
 
-    it('returns false when commit only touches repo-level files', () => {
+    it('should return false when commit only touches repo-level files', () => {
       const mockDiffOutput = Buffer.from('.github/workflows/ci.yml\nREADME.md');
 
       vi.mocked(execSync, { partial: true }).mockReturnValue(mockDiffOutput as any);
@@ -245,7 +245,7 @@ describe('Commit Parser', () => {
       expect(result).toBe(false);
     });
 
-    it('returns false when commit has no changed files', () => {
+    it('should return false when commit has no changed files', () => {
       vi.mocked(execSync, { partial: true }).mockReturnValue(Buffer.from('') as any);
 
       const result = commitTouchesAnyPackage('/test', 'abc123', ['packages/version']);
@@ -255,7 +255,7 @@ describe('Commit Parser', () => {
   });
 
   describe('extractRepoLevelChangelogEntries', () => {
-    it('extracts only commits that do not touch any package directory', () => {
+    it('should extract only commits that do not touch any package directory', () => {
       // First call: get all commits with hash
       // Second call: check which files commit aaa111 touches
       // Third call: check which files commit bbb222 touches
@@ -275,7 +275,7 @@ describe('Commit Parser', () => {
       expect(entries[0].description).toBe('update workflow');
     });
 
-    it('returns empty array when all commits touch packages', () => {
+    it('should return empty array when all commits touch packages', () => {
       vi.mocked(execSync, { partial: true })
         .mockReturnValueOnce(
           Buffer.from('abc123|||feat(version): feature\n---COMMIT_DELIMITER---\ndef456|||fix(notes): bugfix'),
@@ -291,7 +291,7 @@ describe('Commit Parser', () => {
       expect(entries).toHaveLength(0);
     });
 
-    it('includes commit in all packages when it touches shared directories', () => {
+    it('should include commit in all packages when it touches shared directories', () => {
       // This tests that commits touching shared directories are treated as repo-level
       vi.mocked(execSync, { partial: true })
         .mockReturnValueOnce(Buffer.from('shared123|||chore: update shared config'))
@@ -340,7 +340,7 @@ describe('Commit Parser', () => {
   });
 
   describe('commitTouchesAnyPackage with shared packages', () => {
-    it('returns false for shared packages when sharedPackageDirs is provided', () => {
+    it('should return false for shared packages when sharedPackageDirs is provided', () => {
       const mockDiffOutput = Buffer.from('packages/core/src/index.ts\npackages/core/package.json');
 
       vi.mocked(execSync, { partial: true }).mockReturnValue(mockDiffOutput as any);
@@ -356,7 +356,7 @@ describe('Commit Parser', () => {
       expect(result).toBe(false);
     });
 
-    it('returns true for non-shared packages even when other packages are shared', () => {
+    it('should return true for non-shared packages even when other packages are shared', () => {
       const mockDiffOutput = Buffer.from('packages/version/src/index.ts');
 
       vi.mocked(execSync, { partial: true }).mockReturnValue(mockDiffOutput as any);

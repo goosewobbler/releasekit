@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseManualInput } from '../../../src/input/manual.js';
 
 describe('parseManualInput', () => {
-  it('parses valid JSON with packages array', () => {
+  it('should parse valid JSON with packages array', () => {
     const json = JSON.stringify({
       packages: [
         {
@@ -26,7 +26,7 @@ describe('parseManualInput', () => {
     expect(result.packages[0]?.entries).toHaveLength(2);
   });
 
-  it('applies defaults for missing fields', () => {
+  it('should apply defaults for missing fields', () => {
     const json = JSON.stringify({
       packages: [{}],
     });
@@ -40,7 +40,7 @@ describe('parseManualInput', () => {
     expect(result.packages[0]?.entries).toEqual([]);
   });
 
-  it('creates default package when packages array is empty', () => {
+  it('should create default package when packages array is empty', () => {
     const json = JSON.stringify({ packages: [] });
 
     const result = parseManualInput(json);
@@ -49,7 +49,7 @@ describe('parseManualInput', () => {
     expect(result.packages[0]?.packageName).toBe('package');
   });
 
-  it('creates default package when no packages key', () => {
+  it('should create default package when no packages key', () => {
     const json = JSON.stringify({});
 
     const result = parseManualInput(json);
@@ -58,7 +58,7 @@ describe('parseManualInput', () => {
     expect(result.packages[0]?.packageName).toBe('package');
   });
 
-  it('extracts repoUrl from metadata', () => {
+  it('should extract repoUrl from metadata', () => {
     const json = JSON.stringify({
       repoUrl: 'https://github.com/owner/repo',
       packages: [],
@@ -69,11 +69,11 @@ describe('parseManualInput', () => {
     expect(result.metadata?.repoUrl).toBe('https://github.com/owner/repo');
   });
 
-  it('throws on invalid JSON', () => {
+  it('should throw on invalid JSON', () => {
     expect(() => parseManualInput('not valid json')).toThrow('Invalid JSON input');
   });
 
-  it('throws on non-object input', () => {
+  it('should throw on non-object input', () => {
     expect(() => parseManualInput('"string"')).toThrow('Input must be a JSON object');
     expect(() => parseManualInput('null')).toThrow('Input must be a JSON object');
   });
@@ -126,7 +126,7 @@ describe('parseManualInput', () => {
     expect(entry?.originalType).toBe('feat');
   });
 
-  it('handles invalid entries gracefully', () => {
+  it('should handle invalid entries gracefully', () => {
     const json = JSON.stringify({
       packages: [
         {
@@ -143,7 +143,7 @@ describe('parseManualInput', () => {
     expect(result.packages[0]?.entries[2]?.description).toBe('Valid entry');
   });
 
-  it('handles invalid package entries in array', () => {
+  it('should handle invalid package entries in array', () => {
     const json = JSON.stringify({
       packages: [null, 'string', { packageName: 'valid-package' }],
     });
@@ -154,7 +154,7 @@ describe('parseManualInput', () => {
     expect(result.packages[0]?.packageName).toBe('valid-package');
   });
 
-  it('preserves revision range', () => {
+  it('should preserve revision range', () => {
     const json = JSON.stringify({
       packages: [
         {
@@ -168,7 +168,7 @@ describe('parseManualInput', () => {
     expect(result.packages[0]?.revisionRange).toBe('v1.0.0..v2.0.0');
   });
 
-  it('handles date field', () => {
+  it('should handle date field', () => {
     const json = JSON.stringify({
       packages: [
         {
@@ -191,7 +191,7 @@ describe('parseManualInput', () => {
     expect(result.packages[0]?.date).toBe(today);
   });
 
-  it('maps type aliases correctly', () => {
+  it('should map type aliases correctly', () => {
     const typeAliases = {
       update: 'changed',
       refactor: 'changed',
@@ -211,7 +211,7 @@ describe('parseManualInput', () => {
     }
   });
 
-  it('accepts valid changelog types directly', () => {
+  it('should accept valid changelog types directly', () => {
     const validTypes = ['added', 'changed', 'deprecated', 'removed', 'fixed', 'security'];
 
     for (const type of validTypes) {

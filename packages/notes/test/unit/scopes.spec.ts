@@ -12,7 +12,7 @@ import {
 // ---------------------------------------------------------------------------
 
 describe('getAllowedScopesFromCategories()', () => {
-  it('returns scopes from explicit scopes arrays', () => {
+  it('should return scopes from explicit scopes arrays', () => {
     const categories: LLMCategory[] = [
       { name: 'Developer', description: 'Internal changes', scopes: ['CI', 'Dependencies', 'Testing'] },
       { name: 'New', description: 'New features' },
@@ -22,7 +22,7 @@ describe('getAllowedScopesFromCategories()', () => {
     expect(result.get('Developer')).toEqual(['CI', 'Dependencies', 'Testing']);
   });
 
-  it('returns empty map when no categories have scopes', () => {
+  it('should return empty map when no categories have scopes', () => {
     const categories: LLMCategory[] = [
       { name: 'New', description: 'New features' },
       { name: 'Fixed', description: 'Bug fixes' },
@@ -31,7 +31,7 @@ describe('getAllowedScopesFromCategories()', () => {
     expect(result.size).toBe(0);
   });
 
-  it('handles multiple categories with scopes', () => {
+  it('should handle multiple categories with scopes', () => {
     const categories: LLMCategory[] = [
       { name: 'Developer', description: 'Internal', scopes: ['CI', 'Dependencies'] },
       { name: 'Documentation', description: 'Docs', scopes: ['API', 'Guides'] },
@@ -54,28 +54,28 @@ describe('getAllowedScopesFromCategories()', () => {
 // ---------------------------------------------------------------------------
 
 describe('resolveAllowedScopes()', () => {
-  it('returns null for undefined scopeConfig (unrestricted)', () => {
+  it('should return null for undefined scopeConfig (unrestricted)', () => {
     expect(resolveAllowedScopes(undefined)).toBeNull();
   });
 
-  it('returns null for unrestricted mode', () => {
+  it('should return null for unrestricted mode', () => {
     expect(resolveAllowedScopes({ mode: 'unrestricted' })).toBeNull();
   });
 
-  it('returns empty array for none mode', () => {
+  it('should return empty array for none mode', () => {
     expect(resolveAllowedScopes({ mode: 'none' })).toEqual([]);
   });
 
-  it('returns package names for packages mode', () => {
+  it('should return package names for packages mode', () => {
     const result = resolveAllowedScopes({ mode: 'packages' }, undefined, ['@acme/core', '@acme/ui']);
     expect(result).toEqual(['@acme/core', '@acme/ui']);
   });
 
-  it('returns empty array for packages mode without package names', () => {
+  it('should return empty array for packages mode without package names', () => {
     expect(resolveAllowedScopes({ mode: 'packages' })).toEqual([]);
   });
 
-  it('returns explicit allowed scopes for restricted mode', () => {
+  it('should return explicit allowed scopes for restricted mode', () => {
     const config: ScopeConfig = {
       mode: 'restricted',
       rules: { allowed: ['CI', 'Dependencies'] },
@@ -107,7 +107,7 @@ describe('resolveAllowedScopes()', () => {
     expect(result).toEqual(['CI', 'Testing', 'Dependencies']);
   });
 
-  it('returns empty explicit list when restricted with no rules', () => {
+  it('should return empty explicit list when restricted with no rules', () => {
     const result = resolveAllowedScopes({ mode: 'restricted' });
     expect(result).toEqual([]);
   });
@@ -118,19 +118,19 @@ describe('resolveAllowedScopes()', () => {
 // ---------------------------------------------------------------------------
 
 describe('validateScope()', () => {
-  it('returns scope unchanged when allowedScopes is null (unrestricted)', () => {
+  it('should return scope unchanged when allowedScopes is null (unrestricted)', () => {
     expect(validateScope('anything', null)).toBe('anything');
   });
 
-  it('returns undefined when scope is undefined', () => {
+  it('should return undefined when scope is undefined', () => {
     expect(validateScope(undefined, ['CI'])).toBeUndefined();
   });
 
-  it('returns undefined when allowedScopes is empty (none mode)', () => {
+  it('should return undefined when allowedScopes is empty (none mode)', () => {
     expect(validateScope('CI', [])).toBeUndefined();
   });
 
-  it('returns scope when it matches allowed list', () => {
+  it('should return scope when it matches allowed list', () => {
     expect(validateScope('CI', ['CI', 'Dependencies'])).toBe('CI');
   });
 
@@ -151,11 +151,11 @@ describe('validateScope()', () => {
     expect(validateScope('Invalid', ['CI'], { invalidScopeAction: 'keep' })).toBe('Invalid');
   });
 
-  it('returns fallback scope when invalidScopeAction is fallback', () => {
+  it('should return fallback scope when invalidScopeAction is fallback', () => {
     expect(validateScope('Invalid', ['CI'], { invalidScopeAction: 'fallback', fallbackScope: 'Other' })).toBe('Other');
   });
 
-  it('returns undefined for fallback without fallbackScope set', () => {
+  it('should return undefined for fallback without fallbackScope set', () => {
     expect(validateScope('Invalid', ['CI'], { invalidScopeAction: 'fallback' })).toBeUndefined();
   });
 });
@@ -171,12 +171,12 @@ describe('validateEntryScopes()', () => {
     { type: 'changed', description: 'No scope' },
   ];
 
-  it('returns entries unchanged when scopeConfig is undefined', () => {
+  it('should return entries unchanged when scopeConfig is undefined', () => {
     const result = validateEntryScopes(entries, undefined);
     expect(result).toBe(entries);
   });
 
-  it('returns entries unchanged for unrestricted mode', () => {
+  it('should return entries unchanged for unrestricted mode', () => {
     const result = validateEntryScopes(entries, { mode: 'unrestricted' });
     expect(result).toBe(entries);
   });
@@ -188,7 +188,7 @@ describe('validateEntryScopes()', () => {
     expect(result[2]?.scope).toBeUndefined();
   });
 
-  it('validates scopes against allowed list for restricted mode', () => {
+  it('should validate scopes against allowed list for restricted mode', () => {
     const categories: LLMCategory[] = [{ name: 'Developer', description: 'Internal', scopes: ['CI', 'Dependencies'] }];
     const result = validateEntryScopes(entries, { mode: 'restricted' }, categories);
     expect(result[0]?.scope).toBe('CI');
