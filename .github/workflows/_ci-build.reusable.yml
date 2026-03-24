@@ -34,7 +34,9 @@ jobs:
 
       - name: Pack packages as tarballs
         run: |
-          cd packages/version && pnpm pack
+          cd packages/core && pnpm pack
+          cd ../config && pnpm pack
+          cd ../version && pnpm pack
           cd ../notes && pnpm pack
           cd ../publish && pnpm pack
           cd ../release && pnpm pack
