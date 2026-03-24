@@ -1,96 +1,57 @@
-import { Command } from 'commander';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import * as cliModule from '../../src/cli.js';
+import { createVersionCommand } from '../../src/cli.js';
 import * as configModule from '../../src/config.js';
 import { VersionEngine } from '../../src/core/versionEngine.js';
 import type { Config } from '../../src/types.js';
+import * as jsonOutputModule from '../../src/utils/jsonOutput.js';
 
 vi.mock('../../src/config.js');
 vi.mock('../../src/core/versionEngine.js');
 vi.mock('../../src/utils/logging.js');
-vi.mock('commander', async () => {
-  const actual = (await vi.importActual('commander')) as { Command: typeof Command };
+vi.mock('../../src/utils/jsonOutput.js');
 
-  const commands = new Map<string, { handler: unknown; isDefault?: boolean }>();
+const mockConfig: Partial<Config> = {
+  sync: false,
+  packages: ['package-a'],
+  dryRun: false,
+  tagTemplate: 'v{version}',
+  preset: 'conventional',
+  updateInternalDependencies: 'minor',
+};
 
-  return {
-    ...actual,
-    Command: vi.fn().mockImplementation(function (this: unknown) {
-      const originalCommand = new actual.Command();
+const TWO_PACKAGES = {
+  packages: [
+    { packageJson: { name: '@scope/package-a' }, dir: '/test/packages/package-a' },
+    { packageJson: { name: '@scope/package-b' }, dir: '/test/packages/package-b' },
+  ],
+  root: '/test',
+};
 
-      originalCommand.parse = vi.fn().mockReturnThis();
+const ONE_PACKAGE = {
+  packages: [{ packageJson: { name: '@scope/package-a' }, dir: '/test/packages/package-a' }],
+  root: '/test',
+};
 
-      const originalCommandMethod = originalCommand.command.bind(originalCommand);
-      originalCommand.command = vi.fn((name: string, opts?: { isDefault?: boolean }) => {
-        const cmd = originalCommandMethod(name, opts);
-        const originalAction = cmd.action.bind(cmd);
-        cmd.action = vi.fn((handler: unknown) => {
-          commands.set(name, { handler, isDefault: opts?.isDefault });
-          return originalAction(handler);
-        });
-        return cmd;
-      });
-
-      const extendedCommand = originalCommand as typeof originalCommand & {
-        getCommandHandler: (name: string) => unknown;
-        getCommands: () => Array<[string, { handler: unknown; isDefault?: boolean }]>;
-        getDefaultCommand: () => string | null;
-      };
-
-      extendedCommand.getCommandHandler = (name: string) => commands.get(name)?.handler;
-      extendedCommand.getCommands = () => Array.from(commands.entries());
-      extendedCommand.getDefaultCommand = () => {
-        for (const [name, { isDefault }] of commands.entries()) {
-          if (isDefault) return name;
-        }
-        return null;
-      };
-
-      return extendedCommand;
-    }),
-  };
-});
-
-interface VersionCommandOptions {
-  dryRun?: boolean;
-  target?: string;
-  json?: boolean;
-  projectDir?: string;
-}
-
-describe('CLI Interface', () => {
-  let mockProcess: Partial<NodeJS.Process>;
-  const originalProcess: NodeJS.Process = process;
-  const mockConfig: Partial<Config> = {
-    sync: false,
-    packages: ['package-a'],
-    dryRun: false,
-    tagTemplate: 'v{version}',
-    preset: 'conventional',
-    updateInternalDependencies: 'minor',
-  };
-
+describe('createVersionCommand', () => {
   const mockGetWorkspacePackages = vi.fn();
   const mockRun = vi.fn();
   const mockSetStrategy = vi.fn();
+  let mockExit: ReturnType<typeof vi.spyOn>;
+
+  function mockEngineCapturingConfig(out: { config?: Config }): void {
+    vi.mocked(VersionEngine, { partial: true }).mockImplementation(function (this: unknown, config: Config) {
+      out.config = config;
+      return {
+        getWorkspacePackages: mockGetWorkspacePackages,
+        run: mockRun,
+        setStrategy: mockSetStrategy,
+      } as unknown as VersionEngine;
+    });
+  }
 
   beforeEach(() => {
-    mockProcess = {
-      argv: ['node', 'index.js'],
-      exit: vi.fn() as unknown as (code?: number | undefined) => never,
-      cwd: vi.fn().mockReturnValue('/test/workspace'),
-    };
-
-    global.process = mockProcess as NodeJS.Process;
-
-    vi.mocked(configModule.loadConfig, { partial: true }).mockReturnValue(mockConfig as Config);
-    mockGetWorkspacePackages.mockResolvedValue({
-      packages: [
-        { packageJson: { name: '@scope/package-a' }, dir: '/test/packages/package-a' },
-        { packageJson: { name: '@scope/package-b' }, dir: '/test/packages/package-b' },
-      ],
-      root: '/test',
-    });
+    vi.mocked(configModule.loadConfig, { partial: true }).mockReturnValue({ ...mockConfig } as Config);
+    mockGetWorkspacePackages.mockResolvedValue(TWO_PACKAGES);
     mockRun.mockResolvedValue(undefined);
     mockSetStrategy.mockReturnValue(undefined);
 
@@ -99,151 +60,164 @@ describe('CLI Interface', () => {
     );
     vi.mocked(VersionEngine.prototype.run, { partial: true }).mockImplementation(mockRun);
     vi.mocked(VersionEngine.prototype.setStrategy, { partial: true }).mockImplementation(mockSetStrategy);
+
+    mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
   });
 
   afterEach(() => {
-    global.process = originalProcess;
     vi.clearAllMocks();
-    mockGetWorkspacePackages.mockClear();
-    mockRun.mockClear();
-    mockSetStrategy.mockClear();
+    mockExit.mockRestore();
   });
 
-  it('should define a default command', async () => {
-    await cliModule.run();
-
-    const commanderInstance = vi.mocked(Command, { partial: true }).mock.results[0].value;
-
-    const defaultCommand = commanderInstance.getDefaultCommand();
-    expect(defaultCommand).toBe('version');
+  it('should return a command named version', () => {
+    const cmd = createVersionCommand();
+    expect(cmd.name()).toBe('version');
   });
 
-  it('should execute the version command when no command is specified', async () => {
-    mockProcess.argv = ['node', 'index.js', '--dry-run'];
+  it('should run the version action when parsed', async () => {
+    const cmd = createVersionCommand();
+    await cmd.parseAsync(['node', 'test']);
 
-    await cliModule.run();
-
-    const commanderInstance = vi.mocked(Command, { partial: true }).mock.results[0].value;
-
-    expect(commanderInstance.parse).toHaveBeenCalled();
-
-    expect(commanderInstance.getCommands()).toContainEqual(['version', expect.objectContaining({ isDefault: true })]);
+    expect(configModule.loadConfig).toHaveBeenCalled();
+    expect(mockRun).toHaveBeenCalled();
   });
 
-  describe('CLI Target Handling', () => {
-    it('should override config.packages when -t flag is used', async () => {
-      let capturedConfigFromEngine: Config | undefined;
+  describe('option → config mutations', () => {
+    it('should set config.dryRun when --dry-run is passed', async () => {
+      const captured: { config?: Config } = {};
+      mockEngineCapturingConfig(captured);
 
-      vi.mocked(VersionEngine, { partial: true }).mockImplementation(function (this: unknown, config: Config) {
-        capturedConfigFromEngine = config;
-        return {
-          getWorkspacePackages: mockGetWorkspacePackages,
-          run: mockRun,
-          setStrategy: mockSetStrategy,
-        } as unknown as VersionEngine;
-      });
+      await createVersionCommand().parseAsync(['node', 'test', '--dry-run']);
 
-      const mockOptions = {
-        dryRun: true,
-        target: '@scope/package-a',
-        json: false,
-        projectDir: process.cwd(),
-      };
+      expect(captured.config?.dryRun).toBe(true);
+    });
 
-      await cliModule.run();
-      const commanderInstance = vi.mocked(Command, { partial: true }).mock.results[0].value;
-      const versionHandler = commanderInstance.getCommandHandler('version');
+    it('should set config.sync and use sync strategy when --sync is passed', async () => {
+      const captured: { config?: Config } = {};
+      mockEngineCapturingConfig(captured);
 
-      await (versionHandler as (options: VersionCommandOptions) => Promise<void>)(mockOptions);
+      await createVersionCommand().parseAsync(['node', 'test', '--sync']);
 
-      expect(capturedConfigFromEngine).toBeDefined();
-      expect(capturedConfigFromEngine?.packages).toEqual(['@scope/package-a']);
+      expect(captured.config?.sync).toBe(true);
+      expect(mockSetStrategy).toHaveBeenCalledWith('sync');
+    });
+
+    it('should set config.type when --bump is passed', async () => {
+      const captured: { config?: Config } = {};
+      mockEngineCapturingConfig(captured);
+
+      await createVersionCommand().parseAsync(['node', 'test', '--bump', 'major']);
+
+      expect(captured.config?.type).toBe('major');
+    });
+
+    it('should set prereleaseIdentifier and isPrerelease when --prerelease <id> is passed', async () => {
+      const captured: { config?: Config } = {};
+      mockEngineCapturingConfig(captured);
+
+      await createVersionCommand().parseAsync(['node', 'test', '--prerelease', 'beta']);
+
+      expect(captured.config?.prereleaseIdentifier).toBe('beta');
+      expect(captured.config?.isPrerelease).toBe(true);
+    });
+
+    it('should default prereleaseIdentifier to "next" when --prerelease is passed without a value', async () => {
+      const captured: { config?: Config } = {};
+      mockEngineCapturingConfig(captured);
+
+      await createVersionCommand().parseAsync(['node', 'test', '--prerelease']);
+
+      expect(captured.config?.prereleaseIdentifier).toBe('next');
+      expect(captured.config?.isPrerelease).toBe(true);
+    });
+  });
+
+  describe('--json flag', () => {
+    it('should call enableJsonOutput(false) when --json is passed without --dry-run', async () => {
+      await createVersionCommand().parseAsync(['node', 'test', '--json']);
+
+      expect(jsonOutputModule.enableJsonOutput).toHaveBeenCalledWith(false);
+    });
+
+    it('should call enableJsonOutput(true) when both --json and --dry-run are passed', async () => {
+      await createVersionCommand().parseAsync(['node', 'test', '--json', '--dry-run']);
+
+      expect(jsonOutputModule.enableJsonOutput).toHaveBeenCalledWith(true);
+    });
+
+    it('should not call enableJsonOutput when --json is not passed', async () => {
+      await createVersionCommand().parseAsync(['node', 'test']);
+
+      expect(jsonOutputModule.enableJsonOutput).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('versioning strategy selection', () => {
+    it('should use async strategy for multiple packages', async () => {
+      await createVersionCommand().parseAsync(['node', 'test']);
+
+      expect(mockSetStrategy).toHaveBeenCalledWith('async');
+    });
+
+    it('should use single strategy for one package', async () => {
+      mockGetWorkspacePackages.mockResolvedValue(ONE_PACKAGE);
+
+      await createVersionCommand().parseAsync(['node', 'test']);
+
+      expect(mockSetStrategy).toHaveBeenCalledWith('single');
+    });
+
+    it('should use sync strategy when --sync flag overrides package count', async () => {
+      await createVersionCommand().parseAsync(['node', 'test', '--sync']);
+
+      expect(mockSetStrategy).toHaveBeenCalledWith('sync');
+      expect(mockSetStrategy).not.toHaveBeenCalledWith('async');
+    });
+
+    it('should exit with code 1 when no packages are found', async () => {
+      mockGetWorkspacePackages.mockResolvedValue({ packages: [], root: '/test' });
+
+      await createVersionCommand().parseAsync(['node', 'test']);
+
+      expect(mockExit).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('target flag handling', () => {
+    it('should override config.packages when --target is used', async () => {
+      const captured: { config?: Config } = {};
+      mockEngineCapturingConfig(captured);
+
+      await createVersionCommand().parseAsync(['node', 'test', '--target', '@scope/package-a']);
+
+      expect(captured.config?.packages).toEqual(['@scope/package-a']);
     });
 
     it('should parse multiple targets from comma-separated string', async () => {
-      let capturedConfigFromEngine: Config | undefined;
+      const captured: { config?: Config } = {};
+      mockEngineCapturingConfig(captured);
 
-      vi.mocked(VersionEngine, { partial: true }).mockImplementation(function (this: unknown, config: Config) {
-        capturedConfigFromEngine = config;
-        return {
-          getWorkspacePackages: mockGetWorkspacePackages,
-          run: mockRun,
-          setStrategy: mockSetStrategy,
-        } as unknown as VersionEngine;
-      });
+      await createVersionCommand().parseAsync(['node', 'test', '--target', '@scope/package-a,@scope/package-b']);
 
-      const mockOptions = {
-        dryRun: true,
-        target: '@scope/package-a,@scope/package-b',
-        json: false,
-        projectDir: process.cwd(),
-      };
-
-      await cliModule.run();
-      const commanderInstance = vi.mocked(Command, { partial: true }).mock.results[0].value;
-      const versionHandler = commanderInstance.getCommandHandler('version');
-
-      await (versionHandler as (options: VersionCommandOptions) => Promise<void>)(mockOptions);
-
-      expect(capturedConfigFromEngine).toBeDefined();
-      expect(capturedConfigFromEngine?.packages).toEqual(['@scope/package-a', '@scope/package-b']);
+      expect(captured.config?.packages).toEqual(['@scope/package-a', '@scope/package-b']);
     });
 
-    it('should not override config.packages when no -t flag is provided', async () => {
-      let capturedConfigFromEngine: Config | undefined;
+    it('should not override config.packages when no --target flag is provided', async () => {
+      const captured: { config?: Config } = {};
+      mockEngineCapturingConfig(captured);
 
-      vi.mocked(VersionEngine, { partial: true }).mockImplementation(function (this: unknown, config: Config) {
-        capturedConfigFromEngine = config;
-        return {
-          getWorkspacePackages: mockGetWorkspacePackages,
-          run: mockRun,
-          setStrategy: mockSetStrategy,
-        } as unknown as VersionEngine;
-      });
+      await createVersionCommand().parseAsync(['node', 'test']);
 
-      const mockOptions = {
-        dryRun: true,
-        json: false,
-        projectDir: process.cwd(),
-      };
-
-      await cliModule.run();
-      const commanderInstance = vi.mocked(Command, { partial: true }).mock.results[0].value;
-      const versionHandler = commanderInstance.getCommandHandler('version');
-
-      await (versionHandler as (options: VersionCommandOptions) => Promise<void>)(mockOptions);
-
-      expect(capturedConfigFromEngine).toBeDefined();
-      expect(capturedConfigFromEngine?.packages).toEqual(mockConfig.packages);
+      expect(captured.config?.packages).toEqual(mockConfig.packages);
     });
 
-    it('should handle empty target string gracefully', async () => {
-      let capturedConfigFromEngine: Config | undefined;
+    it('should not override config.packages when --target is an empty string', async () => {
+      const captured: { config?: Config } = {};
+      mockEngineCapturingConfig(captured);
 
-      vi.mocked(VersionEngine, { partial: true }).mockImplementation(function (this: unknown, config: Config) {
-        capturedConfigFromEngine = config;
-        return {
-          getWorkspacePackages: mockGetWorkspacePackages,
-          run: mockRun,
-          setStrategy: mockSetStrategy,
-        } as unknown as VersionEngine;
-      });
+      await createVersionCommand().parseAsync(['node', 'test', '--target', '']);
 
-      const mockOptions = {
-        dryRun: true,
-        target: '',
-        json: false,
-        projectDir: process.cwd(),
-      };
-
-      await cliModule.run();
-      const commanderInstance = vi.mocked(Command, { partial: true }).mock.results[0].value;
-      const versionHandler = commanderInstance.getCommandHandler('version');
-
-      await (versionHandler as (options: VersionCommandOptions) => Promise<void>)(mockOptions);
-
-      expect(capturedConfigFromEngine).toBeDefined();
-      expect(capturedConfigFromEngine?.packages).toEqual(mockConfig.packages);
+      expect(captured.config?.packages).toEqual(mockConfig.packages);
     });
   });
 });

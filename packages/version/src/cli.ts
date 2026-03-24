@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import * as fs from 'node:fs';
-import path from 'node:path';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
 import { loadConfig } from './config.js';
 import { VersionEngine } from './core/versionEngine.js';
@@ -20,14 +21,8 @@ function getPackageVersion(): string {
   }
 }
 
-async function main(): Promise<void> {
-  const program = new Command();
-
-  program
-    .name('releasekit-version')
-    .description('Version a package or packages based on conventional commits')
-    .version(getPackageVersion())
-    .command('version', { isDefault: true })
+export function createVersionCommand(): Command {
+  return new Command('version')
     .description('Version a package or packages based on configuration')
     .option('-c, --config <path>', 'Path to config file (defaults to releasekit.config.json in current directory)')
     .option('-d, --dry-run', 'Dry run (no changes made)', false)
@@ -118,12 +113,15 @@ async function main(): Promise<void> {
         process.exit(1);
       }
     });
+}
+
+// Standalone entry point (only when run directly, not when imported by dispatcher)
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const program = new Command()
+    .name('releasekit-version')
+    .description('Version a package or packages based on conventional commits')
+    .version(getPackageVersion())
+    .addCommand(createVersionCommand(), { isDefault: true });
 
   program.parse();
 }
-
-export async function run(): Promise<void> {
-  await main();
-}
-
-main();
