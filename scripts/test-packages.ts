@@ -30,11 +30,8 @@ const rootDir = normalize(join(__dirname, '..'));
 
 // Packages that get published to npm
 const PUBLISHED_PACKAGES = ['version', 'notes', 'publish', 'release'] as const;
-// Internal packages needed as dependencies
-const INTERNAL_PACKAGES = ['core', 'config'] as const;
-const ALL_PACKAGES = [...INTERNAL_PACKAGES, ...PUBLISHED_PACKAGES] as const;
 
-type PackageName = (typeof ALL_PACKAGES)[number];
+type PackageName = (typeof PUBLISHED_PACKAGES)[number];
 
 function log(message: string): void {
   console.log(`🔧 ${message}`);
@@ -98,7 +95,7 @@ function buildAndPack(): Record<PackageName, string> {
 
   const tarballs: Partial<Record<PackageName, string>> = {};
 
-  for (const pkg of ALL_PACKAGES) {
+  for (const pkg of PUBLISHED_PACKAGES) {
     const pkgDir = join(rootDir, 'packages', pkg);
     if (!existsSync(pkgDir)) {
       throw new Error(`Package directory not found: ${pkgDir}`);
@@ -106,7 +103,7 @@ function buildAndPack(): Record<PackageName, string> {
     execCommandInherit('pnpm pack', pkgDir, `Packing @releasekit/${pkg}`);
   }
 
-  for (const pkg of ALL_PACKAGES) {
+  for (const pkg of PUBLISHED_PACKAGES) {
     const pkgDir = join(rootDir, 'packages', pkg);
     tarballs[pkg] = findTarball(pkgDir, `releasekit-${pkg}-`);
   }
@@ -124,7 +121,7 @@ function findExistingTarballs(): Record<PackageName, string> {
 
   const tarballs: Partial<Record<PackageName, string>> = {};
 
-  for (const pkg of ALL_PACKAGES) {
+  for (const pkg of PUBLISHED_PACKAGES) {
     const pkgDir = join(rootDir, 'packages', pkg);
     tarballs[pkg] = findTarball(pkgDir, `releasekit-${pkg}-`);
   }
@@ -145,11 +142,14 @@ function createIsolatedDir(label: string): string {
 }
 
 function createPackageJson(dir: string, pkg: string, tarballs: Record<PackageName, string>): void {
-  // All internal deps as overrides so pnpm resolves them from tarballs
+  // Only override published sibling packages to use local tarballs.
+  // Internal packages (core, config) must be bundled into each published
+  // package — if they leak as dependencies the install will fail, which is
+  // exactly what we want this test to catch.
   const overrides: Record<string, string> = {};
   const deps: Record<string, string> = {};
 
-  for (const name of ALL_PACKAGES) {
+  for (const name of PUBLISHED_PACKAGES) {
     overrides[`@releasekit/${name}`] = `file:${tarballs[name]}`;
   }
 
@@ -176,7 +176,7 @@ function testImport(dir: string, pkg: string): void {
 }
 
 function testCli(dir: string, binName: string): void {
-  execCommand(`node node_modules/.bin/${binName} --help`, dir, `Testing ${binName} --help`);
+  execCommand(`pnpm exec ${binName} --help`, dir, `Testing ${binName} --help`);
 }
 
 function testReleaseDryRun(dir: string): void {
@@ -206,9 +206,8 @@ function testReleaseDryRun(dir: string): void {
   execCommand('git add -A && git commit -m "feat: add feature"', repoDir, 'Creating feature commit');
 
   // Run releasekit release --dry-run --json using the installed binary
-  const releasekitBin = join(dir, 'node_modules', '.bin', 'releasekit');
   const output = execCommand(
-    `node "${releasekitBin}" release --dry-run --json --project-dir "${repoDir}"`,
+    `pnpm exec releasekit release --dry-run --json --project-dir "${repoDir}"`,
     dir,
     'Running releasekit release --dry-run --json',
   );
