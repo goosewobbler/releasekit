@@ -264,6 +264,12 @@ importers:
       commander:
         specifier: 'catalog:'
         version: 14.0.3
+      smol-toml:
+        specifier: 'catalog:'
+        version: 1.6.0
+      zod:
+        specifier: 'catalog:'
+        version: 4.3.6
     devDependencies:
       '@biomejs/biome':
         specifier: 'catalog:'
