@@ -1,9 +1,9 @@
-import { aggregateToRoot, createTemplateContext, parsePackageVersioner, renderMarkdown } from '@releasekit/notes';
+import { aggregateToRoot, createTemplateContext, parseVersionOutput, renderMarkdown } from '@releasekit/notes';
 import { describe, expect, it } from 'vitest';
 
 describe('Integration: monorepo', () => {
   describe('Sync versioning -> all packages same version', () => {
-    it('generates aggregated changelog for monorepo', () => {
+    it('should generate aggregated changelog for monorepo', () => {
       const versionOutput = {
         dryRun: true,
         updates: [
@@ -42,7 +42,7 @@ describe('Integration: monorepo', () => {
         commitMessage: 'chore(release): 0.2.0',
       };
 
-      const input = parsePackageVersioner(JSON.stringify(versionOutput));
+      const input = parseVersionOutput(JSON.stringify(versionOutput));
       const contexts = input.packages.map(createTemplateContext);
 
       const rootContext = aggregateToRoot(contexts);
@@ -54,7 +54,7 @@ describe('Integration: monorepo', () => {
   });
 
   describe('Individual package changes', () => {
-    it('generates per-package changelog entries', () => {
+    it('should generate per-package changelog entries', () => {
       const versionOutput = {
         dryRun: true,
         updates: [
@@ -82,7 +82,7 @@ describe('Integration: monorepo', () => {
         commitMessage: 'chore(release): 0.2.0',
       };
 
-      const input = parsePackageVersioner(JSON.stringify(versionOutput));
+      const input = parseVersionOutput(JSON.stringify(versionOutput));
       const contexts = input.packages.map(createTemplateContext);
       const markdown = renderMarkdown(contexts);
 
