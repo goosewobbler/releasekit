@@ -42,7 +42,7 @@ describe('getAllowedScopesFromCategories()', () => {
     expect(result.get('Documentation')).toEqual(['API', 'Guides']);
   });
 
-  it('ignores categories with empty scopes array', () => {
+  it('should ignore categories with empty scopes array', () => {
     const categories: LLMCategory[] = [{ name: 'Developer', description: 'Internal', scopes: [] }];
     const result = getAllowedScopesFromCategories(categories);
     expect(result.size).toBe(0);
@@ -84,7 +84,7 @@ describe('resolveAllowedScopes()', () => {
     expect(result).toEqual(['CI', 'Dependencies']);
   });
 
-  it('merges explicit and category scopes for restricted mode', () => {
+  it('should merge explicit and category scopes for restricted mode', () => {
     const config: ScopeConfig = {
       mode: 'restricted',
       rules: { allowed: ['Security'] },
@@ -97,7 +97,7 @@ describe('resolveAllowedScopes()', () => {
     expect(result).toHaveLength(3);
   });
 
-  it('deduplicates scopes across config and categories', () => {
+  it('should deduplicate scopes across config and categories', () => {
     const config: ScopeConfig = {
       mode: 'restricted',
       rules: { allowed: ['CI', 'Testing'] },
@@ -134,20 +134,20 @@ describe('validateScope()', () => {
     expect(validateScope('CI', ['CI', 'Dependencies'])).toBe('CI');
   });
 
-  it('is case-insensitive by default', () => {
+  it('should be case-insensitive by default', () => {
     expect(validateScope('ci', ['CI', 'Dependencies'])).toBe('ci');
   });
 
-  it('is case-sensitive when configured', () => {
+  it('should be case-sensitive when configured', () => {
     expect(validateScope('ci', ['CI'], { caseSensitive: true })).toBeUndefined();
     expect(validateScope('CI', ['CI'], { caseSensitive: true })).toBe('CI');
   });
 
-  it('removes invalid scopes by default', () => {
+  it('should remove invalid scopes by default', () => {
     expect(validateScope('Invalid', ['CI', 'Dependencies'])).toBeUndefined();
   });
 
-  it('keeps invalid scopes when invalidScopeAction is keep', () => {
+  it('should keep invalid scopes when invalidScopeAction is keep', () => {
     expect(validateScope('Invalid', ['CI'], { invalidScopeAction: 'keep' })).toBe('Invalid');
   });
 
@@ -181,7 +181,7 @@ describe('validateEntryScopes()', () => {
     expect(result).toBe(entries);
   });
 
-  it('removes all scopes for none mode', () => {
+  it('should remove all scopes for none mode', () => {
     const result = validateEntryScopes(entries, { mode: 'none' });
     expect(result[0]?.scope).toBeUndefined();
     expect(result[1]?.scope).toBeUndefined();
@@ -196,7 +196,7 @@ describe('validateEntryScopes()', () => {
     expect(result[2]?.scope).toBeUndefined(); // no scope
   });
 
-  it('does not mutate original entries', () => {
+  it('should not mutate original entries', () => {
     const result = validateEntryScopes(entries, { mode: 'none' });
     expect(entries[0]?.scope).toBe('CI'); // original unchanged
     expect(result[0]?.scope).toBeUndefined(); // new copy changed

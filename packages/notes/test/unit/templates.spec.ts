@@ -18,19 +18,14 @@ const sampleContext: TemplateContext = {
   ],
 };
 
-const _documentContext: DocumentContext = {
-  project: { name: 'test-pkg' },
-  versions: [sampleContext],
-};
-
 describe('Liquid Engine', () => {
-  it('renders basic template', () => {
+  it('should render basic template', () => {
     const template = 'Version: {{ version }}';
     const result = renderLiquid(template, sampleContext);
     expect(result).toBe('Version: 1.0.0');
   });
 
-  it('renders entries loop', () => {
+  it('should render entries loop', () => {
     const template = '{% for entry in entries %}- {{ entry.description }}{% endfor %}';
     const result = renderLiquid(template, sampleContext);
     expect(result).toBe('- New feature- Bug fix');
@@ -44,19 +39,19 @@ describe('Liquid Engine', () => {
 });
 
 describe('Handlebars Engine', () => {
-  it('renders basic template', () => {
+  it('should render basic template', () => {
     const template = 'Version: {{version}}';
     const result = renderHandlebars(template, sampleContext);
     expect(result).toBe('Version: 1.0.0');
   });
 
-  it('renders entries loop', () => {
+  it('should render entries loop', () => {
     const template = '{{#each entries}}- {{description}}{{/each}}';
     const result = renderHandlebars(template, sampleContext);
     expect(result).toBe('- New feature- Bug fix');
   });
 
-  it('capitalize helper works', () => {
+  it('should uppercase the first letter of a string with the capitalize helper', () => {
     registerHandlebarsHelpers();
     const template = '{{capitalize type}}';
     const entry = sampleContext.entries[0];
@@ -67,13 +62,13 @@ describe('Handlebars Engine', () => {
 });
 
 describe('EJS Engine', () => {
-  it('renders basic template', () => {
+  it('should render basic template', () => {
     const template = 'Version: <%= version %>';
     const result = renderEjs(template, sampleContext);
     expect(result).toBe('Version: 1.0.0');
   });
 
-  it('renders entries loop', () => {
+  it('should render entries loop', () => {
     const template = '<% entries.forEach(function(e) { %>- <%= e.description %><% }); %>';
     const result = renderEjs(template, sampleContext);
     expect(result).toBe('- New feature- Bug fix');
@@ -126,7 +121,7 @@ const releaseNotesTemplate = `
 describe('release.liquid template', () => {
   const template = releaseNotesTemplate;
 
-  it('renders categories from enhanced.categories', () => {
+  it('should render categories from enhanced.categories', () => {
     const ctx: DocumentContext = {
       project: { name: 'test-pkg' },
       versions: [
@@ -150,7 +145,7 @@ describe('release.liquid template', () => {
     expect(result).toContain('- **core**: Bug fix');
   });
 
-  it('falls back to type-based sections when no enhanced.categories', () => {
+  it('should fall back to type-based sections when no enhanced.categories', () => {
     const ctx: DocumentContext = {
       project: { name: 'test-pkg' },
       versions: [sampleContext],
@@ -163,7 +158,7 @@ describe('release.liquid template', () => {
     expect(result).toContain('- **core**: Bug fix');
   });
 
-  it('renders compareUrl when present', () => {
+  it('should render compareUrl when present', () => {
     const ctx: DocumentContext = {
       project: { name: 'test-pkg' },
       versions: [{ ...sampleContext, compareUrl: 'https://github.com/test/test-pkg/compare/v0.9.0...v1.0.0' }],
@@ -173,7 +168,7 @@ describe('release.liquid template', () => {
     expect(result).toContain('**Full Changelog**: https://github.com/test/test-pkg/compare/v0.9.0...v1.0.0');
   });
 
-  it('skips empty categories', () => {
+  it('should skip empty categories', () => {
     const ctx: DocumentContext = {
       project: { name: 'test-pkg' },
       versions: [

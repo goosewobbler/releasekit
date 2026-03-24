@@ -25,7 +25,7 @@ function makeContext(overrides: Partial<TemplateContext> = {}): TemplateContext 
 }
 
 describe('aggregateToRoot', () => {
-  it('combines entries from multiple packages', () => {
+  it('should combine entries from multiple packages', () => {
     const contexts = [
       makeContext({
         packageName: '@scope/pkg-a',
@@ -46,7 +46,7 @@ describe('aggregateToRoot', () => {
     expect(result.entries).toHaveLength(3);
   });
 
-  it('prefixes scope with package name', () => {
+  it('should prefix scope with package name', () => {
     const contexts = [
       makeContext({
         packageName: '@scope/pkg-a',
@@ -59,7 +59,7 @@ describe('aggregateToRoot', () => {
     expect(result.entries[0]?.scope).toBe('@scope/pkg-a/api');
   });
 
-  it('uses package name as scope when entry has no scope', () => {
+  it('should use package name as scope when entry has no scope', () => {
     const contexts = [
       makeContext({
         packageName: '@scope/pkg-a',
@@ -72,7 +72,7 @@ describe('aggregateToRoot', () => {
     expect(result.entries[0]?.scope).toBe('@scope/pkg-a');
   });
 
-  it('uses version from first context', () => {
+  it('should use version from first context', () => {
     const contexts = [
       makeContext({ version: '2.0.0', previousVersion: '1.0.0' }),
       makeContext({ version: '3.0.0', previousVersion: '2.0.0' }),
@@ -184,7 +184,7 @@ packages:
     expect(result.packagesPath).toBe('packages/*');
   });
 
-  it('defaults to packages when glob pattern is invalid', () => {
+  it('should default to packages when glob pattern is invalid', () => {
     mockedFs.existsSync.mockImplementation((path) => {
       return path.toString().includes('pnpm-workspace.yaml');
     });

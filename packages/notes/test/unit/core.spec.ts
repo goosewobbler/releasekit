@@ -32,7 +32,7 @@ describe('Input Parser', () => {
     expect(result.packages[0]?.entries).toHaveLength(2);
   });
 
-  it('normalizes entry types', () => {
+  it('should normalize entry types', () => {
     const input = {
       ...sampleInput,
       changelogs: [
@@ -62,7 +62,7 @@ describe('Input Parser', () => {
 });
 
 describe('Markdown Output', () => {
-  it('renders markdown from template context', () => {
+  it('should render markdown from template context', () => {
     const input = parsePackageVersioner(JSON.stringify(sampleInput));
     const contexts = input.packages.map(createTemplateContext);
     const markdown = renderMarkdown(contexts);

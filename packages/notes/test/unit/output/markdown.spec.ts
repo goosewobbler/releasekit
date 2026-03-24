@@ -33,7 +33,7 @@ describe('writeMarkdown: dry run', () => {
     debug = vi.mocked(core.debug);
   });
 
-  it('logs content via info() during dry run', async () => {
+  it('should log content via info() during dry run', async () => {
     const { writeMarkdown } = await import('../../../src/output/markdown.js');
 
     writeMarkdown('/tmp/CHANGELOG.md', [makeContext()], minimalConfig, true);
@@ -44,7 +44,7 @@ describe('writeMarkdown: dry run', () => {
     expect(hasContent).toBe(true);
   });
 
-  it('does not call debug() for content during dry run', async () => {
+  it('should not call debug() for content during dry run', async () => {
     const { writeMarkdown } = await import('../../../src/output/markdown.js');
 
     writeMarkdown('/tmp/CHANGELOG.md', [makeContext()], minimalConfig, true);
@@ -52,7 +52,7 @@ describe('writeMarkdown: dry run', () => {
     expect(debug).not.toHaveBeenCalled();
   });
 
-  it('labels the preview using the output filename', async () => {
+  it('should label the preview using the output filename', async () => {
     const { writeMarkdown } = await import('../../../src/output/markdown.js');
 
     writeMarkdown('/tmp/CHANGELOG.md', [makeContext()], minimalConfig, true);
@@ -62,7 +62,7 @@ describe('writeMarkdown: dry run', () => {
     expect(header).toMatch(/CHANGELOG\.md/);
   });
 
-  it('uses "Release notes" label for non-changelog output files', async () => {
+  it('should use "Release notes" label for non-changelog output files', async () => {
     const { writeMarkdown } = await import('../../../src/output/markdown.js');
 
     writeMarkdown('/tmp/RELEASE_NOTES.md', [makeContext()], minimalConfig, true);
