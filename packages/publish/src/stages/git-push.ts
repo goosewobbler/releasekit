@@ -36,7 +36,14 @@ export async function runGitPushStage(ctx: PipelineContext): Promise<void> {
     return;
   }
 
-  const { remote, branch } = config.git;
+  const { remote } = config.git;
+
+  // Resolve branch: explicit config/CLI value wins, otherwise detect from current HEAD
+  let branch = config.git.branch;
+  if (!branch) {
+    const revResult = await execCommand('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd, dryRun: false });
+    branch = revResult.stdout.trim();
+  }
 
   // Auto-detect push method if needed
   let pushMethod = config.git.pushMethod;

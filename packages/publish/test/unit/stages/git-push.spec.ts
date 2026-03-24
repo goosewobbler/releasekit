@@ -48,7 +48,12 @@ describe('git-push stage', () => {
     vi.clearAllMocks();
     const { execCommand } = await import('../../../src/utils/exec.js');
     const { detectGitPushMethod } = await import('../../../src/utils/auth.js');
-    vi.mocked(execCommand).mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
+    vi.mocked(execCommand).mockImplementation(async (_file, args) => {
+      if (Array.isArray(args) && args[0] === 'rev-parse') {
+        return { stdout: 'main\n', stderr: '', exitCode: 0 };
+      }
+      return { stdout: '', stderr: '', exitCode: 0 };
+    });
     vi.mocked(detectGitPushMethod).mockResolvedValue('https');
     delete process.env.GITHUB_TOKEN;
   });
@@ -67,12 +72,13 @@ describe('git-push stage', () => {
 
     await runGitPushStage(ctx);
 
-    expect(execCommand).toHaveBeenCalledTimes(2);
+    expect(execCommand).toHaveBeenCalledTimes(3); // rev-parse + push branch + push tags
     const calls = vi.mocked(execCommand).mock.calls;
-    expect(calls[0]?.[0]).toBe('git');
-    expect(calls[0]?.[1]).toEqual(['push', 'origin', 'main']);
+    expect(calls[0]?.[1]).toEqual(['rev-parse', '--abbrev-ref', 'HEAD']);
     expect(calls[1]?.[0]).toBe('git');
-    expect(calls[1]?.[1]).toEqual(['push', 'origin', '--tags']);
+    expect(calls[1]?.[1]).toEqual(['push', 'origin', 'main']);
+    expect(calls[2]?.[0]).toBe('git');
+    expect(calls[2]?.[1]).toEqual(['push', 'origin', '--tags']);
     expect(ctx.output.git.pushed).toBe(true);
   });
 
@@ -81,6 +87,9 @@ describe('git-push stage', () => {
     process.env.GITHUB_TOKEN = 'gh_test_token';
 
     vi.mocked(execCommand).mockImplementation(async (file, args) => {
+      if (Array.isArray(args) && args[0] === 'rev-parse') {
+        return { stdout: 'main\n', stderr: '', exitCode: 0 };
+      }
       if (file === 'git' && Array.isArray(args) && args[0] === 'remote' && args[1] === 'get-url') {
         return { stdout: 'https://github.com/org/repo.git\n', stderr: '', exitCode: 0 };
       }
@@ -93,11 +102,12 @@ describe('git-push stage', () => {
     await runGitPushStage(ctx);
 
     const calls = vi.mocked(execCommand).mock.calls;
-    // First call should be remote get-url, then push branch, then push tags.
-    expect(calls[0]?.[1]).toEqual(['remote', 'get-url', 'origin']);
-    expect(calls[1]?.[1]?.[0]).toBe('push');
-    expect((calls[1]?.[1] as string[])[1]).toContain('https://x-access-token:gh_test_token@github.com/org/repo.git');
+    // Call order: rev-parse, remote get-url, push branch (authed), push tags (authed)
+    expect(calls[0]?.[1]).toEqual(['rev-parse', '--abbrev-ref', 'HEAD']);
+    expect(calls[1]?.[1]).toEqual(['remote', 'get-url', 'origin']);
+    expect(calls[2]?.[1]?.[0]).toBe('push');
     expect((calls[2]?.[1] as string[])[1]).toContain('https://x-access-token:gh_test_token@github.com/org/repo.git');
+    expect((calls[3]?.[1] as string[])[1]).toContain('https://x-access-token:gh_test_token@github.com/org/repo.git');
   });
 
   it('should not attempt token auth when httpsTokenEnv is not configured', async () => {
@@ -109,9 +119,10 @@ describe('git-push stage', () => {
 
     const calls = vi.mocked(execCommand).mock.calls;
     // Should push directly to remote name, no get-url call
-    expect(calls).toHaveLength(2);
-    expect(calls[0]?.[1]).toEqual(['push', 'origin', 'main']);
-    expect(calls[1]?.[1]).toEqual(['push', 'origin', '--tags']);
+    expect(calls).toHaveLength(3); // rev-parse + push branch + push tags
+    expect(calls[0]?.[1]).toEqual(['rev-parse', '--abbrev-ref', 'HEAD']);
+    expect(calls[1]?.[1]).toEqual(['push', 'origin', 'main']);
+    expect(calls[2]?.[1]).toEqual(['push', 'origin', '--tags']);
   });
 
   it('should fall back to plain remote for non-GitHub HTTPS URLs', async () => {
@@ -119,6 +130,9 @@ describe('git-push stage', () => {
     process.env.MY_TOKEN = 'some_token';
 
     vi.mocked(execCommand).mockImplementation(async (file, args) => {
+      if (Array.isArray(args) && args[0] === 'rev-parse') {
+        return { stdout: 'main\n', stderr: '', exitCode: 0 };
+      }
       if (file === 'git' && Array.isArray(args) && args[0] === 'remote' && args[1] === 'get-url') {
         return { stdout: 'https://gitlab.example.com/org/repo.git\n', stderr: '', exitCode: 0 };
       }
@@ -131,12 +145,43 @@ describe('git-push stage', () => {
     await runGitPushStage(ctx);
 
     const calls = vi.mocked(execCommand).mock.calls;
-    // get-url is called, but authed URL is not used (non-GitHub host)
-    expect(calls[0]?.[1]).toEqual(['remote', 'get-url', 'origin']);
-    expect(calls[1]?.[1]).toEqual(['push', 'origin', 'main']);
-    expect(calls[2]?.[1]).toEqual(['push', 'origin', '--tags']);
+    // Call order: rev-parse, get-url (authed URL not used for non-GitHub), push branch, push tags
+    expect(calls[0]?.[1]).toEqual(['rev-parse', '--abbrev-ref', 'HEAD']);
+    expect(calls[1]?.[1]).toEqual(['remote', 'get-url', 'origin']);
+    expect(calls[2]?.[1]).toEqual(['push', 'origin', 'main']);
+    expect(calls[3]?.[1]).toEqual(['push', 'origin', '--tags']);
 
     delete process.env.MY_TOKEN;
+  });
+
+  it('should detect current branch when config.git.branch is not set', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    vi.mocked(execCommand).mockImplementation(async (_file, args) => {
+      if (Array.isArray(args) && args[0] === 'rev-parse') {
+        return { stdout: 'feature/my-branch\n', stderr: '', exitCode: 0 };
+      }
+      return { stdout: '', stderr: '', exitCode: 0 };
+    });
+
+    const ctx = createContext();
+    await runGitPushStage(ctx);
+
+    const calls = vi.mocked(execCommand).mock.calls;
+    expect(calls[0]?.[1]).toEqual(['rev-parse', '--abbrev-ref', 'HEAD']);
+    expect(calls[1]?.[1]).toEqual(['push', 'origin', 'feature/my-branch']);
+  });
+
+  it('should use explicit branch from config without calling rev-parse', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    const config = getDefaultConfig();
+    config.git.branch = 'release/v2';
+    const ctx = createContext({ config });
+
+    await runGitPushStage(ctx);
+
+    const calls = vi.mocked(execCommand).mock.calls;
+    expect(calls[0]?.[1]).toEqual(['push', 'origin', 'release/v2']);
+    expect(calls.every((c) => !(c[1] as string[]).includes('rev-parse'))).toBe(true);
   });
 
   it('should skip when push disabled in config', async () => {
@@ -184,8 +229,9 @@ describe('git-push stage', () => {
 
     await runGitPushStage(ctx);
 
-    expect(execCommand).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(execCommand).mock.calls[0]?.[0]).toBe('git');
-    expect(vi.mocked(execCommand).mock.calls[0]?.[1]).toContain('--tags');
+    expect(execCommand).toHaveBeenCalledTimes(2); // rev-parse + push tags
+    expect(vi.mocked(execCommand).mock.calls[0]?.[1]).toEqual(['rev-parse', '--abbrev-ref', 'HEAD']);
+    expect(vi.mocked(execCommand).mock.calls[1]?.[0]).toBe('git');
+    expect(vi.mocked(execCommand).mock.calls[1]?.[1]).toContain('--tags');
   });
 });

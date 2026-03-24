@@ -39,7 +39,7 @@ describe('config', () => {
       expect(config.git.push).toBe(true);
       expect(config.git.pushMethod).toBe('auto');
       expect(config.git.remote).toBe('origin');
-      expect(config.git.branch).toBe('main');
+      expect(config.git.branch).toBeUndefined();
 
       expect(config.githubRelease.enabled).toBe(true);
       expect(config.githubRelease.draft).toBe(true);

@@ -18,6 +18,7 @@ program
   .option('-p, --prerelease [identifier]', 'Create prerelease version')
   .option('-s, --sync', 'Use synchronized versioning across all packages', false)
   .option('-t, --target <packages>', 'Target specific packages (comma-separated)')
+  .option('--branch <name>', 'Git branch to push to (defaults to current branch)')
   .option('--skip-notes', 'Skip changelog generation', false)
   .option('--skip-publish', 'Skip registry publishing and git operations', false)
   .option('--skip-git', 'Skip git commit/tag/push', false)
@@ -35,6 +36,7 @@ program
       prerelease: opts.prerelease,
       sync: opts.sync,
       target: opts.target,
+      branch: opts.branch,
       skipNotes: opts.skipNotes,
       skipPublish: opts.skipPublish,
       skipGit: opts.skipGit,

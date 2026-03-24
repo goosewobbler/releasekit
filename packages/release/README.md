@@ -58,6 +58,7 @@ If no releasable changes are found after step 1, the command exits with code 0 a
 | `-p, --prerelease [id]` | Create prerelease version | — |
 | `-s, --sync` | Synchronized versioning across all packages | `false` |
 | `-t, --target <packages>` | Target specific packages (comma-separated) | all |
+| `--branch <name>` | Git branch to push to | current branch |
 | `--skip-notes` | Skip changelog generation | `false` |
 | `--skip-publish` | Skip registry publishing and git operations | `false` |
 | `--skip-git` | Skip git commit/tag/push | `false` |

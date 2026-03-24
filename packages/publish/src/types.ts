@@ -23,7 +23,7 @@ export interface GitConfig {
   push: boolean;
   pushMethod: 'auto' | 'ssh' | 'https';
   remote: string;
-  branch: string;
+  branch: string | undefined;
   httpsTokenEnv?: string;
   skipHooks?: boolean;
 }
@@ -152,7 +152,7 @@ export function getDefaultConfig(): PublishConfig {
       push: true,
       pushMethod: 'auto',
       remote: 'origin',
-      branch: 'main',
+      branch: undefined,
       httpsTokenEnv: undefined,
       skipHooks: false,
     },

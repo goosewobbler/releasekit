@@ -121,6 +121,10 @@ async function runPublishStep(
 
   const config = loadConfig({ configPath: options.config });
 
+  if (options.branch) {
+    config.git.branch = options.branch;
+  }
+
   const publishOptions = {
     dryRun: options.dryRun,
     registry: 'all' as const,
