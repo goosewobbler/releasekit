@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import * as fs from 'node:fs';
 import * as readline from 'node:readline';
+import { fileURLToPath } from 'node:url';
 import { EXIT_CODES, error, info, setLogLevel, setQuietMode, success } from '@releasekit/core';
 import { Command } from 'commander';
 import { getDefaultConfig, loadConfig, saveAuth } from './core/config.js';
@@ -9,182 +10,182 @@ import type { OutputConfig } from './core/types.js';
 import { getExitCode, NotesError } from './errors/index.js';
 import { parseVersionOutput } from './input/version-output.js';
 
-const program = new Command();
+export function createNotesCommand(): Command {
+  const cmd = new Command('notes').description(
+    'Generate changelogs with LLM-powered enhancement and flexible templating',
+  );
 
-program
-  .name('releasekit-notes')
-  .description('Generate changelogs with LLM-powered enhancement and flexible templating')
-  .version('0.1.0');
+  cmd
+    .command('generate', { isDefault: true })
+    .description('Generate changelog from input data')
+    .option('-i, --input <file>', 'Input file (default: stdin)')
+    .option('-o, --output <spec>', 'Output spec (format:file)', collectOutputs, [] as OutputConfig[])
+    .option('-t, --template <path>', 'Template file or directory')
+    .option('-e, --engine <engine>', 'Template engine (handlebars|liquid|ejs)')
+    .option('--monorepo <mode>', 'Monorepo mode (root|packages|both)')
+    .option('--llm-provider <provider>', 'LLM provider')
+    .option('--llm-model <model>', 'LLM model')
+    .option('--llm-base-url <url>', 'LLM base URL (for openai-compatible provider)')
+    .option('--llm-tasks <tasks>', 'Comma-separated LLM tasks')
+    .option('--no-llm', 'Disable LLM processing')
+    .option('--target <package>', 'Filter to a specific package name')
+    .option('--config <path>', 'Config file path')
+    .option('--dry-run', 'Preview without writing')
+    .option('--regenerate', 'Regenerate entire changelog')
+    .option('-v, --verbose', 'Increase verbosity', increaseVerbosity, 0)
+    .option('-q, --quiet', 'Suppress non-error output')
+    .action(async (options) => {
+      setVerbosity(options.verbose);
+      if (options.quiet) setQuietMode(true);
 
-program
-  .command('generate', { isDefault: true })
-  .description('Generate changelog from input data')
-  .option('-i, --input <file>', 'Input file (default: stdin)')
-  .option('-o, --output <spec>', 'Output spec (format:file)', collectOutputs, [] as OutputConfig[])
-  .option('-t, --template <path>', 'Template file or directory')
-  .option('-e, --engine <engine>', 'Template engine (handlebars|liquid|ejs)')
-  .option('--monorepo <mode>', 'Monorepo mode (root|packages|both)')
-  .option('--llm-provider <provider>', 'LLM provider')
-  .option('--llm-model <model>', 'LLM model')
-  .option('--llm-base-url <url>', 'LLM base URL (for openai-compatible provider)')
-  .option('--llm-tasks <tasks>', 'Comma-separated LLM tasks')
-  .option('--no-llm', 'Disable LLM processing')
-  .option('--target <package>', 'Filter to a specific package name')
-  .option('--config <path>', 'Config file path')
-  .option('--dry-run', 'Preview without writing')
-  .option('--regenerate', 'Regenerate entire changelog')
-  .option('-v, --verbose', 'Increase verbosity', increaseVerbosity, 0)
-  .option('-q, --quiet', 'Suppress non-error output')
-  .action(async (options) => {
-    setVerbosity(options.verbose);
-    if (options.quiet) setQuietMode(true);
+      try {
+        const config = loadConfig(process.cwd(), options.config);
 
-    try {
-      const config = loadConfig(process.cwd(), options.config);
-
-      if (options.output.length > 0) {
-        config.output = options.output;
-      }
-
-      if (config.output.length === 0) {
-        config.output = getDefaultConfig().output;
-      }
-
-      if (options.regenerate) {
-        config.updateStrategy = 'regenerate';
-      }
-
-      if (options.template) {
-        config.templates = { ...config.templates, path: options.template };
-      }
-
-      if (options.engine) {
-        config.templates = { ...config.templates, engine: options.engine };
-      }
-
-      if (options.llm === false) {
-        info('LLM processing disabled via --no-llm flag');
-        delete config.llm;
-      } else if (options.llmProvider || options.llmModel || options.llmBaseUrl || options.llmTasks) {
-        config.llm = config.llm ?? { provider: 'openai-compatible', model: '' };
-        if (options.llmProvider) config.llm.provider = options.llmProvider;
-        if (options.llmModel) config.llm.model = options.llmModel;
-        if (options.llmBaseUrl) config.llm.baseURL = options.llmBaseUrl;
-        if (options.llmTasks) {
-          const taskNames = (options.llmTasks as string).split(',').map((t: string) => t.trim());
-          config.llm.tasks = {
-            enhance: taskNames.includes('enhance'),
-            summarize: taskNames.includes('summarize'),
-            categorize: taskNames.includes('categorize'),
-            releaseNotes: taskNames.includes('release-notes') || taskNames.includes('releaseNotes'),
-          };
+        if (options.output.length > 0) {
+          config.output = options.output;
         }
-        info(`LLM configured: ${config.llm.provider}${config.llm.model ? ` (${config.llm.model})` : ''}`);
-        if (config.llm.baseURL) {
-          info(`LLM base URL: ${config.llm.baseURL}`);
+
+        if (config.output.length === 0) {
+          config.output = getDefaultConfig().output;
         }
-        const taskList = Object.entries(config.llm.tasks || {})
-          .filter(([, enabled]) => enabled)
-          .map(([name]) => name)
-          .join(', ');
-        if (taskList) {
-          info(`LLM tasks: ${taskList}`);
+
+        if (options.regenerate) {
+          config.updateStrategy = 'regenerate';
         }
+
+        if (options.template) {
+          config.templates = { ...config.templates, path: options.template };
+        }
+
+        if (options.engine) {
+          config.templates = { ...config.templates, engine: options.engine };
+        }
+
+        if (options.llm === false) {
+          info('LLM processing disabled via --no-llm flag');
+          delete config.llm;
+        } else if (options.llmProvider || options.llmModel || options.llmBaseUrl || options.llmTasks) {
+          config.llm = config.llm ?? { provider: 'openai-compatible', model: '' };
+          if (options.llmProvider) config.llm.provider = options.llmProvider;
+          if (options.llmModel) config.llm.model = options.llmModel;
+          if (options.llmBaseUrl) config.llm.baseURL = options.llmBaseUrl;
+          if (options.llmTasks) {
+            const taskNames = (options.llmTasks as string).split(',').map((t: string) => t.trim());
+            config.llm.tasks = {
+              enhance: taskNames.includes('enhance'),
+              summarize: taskNames.includes('summarize'),
+              categorize: taskNames.includes('categorize'),
+              releaseNotes: taskNames.includes('release-notes') || taskNames.includes('releaseNotes'),
+            };
+          }
+          info(`LLM configured: ${config.llm.provider}${config.llm.model ? ` (${config.llm.model})` : ''}`);
+          if (config.llm.baseURL) {
+            info(`LLM base URL: ${config.llm.baseURL}`);
+          }
+          const taskList = Object.entries(config.llm.tasks || {})
+            .filter(([, enabled]) => enabled)
+            .map(([name]) => name)
+            .join(', ');
+          if (taskList) {
+            info(`LLM tasks: ${taskList}`);
+          }
+        }
+
+        let inputJson: string;
+
+        if (options.input) {
+          inputJson = fs.readFileSync(options.input, 'utf-8');
+        } else {
+          inputJson = await readStdin();
+        }
+
+        const input = parseVersionOutput(inputJson);
+
+        if (options.target) {
+          const before = input.packages.length;
+          input.packages = input.packages.filter((p) => p.packageName === options.target);
+          if (input.packages.length === 0) {
+            info(`No changelog found for package "${options.target}" (had ${before} package(s))`);
+            return;
+          }
+          info(`Filtered to package: ${options.target}`);
+        }
+
+        if (options.monorepo) {
+          config.monorepo = { ...config.monorepo, mode: options.monorepo as 'root' | 'packages' | 'both' };
+        }
+
+        await runPipeline(input, config, options.dryRun ?? false);
+
+        if (options.dryRun) {
+          info('Dry run complete - no files were written');
+        } else {
+          success('Changelog generation complete');
+        }
+      } catch (err) {
+        handleError(err);
+      }
+    });
+
+  cmd
+    .command('init')
+    .description('Create default configuration file')
+    .option('-f, --force', 'Overwrite existing config')
+    .action((options) => {
+      const configPath = 'releasekit.config.json';
+
+      if (fs.existsSync(configPath) && !options.force) {
+        error(`Config file already exists at ${configPath}. Use --force to overwrite.`);
+        process.exit(EXIT_CODES.GENERAL_ERROR);
       }
 
-      let inputJson: string;
+      const defaultConfig = {
+        $schema: 'https://releasekit.dev/schema.json',
+        notes: {
+          output: [{ format: 'markdown', file: 'CHANGELOG.md' }],
+          updateStrategy: 'prepend',
+        },
+      };
 
-      if (options.input) {
-        inputJson = fs.readFileSync(options.input, 'utf-8');
+      fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2), 'utf-8');
+      success(`Created config file at ${configPath}`);
+    });
+
+  cmd
+    .command('auth <provider>')
+    .description('Configure API key for an LLM provider')
+    .option('--key <key>', 'API key (omit to be prompted)')
+    .action(async (provider: string, options) => {
+      let apiKey: string;
+
+      if (options.key) {
+        apiKey = options.key;
       } else {
-        inputJson = await readStdin();
+        apiKey = await promptSecret(`Enter API key for ${provider}: `);
       }
 
-      const input = parseVersionOutput(inputJson);
-
-      if (options.target) {
-        const before = input.packages.length;
-        input.packages = input.packages.filter((p) => p.packageName === options.target);
-        if (input.packages.length === 0) {
-          info(`No changelog found for package "${options.target}" (had ${before} package(s))`);
-          return;
-        }
-        info(`Filtered to package: ${options.target}`);
+      if (!apiKey.trim()) {
+        error('API key cannot be empty');
+        process.exit(EXIT_CODES.GENERAL_ERROR);
       }
 
-      // Set monorepo mode from CLI flag if provided (runPipeline handles writing)
-      if (options.monorepo) {
-        config.monorepo = { ...config.monorepo, mode: options.monorepo as 'root' | 'packages' | 'both' };
-      }
+      saveAuth(provider, apiKey.trim());
+      success(`API key saved for ${provider}`);
+    });
 
-      await runPipeline(input, config, options.dryRun ?? false);
+  cmd
+    .command('providers')
+    .description('List available LLM providers')
+    .action(() => {
+      info('Available LLM providers:');
+      console.log('  openai          - OpenAI (GPT models)');
+      console.log('  anthropic       - Anthropic (Claude models)');
+      console.log('  ollama          - Ollama (local models)');
+      console.log('  openai-compatible - Any OpenAI-compatible endpoint');
+    });
 
-      if (options.dryRun) {
-        info('Dry run complete - no files were written');
-      } else {
-        success('Changelog generation complete');
-      }
-    } catch (err) {
-      handleError(err);
-    }
-  });
-
-program
-  .command('init')
-  .description('Create default configuration file')
-  .option('-f, --force', 'Overwrite existing config')
-  .action((options) => {
-    const configPath = 'releasekit.config.json';
-
-    if (fs.existsSync(configPath) && !options.force) {
-      error(`Config file already exists at ${configPath}. Use --force to overwrite.`);
-      process.exit(EXIT_CODES.GENERAL_ERROR);
-    }
-
-    const defaultConfig = {
-      $schema: 'https://releasekit.dev/schema.json',
-      notes: {
-        output: [{ format: 'markdown', file: 'CHANGELOG.md' }],
-        updateStrategy: 'prepend',
-      },
-    };
-
-    fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2), 'utf-8');
-    success(`Created config file at ${configPath}`);
-  });
-
-program
-  .command('auth <provider>')
-  .description('Configure API key for an LLM provider')
-  .option('--key <key>', 'API key (omit to be prompted)')
-  .action(async (provider: string, options) => {
-    let apiKey: string;
-
-    if (options.key) {
-      apiKey = options.key;
-    } else {
-      apiKey = await promptSecret(`Enter API key for ${provider}: `);
-    }
-
-    if (!apiKey.trim()) {
-      error('API key cannot be empty');
-      process.exit(EXIT_CODES.GENERAL_ERROR);
-    }
-
-    saveAuth(provider, apiKey.trim());
-    success(`API key saved for ${provider}`);
-  });
-
-program
-  .command('providers')
-  .description('List available LLM providers')
-  .action(() => {
-    info('Available LLM providers:');
-    console.log('  openai          - OpenAI (GPT models)');
-    console.log('  anthropic       - Anthropic (Claude models)');
-    console.log('  ollama          - Ollama (local models)');
-    console.log('  openai-compatible - Any OpenAI-compatible endpoint');
-  });
+  return cmd;
+}
 
 function collectOutputs(value: string, previous: OutputConfig[]): OutputConfig[] {
   const parts = value.split(':');
@@ -239,4 +240,7 @@ function handleError(err: unknown): void {
   process.exit(EXIT_CODES.GENERAL_ERROR);
 }
 
-program.parse();
+// Standalone entry point (only when run directly, not when imported by dispatcher)
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  createNotesCommand().name('releasekit-notes').version('0.1.0').parse();
+}
