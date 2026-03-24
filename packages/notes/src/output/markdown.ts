@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { debug, info, success } from '@releasekit/core';
+import { info, success } from '@releasekit/core';
 import type { ChangelogEntry, Config, TemplateContext } from '../core/types.js';
 
 const TYPE_ORDER: ChangelogEntry['type'][] = ['added', 'changed', 'deprecated', 'removed', 'fixed', 'security'];
