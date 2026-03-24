@@ -64,5 +64,10 @@
       "style": "Use past tense descriptions. Be concise. Focus on what changed, not implementation details."
     }
   },
-  "publish": {}
+  "publish": {},
+  "release": {
+    "ci": {
+      "skipPatterns": ["chore(release):", "chore(deps"]
+    }
+  }
 }
