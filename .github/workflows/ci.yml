@@ -97,6 +97,14 @@ jobs:
     with:
       cache_key: ${{ needs.build.outputs.cache_key }}
 
+  package-tests:
+    name: Package Tests
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.has_changes == 'true'
+    uses: ./.github/workflows/_ci-package-tests.reusable.yml
+    with:
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
   e2e-tests:
     name: E2E Tests
     needs: [detect-changes, build]
@@ -113,7 +121,7 @@ jobs:
   ci-status:
     name: CI Status
     if: always()
-    needs: [detect-changes, lint, typecheck, unit-tests, integration-tests, e2e-tests]
+    needs: [detect-changes, lint, typecheck, unit-tests, integration-tests, package-tests, e2e-tests]
     runs-on: ubuntu-latest
     steps:
       - name: Check CI results

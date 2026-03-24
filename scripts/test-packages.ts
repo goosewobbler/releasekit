@@ -205,10 +205,13 @@ function testReleaseDryRun(dir: string): void {
   writeFileSync(join(repoDir, 'feature.txt'), 'change');
   execCommand('git add -A && git commit -m "feat: add feature"', repoDir, 'Creating feature commit');
 
-  // Run releasekit release --dry-run --json using the installed binary
+  // Run from within the git repo directory to avoid --project-dir which
+  // doesn't propagate to all internal git operations. Use the absolute
+  // path to the installed binary.
+  const releasekitBin = join(dir, 'node_modules', '.bin', 'releasekit');
   const output = execCommand(
-    `pnpm exec releasekit release --dry-run --json --project-dir "${repoDir}"`,
-    dir,
+    `"${releasekitBin}" release --dry-run --json`,
+    repoDir,
     'Running releasekit release --dry-run --json',
   );
 

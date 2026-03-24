@@ -1,0 +1,32 @@
+name: Package Tests
+
+on:
+  workflow_call:
+    inputs:
+      cache_key:
+        required: true
+        type: string
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+jobs:
+  package-tests:
+    name: Package Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
+
+      - name: Download build artifacts
+        uses: ./.github/workflows/actions/download-archive
+        with:
+          name: releasekit-build
+          cache_key: ${{ inputs.cache_key }}
+
+      - name: Run package tests
+        run: pnpm tsx scripts/test-packages.ts --skip-build
