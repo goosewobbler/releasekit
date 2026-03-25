@@ -171,6 +171,20 @@ describe('git-push stage', () => {
     expect(calls[1]?.[1]).toEqual(['push', 'origin', 'feature/my-branch']);
   });
 
+  it('should throw a clear error when in detached HEAD state', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    vi.mocked(execCommand).mockImplementation(async (_file, args) => {
+      if (Array.isArray(args) && args[0] === 'rev-parse') {
+        return { stdout: 'HEAD\n', stderr: '', exitCode: 0 };
+      }
+      return { stdout: '', stderr: '', exitCode: 0 };
+    });
+
+    const ctx = createContext();
+
+    await expect(runGitPushStage(ctx)).rejects.toThrow(/detached HEAD/);
+  });
+
   it('should use explicit branch from config without calling rev-parse', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const config = getDefaultConfig();

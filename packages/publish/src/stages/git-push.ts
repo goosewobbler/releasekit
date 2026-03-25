@@ -43,6 +43,12 @@ export async function runGitPushStage(ctx: PipelineContext): Promise<void> {
   if (!branch) {
     const revResult = await execCommand('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd, dryRun: false });
     branch = revResult.stdout.trim();
+    if (branch === 'HEAD') {
+      throw createPublishError(
+        PublishErrorCode.GIT_PUSH_ERROR,
+        'Cannot push: repository is in a detached HEAD state. Set git.branch in your config or pass --branch <name>.',
+      );
+    }
   }
 
   // Auto-detect push method if needed
