@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createNotesCommand } from '@releasekit/notes/cli';
 import { createPublishCommand } from '@releasekit/publish/cli';
@@ -21,6 +22,6 @@ export function createDispatcherProgram(): Command {
 }
 
 // Standalone entry point
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   createDispatcherProgram().parse();
 }

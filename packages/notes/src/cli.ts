@@ -241,6 +241,6 @@ function handleError(err: unknown): void {
 }
 
 // Standalone entry point (only when run directly, not when imported by dispatcher)
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && fs.realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   createNotesCommand().name('releasekit-notes').version('0.1.0').parse();
 }

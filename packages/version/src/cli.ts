@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import * as fs from 'node:fs';
+import { realpathSync } from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
@@ -116,7 +117,7 @@ export function createVersionCommand(): Command {
 }
 
 // Standalone entry point (only when run directly, not when imported by dispatcher)
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const program = new Command()
     .name('releasekit-version')
     .description('Version a package or packages based on conventional commits')
