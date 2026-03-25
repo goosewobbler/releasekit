@@ -53,6 +53,7 @@ export function enableJsonOutput(dryRun = false): void {
  * Called during dryRun passes in place of writing directly to disk.
  */
 export function recordPendingWrite(path: string, content: string): void {
+  if (!_jsonOutputMode) return;
   _pendingWrites.push({ path, content });
 }
 

@@ -194,6 +194,16 @@ describe('JSON Output Utilities', () => {
       expect(getPendingWriteCount()).toBe(1);
     });
 
+    it('should not record a pending write when JSON output mode is disabled', async () => {
+      // Use isolated module state so _jsonOutputMode starts as false
+      vi.resetModules();
+      const fresh = await import('../../../src/utils/jsonOutput.js');
+
+      fresh.recordPendingWrite('/a.json', 'a');
+
+      expect(fresh.getPendingWriteCount()).toBe(0);
+    });
+
     it('should accumulate multiple pending writes', () => {
       recordPendingWrite('/a/package.json', 'a');
       recordPendingWrite('/b/package.json', 'b');
