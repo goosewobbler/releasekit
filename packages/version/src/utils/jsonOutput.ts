@@ -3,6 +3,7 @@
  * Centralizes all JSON output handling
  */
 
+import fs from 'node:fs';
 import type { VersionPackageChangelog } from '@releasekit/core';
 
 export type PackageChangelogData = VersionPackageChangelog;
@@ -21,6 +22,9 @@ export interface JsonOutputData {
 
 // Flag to control JSON output mode
 let _jsonOutputMode = false;
+
+// Pending file writes captured during a dryRun pass
+const _pendingWrites: Array<{ path: string; content: string }> = [];
 
 // Store collected information for JSON output
 const _jsonData: JsonOutputData = {
@@ -41,6 +45,32 @@ export function enableJsonOutput(dryRun = false): void {
   _jsonData.changelogs = [];
   _jsonData.tags = [];
   _jsonData.commitMessage = undefined;
+  _pendingWrites.length = 0;
+}
+
+/**
+ * Record a file write to be applied later via flushPendingWrites.
+ * Called during dryRun passes in place of writing directly to disk.
+ */
+export function recordPendingWrite(path: string, content: string): void {
+  _pendingWrites.push({ path, content });
+}
+
+/**
+ * Apply all pending writes to disk and clear the buffer.
+ */
+export function flushPendingWrites(): void {
+  for (const { path, content } of _pendingWrites) {
+    fs.writeFileSync(path, content);
+  }
+  _pendingWrites.length = 0;
+}
+
+/**
+ * Return the current pending write count (for testing).
+ */
+export function getPendingWriteCount(): number {
+  return _pendingWrites.length;
 }
 
 /**

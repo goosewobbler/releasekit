@@ -1,13 +1,19 @@
+import fs from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   addChangelogData,
   addPackageUpdate,
   addTag,
   enableJsonOutput,
+  flushPendingWrites,
   getJsonData,
+  getPendingWriteCount,
   printJsonOutput,
+  recordPendingWrite,
   setCommitMessage,
 } from '../../../src/utils/jsonOutput.js';
+
+vi.mock('node:fs');
 
 describe('JSON Output Utilities', () => {
   beforeEach(() => {
@@ -171,6 +177,53 @@ describe('JSON Output Utilities', () => {
       });
 
       expect(getJsonData().changelogs).toHaveLength(1);
+    });
+  });
+
+  describe('pending writes', () => {
+    beforeEach(() => {
+      enableJsonOutput(true);
+    });
+
+    it('should start with no pending writes', () => {
+      expect(getPendingWriteCount()).toBe(0);
+    });
+
+    it('should record a pending write', () => {
+      recordPendingWrite('/some/path/package.json', '{"version":"1.0.0"}\n');
+      expect(getPendingWriteCount()).toBe(1);
+    });
+
+    it('should accumulate multiple pending writes', () => {
+      recordPendingWrite('/a/package.json', 'a');
+      recordPendingWrite('/b/package.json', 'b');
+      expect(getPendingWriteCount()).toBe(2);
+    });
+
+    it('should flush pending writes to disk and clear the buffer', () => {
+      recordPendingWrite('/a/package.json', 'content-a');
+      recordPendingWrite('/b/Cargo.toml', 'content-b');
+
+      flushPendingWrites();
+
+      expect(fs.writeFileSync).toHaveBeenCalledTimes(2);
+      expect(fs.writeFileSync).toHaveBeenCalledWith('/a/package.json', 'content-a');
+      expect(fs.writeFileSync).toHaveBeenCalledWith('/b/Cargo.toml', 'content-b');
+      expect(getPendingWriteCount()).toBe(0);
+    });
+
+    it('should clear pending writes when enableJsonOutput is called', () => {
+      recordPendingWrite('/some/path.json', 'data');
+      expect(getPendingWriteCount()).toBe(1);
+
+      enableJsonOutput();
+
+      expect(getPendingWriteCount()).toBe(0);
+    });
+
+    it('should not write anything when flushing an empty buffer', () => {
+      flushPendingWrites();
+      expect(fs.writeFileSync).not.toHaveBeenCalled();
     });
   });
 

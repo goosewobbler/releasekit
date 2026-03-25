@@ -7,7 +7,7 @@ import path from 'node:path';
 import type { CargoManifest } from '@releasekit/config';
 import { isCargoToml, parseCargoToml } from '@releasekit/config';
 import * as TOML from 'smol-toml';
-import { addPackageUpdate } from '../utils/jsonOutput.js';
+import { addPackageUpdate, recordPendingWrite } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 
 export { isCargoToml };
@@ -68,19 +68,19 @@ export function updateCargoVersion(cargoPath: string, version: string, dryRun = 
       throw new Error(`No package name found in ${cargoPath}`);
     }
 
-    if (!dryRun) {
-      // Update the version
-      if (!cargo.package) {
-        cargo.package = { name: packageName, version };
-      } else {
-        cargo.package.version = version;
-      }
+    // Update the version in the manifest
+    if (!cargo.package) {
+      cargo.package = { name: packageName, version };
+    } else {
+      cargo.package.version = version;
+    }
 
-      // Write back to the file, preserving format
-      // Strategy: Use TOML.stringify for the updated content. Note that TOML.stringify
-      // does not preserve the original formatting or comments, so this is a best-effort
-      // approach to update the file while maintaining its structure.
-      const updatedContent = TOML.stringify(cargo as Record<string, unknown>);
+    // Stringify once — used for either flush or immediate write
+    // Note: TOML.stringify does not preserve original formatting or comments.
+    const updatedContent = TOML.stringify(cargo as Record<string, unknown>);
+    if (dryRun) {
+      recordPendingWrite(cargoPath, updatedContent);
+    } else {
       fs.writeFileSync(cargoPath, updatedContent);
     }
 

@@ -140,10 +140,12 @@ describe('Cargo Handler', () => {
 
       updateCargoVersion(mockCargoPath, '2.0.0', true);
 
-      // Should NOT write to the file
+      // Should NOT write to the file directly
       expect(fs.writeFileSync).not.toHaveBeenCalled();
-      // Should NOT even call TOML.stringify since we're not writing
-      expect(TOML.stringify).not.toHaveBeenCalled();
+      // TOML.stringify is still called to compute the content for the pending write
+      expect(TOML.stringify).toHaveBeenCalled();
+      // Should record a pending write instead
+      expect(jsonOutput.recordPendingWrite).toHaveBeenCalledWith(mockCargoPath, 'mocked stringified TOML');
 
       // Should still track the update and log
       expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', '2.0.0', mockCargoPath);
