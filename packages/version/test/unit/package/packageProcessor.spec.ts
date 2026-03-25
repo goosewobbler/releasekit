@@ -427,7 +427,8 @@ describe('Package Processor', () => {
       await processor.processPackages(mockPackages);
 
       // Template has ${version} placeholder: substitute combined names + representative version.
-      // ${packageName} is replaced with the comma-separated list.
+      // Note: The package list is passed to formatCommitMessage but this template doesn't
+      // use ${packageName} so the list is silently discarded in the output.
       expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('release: v1.1.0 of package');
     });
 
