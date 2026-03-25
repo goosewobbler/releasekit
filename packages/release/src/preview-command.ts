@@ -11,7 +11,11 @@ export function createPreviewCommand(): Command {
     .option('--repo <owner/repo>', 'Repository (auto-detected from GITHUB_REPOSITORY)')
     .option('-p, --prerelease [identifier]', 'Force prerelease preview (auto-detected by default)')
     .option('--stable', 'Force stable release preview (graduation from prerelease)', false)
-    .option('-d, --dry-run', 'Print comment markdown to stdout instead of posting', false)
+    .option(
+      '-d, --dry-run',
+      'Print the comment to stdout without posting (GitHub context not available in dry-run mode)',
+      false,
+    )
     .action(async (opts) => {
       try {
         await runPreview({

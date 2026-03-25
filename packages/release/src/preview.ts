@@ -43,17 +43,20 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   }
 
   // Resolve GitHub context early so we can fetch PR labels
+  // Note: We create Octokit here and reuse it in applyLabelOverrides to avoid creating multiple instances
   let context: PreviewContext | undefined;
+  let octokit: ReturnType<typeof createOctokit> | undefined;
   if (!options.dryRun) {
     try {
       context = resolvePreviewContext({ pr: options.pr, repo: options.repo });
+      octokit = createOctokit(context.token);
     } catch (error) {
       warn(`Cannot post PR comment: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
-  // Apply label-driven overrides
-  const { options: effectiveOptions, labelContext } = await applyLabelOverrides(options, ciConfig, context);
+  // Apply label-driven overrides (pass octokit to avoid creating a second instance)
+  const { options: effectiveOptions, labelContext } = await applyLabelOverrides(options, ciConfig, context, octokit);
 
   const strategy = ciConfig?.releaseStrategy ?? 'direct';
 
@@ -101,7 +104,9 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   }
 
   info(`Posting preview comment on PR #${context.prNumber}...`);
-  const octokit = createOctokit(context.token);
+  if (!octokit) {
+    octokit = createOctokit(context.token);
+  }
   await postOrUpdateComment(octokit, context.owner, context.repo, context.prNumber, commentBody);
   success(`Preview comment posted on PR #${context.prNumber}`);
 }
@@ -159,6 +164,7 @@ async function applyLabelOverrides(
   options: PreviewOptions,
   ciConfig: CIConfig | undefined,
   context: PreviewContext | undefined,
+  existingOctokit?: ReturnType<typeof createOctokit>,
 ): Promise<LabelOverrideResult> {
   const trigger = ciConfig?.releaseTrigger ?? 'label';
   const labels = ciConfig?.labels ?? DEFAULT_LABELS;
@@ -172,9 +178,12 @@ async function applyLabelOverrides(
   }
 
   let prLabels: string[];
+  const octokitToUse = existingOctokit ?? (context ? createOctokit(context.token) : undefined);
   try {
-    const octokit = createOctokit(context.token);
-    prLabels = await fetchPRLabels(octokit, context.owner, context.repo, context.prNumber);
+    if (!octokitToUse) {
+      throw new Error('No Octokit instance available');
+    }
+    prLabels = await fetchPRLabels(octokitToUse, context.owner, context.repo, context.prNumber);
   } catch {
     warn('Could not fetch PR labels — skipping label-driven overrides');
     return {

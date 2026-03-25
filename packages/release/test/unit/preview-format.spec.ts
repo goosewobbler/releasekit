@@ -156,6 +156,11 @@ describe('formatPreviewComment', () => {
       expect(result).toContain('Merging this PR will not trigger a release');
     });
 
+    it('shows manual no-changes message', () => {
+      const result = formatPreviewComment(null, { strategy: 'manual' });
+      expect(result).toContain('Run the release workflow manually');
+    });
+
     it('shows direct no-changes message', () => {
       const result = formatPreviewComment(null, { strategy: 'direct' });
       expect(result).toContain('Merging this PR will not trigger a release');

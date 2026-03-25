@@ -47,6 +47,8 @@ export interface FormatOptions {
 
 function getNoChangesMessage(strategy: ReleaseStrategy): string {
   switch (strategy) {
+    case 'manual':
+      return '> No releasable changes detected. Run the release workflow manually if a release is needed.';
     case 'direct':
       return '> No releasable changes detected. Merging this PR will not trigger a release.';
     case 'standing-pr':
