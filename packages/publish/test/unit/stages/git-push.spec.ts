@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDefaultConfig } from '../../../src/config.js';
+import { PublishError } from '../../../src/errors/index.js';
 import { runGitPushStage } from '../../../src/stages/git-push.js';
 import type { PipelineContext } from '../../../src/types.js';
 
@@ -183,6 +184,30 @@ describe('git-push stage', () => {
     const ctx = createContext();
 
     await expect(runGitPushStage(ctx)).rejects.toThrow(/detached HEAD/);
+  });
+
+  it('should propagate a detached-HEAD PublishError without re-wrapping it', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    vi.mocked(execCommand).mockImplementation(async (_file, args) => {
+      if (Array.isArray(args) && args[0] === 'rev-parse') {
+        return { stdout: 'HEAD\n', stderr: '', exitCode: 0 };
+      }
+      return { stdout: '', stderr: '', exitCode: 0 };
+    });
+
+    const ctx = createContext();
+
+    let thrown: unknown;
+    try {
+      await runGitPushStage(ctx);
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(thrown).toBeInstanceOf(PublishError);
+    // Message must not be double-wrapped (e.g. "Failed to push to remote: ... detached HEAD ...")
+    expect((thrown as PublishError).message).toMatch(/detached HEAD/);
+    expect((thrown as PublishError).message).not.toMatch(/Failed to push to remote.*Failed to push to remote/);
   });
 
   it('should use explicit branch from config without calling rev-parse', async () => {

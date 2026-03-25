@@ -1,5 +1,5 @@
 import { info, success } from '@releasekit/core';
-import { createPublishError, PublishErrorCode } from '../errors/index.js';
+import { createPublishError, PublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext } from '../types.js';
 import { detectGitPushMethod } from '../utils/auth.js';
 import { execCommand } from '../utils/exec.js';
@@ -100,6 +100,9 @@ export async function runGitPushStage(ctx: PipelineContext): Promise<void> {
       success(`Pushed to ${remote}${branch ? `/${branch}` : ''}`);
     }
   } catch (error) {
+    if (error instanceof PublishError) {
+      throw error;
+    }
     throw createPublishError(
       PublishErrorCode.GIT_PUSH_ERROR,
       `${error instanceof Error ? error.message : String(error)}`,
