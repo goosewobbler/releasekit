@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process';
 import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput } from '@releasekit/core';
-import { info, setJsonMode, setLogLevel, setQuietMode, success } from '@releasekit/core';
+import { error, info, setJsonMode, setLogLevel, setQuietMode, success } from '@releasekit/core';
 import type { ReleaseType } from 'semver';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
 
@@ -22,7 +22,13 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   if (options.json) setJsonMode(true);
 
   // Load release config for automation behavior
-  const releaseKitConfig = loadReleaseKitConfig({ cwd: options.projectDir, configPath: options.config });
+  let releaseKitConfig: ReturnType<typeof loadReleaseKitConfig>;
+  try {
+    releaseKitConfig = loadReleaseKitConfig({ cwd: options.projectDir, configPath: options.config });
+  } catch (err) {
+    error(`Failed to load release config: ${err instanceof Error ? err.message : String(err)}`);
+    throw err;
+  }
   const releaseConfig = releaseKitConfig.release;
 
   // Apply skipPatterns: exit early if HEAD commit matches a skip pattern

@@ -60,6 +60,7 @@ vi.mock('@releasekit/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@releasekit/core')>();
   return {
     ...actual,
+    error: vi.fn(),
     info: vi.fn(),
     success: vi.fn(),
     setLogLevel: vi.fn(),
@@ -396,6 +397,17 @@ describe('runRelease', () => {
     const result = await runRelease({ ...defaultOptions, skipNotes: true });
 
     expect(result?.packageNotes).toBeUndefined();
+  });
+
+  it('should log a friendly error and rethrow when config load fails', async () => {
+    const { error: mockError } = await import('@releasekit/core');
+    const configErr = new Error('Zod validation: steps must have at least 1 item');
+    mockLoadReleaseKitConfig.mockImplementation(() => {
+      throw configErr;
+    });
+
+    await expect(runRelease(defaultOptions)).rejects.toThrow(configErr);
+    expect(mockError).toHaveBeenCalledWith(expect.stringContaining('Failed to load release config'));
   });
 
   it('should propagate version step errors', async () => {
