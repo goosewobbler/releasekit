@@ -82,7 +82,7 @@ jobs:
           fetch-depth: 0  # Important for git history
       
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
           node-version: '18'
           
