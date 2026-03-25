@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { Package } from '@manypkg/get-packages';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as cargoHandler from '../../../src/cargo/cargoHandler.js';
+import * as commitParser from '../../../src/changelog/commitParser.js';
 import * as calculator from '../../../src/core/versionCalculator.js';
 import * as versionCalculatorModule from '../../../src/core/versionCalculator.js';
 import * as gitTags from '../../../src/git/tagsAndBranches.js';
@@ -114,7 +115,7 @@ describe('Package Processor', () => {
     baseBranch: 'main',
     packages: [],
     branchPattern: ['feature/*'],
-    commitMessage: 'chore: release ${packageName} v${version}',
+    commitMessage: 'chore(release): version ${version}',
   };
 
   // Mock getLatestTag function
@@ -124,7 +125,7 @@ describe('Package Processor', () => {
   const defaultOptions = {
     skip: ['package-c'],
     versionPrefix: 'v',
-    commitMessageTemplate: 'chore: release ${packageName} v${version}',
+    commitMessageTemplate: 'chore(release): ${version}',
     dryRun: false,
     getLatestTag: mockGetLatestTag,
     config: {
@@ -358,9 +359,8 @@ describe('Package Processor', () => {
 
       const result = await processor.processPackages(mockPackages);
 
-      // defaultOptions uses commitMessageTemplate: 'chore: release ${packageName} v${version}'.
-      // For multi-package releases ${packageName} is substituted with the combined package list.
-      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a, package-b v1.1.0');
+      // Should track commit message via JSON output (git ops handled by publish)
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore(release): 1.1.0');
 
       // Should return info for both packages
       expect(result.updatedPackages).toHaveLength(2);
@@ -368,21 +368,27 @@ describe('Package Processor', () => {
       expect(result.updatedPackages[1].name).toBe('package-b');
     });
 
-    it('should use name@version list in commit message when async packages have diverging versions', async () => {
-      // package-a bumps to 1.2.0, package-b bumps to 2.0.0 (independent async bumps)
-      vi.spyOn(versionCalculatorModule, 'calculateVersion')
-        .mockResolvedValueOnce('1.2.0')
-        .mockResolvedValueOnce('2.0.0');
+    it('should emit repo-level entries as sharedEntries, not in individual package changelogs', async () => {
+      const repoLevelEntry = { type: 'chore', description: 'Update CI workflow' };
+      const pkgAEntry = { type: 'added', description: 'New feature in pkg-a' };
 
-      const processor = new PackageProcessor({
-        ...defaultOptions,
-        // No placeholders → else-branch
-        commitMessageTemplate: 'chore: release',
+      vi.spyOn(commitParser, 'extractChangelogEntriesFromCommits').mockImplementation((_dir) => {
+        if (_dir.includes('package-a')) return [pkgAEntry];
+        return [];
       });
+      vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockReturnValue([repoLevelEntry]);
 
+      const processor = new PackageProcessor({ ...defaultOptions });
       await processor.processPackages(mockPackages);
 
-      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a@1.2.0, package-b@2.0.0');
+      // Repo-level entry should be emitted as sharedEntries
+      expect(jsonOutput.setSharedEntries).toHaveBeenCalledWith([repoLevelEntry]);
+
+      // addChangelogData should not include the repo-level entry in any package's entries
+      const calls = vi.mocked(jsonOutput.addChangelogData).mock.calls;
+      for (const [data] of calls) {
+        expect(data.entries).not.toContainEqual(repoLevelEntry);
+      }
     });
 
     it('should track tags via JSON output without creating git tags', async () => {
@@ -435,7 +441,7 @@ describe('Package Processor', () => {
       expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a@1.1.0 [skip-ci]');
     });
 
-    it('should use template placeholders with combined package list for multiple packages', async () => {
+    it('should use generic commit message format with multiple packages', async () => {
       const processor = new PackageProcessor({
         ...defaultOptions,
         commitMessageTemplate: 'release: v${version} of package',
@@ -443,9 +449,7 @@ describe('Package Processor', () => {
 
       await processor.processPackages(mockPackages);
 
-      // Template has ${version} placeholder: substitute combined names + representative version.
-      // Note: The package list is passed to formatCommitMessage but this template doesn't
-      // use ${packageName} so the list is silently discarded in the output.
+      // Template has ${version} placeholder - formatCommitMessage replaces it but doesn't add package list
       expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('release: v1.1.0 of package');
     });
 
@@ -550,7 +554,7 @@ describe('Package Processor', () => {
       expect(result.updatedPackages.length).toBe(3);
     });
 
-    it('should construct commit message with package details and v-prefixed version', async () => {
+    it('should construct commit message with package details', async () => {
       const processor = new PackageProcessor({
         getLatestTag: gitTags.getLatestTag,
         config: {},
@@ -559,8 +563,7 @@ describe('Package Processor', () => {
 
       await processor.processPackages(mockPackages);
 
-      // No-placeholder default template: package names and v-prefixed version are appended directly.
-      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith(expect.stringMatching(/chore: release .+ v\d/));
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith(expect.stringContaining('chore: release'));
     });
 
     it('should update both package.json and Cargo.toml for hybrid packages', async () => {

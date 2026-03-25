@@ -4,7 +4,7 @@
  */
 
 import fs from 'node:fs';
-import type { VersionPackageChangelog } from '@releasekit/core';
+import type { VersionChangelogEntry, VersionPackageChangelog } from '@releasekit/core';
 
 export type PackageChangelogData = VersionPackageChangelog;
 
@@ -16,6 +16,7 @@ export interface JsonOutputData {
     filePath: string;
   }>;
   changelogs: VersionPackageChangelog[];
+  sharedEntries?: VersionChangelogEntry[];
   commitMessage?: string;
   tags: string[];
 }
@@ -31,6 +32,7 @@ const _jsonData: JsonOutputData = {
   dryRun: false,
   updates: [],
   changelogs: [],
+  sharedEntries: undefined,
   tags: [],
 };
 
@@ -43,6 +45,7 @@ export function enableJsonOutput(dryRun = false): void {
   _jsonData.dryRun = dryRun;
   _jsonData.updates = [];
   _jsonData.changelogs = [];
+  _jsonData.sharedEntries = undefined;
   _jsonData.tags = [];
   _jsonData.commitMessage = undefined;
   _pendingWrites.length = 0;
@@ -104,6 +107,15 @@ export function addChangelogData(data: VersionPackageChangelog): void {
   if (!_jsonOutputMode) return;
 
   _jsonData.changelogs.push(data);
+}
+
+/**
+ * Set the shared changelog entries (repo-level / CI / shared-package commits)
+ * that don't belong to any specific package.
+ */
+export function setSharedEntries(entries: VersionChangelogEntry[]): void {
+  if (!_jsonOutputMode) return;
+  _jsonData.sharedEntries = entries.length > 0 ? entries : undefined;
 }
 
 /**

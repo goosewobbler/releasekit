@@ -102,6 +102,100 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('- `@releasekit/notes@v0.3.1`');
   });
 
+  describe('shared entries rendering', () => {
+    const sharedEntry = { type: 'chore', description: 'Update CI pipeline' };
+
+    const outputWithShared: ReleaseOutput = {
+      versionOutput: {
+        dryRun: true,
+        updates: [
+          { packageName: 'pkg-a', newVersion: '1.1.0', filePath: 'packages/a/package.json' },
+          { packageName: 'pkg-b', newVersion: '1.1.0', filePath: 'packages/b/package.json' },
+        ],
+        changelogs: [
+          {
+            packageName: 'pkg-a',
+            version: '1.1.0',
+            previousVersion: '1.0.0',
+            revisionRange: 'v1.0.0..HEAD',
+            repoUrl: null,
+            entries: [{ type: 'added', description: 'New feature in pkg-a' }],
+          },
+          {
+            packageName: 'pkg-b',
+            version: '1.1.0',
+            previousVersion: '1.0.0',
+            revisionRange: 'v1.0.0..HEAD',
+            repoUrl: null,
+            entries: [{ type: 'fixed', description: 'Bug fix in pkg-b' }],
+          },
+        ],
+        sharedEntries: [sharedEntry],
+        tags: ['pkg-a@v1.1.0', 'pkg-b@v1.1.0'],
+      },
+      notesGenerated: false,
+    };
+
+    it('renders sharedEntries in a Project-wide changes section', () => {
+      const result = formatPreviewComment(outputWithShared);
+      expect(result).toContain('<b>Project-wide changes</b>');
+      expect(result).toContain('- Update CI pipeline');
+    });
+
+    it('shared entries appear only once, not in individual package changelogs', () => {
+      const result = formatPreviewComment(outputWithShared);
+      expect(result.split('Update CI pipeline').length - 1).toBe(1);
+    });
+
+    it('keeps package-specific entries in each package changelog', () => {
+      const result = formatPreviewComment(outputWithShared);
+      expect(result).toContain('- New feature in pkg-a');
+      expect(result).toContain('- Bug fix in pkg-b');
+    });
+
+    it('omits the package details block when that package has no entries', () => {
+      const noEntries: ReleaseOutput = {
+        versionOutput: {
+          dryRun: true,
+          updates: [
+            { packageName: 'pkg-a', newVersion: '1.1.0', filePath: 'packages/a/package.json' },
+            { packageName: 'pkg-b', newVersion: '1.1.0', filePath: 'packages/b/package.json' },
+          ],
+          changelogs: [
+            {
+              packageName: 'pkg-a',
+              version: '1.1.0',
+              previousVersion: '1.0.0',
+              revisionRange: 'v1.0.0..HEAD',
+              repoUrl: null,
+              entries: [], // no package-specific changes
+            },
+            {
+              packageName: 'pkg-b',
+              version: '1.1.0',
+              previousVersion: '1.0.0',
+              revisionRange: 'v1.0.0..HEAD',
+              repoUrl: null,
+              entries: [{ type: 'fixed', description: 'Bug fix in pkg-b' }],
+            },
+          ],
+          sharedEntries: [sharedEntry],
+          tags: [],
+        },
+        notesGenerated: false,
+      };
+      const result = formatPreviewComment(noEntries);
+      expect(result).not.toContain('<b>pkg-a</b>');
+      expect(result).toContain('<b>pkg-b</b>');
+      expect(result.split(sharedEntry.description).length - 1).toBe(1);
+    });
+
+    it('does not render a Project-wide section when sharedEntries is absent', () => {
+      const result = formatPreviewComment(releaseOutput);
+      expect(result).not.toContain('Project-wide changes');
+    });
+  });
+
   it('includes footer', () => {
     const result = formatPreviewComment(releaseOutput);
     expect(result).toContain('Updated automatically by [ReleaseKit]');

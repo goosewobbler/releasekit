@@ -1,4 +1,4 @@
-import type { VersionPackageChangelog } from '@releasekit/core';
+import type { VersionChangelogEntry, VersionPackageChangelog } from '@releasekit/core';
 import type { ReleaseOutput } from './types.js';
 
 export type ReleaseStrategy = 'manual' | 'direct' | 'standing-pr' | 'scheduled';
@@ -141,11 +141,25 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
   }
   lines.push('');
 
-  // Changelog per package
-  if (versionOutput.changelogs.length > 0) {
+  // Changelog section
+  const sharedEntries = versionOutput.sharedEntries?.length ? versionOutput.sharedEntries : undefined;
+  const hasPackageChangelogs = versionOutput.changelogs.some((cl) => cl.entries.length > 0);
+
+  if (sharedEntries || hasPackageChangelogs) {
     lines.push('### Changelog', '');
+
+    // Project-wide entries (CI, infra, shared-package commits) rendered once
+    if (sharedEntries) {
+      lines.push('<details>', '<summary><b>Project-wide changes</b></summary>', '');
+      lines.push(...renderEntries(sharedEntries));
+      lines.push('</details>', '');
+    }
+
+    // Per-package entries — only rendered when the package has unique changes
     for (const changelog of versionOutput.changelogs) {
-      lines.push(...formatPackageChangelog(changelog));
+      if (changelog.entries.length > 0) {
+        lines.push(...formatPackageChangelog(changelog));
+      }
     }
   }
 
@@ -162,41 +176,36 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
   return lines.join('\n');
 }
 
+function renderEntries(entries: VersionChangelogEntry[]): string[] {
+  const lines: string[] = [];
+  const grouped = new Map<string, VersionChangelogEntry[]>();
+  for (const entry of entries) {
+    if (!grouped.has(entry.type)) grouped.set(entry.type, []);
+    grouped.get(entry.type)?.push(entry);
+  }
+  const renderedTypes = new Set<string>();
+  for (const type of Object.keys(TYPE_LABELS)) {
+    const group = grouped.get(type);
+    if (group && group.length > 0) {
+      lines.push(...formatEntryGroup(type, group));
+      renderedTypes.add(type);
+    }
+  }
+  for (const [type, group] of grouped) {
+    if (!renderedTypes.has(type) && group.length > 0) {
+      lines.push(...formatEntryGroup(type, group));
+    }
+  }
+  return lines;
+}
+
 function formatPackageChangelog(changelog: VersionPackageChangelog): string[] {
   const lines: string[] = [];
   const prevVersion = changelog.previousVersion ?? 'N/A';
   const summary = `<b>${changelog.packageName}</b> ${prevVersion} → ${changelog.version}`;
 
   lines.push('<details>', `<summary>${summary}</summary>`, '');
-
-  // Group entries by type
-  const grouped = new Map<string, typeof changelog.entries>();
-  for (const entry of changelog.entries) {
-    const type = entry.type;
-    if (!grouped.has(type)) {
-      grouped.set(type, []);
-    }
-    grouped.get(type)?.push(entry);
-  }
-
-  // Render known types first in a stable order, then any unknown types
-  const renderedTypes = new Set<string>();
-
-  for (const type of Object.keys(TYPE_LABELS)) {
-    const entries = grouped.get(type);
-    if (entries && entries.length > 0) {
-      lines.push(...formatEntryGroup(type, entries));
-      renderedTypes.add(type);
-    }
-  }
-
-  // Any remaining types not in TYPE_LABELS
-  for (const [type, entries] of grouped) {
-    if (!renderedTypes.has(type) && entries.length > 0) {
-      lines.push(...formatEntryGroup(type, entries));
-    }
-  }
-
+  lines.push(...renderEntries(changelog.entries));
   lines.push('</details>', '');
   return lines;
 }
