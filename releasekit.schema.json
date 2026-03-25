@@ -680,7 +680,7 @@
           "properties": {
             "skipPatterns": {
               "type": "array",
-              "items": { "type": "string" },
+              "items": { "type": "string", "minLength": 1 },
               "description": "Commit message prefixes that prevent a release (e.g. 'chore(deps):', 'ci:')"
             },
             "minChanges": {
