@@ -450,7 +450,7 @@ describe('runRelease', () => {
 
   describe('release config: steps', () => {
     it('should skip notes when steps omits "notes"', async () => {
-      mockLoadReleaseKitConfig.mockReturnValue({ release: { steps: ['version', 'publish'] } });
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { steps: ['publish'] } });
 
       const result = await runRelease(defaultOptions);
 
@@ -460,7 +460,7 @@ describe('runRelease', () => {
     });
 
     it('should skip publish when steps omits "publish"', async () => {
-      mockLoadReleaseKitConfig.mockReturnValue({ release: { steps: ['version', 'notes'] } });
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { steps: ['notes'] } });
 
       await runRelease(defaultOptions);
 
@@ -469,7 +469,7 @@ describe('runRelease', () => {
     });
 
     it('should not override CLI --skip-notes with steps config', async () => {
-      mockLoadReleaseKitConfig.mockReturnValue({ release: { steps: ['version', 'notes', 'publish'] } });
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { steps: ['notes', 'publish'] } });
 
       const result = await runRelease({ ...defaultOptions, skipNotes: true });
 
