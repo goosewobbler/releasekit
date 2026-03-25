@@ -305,8 +305,12 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         // Template doesn't use ${packageName}, use full format function
         formattedCommitMessage = formatCommitMessage(commitMessage, nextVersion, undefined, undefined);
       } else if (commitPackageName === undefined) {
-        // Template uses ${packageName} but no workspace packages - substitute manually to avoid warning
-        formattedCommitMessage = commitMessage.replace(/\$\{version\}/g, nextVersion).replace(/\$\{packageName\}/g, '');
+        // Template uses ${packageName} but no workspace packages - substitute manually to avoid warning.
+        // Also replace ${scope} to keep parity with formatCommitMessage (no scope available in this path).
+        formattedCommitMessage = commitMessage
+          .replace(/\$\{version\}/g, nextVersion)
+          .replace(/\$\{packageName\}/g, '')
+          .replace(/\$\{scope\}/g, '');
       } else {
         // Normal case with package name
         formattedCommitMessage = formatCommitMessage(commitMessage, nextVersion, commitPackageName, undefined);
