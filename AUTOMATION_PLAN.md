@@ -13,7 +13,7 @@ Future features to enable fully automated release workflows (e.g. commits to mai
 
 ### Config-Driven CI Automation (Feature 5)
 - `ci` section added to `releasekit.config.json` schema (`@releasekit/config`)
-- `releaseStrategy`: `manual` (default) | `direct` | `standing-pr` | `scheduled`
+- `releaseStrategy`: `direct` (default) | `manual` | `standing-pr` | `scheduled`
 - `prPreview`: enable/disable PR preview comments (default: `true`)
 - `autoRelease`, `skipPatterns`, `minChanges` fields for future use
 - `loadCIConfig()` loader function exported from `@releasekit/config`
