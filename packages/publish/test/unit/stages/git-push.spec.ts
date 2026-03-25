@@ -102,9 +102,9 @@ describe('git-push stage', () => {
     await runGitPushStage(ctx);
 
     const calls = vi.mocked(execCommand).mock.calls;
-    // Call order: rev-parse, remote get-url, push branch (authed), push tags (authed)
-    expect(calls[0]?.[1]).toEqual(['rev-parse', '--abbrev-ref', 'HEAD']);
-    expect(calls[1]?.[1]).toEqual(['remote', 'get-url', 'origin']);
+    // Call order: remote get-url, rev-parse (branch detection deferred to commit block), push branch (authed), push tags (authed)
+    expect(calls[0]?.[1]).toEqual(['remote', 'get-url', 'origin']);
+    expect(calls[1]?.[1]).toEqual(['rev-parse', '--abbrev-ref', 'HEAD']);
     expect(calls[2]?.[1]?.[0]).toBe('push');
     expect((calls[2]?.[1] as string[])[1]).toContain('https://x-access-token:gh_test_token@github.com/org/repo.git');
     expect((calls[3]?.[1] as string[])[1]).toContain('https://x-access-token:gh_test_token@github.com/org/repo.git');
@@ -145,9 +145,9 @@ describe('git-push stage', () => {
     await runGitPushStage(ctx);
 
     const calls = vi.mocked(execCommand).mock.calls;
-    // Call order: rev-parse, get-url (authed URL not used for non-GitHub), push branch, push tags
-    expect(calls[0]?.[1]).toEqual(['rev-parse', '--abbrev-ref', 'HEAD']);
-    expect(calls[1]?.[1]).toEqual(['remote', 'get-url', 'origin']);
+    // Call order: get-url, rev-parse (branch detection deferred to commit block), push branch, push tags
+    expect(calls[0]?.[1]).toEqual(['remote', 'get-url', 'origin']);
+    expect(calls[1]?.[1]).toEqual(['rev-parse', '--abbrev-ref', 'HEAD']);
     expect(calls[2]?.[1]).toEqual(['push', 'origin', 'main']);
     expect(calls[3]?.[1]).toEqual(['push', 'origin', '--tags']);
 
@@ -243,9 +243,33 @@ describe('git-push stage', () => {
 
     await runGitPushStage(ctx);
 
-    expect(execCommand).toHaveBeenCalledTimes(2); // rev-parse + push tags
-    expect(vi.mocked(execCommand).mock.calls[0]?.[1]).toEqual(['rev-parse', '--abbrev-ref', 'HEAD']);
-    expect(vi.mocked(execCommand).mock.calls[1]?.[0]).toBe('git');
-    expect(vi.mocked(execCommand).mock.calls[1]?.[1]).toContain('--tags');
+    // Branch resolution (rev-parse) must NOT run — branch is only needed when pushing commits
+    expect(execCommand).toHaveBeenCalledTimes(1); // push tags only
+    expect(vi.mocked(execCommand).mock.calls[0]?.[1]).toContain('--tags');
+    expect(vi.mocked(execCommand).mock.calls.every((c) => !(c[1] as string[]).includes('rev-parse'))).toBe(true);
+  });
+
+  it('should not throw when in detached HEAD state and there are only tags to push', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    vi.mocked(execCommand).mockImplementation(async (_file, args) => {
+      if (Array.isArray(args) && args[0] === 'rev-parse') {
+        return { stdout: 'HEAD\n', stderr: '', exitCode: 0 };
+      }
+      return { stdout: '', stderr: '', exitCode: 0 };
+    });
+
+    const ctx = createContext({
+      output: {
+        dryRun: false,
+        git: { committed: false, tags: ['v1.0.0'], pushed: false },
+        npm: [],
+        cargo: [],
+        verification: [],
+        githubReleases: [],
+      },
+    });
+
+    await expect(runGitPushStage(ctx)).resolves.not.toThrow();
+    expect(ctx.output.git.pushed).toBe(true);
   });
 });

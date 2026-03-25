@@ -38,19 +38,6 @@ export async function runGitPushStage(ctx: PipelineContext): Promise<void> {
 
   const { remote } = config.git;
 
-  // Resolve branch: explicit config/CLI value wins, otherwise detect from current HEAD
-  let branch = config.git.branch;
-  if (!branch) {
-    const revResult = await execCommand('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd, dryRun: false });
-    branch = revResult.stdout.trim();
-    if (branch === 'HEAD') {
-      throw createPublishError(
-        PublishErrorCode.GIT_PUSH_ERROR,
-        'Cannot push: repository is in a detached HEAD state. Set git.branch in your config or pass --branch <name>.',
-      );
-    }
-  }
-
   // Auto-detect push method if needed
   let pushMethod = config.git.pushMethod;
   if (pushMethod === 'auto') {
@@ -77,8 +64,21 @@ export async function runGitPushStage(ctx: PipelineContext): Promise<void> {
       }
     }
 
-    // Push commits
+    // Push commits — branch resolution is deferred to here so a tags-only push
+    // never triggers the detached-HEAD guard unnecessarily.
+    let branch: string | undefined;
     if (output.git.committed) {
+      branch = config.git.branch;
+      if (!branch) {
+        const revResult = await execCommand('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd, dryRun: false });
+        branch = revResult.stdout.trim();
+        if (branch === 'HEAD') {
+          throw createPublishError(
+            PublishErrorCode.GIT_PUSH_ERROR,
+            'Cannot push: repository is in a detached HEAD state. Set git.branch in your config or pass --branch <name>.',
+          );
+        }
+      }
       await execCommand('git', ['push', pushRemote, branch], {
         cwd,
         dryRun,
@@ -97,7 +97,7 @@ export async function runGitPushStage(ctx: PipelineContext): Promise<void> {
 
     ctx.output.git.pushed = true;
     if (!dryRun) {
-      success(`Pushed to ${remote}/${branch}`);
+      success(`Pushed to ${remote}${branch ? `/${branch}` : ''}`);
     }
   } catch (error) {
     throw createPublishError(
