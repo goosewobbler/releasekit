@@ -256,7 +256,11 @@ export const ReleaseCIConfigSchema = z.object({
 });
 
 export const ReleaseConfigSchema = z.object({
-  steps: z.array(z.enum(['version', 'notes', 'publish'])).optional(),
+  /**
+   * Optional steps to enable. The version step always runs; only 'notes' and
+   * 'publish' can be opted out. Omitting a step is equivalent to --skip-<step>.
+   */
+  steps: z.array(z.enum(['notes', 'publish'])).optional(),
   ci: ReleaseCIConfigSchema.optional(),
 });
 
