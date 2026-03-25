@@ -279,6 +279,11 @@ describe('Version Strategies', () => {
     });
 
     it('should not include root in commit message for single-package sync repo', async () => {
+      // Restore template-substituting behaviour so we can observe the rendered message.
+      vi.mocked(formatting.formatCommitMessage).mockImplementation((template, version, packageName) =>
+        template.replace(/\$\{version\}/g, version).replace(/\$\{packageName\}/g, packageName || ''),
+      );
+
       // Simulate a single-package repo where only the root package.json is updated
       const singlePackageRepo = {
         root: '/test/workspace',
@@ -303,6 +308,8 @@ describe('Version Strategies', () => {
         undefined,
         undefined,
       );
+      // Double space from empty ${packageName} should be collapsed
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release v1.1.0 [skip ci]');
     });
 
     it('should exit early if no version change needed', async () => {

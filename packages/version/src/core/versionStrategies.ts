@@ -292,7 +292,11 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         tagTemplate,
         config.packageSpecificTags || false,
       );
-      const formattedCommitMessage = formatCommitMessage(commitMessage, nextVersion, commitPackageName, undefined);
+      // Collapse any runs of whitespace that result from an empty ${packageName} substitution
+      // (e.g. 'chore: release  v1.0.0' → 'chore: release v1.0.0') and trim edges.
+      const formattedCommitMessage = formatCommitMessage(commitMessage, nextVersion, commitPackageName, undefined)
+        .replace(/\s{2,}/g, ' ')
+        .trim();
 
       // Track tag and commit message for JSON output (git ops now handled by publish)
       addTag(nextTag);
