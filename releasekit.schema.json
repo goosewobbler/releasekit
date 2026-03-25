@@ -669,9 +669,9 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["version", "notes", "publish"]
+            "enum": ["notes", "publish"]
           },
-          "description": "Which steps to run by default. Omitting a step is equivalent to --skip-<step>."
+          "description": "Optional steps to enable. The version step always runs; only 'notes' and 'publish' can be opted out. Omitting a step is equivalent to --skip-<step>."
         },
         "ci": {
           "type": "object",
