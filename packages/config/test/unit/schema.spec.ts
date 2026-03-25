@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BranchPatternSchema,
   CargoPublishConfigSchema,
+  CIConfigSchema,
   GitConfigSchema,
   GitHubReleaseConfigSchema,
   LLMCategorySchema,
@@ -12,6 +13,7 @@ import {
   NpmConfigSchema,
   OutputConfigSchema,
   PublishConfigSchema,
+  ReleaseConfigSchema,
   ReleaseKitConfigSchema,
   ScopeConfigSchema,
   ScopeRulesSchema,
@@ -67,7 +69,7 @@ describe('MonorepoConfigSchema', () => {
 });
 
 describe('BranchPatternSchema', () => {
-  it('requires pattern and releaseType', () => {
+  it('should require pattern and releaseType', () => {
     const result = BranchPatternSchema.parse({
       pattern: 'release/*',
       releaseType: 'minor',
@@ -204,7 +206,7 @@ describe('PublishConfigSchema', () => {
 });
 
 describe('OutputConfigSchema', () => {
-  it('requires format', () => {
+  it('should require format', () => {
     const result = OutputConfigSchema.parse({ format: 'markdown' });
     expect(result.format).toBe('markdown');
   });
@@ -237,7 +239,7 @@ describe('OutputConfigSchema', () => {
 });
 
 describe('LLMCategorySchema', () => {
-  it('requires name and description', () => {
+  it('should require name and description', () => {
     const result = LLMCategorySchema.parse({ name: 'New', description: 'New features' });
     expect(result.name).toBe('New');
     expect(result.description).toBe('New features');
@@ -286,7 +288,7 @@ describe('ScopeRulesSchema', () => {
 });
 
 describe('ScopeConfigSchema', () => {
-  it('defaults mode to unrestricted', () => {
+  it('should default mode to unrestricted', () => {
     const result = ScopeConfigSchema.parse({});
     expect(result.mode).toBe('unrestricted');
   });
@@ -349,7 +351,7 @@ describe('LLMPromptsConfigSchema', () => {
 });
 
 describe('LLMConfigSchema', () => {
-  it('requires provider and model', () => {
+  it('should require provider and model', () => {
     const result = LLMConfigSchema.parse({ provider: 'openai', model: 'gpt-4' });
     expect(result.provider).toBe('openai');
     expect(result.model).toBe('gpt-4');
@@ -446,6 +448,112 @@ describe('NotesConfigSchema', () => {
   });
 });
 
+describe('CIConfigSchema', () => {
+  it('applies defaults', () => {
+    const result = CIConfigSchema.parse({});
+    expect(result.releaseStrategy).toBe('direct');
+    expect(result.releaseTrigger).toBe('label');
+    expect(result.prPreview).toBe(true);
+    expect(result.autoRelease).toBe(false);
+    expect(result.skipPatterns).toEqual([]);
+    expect(result.minChanges).toBe(1);
+    expect(result.labels).toEqual({
+      stable: 'release:stable',
+      prerelease: 'release:prerelease',
+      skip: 'release:skip',
+      major: 'release:major',
+      minor: 'release:minor',
+      patch: 'release:patch',
+    });
+  });
+
+  it('accepts valid values', () => {
+    const result = CIConfigSchema.parse({
+      releaseStrategy: 'direct',
+      prPreview: false,
+      autoRelease: true,
+      skipPatterns: ['chore(deps):', 'ci:'],
+      minChanges: 3,
+    });
+    expect(result.releaseStrategy).toBe('direct');
+    expect(result.prPreview).toBe(false);
+    expect(result.autoRelease).toBe(true);
+    expect(result.skipPatterns).toEqual(['chore(deps):', 'ci:']);
+    expect(result.minChanges).toBe(3);
+  });
+
+  it('accepts all releaseStrategy values', () => {
+    for (const strategy of ['manual', 'direct', 'standing-pr', 'scheduled'] as const) {
+      expect(CIConfigSchema.parse({ releaseStrategy: strategy }).releaseStrategy).toBe(strategy);
+    }
+  });
+
+  it('rejects invalid releaseStrategy', () => {
+    expect(() => CIConfigSchema.parse({ releaseStrategy: 'invalid' })).toThrow();
+  });
+
+  it('rejects non-positive minChanges', () => {
+    expect(() => CIConfigSchema.parse({ minChanges: 0 })).toThrow();
+    expect(() => CIConfigSchema.parse({ minChanges: -1 })).toThrow();
+  });
+
+  it('accepts all releaseTrigger values', () => {
+    for (const trigger of ['commit', 'label'] as const) {
+      expect(CIConfigSchema.parse({ releaseTrigger: trigger }).releaseTrigger).toBe(trigger);
+    }
+  });
+
+  it('rejects invalid releaseTrigger', () => {
+    expect(() => CIConfigSchema.parse({ releaseTrigger: 'invalid' })).toThrow();
+  });
+
+  it('accepts custom label names', () => {
+    const result = CIConfigSchema.parse({
+      labels: {
+        stable: 'stable',
+        prerelease: 'pre',
+        skip: 'no-release',
+        major: 'breaking',
+        minor: 'feat',
+        patch: 'fix',
+      },
+    });
+    expect(result.labels.stable).toBe('stable');
+    expect(result.labels.prerelease).toBe('pre');
+    expect(result.labels.skip).toBe('no-release');
+    expect(result.labels.major).toBe('breaking');
+    expect(result.labels.minor).toBe('feat');
+    expect(result.labels.patch).toBe('fix');
+  });
+
+  it('applies label defaults for partial labels config', () => {
+    const result = CIConfigSchema.parse({ labels: { stable: 'custom-stable' } });
+    expect(result.labels.stable).toBe('custom-stable');
+    expect(result.labels.prerelease).toBe('release:prerelease');
+    expect(result.labels.skip).toBe('release:skip');
+    expect(result.labels.major).toBe('release:major');
+    expect(result.labels.minor).toBe('release:minor');
+    expect(result.labels.patch).toBe('release:patch');
+  });
+});
+
+describe('ReleaseConfigSchema', () => {
+  it('should accept valid steps array', () => {
+    expect(ReleaseConfigSchema.parse({ steps: ['notes', 'publish'] }).steps).toEqual(['notes', 'publish']);
+    expect(ReleaseConfigSchema.parse({ steps: ['notes'] }).steps).toEqual(['notes']);
+    expect(ReleaseConfigSchema.parse({ steps: ['publish'] }).steps).toEqual(['publish']);
+  });
+
+  it('should reject an empty steps array', () => {
+    expect(() => ReleaseConfigSchema.parse({ steps: [] })).toThrow();
+  });
+
+  it('should reject steps containing invalid values', () => {
+    expect(() => ReleaseConfigSchema.parse({ steps: ['version'] })).toThrow();
+    expect(() => ReleaseConfigSchema.parse({ steps: ['notes', 'invalid'] })).toThrow();
+  });
+});
+
 describe('ReleaseKitConfigSchema', () => {
   it('should accept empty object', () => {
     const result = ReleaseKitConfigSchema.parse({});
@@ -459,12 +567,15 @@ describe('ReleaseKitConfigSchema', () => {
       version: { preset: 'conventional' },
       publish: { npm: { enabled: true } },
       notes: { updateStrategy: 'prepend' },
+      ci: { prPreview: true, autoRelease: false },
     });
     expect(result.git?.remote).toBe('origin');
     expect(result.monorepo?.mode).toBe('packages');
     expect(result.version?.preset).toBe('conventional');
     expect(result.publish?.npm.enabled).toBe(true);
     expect(result.notes?.updateStrategy).toBe('prepend');
+    expect(result.ci?.prPreview).toBe(true);
+    expect(result.ci?.autoRelease).toBe(false);
   });
 
   it('should reject invalid nested values', () => {

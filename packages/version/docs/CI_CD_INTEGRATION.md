@@ -1,17 +1,17 @@
 # CI/CD Integration
 
-`package-versioner` is designed to work seamlessly in CI/CD pipelines, making it easy to automate versioning as part of your release workflow.
+`releasekit-version` is designed to work seamlessly in CI/CD pipelines, making it easy to automate versioning as part of your release workflow.
 
 ## JSON Output Mode
 
-For programmatic consumption in CI/CD scripts, `package-versioner` provides a structured JSON output option:
+For programmatic consumption in CI/CD scripts, `releasekit-version` provides a structured JSON output option:
 
 ```bash
 # Output results in JSON format
-npx package-versioner --json
+npx releasekit-version --json
 
 # Combine with dry-run for planning
-npx package-versioner --dry-run --json
+npx releasekit-version --dry-run --json
 ```
 
 This will suppress all normal console output and instead output a single JSON object containing:
@@ -58,7 +58,7 @@ The structured JSON output provides several advantages for CI/CD integration:
 
 ## Sample CI/CD Integration Patterns
 
-Here are some common ways to incorporate `package-versioner` into your CI/CD pipeline:
+Here are some common ways to incorporate `releasekit-version` into your CI/CD pipeline:
 
 ### GitHub Actions Workflow Example
 
@@ -77,12 +77,12 @@ jobs:
       new_version: ${{ steps.version.outputs.new_version }}
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Important for git history
       
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
           node-version: '18'
           
@@ -93,7 +93,7 @@ jobs:
         id: version
         run: |
           # Run in JSON mode for parsing
-          VERSION_OUTPUT=$(npx package-versioner --json)
+          VERSION_OUTPUT=$(npx releasekit-version --json)
           echo "Version output: $VERSION_OUTPUT"
           
           # Use jq to parse the JSON output
@@ -127,7 +127,7 @@ determine_version:
   script:
     - npm ci
     - |
-      VERSION_OUTPUT=$(npx package-versioner --json)
+      VERSION_OUTPUT=$(npx releasekit-version --json)
       echo "VERSION_OUTPUT=$VERSION_OUTPUT" >> version.env
       
       # Parse values for use in later stages
@@ -153,7 +153,7 @@ publish:
 
 ## Working with Tags in CI
 
-When using the targeted mode with `-t` flag, `package-versioner` creates package-specific tags (e.g., `@scope/package-a@1.2.0`) but not a global tag. If your release process needs a global tag, you can add a step to your CI/CD pipeline:
+When using the targeted mode with `-t` flag, `releasekit-version` creates package-specific tags (e.g., `@scope/package-a@1.2.0`) but not a global tag. If your release process needs a global tag, you can add a step to your CI/CD pipeline:
 
 ```bash
 # Create a global tag based on the representative version
@@ -164,7 +164,7 @@ git push origin "v$NEW_VERSION"
 
 ## Environment Variables
 
-`package-versioner` respects the following environment variables:
+`releasekit-version` respects the following environment variables:
 
 - `NO_COLOR=1`: Disables colored output in logs (automatically detected in CI environments)
 - `CI=true`: Most CI environments set this automatically, which helps the tool adjust its output behaviour

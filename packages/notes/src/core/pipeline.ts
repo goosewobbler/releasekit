@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { debug, info, success, warn } from '@releasekit/core';
-import { parsePackageVersioner } from '../input/package-versioner.js';
+import { parseVersionOutput } from '../input/version-output.js';
 import { LLM_DEFAULTS } from '../llm/defaults.js';
 import type { LLMProvider } from '../llm/index.js';
 import {
@@ -21,7 +21,9 @@ import type {
   ChangelogInput,
   Config,
   DocumentContext,
+  EnhancedCategory,
   EnhancedData,
+  LLMCategory,
   PackageChangelog,
   TemplateContext,
 } from './types.js';
@@ -53,6 +55,22 @@ function generateCompareUrl(repoUrl: string, from: string, to: string, packageNa
   }
   // GitHub and generic git hosts
   return `${repoUrl}/compare/${fromVersion}...${toVersion}`;
+}
+
+export type RawCategory = { category: string; entries: import('./types.js').ChangelogEntry[] };
+
+export function buildOrderedCategories(
+  rawCategories: RawCategory[],
+  configCategories?: LLMCategory[],
+): EnhancedCategory[] {
+  const order = configCategories?.map((c) => c.name) ?? [];
+  const mapped = rawCategories.map((c) => ({ name: c.category, entries: c.entries }));
+  if (order.length === 0) return mapped;
+  return mapped.sort((a, b) => {
+    const ai = order.indexOf(a.name);
+    const bi = order.indexOf(b.name);
+    return (ai === -1 ? order.length : ai) - (bi === -1 ? order.length : bi);
+  });
 }
 
 export function createTemplateContext(pkg: PackageChangelog): TemplateContext {
@@ -138,10 +156,7 @@ async function processWithLLM(context: TemplateContext, config: Config): Promise
       info('Enhancing and categorizing entries with LLM...');
       const result = await enhanceAndCategorize(provider, context.entries, llmContext);
       enhanced.entries = result.enhancedEntries;
-      enhanced.categories = {};
-      for (const cat of result.categories) {
-        enhanced.categories[cat.category] = cat.entries;
-      }
+      enhanced.categories = buildOrderedCategories(result.categories, llmContext.categories);
       info(`Enhanced ${enhanced.entries.length} entries into ${result.categories.length} categories`);
     } else {
       if (tasks.enhance) {
@@ -153,10 +168,7 @@ async function processWithLLM(context: TemplateContext, config: Config): Promise
       if (tasks.categorize) {
         info('Categorizing entries with LLM...');
         const categorized = await categorizeEntries(provider, enhanced.entries, llmContext);
-        enhanced.categories = {};
-        for (const cat of categorized) {
-          enhanced.categories[cat.category] = cat.entries;
-        }
+        enhanced.categories = buildOrderedCategories(categorized, llmContext.categories);
         info(`Created ${categorized.length} categories`);
       }
     }
@@ -229,10 +241,8 @@ async function generateWithTemplate(
   const result = renderTemplate(templatePath, documentContext, config.templates?.engine);
 
   if (dryRun) {
-    info(`Would write templated output to ${outputPath}`);
-    debug('--- Changelog Preview ---');
-    debug(result.content);
-    debug('--- End Preview ---');
+    info(`[DRY RUN] Changelog preview (would write to ${outputPath}):`);
+    info(result.content);
     return;
   }
 
@@ -376,6 +386,6 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
 }
 
 export async function processInput(inputJson: string, config: Config, dryRun: boolean): Promise<PipelineResult> {
-  const input = parsePackageVersioner(inputJson);
+  const input = parseVersionOutput(inputJson);
   return runPipeline(input, config, dryRun);
 }

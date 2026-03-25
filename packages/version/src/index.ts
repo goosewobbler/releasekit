@@ -8,4 +8,4 @@ export { createVersionError, VersionErrorCode } from './errors/versionError.js';
 export { PackageProcessor } from './package/packageProcessor.js';
 export type { Config, VersionConfigBase } from './types.js';
 export type { JsonOutputData } from './utils/jsonOutput.js';
-export { enableJsonOutput, getJsonData } from './utils/jsonOutput.js';
+export { enableJsonOutput, flushPendingWrites, getJsonData } from './utils/jsonOutput.js';

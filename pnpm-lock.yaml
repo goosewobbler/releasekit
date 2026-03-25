@@ -9,6 +9,9 @@ catalogs:
     '@biomejs/biome':
       specifier: ^2.4.6
       version: 2.4.6
+    '@octokit/rest':
+      specifier: ^22.0.1
+      version: 22.0.1
     '@types/node':
       specifier: ^22.19.15
       version: 22.19.15
@@ -249,6 +252,9 @@ importers:
 
   packages/release:
     dependencies:
+      '@octokit/rest':
+        specifier: 'catalog:'
+        version: 22.0.1
       '@releasekit/notes':
         specifier: workspace:*
         version: link:../notes

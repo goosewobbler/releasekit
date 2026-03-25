@@ -1,7 +1,14 @@
 import * as fs from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigError } from '../../src/errors.js';
-import { loadConfig, loadGitConfig, loadNotesConfig, loadPublishConfig, loadVersionConfig } from '../../src/load.js';
+import {
+  loadCIConfig,
+  loadConfig,
+  loadGitConfig,
+  loadNotesConfig,
+  loadPublishConfig,
+  loadVersionConfig,
+} from '../../src/load.js';
 
 vi.mock('node:fs', () => ({
   existsSync: vi.fn(),
@@ -19,13 +26,13 @@ describe('loadConfig', () => {
     vi.resetModules();
   });
 
-  it('should return empty object when config file does not exist', () => {
+  it('should return an empty object when the config file does not exist', () => {
     mockedFs.existsSync.mockReturnValue(false);
     const result = loadConfig();
     expect(result).toEqual({});
   });
 
-  it('should load and parses valid config file', () => {
+  it('should load and parse a valid config file', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(
       JSON.stringify({
@@ -39,13 +46,13 @@ describe('loadConfig', () => {
     expect(result.version?.preset).toBe('conventional');
   });
 
-  it('should accept custom cwd', () => {
+  it('should accept a custom cwd', () => {
     mockedFs.existsSync.mockReturnValue(false);
     loadConfig({ cwd: '/custom/path' });
     expect(mockedFs.existsSync).toHaveBeenCalledWith('/custom/path/releasekit.config.json');
   });
 
-  it('should accept custom configPath', () => {
+  it('should accept a custom configPath', () => {
     mockedFs.existsSync.mockReturnValue(false);
     loadConfig({ configPath: '/custom/path/my-config.json' });
     expect(mockedFs.existsSync).toHaveBeenCalledWith('/custom/path/my-config.json');
@@ -80,7 +87,7 @@ describe('loadConfig', () => {
     expect(result.git?.remote).toBe('origin');
   });
 
-  it('substitutes environment variables', () => {
+  it('should substitute environment variables', () => {
     vi.stubEnv('TEST_REMOTE', 'test-origin');
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(
@@ -150,7 +157,7 @@ describe('loadPublishConfig', () => {
     expect(result).toBeUndefined();
   });
 
-  it('merges top-level git config with publish git config', () => {
+  it('should merge top-level git config with publish git config', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(
       JSON.stringify({
@@ -166,7 +173,7 @@ describe('loadPublishConfig', () => {
     expect(result?.git?.branch).toBe('release');
   });
 
-  it('uses publish git config when no top-level git config', () => {
+  it('should use publish git config when no top-level git config', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(
       JSON.stringify({
@@ -180,7 +187,7 @@ describe('loadPublishConfig', () => {
     expect(result?.git?.remote).toBe('origin');
   });
 
-  it('inherits skipHooks from top-level git config', () => {
+  it('should inherit skipHooks from top-level git config', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(
       JSON.stringify({
@@ -226,7 +233,7 @@ describe('loadNotesConfig', () => {
     expect(result?.updateStrategy).toBe('regenerate');
   });
 
-  it('should return undefined when no notes config', () => {
+  it('should return undefined when no notes config exists', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue('{}');
 
@@ -254,11 +261,38 @@ describe('loadGitConfig', () => {
     expect(result?.pushMethod).toBe('ssh');
   });
 
-  it('should return undefined when no git config', () => {
+  it('should return undefined when no git config exists', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue('{}');
 
     const result = loadGitConfig();
+    expect(result).toBeUndefined();
+  });
+});
+
+describe('loadCIConfig', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns CI config from loaded config', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(
+      JSON.stringify({
+        ci: { prPreview: false, autoRelease: true },
+      }),
+    );
+
+    const result = loadCIConfig();
+    expect(result?.prPreview).toBe(false);
+    expect(result?.autoRelease).toBe(true);
+  });
+
+  it('returns undefined when no CI config', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue('{}');
+
+    const result = loadCIConfig();
     expect(result).toBeUndefined();
   });
 });

@@ -246,14 +246,65 @@ export const NotesConfigSchema = z.object({
   updateStrategy: z.enum(['prepend', 'regenerate']).default('prepend'),
 });
 
+export const CILabelsConfigSchema = z.object({
+  stable: z.string().default('release:stable'),
+  prerelease: z.string().default('release:prerelease'),
+  skip: z.string().default('release:skip'),
+  major: z.string().default('release:major'),
+  minor: z.string().default('release:minor'),
+  patch: z.string().default('release:patch'),
+});
+
+export const CIConfigSchema = z.object({
+  releaseStrategy: z.enum(['manual', 'direct', 'standing-pr', 'scheduled']).default('direct'),
+  releaseTrigger: z.enum(['commit', 'label']).default('label'),
+  prPreview: z.boolean().default(true),
+  autoRelease: z.boolean().default(false),
+  skipPatterns: z.array(z.string()).default([]),
+  minChanges: z.number().int().positive().default(1),
+  labels: CILabelsConfigSchema.default({
+    stable: 'release:stable',
+    prerelease: 'release:prerelease',
+    skip: 'release:skip',
+    major: 'release:major',
+    minor: 'release:minor',
+    patch: 'release:patch',
+  }),
+});
+
+export const ReleaseCIConfigSchema = z.object({
+  skipPatterns: z.array(z.string().min(1)).optional(),
+  minChanges: z.number().int().positive().optional(),
+  /** Set to `false` to disable GitHub release creation in CI. */
+  githubRelease: z.literal(false).optional(),
+  /** Set to `false` to disable changelog generation in CI. */
+  notes: z.literal(false).optional(),
+});
+
+export const ReleaseConfigSchema = z.object({
+  /**
+   * Optional steps to enable. The version step always runs; only 'notes' and
+   * 'publish' can be opted out. Omitting a step is equivalent to --skip-<step>.
+   */
+  steps: z
+    .array(z.enum(['notes', 'publish']))
+    .min(1)
+    .optional(),
+  ci: ReleaseCIConfigSchema.optional(),
+});
+
 export const ReleaseKitConfigSchema = z.object({
   git: GitConfigSchema.optional(),
   monorepo: MonorepoConfigSchema.optional(),
   version: VersionConfigSchema.optional(),
   publish: PublishConfigSchema.optional(),
   notes: NotesConfigSchema.optional(),
+  ci: CIConfigSchema.optional(),
+  release: ReleaseConfigSchema.optional(),
 });
 
+export type CIConfig = z.infer<typeof CIConfigSchema>;
+export type CILabelsConfig = z.infer<typeof CILabelsConfigSchema>;
 export type GitConfig = z.infer<typeof GitConfigSchema>;
 export type MonorepoConfig = z.infer<typeof MonorepoConfigSchema>;
 export type VersionConfig = z.infer<typeof VersionConfigSchema>;
@@ -273,4 +324,6 @@ export type LLMPromptOverrides = z.infer<typeof LLMPromptOverridesSchema>;
 export type LLMPromptsConfig = z.infer<typeof LLMPromptsConfigSchema>;
 export type TemplateConfig = z.infer<typeof TemplateConfigSchema>;
 export type NotesConfig = z.infer<typeof NotesConfigSchema>;
+export type ReleaseCIConfig = z.infer<typeof ReleaseCIConfigSchema>;
+export type ReleaseConfig = z.infer<typeof ReleaseConfigSchema>;
 export type ReleaseKitConfig = z.infer<typeof ReleaseKitConfigSchema>;

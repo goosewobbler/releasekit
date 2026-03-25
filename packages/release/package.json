@@ -1,6 +1,6 @@
 {
   "name": "@releasekit/release",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Unified release pipeline: version, changelog, and publish in a single command",
   "type": "module",
   "module": "./dist/index.js",
@@ -14,7 +14,8 @@
     }
   },
   "bin": {
-    "releasekit": "dist/cli.js"
+    "releasekit": "dist/dispatcher.js",
+    "releasekit-release": "dist/cli.js"
   },
   "scripts": {
     "build": "tsup",
@@ -42,6 +43,7 @@
     "access": "public"
   },
   "dependencies": {
+    "@octokit/rest": "catalog:",
     "@releasekit/notes": "workspace:*",
     "@releasekit/publish": "workspace:*",
     "@releasekit/version": "workspace:*",

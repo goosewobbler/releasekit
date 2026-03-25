@@ -1,22 +1,96 @@
+import { execSync } from 'node:child_process';
+import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput } from '@releasekit/core';
-import { info, setJsonMode, setLogLevel, setQuietMode, success } from '@releasekit/core';
+import { error, info, setJsonMode, setLogLevel, setQuietMode, success } from '@releasekit/core';
 import type { ReleaseType } from 'semver';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
 
-export async function runRelease(options: ReleaseOptions): Promise<ReleaseOutput | null> {
+function getHeadCommitMessage(cwd?: string): string | null {
+  try {
+    return execSync('git log -1 --pretty=%s', { encoding: 'utf-8', cwd }).trim();
+  } catch {
+    return null;
+  }
+}
+
+export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseOutput | null> {
+  // Work on a copy so config-driven overrides never mutate the caller's object
+  const options = { ...inputOptions };
+
   if (options.verbose) setLogLevel('debug');
   if (options.quiet) setQuietMode(true);
   if (options.json) setJsonMode(true);
 
+  // Load release config for automation behavior
+  let releaseKitConfig: ReturnType<typeof loadReleaseKitConfig>;
+  try {
+    releaseKitConfig = loadReleaseKitConfig({ cwd: options.projectDir, configPath: options.config });
+  } catch (err) {
+    error(`Failed to load release config: ${err instanceof Error ? err.message : String(err)}`);
+    throw err;
+  }
+  const releaseConfig = releaseKitConfig.release;
+
+  // Apply skipPatterns: exit early if HEAD commit matches a skip pattern
+  if (releaseConfig?.ci?.skipPatterns?.length) {
+    const headCommit = getHeadCommitMessage(options.projectDir);
+    if (headCommit) {
+      const matchedPattern = releaseConfig.ci.skipPatterns.find((p) => headCommit.startsWith(p));
+      if (matchedPattern) {
+        info(`Skipping release: commit message matches skip pattern "${matchedPattern}"`);
+        return null;
+      }
+    }
+  }
+
+  // Apply steps config: absent steps become skipped (CLI --skip-* flags still win)
+  if (releaseConfig?.steps) {
+    if (!releaseConfig.steps.includes('notes') && !options.skipNotes) {
+      options.skipNotes = true;
+    }
+    if (!releaseConfig.steps.includes('publish') && !options.skipPublish) {
+      options.skipPublish = true;
+    }
+  }
+
+  // Apply ci overrides — these take final precedence and can suppress a step
+  // even when it appears in the 'steps' array. Priority order: CLI > ci > steps.
+  if (releaseConfig?.ci?.notes === false && !options.skipNotes) {
+    options.skipNotes = true;
+  }
+  if (releaseConfig?.ci?.githubRelease === false && !options.skipGithubRelease) {
+    options.skipGithubRelease = true;
+  }
+
   // --- Step 1: Version ---
-  // Writes version bumps to disk but does NOT commit or tag.
-  // Git operations are handled by the publish step's git-commit stage.
+  // Always run the version engine with dryRun:true so no files are written yet.
+  // File writes are captured as pending writes instead of going to disk, allowing
+  // all early-exit guards to be evaluated before the repository is modified.
   info('Running version analysis...');
-  const versionOutput = await runVersionStep(options);
+  const versionOutput = await runVersionStep({ ...options, dryRun: true });
+  // The preflight always runs with dryRun:true, so _jsonData.dryRun is always
+  // true in the snapshot. Restore the caller's actual intent before forwarding
+  // to downstream steps (notes, publish) that inspect this flag.
+  versionOutput.dryRun = options.dryRun ?? false;
 
   if (versionOutput.updates.length === 0) {
     info('No releasable changes found');
     return null;
+  }
+
+  // Apply minChanges threshold before modifying any files
+  if (releaseConfig?.ci?.minChanges !== undefined && versionOutput.updates.length < releaseConfig.ci.minChanges) {
+    info(
+      `Skipping release: ${versionOutput.updates.length} package(s) to update, minimum is ${releaseConfig.ci.minChanges}`,
+    );
+    return null;
+  }
+
+  // All guards passed. For a real (non-dry) run, flush the pending writes captured
+  // during the dryRun pass above so version bumps land on disk exactly once.
+  if (!options.dryRun) {
+    const { flushPendingWrites } = await import('@releasekit/version');
+    flushPendingWrites();
   }
 
   info(`Found ${versionOutput.updates.length} package update(s)`);
@@ -46,7 +120,7 @@ export async function runRelease(options: ReleaseOptions): Promise<ReleaseOutput
     success('Publish complete');
   }
 
-  return { versionOutput, notesGenerated, publishOutput };
+  return { versionOutput, notesGenerated, packageNotes, publishOutput };
 }
 
 async function runVersionStep(options: ReleaseOptions): Promise<VersionOutput> {
@@ -97,7 +171,7 @@ interface NotesStepResult {
 }
 
 async function runNotesStep(versionOutput: VersionOutput, options: ReleaseOptions): Promise<NotesStepResult> {
-  const { parsePackageVersioner, runPipeline, loadConfig, getDefaultConfig } = await import('@releasekit/notes');
+  const { parseVersionOutput, runPipeline, loadConfig, getDefaultConfig } = await import('@releasekit/notes');
 
   const config = loadConfig(options.projectDir, options.config);
 
@@ -105,7 +179,7 @@ async function runNotesStep(versionOutput: VersionOutput, options: ReleaseOption
     config.output = getDefaultConfig().output;
   }
 
-  const input = parsePackageVersioner(JSON.stringify(versionOutput));
+  const input = parseVersionOutput(JSON.stringify(versionOutput));
   const result = await runPipeline(input, config, options.dryRun);
 
   return { packageNotes: result.packageNotes, files: result.files };
@@ -120,6 +194,10 @@ async function runPublishStep(
   const { runPipeline, loadConfig } = await import('@releasekit/publish');
 
   const config = loadConfig({ configPath: options.config });
+
+  if (options.branch) {
+    config.git.branch = options.branch;
+  }
 
   const publishOptions = {
     dryRun: options.dryRun,

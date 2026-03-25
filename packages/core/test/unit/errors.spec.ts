@@ -12,7 +12,7 @@ class TestError extends ReleaseKitError {
 }
 
 describe('ReleaseKitError', () => {
-  it('extends Error', () => {
+  it('should extend Error', () => {
     const error = new TestError('Test message');
     expect(error).toBeInstanceOf(Error);
   });
@@ -27,12 +27,12 @@ describe('ReleaseKitError', () => {
     expect(error.message).toBe('Something went wrong');
   });
 
-  it('has code property', () => {
+  it('should have code property', () => {
     const error = new TestError('Test message');
     expect(error.code).toBe('TEST_ERROR');
   });
 
-  it('has suggestions array', () => {
+  it('should have suggestions array', () => {
     const error = new TestError('Test message');
     expect(error.suggestions).toEqual(['Try this', 'Or try that']);
   });
@@ -42,7 +42,7 @@ describe('ReleaseKitError', () => {
     expect(error.suggestions).toEqual(['Custom suggestion']);
   });
 
-  it('has default empty suggestions', () => {
+  it('should have default empty suggestions', () => {
     const error = new (class extends ReleaseKitError {
       readonly code = 'CODE';
       readonly suggestions: string[] = [];
@@ -50,86 +50,90 @@ describe('ReleaseKitError', () => {
     expect(error.suggestions).toEqual([]);
   });
 
-  it('logError logs message and suggestions', () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  describe('logError', () => {
+    it('should log message and suggestions', () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    const error = new TestError('Test message', ['Suggestion 1', 'Suggestion 2']);
-    error.logError();
+      const error = new TestError('Test message', ['Suggestion 1', 'Suggestion 2']);
+      error.logError();
 
-    // error message + "Suggested solutions:" + 2 suggestions = 4 calls
-    expect(consoleSpy.mock.calls.length).toBeGreaterThanOrEqual(4);
+      // error message + "Suggested solutions:" + 2 suggestions = 4 calls
+      expect(consoleSpy.mock.calls.length).toBeGreaterThanOrEqual(4);
 
-    consoleSpy.mockRestore();
+      consoleSpy.mockRestore();
+    });
+
+    it('should handle empty suggestions gracefully', () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const error = new TestError('Test message', []);
+      error.logError();
+
+      // Only the error message, no suggestions
+      expect(consoleSpy).toHaveBeenCalledTimes(1);
+
+      consoleSpy.mockRestore();
+    });
   });
 
-  it('logError handles empty suggestions gracefully', () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  describe('isReleaseKitError', () => {
+    it('should return true for ReleaseKitError', () => {
+      const error = new TestError('Test');
+      expect(ReleaseKitError.isReleaseKitError(error)).toBe(true);
+    });
 
-    const error = new TestError('Test message', []);
-    error.logError();
+    it('should return false for regular Error', () => {
+      const error = new Error('Test');
+      expect(ReleaseKitError.isReleaseKitError(error)).toBe(false);
+    });
 
-    // Only the error message, no suggestions
-    expect(consoleSpy).toHaveBeenCalledTimes(1);
-
-    consoleSpy.mockRestore();
-  });
-
-  it('isReleaseKitError returns true for ReleaseKitError', () => {
-    const error = new TestError('Test');
-    expect(ReleaseKitError.isReleaseKitError(error)).toBe(true);
-  });
-
-  it('isReleaseKitError returns false for regular Error', () => {
-    const error = new Error('Test');
-    expect(ReleaseKitError.isReleaseKitError(error)).toBe(false);
-  });
-
-  it('isReleaseKitError returns false for non-error values', () => {
-    expect(ReleaseKitError.isReleaseKitError(null)).toBe(false);
-    expect(ReleaseKitError.isReleaseKitError(undefined)).toBe(false);
-    expect(ReleaseKitError.isReleaseKitError('error')).toBe(false);
-    expect(ReleaseKitError.isReleaseKitError({})).toBe(false);
+    it('should return false for non-error values', () => {
+      expect(ReleaseKitError.isReleaseKitError(null)).toBe(false);
+      expect(ReleaseKitError.isReleaseKitError(undefined)).toBe(false);
+      expect(ReleaseKitError.isReleaseKitError('error')).toBe(false);
+      expect(ReleaseKitError.isReleaseKitError({})).toBe(false);
+    });
   });
 });
 
 describe('EXIT_CODES', () => {
-  it('has SUCCESS code 0', () => {
+  it('should have SUCCESS code 0', () => {
     expect(EXIT_CODES.SUCCESS).toBe(0);
   });
 
-  it('has GENERAL_ERROR code 1', () => {
+  it('should have GENERAL_ERROR code 1', () => {
     expect(EXIT_CODES.GENERAL_ERROR).toBe(1);
   });
 
-  it('has CONFIG_ERROR code 2', () => {
+  it('should have CONFIG_ERROR code 2', () => {
     expect(EXIT_CODES.CONFIG_ERROR).toBe(2);
   });
 
-  it('has INPUT_ERROR code 3', () => {
+  it('should have INPUT_ERROR code 3', () => {
     expect(EXIT_CODES.INPUT_ERROR).toBe(3);
   });
 
-  it('has TEMPLATE_ERROR code 4', () => {
+  it('should have TEMPLATE_ERROR code 4', () => {
     expect(EXIT_CODES.TEMPLATE_ERROR).toBe(4);
   });
 
-  it('has LLM_ERROR code 5', () => {
+  it('should have LLM_ERROR code 5', () => {
     expect(EXIT_CODES.LLM_ERROR).toBe(5);
   });
 
-  it('has GITHUB_ERROR code 6', () => {
+  it('should have GITHUB_ERROR code 6', () => {
     expect(EXIT_CODES.GITHUB_ERROR).toBe(6);
   });
 
-  it('has GIT_ERROR code 7', () => {
+  it('should have GIT_ERROR code 7', () => {
     expect(EXIT_CODES.GIT_ERROR).toBe(7);
   });
 
-  it('has VERSION_ERROR code 8', () => {
+  it('should have VERSION_ERROR code 8', () => {
     expect(EXIT_CODES.VERSION_ERROR).toBe(8);
   });
 
-  it('has PUBLISH_ERROR code 9', () => {
+  it('should have PUBLISH_ERROR code 9', () => {
     expect(EXIT_CODES.PUBLISH_ERROR).toBe(9);
   });
 });

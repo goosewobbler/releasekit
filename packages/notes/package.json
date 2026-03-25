@@ -1,6 +1,6 @@
 {
   "name": "@releasekit/notes",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Release notes and changelog generation with LLM-powered enhancement and flexible templating",
   "type": "module",
   "module": "./dist/index.js",
@@ -10,6 +10,12 @@
       "import": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
+      }
+    },
+    "./cli": {
+      "import": {
+        "types": "./dist/cli.d.ts",
+        "default": "./dist/cli.js"
       }
     }
   },

@@ -173,7 +173,7 @@ describe('tagsAndBranches', () => {
 
       expect(log).toHaveBeenCalledWith('Found 1 package tags using pattern: vpackageName@...', 'debug');
 
-      expect(log).toHaveBeenCalledWith('Using semantically latest tag: vtest-package@1.0.0', 'debug');
+      expect(log).toHaveBeenCalledWith('Using most recently created tag: vtest-package@1.0.0', 'debug');
     });
 
     it('should find tag in format packageName@version when no prefix is provided', async () => {
@@ -235,7 +235,12 @@ describe('tagsAndBranches', () => {
 
     it('should log error and return empty string if getting tags fails', async () => {
       vi.mocked(execSync, { partial: true }).mockImplementation((command: any, ..._args: any[]) => {
-        if (Array.isArray(command) && command[0] === 'git' && command[1] === 'tag' && command[2] === '-l') {
+        if (
+          Array.isArray(command) &&
+          command[0] === 'git' &&
+          command[1] === 'tag' &&
+          command[2] === '--sort=-creatordate'
+        ) {
           throw new Error('No names found');
         }
         throw new Error(`Unexpected command: ${Array.isArray(command) ? command.join(' ') : command}`);
@@ -248,7 +253,12 @@ describe('tagsAndBranches', () => {
 
     it('should handle non-standard error without Error instance', async () => {
       vi.mocked(execSync, { partial: true }).mockImplementation((command: any, ..._args: any[]) => {
-        if (Array.isArray(command) && command[0] === 'git' && command[1] === 'tag' && command[2] === '-l') {
+        if (
+          Array.isArray(command) &&
+          command[0] === 'git' &&
+          command[1] === 'tag' &&
+          command[2] === '--sort=-creatordate'
+        ) {
           throw 'String error';
         }
         throw new Error(`Unexpected command: ${Array.isArray(command) ? command.join(' ') : command}`);
@@ -427,55 +437,50 @@ describe('tagsAndBranches', () => {
       });
     });
 
-    describe('getLatestTagForPackage with semantic ordering', () => {
+    describe('getLatestTagForPackage with chronological ordering', () => {
       beforeEach(() => {
         vi.resetAllMocks();
       });
 
-      it('should return semantically latest package tag when misordered chronologically', async () => {
+      it('should return the most recently created package tag (first in list)', async () => {
+        // mockGitTags simulates git --sort=-creatordate: first = most recently created
         mockGitTags(['test-package@v1.0.5', 'test-package@v1.2.0', 'test-package@v1.1.0', 'other-package@v2.0.0']);
 
         const result = await getLatestTagForPackage('test-package', 'v', {
           packageSpecificTags: true,
         });
 
-        expect(result).toBe('test-package@v1.2.0');
-        expect(log).toHaveBeenCalledWith('Using semantically latest tag: test-package@v1.2.0', 'debug');
+        // Returns first matching tag (most recently created), not semver-highest
+        expect(result).toBe('test-package@v1.0.5');
+        expect(log).toHaveBeenCalledWith('Using most recently created tag: test-package@v1.0.5', 'debug');
       });
 
-      it('should handle package prerelease vs stable semantic ordering', async () => {
-        mockGitTags(['test-package@v1.0.0-rc.1', 'test-package@v1.0.0', 'test-package@v1.0.0-beta.1']);
+      it('should prefer stable patch release created after a prerelease', async () => {
+        // Simulates the real scenario: v0.3.0-next.4 was created first (prerelease track),
+        // then v0.2.1 stable patch was released later — git puts v0.2.1 first.
+        mockGitTags(['test-package@v0.2.1', 'test-package@v0.3.0-next.4', 'test-package@v0.3.0-next.3']);
 
         const result = await getLatestTagForPackage('test-package', 'v', {
           packageSpecificTags: true,
         });
 
-        expect(result).toBe('test-package@v1.0.0');
+        expect(result).toBe('test-package@v0.2.1');
+        expect(log).toHaveBeenCalledWith('Using most recently created tag: test-package@v0.2.1', 'debug');
       });
 
-      it('should handle package patch version ordering', async () => {
-        mockGitTags(['test-package@v1.0.2', 'test-package@v1.0.10', 'test-package@v1.0.9']);
-
-        const result = await getLatestTagForPackage('test-package', 'v', {
-          packageSpecificTags: true,
-        });
-
-        expect(result).toBe('test-package@v1.0.10');
-      });
-
-      it('should apply semantic ordering to versionPrefix+packageName@version format', async () => {
-        mockGitTags(['vtest-package@1.0.5', 'vtest-package@1.2.0', 'vother-package@2.0.0']);
+      it('should return the most recently created tag for versionPrefix+packageName format', async () => {
+        mockGitTags(['vtest-package@1.2.0', 'vtest-package@1.0.5', 'vother-package@2.0.0']);
 
         const result = await getLatestTagForPackage('test-package', 'v', {
           packageSpecificTags: true,
         });
 
         expect(result).toBe('vtest-package@1.2.0');
-        expect(log).toHaveBeenCalledWith('Using semantically latest tag: vtest-package@1.2.0', 'debug');
+        expect(log).toHaveBeenCalledWith('Using most recently created tag: vtest-package@1.2.0', 'debug');
       });
 
-      it('should apply semantic ordering to packageName@version format (no prefix)', async () => {
-        mockGitTags(['test-package@0.9.0', 'test-package@1.0.0', 'test-package@0.10.5']);
+      it('should return the most recently created tag for packageName@version format (no prefix)', async () => {
+        mockGitTags(['test-package@1.0.0', 'test-package@0.9.0', 'test-package@0.10.5']);
 
         const result = await getLatestTagForPackage('test-package', undefined, {
           packageSpecificTags: true,
@@ -484,8 +489,8 @@ describe('tagsAndBranches', () => {
         expect(result).toBe('test-package@1.0.0');
       });
 
-      it('should handle semantic ordering with fallback pattern', async () => {
-        mockGitTags(['my-package@release-1.0.5', 'my-package@release-2.0.0', 'my-package@release-1.9.0']);
+      it('should return most recently created tag for custom prefix fallback pattern', async () => {
+        mockGitTags(['my-package@release-2.0.0', 'my-package@release-1.9.0', 'my-package@release-1.0.5']);
 
         const result = await getLatestTagForPackage('my-package', 'release-', {
           packageSpecificTags: true,
@@ -493,10 +498,10 @@ describe('tagsAndBranches', () => {
 
         expect(result).toBe('my-package@release-2.0.0');
         expect(log).toHaveBeenCalledWith('Found 3 package tags using pattern: packageName@release-...', 'debug');
-        expect(log).toHaveBeenCalledWith('Using semantically latest tag: my-package@release-2.0.0', 'debug');
+        expect(log).toHaveBeenCalledWith('Using most recently created tag: my-package@release-2.0.0', 'debug');
       });
 
-      it('should not log ordering difference when semantic and chronological match', async () => {
+      it('should return first matching tag regardless of version ordering', async () => {
         mockGitTags(['test-package@v1.2.0', 'test-package@v1.1.0', 'test-package@v1.0.0']);
 
         const result = await getLatestTagForPackage('test-package', 'v', {
@@ -504,7 +509,6 @@ describe('tagsAndBranches', () => {
         });
 
         expect(result).toBe('test-package@v1.2.0');
-        expect(log).not.toHaveBeenCalledWith(expect.stringContaining('Package tag ordering differs'), 'debug');
       });
     });
 
@@ -653,11 +657,12 @@ describe('tagsAndBranches', () => {
         expect(log).toHaveBeenCalledWith('Using semantic latest (v0.8.0) to handle out-of-order tag creation', 'info');
       });
 
-      it('should handle package-specific tags with complex version prefixes correctly', async () => {
+      it('should return most recently created package tag for complex version prefixes', async () => {
+        // Most recently created tag first (git --sort=-creatordate order)
         mockGitTags([
-          'frontend@release-1.0.5',
           'frontend@release-2.1.0',
           'frontend@release-1.9.0',
+          'frontend@release-1.0.5',
           'backend@release-3.0.0',
         ]);
 
@@ -666,29 +671,30 @@ describe('tagsAndBranches', () => {
         });
 
         expect(result).toBe('frontend@release-2.1.0');
-        expect(log).toHaveBeenCalledWith('Using semantically latest tag: frontend@release-2.1.0', 'debug');
+        expect(log).toHaveBeenCalledWith('Using most recently created tag: frontend@release-2.1.0', 'debug');
       });
 
-      it('should handle mixed prefix and no-prefix scenarios', async () => {
-        mockGitTags(['api@1.0.5', 'api@1.2.0', 'other@v2.0.0']);
+      it('should return most recently created tag for mixed prefix scenarios', async () => {
+        mockGitTags(['api@1.2.0', 'api@1.0.5', 'other@v2.0.0']);
 
         const result = await getLatestTagForPackage('api', undefined, {
           packageSpecificTags: true,
         });
 
         expect(result).toBe('api@1.2.0');
-        expect(log).toHaveBeenCalledWith('Using semantically latest tag: api@1.2.0', 'debug');
+        expect(log).toHaveBeenCalledWith('Using most recently created tag: api@1.2.0', 'debug');
       });
 
-      it('should gracefully handle malformed version tags in semantic sorting', async () => {
-        mockGitTags(['pkg@invalid-version', 'pkg@1.0.0', 'pkg@not-a-version']);
+      it('should return most recently created tag even when some tags have malformed versions', async () => {
+        // Most recently created is first — even if it has a non-semver version string
+        mockGitTags(['pkg@1.0.0', 'pkg@invalid-version', 'pkg@not-a-version']);
 
         const result = await getLatestTagForPackage('pkg', undefined, {
           packageSpecificTags: true,
         });
 
         expect(result).toBe('pkg@1.0.0');
-        expect(log).toHaveBeenCalledWith('Using semantically latest tag: pkg@1.0.0', 'debug');
+        expect(log).toHaveBeenCalledWith('Using most recently created tag: pkg@1.0.0', 'debug');
       });
 
       it('should maintain chronological order when semantic versions are identical', async () => {
