@@ -51,6 +51,15 @@ describe('resolvePreviewContext', () => {
     expect(mockedFs.readFileSync).toHaveBeenCalledWith(eventPath, 'utf-8');
   });
 
+  it('falls through to error on malformed JSON in event payload', () => {
+    const eventPath = '/tmp/event.json';
+    vi.stubEnv('GITHUB_EVENT_PATH', eventPath);
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue('not valid json{');
+
+    expect(() => resolvePreviewContext({})).toThrow('Could not determine PR number');
+  });
+
   it('auto-detects repo from GITHUB_REPOSITORY', () => {
     vi.stubEnv('GITHUB_REPOSITORY', 'goosewobbler/releasekit');
 

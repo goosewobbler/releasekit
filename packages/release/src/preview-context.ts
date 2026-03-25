@@ -34,9 +34,13 @@ function resolvePRNumber(cliValue?: string): number {
   // Auto-detect from GitHub Actions event payload
   const eventPath = process.env.GITHUB_EVENT_PATH;
   if (eventPath && fs.existsSync(eventPath)) {
-    const event = JSON.parse(fs.readFileSync(eventPath, 'utf-8'));
-    if (event.pull_request?.number) {
-      return event.pull_request.number;
+    try {
+      const event = JSON.parse(fs.readFileSync(eventPath, 'utf-8'));
+      if (event.pull_request?.number) {
+        return event.pull_request.number;
+      }
+    } catch {
+      // Ignore malformed JSON and fall through to error
     }
   }
 
