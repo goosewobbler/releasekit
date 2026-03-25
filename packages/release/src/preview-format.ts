@@ -105,9 +105,7 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
     // No changes or noBumpLabel — simple collapsed comment
     lines.push('<details>', '<summary><b>Release Preview</b> — no release</summary>', '');
     lines.push(...banner);
-    if (labelContext?.noBumpLabel) {
-      // noBumpLabel already has its own message in the banner
-    } else {
+    if (!labelContext?.noBumpLabel) {
       lines.push('> [!NOTE]', getNoChangesMessage(strategy));
     }
     lines.push('', '---', FOOTER, '</details>');

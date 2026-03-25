@@ -57,38 +57,39 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
 
   const strategy = ciConfig?.releaseStrategy ?? 'direct';
 
-  // Label mode with no bump label — skip entirely, no comment posted
-  if (labelContext.noBumpLabel) {
-    info('No release label detected — skipping preview');
-    return;
+  // Run version analysis unless in label mode with no bump label. When no
+  // bump label is present, skip the analysis but still format and post/print
+  // the comment so the PR receives an actionable "add a label" note.
+  let result = null;
+  if (!labelContext.noBumpLabel) {
+    // Determine prerelease mode
+    const releaseConfig = loadConfig({ cwd: effectiveOptions.projectDir, configPath: effectiveOptions.config });
+    const prereleaseFlag = resolvePrerelease(
+      effectiveOptions,
+      releaseConfig.version?.packages ?? [],
+      effectiveOptions.projectDir,
+    );
+
+    info('Analyzing release...');
+    result = await runRelease({
+      config: effectiveOptions.config,
+      dryRun: true,
+      sync: false,
+      bump: effectiveOptions.bump,
+      prerelease: prereleaseFlag,
+      skipNotes: true,
+      skipPublish: true,
+      skipGit: true,
+      skipGithubRelease: true,
+      skipVerification: true,
+      json: false,
+      verbose: false,
+      quiet: true,
+      projectDir: effectiveOptions.projectDir,
+    });
+  } else {
+    info('No release label detected — skipping version analysis');
   }
-
-  // Determine prerelease mode
-  const releaseConfig = loadConfig({ cwd: effectiveOptions.projectDir, configPath: effectiveOptions.config });
-  const prereleaseFlag = resolvePrerelease(
-    effectiveOptions,
-    releaseConfig.version?.packages ?? [],
-    effectiveOptions.projectDir,
-  );
-
-  // Run a release dry-run to get the preview data
-  info('Analyzing release...');
-  const result = await runRelease({
-    config: effectiveOptions.config,
-    dryRun: true,
-    sync: false,
-    bump: effectiveOptions.bump,
-    prerelease: prereleaseFlag,
-    skipNotes: true,
-    skipPublish: true,
-    skipGit: true,
-    skipGithubRelease: true,
-    skipVerification: true,
-    json: false,
-    verbose: false,
-    quiet: true,
-    projectDir: effectiveOptions.projectDir,
-  });
 
   // Format the comment
   const commentBody = formatPreviewComment(result, { strategy, labelContext });

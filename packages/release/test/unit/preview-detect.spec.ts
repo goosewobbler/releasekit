@@ -37,6 +37,18 @@ describe('parsePrerelease', () => {
   it('returns false for empty string', () => {
     expect(parsePrerelease('')).toEqual({ isPrerelease: false });
   });
+
+  it('detects purely numeric prerelease identifier', () => {
+    expect(parsePrerelease('1.0.0-0')).toEqual({ isPrerelease: true, identifier: '0' });
+  });
+
+  it('detects numeric prerelease with build metadata', () => {
+    expect(parsePrerelease('2.0.0-20240101')).toEqual({ isPrerelease: true, identifier: '20240101' });
+  });
+
+  it('detects alphanumeric prerelease identifier', () => {
+    expect(parsePrerelease('1.0.0-rc1')).toEqual({ isPrerelease: true, identifier: 'rc1' });
+  });
 });
 
 describe('detectPrerelease', () => {
