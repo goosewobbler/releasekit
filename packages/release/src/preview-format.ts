@@ -94,7 +94,7 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
 }
 
 export function formatPreviewComment(result: ReleaseOutput | null, options?: FormatOptions): string {
-  const strategy = options?.strategy ?? 'manual';
+  const strategy = options?.strategy ?? 'direct';
   const labelContext = options?.labelContext;
   const lines: string[] = [MARKER, ''];
 

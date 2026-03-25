@@ -119,9 +119,9 @@ describe('formatPreviewComment', () => {
   // --- Strategy-specific messaging ---
 
   describe('release strategy messaging', () => {
-    it('uses manual intro by default', () => {
+    it('uses direct intro by default', () => {
       const result = formatPreviewComment(releaseOutput);
-      expect(result).toContain('If released, this PR would include:');
+      expect(result).toContain('This PR will trigger the following release when merged:');
     });
 
     it('uses manual intro when strategy is manual', () => {
@@ -151,10 +151,9 @@ describe('formatPreviewComment', () => {
 
     // No-changes messages per strategy
 
-    it('shows manual no-changes message by default', () => {
+    it('shows direct no-changes message by default', () => {
       const result = formatPreviewComment(null);
-      expect(result).toContain('> No releasable changes detected.');
-      expect(result).not.toContain('will not trigger');
+      expect(result).toContain('Merging this PR will not trigger a release');
     });
 
     it('shows direct no-changes message', () => {
