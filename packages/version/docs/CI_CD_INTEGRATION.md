@@ -39,7 +39,7 @@ This will suppress all normal console output and instead output a single JSON ob
       ]
     }
   ],
-  "commitMessage": "chore(release): v1.2.3", // The commit message that was used
+  "commitMessage": "chore: release v1.2.3", // The commit message that was used
   "tags": [                                  // Array of tags that were created
     "v1.2.3"                                 // or package-specific tags in targeted mode
   ]
@@ -175,7 +175,7 @@ If you want to prevent additional CI runs when version commits are made, you can
 
 ```json
 {
-  "commitMessage": "chore(release): ${version} [skip ci]",
+  "commitMessage": "chore: release ${version} [skip ci]",
   // other configuration options...
 }
 ```

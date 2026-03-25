@@ -84,7 +84,7 @@ When using `--json`, the tool outputs structured data including version bumps an
       ]
     }
   ],
-  "commitMessage": "chore(release): v1.2.3",
+  "commitMessage": "chore: release v1.2.3",
   "tags": ["v1.2.3"]
 }
 ```
@@ -101,7 +101,7 @@ Configure via `releasekit.config.json`:
     "preset": "conventionalcommits",
     "versionPrefix": "v",
     "tagTemplate": "${prefix}${version}",
-    "commitMessage": "chore(release): v${version}",
+    "commitMessage": "chore: release v${version}",
     "sync": true,
     "packages": ["@mycompany/*"],
     "skip": ["docs", "e2e"],
@@ -123,7 +123,7 @@ Configure via `releasekit.config.json`:
 | `preset` | Conventional commits preset | `"conventionalcommits"` |
 | `versionPrefix` | Tag version prefix | `"v"` |
 | `tagTemplate` | Git tag template | `"${prefix}${version}"` |
-| `commitMessage` | Commit message template | `"chore(release): ${version}"` |
+| `commitMessage` | Commit message template | `"chore: release ${version}"` |
 | `sync` | Version all packages together | `false` |
 | `packages` | Package name patterns to include | all |
 | `skip` | Package name patterns to exclude | `[]` |
