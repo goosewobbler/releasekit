@@ -273,13 +273,17 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       // Create tag using the template
       // In sync mode with single package, respect packageSpecificTags setting
       let tagPackageName: string | null = null;
-      let commitPackageName: string | undefined;
 
-      // If packageSpecificTags is enabled and we have exactly one package, use its name
+      // If packageSpecificTags is enabled and we have exactly one package, use its name for the tag
       if (config.packageSpecificTags && packages.packages.length === 1) {
         tagPackageName = packages.packages[0].packageJson.name;
-        commitPackageName = packages.packages[0].packageJson.name;
       }
+
+      // Build the commit message package name from all updated workspace packages.
+      // Falls back to 'root' only if no named workspace packages were updated.
+      const workspaceNames = updatedPackages.filter((n) => n !== 'root');
+      const commitPackageName =
+        workspaceNames.length > 0 ? workspaceNames.join(', ') : (updatedPackages[0] ?? undefined);
 
       const nextTag = formatTag(
         nextVersion,

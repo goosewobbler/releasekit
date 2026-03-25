@@ -33,10 +33,7 @@ vi.mock('../../../src/utils/formatting.js', () => ({
       packageName ? `${packageName}@v${version}` : `v${version}`,
     ),
   formatCommitMessage: vi.fn().mockImplementation((template, version, packageName) => {
-    if (template === 'chore: release ${' + 'packageName}@${' + 'version} [skip-ci]') {
-      return `chore: release ${packageName || ''}@${version} [skip-ci]`;
-    }
-    return template.replace(/\$\{version\}/g, version);
+    return template.replace(/\$\{version\}/g, version).replace(/\$\{packageName\}/g, packageName || '');
   }),
 }));
 vi.mock('../../../src/package/packageProcessor.js');
@@ -93,6 +90,7 @@ describe('Version Strategies', () => {
     vi.mocked(calculator.calculateVersion, { partial: true }).mockResolvedValue('1.1.0');
     vi.mocked(formatting.formatVersionPrefix, { partial: true }).mockReturnValue('v');
     vi.mocked(formatting.formatTag, { partial: true }).mockReturnValue('v1.1.0');
+    // Default mock: single-package result used by most tests. Sync tests override this.
     vi.mocked(formatting.formatCommitMessage, { partial: true }).mockReturnValue('chore: release package-a v1.1.0');
     vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockReturnValue([
       { type: 'added', description: 'New feature' },
@@ -157,7 +155,12 @@ describe('Version Strategies', () => {
 
   describe('createSyncStrategy', () => {
     it('should update all packages to the same version', async () => {
-      // Setup
+      // Use the real mock implementation (not the beforeEach single-package override)
+      // so we can verify the combined package name is passed to formatCommitMessage.
+      vi.mocked(formatting.formatCommitMessage).mockImplementation((template, version, packageName) =>
+        template.replace(/\$\{version\}/g, version).replace(/\$\{packageName\}/g, packageName || ''),
+      );
+
       const config: Partial<Config> = {
         ...defaultConfig,
         sync: true,
@@ -186,9 +189,17 @@ describe('Version Strategies', () => {
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0', undefined);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageBPath, '1.1.0', undefined);
 
+      // Both workspace package names should be passed to formatCommitMessage
+      expect(formatting.formatCommitMessage).toHaveBeenCalledWith(
+        config.commitMessage,
+        '1.1.0',
+        'package-a, package-b',
+        undefined,
+      );
+
       // Check tag and commit message tracked for JSON output (git ops now handled by publish)
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
-      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a v1.1.0');
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a, package-b v1.1.0');
     });
 
     it('should use mainPackage for version calculation when specified', async () => {
@@ -248,8 +259,7 @@ describe('Version Strategies', () => {
       );
     });
 
-    it('should handle packageName being null in commit message template', async () => {
-      // Setup
+    it('should pass combined package names to formatCommitMessage for multi-package sync', async () => {
       const config: Partial<Config> = {
         ...defaultConfig,
         sync: true,
@@ -257,16 +267,13 @@ describe('Version Strategies', () => {
       };
 
       const syncStrategy = strategies.createSyncStrategy(config as Config);
-
-      // Execute
       await syncStrategy(mockPackages);
 
-      // Verify that formatCommitMessage was called with the right template and parameters
-      // The sync strategy no longer suppresses warnings by default
+      // Both workspace packages should be passed as a combined name
       expect(formatting.formatCommitMessage).toHaveBeenCalledWith(
         'chore: release ${' + 'packageName}@${' + 'version} [skip-ci]',
         '1.1.0',
-        undefined,
+        'package-a, package-b',
         undefined,
       );
     });
