@@ -8,7 +8,7 @@ import { getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { verifyTag } from '../git/tagVerification.js';
 import type { Config, VersionConfigBase } from '../types.js';
 import { formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
-import { addChangelogData, addTag, setCommitMessage } from '../utils/jsonOutput.js';
+import { addChangelogData, addTag, setCommitMessage, setSharedEntries } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { getVersionFromManifests } from '../utils/manifestHelpers.js';
 import { shouldProcessPackage } from '../utils/packageMatching.js';
@@ -93,6 +93,9 @@ export class PackageProcessor {
     }
 
     // 3. Process each targeted package
+    // Accumulate repo-level entries across all packages (keyed by type+description to deduplicate)
+    const sharedEntriesMap = new Map<string, ChangelogEntry>();
+
     for (const pkg of pkgsToConsider) {
       const name = pkg.packageJson.name;
       const pkgPath = pkg.dir;
@@ -213,10 +216,13 @@ export class PackageProcessor {
           sharedPackageDirs,
         );
 
-        // Add repo-level commits to this package's changelog
+        // Accumulate repo-level commits separately — they will be emitted once on VersionOutput
+        // rather than duplicated into every individual package changelog.
         if (repoLevelEntries.length > 0) {
-          log(`Adding ${repoLevelEntries.length} repo-level commit(s) to ${name} changelog`, 'debug');
-          changelogEntries = [...repoLevelEntries, ...changelogEntries];
+          log(`Found ${repoLevelEntries.length} repo-level commit(s) for ${name}`, 'debug');
+          for (const entry of repoLevelEntries) {
+            sharedEntriesMap.set(`${entry.type}:${entry.description}`, entry);
+          }
         }
 
         // If we have no entries but we're definitely changing versions,
@@ -345,6 +351,9 @@ export class PackageProcessor {
       // Collect info for the final commit
       updatedPackagesInfo.push({ name, version: nextVersion, path: pkgPath });
     }
+
+    // Emit accumulated repo-level entries as sharedEntries on the output
+    setSharedEntries([...sharedEntriesMap.values()]);
 
     // 4. Create single commit if any packages were updated
     if (updatedPackagesInfo.length === 0) {

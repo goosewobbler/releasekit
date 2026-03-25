@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { Package } from '@manypkg/get-packages';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as cargoHandler from '../../../src/cargo/cargoHandler.js';
+import * as commitParser from '../../../src/changelog/commitParser.js';
 import * as calculator from '../../../src/core/versionCalculator.js';
 import * as versionCalculatorModule from '../../../src/core/versionCalculator.js';
 import * as gitTags from '../../../src/git/tagsAndBranches.js';
@@ -365,6 +366,29 @@ describe('Package Processor', () => {
       expect(result.updatedPackages).toHaveLength(2);
       expect(result.updatedPackages[0].name).toBe('package-a');
       expect(result.updatedPackages[1].name).toBe('package-b');
+    });
+
+    it('should emit repo-level entries as sharedEntries, not in individual package changelogs', async () => {
+      const repoLevelEntry = { type: 'chore', description: 'Update CI workflow' };
+      const pkgAEntry = { type: 'added', description: 'New feature in pkg-a' };
+
+      vi.spyOn(commitParser, 'extractChangelogEntriesFromCommits').mockImplementation((_dir) => {
+        if (_dir.includes('package-a')) return [pkgAEntry];
+        return [];
+      });
+      vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockReturnValue([repoLevelEntry]);
+
+      const processor = new PackageProcessor({ ...defaultOptions });
+      await processor.processPackages(mockPackages);
+
+      // Repo-level entry should be emitted as sharedEntries
+      expect(jsonOutput.setSharedEntries).toHaveBeenCalledWith([repoLevelEntry]);
+
+      // addChangelogData should not include the repo-level entry in any package's entries
+      const calls = vi.mocked(jsonOutput.addChangelogData).mock.calls;
+      for (const [data] of calls) {
+        expect(data.entries).not.toContainEqual(repoLevelEntry);
+      }
     });
 
     it('should track tags via JSON output without creating git tags', async () => {
