@@ -123,7 +123,7 @@ Configure via `releasekit.config.json`:
 | `preset` | Conventional commits preset | `"conventionalcommits"` |
 | `versionPrefix` | Tag version prefix | `"v"` |
 | `tagTemplate` | Git tag template | `"${prefix}${version}"` |
-| `commitMessage` | Commit message template | `"chore: release ${version}"` |
+| `commitMessage` | Commit message template | `"chore: release ${packageName} v${version}"` |
 | `sync` | Version all packages together | `false` |
 | `packages` | Package name patterns to include | all |
 | `skip` | Package name patterns to exclude | `[]` |
