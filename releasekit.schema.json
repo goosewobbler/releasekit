@@ -671,6 +671,7 @@
             "type": "string",
             "enum": ["notes", "publish"]
           },
+          "minItems": 1,
           "description": "Which steps to run by default. Omitting a step is equivalent to --skip-<step>."
         },
         "ci": {
