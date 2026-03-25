@@ -93,7 +93,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         tagTemplate,
         baseBranch,
         branchPattern,
-        commitMessage = `chore(release): v\${version}`,
+        commitMessage = `chore: release v\${version}`,
         prereleaseIdentifier,
         dryRun,
         mainPackage,
@@ -317,7 +317,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
 export function createSingleStrategy(config: Config): StrategyFunction {
   return async (packages: PackagesWithRoot): Promise<void> => {
     try {
-      const { mainPackage, versionPrefix, tagTemplate, commitMessage = `chore(release): \${version}`, dryRun } = config;
+      const { mainPackage, versionPrefix, tagTemplate, commitMessage = `chore: release \${version}`, dryRun } = config;
 
       // Use mainPackage if specified, otherwise use the first package from the resolved packages
       let packageName: string | undefined;

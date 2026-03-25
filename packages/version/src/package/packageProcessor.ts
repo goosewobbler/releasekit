@@ -355,7 +355,7 @@ export class PackageProcessor {
     // Build commit message for JSON output (git ops now handled by publish)
     const packageNames = updatedPackagesInfo.map((p) => p.name).join(', ');
     const representativeVersion = updatedPackagesInfo[0]?.version || 'multiple';
-    let commitMessage = this.commitMessageTemplate || 'chore(release): publish packages';
+    let commitMessage = this.commitMessageTemplate || 'chore: release';
 
     const MAX_COMMIT_MSG_LENGTH = 10000;
     if (commitMessage.length > MAX_COMMIT_MSG_LENGTH) {
@@ -363,11 +363,15 @@ export class PackageProcessor {
       commitMessage = commitMessage.slice(0, MAX_COMMIT_MSG_LENGTH);
     }
     const placeholderRegex = /\$\{[^{}$]{1,1000}\}/;
-    if (updatedPackagesInfo.length === 1 && placeholderRegex.test(commitMessage)) {
-      const packageName = updatedPackagesInfo[0].name;
+    if (placeholderRegex.test(commitMessage)) {
+      // Template has placeholders: substitute with the combined package list and representative version.
+      // For single-package releases this produces the exact configured message; for multi-package
+      // releases the ${packageName} placeholder is replaced with the comma-separated list.
+      const packageName = updatedPackagesInfo.length === 1 ? updatedPackagesInfo[0].name : packageNames;
       commitMessage = formatCommitMessage(commitMessage, representativeVersion, packageName);
     } else {
-      commitMessage = `chore(release): ${packageNames} ${representativeVersion}`;
+      // No placeholders in template — append package names and version directly.
+      commitMessage = `${commitMessage} ${packageNames} ${representativeVersion}`;
     }
 
     setCommitMessage(commitMessage);

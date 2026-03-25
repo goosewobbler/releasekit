@@ -114,7 +114,7 @@ describe('Package Processor', () => {
     baseBranch: 'main',
     packages: [],
     branchPattern: ['feature/*'],
-    commitMessage: 'chore(release): version ${version}',
+    commitMessage: 'chore: release version ${version}',
   };
 
   // Mock getLatestTag function
@@ -124,7 +124,7 @@ describe('Package Processor', () => {
   const defaultOptions = {
     skip: ['package-c'],
     versionPrefix: 'v',
-    commitMessageTemplate: 'chore(release): ${version}',
+    commitMessageTemplate: 'chore: release ${version}',
     dryRun: false,
     getLatestTag: mockGetLatestTag,
     config: {
@@ -358,8 +358,9 @@ describe('Package Processor', () => {
 
       const result = await processor.processPackages(mockPackages);
 
-      // Should track commit message via JSON output (git ops handled by publish)
-      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore(release): package-a, package-b 1.1.0');
+      // defaultOptions uses commitMessageTemplate: 'chore: release ${version}' (has ${version} placeholder,
+      // no ${packageName}). Template is used as-is with version substituted; package names not in template.
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release 1.1.0');
 
       // Should return info for both packages
       expect(result.updatedPackages).toHaveLength(2);
@@ -417,7 +418,7 @@ describe('Package Processor', () => {
       expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a@1.1.0 [skip-ci]');
     });
 
-    it('should use generic commit message format with multiple packages', async () => {
+    it('should use template placeholders with combined package list for multiple packages', async () => {
       const processor = new PackageProcessor({
         ...defaultOptions,
         commitMessageTemplate: 'release: v${version} of package',
@@ -425,8 +426,9 @@ describe('Package Processor', () => {
 
       await processor.processPackages(mockPackages);
 
-      // Should use a generic message with package names when multiple packages
-      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore(release): package-a, package-b 1.1.0');
+      // Template has ${version} placeholder: substitute combined names + representative version.
+      // ${packageName} is replaced with the comma-separated list.
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('release: v1.1.0 of package');
     });
 
     it('should process all packages when no filters are applied', async () => {
@@ -539,7 +541,7 @@ describe('Package Processor', () => {
 
       await processor.processPackages(mockPackages);
 
-      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith(expect.stringContaining('chore(release)'));
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith(expect.stringContaining('chore: release'));
     });
 
     it('should update both package.json and Cargo.toml for hybrid packages', async () => {

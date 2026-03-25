@@ -89,7 +89,7 @@ describe('Version Strategies', () => {
     vi.mocked(calculator.calculateVersion, { partial: true }).mockResolvedValue('1.1.0');
     vi.mocked(formatting.formatVersionPrefix, { partial: true }).mockReturnValue('v');
     vi.mocked(formatting.formatTag, { partial: true }).mockReturnValue('v1.1.0');
-    vi.mocked(formatting.formatCommitMessage, { partial: true }).mockReturnValue('chore(release): v1.1.0');
+    vi.mocked(formatting.formatCommitMessage, { partial: true }).mockReturnValue('chore: release v1.1.0');
     vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockReturnValue([
       { type: 'added', description: 'New feature' },
     ]);
@@ -99,7 +99,7 @@ describe('Version Strategies', () => {
     vi.mocked(PackageProcessor.prototype.processPackages, { partial: true }).mockResolvedValue({
       updatedPackages: [{ name: 'package-a', version: '1.1.0', path: '/test/workspace/packages/a' }],
       tags: ['v1.1.0'],
-      commitMessage: 'chore(release): v1.1.0',
+      commitMessage: 'chore: release v1.1.0',
     });
   });
 
@@ -157,7 +157,7 @@ describe('Version Strategies', () => {
       const config: Partial<Config> = {
         ...defaultConfig,
         sync: true,
-        commitMessage: 'chore(release): v${' + 'version}',
+        commitMessage: 'chore: release v${' + 'version}',
       };
 
       const syncStrategy = strategies.createSyncStrategy(config as Config);
@@ -184,7 +184,7 @@ describe('Version Strategies', () => {
 
       // Check tag and commit message tracked for JSON output (git ops now handled by publish)
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
-      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore(release): v1.1.0');
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release v1.1.0');
     });
 
     it('should use mainPackage for version calculation when specified', async () => {
@@ -413,7 +413,7 @@ describe('Version Strategies', () => {
       const config: Partial<Config> = {
         ...defaultConfig,
         mainPackage: 'package-a',
-        commitMessage: 'chore(release): ${' + 'version}',
+        commitMessage: 'chore: release ${' + 'version}',
       };
 
       const singleStrategy = strategies.createSingleStrategy(config as Config);
@@ -443,7 +443,7 @@ describe('Version Strategies', () => {
 
       // Check tag and commit message tracked for JSON output (git ops now handled by publish)
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
-      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore(release): v1.1.0');
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release v1.1.0');
     });
 
     it('should use packageName in commit message template', async () => {
