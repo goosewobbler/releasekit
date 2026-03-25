@@ -292,11 +292,29 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         tagTemplate,
         config.packageSpecificTags || false,
       );
+
+      // Format commit message - when commitPackageName is intentionally undefined (no workspace
+      // packages), we do the substitution manually to avoid spurious warnings. The double-space
+      // cleanup handles any empty placeholder result.
+      let formattedCommitMessage: string;
+
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: checking for template placeholder syntax in user config string, not a template literal
+      const hasPackageNamePlaceholder = commitMessage.includes('${packageName}');
+
+      if (commitPackageName === undefined && !hasPackageNamePlaceholder) {
+        // Template doesn't use ${packageName}, use full format function
+        formattedCommitMessage = formatCommitMessage(commitMessage, nextVersion, undefined, undefined);
+      } else if (commitPackageName === undefined) {
+        // Template uses ${packageName} but no workspace packages - substitute manually to avoid warning
+        formattedCommitMessage = commitMessage.replace(/\$\{version\}/g, nextVersion).replace(/\$\{packageName\}/g, '');
+      } else {
+        // Normal case with package name
+        formattedCommitMessage = formatCommitMessage(commitMessage, nextVersion, commitPackageName, undefined);
+      }
+
       // Collapse any runs of whitespace that result from an empty ${packageName} substitution
       // (e.g. 'chore: release  v1.0.0' → 'chore: release v1.0.0') and trim edges.
-      const formattedCommitMessage = formatCommitMessage(commitMessage, nextVersion, commitPackageName, undefined)
-        .replace(/\s{2,}/g, ' ')
-        .trim();
+      formattedCommitMessage = formattedCommitMessage.replace(/\s{2,}/g, ' ').trim();
 
       // Track tag and commit message for JSON output (git ops now handled by publish)
       addTag(nextTag);
