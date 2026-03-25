@@ -5,9 +5,9 @@ import { error, info, setJsonMode, setLogLevel, setQuietMode, success } from '@r
 import type { ReleaseType } from 'semver';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
 
-function getHeadCommitMessage(): string | null {
+function getHeadCommitMessage(cwd?: string): string | null {
   try {
-    return execSync('git log -1 --pretty=%s', { encoding: 'utf-8' }).trim();
+    return execSync('git log -1 --pretty=%s', { encoding: 'utf-8', cwd }).trim();
   } catch {
     return null;
   }
@@ -33,7 +33,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
 
   // Apply skipPatterns: exit early if HEAD commit matches a skip pattern
   if (releaseConfig?.ci?.skipPatterns?.length) {
-    const headCommit = getHeadCommitMessage();
+    const headCommit = getHeadCommitMessage(options.projectDir);
     if (headCommit) {
       const matchedPattern = releaseConfig.ci.skipPatterns.find((p) => headCommit.startsWith(p));
       if (matchedPattern) {

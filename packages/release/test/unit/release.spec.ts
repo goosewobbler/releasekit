@@ -470,6 +470,18 @@ describe('runRelease', () => {
 
       expect(result).not.toBeNull();
     });
+
+    it('should pass projectDir as cwd to git log', async () => {
+      const { execSync } = await import('node:child_process');
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { ci: { skipPatterns: ['chore(deps):'] } } });
+
+      await runRelease({ ...defaultOptions, projectDir: '/custom/project' });
+
+      expect(execSync).toHaveBeenCalledWith(
+        'git log -1 --pretty=%s',
+        expect.objectContaining({ cwd: '/custom/project' }),
+      );
+    });
   });
 
   describe('release config: steps', () => {
