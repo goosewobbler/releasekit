@@ -56,23 +56,28 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   }
 
   // --- Step 1: Version ---
-  // Writes version bumps to disk but does NOT commit or tag.
-  // Git operations are handled by the publish step's git-commit stage.
+  // Dry-run preflight: compute version changes without writing any files so that
+  // early-exit guards (zero changes, minChanges threshold) are evaluated before
+  // the repository is modified.
   info('Running version analysis...');
-  const versionOutput = await runVersionStep(options);
+  const preflightOutput = await runVersionStep({ ...options, dryRun: true });
 
-  if (versionOutput.updates.length === 0) {
+  if (preflightOutput.updates.length === 0) {
     info('No releasable changes found');
     return null;
   }
 
-  // Apply minChanges threshold
-  if (releaseConfig?.ci?.minChanges !== undefined && versionOutput.updates.length < releaseConfig.ci.minChanges) {
+  // Apply minChanges threshold before modifying any files
+  if (releaseConfig?.ci?.minChanges !== undefined && preflightOutput.updates.length < releaseConfig.ci.minChanges) {
     info(
-      `Skipping release: ${versionOutput.updates.length} package(s) to update, minimum is ${releaseConfig.ci.minChanges}`,
+      `Skipping release: ${preflightOutput.updates.length} package(s) to update, minimum is ${releaseConfig.ci.minChanges}`,
     );
     return null;
   }
+
+  // Guards passed: run the real version step.
+  // When the caller is already dry-running the preflight output is the final output.
+  const versionOutput = options.dryRun ? preflightOutput : await runVersionStep(options);
 
   info(`Found ${versionOutput.updates.length} package update(s)`);
   for (const update of versionOutput.updates) {
