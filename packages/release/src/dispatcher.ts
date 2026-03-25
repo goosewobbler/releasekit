@@ -10,9 +10,10 @@ import { createReleaseCommand } from './release-command.js';
 export function createDispatcherProgram(): Command {
   const program = new Command()
     .name('releasekit')
+  const program = new Command()
+    .name('releasekit')
     .description('Unified release pipeline: version, changelog, and publish')
-    .version('0.1.0');
-
+    .version(getPackageVersion());
   program.addCommand(createReleaseCommand(), { isDefault: true });
   program.addCommand(createVersionCommand());
   program.addCommand(createNotesCommand());
