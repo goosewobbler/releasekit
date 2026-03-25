@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createVersionCommand } from '../../src/cli.js';
+import { createVersionCommand, createVersionProgram } from '../../src/cli.js';
 import * as configModule from '../../src/config.js';
 import { VersionEngine } from '../../src/core/versionEngine.js';
 import type { Config } from '../../src/types.js';
@@ -72,6 +72,11 @@ describe('createVersionCommand', () => {
   it('should return a command named version', () => {
     const cmd = createVersionCommand();
     expect(cmd.name()).toBe('version');
+  });
+
+  it('should have version as the default subcommand in the standalone program', () => {
+    const program = createVersionProgram();
+    expect((program as unknown as { _defaultCommandName: string })._defaultCommandName).toBe('version');
   });
 
   it('should run the version action when parsed', async () => {

@@ -46,9 +46,6 @@ describe('createDispatcherProgram', () => {
 
   it('should have release as the default command', () => {
     const program = createDispatcherProgram();
-    const releaseCmd = program.commands.find((c) => c.name() === 'release');
-    // Commander marks the default command internally
-    expect(releaseCmd).toBeDefined();
-    expect(program.commands).toHaveLength(4);
+    expect((program as unknown as { _defaultCommandName: string })._defaultCommandName).toBe('release');
   });
 });
