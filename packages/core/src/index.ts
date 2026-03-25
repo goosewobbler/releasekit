@@ -1,3 +1,4 @@
+export { readPackageVersion } from './cli.js';
 export { EXIT_CODES, type ExitCode, ReleaseKitError } from './errors.js';
 export {
   debug,

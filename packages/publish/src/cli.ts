@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { EXIT_CODES, setJsonMode, setLogLevel } from '@releasekit/core';
+import { EXIT_CODES, readPackageVersion, setJsonMode, setLogLevel } from '@releasekit/core';
 import { Command } from 'commander';
 import { loadConfig } from './config.js';
 import { BasePublishError, PipelineError } from './errors/index.js';
@@ -80,6 +80,17 @@ export function createPublishCommand(): Command {
 }
 
 // Standalone entry point (only when run directly, not when imported by dispatcher)
-if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  createPublishCommand().name('releasekit-publish').version('0.1.0').parse();
+const isMain = (() => {
+  try {
+    return process.argv[1] ? realpathSync(process.argv[1]) === fileURLToPath(import.meta.url) : false;
+  } catch {
+    return false;
+  }
+})();
+
+if (isMain) {
+  createPublishCommand()
+    .name('releasekit-publish')
+    .version(readPackageVersion(import.meta.url))
+    .parse();
 }

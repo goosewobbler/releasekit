@@ -1,26 +1,13 @@
 #!/usr/bin/env node
 import * as fs from 'node:fs';
-import { realpathSync } from 'node:fs';
-import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readPackageVersion } from '@releasekit/core';
 import { Command } from 'commander';
 import { loadConfig } from './config.js';
 import { VersionEngine } from './core/versionEngine.js';
 import type { Config } from './types.js';
 import { enableJsonOutput, printJsonOutput } from './utils/jsonOutput.js';
 import { log } from './utils/logging.js';
-
-function getPackageVersion(): string {
-  try {
-    const packageJsonPath = path.resolve(path.dirname(import.meta.url.replace('file:', '')), '../package.json');
-    const packageJsonContent = fs.readFileSync(packageJsonPath, 'utf-8');
-    const packageJson = JSON.parse(packageJsonContent);
-    return packageJson.version || '0.0.0';
-  } catch (error) {
-    console.error('Failed to read package version:', error);
-    return '0.0.0';
-  }
-}
 
 export function createVersionCommand(): Command {
   return new Command('version')
@@ -117,11 +104,19 @@ export function createVersionCommand(): Command {
 }
 
 // Standalone entry point (only when run directly, not when imported by dispatcher)
-if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
+const isMain = (() => {
+  try {
+    return process.argv[1] ? fs.realpathSync(process.argv[1]) === fileURLToPath(import.meta.url) : false;
+  } catch {
+    return false;
+  }
+})();
+
+if (isMain) {
   const program = new Command()
     .name('releasekit-version')
     .description('Version a package or packages based on conventional commits')
-    .version(getPackageVersion())
+    .version(readPackageVersion(import.meta.url))
     .addCommand(createVersionCommand(), { isDefault: true });
 
   program.parse();

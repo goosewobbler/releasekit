@@ -2,7 +2,7 @@
 import * as fs from 'node:fs';
 import * as readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
-import { EXIT_CODES, error, info, setLogLevel, setQuietMode, success } from '@releasekit/core';
+import { EXIT_CODES, error, info, readPackageVersion, setLogLevel, setQuietMode, success } from '@releasekit/core';
 import { Command } from 'commander';
 import { getDefaultConfig, loadConfig, saveAuth } from './core/config.js';
 import { runPipeline } from './core/pipeline.js';
@@ -241,6 +241,17 @@ function handleError(err: unknown): void {
 }
 
 // Standalone entry point (only when run directly, not when imported by dispatcher)
-if (process.argv[1] && fs.realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  createNotesCommand().name('releasekit-notes').version('0.1.0').parse();
+const isMain = (() => {
+  try {
+    return process.argv[1] ? fs.realpathSync(process.argv[1]) === fileURLToPath(import.meta.url) : false;
+  } catch {
+    return false;
+  }
+})();
+
+if (isMain) {
+  createNotesCommand()
+    .name('releasekit-notes')
+    .version(readPackageVersion(import.meta.url))
+    .parse();
 }
