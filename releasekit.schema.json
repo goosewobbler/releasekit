@@ -690,11 +690,13 @@
             },
             "githubRelease": {
               "type": "boolean",
-              "description": "Whether to create GitHub releases in automation mode"
+              "enum": [false],
+              "description": "Set to false to disable GitHub release creation in CI"
             },
             "notes": {
               "type": "boolean",
-              "description": "Whether to generate changelogs in automation mode"
+              "enum": [false],
+              "description": "Set to false to disable changelog generation in CI"
             }
           }
         }
