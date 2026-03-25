@@ -112,12 +112,14 @@ const isMain = (() => {
   }
 })();
 
-if (isMain) {
-  const program = new Command()
+export function createVersionProgram(): Command {
+  return new Command()
     .name('releasekit-version')
     .description('Version a package or packages based on conventional commits')
     .version(readPackageVersion(import.meta.url))
     .addCommand(createVersionCommand(), { isDefault: true });
+}
 
-  program.parse();
+if (isMain) {
+  createVersionProgram().parse();
 }
