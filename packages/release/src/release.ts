@@ -56,28 +56,31 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   }
 
   // --- Step 1: Version ---
-  // Dry-run preflight: compute version changes without writing any files so that
-  // early-exit guards (zero changes, minChanges threshold) are evaluated before
-  // the repository is modified.
+  // Always run the version engine with dryRun:true so no files are written yet.
+  // File writes are captured as pending writes instead of going to disk, allowing
+  // all early-exit guards to be evaluated before the repository is modified.
   info('Running version analysis...');
-  const preflightOutput = await runVersionStep({ ...options, dryRun: true });
+  const versionOutput = await runVersionStep({ ...options, dryRun: true });
 
-  if (preflightOutput.updates.length === 0) {
+  if (versionOutput.updates.length === 0) {
     info('No releasable changes found');
     return null;
   }
 
   // Apply minChanges threshold before modifying any files
-  if (releaseConfig?.ci?.minChanges !== undefined && preflightOutput.updates.length < releaseConfig.ci.minChanges) {
+  if (releaseConfig?.ci?.minChanges !== undefined && versionOutput.updates.length < releaseConfig.ci.minChanges) {
     info(
-      `Skipping release: ${preflightOutput.updates.length} package(s) to update, minimum is ${releaseConfig.ci.minChanges}`,
+      `Skipping release: ${versionOutput.updates.length} package(s) to update, minimum is ${releaseConfig.ci.minChanges}`,
     );
     return null;
   }
 
-  // Guards passed: run the real version step.
-  // When the caller is already dry-running the preflight output is the final output.
-  const versionOutput = options.dryRun ? preflightOutput : await runVersionStep(options);
+  // All guards passed. For a real (non-dry) run, flush the pending writes captured
+  // during the dryRun pass above so version bumps land on disk exactly once.
+  if (!options.dryRun) {
+    const { flushPendingWrites } = await import('@releasekit/version');
+    flushPendingWrites();
+  }
 
   info(`Found ${versionOutput.updates.length} package update(s)`);
   for (const update of versionOutput.updates) {

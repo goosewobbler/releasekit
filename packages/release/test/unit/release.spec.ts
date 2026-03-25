@@ -16,6 +16,7 @@ vi.mock('node:child_process', () => ({
 
 const mockEnableJsonOutput = vi.fn();
 const mockGetJsonData = vi.fn();
+const mockFlushPendingWrites = vi.fn();
 const mockVersionLoadConfig = vi.fn();
 const mockVersionEngineRun = vi.fn();
 const mockVersionEngineSetStrategy = vi.fn();
@@ -29,6 +30,7 @@ const MockVersionEngine = vi.fn(function (this: Record<string, unknown>) {
 
 vi.mock('@releasekit/version', () => ({
   enableJsonOutput: (...args: unknown[]) => mockEnableJsonOutput(...args),
+  flushPendingWrites: () => mockFlushPendingWrites(),
   getJsonData: () => mockGetJsonData(),
   loadConfig: (...args: unknown[]) => mockVersionLoadConfig(...args),
   VersionEngine: MockVersionEngine,
@@ -169,6 +171,36 @@ describe('runRelease', () => {
     expect(result).toBeNull();
     expect(mockNotesRunPipeline).not.toHaveBeenCalled();
     expect(mockPublishRunPipeline).not.toHaveBeenCalled();
+  });
+
+  describe('deferred writes (flushPendingWrites)', () => {
+    it('should flush pending writes for a real run after guards pass', async () => {
+      await runRelease(defaultOptions);
+
+      expect(mockFlushPendingWrites).toHaveBeenCalledOnce();
+    });
+
+    it('should not flush when dryRun is true', async () => {
+      await runRelease({ ...defaultOptions, dryRun: true });
+
+      expect(mockFlushPendingWrites).not.toHaveBeenCalled();
+    });
+
+    it('should not flush when there are no releasable changes', async () => {
+      mockGetJsonData.mockReturnValue(versionOutputNoChanges);
+
+      await runRelease(defaultOptions);
+
+      expect(mockFlushPendingWrites).not.toHaveBeenCalled();
+    });
+
+    it('should not flush when updates < minChanges', async () => {
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { ci: { minChanges: 2 } } });
+
+      await runRelease(defaultOptions);
+
+      expect(mockFlushPendingWrites).not.toHaveBeenCalled();
+    });
   });
 
   it('should skip notes when --skip-notes', async () => {
