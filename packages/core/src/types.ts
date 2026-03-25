@@ -37,6 +37,12 @@ export interface VersionOutput {
   dryRun: boolean;
   updates: VersionPackageUpdate[];
   changelogs: VersionPackageChangelog[];
+  /**
+   * Changelog entries from commits that don't touch any specific package directory
+   * (CI, infrastructure, shared package changes). Stored separately so they can be
+   * rendered once rather than duplicated across every per-package changelog.
+   */
+  sharedEntries?: VersionChangelogEntry[];
   commitMessage?: string;
   tags: string[];
 }
