@@ -93,7 +93,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         tagTemplate,
         baseBranch,
         branchPattern,
-        commitMessage = `chore(release): v\${version}`,
+        commitMessage = `chore: release \${packageName} v\${version}`,
         prereleaseIdentifier,
         dryRun,
         mainPackage,
@@ -273,13 +273,17 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       // Create tag using the template
       // In sync mode with single package, respect packageSpecificTags setting
       let tagPackageName: string | null = null;
-      let commitPackageName: string | undefined;
 
-      // If packageSpecificTags is enabled and we have exactly one package, use its name
+      // If packageSpecificTags is enabled and we have exactly one package, use its name for the tag
       if (config.packageSpecificTags && packages.packages.length === 1) {
         tagPackageName = packages.packages[0].packageJson.name;
-        commitPackageName = packages.packages[0].packageJson.name;
       }
+
+      // Build the commit message package name from all updated workspace packages.
+      // Pass undefined when only the root was updated so formatCommitMessage leaves
+      // the ${packageName} placeholder empty rather than inserting the literal 'root'.
+      const workspaceNames = updatedPackages.filter((n) => n !== 'root');
+      const commitPackageName = workspaceNames.length > 0 ? workspaceNames.join(', ') : undefined;
 
       const nextTag = formatTag(
         nextVersion,
@@ -288,7 +292,33 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         tagTemplate,
         config.packageSpecificTags || false,
       );
-      const formattedCommitMessage = formatCommitMessage(commitMessage, nextVersion, commitPackageName, undefined);
+
+      // Format commit message - when commitPackageName is intentionally undefined (no workspace
+      // packages), we do the substitution manually to avoid spurious warnings. The double-space
+      // cleanup handles any empty placeholder result.
+      let formattedCommitMessage: string;
+
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: checking for template placeholder syntax in user config string, not a template literal
+      const hasPackageNamePlaceholder = commitMessage.includes('${packageName}');
+
+      if (commitPackageName === undefined && !hasPackageNamePlaceholder) {
+        // Template doesn't use ${packageName}, use full format function
+        formattedCommitMessage = formatCommitMessage(commitMessage, nextVersion, undefined, undefined);
+      } else if (commitPackageName === undefined) {
+        // Template uses ${packageName} but no workspace packages - substitute manually to avoid warning.
+        // Also replace ${scope} to keep parity with formatCommitMessage (no scope available in this path).
+        formattedCommitMessage = commitMessage
+          .replace(/\$\{version\}/g, nextVersion)
+          .replace(/\$\{packageName\}/g, '')
+          .replace(/\$\{scope\}/g, '');
+      } else {
+        // Normal case with package name
+        formattedCommitMessage = formatCommitMessage(commitMessage, nextVersion, commitPackageName, undefined);
+      }
+
+      // Collapse any runs of whitespace that result from an empty ${packageName} substitution
+      // (e.g. 'chore: release  v1.0.0' → 'chore: release v1.0.0') and trim edges.
+      formattedCommitMessage = formattedCommitMessage.replace(/\s{2,}/g, ' ').trim();
 
       // Track tag and commit message for JSON output (git ops now handled by publish)
       addTag(nextTag);
@@ -317,7 +347,13 @@ export function createSyncStrategy(config: Config): StrategyFunction {
 export function createSingleStrategy(config: Config): StrategyFunction {
   return async (packages: PackagesWithRoot): Promise<void> => {
     try {
-      const { mainPackage, versionPrefix, tagTemplate, commitMessage = `chore(release): \${version}`, dryRun } = config;
+      const {
+        mainPackage,
+        versionPrefix,
+        tagTemplate,
+        commitMessage = `chore: release \${packageName} v\${version}`,
+        dryRun,
+      } = config;
 
       // Use mainPackage if specified, otherwise use the first package from the resolved packages
       let packageName: string | undefined;

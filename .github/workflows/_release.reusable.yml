@@ -7,11 +7,13 @@ on:
         required: true
         type: string
       bump:
-        required: true
+        required: false
         type: string
+        default: auto
       dry_run:
-        required: true
+        required: false
         type: boolean
+        default: false
     secrets:
       DEPLOY_KEY:
         required: false
@@ -79,18 +81,20 @@ jobs:
             TARGET_FLAGS="--target @releasekit/release"
           fi
 
-          # Build bump flags
-          BUMP_FLAGS="--bump $INPUT_BUMP"
-
-          # Check if prerelease
+          # Build bump flags (omit entirely for 'auto' — releasekit detects from commits)
+          BUMP_FLAGS=""
           PRERELEASE_FLAGS=""
-          if [ "$INPUT_BUMP" = "prerelease" ]; then
-            BUMP_FLAGS="--bump prerelease"
-            PRERELEASE_FLAGS="--prerelease next"
-          elif [[ "$INPUT_BUMP" == pre* ]]; then
-            BASE_BUMP="${INPUT_BUMP#pre}"
-            BUMP_FLAGS="--bump ${BASE_BUMP}"
-            PRERELEASE_FLAGS="--prerelease next"
+          if [ "$INPUT_BUMP" != "auto" ] && [ -n "$INPUT_BUMP" ]; then
+            if [ "$INPUT_BUMP" = "prerelease" ]; then
+              BUMP_FLAGS="--bump prerelease"
+              PRERELEASE_FLAGS="--prerelease next"
+            elif [[ "$INPUT_BUMP" == pre* ]]; then
+              BASE_BUMP="${INPUT_BUMP#pre}"
+              BUMP_FLAGS="--bump ${BASE_BUMP}"
+              PRERELEASE_FLAGS="--prerelease next"
+            else
+              BUMP_FLAGS="--bump $INPUT_BUMP"
+            fi
           fi
 
           DRY_RUN_FLAG=""

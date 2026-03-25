@@ -457,7 +457,7 @@ This is the default if the `sync` flag is present and true.
     -   It calculates an appropriate version bump **independently for each targeted package** based on its commit history.
     -   The `package.json` file of each successfully updated targeted package is modified.
     -   An **individual Git tag** (e.g., `packageName@1.2.3`) is created **for each successfully updated package** immediately after its version is bumped.
-    -   Finally, a **single commit** is created including all the updated `package.json` files, using a summary commit message (e.g., `chore(release): pkg-a, pkg-b 1.2.3 [skip-ci]`).
+    -   Finally, a **single commit** is created including all the updated `package.json` files, using a summary commit message (e.g., `chore: release pkg-a, pkg-b v1.2.3 [skip ci]`).
     -   **Important:** Only package-specific tags are created. The global tag (e.g., `v1.2.3`) is **not** automatically generated in this mode. If your release process (like GitHub Releases) depends on a global tag, you'll need to create it manually in your CI/CD script *after* `releasekit-version` completes.
 -   **Use Case:** Releasing specific packages independently while still tagging each released package individually.
 

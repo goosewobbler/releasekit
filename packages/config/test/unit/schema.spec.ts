@@ -455,7 +455,7 @@ describe('CIConfigSchema', () => {
     expect(result.releaseTrigger).toBe('label');
     expect(result.prPreview).toBe(true);
     expect(result.autoRelease).toBe(false);
-    expect(result.skipPatterns).toEqual([]);
+    expect(result.skipPatterns).toEqual(['chore: release ']);
     expect(result.minChanges).toBe(1);
     expect(result.labels).toEqual({
       stable: 'release:stable',

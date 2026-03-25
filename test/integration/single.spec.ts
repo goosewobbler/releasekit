@@ -25,7 +25,7 @@ describe('Integration: single package', () => {
           },
         ],
         tags: ['v0.2.0'],
-        commitMessage: 'chore(release): 0.2.0',
+        commitMessage: 'chore: release test-single-package v0.2.0',
       };
 
       const input = parseVersionOutput(JSON.stringify(versionOutput));
@@ -61,7 +61,7 @@ describe('Integration: single package', () => {
           },
         ],
         tags: ['v0.1.1'],
-        commitMessage: 'chore(release): 0.1.1',
+        commitMessage: 'chore: release test-single-package v0.1.1',
       };
 
       const input = parseVersionOutput(JSON.stringify(versionOutput));
@@ -97,7 +97,7 @@ describe('Integration: single package', () => {
           },
         ],
         tags: ['v1.0.0'],
-        commitMessage: 'chore(release): 1.0.0',
+        commitMessage: 'chore: release test-single-package v1.0.0',
       };
 
       const input = parseVersionOutput(JSON.stringify(versionOutput));
@@ -132,7 +132,7 @@ describe('Integration: single package', () => {
           },
         ],
         tags: ['v0.2.0'],
-        commitMessage: 'chore(release): 0.2.0',
+        commitMessage: 'chore: release test-single-package v0.2.0',
       };
 
       const input = parseVersionOutput(JSON.stringify(versionOutput));

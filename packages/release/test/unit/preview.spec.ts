@@ -67,7 +67,7 @@ const versionOutputWithChanges: VersionOutput = {
       entries: [{ type: 'added', description: 'New feature' }],
     },
   ],
-  commitMessage: 'chore(release): 1.1.0',
+  commitMessage: 'chore: release 1.1.0',
   tags: ['v1.1.0'],
 };
 

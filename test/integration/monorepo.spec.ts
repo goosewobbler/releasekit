@@ -39,7 +39,7 @@ describe('Integration: monorepo', () => {
           },
         ],
         tags: ['v0.2.0'],
-        commitMessage: 'chore(release): 0.2.0',
+        commitMessage: 'chore: release @test/pkg-a, @test/pkg-b v0.2.0',
       };
 
       const input = parseVersionOutput(JSON.stringify(versionOutput));
@@ -79,7 +79,7 @@ describe('Integration: monorepo', () => {
           },
         ],
         tags: ['v0.2.0'],
-        commitMessage: 'chore(release): 0.2.0',
+        commitMessage: 'chore: release @test/pkg-a, @test/pkg-b v0.2.0',
       };
 
       const input = parseVersionOutput(JSON.stringify(versionOutput));

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Package } from '@manypkg/get-packages';
+import type { Package, Tool } from '@manypkg/get-packages';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as commitParser from '../../../src/changelog/commitParser.js';
 import * as calculator from '../../../src/core/versionCalculator.js';
@@ -33,10 +33,7 @@ vi.mock('../../../src/utils/formatting.js', () => ({
       packageName ? `${packageName}@v${version}` : `v${version}`,
     ),
   formatCommitMessage: vi.fn().mockImplementation((template, version, packageName) => {
-    if (template === 'chore: release ${' + 'packageName}@${' + 'version} [skip-ci]') {
-      return `chore: release ${packageName || ''}@${version} [skip-ci]`;
-    }
-    return template.replace(/\$\{version\}/g, version);
+    return template.replace(/\$\{version\}/g, version).replace(/\$\{packageName\}/g, packageName || '');
   }),
 }));
 vi.mock('../../../src/package/packageProcessor.js');
@@ -51,19 +48,23 @@ const git = {
 
 describe('Version Strategies', () => {
   // Mock data
-  const mockPackages: PackagesWithRoot = {
+  const mockPackages = {
     root: '/test/workspace',
+    rootDir: '/test/workspace',
+    tool: 'npm' as unknown as Tool,
     packages: [
       {
         dir: '/test/workspace/packages/a',
+        relativeDir: 'packages/a',
         packageJson: { name: 'package-a', version: '1.0.0' },
       },
       {
         dir: '/test/workspace/packages/b',
+        relativeDir: 'packages/b',
         packageJson: { name: 'package-b', version: '1.0.0' },
       },
     ],
-  };
+  } as unknown as PackagesWithRoot;
 
   // Mock package paths
   const rootPackagePath = '/test/workspace/package.json';
@@ -89,7 +90,8 @@ describe('Version Strategies', () => {
     vi.mocked(calculator.calculateVersion, { partial: true }).mockResolvedValue('1.1.0');
     vi.mocked(formatting.formatVersionPrefix, { partial: true }).mockReturnValue('v');
     vi.mocked(formatting.formatTag, { partial: true }).mockReturnValue('v1.1.0');
-    vi.mocked(formatting.formatCommitMessage, { partial: true }).mockReturnValue('chore(release): v1.1.0');
+    // Default mock: single-package result used by most tests. Sync tests override this.
+    vi.mocked(formatting.formatCommitMessage, { partial: true }).mockReturnValue('chore: release package-a v1.1.0');
     vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockReturnValue([
       { type: 'added', description: 'New feature' },
     ]);
@@ -99,7 +101,7 @@ describe('Version Strategies', () => {
     vi.mocked(PackageProcessor.prototype.processPackages, { partial: true }).mockResolvedValue({
       updatedPackages: [{ name: 'package-a', version: '1.1.0', path: '/test/workspace/packages/a' }],
       tags: ['v1.1.0'],
-      commitMessage: 'chore(release): v1.1.0',
+      commitMessage: 'chore: release package-a v1.1.0',
     });
   });
 
@@ -153,11 +155,16 @@ describe('Version Strategies', () => {
 
   describe('createSyncStrategy', () => {
     it('should update all packages to the same version', async () => {
-      // Setup
+      // Use the real mock implementation (not the beforeEach single-package override)
+      // so we can verify the combined package name is passed to formatCommitMessage.
+      vi.mocked(formatting.formatCommitMessage).mockImplementation((template, version, packageName) =>
+        template.replace(/\$\{version\}/g, version).replace(/\$\{packageName\}/g, packageName || ''),
+      );
+
       const config: Partial<Config> = {
         ...defaultConfig,
         sync: true,
-        commitMessage: 'chore(release): v${' + 'version}',
+        commitMessage: 'chore: release ${' + 'packageName} v${' + 'version}',
       };
 
       const syncStrategy = strategies.createSyncStrategy(config as Config);
@@ -182,9 +189,17 @@ describe('Version Strategies', () => {
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0', undefined);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageBPath, '1.1.0', undefined);
 
+      // Both workspace package names should be passed to formatCommitMessage
+      expect(formatting.formatCommitMessage).toHaveBeenCalledWith(
+        config.commitMessage,
+        '1.1.0',
+        'package-a, package-b',
+        undefined,
+      );
+
       // Check tag and commit message tracked for JSON output (git ops now handled by publish)
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
-      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore(release): v1.1.0');
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a, package-b v1.1.0');
     });
 
     it('should use mainPackage for version calculation when specified', async () => {
@@ -244,8 +259,7 @@ describe('Version Strategies', () => {
       );
     });
 
-    it('should handle packageName being null in commit message template', async () => {
-      // Setup
+    it('should pass combined package names to formatCommitMessage for multi-package sync', async () => {
       const config: Partial<Config> = {
         ...defaultConfig,
         sync: true,
@@ -253,18 +267,39 @@ describe('Version Strategies', () => {
       };
 
       const syncStrategy = strategies.createSyncStrategy(config as Config);
-
-      // Execute
       await syncStrategy(mockPackages);
 
-      // Verify that formatCommitMessage was called with the right template and parameters
-      // The sync strategy no longer suppresses warnings by default
+      // Both workspace packages should be passed as a combined name
       expect(formatting.formatCommitMessage).toHaveBeenCalledWith(
         'chore: release ${' + 'packageName}@${' + 'version} [skip-ci]',
         '1.1.0',
-        undefined,
+        'package-a, package-b',
         undefined,
       );
+    });
+
+    it('should not include root in commit message for single-package sync repo', async () => {
+      // Simulate a single-package repo where only the root package.json is updated
+      const singlePackageRepo = {
+        root: '/test/workspace',
+        rootDir: '/test/workspace',
+        tool: 'npm' as unknown as Tool,
+        packages: [] as unknown[],
+      } as unknown as PackagesWithRoot;
+
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        sync: true,
+        commitMessage: 'chore: release ${' + 'packageName} v${' + 'version} [skip ci]',
+      };
+
+      const syncStrategy = strategies.createSyncStrategy(config as Config);
+      await syncStrategy(singlePackageRepo);
+
+      // When commitPackageName is undefined (no workspace packages) and template contains ${packageName},
+      // we bypass formatCommitMessage to avoid the spurious warning. Double space from empty
+      // ${packageName} should be collapsed automatically.
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release v1.1.0 [skip ci]');
     });
 
     it('should exit early if no version change needed', async () => {
@@ -413,7 +448,7 @@ describe('Version Strategies', () => {
       const config: Partial<Config> = {
         ...defaultConfig,
         mainPackage: 'package-a',
-        commitMessage: 'chore(release): ${' + 'version}',
+        commitMessage: 'chore: release ${' + 'packageName} v${' + 'version}',
       };
 
       const singleStrategy = strategies.createSingleStrategy(config as Config);
@@ -443,7 +478,7 @@ describe('Version Strategies', () => {
 
       // Check tag and commit message tracked for JSON output (git ops now handled by publish)
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
-      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore(release): v1.1.0');
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a v1.1.0');
     });
 
     it('should use packageName in commit message template', async () => {
@@ -557,15 +592,18 @@ describe('Version Strategies', () => {
     });
 
     describe('Cargo.toml Support', () => {
-      const hybridPackages: PackagesWithRoot = {
+      const hybridPackages = {
         root: '/test/workspace',
+        rootDir: '/test/workspace',
+        tool: 'npm' as unknown as Tool,
         packages: [
           {
             dir: '/test/workspace/hybrid-pkg',
+            relativeDir: 'hybrid-pkg',
             packageJson: { name: 'hybrid-package', version: '0.1.0' },
           },
         ],
-      };
+      } as unknown as PackagesWithRoot;
 
       it('should update Cargo.toml in package root when cargo.enabled is true (default)', async () => {
         // Setup
@@ -790,7 +828,11 @@ describe('Version Strategies', () => {
 
       // Verify that only targeted package is processed
       const expectedFilteredPackages = [
-        { packageJson: { name: 'package-b', version: '1.0.0' }, dir: '/test/workspace/packages/b' },
+        {
+          packageJson: { name: 'package-b', version: '1.0.0' },
+          dir: '/test/workspace/packages/b',
+          relativeDir: 'packages/b',
+        },
       ];
 
       expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(expectedFilteredPackages);
