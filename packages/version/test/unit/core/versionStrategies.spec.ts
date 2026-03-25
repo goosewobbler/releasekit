@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Package } from '@manypkg/get-packages';
+import type { Package, Tool } from '@manypkg/get-packages';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as commitParser from '../../../src/changelog/commitParser.js';
 import * as calculator from '../../../src/core/versionCalculator.js';
@@ -51,19 +51,23 @@ const git = {
 
 describe('Version Strategies', () => {
   // Mock data
-  const mockPackages: PackagesWithRoot = {
+  const mockPackages = {
     root: '/test/workspace',
+    rootDir: '/test/workspace',
+    tool: 'npm' as unknown as Tool,
     packages: [
       {
         dir: '/test/workspace/packages/a',
+        relativeDir: 'packages/a',
         packageJson: { name: 'package-a', version: '1.0.0' },
       },
       {
         dir: '/test/workspace/packages/b',
+        relativeDir: 'packages/b',
         packageJson: { name: 'package-b', version: '1.0.0' },
       },
     ],
-  };
+  } as unknown as PackagesWithRoot;
 
   // Mock package paths
   const rootPackagePath = '/test/workspace/package.json';
@@ -89,7 +93,7 @@ describe('Version Strategies', () => {
     vi.mocked(calculator.calculateVersion, { partial: true }).mockResolvedValue('1.1.0');
     vi.mocked(formatting.formatVersionPrefix, { partial: true }).mockReturnValue('v');
     vi.mocked(formatting.formatTag, { partial: true }).mockReturnValue('v1.1.0');
-    vi.mocked(formatting.formatCommitMessage, { partial: true }).mockReturnValue('chore: release v1.1.0');
+    vi.mocked(formatting.formatCommitMessage, { partial: true }).mockReturnValue('chore: release package-a v1.1.0');
     vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockReturnValue([
       { type: 'added', description: 'New feature' },
     ]);
@@ -99,7 +103,7 @@ describe('Version Strategies', () => {
     vi.mocked(PackageProcessor.prototype.processPackages, { partial: true }).mockResolvedValue({
       updatedPackages: [{ name: 'package-a', version: '1.1.0', path: '/test/workspace/packages/a' }],
       tags: ['v1.1.0'],
-      commitMessage: 'chore: release v1.1.0',
+      commitMessage: 'chore: release package-a v1.1.0',
     });
   });
 
@@ -184,7 +188,7 @@ describe('Version Strategies', () => {
 
       // Check tag and commit message tracked for JSON output (git ops now handled by publish)
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
-      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release v1.1.0');
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a v1.1.0');
     });
 
     it('should use mainPackage for version calculation when specified', async () => {
@@ -443,7 +447,7 @@ describe('Version Strategies', () => {
 
       // Check tag and commit message tracked for JSON output (git ops now handled by publish)
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
-      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release v1.1.0');
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a v1.1.0');
     });
 
     it('should use packageName in commit message template', async () => {
@@ -557,15 +561,18 @@ describe('Version Strategies', () => {
     });
 
     describe('Cargo.toml Support', () => {
-      const hybridPackages: PackagesWithRoot = {
+      const hybridPackages = {
         root: '/test/workspace',
+        rootDir: '/test/workspace',
+        tool: 'npm' as unknown as Tool,
         packages: [
           {
             dir: '/test/workspace/hybrid-pkg',
+            relativeDir: 'hybrid-pkg',
             packageJson: { name: 'hybrid-package', version: '0.1.0' },
           },
         ],
-      };
+      } as unknown as PackagesWithRoot;
 
       it('should update Cargo.toml in package root when cargo.enabled is true (default)', async () => {
         // Setup
@@ -790,7 +797,11 @@ describe('Version Strategies', () => {
 
       // Verify that only targeted package is processed
       const expectedFilteredPackages = [
-        { packageJson: { name: 'package-b', version: '1.0.0' }, dir: '/test/workspace/packages/b' },
+        {
+          packageJson: { name: 'package-b', version: '1.0.0' },
+          dir: '/test/workspace/packages/b',
+          relativeDir: 'packages/b',
+        },
       ];
 
       expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(expectedFilteredPackages);
