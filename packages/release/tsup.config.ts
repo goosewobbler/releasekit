@@ -1,8 +1,8 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/cli.ts'],
-  format: ['esm', 'cjs'],
+  entry: ['src/index.ts', 'src/cli.ts', 'src/dispatcher.ts'],
+  format: ['esm'],
   dts: { resolve: ['@releasekit/core', '@releasekit/config'] },
   noExternal: ['@releasekit/core', '@releasekit/config'],
   // Externalize all bare specifiers (packages). noExternal takes precedence,

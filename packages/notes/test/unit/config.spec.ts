@@ -46,7 +46,7 @@ describe('loadConfig()', () => {
     });
   });
 
-  it('substitutes {env:VAR} with environment variable value', () => {
+  it('should substitute {env:VAR} with environment variable value', () => {
     process.env.TEST_API_KEY = 'sk-test-123';
 
     withTempDir((dir) => {
@@ -66,7 +66,7 @@ describe('loadConfig()', () => {
     });
   });
 
-  it('treats unresolved {env:MISSING_VAR} as undefined (absent)', () => {
+  it('should treat unresolved {env:MISSING_VAR} as undefined (absent)', () => {
     withTempDir((dir) => {
       fs.writeFileSync(
         path.join(dir, 'releasekit.config.json'),
@@ -104,7 +104,7 @@ describe('loadConfig()', () => {
     });
   });
 
-  it('explicit --config path takes precedence', () => {
+  it('should use config from explicit --config path over default config file', () => {
     withTempDir((dir) => {
       fs.writeFileSync(
         path.join(dir, 'releasekit.config.json'),

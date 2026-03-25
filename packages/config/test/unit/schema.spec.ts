@@ -13,6 +13,7 @@ import {
   NpmConfigSchema,
   OutputConfigSchema,
   PublishConfigSchema,
+  ReleaseConfigSchema,
   ReleaseKitConfigSchema,
   ScopeConfigSchema,
   ScopeRulesSchema,
@@ -68,7 +69,7 @@ describe('MonorepoConfigSchema', () => {
 });
 
 describe('BranchPatternSchema', () => {
-  it('requires pattern and releaseType', () => {
+  it('should require pattern and releaseType', () => {
     const result = BranchPatternSchema.parse({
       pattern: 'release/*',
       releaseType: 'minor',
@@ -205,7 +206,7 @@ describe('PublishConfigSchema', () => {
 });
 
 describe('OutputConfigSchema', () => {
-  it('requires format', () => {
+  it('should require format', () => {
     const result = OutputConfigSchema.parse({ format: 'markdown' });
     expect(result.format).toBe('markdown');
   });
@@ -238,7 +239,7 @@ describe('OutputConfigSchema', () => {
 });
 
 describe('LLMCategorySchema', () => {
-  it('requires name and description', () => {
+  it('should require name and description', () => {
     const result = LLMCategorySchema.parse({ name: 'New', description: 'New features' });
     expect(result.name).toBe('New');
     expect(result.description).toBe('New features');
@@ -287,7 +288,7 @@ describe('ScopeRulesSchema', () => {
 });
 
 describe('ScopeConfigSchema', () => {
-  it('defaults mode to unrestricted', () => {
+  it('should default mode to unrestricted', () => {
     const result = ScopeConfigSchema.parse({});
     expect(result.mode).toBe('unrestricted');
   });
@@ -350,7 +351,7 @@ describe('LLMPromptsConfigSchema', () => {
 });
 
 describe('LLMConfigSchema', () => {
-  it('requires provider and model', () => {
+  it('should require provider and model', () => {
     const result = LLMConfigSchema.parse({ provider: 'openai', model: 'gpt-4' });
     expect(result.provider).toBe('openai');
     expect(result.model).toBe('gpt-4');
@@ -533,6 +534,23 @@ describe('CIConfigSchema', () => {
     expect(result.labels.major).toBe('release:major');
     expect(result.labels.minor).toBe('release:minor');
     expect(result.labels.patch).toBe('release:patch');
+  });
+});
+
+describe('ReleaseConfigSchema', () => {
+  it('should accept valid steps array', () => {
+    expect(ReleaseConfigSchema.parse({ steps: ['notes', 'publish'] }).steps).toEqual(['notes', 'publish']);
+    expect(ReleaseConfigSchema.parse({ steps: ['notes'] }).steps).toEqual(['notes']);
+    expect(ReleaseConfigSchema.parse({ steps: ['publish'] }).steps).toEqual(['publish']);
+  });
+
+  it('should reject an empty steps array', () => {
+    expect(() => ReleaseConfigSchema.parse({ steps: [] })).toThrow();
+  });
+
+  it('should reject steps containing invalid values', () => {
+    expect(() => ReleaseConfigSchema.parse({ steps: ['version'] })).toThrow();
+    expect(() => ReleaseConfigSchema.parse({ steps: ['notes', 'invalid'] })).toThrow();
   });
 });
 

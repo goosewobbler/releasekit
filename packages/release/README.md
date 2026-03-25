@@ -20,6 +20,8 @@ npm install -g @releasekit/release
 pnpm add -g @releasekit/release
 ```
 
+> **Note:** This package is ESM only and requires Node.js 20+.
+
 ## Quick Start
 
 ```bash
@@ -58,6 +60,7 @@ If no releasable changes are found after step 1, the command exits with code 0 a
 | `-p, --prerelease [id]` | Create prerelease version | — |
 | `-s, --sync` | Synchronized versioning across all packages | `false` |
 | `-t, --target <packages>` | Target specific packages (comma-separated) | all |
+| `--branch <name>` | Git branch to push to | current branch |
 | `--skip-notes` | Skip changelog generation | `false` |
 | `--skip-publish` | Skip registry publishing and git operations | `false` |
 | `--skip-git` | Skip git commit/tag/push | `false` |
@@ -162,9 +165,19 @@ if (result) {
 
 ## Configuration
 
-All configuration is shared via `releasekit.config.json`. The release command reads the `version`, `notes`, and `publish` sections as needed.
+Create a `releasekit.config.json` in your project root. Add `$schema` for editor autocompletion and validation:
 
-See the individual package READMEs for configuration details:
+```json
+{
+  "$schema": "https://goosewobbler.github.io/releasekit/schema.json",
+  "version": {
+    "preset": "angular",
+    "packages": ["./"]
+  }
+}
+```
+
+The release command reads the `version`, `notes`, and `publish` sections. See the individual package READMEs for all available options:
 
 - [@releasekit/version](../version/README.md) — versioning options
 - [@releasekit/notes](../notes/README.md) — changelog options

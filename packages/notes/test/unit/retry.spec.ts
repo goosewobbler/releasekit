@@ -7,7 +7,7 @@ describe('withRetry()', () => {
     expect(result).toBe('success');
   });
 
-  it('calls the function exactly once when it succeeds immediately', async () => {
+  it('should call the function exactly once when it succeeds immediately', async () => {
     let calls = 0;
     await withRetry(
       async () => {
@@ -19,7 +19,7 @@ describe('withRetry()', () => {
     expect(calls).toBe(1);
   });
 
-  it('retries on failure and succeeds on the 2nd attempt', async () => {
+  it('should retry on failure and succeed on the 2nd attempt', async () => {
     let calls = 0;
     const result = await withRetry(
       async () => {
@@ -33,7 +33,7 @@ describe('withRetry()', () => {
     expect(calls).toBe(2);
   });
 
-  it('retries up to maxAttempts and then throws the last error', async () => {
+  it('should retry up to maxAttempts and then throw the last error', async () => {
     let calls = 0;
     await expect(
       withRetry(
@@ -47,7 +47,7 @@ describe('withRetry()', () => {
     expect(calls).toBe(3);
   });
 
-  it('maxAttempts: 1 means no retries', async () => {
+  it('should mean no retries when maxAttempts: 1', async () => {
     let calls = 0;
     await expect(
       withRetry(
@@ -73,7 +73,7 @@ describe('withRetry()', () => {
     ).rejects.toBeInstanceOf(CustomError);
   });
 
-  it('succeeds on the last allowed attempt', async () => {
+  it('should succeed on the last allowed attempt', async () => {
     let calls = 0;
     const result = await withRetry(
       async () => {

@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { debug, info, success } from '@releasekit/core';
+import { info, success } from '@releasekit/core';
 import type { ChangelogEntry, Config, TemplateContext } from '../core/types.js';
 
 const TYPE_ORDER: ChangelogEntry['type'][] = ['added', 'changed', 'deprecated', 'removed', 'fixed', 'security'];
@@ -142,10 +142,8 @@ export function writeMarkdown(
   const label = /changelog/i.test(outputPath) ? 'Changelog' : 'Release notes';
 
   if (dryRun) {
-    info(`Would write ${label.toLowerCase()} to ${outputPath}`);
-    debug('--- Preview ---');
-    debug(content);
-    debug('--- End Preview ---');
+    info(`[DRY RUN] ${label} preview (would write to ${outputPath}):`);
+    info(content);
     return;
   }
 

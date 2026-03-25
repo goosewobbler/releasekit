@@ -1,9 +1,8 @@
 {
   "name": "@releasekit/version",
-  "version": "0.3.0-next.4",
+  "version": "0.2.1",
   "description": "Semantic versioning based on Git history and conventional commits",
   "type": "module",
-  "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -11,10 +10,12 @@
       "import": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
-      },
-      "require": {
-        "types": "./dist/index.d.cts",
-        "default": "./dist/index.cjs"
+      }
+    },
+    "./cli": {
+      "import": {
+        "types": "./dist/cli.d.ts",
+        "default": "./dist/cli.js"
       }
     }
   },

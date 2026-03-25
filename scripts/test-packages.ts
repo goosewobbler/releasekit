@@ -4,9 +4,9 @@
  *
  * For each package it:
  * 1. Packs all packages as tarballs (via pnpm pack)
- * 2. Creates an isolated temp directory
+ * 2. Creates an isolated temp directory with strict pnpm settings
  * 3. Installs only that package (with sibling overrides for internal deps)
- * 4. Runs a smoke test (import check + CLI --help)
+ * 4. Runs smoke tests (ESM import + CLI --help)
  * 5. For @releasekit/release: runs a full dry-run in a temp git repo
  *
  * Usage:
@@ -19,7 +19,7 @@
  */
 
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,6 +30,13 @@ const rootDir = normalize(join(__dirname, '..'));
 
 // Packages that get published to npm
 const PUBLISHED_PACKAGES = ['version', 'notes', 'publish', 'release'] as const;
+
+const BIN_NAMES: Record<PackageName, string> = {
+  version: 'releasekit-version',
+  notes: 'releasekit-notes',
+  publish: 'releasekit-publish',
+  release: 'releasekit',
+};
 
 type PackageName = (typeof PUBLISHED_PACKAGES)[number];
 
@@ -88,12 +95,26 @@ function findTarball(dir: string, prefix: string): string {
   return normalize(join(dir, tgzFile));
 }
 
+function collectTarballs(): Record<PackageName, string> {
+  const tarballs: Partial<Record<PackageName, string>> = {};
+
+  for (const pkg of PUBLISHED_PACKAGES) {
+    const pkgDir = join(rootDir, 'packages', pkg);
+    tarballs[pkg] = findTarball(pkgDir, `releasekit-${pkg}-`);
+  }
+
+  log('📦 Tarballs:');
+  for (const [pkg, tgzPath] of Object.entries(tarballs)) {
+    log(`   ${pkg}: ${tgzPath}`);
+  }
+
+  return tarballs as Record<PackageName, string>;
+}
+
 function buildAndPack(): Record<PackageName, string> {
   log('Building and packing all packages...');
 
   execCommandInherit('pnpm build', rootDir, 'Building packages');
-
-  const tarballs: Partial<Record<PackageName, string>> = {};
 
   for (const pkg of PUBLISHED_PACKAGES) {
     const pkgDir = join(rootDir, 'packages', pkg);
@@ -103,42 +124,16 @@ function buildAndPack(): Record<PackageName, string> {
     execCommandInherit('pnpm pack', pkgDir, `Packing @releasekit/${pkg}`);
   }
 
-  for (const pkg of PUBLISHED_PACKAGES) {
-    const pkgDir = join(rootDir, 'packages', pkg);
-    tarballs[pkg] = findTarball(pkgDir, `releasekit-${pkg}-`);
-  }
-
-  log('📦 Packages packed:');
-  for (const [pkg, tgzPath] of Object.entries(tarballs)) {
-    log(`   ${pkg}: ${tgzPath}`);
-  }
-
-  return tarballs as Record<PackageName, string>;
+  return collectTarballs();
 }
 
 function findExistingTarballs(): Record<PackageName, string> {
   log('Finding existing tarballs...');
-
-  const tarballs: Partial<Record<PackageName, string>> = {};
-
-  for (const pkg of PUBLISHED_PACKAGES) {
-    const pkgDir = join(rootDir, 'packages', pkg);
-    tarballs[pkg] = findTarball(pkgDir, `releasekit-${pkg}-`);
-  }
-
-  log('📦 Found tarballs:');
-  for (const [pkg, tgzPath] of Object.entries(tarballs)) {
-    log(`   ${pkg}: ${tgzPath}`);
-  }
-
-  return tarballs as Record<PackageName, string>;
+  return collectTarballs();
 }
 
 function createIsolatedDir(label: string): string {
-  const testId = Date.now();
-  const tempDir = normalize(join(tmpdir(), `releasekit-pkg-test-${label}-${testId}`));
-  mkdirSync(tempDir, { recursive: true });
-  return tempDir;
+  return mkdtempSync(join(tmpdir(), `releasekit-pkg-test-${label}-`));
 }
 
 function createPackageJson(dir: string, pkg: string, tarballs: Record<PackageName, string>): void {
@@ -165,6 +160,14 @@ function createPackageJson(dir: string, pkg: string, tarballs: Record<PackageNam
   };
 
   writeFileSync(join(dir, 'package.json'), JSON.stringify(packageJson, null, 2));
+
+  // Disable hoisting so missing dependencies are not masked by sibling installs.
+  // We use public-hoist-pattern to allow conventional-changelog presets to be
+  // found by the preset loader (which dynamically imports them across packages).
+  writeFileSync(
+    join(dir, '.npmrc'),
+    'hoist=false\npublic-hoist-pattern[]=conventional-changelog-*\npublic-hoist-pattern[]=conventional-commits-*\n',
+  );
 }
 
 function testImport(dir: string, pkg: string): void {
@@ -206,11 +209,11 @@ function testReleaseDryRun(dir: string): void {
   execCommand('git add -A && git commit -m "feat: add feature"', repoDir, 'Creating feature commit');
 
   // Run from within the git repo directory to avoid --project-dir which
-  // doesn't propagate to all internal git operations. Use the absolute
-  // path to the installed binary.
-  const releasekitBin = join(dir, 'node_modules', '.bin', 'releasekit');
+  // doesn't propagate to all internal git operations. Resolve the binary
+  // via node so this works cross-platform (no symlinks needed).
+  const releasekitBin = join(dir, 'node_modules', '@releasekit', 'release', 'dist', 'cli.js');
   const output = execCommand(
-    `"${releasekitBin}" release --dry-run --json`,
+    `node "${releasekitBin}" release --dry-run --json`,
     repoDir,
     'Running releasekit release --dry-run --json',
   );
@@ -232,10 +235,7 @@ function testReleaseDryRun(dir: string): void {
   }
 }
 
-async function testPackage(
-  pkg: (typeof PUBLISHED_PACKAGES)[number],
-  tarballs: Record<PackageName, string>,
-): Promise<void> {
+function testPackage(pkg: PackageName, tarballs: Record<PackageName, string>): void {
   log(`\n${'='.repeat(50)}`);
   log(`Testing @releasekit/${pkg}`);
   log('='.repeat(50));
@@ -246,17 +246,8 @@ async function testPackage(
     createPackageJson(tempDir, pkg, tarballs);
     execCommandInherit('pnpm install', tempDir, `Installing @releasekit/${pkg}`);
 
-    // Test import
     testImport(tempDir, pkg);
-
-    // Test CLI
-    const binNames: Record<string, string> = {
-      version: 'releasekit-version',
-      notes: 'releasekit-notes',
-      publish: 'releasekit-publish',
-      release: 'releasekit',
-    };
-    testCli(tempDir, binNames[pkg]);
+    testCli(tempDir, BIN_NAMES[pkg]);
 
     // For release package: test full dry-run
     if (pkg === 'release') {
@@ -275,7 +266,7 @@ async function testPackage(
   }
 }
 
-async function main(): Promise<void> {
+function main(): void {
   const args = process.argv.slice(2);
   const skipBuild = args.includes('--skip-build');
   const packageArg = args.find((arg) => arg.startsWith('--package='))?.split('=')[1];
@@ -293,7 +284,7 @@ async function main(): Promise<void> {
 
   for (const pkg of packagesToTest) {
     try {
-      await testPackage(pkg, tarballs);
+      testPackage(pkg, tarballs);
       passed.push(pkg);
     } catch (error) {
       console.error(`❌ @releasekit/${pkg} failed:`);
@@ -319,8 +310,4 @@ async function main(): Promise<void> {
   console.log('\n🎉 All package tests passed!');
 }
 
-main().catch((error) => {
-  console.error('❌ Unhandled error:');
-  console.error(error);
-  process.exit(1);
-});
+main();

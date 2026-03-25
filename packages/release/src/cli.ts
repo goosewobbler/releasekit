@@ -1,93 +1,26 @@
 #!/usr/bin/env node
-import { EXIT_CODES } from '@releasekit/core';
+import { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { readPackageVersion } from '@releasekit/core';
 import { Command } from 'commander';
-import { runPreview } from './preview.js';
-import { runRelease } from './release.js';
-import type { ReleaseOptions } from './types.js';
+import { createReleaseCommand } from './release-command.js';
 
-const program = new Command();
+export function createReleaseProgram(): Command {
+  return new Command()
+    .name('releasekit-release')
+    .description('Unified release pipeline: version, changelog, and publish')
+    .version(readPackageVersion(import.meta.url))
+    .addCommand(createReleaseCommand(), { isDefault: true });
+}
 
-program.name('releasekit').description('Unified release pipeline: version, changelog, and publish').version('0.1.0');
+const isMain = (() => {
+  try {
+    return process.argv[1] ? realpathSync(process.argv[1]) === fileURLToPath(import.meta.url) : false;
+  } catch {
+    return false;
+  }
+})();
 
-program
-  .command('release', { isDefault: true })
-  .description('Run the full release pipeline')
-  .option('-c, --config <path>', 'Path to config file')
-  .option('-d, --dry-run', 'Preview all steps without side effects', false)
-  .option('-b, --bump <type>', 'Force bump type (patch|minor|major)')
-  .option('-p, --prerelease [identifier]', 'Create prerelease version')
-  .option('-s, --sync', 'Use synchronized versioning across all packages', false)
-  .option('-t, --target <packages>', 'Target specific packages (comma-separated)')
-  .option('--skip-notes', 'Skip changelog generation', false)
-  .option('--skip-publish', 'Skip registry publishing and git operations', false)
-  .option('--skip-git', 'Skip git commit/tag/push', false)
-  .option('--skip-github-release', 'Skip GitHub release creation', false)
-  .option('--skip-verification', 'Skip post-publish verification', false)
-  .option('-j, --json', 'Output results as JSON', false)
-  .option('-v, --verbose', 'Verbose logging', false)
-  .option('-q, --quiet', 'Suppress non-error output', false)
-  .option('--project-dir <path>', 'Project directory', process.cwd())
-  .action(async (opts) => {
-    const options: ReleaseOptions = {
-      config: opts.config,
-      dryRun: opts.dryRun,
-      bump: opts.bump,
-      prerelease: opts.prerelease,
-      sync: opts.sync,
-      target: opts.target,
-      skipNotes: opts.skipNotes,
-      skipPublish: opts.skipPublish,
-      skipGit: opts.skipGit,
-      skipGithubRelease: opts.skipGithubRelease,
-      skipVerification: opts.skipVerification,
-      json: opts.json,
-      verbose: opts.verbose,
-      quiet: opts.quiet,
-      projectDir: opts.projectDir,
-    };
-
-    try {
-      const result = await runRelease(options);
-
-      if (options.json && result) {
-        console.log(JSON.stringify(result, null, 2));
-      }
-
-      if (!result) {
-        // No releasable changes — exit cleanly
-        process.exit(0);
-      }
-    } catch (error) {
-      console.error(error instanceof Error ? error.message : String(error));
-      process.exit(EXIT_CODES.GENERAL_ERROR);
-    }
-  });
-
-program
-  .command('preview')
-  .description('Post a release preview comment on the current pull request')
-  .option('-c, --config <path>', 'Path to config file')
-  .option('--project-dir <path>', 'Project directory', process.cwd())
-  .option('--pr <number>', 'PR number (auto-detected from GitHub Actions)')
-  .option('--repo <owner/repo>', 'Repository (auto-detected from GITHUB_REPOSITORY)')
-  .option('-p, --prerelease [identifier]', 'Force prerelease preview (auto-detected by default)')
-  .option('--stable', 'Force stable release preview (graduation from prerelease)', false)
-  .option('-d, --dry-run', 'Print comment markdown to stdout instead of posting', false)
-  .action(async (opts) => {
-    try {
-      await runPreview({
-        config: opts.config,
-        projectDir: opts.projectDir,
-        pr: opts.pr,
-        repo: opts.repo,
-        prerelease: opts.prerelease,
-        stable: opts.stable,
-        dryRun: opts.dryRun,
-      });
-    } catch (error) {
-      console.error(error instanceof Error ? error.message : String(error));
-      process.exit(EXIT_CODES.GENERAL_ERROR);
-    }
-  });
-
-program.parse();
+if (isMain) {
+  createReleaseProgram().parse();
+}

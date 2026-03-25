@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { isCargoToml, updateCargoVersion } from '../cargo/cargoHandler.js';
 import type { PkgJson } from '../types.js';
-import { addPackageUpdate } from '../utils/jsonOutput.js';
+import { addPackageUpdate, recordPendingWrite } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 
 // Define the PackageInfo interface here for internal use
@@ -125,9 +125,11 @@ export function updatePackageVersion(packagePath: string, version: string, dryRu
     const packageJson = JSON.parse(packageContent);
     const packageName = packageJson.name;
 
-    if (!dryRun) {
-      packageJson.version = version;
-      fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+    const updatedContent = `${JSON.stringify({ ...packageJson, version }, null, 2)}\n`;
+    if (dryRun) {
+      recordPendingWrite(packagePath, updatedContent);
+    } else {
+      fs.writeFileSync(packagePath, updatedContent);
     }
 
     // Track update for JSON output

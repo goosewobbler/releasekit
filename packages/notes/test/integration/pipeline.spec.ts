@@ -2,7 +2,7 @@ import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createDocumentContext, createTemplateContext } from '../../src/core/pipeline.js';
 import { parseConventionalChangelog, parseConventionalChangelogFile } from '../../src/input/conventional-changelog.js';
-import { parsePackageVersioner } from '../../src/input/package-versioner.js';
+import { parseVersionOutput } from '../../src/input/version-output.js';
 import { aggregateToRoot, splitByPackage } from '../../src/monorepo/index.js';
 import { formatVersion, renderMarkdown } from '../../src/output/markdown.js';
 
@@ -10,7 +10,7 @@ import { formatVersion, renderMarkdown } from '../../src/output/markdown.js';
 // Fixtures
 // ---------------------------------------------------------------------------
 
-const packageVersionerFixture = {
+const versionOutputFixture = {
   dryRun: false,
   updates: [{ packageName: 'my-lib', newVersion: '2.0.0', filePath: 'package.json' }],
   changelogs: [
@@ -50,12 +50,12 @@ const sampleChangelog = `
 `.trim();
 
 // ---------------------------------------------------------------------------
-// Full pipeline: package-versioner → markdown
+// Full pipeline: version output → markdown
 // ---------------------------------------------------------------------------
 
-describe('Pipeline: package-versioner → markdown', () => {
-  it('produces a valid changelog with version header', () => {
-    const input = parsePackageVersioner(JSON.stringify(packageVersionerFixture));
+describe('Pipeline: version output → markdown', () => {
+  it('should produce a valid changelog with version header', () => {
+    const input = parseVersionOutput(JSON.stringify(versionOutputFixture));
     const contexts = input.packages.map(createTemplateContext);
     const markdown = renderMarkdown(contexts);
 
@@ -70,15 +70,15 @@ describe('Pipeline: package-versioner → markdown', () => {
   });
 
   it('should include a GitHub comparison link', () => {
-    const input = parsePackageVersioner(JSON.stringify(packageVersionerFixture));
+    const input = parseVersionOutput(JSON.stringify(versionOutputFixture));
     const contexts = input.packages.map(createTemplateContext);
     const markdown = renderMarkdown(contexts);
 
     expect(markdown).toContain('[Full Changelog](https://github.com/acme/my-lib/compare/1.0.0...2.0.0)');
   });
 
-  it('populates compareUrls in document context', () => {
-    const input = parsePackageVersioner(JSON.stringify(packageVersionerFixture));
+  it('should populate compareUrls in document context', () => {
+    const input = parseVersionOutput(JSON.stringify(versionOutputFixture));
     const contexts = input.packages.map(createTemplateContext);
     const doc = createDocumentContext(contexts, 'https://github.com/acme/my-lib');
 
@@ -104,22 +104,22 @@ describe('compareUrl: platform detection', () => {
     });
   }
 
-  it('generates GitHub compare URL', () => {
+  it('should generate GitHub compare URL', () => {
     const ctx = makeCtx('https://github.com/org/repo');
     expect(ctx.compareUrl).toBe('https://github.com/org/repo/compare/1.0.0...2.0.0');
   });
 
-  it('generates GitLab compare URL', () => {
+  it('should generate GitLab compare URL', () => {
     const ctx = makeCtx('https://gitlab.com/org/repo');
     expect(ctx.compareUrl).toBe('https://gitlab.com/org/repo/-/compare/1.0.0...2.0.0');
   });
 
-  it('generates Bitbucket compare URL', () => {
+  it('should generate Bitbucket compare URL', () => {
     const ctx = makeCtx('https://bitbucket.org/org/repo');
     expect(ctx.compareUrl).toBe('https://bitbucket.org/org/repo/branches/compare/1.0.0..2.0.0');
   });
 
-  it('generates compare URL for package-specific tags', () => {
+  it('should generate compare URL for package-specific version tags', () => {
     const ctx = createTemplateContext({
       packageName: '@releasekit/version',
       version: '0.2.0-next.9',
@@ -173,7 +173,7 @@ describe('Parser: conventional-changelog', () => {
     expect(result.packages[1]?.previousVersion).toBeNull();
   });
 
-  it('normalises Added entries', () => {
+  it('should normalise Added entries', () => {
     const result = parseConventionalChangelog(sampleChangelog, 'my-lib');
     const added = result.packages[0]?.entries.filter((e) => e.type === 'added') ?? [];
     expect(added.length).toBeGreaterThanOrEqual(1);
@@ -193,7 +193,7 @@ describe('Parser: conventional-changelog', () => {
     expect(fixedEntry?.issueIds).toContain('#38');
   });
 
-  it('round-trips: parse → render → contains version', () => {
+  it('should round-trip: parse → render → contains version', () => {
     const result = parseConventionalChangelog(sampleChangelog, 'my-lib');
     const contexts = result.packages.map(createTemplateContext);
     const markdown = renderMarkdown(contexts);
@@ -248,7 +248,7 @@ describe('Monorepo: aggregation and splitting', () => {
     entries: [{ type: 'fixed', description: 'Button alignment' }],
   });
 
-  it('aggregates all entries into a root context', () => {
+  it('should aggregate all entries into a root context', () => {
     const root = aggregateToRoot([pkgA, pkgB]);
     expect(root.packageName).toBe('monorepo');
     expect(root.entries).toHaveLength(2);
@@ -256,21 +256,21 @@ describe('Monorepo: aggregation and splitting', () => {
     expect(root.entries.some((e) => e.scope?.includes('@acme/ui'))).toBe(true);
   });
 
-  it('splits into per-package map', () => {
+  it('should split into per-package map', () => {
     const map = splitByPackage([pkgA, pkgB]);
     expect(map.size).toBe(2);
     expect(map.get('@acme/core')).toBe(pkgA);
     expect(map.get('@acme/ui')).toBe(pkgB);
   });
 
-  it('aggregated markdown contains both package scopes', () => {
+  it('should have aggregated markdown contain both package scopes', () => {
     const root = aggregateToRoot([pkgA, pkgB]);
     const markdown = renderMarkdown([root]);
     expect(markdown).toContain('@acme/core');
     expect(markdown).toContain('@acme/ui');
   });
 
-  it('root changelog renders per-package sections with package names in headers', () => {
+  it('should render root changelog with per-package sections with package names in headers', () => {
     const markdown = renderMarkdown([pkgA, pkgB], { includePackageName: true });
 
     // Each package gets its own version header with package name
@@ -281,14 +281,14 @@ describe('Monorepo: aggregation and splitting', () => {
     expect(markdown).toContain('- Button alignment');
   });
 
-  it('per-package changelogs omit package name from headers', () => {
+  it('should omit package name from headers in per-package changelogs', () => {
     const markdown = renderMarkdown([pkgA]);
 
     expect(markdown).toContain('## 1.0.0');
     expect(markdown).not.toContain('@acme/core@');
   });
 
-  it('formatVersion includes package name only when requested', () => {
+  it('should include package name in formatVersion only when requested', () => {
     const withName = formatVersion(pkgA, { includePackageName: true });
     const withoutName = formatVersion(pkgA);
 
@@ -297,7 +297,7 @@ describe('Monorepo: aggregation and splitting', () => {
     expect(withoutName).not.toContain('@acme/core');
   });
 
-  it('root changelog with previousVersion uses bracketed headers', () => {
+  it('should use bracketed headers in root changelog with previousVersion', () => {
     const pkgWithPrev = createTemplateContext({
       packageName: '@acme/core',
       version: '2.0.0',

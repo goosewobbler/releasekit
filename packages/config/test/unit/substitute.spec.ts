@@ -25,12 +25,12 @@ describe('substituteVariables', () => {
     process.env = originalEnv;
   });
 
-  it('substitutes {env:VAR} with environment variable', () => {
+  it('should substitute {env:VAR} with environment variable', () => {
     const result = substituteVariables('Value: {env:TEST_VAR}');
     expect(result).toBe('Value: test-value');
   });
 
-  it('substitutes multiple environment variables', () => {
+  it('should substitute multiple environment variables', () => {
     const result = substituteVariables('{env:TEST_VAR} and {env:API_KEY}');
     expect(result).toBe('test-value and secret-123');
   });
@@ -45,7 +45,7 @@ describe('substituteVariables', () => {
     expect(result).toBe('No variables here');
   });
 
-  it('substitutes {file:PATH} with file contents', () => {
+  it('should substitute {file:PATH} with file contents', () => {
     mockedFs.readFileSync.mockReturnValue('  file contents  \n');
     const result = substituteVariables('File: {file:/path/to/file.txt}');
     expect(result).toBe('File: file contents');
@@ -66,7 +66,7 @@ describe('substituteVariables', () => {
     expect(result).toBe('');
   });
 
-  it('substitutes mixed env and file variables', () => {
+  it('should substitute mixed env and file variables', () => {
     mockedFs.readFileSync.mockReturnValue('file-content');
     const result = substituteVariables('{env:TEST_VAR} and {file:/path/to/file}');
     expect(result).toBe('test-value and file-content');
@@ -84,13 +84,13 @@ describe('substituteInObject', () => {
     process.env = originalEnv;
   });
 
-  it('substitutes variables in string values', () => {
+  it('should substitute variables in string values', () => {
     const obj = { apiKey: '{env:API_KEY}' };
     const result = substituteInObject(obj);
     expect(result).toEqual({ apiKey: 'secret-123' });
   });
 
-  it('substitutes variables in nested objects', () => {
+  it('should substitute variables in nested objects', () => {
     const obj = {
       config: {
         apiKey: '{env:API_KEY}',
@@ -106,7 +106,7 @@ describe('substituteInObject', () => {
     });
   });
 
-  it('substitutes variables in arrays', () => {
+  it('should substitute variables in arrays', () => {
     const obj = {
       keys: ['{env:API_KEY}', 'static-value'],
     };
@@ -172,7 +172,7 @@ describe('substituteInObject', () => {
     expect(result.secret).toBeUndefined();
   });
 
-  it('substitutes in deeply nested structures', () => {
+  it('should substitute in deeply nested structures', () => {
     const obj = {
       level1: {
         level2: {
@@ -217,7 +217,7 @@ describe('saveAuth', () => {
     expect(mockedFs.mkdirSync).toHaveBeenCalled();
   });
 
-  it('writes auth data with provider key', () => {
+  it('should write auth data with provider key', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue('{}');
     saveAuth('openai', 'sk-test');
@@ -226,7 +226,7 @@ describe('saveAuth', () => {
     expect(written).toEqual({ openai: 'sk-test' });
   });
 
-  it('writes to correct file path', () => {
+  it('should write to correct file path', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue('{}');
     saveAuth('openai', 'sk-test');
@@ -235,7 +235,7 @@ describe('saveAuth', () => {
     expect(writeCall[0]).toContain('auth.json');
   });
 
-  it('writes with proper formatting', () => {
+  it('should write with proper formatting', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue('{}');
     saveAuth('openai', 'sk-test');

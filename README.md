@@ -34,19 +34,24 @@ commits and designed for CI/CD pipelines.
 
 ```bash
 # Preview the full release pipeline
-releasekit release --dry-run
+releasekit --dry-run
 
 # Run a full release: version, changelog, and publish
-releasekit release
+releasekit
 
 # Skip changelog generation
-releasekit release --skip-notes
+releasekit --skip-notes
 
 # Force a patch bump
-releasekit release --bump patch
+releasekit --bump patch
+```
 
-# Preview what a PR would release (posts a comment on the PR)
-releasekit preview --pr 42
+Individual steps are also available as subcommands:
+
+```bash
+releasekit version --dry-run --json
+releasekit notes --dry-run
+releasekit publish --dry-run
 ```
 
 ### Composable tools

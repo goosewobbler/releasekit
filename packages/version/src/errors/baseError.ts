@@ -18,6 +18,3 @@ export class BaseVersionError extends ReleaseKitError {
     return error instanceof BaseVersionError;
   }
 }
-
-// Backwards-compatible alias
-export { BaseVersionError as BasePackageVersionerError };

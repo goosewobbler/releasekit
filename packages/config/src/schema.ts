@@ -272,6 +272,27 @@ export const CIConfigSchema = z.object({
   }),
 });
 
+export const ReleaseCIConfigSchema = z.object({
+  skipPatterns: z.array(z.string().min(1)).optional(),
+  minChanges: z.number().int().positive().optional(),
+  /** Set to `false` to disable GitHub release creation in CI. */
+  githubRelease: z.literal(false).optional(),
+  /** Set to `false` to disable changelog generation in CI. */
+  notes: z.literal(false).optional(),
+});
+
+export const ReleaseConfigSchema = z.object({
+  /**
+   * Optional steps to enable. The version step always runs; only 'notes' and
+   * 'publish' can be opted out. Omitting a step is equivalent to --skip-<step>.
+   */
+  steps: z
+    .array(z.enum(['notes', 'publish']))
+    .min(1)
+    .optional(),
+  ci: ReleaseCIConfigSchema.optional(),
+});
+
 export const ReleaseKitConfigSchema = z.object({
   git: GitConfigSchema.optional(),
   monorepo: MonorepoConfigSchema.optional(),
@@ -279,6 +300,7 @@ export const ReleaseKitConfigSchema = z.object({
   publish: PublishConfigSchema.optional(),
   notes: NotesConfigSchema.optional(),
   ci: CIConfigSchema.optional(),
+  release: ReleaseConfigSchema.optional(),
 });
 
 export type CIConfig = z.infer<typeof CIConfigSchema>;
@@ -302,4 +324,6 @@ export type LLMPromptOverrides = z.infer<typeof LLMPromptOverridesSchema>;
 export type LLMPromptsConfig = z.infer<typeof LLMPromptsConfigSchema>;
 export type TemplateConfig = z.infer<typeof TemplateConfigSchema>;
 export type NotesConfig = z.infer<typeof NotesConfigSchema>;
+export type ReleaseCIConfig = z.infer<typeof ReleaseCIConfigSchema>;
+export type ReleaseConfig = z.infer<typeof ReleaseConfigSchema>;
 export type ReleaseKitConfig = z.infer<typeof ReleaseKitConfigSchema>;

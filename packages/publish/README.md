@@ -21,6 +21,8 @@ npm install -g @releasekit/publish
 pnpm add -g @releasekit/publish
 ```
 
+> **Note:** This package is ESM only and requires Node.js 20+.
+
 ## Quick Start
 
 `@releasekit/publish` reads JSON output from `@releasekit/version` and runs a publish pipeline:

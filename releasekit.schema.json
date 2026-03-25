@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://releasekit.dev/schema.json",
+  "$id": "https://goosewobbler.github.io/releasekit/schema.json",
   "title": "ReleaseKit Configuration",
   "description": "Configuration schema for ReleaseKit - Automated versioning, changelog generation, and publishing",
   "type": "object",
@@ -657,6 +657,49 @@
           "enum": ["prepend", "regenerate"],
           "default": "prepend",
           "description": "How to update existing changelog"
+        }
+      }
+    },
+    "release": {
+      "type": "object",
+      "description": "Release pipeline automation configuration",
+      "additionalProperties": false,
+      "properties": {
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["notes", "publish"]
+          },
+          "minItems": 1,
+          "description": "Which steps to run by default. Omitting a step is equivalent to --skip-<step>."
+        },
+        "ci": {
+          "type": "object",
+          "description": "CI-specific automation settings",
+          "additionalProperties": false,
+          "properties": {
+            "skipPatterns": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "description": "Commit message prefixes that prevent a release (e.g. 'chore(deps):', 'ci:')"
+            },
+            "minChanges": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Minimum number of packages with releasable changes required to trigger a release"
+            },
+            "githubRelease": {
+              "type": "boolean",
+              "enum": [false],
+              "description": "Set to false to disable GitHub release creation in CI"
+            },
+            "notes": {
+              "type": "boolean",
+              "enum": [false],
+              "description": "Set to false to disable changelog generation in CI"
+            }
+          }
         }
       }
     }

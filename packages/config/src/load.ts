@@ -9,6 +9,7 @@ import {
   type GitConfig,
   type NotesConfig,
   type PublishConfig,
+  type ReleaseConfig,
   type ReleaseKitConfig,
   ReleaseKitConfigSchema,
   type VersionConfig,
@@ -96,4 +97,9 @@ export function loadMonorepoConfig(options?: LoadOptions) {
 export function loadCIConfig(options?: LoadOptions): CIConfig | undefined {
   const config = loadConfig(options);
   return config.ci;
+}
+
+export function loadReleaseConfig(options?: LoadOptions): ReleaseConfig | undefined {
+  const config = loadConfig(options);
+  return config.release;
 }

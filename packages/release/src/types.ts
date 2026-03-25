@@ -8,6 +8,7 @@ export interface ReleaseOptions {
   prerelease?: string | boolean;
   sync: boolean;
   target?: string;
+  branch?: string;
   skipNotes: boolean;
   skipPublish: boolean;
   skipGit: boolean;
@@ -22,5 +23,6 @@ export interface ReleaseOptions {
 export interface ReleaseOutput {
   versionOutput: VersionOutput;
   notesGenerated: boolean;
+  packageNotes?: Record<string, string>;
   publishOutput?: PublishOutput;
 }

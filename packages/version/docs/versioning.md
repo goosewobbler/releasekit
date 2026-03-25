@@ -1,6 +1,6 @@
 # Versioning Strategies and Concepts
 
-`package-versioner` offers flexible ways to determine the next version for your project based on its history and your configuration.
+`releasekit-version` offers flexible ways to determine the next version for your project based on its history and your configuration.
 
 ## How the Next Version is Calculated
 
@@ -8,7 +8,7 @@ There are two primary methods the tool uses to decide the version bump (e.g., pa
 
 ### 1. Conventional Commits (`versionStrategy: "conventional"`)
 
-This is the default strategy. `package-versioner` analyzes Git commit messages since the last Git tag that follows semver patterns. It uses the [conventional-commits](https://www.conventionalcommits.org/) specification to determine the bump:
+This is the default strategy. `releasekit-version` analyzes Git commit messages since the last Git tag that follows semver patterns. It uses the [conventional-commits](https://www.conventionalcommits.org/) specification to determine the bump:
 
 -   **Patch Bump (e.g., 1.2.3 -> 1.2.4):** Triggered by `fix:` commit types.
 -   **Minor Bump (e.g., 1.2.3 -> 1.3.0):** Triggered by `feat:` commit types.
@@ -67,7 +67,7 @@ This allows you to enforce version bumps based on your branching workflow (e.g.,
 
 ## Package Type Support
 
-`package-versioner` supports both JavaScript/TypeScript projects using `package.json` and Rust projects using `Cargo.toml`:
+`releasekit-version` supports both JavaScript/TypeScript projects using `package.json` and Rust projects using `Cargo.toml`:
 
 ### JavaScript/TypeScript Projects
 
@@ -79,7 +79,7 @@ For Rust projects, the tool looks for and updates the `package.version` field in
 
 ### Mixed Projects with Both Manifests
 
-When both `package.json` and `Cargo.toml` exist in the same directory, `package-versioner` will:
+When both `package.json` and `Cargo.toml` exist in the same directory, `releasekit-version` will:
 
 1. Update both manifest files independently with the same calculated version
 2. First check `package.json` for the current version (when no tags exist)
@@ -89,7 +89,7 @@ This allows you to maintain consistent versioning across JavaScript and Rust com
 
 ## Version Source Selection
 
-`package-versioner` uses a smart version source selection strategy to determine the base version for calculating the next version:
+`releasekit-version` uses a smart version source selection strategy to determine the base version for calculating the next version:
 
 1. First, it checks for Git tags:
    - In normal mode: Uses the latest reachable tag, falling back to unreachable tags if needed
@@ -273,7 +273,7 @@ This configuration will process all packages in the `@mycompany` scope except fo
 
 ## Tag Templates and Configuration
 
-`package-versioner` provides flexible configuration for how Git tags are formatted, allowing you to customize the tag structure for both single package repositories and monorepos.
+`releasekit-version` provides flexible configuration for how Git tags are formatted, allowing you to customize the tag structure for both single package repositories and monorepos.
 
 ### Tag Template Configuration
 
@@ -355,7 +355,7 @@ This would produce package tags like `@scope/package-name-v1.2.3` instead of `@s
 
 ## Troubleshooting Template Configuration
 
-`package-versioner` provides helpful warnings when template configurations don't match your project setup. Here are common issues and their solutions:
+`releasekit-version` provides helpful warnings when template configurations don't match your project setup. Here are common issues and their solutions:
 
 ### Template Contains ${packageName} but No Package Name Available
 
@@ -430,7 +430,7 @@ For global commit messages, use templates without `${packageName}`:
 
 ## Monorepo Versioning Modes
 
-While primarily used for single packages now, `package-versioner` retains options for monorepo workflows, controlled mainly by the `sync` flag in `version.config.json`.
+While primarily used for single packages now, `releasekit-version` retains options for monorepo workflows, controlled mainly by the `sync` flag in `version.config.json`.
 
 ### Sync Mode (`sync: true`)
 
@@ -458,12 +458,12 @@ This is the default if the `sync` flag is present and true.
     -   The `package.json` file of each successfully updated targeted package is modified.
     -   An **individual Git tag** (e.g., `packageName@1.2.3`) is created **for each successfully updated package** immediately after its version is bumped.
     -   Finally, a **single commit** is created including all the updated `package.json` files, using a summary commit message (e.g., `chore(release): pkg-a, pkg-b 1.2.3 [skip-ci]`).
-    -   **Important:** Only package-specific tags are created. The global tag (e.g., `v1.2.3`) is **not** automatically generated in this mode. If your release process (like GitHub Releases) depends on a global tag, you'll need to create it manually in your CI/CD script *after* `package-versioner` completes.
+    -   **Important:** Only package-specific tags are created. The global tag (e.g., `v1.2.3`) is **not** automatically generated in this mode. If your release process (like GitHub Releases) depends on a global tag, you'll need to create it manually in your CI/CD script *after* `releasekit-version` completes.
 -   **Use Case:** Releasing specific packages independently while still tagging each released package individually.
 
 ## Prerelease Handling
 
-`package-versioner` provides flexible handling for prerelease versions, allowing both creation of prereleases and promotion to stable releases.
+`releasekit-version` provides flexible handling for prerelease versions, allowing both creation of prereleases and promotion to stable releases.
 
 ### Creating Prereleases
 
@@ -471,7 +471,7 @@ Use the `--prerelease` flag with an identifier to create a prerelease version:
 
 ```bash
 # Create a beta prerelease
-npx package-versioner --bump minor --prerelease beta
+npx releasekit-version --bump minor --prerelease beta
 # Result: 1.0.0 -> 1.1.0-beta.0
 ```
 
@@ -485,11 +485,11 @@ You can also set a default prerelease identifier in your `version.config.json`:
 
 ### Promoting Prereleases to Stable Releases
 
-When using standard bump types (`major`, `minor`, `patch`) with the `--bump` flag on a prerelease version, `package-versioner` will automatically clean the prerelease identifier:
+When using standard bump types (`major`, `minor`, `patch`) with the `--bump` flag on a prerelease version, `releasekit-version` will automatically clean the prerelease identifier:
 
 ```bash
 # Starting from version 1.0.0-beta.1
-npx package-versioner --bump major
+npx releasekit-version --bump major
 # Result: 1.0.0-beta.1 -> 2.0.0 (not 2.0.0-beta.0)
 ```
 
