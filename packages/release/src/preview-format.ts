@@ -141,29 +141,25 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
   }
   lines.push('');
 
-  // Changelog per package — deduplicate entries that appear in every package into a shared section
-  if (versionOutput.changelogs.length > 0) {
+  // Changelog section
+  const sharedEntries = versionOutput.sharedEntries?.length ? versionOutput.sharedEntries : undefined;
+  const hasPackageChangelogs = versionOutput.changelogs.some((cl) => cl.entries.length > 0);
+
+  if (sharedEntries || hasPackageChangelogs) {
     lines.push('### Changelog', '');
 
-    const sharedEntries = findSharedEntries(versionOutput.changelogs);
-
-    if (sharedEntries.length > 0) {
+    // Project-wide entries (CI, infra, shared-package commits) rendered once
+    if (sharedEntries) {
       lines.push('<details>', '<summary><b>Project-wide changes</b></summary>', '');
       lines.push(...renderEntries(sharedEntries));
       lines.push('</details>', '');
     }
 
+    // Per-package entries — only rendered when the package has unique changes
     for (const changelog of versionOutput.changelogs) {
-      const uniqueEntries =
-        sharedEntries.length > 0
-          ? {
-              ...changelog,
-              entries: changelog.entries.filter(
-                (e) => !sharedEntries.some((s) => s.type === e.type && s.description === e.description),
-              ),
-            }
-          : changelog;
-      lines.push(...formatPackageChangelog(uniqueEntries));
+      if (changelog.entries.length > 0) {
+        lines.push(...formatPackageChangelog(changelog));
+      }
     }
   }
 
@@ -178,37 +174,6 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
 
   lines.push('---', FOOTER, '</details>');
   return lines.join('\n');
-}
-
-/**
- * Find entries that appear (by type + description) in every changelog and return them normalised:
- * - `scope` is stripped (it is package-specific and would be misleading in a shared section)
- * - `issueIds` are merged and deduplicated across all packages
- *
- * Only meaningful when there are two or more packages — returns [] for a single package.
- */
-function findSharedEntries(changelogs: VersionPackageChangelog[]): VersionChangelogEntry[] {
-  if (changelogs.length <= 1) return [];
-  const [first, ...rest] = changelogs;
-  if (!first) return [];
-
-  return first.entries
-    .filter((entry) =>
-      rest.every((cl) => cl.entries.some((e) => e.type === entry.type && e.description === entry.description)),
-    )
-    .map((entry) => {
-      // Merge issueIds from all changelogs and deduplicate
-      const allIssueIds = changelogs.flatMap(
-        (cl) => cl.entries.find((e) => e.type === entry.type && e.description === entry.description)?.issueIds ?? [],
-      );
-      const mergedIssueIds = [...new Set(allIssueIds)];
-      return {
-        type: entry.type,
-        description: entry.description,
-        ...(mergedIssueIds.length > 0 && { issueIds: mergedIssueIds }),
-        // scope intentionally omitted — it is package-specific
-      };
-    });
 }
 
 function renderEntries(entries: VersionChangelogEntry[]): string[] {

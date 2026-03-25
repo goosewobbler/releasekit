@@ -102,8 +102,9 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('- `@releasekit/notes@v0.3.1`');
   });
 
-  describe('shared entry deduplication', () => {
+  describe('shared entries rendering', () => {
     const sharedEntry = { type: 'chore', description: 'Update CI pipeline' };
+
     const outputWithShared: ReleaseOutput = {
       versionOutput: {
         dryRun: true,
@@ -118,7 +119,7 @@ describe('formatPreviewComment', () => {
             previousVersion: '1.0.0',
             revisionRange: 'v1.0.0..HEAD',
             repoUrl: null,
-            entries: [{ type: 'added', description: 'New feature in pkg-a' }, sharedEntry],
+            entries: [{ type: 'added', description: 'New feature in pkg-a' }],
           },
           {
             packageName: 'pkg-b',
@@ -126,25 +127,24 @@ describe('formatPreviewComment', () => {
             previousVersion: '1.0.0',
             revisionRange: 'v1.0.0..HEAD',
             repoUrl: null,
-            entries: [{ type: 'fixed', description: 'Bug fix in pkg-b' }, sharedEntry],
+            entries: [{ type: 'fixed', description: 'Bug fix in pkg-b' }],
           },
         ],
+        sharedEntries: [sharedEntry],
         tags: ['pkg-a@v1.1.0', 'pkg-b@v1.1.0'],
       },
       notesGenerated: false,
     };
 
-    it('extracts shared entries into a Project-wide changes section', () => {
+    it('renders sharedEntries in a Project-wide changes section', () => {
       const result = formatPreviewComment(outputWithShared);
       expect(result).toContain('<b>Project-wide changes</b>');
       expect(result).toContain('- Update CI pipeline');
     });
 
-    it('removes shared entries from individual package changelogs', () => {
+    it('shared entries appear only once, not in individual package changelogs', () => {
       const result = formatPreviewComment(outputWithShared);
-      // Count occurrences — should appear once in shared, not again per package
-      const occurrences = result.split('Update CI pipeline').length - 1;
-      expect(occurrences).toBe(1);
+      expect(result.split('Update CI pipeline').length - 1).toBe(1);
     });
 
     it('keeps package-specific entries in each package changelog', () => {
@@ -153,38 +153,8 @@ describe('formatPreviewComment', () => {
       expect(result).toContain('- Bug fix in pkg-b');
     });
 
-    it('does not create a Project-wide section for single-package output', () => {
-      const singlePkg: ReleaseOutput = {
-        versionOutput: {
-          dryRun: true,
-          updates: [{ packageName: 'pkg-a', newVersion: '1.1.0', filePath: 'packages/a/package.json' }],
-          changelogs: [
-            {
-              packageName: 'pkg-a',
-              version: '1.1.0',
-              previousVersion: '1.0.0',
-              revisionRange: 'v1.0.0..HEAD',
-              repoUrl: null,
-              entries: [{ type: 'added', description: 'New feature' }, sharedEntry],
-            },
-          ],
-          tags: ['pkg-a@v1.1.0'],
-        },
-        notesGenerated: false,
-      };
-      const result = formatPreviewComment(singlePkg);
-      expect(result).not.toContain('Project-wide changes');
-      // Entry should appear in the package's own changelog
-      expect(result).toContain('- Update CI pipeline');
-    });
-
-    it('does not create a Project-wide section when all entries are unique', () => {
-      const result = formatPreviewComment(releaseOutput);
-      expect(result).not.toContain('Project-wide changes');
-    });
-
-    it('strips scope and merges issueIds when packages carry different metadata for the same entry', () => {
-      const divergingMetadata: ReleaseOutput = {
+    it('omits the package details block when that package has no entries', () => {
+      const noEntries: ReleaseOutput = {
         versionOutput: {
           dryRun: true,
           updates: [
@@ -198,7 +168,7 @@ describe('formatPreviewComment', () => {
               previousVersion: '1.0.0',
               revisionRange: 'v1.0.0..HEAD',
               repoUrl: null,
-              entries: [{ type: 'fixed', description: 'Update deps', scope: 'pkg-a', issueIds: ['#1'] }],
+              entries: [], // no package-specific changes
             },
             {
               packageName: 'pkg-b',
@@ -206,23 +176,23 @@ describe('formatPreviewComment', () => {
               previousVersion: '1.0.0',
               revisionRange: 'v1.0.0..HEAD',
               repoUrl: null,
-              entries: [{ type: 'fixed', description: 'Update deps', scope: 'pkg-b', issueIds: ['#2'] }],
+              entries: [{ type: 'fixed', description: 'Bug fix in pkg-b' }],
             },
           ],
+          sharedEntries: [sharedEntry],
           tags: [],
         },
         notesGenerated: false,
       };
-      const result = formatPreviewComment(divergingMetadata);
-      // Entry should appear once in the shared section
-      const occurrences = result.split('Update deps').length - 1;
-      expect(occurrences).toBe(1);
-      // Scope from either package should not appear
-      expect(result).not.toContain('(`pkg-a`)');
-      expect(result).not.toContain('(`pkg-b`)');
-      // IssueIds from both packages should be merged
-      expect(result).toContain('#1');
-      expect(result).toContain('#2');
+      const result = formatPreviewComment(noEntries);
+      expect(result).not.toContain('<b>pkg-a</b>');
+      expect(result).toContain('<b>pkg-b</b>');
+      expect(result.split(sharedEntry.description).length - 1).toBe(1);
+    });
+
+    it('does not render a Project-wide section when sharedEntries is absent', () => {
+      const result = formatPreviewComment(releaseOutput);
+      expect(result).not.toContain('Project-wide changes');
     });
   });
 
