@@ -78,7 +78,7 @@ describe('parseManualInput', () => {
     expect(() => parseManualInput('null')).toThrow('Input must be a JSON object');
   });
 
-  it('normalizes entry types', () => {
+  it('should normalize entry types', () => {
     const json = JSON.stringify({
       packages: [
         {
@@ -99,7 +99,7 @@ describe('parseManualInput', () => {
     expect(types).toEqual(['added', 'fixed', 'added', 'fixed', 'changed']);
   });
 
-  it('normalizes entry fields', () => {
+  it('should normalize entry fields', () => {
     const json = JSON.stringify({
       packages: [
         {
@@ -182,7 +182,7 @@ describe('parseManualInput', () => {
     expect(result.packages[0]?.date).toBe('2024-01-15');
   });
 
-  it('generates current date when not provided', () => {
+  it('should generate current date when not provided', () => {
     const json = JSON.stringify({ packages: [{}] });
     const today = new Date().toISOString().split('T')[0];
 

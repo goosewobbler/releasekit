@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { buildOrderedCategories } from '../../../src/core/pipeline.js';
 import type { ChangelogInput, CompleteOptions, Config } from '../../../src/core/types.js';
 import type { LLMProvider } from '../../../src/llm/provider.js';
 
@@ -9,7 +10,7 @@ vi.mock('../../../src/llm/index.js', async (importOriginal) => {
 });
 
 const sampleInput: ChangelogInput = {
-  source: 'package-versioner',
+  source: 'version',
   packages: [
     {
       packageName: 'test-pkg',
@@ -44,7 +45,7 @@ describe('Pipeline: config.llm.options passthrough', () => {
     vi.mocked(createProvider).mockReturnValue(mockProvider);
   });
 
-  it('passes config.llm.options to provider complete() calls', async () => {
+  it('should pass config.llm.options to provider complete() calls', async () => {
     const { runPipeline } = await import('../../../src/core/pipeline.js');
     const config: Config = {
       output: [{ format: 'markdown', file: '/dev/null' }],
@@ -61,7 +62,7 @@ describe('Pipeline: config.llm.options passthrough', () => {
     expect(capturedOpts).toMatchObject({ maxTokens: 8000, timeout: 90000, temperature: 0.2 });
   });
 
-  it('works without config.llm.options set (no opts passed to complete)', async () => {
+  it('should work without config.llm.options set (no opts passed to complete)', async () => {
     const { runPipeline } = await import('../../../src/core/pipeline.js');
     const config: Config = {
       output: [{ format: 'markdown', file: '/dev/null' }],
@@ -78,7 +79,7 @@ describe('Pipeline: config.llm.options passthrough', () => {
     expect(capturedOpts).toEqual({});
   });
 
-  it('per-call opts override config.llm.options', async () => {
+  it('should use per-call options when provided, overriding config-level LLM options', async () => {
     // Verify the merge order: { ...configOptions, ...callOpts }
     // This is tested indirectly — if a task passes its own opts they win.
     // We verify the config options ARE present when no per-call override exists.
@@ -96,5 +97,46 @@ describe('Pipeline: config.llm.options passthrough', () => {
     await runPipeline(sampleInput, config, false);
 
     expect(capturedOpts).toMatchObject({ maxTokens: 4000 });
+  });
+});
+
+describe('buildOrderedCategories', () => {
+  const raw = [
+    { category: 'Fixed', entries: [{ type: 'fixed' as const, description: 'Fix bug' }] },
+    { category: 'New', entries: [{ type: 'added' as const, description: 'Add feature' }] },
+    { category: 'Unknown', entries: [{ type: 'changed' as const, description: 'Some change' }] },
+  ];
+
+  it('should map raw categories to EnhancedCategory shape', () => {
+    const result = buildOrderedCategories(raw);
+    expect(result[0]).toMatchObject({ name: 'Fixed', entries: [{ description: 'Fix bug' }] });
+    expect(result[1]).toMatchObject({ name: 'New', entries: [{ description: 'Add feature' }] });
+  });
+
+  it('should preserve original order when no config categories provided', () => {
+    const result = buildOrderedCategories(raw);
+    expect(result.map((c) => c.name)).toEqual(['Fixed', 'New', 'Unknown']);
+  });
+
+  it('should sort by config category order', () => {
+    const config = [
+      { name: 'New', description: 'New features' },
+      { name: 'Fixed', description: 'Bug fixes' },
+    ];
+    const result = buildOrderedCategories(raw, config);
+    expect(result.map((c) => c.name)).toEqual(['New', 'Fixed', 'Unknown']);
+  });
+
+  it('should append categories not in config order at the end', () => {
+    const config = [{ name: 'New', description: 'New features' }];
+    const result = buildOrderedCategories(raw, config);
+    expect(result[0]?.name).toBe('New');
+    expect(result.slice(1).map((c) => c.name)).toContain('Fixed');
+    expect(result.slice(1).map((c) => c.name)).toContain('Unknown');
+  });
+
+  it('should return empty array for empty input', () => {
+    expect(buildOrderedCategories([])).toEqual([]);
+    expect(buildOrderedCategories([], [{ name: 'New', description: 'x' }])).toEqual([]);
   });
 });

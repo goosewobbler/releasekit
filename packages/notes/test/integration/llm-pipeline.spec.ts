@@ -33,7 +33,7 @@ function makeMockProvider(response = 'Enhanced description'): LLMProvider & { ca
 // ---------------------------------------------------------------------------
 
 const sampleInput: ChangelogInput = {
-  source: 'package-versioner',
+  source: 'version',
   packages: [
     {
       packageName: 'my-lib',
@@ -56,7 +56,7 @@ const sampleInput: ChangelogInput = {
 // ---------------------------------------------------------------------------
 
 describe('Pipeline: dry-run skips LLM', () => {
-  it('does not throw even when LLM provider is misconfigured', async () => {
+  it('should not throw even when LLM provider is misconfigured', async () => {
     // If dry-run skips LLM, a nonexistent provider should not cause a failure.
     const config: Config = {
       output: [{ format: 'markdown', file: '/dev/null' }],
@@ -72,7 +72,7 @@ describe('Pipeline: dry-run skips LLM', () => {
 // ---------------------------------------------------------------------------
 
 describe('LLM tasks: enhance', () => {
-  it('replaces entry descriptions with provider responses', async () => {
+  it('should replace entry descriptions with provider responses', async () => {
     const provider = makeMockProvider('Polished description');
     const result = await enhanceEntries(provider, sampleInput.packages[0]?.entries, {
       packageName: 'my-lib',
@@ -98,7 +98,6 @@ describe('LLM tasks: enhance', () => {
   });
 
   it('should respect the concurrency parameter', async () => {
-    const _callOrder: number[] = [];
     let activeCount = 0;
     let maxActive = 0;
 
@@ -148,7 +147,7 @@ describe('LLM tasks: categorize', () => {
     expect(result.find((c) => c.category === 'Fixes')?.entries[0]?.description).toBe('Fix null pointer');
   });
 
-  it('should fall back to General on invalid JSON and does not throw', async () => {
+  it('should fall back to General on invalid JSON and not throw', async () => {
     const provider = makeMockProvider('not json');
     const result = await categorizeEntries(provider, sampleInput.packages[0]?.entries, {});
     expect(result[0]?.category).toBe('General');
@@ -174,7 +173,7 @@ describe('LLM tasks: release notes', () => {
 // ---------------------------------------------------------------------------
 
 describe('Pipeline: LLM error fallback', () => {
-  it('runPipeline does not throw when LLM createProvider throws', async () => {
+  it('should not throw when LLM createProvider throws', async () => {
     // 'nonexistent-provider' will throw LLMError inside createProvider,
     // which is caught by the try/catch in processWithLLM → falls back to raw entries.
     const config: Config = {
@@ -203,7 +202,7 @@ describe('Pipeline: package name in changelog headers', () => {
 
   it('should include scoped package name in version header', async () => {
     const scopedInput: ChangelogInput = {
-      source: 'package-versioner',
+      source: 'version',
       packages: [
         {
           packageName: '@releasekit/notes',
@@ -230,7 +229,7 @@ describe('Pipeline: package name in changelog headers', () => {
 
   it('should omit package name for unscoped packages', async () => {
     const unscopedInput: ChangelogInput = {
-      source: 'package-versioner',
+      source: 'version',
       packages: [
         {
           packageName: 'my-lib',

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createTemplateContext } from '../../src/core/pipeline.js';
-import { parsePackageVersioner } from '../../src/input/package-versioner.js';
+import { parseVersionOutput } from '../../src/input/version-output.js';
 import { renderMarkdown } from '../../src/output/markdown.js';
 
 const sampleInput = {
@@ -23,16 +23,16 @@ const sampleInput = {
 };
 
 describe('Input Parser', () => {
-  it('should parse package-versioner JSON', () => {
-    const result = parsePackageVersioner(JSON.stringify(sampleInput));
+  it('should parse version output JSON', () => {
+    const result = parseVersionOutput(JSON.stringify(sampleInput));
 
-    expect(result.source).toBe('package-versioner');
+    expect(result.source).toBe('version');
     expect(result.packages).toHaveLength(1);
     expect(result.packages[0]?.packageName).toBe('test-pkg');
     expect(result.packages[0]?.entries).toHaveLength(2);
   });
 
-  it('normalizes entry types', () => {
+  it('should normalize entry types', () => {
     const input = {
       ...sampleInput,
       changelogs: [
@@ -46,24 +46,24 @@ describe('Input Parser', () => {
       ],
     };
 
-    const result = parsePackageVersioner(JSON.stringify(input));
+    const result = parseVersionOutput(JSON.stringify(input));
 
     expect(result.packages[0]?.entries[0]?.type).toBe('added');
     expect(result.packages[0]?.entries[1]?.type).toBe('fixed');
   });
 
   it('should throw on invalid JSON', () => {
-    expect(() => parsePackageVersioner('not json')).toThrow();
+    expect(() => parseVersionOutput('not json')).toThrow();
   });
 
   it('should throw on missing changelogs', () => {
-    expect(() => parsePackageVersioner(JSON.stringify({}))).toThrow('changelogs');
+    expect(() => parseVersionOutput(JSON.stringify({}))).toThrow('changelogs');
   });
 });
 
 describe('Markdown Output', () => {
-  it('renders markdown from template context', () => {
-    const input = parsePackageVersioner(JSON.stringify(sampleInput));
+  it('should render markdown from template context', () => {
+    const input = parseVersionOutput(JSON.stringify(sampleInput));
     const contexts = input.packages.map(createTemplateContext);
     const markdown = renderMarkdown(contexts);
 
@@ -87,7 +87,7 @@ describe('Markdown Output', () => {
       ],
     };
 
-    const input = parsePackageVersioner(JSON.stringify(inputWithPrev));
+    const input = parseVersionOutput(JSON.stringify(inputWithPrev));
     const contexts = input.packages.map(createTemplateContext);
     const markdown = renderMarkdown(contexts);
 
@@ -108,7 +108,7 @@ describe('Markdown Output', () => {
       ],
     };
 
-    const input = parsePackageVersioner(JSON.stringify(inputWithPrev));
+    const input = parseVersionOutput(JSON.stringify(inputWithPrev));
     const contexts = input.packages.map(createTemplateContext);
     const markdown = renderMarkdown(contexts);
 

@@ -15,7 +15,7 @@ function makeContext(overrides: Partial<TemplateContext> = {}): TemplateContext 
 }
 
 describe('renderJson', () => {
-  it('renders single context as JSON', () => {
+  it('should render single context as JSON', () => {
     const contexts: TemplateContext[] = [
       makeContext({
         packageName: '@scope/my-package',
@@ -38,7 +38,7 @@ describe('renderJson', () => {
     expect(parsed.versions[0].entries).toHaveLength(2);
   });
 
-  it('renders multiple contexts', () => {
+  it('should render multiple contexts', () => {
     const contexts: TemplateContext[] = [
       makeContext({ packageName: 'pkg-a', version: '1.0.0' }),
       makeContext({ packageName: 'pkg-b', version: '2.0.0', previousVersion: '1.0.0' }),

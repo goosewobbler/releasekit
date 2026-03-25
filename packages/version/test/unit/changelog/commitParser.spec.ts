@@ -182,7 +182,7 @@ describe('Commit Parser', () => {
       expect(entries[1].entry.description).toBe('bump actions/upload-artifact from 4 to 7');
     });
 
-    it('does not filter to package path', () => {
+    it('should not filter to package path', () => {
       const mockGitOutput = 'abc123|||feat(core): add new feature';
 
       vi.mocked(execSync, { partial: true }).mockReturnValue(mockGitOutput as any);
@@ -196,7 +196,7 @@ describe('Commit Parser', () => {
       expect(gitArgs).not.toContain('--');
     });
 
-    it('can identify global commits not in any package', () => {
+    it('should identify global commits not in any package', () => {
       // Simulate: all commits (including CI) vs package-only commits
       const allCommits = [
         { hash: 'aaa111', entry: { type: 'added', description: 'feat: new feature', scope: 'core' } },
@@ -303,7 +303,7 @@ describe('Commit Parser', () => {
       expect(entries[0].description).toBe('update shared config');
     });
 
-    it('treats commits to shared packages as repo-level and includes them in all packages', () => {
+    it('should treat commits to shared packages as repo-level and includes them in all packages', () => {
       // A commit to a shared package (like config/core) should be repo-level
       vi.mocked(execSync, { partial: true })
         .mockReturnValueOnce(Buffer.from('core123|||feat(core): add new utility'))
@@ -321,7 +321,7 @@ describe('Commit Parser', () => {
       expect(entries[0].description).toBe('add new utility');
     });
 
-    it('excludes commits to non-shared packages from repo-level', () => {
+    it('should exclude commits to non-shared packages from repo-level', () => {
       // A commit to a regular package should NOT be repo-level
       vi.mocked(execSync, { partial: true })
         .mockReturnValueOnce(Buffer.from('version123|||feat(version): add feature'))

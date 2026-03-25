@@ -162,3 +162,10 @@ jobs:
           jq -r '.versionOutput.tags[]' release-output.json | while read -r tag; do
             echo "- \`${tag}\`" >> "$GITHUB_STEP_SUMMARY"
           done
+
+          if jq -e '.packageNotes | length > 0' release-output.json > /dev/null 2>&1; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "### Changelog Preview" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            jq -r '.packageNotes | to_entries[] | "<details>\n<summary>\(.key)</summary>\n\n\(.value)\n</details>"' release-output.json >> "$GITHUB_STEP_SUMMARY"
+          fi

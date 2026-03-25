@@ -42,7 +42,7 @@ describe('resolvePrompt()', () => {
     expect(result).toBe(customTemplate);
   });
 
-  it('injects additive instructions before "Output only valid JSON"', () => {
+  it('should inject additive instructions before "Output only valid JSON"', () => {
     const config: LLMPromptsConfig = {
       instructions: { categorize: 'Prefer Developer category for CI changes.' },
     };
@@ -55,7 +55,7 @@ describe('resolvePrompt()', () => {
     expect(instructionIdx).toBeLessThan(outputIdx);
   });
 
-  it('appends additive instructions for prompts without JSON output line', () => {
+  it('should append additive instructions for prompts without JSON output line', () => {
     const config: LLMPromptsConfig = {
       instructions: { enhance: 'Use active voice.' },
     };
@@ -64,7 +64,7 @@ describe('resolvePrompt()', () => {
     expect(result.startsWith(DEFAULT_PROMPT_WITHOUT_JSON)).toBe(true);
   });
 
-  it('template replacement takes priority over instructions', () => {
+  it('should use template as full replacement, taking priority over instructions', () => {
     const customTemplate = 'Full replacement prompt';
     const config: LLMPromptsConfig = {
       templates: { categorize: customTemplate },

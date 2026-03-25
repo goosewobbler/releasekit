@@ -376,7 +376,7 @@ name = "rust-package-test"
 version = "0.1.0"
 edition = "2021"
 authors = ["Test Author <test@example.com>"]
-description = "A test Rust package for package-versioner"
+description = "A test Rust package for releasekit-version"
 license = "MIT"
 
 [dependencies]
