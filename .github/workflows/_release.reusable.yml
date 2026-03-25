@@ -56,7 +56,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Install releasekit from npm
-        run: pnpm add -g @releasekit/release
+        run: pnpm add -g @releasekit/release@0.2.1
 
       - name: Run releasekit
         id: release
