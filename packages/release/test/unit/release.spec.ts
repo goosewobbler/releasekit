@@ -110,7 +110,10 @@ const versionOutputNoChanges: VersionOutput = {
 };
 
 const mockNotesConfig = { output: [{ format: 'markdown' as const, file: 'CHANGELOG.md' }] };
-const mockPublishConfig = { npm: { enabled: true } };
+const mockPublishConfig = {
+  npm: { enabled: true },
+  git: { push: true, pushMethod: 'auto', remote: 'origin', branch: undefined },
+};
 const mockPublishOutput = {
   dryRun: false,
   git: { committed: true, tags: ['v1.1.0'], pushed: true },
@@ -323,6 +326,31 @@ describe('runRelease', () => {
     });
 
     await expect(runRelease(defaultOptions)).rejects.toThrow('No packages found in workspace');
+  });
+
+  it('should set branch on publish config when --branch is provided', async () => {
+    await runRelease({ ...defaultOptions, branch: 'develop' });
+
+    expect(mockPublishRunPipeline).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ git: expect.objectContaining({ branch: 'develop' }) }),
+      expect.anything(),
+    );
+  });
+
+  it('should not override publish config branch when --branch is not set', async () => {
+    mockPublishLoadConfig.mockReturnValue({
+      ...mockPublishConfig,
+      git: { ...mockPublishConfig.git, branch: 'custom-branch' },
+    });
+
+    await runRelease(defaultOptions);
+
+    expect(mockPublishRunPipeline).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ git: expect.objectContaining({ branch: 'custom-branch' }) }),
+      expect.anything(),
+    );
   });
 
   it('should pass skipGit to publish options', async () => {

@@ -75,6 +75,16 @@ describe('createReleaseCommand', () => {
       expect(capturedOptions().target).toBe('pkg-a,pkg-b');
     });
 
+    it('should pass branch when --branch is set', async () => {
+      await createReleaseCommand().parseAsync(['node', 'test', '--branch', 'develop']);
+      expect(capturedOptions().branch).toBe('develop');
+    });
+
+    it('should pass branch: undefined when --branch is not set', async () => {
+      await createReleaseCommand().parseAsync(['node', 'test']);
+      expect(capturedOptions().branch).toBeUndefined();
+    });
+
     it.each([
       ['--skip-notes', 'skipNotes'],
       ['--skip-publish', 'skipPublish'],

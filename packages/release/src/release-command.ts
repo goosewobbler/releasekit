@@ -12,6 +12,7 @@ export function createReleaseCommand(): Command {
     .option('-p, --prerelease [identifier]', 'Create prerelease version')
     .option('-s, --sync', 'Use synchronized versioning across all packages', false)
     .option('-t, --target <packages>', 'Target specific packages (comma-separated)')
+    .option('--branch <name>', 'Override the git branch used for push')
     .option('--skip-notes', 'Skip changelog generation', false)
     .option('--skip-publish', 'Skip registry publishing and git operations', false)
     .option('--skip-git', 'Skip git commit/tag/push', false)
@@ -29,6 +30,7 @@ export function createReleaseCommand(): Command {
         prerelease: opts.prerelease,
         sync: opts.sync,
         target: opts.target,
+        branch: opts.branch,
         skipNotes: opts.skipNotes,
         skipPublish: opts.skipPublish,
         skipGit: opts.skipGit,
