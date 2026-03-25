@@ -260,7 +260,13 @@ export const CIConfigSchema = z.object({
   releaseTrigger: z.enum(['commit', 'label']).default('label'),
   prPreview: z.boolean().default(true),
   autoRelease: z.boolean().default(false),
-  skipPatterns: z.array(z.string()).default([]),
+  /**
+   * Commit message prefixes that should not trigger a release.
+   * Defaults to `['chore: release ']` to match the release commit template
+   * (`chore: release ${packageName}@${version} [skip ci]`) and provide a
+   * secondary loop-prevention guard alongside `[skip ci]`.
+   */
+  skipPatterns: z.array(z.string()).default(['chore: release ']),
   minChanges: z.number().int().positive().default(1),
   labels: CILabelsConfigSchema.default({
     stable: 'release:stable',
