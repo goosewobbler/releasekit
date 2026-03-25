@@ -128,7 +128,7 @@ describe('pipeline', () => {
       dryRun: false,
       updates: [],
       changelogs: [],
-      commitMessage: 'chore(release): v1.0.0',
+      commitMessage: 'chore: release v1.0.0',
       tags: ['v1.0.0', 'pkg-a@v1.0.0'],
     };
 
