@@ -29,6 +29,14 @@ export interface LabelContext {
   skip: boolean;
   bumpLabel?: string;
   noBumpLabel: boolean;
+  labels?: {
+    stable: string;
+    prerelease: string;
+    skip: string;
+    major: string;
+    minor: string;
+    patch: string;
+  };
 }
 
 export interface FormatOptions {
@@ -79,11 +87,11 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
 
   if (labelContext.trigger === 'label') {
     if (labelContext.noBumpLabel) {
-      return [
-        '> [!NOTE]',
-        '> No release label detected. Add a `release:patch`, `release:minor`, or `release:major` label to trigger a release.',
-        '',
-      ];
+      const labels = labelContext.labels;
+      const labelExamples = labels
+        ? `\`${labels.patch}\`, \`${labels.minor}\`, or \`${labels.major}\``
+        : 'a release label (e.g., `release:patch`, `release:minor`, `release:major`)';
+      return ['> [!NOTE]', `> No release label detected. Add ${labelExamples} to trigger a release.`, ''];
     }
     if (labelContext.bumpLabel) {
       return ['> [!NOTE]', `> This PR is labeled for a **${labelContext.bumpLabel}** release.`, ''];

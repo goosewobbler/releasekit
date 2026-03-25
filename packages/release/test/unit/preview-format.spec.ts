@@ -211,6 +211,28 @@ describe('formatPreviewComment', () => {
       expect(result).not.toContain('### Packages');
     });
 
+    it('uses custom configured labels in the "no release label" message', () => {
+      const result = formatPreviewComment(null, {
+        labelContext: {
+          trigger: 'label',
+          skip: false,
+          noBumpLabel: true,
+          labels: {
+            stable: 'custom:stable',
+            prerelease: 'custom:pre',
+            skip: 'custom:skip',
+            major: 'custom:major',
+            minor: 'custom:minor',
+            patch: 'custom:patch',
+          },
+        },
+      });
+      expect(result).toContain('No release label detected');
+      expect(result).toContain('`custom:patch`');
+      expect(result).toContain('`custom:minor`');
+      expect(result).toContain('`custom:major`');
+    });
+
     it('shows bump label banner in label mode', () => {
       const result = formatPreviewComment(releaseOutput, {
         labelContext: { trigger: 'label', skip: false, bumpLabel: 'minor', noBumpLabel: false },

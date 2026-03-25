@@ -161,16 +161,15 @@ async function applyLabelOverrides(
   context: PreviewContext | undefined,
 ): Promise<LabelOverrideResult> {
   const trigger = ciConfig?.releaseTrigger ?? 'label';
+  const labels = ciConfig?.labels ?? DEFAULT_LABELS;
   const defaultLabelContext: LabelContext = { trigger, skip: false, noBumpLabel: false };
 
   if (!context) {
     return {
       options,
-      labelContext: { ...defaultLabelContext, noBumpLabel: trigger === 'label' },
+      labelContext: { ...defaultLabelContext, noBumpLabel: trigger === 'label', labels },
     };
   }
-
-  const labels = ciConfig?.labels ?? DEFAULT_LABELS;
 
   let prLabels: string[];
   try {
@@ -180,12 +179,12 @@ async function applyLabelOverrides(
     warn('Could not fetch PR labels — skipping label-driven overrides');
     return {
       options,
-      labelContext: { ...defaultLabelContext, noBumpLabel: trigger === 'label' },
+      labelContext: { ...defaultLabelContext, noBumpLabel: trigger === 'label', labels },
     };
   }
 
   const result = { ...options };
-  const labelContext: LabelContext = { trigger, skip: false, noBumpLabel: false };
+  const labelContext: LabelContext = { trigger, skip: false, noBumpLabel: false, labels };
 
   if (trigger === 'commit') {
     // Skip label check
@@ -230,5 +229,5 @@ async function applyLabelOverrides(
     }
   }
 
-  return { options: result, labelContext };
+  return { options: result, labelContext: { ...labelContext, labels } };
 }
