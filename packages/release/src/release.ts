@@ -61,6 +61,10 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   // all early-exit guards to be evaluated before the repository is modified.
   info('Running version analysis...');
   const versionOutput = await runVersionStep({ ...options, dryRun: true });
+  // The preflight always runs with dryRun:true, so _jsonData.dryRun is always
+  // true in the snapshot. Restore the caller's actual intent before forwarding
+  // to downstream steps (notes, publish) that inspect this flag.
+  versionOutput.dryRun = options.dryRun ?? false;
 
   if (versionOutput.updates.length === 0) {
     info('No releasable changes found');

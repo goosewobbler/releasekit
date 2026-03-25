@@ -163,6 +163,18 @@ describe('runRelease', () => {
     expect(result?.publishOutput).toEqual(mockPublishOutput);
   });
 
+  it('should set versionOutput.dryRun to false for a real run', async () => {
+    const result = await runRelease(defaultOptions);
+
+    expect(result?.versionOutput.dryRun).toBe(false);
+  });
+
+  it('should set versionOutput.dryRun to true when dryRun option is true', async () => {
+    const result = await runRelease({ ...defaultOptions, dryRun: true });
+
+    expect(result?.versionOutput.dryRun).toBe(true);
+  });
+
   it('should return null when no releasable changes', async () => {
     mockGetJsonData.mockReturnValue(versionOutputNoChanges);
 
