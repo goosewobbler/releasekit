@@ -1,5 +1,6 @@
 import { warn } from '@releasekit/core';
 import type { ChangelogEntry, LLMCategory } from '../../core/types.js';
+import { extractJsonFromResponse } from '../../utils/json.js';
 import type { CategorizeContext, CategorizedEntries, LLMProvider } from '../index.js';
 import { resolvePrompt } from '../prompts.js';
 import { getAllowedScopesFromCategories, validateEntryScopes } from '../scopes.js';
@@ -75,11 +76,7 @@ export async function categorizeEntries(
   try {
     const response = await provider.complete(prompt);
 
-    const cleaned = response
-      .replace(/^```(?:json)?\n?/, '')
-      .replace(/\n?```$/, '')
-      .trim();
-    const parsed = JSON.parse(cleaned);
+    const parsed = JSON.parse(extractJsonFromResponse(response));
 
     const result: CategorizedEntries[] = [];
 

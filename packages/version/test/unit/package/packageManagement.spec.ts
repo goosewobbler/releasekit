@@ -152,6 +152,12 @@ describe('Package Management Module', () => {
       // Should NOT write to the file
       expect(fs.writeFileSync).not.toHaveBeenCalled();
 
+      // Should record a pending write instead
+      expect(jsonOutput.recordPendingWrite).toHaveBeenCalledWith(
+        mockPackagePath,
+        `${JSON.stringify({ ...mockPackageContent, version: newVersion }, null, 2)}\n`,
+      );
+
       // Should still track the update and log
       expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', newVersion, mockPackagePath);
       expect(logging.log).toHaveBeenCalledWith(

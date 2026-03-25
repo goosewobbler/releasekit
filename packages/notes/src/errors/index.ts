@@ -1,12 +1,6 @@
 import { EXIT_CODES, ReleaseKitError } from '@releasekit/core';
 
-// Re-export EXIT_CODES from core for backwards compatibility
-export { EXIT_CODES } from '@releasekit/core';
-
 export abstract class NotesError extends ReleaseKitError {}
-
-// Backwards-compatible alias
-export { NotesError as ChangelogCreatorError };
 
 export class InputParseError extends NotesError {
   readonly code = 'INPUT_PARSE_ERROR';

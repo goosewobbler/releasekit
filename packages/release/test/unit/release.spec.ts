@@ -4,8 +4,19 @@ import type { ReleaseOptions } from '../../src/types.js';
 
 // --- Mocks ---
 
+const mockLoadReleaseKitConfig = vi.fn();
+
+vi.mock('@releasekit/config', () => ({
+  loadConfig: (...args: unknown[]) => mockLoadReleaseKitConfig(...args),
+}));
+
+vi.mock('node:child_process', () => ({
+  execSync: vi.fn().mockReturnValue('feat: some feature\n'),
+}));
+
 const mockEnableJsonOutput = vi.fn();
 const mockGetJsonData = vi.fn();
+const mockFlushPendingWrites = vi.fn();
 const mockVersionLoadConfig = vi.fn();
 const mockVersionEngineRun = vi.fn();
 const mockVersionEngineSetStrategy = vi.fn();
@@ -19,6 +30,7 @@ const MockVersionEngine = vi.fn(function (this: Record<string, unknown>) {
 
 vi.mock('@releasekit/version', () => ({
   enableJsonOutput: (...args: unknown[]) => mockEnableJsonOutput(...args),
+  flushPendingWrites: () => mockFlushPendingWrites(),
   getJsonData: () => mockGetJsonData(),
   loadConfig: (...args: unknown[]) => mockVersionLoadConfig(...args),
   VersionEngine: MockVersionEngine,
@@ -27,13 +39,13 @@ vi.mock('@releasekit/version', () => ({
 const mockNotesRunPipeline = vi.fn();
 const mockNotesLoadConfig = vi.fn();
 const mockNotesGetDefaultConfig = vi.fn();
-const mockParsePackageVersioner = vi.fn();
+const mockParseVersionOutput = vi.fn();
 
 vi.mock('@releasekit/notes', () => ({
   runPipeline: (...args: unknown[]) => mockNotesRunPipeline(...args),
   loadConfig: (...args: unknown[]) => mockNotesLoadConfig(...args),
   getDefaultConfig: () => mockNotesGetDefaultConfig(),
-  parsePackageVersioner: (...args: unknown[]) => mockParsePackageVersioner(...args),
+  parseVersionOutput: (...args: unknown[]) => mockParseVersionOutput(...args),
 }));
 
 const mockPublishRunPipeline = vi.fn();
@@ -48,6 +60,7 @@ vi.mock('@releasekit/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@releasekit/core')>();
   return {
     ...actual,
+    error: vi.fn(),
     info: vi.fn(),
     success: vi.fn(),
     setLogLevel: vi.fn(),
@@ -119,6 +132,7 @@ describe('runRelease', () => {
     vi.clearAllMocks();
 
     // Default mock setup
+    mockLoadReleaseKitConfig.mockReturnValue({});
     mockVersionLoadConfig.mockReturnValue({ preset: 'conventional-commits' });
     mockVersionEngineGetWorkspacePackages.mockResolvedValue({
       packages: [{ packageJson: { name: 'test-pkg' }, dir: '/test/project' }],
@@ -128,8 +142,11 @@ describe('runRelease', () => {
     mockGetJsonData.mockReturnValue(versionOutputWithChanges);
     mockNotesLoadConfig.mockReturnValue(mockNotesConfig);
     mockNotesGetDefaultConfig.mockReturnValue({ output: [{ format: 'markdown', file: 'CHANGELOG.md' }] });
-    mockParsePackageVersioner.mockReturnValue({ source: 'package-versioner', packages: [] });
-    mockNotesRunPipeline.mockResolvedValue({ packageNotes: {}, files: [] });
+    mockParseVersionOutput.mockReturnValue({ source: 'version', packages: [] });
+    mockNotesRunPipeline.mockResolvedValue({
+      packageNotes: { 'test-pkg': '## [1.1.0] - 2026-01-01\n\n### Added\n- New feature\n' },
+      files: [],
+    });
     mockPublishLoadConfig.mockReturnValue(mockPublishConfig);
     mockPublishRunPipeline.mockResolvedValue(mockPublishOutput);
 
@@ -150,6 +167,18 @@ describe('runRelease', () => {
     expect(result?.publishOutput).toEqual(mockPublishOutput);
   });
 
+  it('should set versionOutput.dryRun to false for a real run', async () => {
+    const result = await runRelease(defaultOptions);
+
+    expect(result?.versionOutput.dryRun).toBe(false);
+  });
+
+  it('should set versionOutput.dryRun to true when dryRun option is true', async () => {
+    const result = await runRelease({ ...defaultOptions, dryRun: true });
+
+    expect(result?.versionOutput.dryRun).toBe(true);
+  });
+
   it('should return null when no releasable changes', async () => {
     mockGetJsonData.mockReturnValue(versionOutputNoChanges);
 
@@ -158,6 +187,36 @@ describe('runRelease', () => {
     expect(result).toBeNull();
     expect(mockNotesRunPipeline).not.toHaveBeenCalled();
     expect(mockPublishRunPipeline).not.toHaveBeenCalled();
+  });
+
+  describe('deferred writes (flushPendingWrites)', () => {
+    it('should flush pending writes for a real run after guards pass', async () => {
+      await runRelease(defaultOptions);
+
+      expect(mockFlushPendingWrites).toHaveBeenCalledOnce();
+    });
+
+    it('should not flush when dryRun is true', async () => {
+      await runRelease({ ...defaultOptions, dryRun: true });
+
+      expect(mockFlushPendingWrites).not.toHaveBeenCalled();
+    });
+
+    it('should not flush when there are no releasable changes', async () => {
+      mockGetJsonData.mockReturnValue(versionOutputNoChanges);
+
+      await runRelease(defaultOptions);
+
+      expect(mockFlushPendingWrites).not.toHaveBeenCalled();
+    });
+
+    it('should not flush when updates < minChanges', async () => {
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { ci: { minChanges: 2 } } });
+
+      await runRelease(defaultOptions);
+
+      expect(mockFlushPendingWrites).not.toHaveBeenCalled();
+    });
   });
 
   it('should skip notes when --skip-notes', async () => {
@@ -341,7 +400,7 @@ describe('runRelease', () => {
   it('should pass version output to notes as JSON', async () => {
     await runRelease(defaultOptions);
 
-    expect(mockParsePackageVersioner).toHaveBeenCalledWith(JSON.stringify(versionOutputWithChanges));
+    expect(mockParseVersionOutput).toHaveBeenCalledWith(JSON.stringify(versionOutputWithChanges));
   });
 
   it('should pass version output to publish pipeline', async () => {
@@ -354,6 +413,29 @@ describe('runRelease', () => {
     const result = await runRelease(defaultOptions);
 
     expect(result?.versionOutput).toEqual(versionOutputWithChanges);
+  });
+
+  it('should return packageNotes from the notes step', async () => {
+    const result = await runRelease(defaultOptions);
+
+    expect(result?.packageNotes).toEqual({ 'test-pkg': '## [1.1.0] - 2026-01-01\n\n### Added\n- New feature\n' });
+  });
+
+  it('should not include packageNotes when notes step is skipped', async () => {
+    const result = await runRelease({ ...defaultOptions, skipNotes: true });
+
+    expect(result?.packageNotes).toBeUndefined();
+  });
+
+  it('should log a friendly error and rethrow when config load fails', async () => {
+    const { error: mockError } = await import('@releasekit/core');
+    const configErr = new Error('Zod validation: steps must have at least 1 item');
+    mockLoadReleaseKitConfig.mockImplementation(() => {
+      throw configErr;
+    });
+
+    await expect(runRelease(defaultOptions)).rejects.toThrow(configErr);
+    expect(mockError).toHaveBeenCalledWith(expect.stringContaining('Failed to load release config'));
   });
 
   it('should propagate version step errors', async () => {
@@ -372,5 +454,143 @@ describe('runRelease', () => {
     mockPublishRunPipeline.mockRejectedValue(new Error('npm auth failed'));
 
     await expect(runRelease(defaultOptions)).rejects.toThrow('npm auth failed');
+  });
+
+  describe('release config: skipPatterns', () => {
+    it('should return null when HEAD commit matches a skip pattern', async () => {
+      const { execSync } = await import('node:child_process');
+      vi.mocked(execSync).mockReturnValue('chore(deps): bump some-dep from 1.0.0 to 2.0.0\n' as never);
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { ci: { skipPatterns: ['chore(deps):'] } } });
+
+      const result = await runRelease(defaultOptions);
+
+      expect(result).toBeNull();
+      expect(mockVersionEngineRun).not.toHaveBeenCalled();
+    });
+
+    it('should continue when HEAD commit does not match any skip pattern', async () => {
+      const { execSync } = await import('node:child_process');
+      vi.mocked(execSync).mockReturnValue('feat: add new feature\n' as never);
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { ci: { skipPatterns: ['chore(deps):'] } } });
+
+      const result = await runRelease(defaultOptions);
+
+      expect(result).not.toBeNull();
+      expect(mockVersionEngineRun).toHaveBeenCalled();
+    });
+
+    it('should continue when skipPatterns is empty', async () => {
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { ci: { skipPatterns: [] } } });
+
+      const result = await runRelease(defaultOptions);
+
+      expect(result).not.toBeNull();
+    });
+
+    it('should continue when git log fails', async () => {
+      const { execSync } = await import('node:child_process');
+      vi.mocked(execSync).mockImplementation(() => {
+        throw new Error('not a git repo');
+      });
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { ci: { skipPatterns: ['chore(deps):'] } } });
+
+      const result = await runRelease(defaultOptions);
+
+      expect(result).not.toBeNull();
+    });
+
+    it('should pass projectDir as cwd to git log', async () => {
+      const { execSync } = await import('node:child_process');
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { ci: { skipPatterns: ['chore(deps):'] } } });
+
+      await runRelease({ ...defaultOptions, projectDir: '/custom/project' });
+
+      expect(execSync).toHaveBeenCalledWith(
+        'git log -1 --pretty=%s',
+        expect.objectContaining({ cwd: '/custom/project' }),
+      );
+    });
+  });
+
+  describe('release config: steps', () => {
+    it('should skip notes when steps omits "notes"', async () => {
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { steps: ['publish'] } });
+
+      const result = await runRelease(defaultOptions);
+
+      expect(mockNotesRunPipeline).not.toHaveBeenCalled();
+      expect(mockPublishRunPipeline).toHaveBeenCalled();
+      expect(result?.notesGenerated).toBe(false);
+    });
+
+    it('should skip publish when steps omits "publish"', async () => {
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { steps: ['notes'] } });
+
+      await runRelease(defaultOptions);
+
+      expect(mockNotesRunPipeline).toHaveBeenCalled();
+      expect(mockPublishRunPipeline).not.toHaveBeenCalled();
+    });
+
+    it('should not override CLI --skip-notes with steps config', async () => {
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { steps: ['notes', 'publish'] } });
+
+      const result = await runRelease({ ...defaultOptions, skipNotes: true });
+
+      expect(mockNotesRunPipeline).not.toHaveBeenCalled();
+      expect(result?.notesGenerated).toBe(false);
+    });
+  });
+
+  describe('release config: ci overrides beat steps (CLI > ci > steps)', () => {
+    it('should disable notes when ci.notes: false even if steps includes "notes"', async () => {
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { steps: ['notes', 'publish'], ci: { notes: false } } });
+
+      const result = await runRelease(defaultOptions);
+
+      expect(mockNotesRunPipeline).not.toHaveBeenCalled();
+      expect(result?.notesGenerated).toBe(false);
+    });
+  });
+
+  describe('release config: ci overrides', () => {
+    it('should skip notes when ci.notes is false', async () => {
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { ci: { notes: false } } });
+
+      const result = await runRelease(defaultOptions);
+
+      expect(mockNotesRunPipeline).not.toHaveBeenCalled();
+      expect(result?.notesGenerated).toBe(false);
+    });
+
+    it('should skip github release when ci.githubRelease is false', async () => {
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { ci: { githubRelease: false } } });
+
+      await runRelease(defaultOptions);
+
+      expect(mockPublishRunPipeline).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ skipGithubRelease: true }),
+      );
+    });
+
+    it('should return null when updates < minChanges', async () => {
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { ci: { minChanges: 2 } } });
+      // versionOutputWithChanges has 1 update
+
+      const result = await runRelease(defaultOptions);
+
+      expect(result).toBeNull();
+      expect(mockNotesRunPipeline).not.toHaveBeenCalled();
+    });
+
+    it('should continue when updates >= minChanges', async () => {
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { ci: { minChanges: 1 } } });
+
+      const result = await runRelease(defaultOptions);
+
+      expect(result).not.toBeNull();
+    });
   });
 });

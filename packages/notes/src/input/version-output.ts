@@ -22,7 +22,7 @@ function normalizeEntryType(type: string): ChangelogEntry['type'] {
   return typeMap[type.toLowerCase()] ?? 'changed';
 }
 
-export function parsePackageVersioner(json: string): ChangelogInput {
+export function parseVersionOutput(json: string): ChangelogInput {
   let data: VersionOutput;
 
   try {
@@ -55,7 +55,7 @@ export function parsePackageVersioner(json: string): ChangelogInput {
   const repoUrl = packages[0]?.repoUrl ?? null;
 
   return {
-    source: 'package-versioner',
+    source: 'version',
     packages,
     metadata: {
       repoUrl: repoUrl ?? undefined,
@@ -63,12 +63,12 @@ export function parsePackageVersioner(json: string): ChangelogInput {
   };
 }
 
-export function parsePackageVersionerFile(filePath: string): ChangelogInput {
+export function parseVersionOutputFile(filePath: string): ChangelogInput {
   const content = fs.readFileSync(filePath, 'utf-8');
-  return parsePackageVersioner(content);
+  return parseVersionOutput(content);
 }
 
-export async function parsePackageVersionerStdin(): Promise<ChangelogInput> {
+export async function parseVersionOutputStdin(): Promise<ChangelogInput> {
   const chunks: string[] = [];
 
   for await (const chunk of process.stdin) {
@@ -76,5 +76,5 @@ export async function parsePackageVersionerStdin(): Promise<ChangelogInput> {
   }
 
   const content = chunks.join('');
-  return parsePackageVersioner(content);
+  return parseVersionOutput(content);
 }

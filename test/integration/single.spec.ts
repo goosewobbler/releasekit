@@ -1,9 +1,9 @@
-import { createTemplateContext, parsePackageVersioner, renderMarkdown } from '@releasekit/notes';
+import { createTemplateContext, parseVersionOutput, renderMarkdown } from '@releasekit/notes';
 import { describe, expect, it } from 'vitest';
 
 describe('Integration: single package', () => {
   describe('Feature commit -> minor version bump', () => {
-    it('generates correct changelog entry', () => {
+    it('should generate correct changelog entry', () => {
       const versionOutput = {
         dryRun: true,
         updates: [
@@ -28,7 +28,7 @@ describe('Integration: single package', () => {
         commitMessage: 'chore(release): 0.2.0',
       };
 
-      const input = parsePackageVersioner(JSON.stringify(versionOutput));
+      const input = parseVersionOutput(JSON.stringify(versionOutput));
       const contexts = input.packages.map(createTemplateContext);
       const markdown = renderMarkdown(contexts);
 
@@ -39,7 +39,7 @@ describe('Integration: single package', () => {
   });
 
   describe('Fix commit -> patch version bump', () => {
-    it('generates correct changelog entry', () => {
+    it('should generate correct changelog entry', () => {
       const versionOutput = {
         dryRun: true,
         updates: [
@@ -64,7 +64,7 @@ describe('Integration: single package', () => {
         commitMessage: 'chore(release): 0.1.1',
       };
 
-      const input = parsePackageVersioner(JSON.stringify(versionOutput));
+      const input = parseVersionOutput(JSON.stringify(versionOutput));
       const contexts = input.packages.map(createTemplateContext);
       const markdown = renderMarkdown(contexts);
 
@@ -100,7 +100,7 @@ describe('Integration: single package', () => {
         commitMessage: 'chore(release): 1.0.0',
       };
 
-      const input = parsePackageVersioner(JSON.stringify(versionOutput));
+      const input = parseVersionOutput(JSON.stringify(versionOutput));
       const contexts = input.packages.map(createTemplateContext);
       const markdown = renderMarkdown(contexts);
 
@@ -135,7 +135,7 @@ describe('Integration: single package', () => {
         commitMessage: 'chore(release): 0.2.0',
       };
 
-      const input = parsePackageVersioner(JSON.stringify(versionOutput));
+      const input = parseVersionOutput(JSON.stringify(versionOutput));
       const contexts = input.packages.map(createTemplateContext);
       const markdown = renderMarkdown(contexts);
 

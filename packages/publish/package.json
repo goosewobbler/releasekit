@@ -1,6 +1,6 @@
 {
   "name": "@releasekit/publish",
-  "version": "0.3.0-next.4",
+  "version": "0.2.1",
   "description": "Publish packages to npm and crates.io with git tagging and GitHub releases",
   "type": "module",
   "module": "./dist/index.js",
@@ -10,6 +10,12 @@
       "import": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
+      }
+    },
+    "./cli": {
+      "import": {
+        "types": "./dist/cli.d.ts",
+        "default": "./dist/cli.js"
       }
     }
   },

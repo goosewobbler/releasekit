@@ -33,7 +33,7 @@ describe('Git Commands', () => {
   });
 
   describe('Basic git operations', () => {
-    it('executes gitAdd with correct command', async () => {
+    it('should execute gitAdd with correct command', async () => {
       const files = ['file1.js', 'file2.js'];
       const mockExecResult = { stdout: 'success', stderr: '' };
 
@@ -45,7 +45,7 @@ describe('Git Commands', () => {
       expect(result).toBe(mockExecResult);
     });
 
-    it('executes gitCommit with correct command and options', async () => {
+    it('should execute gitCommit with correct command and options', async () => {
       const options: GitCommitOptions = {
         message: 'test commit',
         skipHooks: true,
@@ -61,7 +61,7 @@ describe('Git Commands', () => {
       expect(commandExecutor.execAsync).toHaveBeenCalledWith('git', ['commit', '--no-verify', '-m', 'test commit']);
     });
 
-    it('executes createGitTag with correct command', async () => {
+    it('should execute createGitTag with correct command', async () => {
       const options: GitTagOptions = {
         tag: 'v1.0.0',
         message: 'Version 1.0.0',
@@ -97,7 +97,7 @@ describe('Git Commands', () => {
   });
 
   describe('gitProcess', () => {
-    it('checks for git repository', async () => {
+    it('should check for git repository', async () => {
       vi.mocked(repository.isGitRepository, { partial: true }).mockReturnValue(false);
 
       const options: GitProcessOptions = {
@@ -112,7 +112,7 @@ describe('Git Commands', () => {
       });
     });
 
-    it('logs actions in dry run mode', async () => {
+    it('should log actions in dry run mode', async () => {
       const options: GitProcessOptions = {
         files: ['file1.js'],
         nextTag: 'v1.0.0',
@@ -142,7 +142,7 @@ describe('Git Commands', () => {
       );
     });
 
-    it('logs success message when tag is created', async () => {
+    it('should log success message when tag is created', async () => {
       // Mock gitProcess to prevent actual execution
       const originalGitProcess = commands.gitProcess;
       vi.spyOn(commands, 'gitProcess').mockImplementation(() => Promise.resolve());
@@ -159,7 +159,7 @@ describe('Git Commands', () => {
       }
     });
 
-    it('does not log success message in dry run mode', async () => {
+    it('should not log success message in dry run mode', async () => {
       // Mock gitProcess to prevent actual execution
       const originalGitProcess = commands.gitProcess;
       vi.spyOn(commands, 'gitProcess').mockImplementation(() => Promise.resolve());

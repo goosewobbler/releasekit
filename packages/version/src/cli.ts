@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import * as fs from 'node:fs';
-import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { readPackageVersion } from '@releasekit/core';
 import { Command } from 'commander';
 import { loadConfig } from './config.js';
 import { VersionEngine } from './core/versionEngine.js';
@@ -8,26 +9,8 @@ import type { Config } from './types.js';
 import { enableJsonOutput, printJsonOutput } from './utils/jsonOutput.js';
 import { log } from './utils/logging.js';
 
-function getPackageVersion(): string {
-  try {
-    const packageJsonPath = path.resolve(path.dirname(import.meta.url.replace('file:', '')), '../package.json');
-    const packageJsonContent = fs.readFileSync(packageJsonPath, 'utf-8');
-    const packageJson = JSON.parse(packageJsonContent);
-    return packageJson.version || '0.0.0';
-  } catch (error) {
-    console.error('Failed to read package version:', error);
-    return '0.0.0';
-  }
-}
-
-async function main(): Promise<void> {
-  const program = new Command();
-
-  program
-    .name('releasekit-version')
-    .description('Version a package or packages based on conventional commits')
-    .version(getPackageVersion())
-    .command('version', { isDefault: true })
+export function createVersionCommand(): Command {
+  return new Command('version')
     .description('Version a package or packages based on configuration')
     .option('-c, --config <path>', 'Path to config file (defaults to releasekit.config.json in current directory)')
     .option('-d, --dry-run', 'Dry run (no changes made)', false)
@@ -118,12 +101,25 @@ async function main(): Promise<void> {
         process.exit(1);
       }
     });
-
-  program.parse();
 }
 
-export async function run(): Promise<void> {
-  await main();
+// Standalone entry point (only when run directly, not when imported by dispatcher)
+const isMain = (() => {
+  try {
+    return process.argv[1] ? fs.realpathSync(process.argv[1]) === fileURLToPath(import.meta.url) : false;
+  } catch {
+    return false;
+  }
+})();
+
+export function createVersionProgram(): Command {
+  return new Command()
+    .name('releasekit-version')
+    .description('Version a package or packages based on conventional commits')
+    .version(readPackageVersion(import.meta.url))
+    .addCommand(createVersionCommand(), { isDefault: true });
 }
 
-main();
+if (isMain) {
+  createVersionProgram().parse();
+}

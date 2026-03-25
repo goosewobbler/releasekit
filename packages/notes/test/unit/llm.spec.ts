@@ -58,7 +58,7 @@ describe('enhanceEntry()', () => {
     expect(result).toBe('Add real-time streaming to the API');
   });
 
-  it('trims whitespace from the response', async () => {
+  it('should trim whitespace from the response', async () => {
     const provider = makeMockProvider('  trimmed  ');
     const entry = sampleEntries[0];
     if (!entry) throw new Error('No sample entry');
@@ -66,7 +66,7 @@ describe('enhanceEntry()', () => {
     expect(result).toBe('trimmed');
   });
 
-  it('calls the provider exactly once', async () => {
+  it('should call the provider exactly once', async () => {
     const provider = makeMockProvider('response');
     const entry = sampleEntries[0];
     if (!entry) throw new Error('No sample entry');
@@ -80,7 +80,7 @@ describe('enhanceEntry()', () => {
 // ---------------------------------------------------------------------------
 
 describe('enhanceEntries()', () => {
-  it('enhances all entries', async () => {
+  it('should enhance all entries', async () => {
     const provider = makeMockProvider('Enhanced description');
     const result = await enhanceEntries(provider, sampleEntries, llmContext);
 
@@ -106,7 +106,7 @@ describe('enhanceEntries()', () => {
     expect(result[0]?.description).toBe('Add streaming support');
   });
 
-  it('processes entries in concurrent batches (all entries complete)', async () => {
+  it('should process entries in concurrent batches (all entries complete)', async () => {
     const provider = makeMockProvider('done');
     // 7 entries, concurrency 3 → 3 batches
     const manyEntries: ChangelogEntry[] = Array.from({ length: 7 }, (_, i) => ({
@@ -119,7 +119,7 @@ describe('enhanceEntries()', () => {
     expect(provider.callCount).toBe(7);
   });
 
-  it('a failure in one batch entry does not block the rest of the batch', async () => {
+  it('should not let a failure in one batch entry block the rest of the batch', async () => {
     let calls = 0;
     const provider: LLMProvider = {
       name: 'mixed',
@@ -149,7 +149,7 @@ describe('summarizeEntries()', () => {
     expect(result).toBe('Major release with streaming and fixes.');
   });
 
-  it('makes exactly one provider call', async () => {
+  it('should make exactly one provider call', async () => {
     const provider = makeMockProvider('summary');
     await summarizeEntries(provider, sampleEntries, llmContext);
     expect(provider.callCount).toBe(1);
@@ -175,9 +175,18 @@ describe('categorizeEntries()', () => {
     expect(bugs?.entries).toHaveLength(2);
   });
 
-  it('strips markdown code fences before parsing JSON', async () => {
+  it('should strip markdown code fences before parsing JSON', async () => {
     const fencedJson = '```json\n{"General": [0, 1, 2]}\n```';
     const provider = makeMockProvider(fencedJson);
+    const result = await categorizeEntries(provider, sampleEntries, llmContext);
+
+    expect(result[0]?.category).toBe('General');
+    expect(result[0]?.entries).toHaveLength(3);
+  });
+
+  it('should extract JSON when model adds preamble text', async () => {
+    const response = 'Here is the categorization:\n{"General": [0, 1, 2]}';
+    const provider = makeMockProvider(response);
     const result = await categorizeEntries(provider, sampleEntries, llmContext);
 
     expect(result[0]?.category).toBe('General');
@@ -199,14 +208,14 @@ describe('categorizeEntries()', () => {
     expect(result).toHaveLength(0);
   });
 
-  it('ignores out-of-range indices gracefully', async () => {
+  it('should ignore out-of-range indices gracefully', async () => {
     const provider = makeMockProvider(JSON.stringify({ Core: [0, 99] })); // 99 is out of range
     const result = await categorizeEntries(provider, sampleEntries, llmContext);
     const core = result.find((c) => c.category === 'Core');
     expect(core?.entries).toHaveLength(1); // only index 0 is valid
   });
 
-  it('clears existing scopes from entries before categorization', async () => {
+  it('should clear existing scopes from entries before categorization', async () => {
     const entriesWithScopes: ChangelogEntry[] = [
       { type: 'added', description: 'Add feature', scope: 'version' },
       { type: 'fixed', description: 'Fix bug', scope: 'notes' },
@@ -242,7 +251,7 @@ describe('categorizeEntries()', () => {
     expect(dev?.entries[1]?.scope).toBeUndefined(); // InvalidScope removed
   });
 
-  it('strips all scopes when scope mode is none', async () => {
+  it('should strip all scopes when scope mode is none', async () => {
     const entries: ChangelogEntry[] = [{ type: 'added', description: 'Update CI' }];
     const provider = makeMockProvider(
       JSON.stringify({
@@ -260,7 +269,7 @@ describe('categorizeEntries()', () => {
     expect(result[0]?.entries[0]?.scope).toBeUndefined();
   });
 
-  it('passes prompt instructions to the provider', async () => {
+  it('should pass prompt instructions to the provider', async () => {
     let capturedPrompt = '';
     const provider = makeMockProvider((prompt) => {
       capturedPrompt = prompt;
@@ -330,7 +339,7 @@ describe('enhanceAndCategorize()', () => {
     expect(result.categories.find((c) => c.category === 'Developer')?.entries).toHaveLength(1);
   });
 
-  it('makes exactly one provider call', async () => {
+  it('should make exactly one provider call', async () => {
     const response = JSON.stringify({
       entries: [
         { description: 'a', category: 'General', scope: null },
@@ -374,7 +383,22 @@ describe('enhanceAndCategorize()', () => {
     expect(result.enhancedEntries[0]?.scope).toBe('api');
   });
 
-  it('strips markdown code fences before parsing', async () => {
+  it('should extract JSON when model adds preamble text', async () => {
+    const json = JSON.stringify({
+      entries: [
+        { description: 'a', category: 'General', scope: null },
+        { description: 'b', category: 'General', scope: null },
+        { description: 'c', category: 'General', scope: null },
+      ],
+    });
+    const response = `Here is the enhanced output:\n${json}`;
+    const provider = makeMockProvider(response);
+    const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
+    expect(result.enhancedEntries).toHaveLength(3);
+    expect(result.categories[0]?.category).toBe('General');
+  });
+
+  it('should strip markdown code fences before parsing', async () => {
     const response =
       '```json\n' +
       JSON.stringify({
@@ -424,7 +448,7 @@ describe('enhanceAndCategorize()', () => {
     expect(provider.callCount).toBe(0);
   });
 
-  it('retries on invalid JSON and succeeds on subsequent attempt', async () => {
+  it('should retry on invalid JSON and succeed on subsequent attempt', async () => {
     let callCount = 0;
     const validResponse = JSON.stringify({
       entries: [
@@ -454,7 +478,7 @@ describe('enhanceAndCategorize()', () => {
     expect(result.categories).toHaveLength(3);
   });
 
-  it('retries up to 3 times on persistent failures', async () => {
+  it('should retry up to 3 times on persistent failures', async () => {
     const provider = makeMockProvider('always invalid json');
     const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
 
@@ -485,7 +509,7 @@ describe('enhanceAndCategorize()', () => {
     expect(result.enhancedEntries[2]?.scope).toBeUndefined(); // Code Quality not in allowed list
   });
 
-  it('passes prompt instructions to the provider', async () => {
+  it('should pass prompt instructions to the provider', async () => {
     let capturedPrompt = '';
     const provider = makeMockProvider((prompt) => {
       capturedPrompt = prompt;
@@ -538,7 +562,7 @@ describe('generateReleaseNotes()', () => {
     expect(result).toBe(notes);
   });
 
-  it('makes exactly one provider call', async () => {
+  it('should make exactly one provider call', async () => {
     const provider = makeMockProvider('notes');
     await generateReleaseNotes(provider, sampleEntries, { ...llmContext, date: '2026-01-15' });
     expect(provider.callCount).toBe(1);

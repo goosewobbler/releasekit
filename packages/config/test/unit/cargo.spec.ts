@@ -69,7 +69,7 @@ describe('parseCargoToml', () => {
     expect((result as Record<string, unknown>)['build-dependencies']).toEqual({ cc: '1.0' });
   });
 
-  it('reads file from specified path', () => {
+  it('should read a file from the specified path', () => {
     mockedFs.readFileSync.mockReturnValue('[package]\nname = "test"');
 
     parseCargoToml('/custom/path/Cargo.toml');

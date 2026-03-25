@@ -27,7 +27,7 @@ describe('mergeGitConfig', () => {
     expect(result?.pushMethod).toBe('auto');
   });
 
-  it('merges packageLevel over topLevel', () => {
+  it('should merge packageLevel over topLevel', () => {
     const topLevel: GitConfig = {
       remote: 'origin',
       branch: 'main',
@@ -66,25 +66,25 @@ describe('mergeGitConfig', () => {
     expect(result?.push).toBe(false);
   });
 
-  it('inherits skipHooks from topLevel', () => {
+  it('should inherit skipHooks from topLevel', () => {
     const topLevel: GitConfig = {
       remote: 'origin',
       branch: 'main',
       pushMethod: 'auto',
       skipHooks: true,
     };
-    const result = mergeGitConfig(topLevel, {});
+    const result = mergeGitConfig(topLevel, { push: true });
     expect(result?.skipHooks).toBe(true);
   });
 
-  it('overrides skipHooks from packageLevel', () => {
+  it('should override skipHooks from packageLevel', () => {
     const topLevel: GitConfig = {
       remote: 'origin',
       branch: 'main',
       pushMethod: 'auto',
       skipHooks: true,
     };
-    const result = mergeGitConfig(topLevel, { skipHooks: false });
+    const result = mergeGitConfig(topLevel, { push: true, skipHooks: false });
     expect(result?.skipHooks).toBe(false);
   });
 });
@@ -105,14 +105,14 @@ describe('deepMerge', () => {
     expect(result).toEqual({ a: 1 });
   });
 
-  it('merges shallow properties', () => {
+  it('should merge shallow properties', () => {
     const target = { a: 1, b: 2 };
     const source = { b: 3, c: 4 };
     const result = deepMerge(target, source);
     expect(result).toEqual({ a: 1, b: 3, c: 4 });
   });
 
-  it('merges nested objects recursively', () => {
+  it('should merge nested objects recursively', () => {
     const target = {
       level1: {
         a: 1,
@@ -135,7 +135,7 @@ describe('deepMerge', () => {
     });
   });
 
-  it('replaces arrays instead of merging', () => {
+  it('should replace arrays instead of merging', () => {
     const target = { arr: [1, 2, 3] };
     const source = { arr: [4, 5] };
     const result = deepMerge(target, source);
@@ -188,7 +188,7 @@ describe('deepMerge', () => {
     });
   });
 
-  it('does not mutate target', () => {
+  it('should not mutate target', () => {
     const target = { a: { b: 1 } } as Record<string, unknown>;
     const source = { a: { c: 2 } } as Record<string, unknown>;
     deepMerge(target, source);

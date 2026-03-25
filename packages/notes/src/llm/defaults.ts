@@ -1,6 +1,6 @@
 export const LLM_DEFAULTS = {
   timeout: 60_000,
-  maxTokens: 2_000,
+  maxTokens: 4_000,
   temperature: 0.7,
   concurrency: 5,
   retry: {
