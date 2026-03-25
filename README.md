@@ -22,6 +22,8 @@ commits and designed for CI/CD pipelines.
 - **Monorepo support** — versions packages independently or in sync, with per-package git tags
 - **JavaScript + Rust** — handles `package.json` and `Cargo.toml` side by side
 - **CI/CD first** — JSON output mode for scriptable pipelines; OIDC or token-based npm publishing
+- **PR release previews** — posts a comment on PRs showing what would be released if merged
+- **Config-driven CI automation** — control release triggers (commit vs label) and strategies per repo
 - **Changelog generation** — auto-generated from conventional commits with flexible templating
 - **LLM-enhanced release notes** — optional AI summarisation via Anthropic, OpenAI, or local models
 - **Composable** — use each tool independently or pipe them together
@@ -74,9 +76,38 @@ releasekit-version --json | releasekit-publish
 
 See the package READMEs for full CLI reference.
 
+## Configuration
+
+ReleaseKit uses a single `releasekit.config.json` file at the project root:
+
+```jsonc
+{
+  "git": { "remote": "origin", "branch": "main" },
+  "version": { "tagTemplate": "v{version}", "preset": "conventional" },
+  "publish": { "npm": { "enabled": true, "access": "public" } },
+  "notes": { "output": [{ "format": "markdown", "file": "CHANGELOG.md" }] },
+  "ci": {
+    "releaseStrategy": "direct",   // "manual" | "direct" | "standing-pr" | "scheduled"
+    "releaseTrigger": "label",     // "commit" | "label"
+    "prPreview": true,
+    "labels": {
+      "stable": "release:stable",
+      "prerelease": "release:prerelease",
+      "skip": "release:skip",
+      "major": "release:major",
+      "minor": "release:minor",
+      "patch": "release:patch"
+    }
+  }
+}
+```
+
+See [@releasekit/release — CI Configuration](./packages/release/README.md#ci-configuration) for full details on release triggers, strategies, and PR labels.
+
 ## Documentation
 
 - [@releasekit/release — README](./packages/release/README.md)
+- [@releasekit/release — CI Configuration](./packages/release/README.md#ci-configuration)
 - [@releasekit/version — README](./packages/version/README.md)
 - [@releasekit/version — Versioning strategies](./packages/version/docs/versioning.md)
 - [@releasekit/version — CI/CD integration](./packages/version/docs/CI_CD_INTEGRATION.md)

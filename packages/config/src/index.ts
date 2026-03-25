@@ -2,6 +2,7 @@ export { type CargoManifest, isCargoToml, parseCargoToml } from './cargo.js';
 export { ConfigError } from './errors.js';
 export {
   type LoadOptions,
+  loadCIConfig,
   loadConfig,
   loadGitConfig,
   loadMonorepoConfig,
@@ -14,6 +15,8 @@ export { deepMerge, mergeGitConfig } from './merge.js';
 export { parseJsonc } from './parse.js';
 export {
   type CargoPublishConfig,
+  type CIConfig,
+  type CILabelsConfig,
   type GitConfig,
   type GitHubReleaseConfig,
   type LLMCategory,

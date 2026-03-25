@@ -246,6 +246,32 @@ export const NotesConfigSchema = z.object({
   updateStrategy: z.enum(['prepend', 'regenerate']).default('prepend'),
 });
 
+export const CILabelsConfigSchema = z.object({
+  stable: z.string().default('release:stable'),
+  prerelease: z.string().default('release:prerelease'),
+  skip: z.string().default('release:skip'),
+  major: z.string().default('release:major'),
+  minor: z.string().default('release:minor'),
+  patch: z.string().default('release:patch'),
+});
+
+export const CIConfigSchema = z.object({
+  releaseStrategy: z.enum(['manual', 'direct', 'standing-pr', 'scheduled']).default('direct'),
+  releaseTrigger: z.enum(['commit', 'label']).default('label'),
+  prPreview: z.boolean().default(true),
+  autoRelease: z.boolean().default(false),
+  skipPatterns: z.array(z.string()).default([]),
+  minChanges: z.number().int().positive().default(1),
+  labels: CILabelsConfigSchema.default({
+    stable: 'release:stable',
+    prerelease: 'release:prerelease',
+    skip: 'release:skip',
+    major: 'release:major',
+    minor: 'release:minor',
+    patch: 'release:patch',
+  }),
+});
+
 export const ReleaseCIConfigSchema = z.object({
   skipPatterns: z.array(z.string().min(1)).optional(),
   minChanges: z.number().int().positive().optional(),
@@ -273,9 +299,12 @@ export const ReleaseKitConfigSchema = z.object({
   version: VersionConfigSchema.optional(),
   publish: PublishConfigSchema.optional(),
   notes: NotesConfigSchema.optional(),
+  ci: CIConfigSchema.optional(),
   release: ReleaseConfigSchema.optional(),
 });
 
+export type CIConfig = z.infer<typeof CIConfigSchema>;
+export type CILabelsConfig = z.infer<typeof CILabelsConfigSchema>;
 export type GitConfig = z.infer<typeof GitConfigSchema>;
 export type MonorepoConfig = z.infer<typeof MonorepoConfigSchema>;
 export type VersionConfig = z.infer<typeof VersionConfigSchema>;

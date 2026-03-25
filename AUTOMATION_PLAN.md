@@ -11,6 +11,26 @@ Future features to enable fully automated release workflows (e.g. commits to mai
 - Early exit with code 0 when no releasable changes (CI-friendly)
 - Binary: `releasekit` / `releasekit release`
 
+### Config-Driven CI Automation (Feature 5)
+- `ci` section added to `releasekit.config.json` schema (`@releasekit/config`)
+- `releaseStrategy`: `direct` (default) | `manual` | `standing-pr` | `scheduled`
+- `prPreview`: enable/disable PR preview comments (default: `true`)
+- `autoRelease`, `skipPatterns`, `minChanges` fields for future use
+- `loadCIConfig()` loader function exported from `@releasekit/config`
+
+### Release Preview on PRs (Feature 3)
+- `releasekit preview` CLI command in `@releasekit/release`
+- Runs `releasekit release --dry-run` and formats a markdown PR comment
+- Strategy-aware messaging: intro and no-changes messages adapt to configured `releaseStrategy`
+- Auto-detects prerelease versions from package.json files; defaults to prerelease preview
+- `--prerelease [identifier]` and `--stable` CLI flags for manual override
+- PR label `release:stable` support in workflow templates for graduation from prerelease
+- Posts/updates a single PR comment via `@octokit/rest` using HTML marker (`<!-- releasekit-preview -->`)
+- Falls back to stdout when GitHub context unavailable
+- `--dry-run` flag prints comment markdown to stdout without posting
+- Template workflow: `templates/workflows/release-preview.yml`
+- Self-hosted workflow: `.github/workflows/release-preview.yml`
+
 ---
 
 ## Planned Features
@@ -94,43 +114,16 @@ jobs:
 
 ---
 
-### 3. Release Preview on PRs
+### 3. Release Preview on PRs ✓
 
-**Goal:** Automatically comment on PRs with a preview of what the release would look like if merged.
-
-**What to build:**
-- Workflow triggered on `pull_request` to `main`
-- Runs `releasekit release --dry-run --json`
-- Posts/updates a PR comment with:
-  - Next version number(s)
-  - Changelog preview
-  - Packages that would be published
-- Updates the comment on each push to the PR (find existing comment by marker)
-
-**Example output in PR comment:**
-```markdown
-## Release Preview
-
-This PR will trigger the following release when merged:
-
-**@releasekit/version** `0.1.0` → `0.2.0` (minor)
-
-### Changelog
-- feat: add unified release command
-- fix: resolve preset loading issue
-
----
-*Updated automatically by ReleaseKit*
-```
-
-**Considerations:**
-- Use `peter-evans/create-or-update-comment` or `gh api` to manage comments
-- Needs `pull-requests: write` permission
-- Should handle "no releasable changes" case gracefully
+> **Completed** — see "Completed" section above.
 
 ---
 
 ### 4. Standing Release PR (Changesets-Style)
+
+> **TODO:** Config schema supports `releaseStrategy: 'standing-pr'` and preview messaging is in place.
+> What remains: the actual standing PR workflow logic (branch management, PR creation/update, merge-triggered publish).
 
 **Goal:** A bot maintains a standing "Release" PR that accumulates changes and shows the next release. Merging the PR triggers the actual publish.
 
@@ -140,6 +133,7 @@ This PR will trigger the following release when merged:
   2. Creates/updates a branch (`release/next`) with version bumps and changelog
   3. Opens/updates a PR from `release/next` → `main`
 - Separate workflow on PR merge that detects the release branch and runs the actual publish
+- Preview comment should reference the standing PR number when one exists
 
 **How it differs from push-triggered releases:**
 - Human reviews and approves each release by merging the PR
@@ -154,46 +148,43 @@ This PR will trigger the following release when merged:
 
 ---
 
-### 5. Config-Driven Automation Mode
+### Scheduled Releases
 
-**Goal:** Allow users to configure automation behavior in `releasekit.config.json`.
+> **TODO:** Config schema supports `releaseStrategy: 'scheduled'` and preview messaging is in place.
+> What remains: the actual cron-triggered workflow logic and any CLI support for scheduled release batching.
 
-**What to add to the config schema:**
-```jsonc
-{
-  "release": {
-    // Which steps to run by default
-    "steps": ["version", "notes", "publish"],
-    // CI-specific settings
-    "ci": {
-      // Skip patterns — don't release for these commit prefixes
-      "skipPatterns": ["chore(deps):", "ci:"],
-      // Minimum changes required to trigger a release
-      "minChanges": 1,
-      // Whether to create GitHub releases
-      "githubRelease": true,
-      // Whether to generate changelogs
-      "notes": true
-    }
-  }
-}
-```
+**Goal:** Releases are triggered on a schedule (e.g. weekly) rather than on every push or PR merge.
 
-**Where this fits:**
-- The `releasekit release` CLI reads this config section
-- The push-triggered workflow and GitHub Action respect these settings
-- Allows per-repo customization without workflow changes
+**What to build:**
+- Workflow template with `schedule` (cron) trigger
+- Collects all unreleased changes since last tag
+- Runs `releasekit release` if there are releasable changes
+- Preview comments on PRs indicate changes will be included in the "next scheduled release"
+
+**Considerations:**
+- Need to decide if scheduled releases can be combined with other strategies
+- Should support configurable cron expression
+- May need a "release window" concept where PRs merged during the window are batched
+
+---
+
+### 5. Config-Driven Automation Mode ✓
+
+> **Completed** — see "Completed" section above.
+>
+> **TODO:** `skipPatterns`, `minChanges`, and `autoRelease` fields are defined in the schema but not yet consumed by any workflow or CLI logic. Wire these up when implementing push-triggered releases (feature 1) and scheduled releases.
 
 ---
 
 ## Implementation Priority
 
-| Feature | Effort | Impact | Priority |
-|---------|--------|--------|----------|
-| Push-triggered workflow | Low | High | 1 |
-| Release preview on PRs | Medium | Medium | 2 |
-| GitHub Action | Medium | High | 3 |
-| Config-driven automation | Low | Medium | 4 |
-| Standing release PR | High | Medium | 5 |
+| Feature | Effort | Impact | Status |
+|---------|--------|--------|--------|
+| Config-driven automation (5) | Low | Medium | ✓ Done |
+| Release preview on PRs (3) | Medium | Medium | ✓ Done |
+| Push-triggered workflow (1) | Low | High | Next |
+| GitHub Action (2) | Medium | High | Planned |
+| Standing release PR (4) | High | Medium | Planned (schema ready) |
+| Scheduled releases | Medium | Medium | Planned (schema ready) |
 
-**Recommended order:** Start with the push-triggered workflow (it's mostly a new `.yml` file) and PR preview (good developer experience), then package as a GitHub Action for external adoption.
+**Next up:** Push-triggered release workflow (feature 1). The CI config schema (`releaseStrategy: 'direct'`, `skipPatterns`, `autoRelease`) is already in place to support it.

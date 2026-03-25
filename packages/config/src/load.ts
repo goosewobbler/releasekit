@@ -5,6 +5,7 @@ import { ConfigError } from './errors.js';
 import { mergeGitConfig } from './merge.js';
 import { parseJsonc } from './parse.js';
 import {
+  type CIConfig,
   type GitConfig,
   type NotesConfig,
   type PublishConfig,
@@ -91,6 +92,11 @@ export function loadGitConfig(options?: LoadOptions): GitConfig | undefined {
 export function loadMonorepoConfig(options?: LoadOptions) {
   const config = loadConfig(options);
   return config.monorepo;
+}
+
+export function loadCIConfig(options?: LoadOptions): CIConfig | undefined {
+  const config = loadConfig(options);
+  return config.ci;
 }
 
 export function loadReleaseConfig(options?: LoadOptions): ReleaseConfig | undefined {

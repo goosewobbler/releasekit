@@ -4,9 +4,12 @@ export default defineConfig({
   entry: ['src/index.ts', 'src/cli.ts', 'src/dispatcher.ts'],
   format: ['esm'],
   dts: { resolve: ['@releasekit/core', '@releasekit/config'] },
+  // @releasekit/core and @releasekit/config are inlined into every output file.
+  // Because they are bundled they must remain in devDependencies, NOT dependencies.
+  // Moving them to dependencies would cause pnpm to fetch them from the registry
+  // as standalone packages, producing a 404 (they are not published independently).
   noExternal: ['@releasekit/core', '@releasekit/config'],
-  // Externalize all bare specifiers (packages). noExternal takes precedence,
-  // so core/config are still bundled. This avoids relying on tsup's
-  // auto-externalization which can break with noExternal + pnpm workspaces.
+  // Externalize all other bare specifiers. noExternal takes precedence above,
+  // so core/config are still bundled despite this rule.
   external: [/^[^.]/],
 });

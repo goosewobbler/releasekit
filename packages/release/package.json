@@ -43,6 +43,7 @@
     "access": "public"
   },
   "dependencies": {
+    "@octokit/rest": "catalog:",
     "@releasekit/notes": "workspace:*",
     "@releasekit/publish": "workspace:*",
     "@releasekit/version": "workspace:*",
