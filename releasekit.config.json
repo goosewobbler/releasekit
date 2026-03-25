@@ -67,7 +67,7 @@
   "publish": {},
   "release": {
     "ci": {
-      "skipPatterns": ["chore: release ", "chore(deps):"]
+      "skipPatterns": ["chore: release ", "chore(deps):", "chore(deps-dev):"]
     }
   }
 }
