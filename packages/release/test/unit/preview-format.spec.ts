@@ -102,6 +102,88 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('- `@releasekit/notes@v0.3.1`');
   });
 
+  describe('shared entry deduplication', () => {
+    const sharedEntry = { type: 'chore', description: 'Update CI pipeline' };
+    const outputWithShared: ReleaseOutput = {
+      versionOutput: {
+        dryRun: true,
+        updates: [
+          { packageName: 'pkg-a', newVersion: '1.1.0', filePath: 'packages/a/package.json' },
+          { packageName: 'pkg-b', newVersion: '1.1.0', filePath: 'packages/b/package.json' },
+        ],
+        changelogs: [
+          {
+            packageName: 'pkg-a',
+            version: '1.1.0',
+            previousVersion: '1.0.0',
+            revisionRange: 'v1.0.0..HEAD',
+            repoUrl: null,
+            entries: [{ type: 'added', description: 'New feature in pkg-a' }, sharedEntry],
+          },
+          {
+            packageName: 'pkg-b',
+            version: '1.1.0',
+            previousVersion: '1.0.0',
+            revisionRange: 'v1.0.0..HEAD',
+            repoUrl: null,
+            entries: [{ type: 'fixed', description: 'Bug fix in pkg-b' }, sharedEntry],
+          },
+        ],
+        tags: ['pkg-a@v1.1.0', 'pkg-b@v1.1.0'],
+      },
+      notesGenerated: false,
+    };
+
+    it('extracts shared entries into a Project-wide changes section', () => {
+      const result = formatPreviewComment(outputWithShared);
+      expect(result).toContain('<b>Project-wide changes</b>');
+      expect(result).toContain('- Update CI pipeline');
+    });
+
+    it('removes shared entries from individual package changelogs', () => {
+      const result = formatPreviewComment(outputWithShared);
+      // Count occurrences — should appear once in shared, not again per package
+      const occurrences = result.split('Update CI pipeline').length - 1;
+      expect(occurrences).toBe(1);
+    });
+
+    it('keeps package-specific entries in each package changelog', () => {
+      const result = formatPreviewComment(outputWithShared);
+      expect(result).toContain('- New feature in pkg-a');
+      expect(result).toContain('- Bug fix in pkg-b');
+    });
+
+    it('does not create a Project-wide section for single-package output', () => {
+      const singlePkg: ReleaseOutput = {
+        versionOutput: {
+          dryRun: true,
+          updates: [{ packageName: 'pkg-a', newVersion: '1.1.0', filePath: 'packages/a/package.json' }],
+          changelogs: [
+            {
+              packageName: 'pkg-a',
+              version: '1.1.0',
+              previousVersion: '1.0.0',
+              revisionRange: 'v1.0.0..HEAD',
+              repoUrl: null,
+              entries: [{ type: 'added', description: 'New feature' }, sharedEntry],
+            },
+          ],
+          tags: ['pkg-a@v1.1.0'],
+        },
+        notesGenerated: false,
+      };
+      const result = formatPreviewComment(singlePkg);
+      expect(result).not.toContain('Project-wide changes');
+      // Entry should appear in the package's own changelog
+      expect(result).toContain('- Update CI pipeline');
+    });
+
+    it('does not create a Project-wide section when all entries are unique', () => {
+      const result = formatPreviewComment(releaseOutput);
+      expect(result).not.toContain('Project-wide changes');
+    });
+  });
+
   it('includes footer', () => {
     const result = formatPreviewComment(releaseOutput);
     expect(result).toContain('Updated automatically by [ReleaseKit]');

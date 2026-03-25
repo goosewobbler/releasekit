@@ -1,4 +1,4 @@
-import type { VersionPackageChangelog } from '@releasekit/core';
+import type { VersionChangelogEntry, VersionPackageChangelog } from '@releasekit/core';
 import type { ReleaseOutput } from './types.js';
 
 export type ReleaseStrategy = 'manual' | 'direct' | 'standing-pr' | 'scheduled';
@@ -141,11 +141,29 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
   }
   lines.push('');
 
-  // Changelog per package
+  // Changelog per package — deduplicate entries that appear in every package into a shared section
   if (versionOutput.changelogs.length > 0) {
     lines.push('### Changelog', '');
+
+    const sharedEntries = findSharedEntries(versionOutput.changelogs);
+
+    if (sharedEntries.length > 0) {
+      lines.push('<details>', '<summary><b>Project-wide changes</b></summary>', '');
+      lines.push(...renderEntries(sharedEntries));
+      lines.push('</details>', '');
+    }
+
     for (const changelog of versionOutput.changelogs) {
-      lines.push(...formatPackageChangelog(changelog));
+      const uniqueEntries =
+        sharedEntries.length > 0
+          ? {
+              ...changelog,
+              entries: changelog.entries.filter(
+                (e) => !sharedEntries.some((s) => s.type === e.type && s.description === e.description),
+              ),
+            }
+          : changelog;
+      lines.push(...formatPackageChangelog(uniqueEntries));
     }
   }
 
@@ -162,41 +180,50 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
   return lines.join('\n');
 }
 
+/**
+ * Find entries that appear (by type + description) in every changelog.
+ * Only meaningful when there are two or more packages — returns [] for a single package.
+ */
+function findSharedEntries(changelogs: VersionPackageChangelog[]): VersionChangelogEntry[] {
+  if (changelogs.length <= 1) return [];
+  const [first, ...rest] = changelogs;
+  if (!first) return [];
+
+  return first.entries.filter((entry) =>
+    rest.every((cl) => cl.entries.some((e) => e.type === entry.type && e.description === entry.description)),
+  );
+}
+
+function renderEntries(entries: VersionChangelogEntry[]): string[] {
+  const lines: string[] = [];
+  const grouped = new Map<string, VersionChangelogEntry[]>();
+  for (const entry of entries) {
+    if (!grouped.has(entry.type)) grouped.set(entry.type, []);
+    grouped.get(entry.type)?.push(entry);
+  }
+  const renderedTypes = new Set<string>();
+  for (const type of Object.keys(TYPE_LABELS)) {
+    const group = grouped.get(type);
+    if (group && group.length > 0) {
+      lines.push(...formatEntryGroup(type, group));
+      renderedTypes.add(type);
+    }
+  }
+  for (const [type, group] of grouped) {
+    if (!renderedTypes.has(type) && group.length > 0) {
+      lines.push(...formatEntryGroup(type, group));
+    }
+  }
+  return lines;
+}
+
 function formatPackageChangelog(changelog: VersionPackageChangelog): string[] {
   const lines: string[] = [];
   const prevVersion = changelog.previousVersion ?? 'N/A';
   const summary = `<b>${changelog.packageName}</b> ${prevVersion} → ${changelog.version}`;
 
   lines.push('<details>', `<summary>${summary}</summary>`, '');
-
-  // Group entries by type
-  const grouped = new Map<string, typeof changelog.entries>();
-  for (const entry of changelog.entries) {
-    const type = entry.type;
-    if (!grouped.has(type)) {
-      grouped.set(type, []);
-    }
-    grouped.get(type)?.push(entry);
-  }
-
-  // Render known types first in a stable order, then any unknown types
-  const renderedTypes = new Set<string>();
-
-  for (const type of Object.keys(TYPE_LABELS)) {
-    const entries = grouped.get(type);
-    if (entries && entries.length > 0) {
-      lines.push(...formatEntryGroup(type, entries));
-      renderedTypes.add(type);
-    }
-  }
-
-  // Any remaining types not in TYPE_LABELS
-  for (const [type, entries] of grouped) {
-    if (!renderedTypes.has(type) && entries.length > 0) {
-      lines.push(...formatEntryGroup(type, entries));
-    }
-  }
-
+  lines.push(...renderEntries(changelog.entries));
   lines.push('</details>', '');
   return lines;
 }
