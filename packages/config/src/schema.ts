@@ -263,7 +263,7 @@ export const CIConfigSchema = z.object({
   /**
    * Commit message prefixes that should not trigger a release.
    * Defaults to `['chore: release ']` to match the release commit template
-   * (`chore: release ${packageName}@${version} [skip ci]`) and provide a
+   * (`chore: release ${packageName} v${version}`) and provide a
    * secondary loop-prevention guard alongside `[skip ci]`.
    */
   skipPatterns: z.array(z.string()).default(['chore: release ']),
