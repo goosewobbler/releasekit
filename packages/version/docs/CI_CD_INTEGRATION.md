@@ -77,7 +77,7 @@ jobs:
       new_version: ${{ steps.version.outputs.new_version }}
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Important for git history
       
