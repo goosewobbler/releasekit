@@ -490,6 +490,17 @@ describe('runRelease', () => {
     });
   });
 
+  describe('release config: ci overrides beat steps (CLI > ci > steps)', () => {
+    it('should disable notes when ci.notes: false even if steps includes "notes"', async () => {
+      mockLoadReleaseKitConfig.mockReturnValue({ release: { steps: ['notes', 'publish'], ci: { notes: false } } });
+
+      const result = await runRelease(defaultOptions);
+
+      expect(mockNotesRunPipeline).not.toHaveBeenCalled();
+      expect(result?.notesGenerated).toBe(false);
+    });
+  });
+
   describe('release config: ci overrides', () => {
     it('should skip notes when ci.notes is false', async () => {
       mockLoadReleaseKitConfig.mockReturnValue({ release: { ci: { notes: false } } });

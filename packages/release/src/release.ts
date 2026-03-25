@@ -47,7 +47,8 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
     }
   }
 
-  // Apply ci overrides
+  // Apply ci overrides — these take final precedence and can suppress a step
+  // even when it appears in the 'steps' array. Priority order: CLI > ci > steps.
   if (releaseConfig?.ci?.notes === false && !options.skipNotes) {
     options.skipNotes = true;
   }
