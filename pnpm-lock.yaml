@@ -31,8 +31,8 @@ catalogs:
       specifier: ^7.7.4
       version: 7.7.4
     smol-toml:
-      specifier: ^1.6.0
-      version: 1.6.0
+      specifier: ^1.6.1
+      version: 1.6.1
     tsup:
       specifier: ^8.5.1
       version: 8.5.1
@@ -94,7 +94,7 @@ importers:
         version: link:../core
       smol-toml:
         specifier: 'catalog:'
-        version: 1.6.0
+        version: 1.6.1
       zod:
         specifier: 'catalog:'
         version: 4.3.6
@@ -171,7 +171,7 @@ importers:
         version: 6.27.0(zod@4.3.6)
       smol-toml:
         specifier: 'catalog:'
-        version: 1.6.0
+        version: 1.6.1
       zod:
         specifier: 'catalog:'
         version: 4.3.6
@@ -217,7 +217,7 @@ importers:
         version: 7.7.4
       smol-toml:
         specifier: 'catalog:'
-        version: 1.6.0
+        version: 1.6.1
       zod:
         specifier: 'catalog:'
         version: 4.3.6
@@ -272,7 +272,7 @@ importers:
         version: 14.0.3
       smol-toml:
         specifier: 'catalog:'
-        version: 1.6.0
+        version: 1.6.1
       zod:
         specifier: 'catalog:'
         version: 4.3.6
@@ -348,7 +348,7 @@ importers:
         version: 7.7.4
       smol-toml:
         specifier: 'catalog:'
-        version: 1.6.0
+        version: 1.6.1
       zod:
         specifier: 'catalog:'
         version: 4.3.6
@@ -1767,8 +1767,8 @@ packages:
     resolution: {integrity: sha512-stxByr12oeeOyY2BlviTNQlYV5xOj47GirPr4yA1hE9JCtxfQN0+tVbkxwCtYDQWhEKWFHsEK48ORg5jrouCAg==}
     engines: {node: '>=20'}
 
-  smol-toml@1.6.0:
-    resolution: {integrity: sha512-4zemZi0HvTnYwLfrpk/CF9LOd9Lt87kAt50GnqhMpyF9U3poDAP2+iukq2bZsO/ufegbYehBkqINbsWxj4l4cw==}
+  smol-toml@1.6.1:
+    resolution: {integrity: sha512-dWUG8F5sIIARXih1DTaQAX4SsiTXhInKf1buxdY9DIg4ZYPZK5nGM1VRIYmEbDbsHt7USo99xSLFu5Q1IqTmsg==}
     engines: {node: '>= 18'}
 
   source-map-js@1.2.1:
@@ -3269,7 +3269,7 @@ snapshots:
       ansi-styles: 6.2.3
       is-fullwidth-code-point: 5.1.0
 
-  smol-toml@1.6.0: {}
+  smol-toml@1.6.1: {}
 
   source-map-js@1.2.1: {}
 
