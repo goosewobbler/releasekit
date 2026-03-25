@@ -278,6 +278,33 @@ describe('Version Strategies', () => {
       );
     });
 
+    it('should not include root in commit message for single-package sync repo', async () => {
+      // Simulate a single-package repo where only the root package.json is updated
+      const singlePackageRepo = {
+        root: '/test/workspace',
+        rootDir: '/test/workspace',
+        tool: 'npm' as unknown as Tool,
+        packages: [] as unknown[],
+      } as unknown as PackagesWithRoot;
+
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        sync: true,
+        commitMessage: 'chore: release ${' + 'packageName} v${' + 'version} [skip ci]',
+      };
+
+      const syncStrategy = strategies.createSyncStrategy(config as Config);
+      await syncStrategy(singlePackageRepo);
+
+      // commitPackageName should be undefined (not 'root')
+      expect(formatting.formatCommitMessage).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        undefined,
+        undefined,
+      );
+    });
+
     it('should exit early if no version change needed', async () => {
       // Mock calculateVersion to return empty string (no change)
       vi.mocked(calculator.calculateVersion, { partial: true }).mockResolvedValue('');

@@ -280,10 +280,10 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       }
 
       // Build the commit message package name from all updated workspace packages.
-      // Falls back to 'root' only if no named workspace packages were updated.
+      // Pass undefined when only the root was updated so formatCommitMessage leaves
+      // the ${packageName} placeholder empty rather than inserting the literal 'root'.
       const workspaceNames = updatedPackages.filter((n) => n !== 'root');
-      const commitPackageName =
-        workspaceNames.length > 0 ? workspaceNames.join(', ') : (updatedPackages[0] ?? undefined);
+      const commitPackageName = workspaceNames.length > 0 ? workspaceNames.join(', ') : undefined;
 
       const nextTag = formatTag(
         nextVersion,

@@ -370,8 +370,9 @@ export class PackageProcessor {
       const packageName = updatedPackagesInfo.length === 1 ? updatedPackagesInfo[0].name : packageNames;
       commitMessage = formatCommitMessage(commitMessage, representativeVersion, packageName);
     } else {
-      // No placeholders in template — append package names and version directly.
-      commitMessage = `${commitMessage} ${packageNames} ${representativeVersion}`;
+      // No placeholders in template — append package names and prefixed version directly.
+      const formattedVersion = `${formatVersionPrefix(this.versionPrefix)}${representativeVersion}`;
+      commitMessage = `${commitMessage} ${packageNames} ${formattedVersion}`;
     }
 
     setCommitMessage(commitMessage);

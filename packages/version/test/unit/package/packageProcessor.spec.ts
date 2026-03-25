@@ -533,7 +533,7 @@ describe('Package Processor', () => {
       expect(result.updatedPackages.length).toBe(3);
     });
 
-    it('should construct commit message with package details', async () => {
+    it('should construct commit message with package details and v-prefixed version', async () => {
       const processor = new PackageProcessor({
         getLatestTag: gitTags.getLatestTag,
         config: {},
@@ -542,7 +542,8 @@ describe('Package Processor', () => {
 
       await processor.processPackages(mockPackages);
 
-      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith(expect.stringContaining('chore: release'));
+      // No-placeholder default template: package names and v-prefixed version are appended directly.
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith(expect.stringMatching(/chore: release .+ v\d/));
     });
 
     it('should update both package.json and Cargo.toml for hybrid packages', async () => {
