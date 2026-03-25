@@ -181,7 +181,10 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
 }
 
 /**
- * Find entries that appear (by type + description) in every changelog.
+ * Find entries that appear (by type + description) in every changelog and return them normalised:
+ * - `scope` is stripped (it is package-specific and would be misleading in a shared section)
+ * - `issueIds` are merged and deduplicated across all packages
+ *
  * Only meaningful when there are two or more packages — returns [] for a single package.
  */
 function findSharedEntries(changelogs: VersionPackageChangelog[]): VersionChangelogEntry[] {
@@ -189,9 +192,23 @@ function findSharedEntries(changelogs: VersionPackageChangelog[]): VersionChange
   const [first, ...rest] = changelogs;
   if (!first) return [];
 
-  return first.entries.filter((entry) =>
-    rest.every((cl) => cl.entries.some((e) => e.type === entry.type && e.description === entry.description)),
-  );
+  return first.entries
+    .filter((entry) =>
+      rest.every((cl) => cl.entries.some((e) => e.type === entry.type && e.description === entry.description)),
+    )
+    .map((entry) => {
+      // Merge issueIds from all changelogs and deduplicate
+      const allIssueIds = changelogs.flatMap(
+        (cl) => cl.entries.find((e) => e.type === entry.type && e.description === entry.description)?.issueIds ?? [],
+      );
+      const mergedIssueIds = [...new Set(allIssueIds)];
+      return {
+        type: entry.type,
+        description: entry.description,
+        ...(mergedIssueIds.length > 0 && { issueIds: mergedIssueIds }),
+        // scope intentionally omitted — it is package-specific
+      };
+    });
 }
 
 function renderEntries(entries: VersionChangelogEntry[]): string[] {

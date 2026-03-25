@@ -182,6 +182,48 @@ describe('formatPreviewComment', () => {
       const result = formatPreviewComment(releaseOutput);
       expect(result).not.toContain('Project-wide changes');
     });
+
+    it('strips scope and merges issueIds when packages carry different metadata for the same entry', () => {
+      const divergingMetadata: ReleaseOutput = {
+        versionOutput: {
+          dryRun: true,
+          updates: [
+            { packageName: 'pkg-a', newVersion: '1.1.0', filePath: 'packages/a/package.json' },
+            { packageName: 'pkg-b', newVersion: '1.1.0', filePath: 'packages/b/package.json' },
+          ],
+          changelogs: [
+            {
+              packageName: 'pkg-a',
+              version: '1.1.0',
+              previousVersion: '1.0.0',
+              revisionRange: 'v1.0.0..HEAD',
+              repoUrl: null,
+              entries: [{ type: 'fixed', description: 'Update deps', scope: 'pkg-a', issueIds: ['#1'] }],
+            },
+            {
+              packageName: 'pkg-b',
+              version: '1.1.0',
+              previousVersion: '1.0.0',
+              revisionRange: 'v1.0.0..HEAD',
+              repoUrl: null,
+              entries: [{ type: 'fixed', description: 'Update deps', scope: 'pkg-b', issueIds: ['#2'] }],
+            },
+          ],
+          tags: [],
+        },
+        notesGenerated: false,
+      };
+      const result = formatPreviewComment(divergingMetadata);
+      // Entry should appear once in the shared section
+      const occurrences = result.split('Update deps').length - 1;
+      expect(occurrences).toBe(1);
+      // Scope from either package should not appear
+      expect(result).not.toContain('(`pkg-a`)');
+      expect(result).not.toContain('(`pkg-b`)');
+      // IssueIds from both packages should be merged
+      expect(result).toContain('#1');
+      expect(result).toContain('#2');
+    });
   });
 
   it('includes footer', () => {
