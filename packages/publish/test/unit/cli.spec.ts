@@ -19,14 +19,17 @@ const mockConfig: PublishConfig = {
     auth: 'auto',
     access: 'public',
     provenance: false,
-    noVerify: false,
-    tag: 'latest',
+    registry: 'https://registry.npmjs.org',
     copyFiles: [],
+    tag: 'latest',
   },
-  cargo: { enabled: false, noVerify: false, publishOrder: [] },
-  git: { push: true, pushMethod: 'auto', commitMessage: 'chore(release): {version}', tagMessage: '{version}' },
-  github: { enabled: false },
-  verification: { enabled: false },
+  cargo: { enabled: false, noVerify: false, publishOrder: [], clean: false },
+  git: { push: true, pushMethod: 'auto', remote: 'origin', branch: undefined },
+  githubRelease: { enabled: false, draft: true, perPackage: true, prerelease: 'auto', releaseNotes: 'auto' },
+  verify: {
+    npm: { enabled: false, maxAttempts: 5, initialDelay: 15000, backoffMultiplier: 2 },
+    cargo: { enabled: false, maxAttempts: 5, initialDelay: 15000, backoffMultiplier: 2 },
+  },
 };
 
 const mockInput = { dryRun: false, updates: [], changelogs: [], tags: [] };
