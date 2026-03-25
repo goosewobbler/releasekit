@@ -61,10 +61,13 @@ export function recordPendingWrite(path: string, content: string): void {
  * Apply all pending writes to disk and clear the buffer.
  */
 export function flushPendingWrites(): void {
-  for (const { path, content } of _pendingWrites) {
-    fs.writeFileSync(path, content);
+  try {
+    for (const { path, content } of _pendingWrites) {
+      fs.writeFileSync(path, content);
+    }
+  } finally {
+    _pendingWrites.length = 0;
   }
-  _pendingWrites.length = 0;
 }
 
 /**

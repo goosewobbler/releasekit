@@ -235,6 +235,17 @@ describe('JSON Output Utilities', () => {
       flushPendingWrites();
       expect(fs.writeFileSync).not.toHaveBeenCalled();
     });
+
+    it('should clear the buffer even when a write throws', () => {
+      recordPendingWrite('/a.json', 'a');
+      recordPendingWrite('/b.json', 'b');
+      vi.mocked(fs.writeFileSync).mockImplementation(() => {
+        throw new Error('permission denied');
+      });
+
+      expect(() => flushPendingWrites()).toThrow('permission denied');
+      expect(getPendingWriteCount()).toBe(0);
+    });
   });
 
   describe('printJsonOutput', () => {
