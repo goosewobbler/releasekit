@@ -157,7 +157,7 @@ describe('Version Strategies', () => {
       const config: Partial<Config> = {
         ...defaultConfig,
         sync: true,
-        commitMessage: 'chore: release v${' + 'version}',
+        commitMessage: 'chore: release ${' + 'packageName} v${' + 'version}',
       };
 
       const syncStrategy = strategies.createSyncStrategy(config as Config);
@@ -413,7 +413,7 @@ describe('Version Strategies', () => {
       const config: Partial<Config> = {
         ...defaultConfig,
         mainPackage: 'package-a',
-        commitMessage: 'chore: release ${' + 'version}',
+        commitMessage: 'chore: release ${' + 'packageName} v${' + 'version}',
       };
 
       const singleStrategy = strategies.createSingleStrategy(config as Config);

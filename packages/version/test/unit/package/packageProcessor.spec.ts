@@ -114,7 +114,7 @@ describe('Package Processor', () => {
     baseBranch: 'main',
     packages: [],
     branchPattern: ['feature/*'],
-    commitMessage: 'chore: release version ${version}',
+    commitMessage: 'chore: release ${packageName} v${version}',
   };
 
   // Mock getLatestTag function
@@ -124,7 +124,7 @@ describe('Package Processor', () => {
   const defaultOptions = {
     skip: ['package-c'],
     versionPrefix: 'v',
-    commitMessageTemplate: 'chore: release ${version}',
+    commitMessageTemplate: 'chore: release ${packageName} v${version}',
     dryRun: false,
     getLatestTag: mockGetLatestTag,
     config: {
@@ -358,9 +358,9 @@ describe('Package Processor', () => {
 
       const result = await processor.processPackages(mockPackages);
 
-      // defaultOptions uses commitMessageTemplate: 'chore: release ${version}' (has ${version} placeholder,
-      // no ${packageName}). Template is used as-is with version substituted; package names not in template.
-      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release 1.1.0');
+      // defaultOptions uses commitMessageTemplate: 'chore: release ${packageName} v${version}'.
+      // For multi-package releases ${packageName} is substituted with the combined package list.
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a, package-b v1.1.0');
 
       // Should return info for both packages
       expect(result.updatedPackages).toHaveLength(2);
