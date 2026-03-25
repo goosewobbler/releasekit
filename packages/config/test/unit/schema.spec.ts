@@ -12,6 +12,7 @@ import {
   NpmConfigSchema,
   OutputConfigSchema,
   PublishConfigSchema,
+  ReleaseConfigSchema,
   ReleaseKitConfigSchema,
   ScopeConfigSchema,
   ScopeRulesSchema,
@@ -443,6 +444,23 @@ describe('NotesConfigSchema', () => {
     const result = NotesConfigSchema.parse({});
     expect(result.updateStrategy).toBe('prepend');
     expect(result.output).toEqual([{ format: 'markdown', file: 'CHANGELOG.md' }]);
+  });
+});
+
+describe('ReleaseConfigSchema', () => {
+  it('should accept valid steps array', () => {
+    expect(ReleaseConfigSchema.parse({ steps: ['notes', 'publish'] }).steps).toEqual(['notes', 'publish']);
+    expect(ReleaseConfigSchema.parse({ steps: ['notes'] }).steps).toEqual(['notes']);
+    expect(ReleaseConfigSchema.parse({ steps: ['publish'] }).steps).toEqual(['publish']);
+  });
+
+  it('should reject an empty steps array', () => {
+    expect(() => ReleaseConfigSchema.parse({ steps: [] })).toThrow();
+  });
+
+  it('should reject steps containing invalid values', () => {
+    expect(() => ReleaseConfigSchema.parse({ steps: ['version'] })).toThrow();
+    expect(() => ReleaseConfigSchema.parse({ steps: ['notes', 'invalid'] })).toThrow();
   });
 });
 
