@@ -101,7 +101,7 @@ Configure via `releasekit.config.json`:
     "preset": "conventionalcommits",
     "versionPrefix": "v",
     "tagTemplate": "${prefix}${version}",
-    "commitMessage": "chore: release v${version}",
+    "commitMessage": "chore: release ${packageName} v${version}",
     "sync": true,
     "packages": ["@mycompany/*"],
     "skip": ["docs", "e2e"],
