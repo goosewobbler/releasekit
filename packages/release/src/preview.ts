@@ -97,16 +97,13 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   // Format the comment
   const commentBody = formatPreviewComment(result, { strategy, labelContext });
 
-  if (!context) {
+  if (!context || !octokit) {
     // Dry-run mode or GitHub context unavailable — print to stdout
     console.log(commentBody);
     return;
   }
 
   info(`Posting preview comment on PR #${context.prNumber}...`);
-  if (!octokit) {
-    octokit = createOctokit(context.token);
-  }
   await postOrUpdateComment(octokit, context.owner, context.repo, context.prNumber, commentBody);
   success(`Preview comment posted on PR #${context.prNumber}`);
 }
@@ -171,18 +168,17 @@ async function applyLabelOverrides(
   const defaultLabelContext: LabelContext = { trigger, skip: false, noBumpLabel: false };
 
   if (!context) {
+    // No GitHub context (dry-run or unavailable). If the caller explicitly supplied --bump,
+    // honour it so that `releasekit preview --dry-run --bump minor` still produces useful output.
     return {
       options,
-      labelContext: { ...defaultLabelContext, noBumpLabel: trigger === 'label', labels },
+      labelContext: { ...defaultLabelContext, noBumpLabel: trigger === 'label' && !options.bump, labels },
     };
   }
 
   let prLabels: string[];
-  const octokitToUse = existingOctokit ?? (context ? createOctokit(context.token) : undefined);
+  const octokitToUse = existingOctokit ?? createOctokit(context.token);
   try {
-    if (!octokitToUse) {
-      throw new Error('No Octokit instance available');
-    }
     prLabels = await fetchPRLabels(octokitToUse, context.owner, context.repo, context.prNumber);
   } catch {
     warn('Could not fetch PR labels — skipping label-driven overrides');

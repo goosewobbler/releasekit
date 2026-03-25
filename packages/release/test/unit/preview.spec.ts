@@ -558,4 +558,17 @@ describe('runPreview', () => {
 
     expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'patch' }));
   });
+
+  it('--bump overrides noBumpLabel in dry-run + label-trigger mode', async () => {
+    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await runPreview({ projectDir: '/test', dryRun: true, bump: 'minor' });
+
+    // Version analysis should run because --bump was explicitly supplied
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor' }));
+    expect(consoleSpy).toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+  });
 });
