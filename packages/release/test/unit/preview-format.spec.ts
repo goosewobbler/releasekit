@@ -31,7 +31,7 @@ const versionOutput: VersionOutput = {
       entries: [{ type: 'added', description: 'LLM-powered release notes', scope: 'llm' }],
     },
   ],
-  commitMessage: 'chore(release): 0.3.1',
+  commitMessage: 'chore: release 0.3.1',
   tags: ['@releasekit/version@v0.3.1', '@releasekit/notes@v0.3.1'],
 };
 
