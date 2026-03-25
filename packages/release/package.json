@@ -43,7 +43,6 @@
     "access": "public"
   },
   "dependencies": {
-    "@releasekit/config": "workspace:*",
     "@releasekit/notes": "workspace:*",
     "@releasekit/publish": "workspace:*",
     "@releasekit/version": "workspace:*",
@@ -54,6 +53,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
+    "@releasekit/config": "workspace:*",
     "@releasekit/core": "workspace:*",
     "@types/node": "catalog:",
     "@types/semver": "catalog:",
