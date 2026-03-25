@@ -247,7 +247,7 @@ export const NotesConfigSchema = z.object({
 });
 
 export const ReleaseCIConfigSchema = z.object({
-  skipPatterns: z.array(z.string()).optional(),
+  skipPatterns: z.array(z.string().min(1)).optional(),
   minChanges: z.number().int().positive().optional(),
   /** Set to `false` to disable GitHub release creation in CI. */
   githubRelease: z.literal(false).optional(),
