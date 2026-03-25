@@ -16,7 +16,9 @@ concurrency:
 jobs:
   release:
     name: Auto Release
-    if: github.event.workflow_run.conclusion == 'success'
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
     uses: ./.github/workflows/_release.reusable.yml
     permissions:
       id-token: write
