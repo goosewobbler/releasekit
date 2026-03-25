@@ -11,6 +11,12 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
+    },
+    "./cli": {
+      "import": {
+        "types": "./dist/cli.d.ts",
+        "default": "./dist/cli.js"
+      }
     }
   },
   "bin": {
@@ -26,12 +32,7 @@
     "lint": "biome check .",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": [
-    "version",
-    "semver",
-    "git",
-    "package"
-  ],
+  "keywords": ["version", "semver", "git", "package"],
   "author": {
     "name": "Sam Maister",
     "email": "goosewobbler@protonmail.com"
@@ -42,11 +43,7 @@
     "directory": "packages/version"
   },
   "license": "MIT",
-  "files": [
-    "dist",
-    "docs",
-    "version.schema.json"
-  ],
+  "files": ["dist", "docs", "version.schema.json"],
   "publishConfig": {
     "access": "public"
   },
