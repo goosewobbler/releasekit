@@ -49,6 +49,14 @@ describe('parsePrerelease', () => {
   it('detects alphanumeric prerelease identifier', () => {
     expect(parsePrerelease('1.0.0-rc1')).toEqual({ isPrerelease: true, identifier: 'rc1' });
   });
+
+  it('detects hyphenated prerelease identifier', () => {
+    expect(parsePrerelease('1.0.0-my-tag.4')).toEqual({ isPrerelease: true, identifier: 'my-tag' });
+  });
+
+  it('detects hyphenated prerelease identifier without counter', () => {
+    expect(parsePrerelease('1.0.0-canary-build')).toEqual({ isPrerelease: true, identifier: 'canary-build' });
+  });
 });
 
 describe('detectPrerelease', () => {

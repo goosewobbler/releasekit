@@ -38,7 +38,7 @@ export function detectPrerelease(packagePaths: string[], projectDir: string): Pr
 export function parsePrerelease(version: string | undefined): PrereleaseDetection {
   if (!version) return { isPrerelease: false };
 
-  const match = version.match(/-([a-zA-Z0-9]+)/);
+  const match = version.match(/-([a-zA-Z0-9][a-zA-Z0-9-]*)(?:\.\d+)*(?:\+[^\s]+)?$/);
   if (match) {
     return { isPrerelease: true, identifier: match[1] };
   }
