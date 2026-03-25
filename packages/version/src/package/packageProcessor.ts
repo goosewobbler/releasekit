@@ -355,6 +355,8 @@ export class PackageProcessor {
     // Build commit message for JSON output (git ops now handled by publish)
     const packageNames = updatedPackagesInfo.map((p) => p.name).join(', ');
     const representativeVersion = updatedPackagesInfo[0]?.version || 'multiple';
+    const versionsMatch =
+      updatedPackagesInfo.length <= 1 || updatedPackagesInfo.every((p) => p.version === representativeVersion);
     let commitMessage = this.commitMessageTemplate || 'chore: release';
 
     const MAX_COMMIT_MSG_LENGTH = 10000;
@@ -367,12 +369,22 @@ export class PackageProcessor {
       // Template has placeholders: substitute with the combined package list and representative version.
       // For single-package releases this produces the exact configured message; for multi-package
       // releases the ${packageName} placeholder is replaced with the comma-separated list.
+      // Note: ${version} always refers to the first package's version. Users who need per-package
+      // versions in async mode should use the no-placeholder path or a custom template.
       const packageName = updatedPackagesInfo.length === 1 ? updatedPackagesInfo[0].name : packageNames;
       commitMessage = formatCommitMessage(commitMessage, representativeVersion, packageName);
     } else {
-      // No placeholders in template — append package names and prefixed version directly.
-      const formattedVersion = `${formatVersionPrefix(this.versionPrefix)}${representativeVersion}`;
-      commitMessage = `${commitMessage} ${packageNames} ${formattedVersion}`;
+      // No placeholders in template — append package summary directly.
+      // When all packages share the same version, use 'name1, name2 v1.2.0'.
+      // When versions diverge (async independent bumps), use 'name1@1.2.0, name2@2.0.0' instead
+      // to avoid silently referencing only the first package's version.
+      if (versionsMatch) {
+        const formattedVersion = `${formatVersionPrefix(this.versionPrefix)}${representativeVersion}`;
+        commitMessage = `${commitMessage} ${packageNames} ${formattedVersion}`;
+      } else {
+        const packageVersionList = updatedPackagesInfo.map((p) => `${p.name}@${p.version}`).join(', ');
+        commitMessage = `${commitMessage} ${packageVersionList}`;
+      }
     }
 
     setCommitMessage(commitMessage);

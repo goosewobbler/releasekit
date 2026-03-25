@@ -368,6 +368,23 @@ describe('Package Processor', () => {
       expect(result.updatedPackages[1].name).toBe('package-b');
     });
 
+    it('should use name@version list in commit message when async packages have diverging versions', async () => {
+      // package-a bumps to 1.2.0, package-b bumps to 2.0.0 (independent async bumps)
+      vi.spyOn(versionCalculatorModule, 'calculateVersion')
+        .mockResolvedValueOnce('1.2.0')
+        .mockResolvedValueOnce('2.0.0');
+
+      const processor = new PackageProcessor({
+        ...defaultOptions,
+        // No placeholders → else-branch
+        commitMessageTemplate: 'chore: release',
+      });
+
+      await processor.processPackages(mockPackages);
+
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a@1.2.0, package-b@2.0.0');
+    });
+
     it('should track tags via JSON output without creating git tags', async () => {
       const processor = new PackageProcessor(defaultOptions);
 
