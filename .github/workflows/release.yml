@@ -29,7 +29,7 @@ on:
       npm_auth:
         description: NPM auth method (auto, oidc, token)
         type: string
-        default: auto
+        default: oidc
       dry_run:
         description: Dry run (no publish, no push)
         type: boolean
