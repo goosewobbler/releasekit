@@ -116,6 +116,7 @@ export interface PublishOutput {
   cargo: PublishResult[];
   verification: VerificationResult[];
   githubReleases: GitHubReleaseResult[];
+  publishSucceeded: boolean;
 }
 
 export interface PipelineContext {
