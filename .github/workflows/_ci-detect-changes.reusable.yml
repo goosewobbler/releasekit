@@ -146,7 +146,7 @@ jobs:
             RUN_INTEGRATION="true"
           fi
 
-          if [ "$E2E" = "true" ] || [ "$INFRA" = "true" ] || [ "$NOTES" = "true" ] || [ "$VERSION" = "true" ]; then
+          if [ "$E2E" = "true" ] || [ "$INFRA" = "true" ] || [ "$NOTES" = "true" ] || [ "$VERSION" = "true" ] || [ "$PUBLISH" = "true" ] || [ "$RELEASE" = "true" ]; then
             RUN_E2E="true"
           fi
 

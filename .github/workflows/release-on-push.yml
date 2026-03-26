@@ -26,6 +26,7 @@ jobs:
     with:
       packages: all
       bump: auto
+      sync: true
       dry_run: false
       npm_auth: oidc
     secrets:

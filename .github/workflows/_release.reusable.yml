@@ -18,6 +18,10 @@ on:
         required: false
         type: string
         default: oidc
+      sync:
+        required: false
+        type: boolean
+        default: false
     secrets:
       DEPLOY_KEY:
         required: false
@@ -76,6 +80,7 @@ jobs:
           INPUT_BUMP: ${{ inputs.bump }}
           INPUT_DRY_RUN: ${{ inputs.dry_run }}
           INPUT_NPM_AUTH: ${{ inputs.npm_auth }}
+          INPUT_SYNC: ${{ inputs.sync }}
         run: |
           # Build target flags
           TARGET_FLAGS=""
@@ -123,6 +128,11 @@ jobs:
                 ;;
             esac
           fi
+          
+          SYNC_FLAG=""
+          if [ "$INPUT_SYNC" = "true" ]; then
+            SYNC_FLAG="--sync"
+          fi
 
           # Run releasekit and capture JSON output (stdout only)
           # stderr is tee'd so logs appear in the workflow AND are captured for failure diagnostics
@@ -134,6 +144,7 @@ jobs:
             ${TARGET_FLAGS} \
             ${DRY_RUN_FLAG} \
             ${NPM_AUTH_FLAG} \
+            ${SYNC_FLAG} \
             2> >(tee /tmp/release_stderr >&2))
           EXIT_CODE=$?
           set -e
@@ -157,6 +168,7 @@ jobs:
           INPUT_PACKAGES: ${{ inputs.packages }}
           INPUT_DRY_RUN: ${{ inputs.dry_run }}
           INPUT_NPM_AUTH: ${{ inputs.npm_auth }}
+          INPUT_SYNC: ${{ inputs.sync }}
           HAS_CHANGES: ${{ steps.release.outputs.has_changes }}
         run: |
           echo "## Release" >> "$GITHUB_STEP_SUMMARY"
@@ -166,6 +178,7 @@ jobs:
           echo "| Bump type | \`${INPUT_BUMP}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Packages | \`${INPUT_PACKAGES}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| NPM auth | \`${INPUT_NPM_AUTH}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Sync mode | \`${INPUT_SYNC}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Dry run | \`${INPUT_DRY_RUN}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
@@ -197,4 +210,11 @@ jobs:
             echo "### Changelog Preview" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
             jq -r '.packageNotes | to_entries[] | "<details>\n<summary>\(.key)</summary>\n\n\(.value)\n</details>"' release-output.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if jq -e '.releaseNotes | length > 0' release-output.json > /dev/null 2>&1; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "### Release Notes Preview" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            jq -r '.releaseNotes | to_entries[] | "<details>\n<summary>\(.key)</summary>\n\n\(.value)\n</details>"' release-output.json >> "$GITHUB_STEP_SUMMARY"
           fi

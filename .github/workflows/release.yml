@@ -34,6 +34,10 @@ on:
           - oidc
           - token
         default: oidc
+      sync:
+        description: Use synchronized versioning across all packages
+        type: boolean
+        default: false
       dry_run:
         description: Dry run (no publish, no push)
         type: boolean
@@ -54,6 +58,7 @@ jobs:
       packages: ${{ inputs.packages }}
       bump: ${{ inputs.bump }}
       npm_auth: ${{ inputs.npm_auth }}
+      sync: ${{ inputs.sync }}
       dry_run: ${{ inputs.dry_run }}
     secrets:
       DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}

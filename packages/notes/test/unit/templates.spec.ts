@@ -1,3 +1,4 @@
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { DocumentContext, TemplateContext } from '../../src/core/types.js';
@@ -75,51 +76,11 @@ describe('EJS Engine', () => {
   });
 });
 
-// Inline the relevant release-notes template content to keep this test self-contained.
-// Mirrors templates/release-notes/release.liquid.
-const releaseNotesTemplate = `
-{%- for version in versions %}
-{%- if version.enhanced.categories %}
-{%- for cat in version.enhanced.categories %}
-{%- if cat.entries.size > 0 %}
-
-### {{ cat.name }}:
-{%- for entry in cat.entries %}
-{%- if entry.scope %}
-- **{{ entry.scope }}**: {{ entry.description }}
-{%- else %}
-- {{ entry.description }}
-{%- endif %}
-{%- endfor %}
-{%- endif %}
-{%- endfor %}
-{%- else %}
-{%- assign added = version.entries | where: "type", "added" %}
-{%- assign fixed = version.entries | where: "type", "fixed" %}
-{%- if added.size > 0 %}
-
-### New:
-{%- for entry in added %}
-- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}
-{%- endfor %}
-{%- endif %}
-{%- if fixed.size > 0 %}
-
-### Fixed:
-{%- for entry in fixed %}
-- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}
-{%- endfor %}
-{%- endif %}
-{%- endif %}
-{%- if version.compareUrl %}
-
-**Full Changelog**: {{ version.compareUrl }}
-{%- endif %}
-{% endfor %}
-`.trim();
-
 describe('release.liquid template', () => {
-  const template = releaseNotesTemplate;
+  const template = fs.readFileSync(
+    path.resolve(__dirname, '../../../../templates/release-notes/release.liquid'),
+    'utf-8',
+  );
 
   it('should render categories from enhanced.categories', () => {
     const ctx: DocumentContext = {
@@ -188,6 +149,67 @@ describe('release.liquid template', () => {
     const result = renderLiquid(template, ctx);
     expect(result).not.toContain('### New:');
     expect(result).toContain('### Fixed:');
+  });
+
+  it('should render version header with package name and version', () => {
+    const ctx: DocumentContext = {
+      project: { name: 'test-pkg' },
+      versions: [{ ...sampleContext, packageName: '@releasekit/publish', version: '0.4.0' }],
+    };
+
+    const result = renderLiquid(template, ctx);
+    expect(result).toContain('## `@releasekit/publish` @ 0.4.0');
+  });
+
+  it('should render separator between multiple versions', () => {
+    const ctx: DocumentContext = {
+      project: { name: 'test-pkg' },
+      versions: [
+        {
+          ...sampleContext,
+          packageName: 'pkg-a',
+          version: '1.0.0',
+          entries: [{ type: 'added', description: 'Feature A' }],
+        },
+        {
+          ...sampleContext,
+          packageName: 'pkg-b',
+          version: '2.0.0',
+          entries: [{ type: 'added', description: 'Feature B' }],
+        },
+      ],
+    };
+
+    const result = renderLiquid(template, ctx);
+    expect(result).toContain('## `pkg-a` @ 1.0.0');
+    expect(result).toContain('## `pkg-b` @ 2.0.0');
+    expect(result).toContain('---');
+  });
+
+  it('should not render separator after last version', () => {
+    const ctx: DocumentContext = {
+      project: { name: 'test-pkg' },
+      versions: [
+        {
+          ...sampleContext,
+          packageName: 'pkg-a',
+          version: '1.0.0',
+          entries: [{ type: 'added', description: 'Feature A' }],
+        },
+        {
+          ...sampleContext,
+          packageName: 'pkg-b',
+          version: '2.0.0',
+          entries: [{ type: 'added', description: 'Feature B' }],
+        },
+      ],
+    };
+
+    const result = renderLiquid(template, ctx);
+    expect(result).toContain('---');
+    const lastVersionPos = result.lastIndexOf('## `pkg-b` @ 2.0.0');
+    const separatorPos = result.lastIndexOf('---');
+    expect(separatorPos).toBeLessThan(lastVersionPos);
   });
 });
 
