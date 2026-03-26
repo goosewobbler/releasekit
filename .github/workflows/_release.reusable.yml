@@ -48,14 +48,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup workspace
-        uses: ./.github/workflows/actions/setup-workspace
-
       - name: Configure git
         if: ${{ !inputs.dry_run }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Setup workspace
+        uses: ./.github/workflows/actions/setup-workspace
+
+      - name: Build packages
+        run: pnpm build
 
       - name: Install releasekit from npm
         run: pnpm add -g @releasekit/release@0.2.1
