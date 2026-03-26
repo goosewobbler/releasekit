@@ -14,6 +14,10 @@ on:
         required: false
         type: boolean
         default: false
+      npm_auth:
+        required: false
+        type: string
+        default: oidc
     secrets:
       DEPLOY_KEY:
         required: false
@@ -71,6 +75,7 @@ jobs:
           INPUT_PACKAGES: ${{ inputs.packages }}
           INPUT_BUMP: ${{ inputs.bump }}
           INPUT_DRY_RUN: ${{ inputs.dry_run }}
+          INPUT_NPM_AUTH: ${{ inputs.npm_auth }}
         run: |
           # Build target flags
           TARGET_FLAGS=""
@@ -105,6 +110,11 @@ jobs:
             DRY_RUN_FLAG="--dry-run"
           fi
 
+          NPM_AUTH_FLAG=""
+          if [ -n "$INPUT_NPM_AUTH" ]; then
+            NPM_AUTH_FLAG="--npm-auth $INPUT_NPM_AUTH"
+          fi
+
           # Run releasekit and capture JSON output (stdout only)
           # stderr is tee'd so logs appear in the workflow AND are captured for failure diagnostics
           set +e
@@ -114,6 +124,7 @@ jobs:
             ${PRERELEASE_FLAGS} \
             ${TARGET_FLAGS} \
             ${DRY_RUN_FLAG} \
+            ${NPM_AUTH_FLAG} \
             2> >(tee /tmp/release_stderr >&2))
           EXIT_CODE=$?
           set -e
@@ -136,6 +147,7 @@ jobs:
           INPUT_BUMP: ${{ inputs.bump }}
           INPUT_PACKAGES: ${{ inputs.packages }}
           INPUT_DRY_RUN: ${{ inputs.dry_run }}
+          INPUT_NPM_AUTH: ${{ inputs.npm_auth }}
           HAS_CHANGES: ${{ steps.release.outputs.has_changes }}
         run: |
           echo "## Release" >> "$GITHUB_STEP_SUMMARY"
@@ -144,6 +156,7 @@ jobs:
           echo "|---------|-------|" >> "$GITHUB_STEP_SUMMARY"
           echo "| Bump type | \`${INPUT_BUMP}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Packages | \`${INPUT_PACKAGES}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| NPM auth | \`${INPUT_NPM_AUTH}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Dry run | \`${INPUT_DRY_RUN}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 

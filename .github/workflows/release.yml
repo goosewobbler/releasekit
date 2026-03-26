@@ -26,6 +26,10 @@ on:
           - preminor
           - premajor
         default: auto
+      npm_auth:
+        description: NPM auth method (auto, oidc, token)
+        type: string
+        default: auto
       dry_run:
         description: Dry run (no publish, no push)
         type: boolean
@@ -45,6 +49,7 @@ jobs:
     with:
       packages: ${{ inputs.packages }}
       bump: ${{ inputs.bump }}
+      npm_auth: ${{ inputs.npm_auth }}
       dry_run: ${{ inputs.dry_run }}
     secrets:
       DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}

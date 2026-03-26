@@ -13,6 +13,7 @@ export function createReleaseCommand(): Command {
     .option('-s, --sync', 'Use synchronized versioning across all packages', false)
     .option('-t, --target <packages>', 'Target specific packages (comma-separated)')
     .option('--branch <name>', 'Override the git branch used for push')
+    .option('--npm-auth <method>', 'NPM auth method (auto, oidc, token)', 'auto')
     .option('--skip-notes', 'Skip changelog generation', false)
     .option('--skip-publish', 'Skip registry publishing and git operations', false)
     .option('--skip-git', 'Skip git commit/tag/push', false)
@@ -31,6 +32,7 @@ export function createReleaseCommand(): Command {
         sync: opts.sync,
         target: opts.target,
         branch: opts.branch,
+        npmAuth: opts.npmAuth,
         skipNotes: opts.skipNotes,
         skipPublish: opts.skipPublish,
         skipGit: opts.skipGit,

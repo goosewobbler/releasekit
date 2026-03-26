@@ -85,6 +85,16 @@ describe('createReleaseCommand', () => {
       expect(capturedOptions().branch).toBeUndefined();
     });
 
+    it('should pass npmAuth: auto by default', async () => {
+      await createReleaseCommand().parseAsync(['node', 'test']);
+      expect(capturedOptions().npmAuth).toBe('auto');
+    });
+
+    it('should pass npmAuth when --npm-auth is set', async () => {
+      await createReleaseCommand().parseAsync(['node', 'test', '--npm-auth', 'oidc']);
+      expect(capturedOptions().npmAuth).toBe('oidc');
+    });
+
     it.each([
       ['--skip-notes', 'skipNotes'],
       ['--skip-publish', 'skipPublish'],
