@@ -14,9 +14,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  check-labels:
+    name: Check Release Labels
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+    steps:
+      - name: Get commit SHA
+        run: |
+          echo "COMMIT_SHA=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_OUTPUT
+
+      - name: Check for release labels
+        id: check
+        env:
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Get labels on the commit
+          LABELS=$(gh api repos/$REPO/commits/$COMMIT_SHA/labels --jq '.[].name' 2>/dev/null || echo "")
+          
+          # Check for any release label
+          if echo "$LABELS" | grep -qE "release:(patch|minor|major|prerelease|stable)"; then
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            echo "Release label found on commit"
+          else
+            echo "should_release=false" >> $GITHUB_OUTPUT
+            echo "No release label found on commit, skipping release"
+          fi
+
   release:
     name: Auto Release
+    needs: check-labels
     if: |
+      needs.check-labels.outputs.should_release == 'true' &&
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push'
     uses: ./.github/workflows/_release.reusable.yml
