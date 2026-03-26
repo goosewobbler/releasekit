@@ -28,19 +28,28 @@ jobs:
           REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Get PRs that were merged with this commit (capture stdout only)
-          PRS=$(gh api repos/$REPO/commits/$COMMIT_SHA/pulls --jq '.[].number' 2>/dev/null) || PRS=""
-          PRS="${PRS//$'\n'/ }"
+          # Helper function to safely call gh API and capture output
+          gh_api() {
+            local result
+            result=$(gh api "$1" 2>&1) || true
+            echo "$result"
+          }
           
-          if [ -z "$PRS" ] || [ "$PRS" = "null" ]; then
+          # Get PRs that were merged with this commit
+          PRS_OUTPUT=$(gh_api "repos/$REPO/commits/$COMMIT_SHA/pulls")
+          PRS=$(echo "$PRS_OUTPUT" | jq -r '.[].number' 2>/dev/null | tr '\n' ' ') || PRS=""
+          
+          if [ -z "$PRS" ]; then
             echo "should_release=false" >> $GITHUB_OUTPUT
             echo "No PRs found for commit, skipping release"
+            [ -n "$PRS_OUTPUT" ] && echo "Debug: $PRS_OUTPUT"
             exit 0
           fi
           
           # Check labels on the merged PRs
           for pr in $PRS; do
-            LABELS=$(gh api repos/$REPO/pulls/$pr --jq '.labels[].name' 2>/dev/null) || LABELS=""
+            LABELS_OUTPUT=$(gh_api "repos/$REPO/pulls/$pr")
+            LABELS=$(echo "$LABELS_OUTPUT" | jq -r '.labels[].name' 2>/dev/null) || LABELS=""
             # Check for any release label
             if echo "$LABELS" | grep -qE "^release:(patch|minor|major|prerelease|stable)$"; then
               echo "should_release=true" >> $GITHUB_OUTPUT
