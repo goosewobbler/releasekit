@@ -64,10 +64,7 @@ jobs:
   release:
     name: Auto Release
     needs: check-labels
-    if: |
-      needs.check-labels.outputs.should_release == 'true' &&
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push'
+    if: needs.check-labels.outputs.should_release == 'true'
     uses: ./.github/workflows/_release.reusable.yml
     permissions:
       id-token: write
