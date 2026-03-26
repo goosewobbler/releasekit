@@ -61,7 +61,7 @@ jobs:
         run: pnpm build
 
       - name: Install releasekit from npm
-        run: pnpm add -g @releasekit/release@0.2.1
+        run: pnpm add -g @releasekit/release@0.3.1
 
       - name: Run releasekit
         id: release
