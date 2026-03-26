@@ -112,7 +112,16 @@ jobs:
 
           NPM_AUTH_FLAG=""
           if [ -n "$INPUT_NPM_AUTH" ]; then
-            NPM_AUTH_FLAG="--npm-auth $INPUT_NPM_AUTH"
+            # Validate npm_auth against allowed values to prevent argument injection
+            case "$INPUT_NPM_AUTH" in
+              auto|oidc|token)
+                NPM_AUTH_FLAG="--npm-auth $INPUT_NPM_AUTH"
+                ;;
+              *)
+                echo "::error::Invalid npm_auth value: '$INPUT_NPM_AUTH'. Must be one of: auto, oidc, token"
+                exit 1
+                ;;
+            esac
           fi
 
           # Run releasekit and capture JSON output (stdout only)
