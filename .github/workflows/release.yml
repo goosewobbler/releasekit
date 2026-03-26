@@ -27,8 +27,12 @@ on:
           - premajor
         default: auto
       npm_auth:
-        description: NPM auth method (auto, oidc, token)
-        type: string
+        description: NPM auth method
+        type: choice
+        options:
+          - auto
+          - oidc
+          - token
         default: oidc
       dry_run:
         description: Dry run (no publish, no push)
