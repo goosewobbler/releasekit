@@ -47,7 +47,7 @@ jobs:
           fi
           
           # Check labels directly from the PR data (already fetched above)
-          LABELS=$(echo "$PRS_OUTPUT" | jq -r '.[].labels[].name' 2>/dev/null | tr '\n' ' ')
+          LABELS=$(echo "$PRS_OUTPUT" | jq -r '.[].labels[].name' 2>/dev/null)
           if echo "$LABELS" | grep -qE "^release:(patch|minor|major|prerelease|stable)$"; then
             echo "should_release=true" >> "$GITHUB_OUTPUT"
             echo "Release label found on merged PRs"
