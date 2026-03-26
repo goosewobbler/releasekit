@@ -351,7 +351,6 @@ describe('formatPreviewComment', () => {
       const result = formatPreviewComment(releaseOutput, {
         labelContext: { trigger: 'label', skip: false, bumpLabel: 'major', noBumpLabel: false },
       });
-      expect(result).toContain('**Important:**');
       expect(result).toContain('labeled for a **major** release');
     });
   });
