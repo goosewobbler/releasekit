@@ -20,27 +20,36 @@ jobs:
     outputs:
       should_release: ${{ steps.check.outputs.should_release }}
     steps:
-      - name: Get commit SHA
-        run: |
-          echo "COMMIT_SHA=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_OUTPUT
-
       - name: Check for release labels
         id: check
         env:
           COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
           REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          # Get labels on the commit
-          LABELS=$(gh api repos/$REPO/commits/$COMMIT_SHA/labels --jq '.[].name' 2>/dev/null || echo "")
+          # Get PRs that were merged with this commit
+          PRS=$(gh api repos/$REPO/commits/$COMMIT_SHA/pulls --jq '.[].number' 2>/dev/null || echo "")
           
-          # Check for any release label
-          if echo "$LABELS" | grep -qE "release:(patch|minor|major|prerelease|stable)"; then
-            echo "should_release=true" >> $GITHUB_OUTPUT
-            echo "Release label found on commit"
-          else
+          if [ -z "$PRS" ]; then
             echo "should_release=false" >> $GITHUB_OUTPUT
-            echo "No release label found on commit, skipping release"
+            echo "No PRs found for commit, skipping release"
+            exit 0
           fi
+          
+          # Check labels on the merged PRs
+          LABELS=""
+          for pr in $PRS; do
+            LABELS=$(gh api repos/$REPO/pulls/$pr --jq '.labels[].name' 2>/dev/null)
+            # Check for any release label
+            if echo "$LABELS" | grep -qE "release:(patch|minor|major|prerelease|stable)"; then
+              echo "should_release=true" >> $GITHUB_OUTPUT
+              echo "Release label found on PR #$pr"
+              exit 0
+            fi
+          done
+          
+          echo "should_release=false" >> $GITHUB_OUTPUT
+          echo "No release label found on merged PRs, skipping release"
 
   release:
     name: Auto Release
