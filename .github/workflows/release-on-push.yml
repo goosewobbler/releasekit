@@ -35,32 +35,26 @@ jobs:
             echo "$result"
           }
           
-          # Get PRs that were merged with this commit
+          # Get PRs that were merged with this commit (includes labels)
           PRS_OUTPUT=$(gh_api "repos/$REPO/commits/$COMMIT_SHA/pulls")
           PRS=$(echo "$PRS_OUTPUT" | jq -r '.[].number' 2>/dev/null | tr '\n' ' ') || PRS=""
           
           if [ -z "$PRS" ]; then
-            echo "should_release=false" >> $GITHUB_OUTPUT
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
             echo "No PRs found for commit, skipping release"
             [ -n "$PRS_OUTPUT" ] && echo "Debug: $PRS_OUTPUT"
             exit 0
           fi
           
-          # Check labels on the merged PRs
-          for pr in $PRS; do
-            LABELS_OUTPUT=$(gh_api "repos/$REPO/pulls/$pr")
-            LABELS=$(echo "$LABELS_OUTPUT" | jq -r '.labels[].name' 2>/dev/null) || LABELS=""
-            # Check for any release label
-            if echo "$LABELS" | grep -qE "^release:(patch|minor|major|prerelease|stable)$"; then
-              echo "should_release=true" >> $GITHUB_OUTPUT
-              echo "Release label found on PR #$pr"
-              exit 0
-            else
-              [ -n "$LABELS_OUTPUT" ] && [ "$LABELS" = "" ] && echo "Debug: Failed to get labels for PR #$pr: $LABELS_OUTPUT"
-            fi
-          done
+          # Check labels directly from the PR data (already fetched above)
+          LABELS=$(echo "$PRS_OUTPUT" | jq -r '.[].labels[].name' 2>/dev/null | tr '\n' ' ')
+          if echo "$LABELS" | grep -qE "^release:(patch|minor|major|prerelease|stable)$"; then
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "Release label found on merged PRs"
+            exit 0
+          fi
           
-          echo "should_release=false" >> $GITHUB_OUTPUT
+          echo "should_release=false" >> "$GITHUB_OUTPUT"
           echo "No release label found on merged PRs, skipping release"
 
   release:
