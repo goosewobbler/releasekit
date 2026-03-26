@@ -189,6 +189,7 @@ describe('pipeline', () => {
       cargo: [],
       verification: [],
       githubReleases: [],
+      publishSucceeded: true,
     });
   });
 
@@ -238,5 +239,34 @@ describe('pipeline', () => {
       expect(pipelineErr.partialOutput.npm[0]?.success).toBe(true);
       return true;
     });
+  });
+
+  it('should set publishSucceeded to true when publishing succeeds', async () => {
+    const options = { ...defaultOptions, registry: 'npm' as const };
+    const result = await runPipeline(minimalInput, getDefaultConfig(), options);
+    expect(result.publishSucceeded).toBe(true);
+  });
+
+  it('should set publishSucceeded to false when publishing is skipped', async () => {
+    const options = { ...defaultOptions, skipPublish: true };
+    const result = await runPipeline(minimalInput, getDefaultConfig(), options);
+    expect(result.publishSucceeded).toBe(false);
+  });
+
+  it('should not run git push when publish fails', async () => {
+    const { runGitCommitStage } = await import('../../src/stages/git-commit.js');
+    const { runGitPushStage } = await import('../../src/stages/git-push.js');
+    const { runNpmPublishStage } = await import('../../src/stages/npm-publish.js');
+
+    vi.mocked(runGitCommitStage).mockImplementation(async (ctx) => {
+      ctx.output.git.committed = true;
+      ctx.output.git.tags = ['v1.0.0'];
+    });
+    vi.mocked(runNpmPublishStage).mockRejectedValue(new Error('npm publish failed'));
+    vi.mocked(runGitPushStage).mockResolvedValue(undefined);
+
+    await expect(runPipeline(minimalInput, getDefaultConfig(), defaultOptions)).rejects.toThrow();
+
+    expect(runGitPushStage).not.toHaveBeenCalled();
   });
 });

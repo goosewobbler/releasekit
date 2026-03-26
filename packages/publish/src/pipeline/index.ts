@@ -51,6 +51,7 @@ export async function runPipeline(
       cargo: [],
       verification: [],
       githubReleases: [],
+      publishSucceeded: false,
     },
   };
 
@@ -76,6 +77,7 @@ export async function runPipeline(
       if (options.registry === 'all' || options.registry === 'cargo') {
         await runCargoPublishStage(ctx);
       }
+      ctx.output.publishSucceeded = true;
     }
 
     // Stage 6: Verification
@@ -84,7 +86,8 @@ export async function runPipeline(
     }
 
     // Stage 7: Git push (after publish to avoid tagging unpublished versions)
-    if (!options.skipGit) {
+    // Only push if publishing succeeded or was skipped
+    if (!options.skipGit && (options.skipPublish || ctx.output.publishSucceeded)) {
       await runGitPushStage(ctx);
     }
 
