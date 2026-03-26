@@ -266,6 +266,8 @@ export interface PipelineResult {
   packageNotes: Record<string, string>;
   /** File paths that were written to disk. */
   files: string[];
+  /** GitHub release notes content keyed by package name. */
+  releaseNotes?: Record<string, string>;
 }
 
 export async function runPipeline(input: ChangelogInput, config: Config, dryRun: boolean): Promise<PipelineResult> {
@@ -378,11 +380,15 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
 
   // Build per-package rendered markdown from the (possibly LLM-enhanced) contexts
   const packageNotes: Record<string, string> = {};
+  const releaseNotes: Record<string, string> = {};
   for (const ctx of contexts) {
     packageNotes[ctx.packageName] = formatVersion(ctx);
+    if (ctx.enhanced?.releaseNotes) {
+      releaseNotes[ctx.packageName] = ctx.enhanced.releaseNotes;
+    }
   }
 
-  return { packageNotes, files };
+  return { packageNotes, files, releaseNotes: Object.keys(releaseNotes).length > 0 ? releaseNotes : undefined };
 }
 
 export async function processInput(inputJson: string, config: Config, dryRun: boolean): Promise<PipelineResult> {

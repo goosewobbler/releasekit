@@ -101,11 +101,13 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   // --- Step 2: Notes ---
   let notesGenerated = false;
   let packageNotes: Record<string, string> | undefined;
+  let releaseNotes: Record<string, string> | undefined;
   let notesFiles: string[] = [];
   if (!options.skipNotes) {
     info('Generating release notes...');
     const notesResult = await runNotesStep(versionOutput, options);
     packageNotes = notesResult.packageNotes;
+    releaseNotes = notesResult.releaseNotes;
     notesFiles = notesResult.files;
     notesGenerated = true;
     success('Release notes generated');
@@ -120,7 +122,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
     success('Publish complete');
   }
 
-  return { versionOutput, notesGenerated, packageNotes, publishOutput };
+  return { versionOutput, notesGenerated, packageNotes, releaseNotes, publishOutput };
 }
 
 async function runVersionStep(options: ReleaseOptions): Promise<VersionOutput> {
@@ -167,6 +169,7 @@ async function runVersionStep(options: ReleaseOptions): Promise<VersionOutput> {
 
 interface NotesStepResult {
   packageNotes: Record<string, string>;
+  releaseNotes?: Record<string, string>;
   files: string[];
 }
 
@@ -182,7 +185,7 @@ async function runNotesStep(versionOutput: VersionOutput, options: ReleaseOption
   const input = parseVersionOutput(JSON.stringify(versionOutput));
   const result = await runPipeline(input, config, options.dryRun);
 
-  return { packageNotes: result.packageNotes, files: result.files };
+  return { packageNotes: result.packageNotes, releaseNotes: result.releaseNotes, files: result.files };
 }
 
 async function runPublishStep(

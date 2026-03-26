@@ -24,5 +24,6 @@ export interface ReleaseOutput {
   versionOutput: VersionOutput;
   notesGenerated: boolean;
   packageNotes?: Record<string, string>;
+  releaseNotes?: Record<string, string>;
   publishOutput?: PublishOutput;
 }
