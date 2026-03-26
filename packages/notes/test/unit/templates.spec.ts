@@ -1,3 +1,4 @@
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { DocumentContext, TemplateContext } from '../../src/core/types.js';
@@ -75,51 +76,11 @@ describe('EJS Engine', () => {
   });
 });
 
-// Inline the relevant release-notes template content to keep this test self-contained.
-// Mirrors templates/release-notes/release.liquid.
-const releaseNotesTemplate = `
-{%- for version in versions %}
-{%- if version.enhanced.categories %}
-{%- for cat in version.enhanced.categories %}
-{%- if cat.entries.size > 0 %}
-
-### {{ cat.name }}:
-{%- for entry in cat.entries %}
-{%- if entry.scope %}
-- **{{ entry.scope }}**: {{ entry.description }}
-{%- else %}
-- {{ entry.description }}
-{%- endif %}
-{%- endfor %}
-{%- endif %}
-{%- endfor %}
-{%- else %}
-{%- assign added = version.entries | where: "type", "added" %}
-{%- assign fixed = version.entries | where: "type", "fixed" %}
-{%- if added.size > 0 %}
-
-### New:
-{%- for entry in added %}
-- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}
-{%- endfor %}
-{%- endif %}
-{%- if fixed.size > 0 %}
-
-### Fixed:
-{%- for entry in fixed %}
-- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}
-{%- endfor %}
-{%- endif %}
-{%- endif %}
-{%- if version.compareUrl %}
-
-**Full Changelog**: {{ version.compareUrl }}
-{%- endif %}
-{% endfor %}
-`.trim();
-
 describe('release.liquid template', () => {
-  const template = releaseNotesTemplate;
+  const template = fs.readFileSync(
+    path.resolve(__dirname, '../../../../templates/release-notes/release.liquid'),
+    'utf-8',
+  );
 
   it('should render categories from enhanced.categories', () => {
     const ctx: DocumentContext = {
