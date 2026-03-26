@@ -206,9 +206,10 @@ describe('release.liquid template', () => {
     };
 
     const result = renderLiquid(template, ctx);
-    const lastVersionIndex = result.lastIndexOf('## `pkg-b`');
-    const afterLastVersion = result.substring(lastVersionIndex);
-    expect(afterLastVersion).not.toMatch(/^## `pkg-b`[\s]*---/s);
+    expect(result).toContain('---');
+    const lastVersionPos = result.lastIndexOf('## `pkg-b` @ 2.0.0');
+    const separatorPos = result.lastIndexOf('---');
+    expect(separatorPos).toBeLessThan(lastVersionPos);
   });
 });
 
