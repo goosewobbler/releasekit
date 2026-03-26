@@ -48,15 +48,15 @@ export interface FormatOptions {
 function getNoChangesMessage(strategy: ReleaseStrategy): string {
   switch (strategy) {
     case 'manual':
-      return '> No releasable changes detected. Run the release workflow manually if a release is needed.';
+      return 'Run the release workflow manually if a release is needed.';
     case 'direct':
-      return '> No releasable changes detected. Merging this PR will not trigger a release.';
+      return 'Merging this PR will not trigger a release.';
     case 'standing-pr':
-      return '> No releasable changes detected. Merging this PR will not affect the release PR.';
+      return 'Merging this PR will not affect the release PR.';
     case 'scheduled':
-      return '> No releasable changes detected. These changes will not be included in the next scheduled release.';
+      return 'These changes will not be included in the next scheduled release.';
     default:
-      return '> No releasable changes detected.';
+      return '';
   }
 }
 
@@ -80,10 +80,10 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
 
   if (labelContext.trigger === 'commit') {
     if (labelContext.skip) {
-      return ['> [!WARNING]', '> This PR is marked to skip release.', ''];
+      return ['> **Warning:** This PR is marked to skip release.', ''];
     }
     if (labelContext.bumpLabel === 'major') {
-      return ['> [!IMPORTANT]', '> This PR is labeled for a **major** release.', ''];
+      return ['> **Important:** This PR is labeled for a **major** release.', ''];
     }
   }
 
@@ -93,10 +93,10 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
       const labelExamples = labels
         ? `\`${labels.patch}\`, \`${labels.minor}\`, or \`${labels.major}\``
         : 'a release label (e.g., `release:patch`, `release:minor`, `release:major`)';
-      return ['> [!NOTE]', `> No release label detected. Add ${labelExamples} to trigger a release.`, ''];
+      return ['> No release label detected.', `> **Note:** Add ${labelExamples} to trigger a release.`, ''];
     }
     if (labelContext.bumpLabel) {
-      return ['> [!NOTE]', `> This PR is labeled for a **${labelContext.bumpLabel}** release.`, ''];
+      return [`> This PR is labeled for a **${labelContext.bumpLabel}** release.`, ''];
     }
   }
 
@@ -116,7 +116,7 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
     lines.push('<details>', '<summary><b>Release Preview</b> — no release</summary>', '');
     lines.push(...banner);
     if (!labelContext?.noBumpLabel) {
-      lines.push('> [!NOTE]', getNoChangesMessage(strategy));
+      lines.push(`> **Note:** No releasable changes detected. ${getNoChangesMessage(strategy)}`);
     }
     lines.push('', '---', FOOTER, '</details>');
     return lines.join('\n');
