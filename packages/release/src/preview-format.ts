@@ -93,10 +93,10 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
       const labelExamples = labels
         ? `\`${labels.patch}\`, \`${labels.minor}\`, or \`${labels.major}\``
         : 'a release label (e.g., `release:patch`, `release:minor`, `release:major`)';
-      return ['> [!NOTE]', `> No release label detected. Add ${labelExamples} to trigger a release.`, ''];
+      return ['> **Note:**', `> No release label detected. Add ${labelExamples} to trigger a release.`, ''];
     }
     if (labelContext.bumpLabel) {
-      return ['> [!NOTE]', `> This PR is labeled for a **${labelContext.bumpLabel}** release.`, ''];
+      return ['> **Note:**', `> This PR is labeled for a **${labelContext.bumpLabel}** release.`, ''];
     }
   }
 
@@ -116,7 +116,7 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
     lines.push('<details>', '<summary><b>Release Preview</b> — no release</summary>', '');
     lines.push(...banner);
     if (!labelContext?.noBumpLabel) {
-      lines.push('> [!NOTE]', getNoChangesMessage(strategy));
+      lines.push('> **Note:**', getNoChangesMessage(strategy));
     }
     lines.push('', '---', FOOTER, '</details>');
     return lines.join('\n');

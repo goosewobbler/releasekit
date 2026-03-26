@@ -206,7 +206,7 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('<!-- releasekit-preview -->');
     expect(result).toContain('<summary><b>Release Preview</b> — no release</summary>');
     expect(result).toContain('No releasable changes detected');
-    expect(result).toContain('[!NOTE]');
+    expect(result).toContain('**Note:**');
     expect(result).not.toContain('### Packages');
   });
 
@@ -336,7 +336,7 @@ describe('formatPreviewComment', () => {
       const result = formatPreviewComment(releaseOutput, {
         labelContext: { trigger: 'label', skip: false, bumpLabel: 'minor', noBumpLabel: false },
       });
-      expect(result).toContain('[!NOTE]');
+      expect(result).toContain('**Note:**');
       expect(result).toContain('labeled for a **minor** release');
       expect(result).toContain('### Packages');
     });
@@ -352,7 +352,7 @@ describe('formatPreviewComment', () => {
       const result = formatPreviewComment(releaseOutput, {
         labelContext: { trigger: 'label', skip: false, bumpLabel: 'major', noBumpLabel: false },
       });
-      expect(result).toContain('[!NOTE]');
+      expect(result).toContain('**Note:**');
       expect(result).toContain('labeled for a **major** release');
     });
   });
