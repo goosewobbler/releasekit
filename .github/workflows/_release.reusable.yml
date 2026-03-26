@@ -176,3 +176,10 @@ jobs:
             echo "" >> "$GITHUB_STEP_SUMMARY"
             jq -r '.packageNotes | to_entries[] | "<details>\n<summary>\(.key)</summary>\n\n\(.value)\n</details>"' release-output.json >> "$GITHUB_STEP_SUMMARY"
           fi
+
+          if jq -e '.releaseNotes | length > 0' release-output.json > /dev/null 2>&1; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "### Release Notes Preview" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            jq -r '.releaseNotes | to_entries[] | "<details>\n<summary>\(.key)</summary>\n\n\(.value)\n</details>"' release-output.json >> "$GITHUB_STEP_SUMMARY"
+          fi
