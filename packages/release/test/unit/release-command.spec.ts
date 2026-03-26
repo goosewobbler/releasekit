@@ -95,6 +95,10 @@ describe('createReleaseCommand', () => {
       expect(capturedOptions().npmAuth).toBe('oidc');
     });
 
+    it('should reject invalid --npm-auth value', async () => {
+      await expect(createReleaseCommand().parseAsync(['node', 'test', '--npm-auth', 'invalid'])).rejects.toThrow();
+    });
+
     it.each([
       ['--skip-notes', 'skipNotes'],
       ['--skip-publish', 'skipPublish'],
