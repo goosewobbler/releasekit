@@ -189,6 +189,7 @@ describe('pipeline', () => {
       cargo: [],
       verification: [],
       githubReleases: [],
+      publishSucceeded: true,
     });
   });
 
@@ -241,14 +242,12 @@ describe('pipeline', () => {
   });
 
   it('should set publishSucceeded to true when publishing succeeds', async () => {
-    const { runPipeline } = await import('../../src/pipeline/index.js');
-    const options = { ...defaultOptions, registry: 'npm' };
+    const options = { ...defaultOptions, registry: 'npm' as const };
     const result = await runPipeline(minimalInput, getDefaultConfig(), options);
     expect(result.publishSucceeded).toBe(true);
   });
 
   it('should set publishSucceeded to false when publishing is skipped', async () => {
-    const { runPipeline } = await import('../../src/pipeline/index.js');
     const options = { ...defaultOptions, skipPublish: true };
     const result = await runPipeline(minimalInput, getDefaultConfig(), options);
     expect(result.publishSucceeded).toBe(false);
