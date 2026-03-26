@@ -68,9 +68,6 @@ jobs:
       - name: Build packages
         run: pnpm build
 
-      - name: Install releasekit from npm
-        run: pnpm add -g @releasekit/release@0.3.1
-
       - name: Run releasekit
         id: release
         env:
@@ -135,9 +132,9 @@ jobs:
           fi
 
           # Run releasekit and capture JSON output (stdout only)
-          # stderr is tee'd so logs appear in the workflow AND are captured for failure diagnostics
+          # Use local releasekit from the built packages
           set +e
-          RELEASE_OUTPUT=$(releasekit release \
+          RELEASE_OUTPUT=$(node packages/release/dist/dispatcher.js release \
             --json \
             ${BUMP_FLAGS} \
             ${PRERELEASE_FLAGS} \
