@@ -63,6 +63,20 @@ function isVersionOnlyTag(tag: string): boolean {
   return /^v?\d+\.\d+\.\d+/.test(tag);
 }
 
+/** Extract title from tag for GitHub release name.
+ * - Package-specific (e.g., "@releasekit/release@v0.3.0") → "@releasekit/release @ v0.3.0"
+ * - Version-only (e.g., "v0.3.0") → "v0.3.0"
+ */
+function getTitleFromTag(tag: string): string {
+  const atIndex = tag.lastIndexOf('@');
+  if (atIndex === -1) {
+    return tag;
+  }
+  const packageName = tag.slice(0, atIndex);
+  const version = tag.slice(atIndex + 1);
+  return `${packageName} @ ${version}`;
+}
+
 /** Match a tag to a package name in the notes map. */
 function findNotesForTag(tag: string, notes: Record<string, string>): string | undefined {
   // Boundary-aware match: tag format is "packageName@vX.Y.Z"
@@ -152,6 +166,7 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
     };
 
     const ghArgs = ['release', 'create', tag];
+    ghArgs.push('--title', getTitleFromTag(tag));
 
     if (config.githubRelease.draft) {
       ghArgs.push('--draft');
