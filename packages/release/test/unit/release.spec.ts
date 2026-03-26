@@ -435,7 +435,7 @@ describe('runRelease', () => {
     });
   });
 
-  it('should not include releaseNotes when notes step is skipped', async () => {
+  it('should not include packageNotes or releaseNotes when notes step is skipped', async () => {
     const result = await runRelease({ ...defaultOptions, skipNotes: true });
 
     expect(result?.packageNotes).toBeUndefined();
