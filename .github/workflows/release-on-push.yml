@@ -55,6 +55,8 @@ jobs:
               echo "should_release=true" >> $GITHUB_OUTPUT
               echo "Release label found on PR #$pr"
               exit 0
+            else
+              [ -n "$LABELS_OUTPUT" ] && [ "$LABELS" = "" ] && echo "Debug: Failed to get labels for PR #$pr: $LABELS_OUTPUT"
             fi
           done
           
