@@ -150,6 +150,66 @@ describe('release.liquid template', () => {
     expect(result).not.toContain('### New:');
     expect(result).toContain('### Fixed:');
   });
+
+  it('should render version header with package name and version', () => {
+    const ctx: DocumentContext = {
+      project: { name: 'test-pkg' },
+      versions: [{ ...sampleContext, packageName: '@releasekit/publish', version: '0.4.0' }],
+    };
+
+    const result = renderLiquid(template, ctx);
+    expect(result).toContain('## `@releasekit/publish` @ 0.4.0');
+  });
+
+  it('should render separator between multiple versions', () => {
+    const ctx: DocumentContext = {
+      project: { name: 'test-pkg' },
+      versions: [
+        {
+          ...sampleContext,
+          packageName: 'pkg-a',
+          version: '1.0.0',
+          entries: [{ type: 'added', description: 'Feature A' }],
+        },
+        {
+          ...sampleContext,
+          packageName: 'pkg-b',
+          version: '2.0.0',
+          entries: [{ type: 'added', description: 'Feature B' }],
+        },
+      ],
+    };
+
+    const result = renderLiquid(template, ctx);
+    expect(result).toContain('## `pkg-a` @ 1.0.0');
+    expect(result).toContain('## `pkg-b` @ 2.0.0');
+    expect(result).toContain('---');
+  });
+
+  it('should not render separator after last version', () => {
+    const ctx: DocumentContext = {
+      project: { name: 'test-pkg' },
+      versions: [
+        {
+          ...sampleContext,
+          packageName: 'pkg-a',
+          version: '1.0.0',
+          entries: [{ type: 'added', description: 'Feature A' }],
+        },
+        {
+          ...sampleContext,
+          packageName: 'pkg-b',
+          version: '2.0.0',
+          entries: [{ type: 'added', description: 'Feature B' }],
+        },
+      ],
+    };
+
+    const result = renderLiquid(template, ctx);
+    const lastVersionIndex = result.lastIndexOf('## `pkg-b`');
+    const afterLastVersion = result.substring(lastVersionIndex);
+    expect(afterLastVersion).not.toMatch(/^## `pkg-b`[\s]*---/s);
+  });
 });
 
 describe('Template Loader', () => {
