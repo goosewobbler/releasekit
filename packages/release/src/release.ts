@@ -205,7 +205,7 @@ async function runPublishStep(
   const publishOptions = {
     dryRun: options.dryRun,
     registry: 'all' as const,
-    npmAuth: 'auto' as const,
+    npmAuth: options.npmAuth ?? 'auto',
     skipGit: options.skipGit,
     skipPublish: false,
     skipGithubRelease: options.skipGithubRelease,

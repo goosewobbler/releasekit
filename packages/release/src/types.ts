@@ -18,6 +18,7 @@ export interface ReleaseOptions {
   verbose: boolean;
   quiet: boolean;
   projectDir: string;
+  npmAuth?: 'auto' | 'oidc' | 'token';
 }
 
 export interface ReleaseOutput {

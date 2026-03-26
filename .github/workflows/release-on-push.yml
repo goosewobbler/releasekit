@@ -70,6 +70,7 @@ jobs:
       bump: auto
       sync: true
       dry_run: false
+      npm_auth: oidc
     secrets:
       DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
       OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}

@@ -26,6 +26,14 @@ on:
           - preminor
           - premajor
         default: auto
+      npm_auth:
+        description: NPM auth method
+        type: choice
+        options:
+          - auto
+          - oidc
+          - token
+        default: oidc
       sync:
         description: Use synchronized versioning across all packages
         type: boolean
@@ -49,6 +57,7 @@ jobs:
     with:
       packages: ${{ inputs.packages }}
       bump: ${{ inputs.bump }}
+      npm_auth: ${{ inputs.npm_auth }}
       sync: ${{ inputs.sync }}
       dry_run: ${{ inputs.dry_run }}
     secrets:
