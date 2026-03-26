@@ -276,8 +276,8 @@ describe('formatPreviewComment', () => {
   describe('label context banners', () => {
     it('shows no banner when no labelContext', () => {
       const result = formatPreviewComment(releaseOutput);
-      expect(result).not.toContain('[!WARNING]');
-      expect(result).not.toContain('[!IMPORTANT]');
+      expect(result).not.toContain('**Warning:**');
+      expect(result).not.toContain('**Important:**');
       expect(result).not.toContain('labeled for');
     });
 
@@ -285,7 +285,7 @@ describe('formatPreviewComment', () => {
       const result = formatPreviewComment(releaseOutput, {
         labelContext: { trigger: 'commit', skip: true, noBumpLabel: false },
       });
-      expect(result).toContain('[!WARNING]');
+      expect(result).toContain('**Warning:**');
       expect(result).toContain('This PR is marked to skip release.');
       // Still shows the preview content underneath
       expect(result).toContain('### Packages');
@@ -295,7 +295,7 @@ describe('formatPreviewComment', () => {
       const result = formatPreviewComment(releaseOutput, {
         labelContext: { trigger: 'commit', skip: false, bumpLabel: 'major', noBumpLabel: false },
       });
-      expect(result).toContain('[!IMPORTANT]');
+      expect(result).toContain('**Important:**');
       expect(result).toContain('labeled for a **major** release');
     });
 
@@ -336,7 +336,6 @@ describe('formatPreviewComment', () => {
       const result = formatPreviewComment(releaseOutput, {
         labelContext: { trigger: 'label', skip: false, bumpLabel: 'minor', noBumpLabel: false },
       });
-      expect(result).toContain('**Note:**');
       expect(result).toContain('labeled for a **minor** release');
       expect(result).toContain('### Packages');
     });
@@ -352,7 +351,7 @@ describe('formatPreviewComment', () => {
       const result = formatPreviewComment(releaseOutput, {
         labelContext: { trigger: 'label', skip: false, bumpLabel: 'major', noBumpLabel: false },
       });
-      expect(result).toContain('**Note:**');
+      expect(result).toContain('**Important:**');
       expect(result).toContain('labeled for a **major** release');
     });
   });

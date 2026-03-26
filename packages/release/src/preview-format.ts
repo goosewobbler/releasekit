@@ -80,10 +80,10 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
 
   if (labelContext.trigger === 'commit') {
     if (labelContext.skip) {
-      return ['> [!WARNING]', '> This PR is marked to skip release.', ''];
+      return ['> **Warning:** ', '> This PR is marked to skip release.', ''];
     }
     if (labelContext.bumpLabel === 'major') {
-      return ['> [!IMPORTANT]', '> This PR is labeled for a **major** release.', ''];
+      return ['> **Important:**', '> This PR is labeled for a **major** release.', ''];
     }
   }
 
@@ -93,10 +93,10 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
       const labelExamples = labels
         ? `\`${labels.patch}\`, \`${labels.minor}\`, or \`${labels.major}\``
         : 'a release label (e.g., `release:patch`, `release:minor`, `release:major`)';
-      return ['> **Note:**', `> No release label detected. Add ${labelExamples} to trigger a release.`, ''];
+      return ['> No release label detected.', `> **Note:** Add ${labelExamples} to trigger a release.`, ''];
     }
     if (labelContext.bumpLabel) {
-      return ['> **Note:**', `> This PR is labeled for a **${labelContext.bumpLabel}** release.`, ''];
+      return [`> This PR is labeled for a **${labelContext.bumpLabel}** release.`, ''];
     }
   }
 
