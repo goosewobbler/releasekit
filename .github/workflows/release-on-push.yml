@@ -42,7 +42,7 @@ jobs:
           for pr in $PRS; do
             LABELS=$(gh api repos/$REPO/pulls/$pr --jq '.labels[].name' 2>/dev/null || echo "")
             # Check for any release label
-            if echo "$LABELS" | grep -qE "release:(patch|minor|major|prerelease|stable)"; then
+            if echo "$LABELS" | grep -qE "^release:(patch|minor|major|prerelease|stable)$"; then
               echo "should_release=true" >> $GITHUB_OUTPUT
               echo "Release label found on PR #$pr"
               exit 0
