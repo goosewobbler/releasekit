@@ -142,8 +142,9 @@ export async function getLatestTagForPackage(
   options?: TagSearchOptions,
 ): Promise<string> {
   try {
-    const tagTemplate = options?.tagTemplate || `\${prefix}\${version}`;
     const packageSpecificTags = options?.packageSpecificTags ?? false;
+    const tagTemplate =
+      options?.tagTemplate || (packageSpecificTags ? `\${packageName}@\${prefix}\${version}` : `\${prefix}\${version}`);
 
     // Strip @ prefix from package names for tag matching (e.g., @releasekit/version -> releasekit-version)
     const sanitizedPackageName = packageName.startsWith('@') ? packageName.slice(1).replace(/\//g, '-') : packageName;
