@@ -29,6 +29,9 @@ export function formatTag(
   template?: string,
   packageSpecificTags?: boolean,
 ): string {
+  // Strip @ prefix from package names for tags (e.g., @releasekit/version -> releasekit-version)
+  const sanitizedPackageName = packageName?.startsWith('@') ? packageName.slice(1).replace(/\//g, '-') : packageName;
+
   // Show context-specific warning if template uses packageName but no package name is available
   if (template?.includes('${' + 'packageName}') && !packageName) {
     log(
@@ -46,12 +49,12 @@ export function formatTag(
     return template
       .replace(/\$\{version\}/g, version)
       .replace(/\$\{prefix\}/g, prefix)
-      .replace(/\$\{packageName\}/g, packageName || '');
+      .replace(/\$\{packageName\}/g, sanitizedPackageName || '');
   }
 
   // Default template logic
-  if (packageSpecificTags && packageName) {
-    return `${packageName}@${prefix}${version}`;
+  if (packageSpecificTags && sanitizedPackageName) {
+    return `${sanitizedPackageName}@${prefix}${version}`;
   }
 
   return `${prefix}${version}`;
@@ -97,22 +100,25 @@ export function formatCommitMessage(
  */
 export function formatTagPrefix(
   prefix: string,
-  packageName?: string,
+  packageName?: string | null,
   template?: string,
   packageSpecificTags?: boolean,
 ): string {
+  // Strip @ prefix from package names for tags (e.g., @releasekit/version -> releasekit-version)
+  const sanitizedPackageName = packageName?.startsWith('@') ? packageName.slice(1).replace(/\//g, '-') : packageName;
+
   if (template) {
     // For template-based tags, we need to create a prefix pattern
     // Replace version with * and packageName with actual name or *
     return template
       .replace(/\$\{version\}/g, '*')
       .replace(/\$\{prefix\}/g, prefix)
-      .replace(/\$\{packageName\}/g, packageName || '*');
+      .replace(/\$\{packageName\}/g, sanitizedPackageName || '*');
   }
 
   // Default prefix logic
-  if (packageSpecificTags && packageName) {
-    return `${packageName}@${prefix}`;
+  if (packageSpecificTags && sanitizedPackageName) {
+    return `${sanitizedPackageName}@${prefix}`;
   }
 
   return prefix;
