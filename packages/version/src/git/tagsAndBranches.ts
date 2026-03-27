@@ -145,8 +145,11 @@ export async function getLatestTagForPackage(
     const tagTemplate = options?.tagTemplate || `\${prefix}\${version}`;
     const packageSpecificTags = options?.packageSpecificTags ?? false;
 
-    // Escape @ in package name for regex
-    const escapedPackageName = escapeRegExp(packageName);
+    // Strip @ prefix from package names for tag matching (e.g., @releasekit/version -> releasekit-version)
+    const sanitizedPackageName = packageName.startsWith('@') ? packageName.slice(1).replace(/\//g, '-') : packageName;
+    // Escape @ in package name for regex - use sanitized for new template patterns, raw for fallback patterns
+    const escapedPackageName = escapeRegExp(sanitizedPackageName);
+    const escapedRawPackageName = escapeRegExp(packageName);
     const escapedPrefix = versionPrefix ? escapeRegExp(versionPrefix) : '';
 
     log(
@@ -206,7 +209,7 @@ export async function getLatestTagForPackage(
 
       // First try the most common format: packageName@versionPrefix+version
       if (versionPrefix) {
-        const pattern1 = new RegExp(`^${escapedPackageName}@${escapeRegExp(versionPrefix)}`);
+        const pattern1 = new RegExp(`^${escapedRawPackageName}@${escapeRegExp(versionPrefix)}`);
         packageTags = allTags.filter((tag) => pattern1.test(tag));
 
         // Return the most recently created tag (allTags is sorted by --sort=-creatordate)
@@ -219,7 +222,7 @@ export async function getLatestTagForPackage(
 
       // Try the alternative format: versionPrefix+packageName@version
       if (versionPrefix) {
-        const pattern2 = new RegExp(`^${escapeRegExp(versionPrefix)}${escapedPackageName}@`);
+        const pattern2 = new RegExp(`^${escapeRegExp(versionPrefix)}${escapedRawPackageName}@`);
         packageTags = allTags.filter((tag) => pattern2.test(tag));
 
         // Return the most recently created tag (allTags is sorted by --sort=-creatordate)
@@ -231,7 +234,7 @@ export async function getLatestTagForPackage(
       }
 
       // Fallback to no prefix: packageName@version
-      const pattern3 = new RegExp(`^${escapedPackageName}@`);
+      const pattern3 = new RegExp(`^${escapedRawPackageName}@`);
       packageTags = allTags.filter((tag) => pattern3.test(tag));
 
       // Sort and log found tags for debugging
