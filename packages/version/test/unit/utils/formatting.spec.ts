@@ -30,6 +30,16 @@ describe('formatting', () => {
       expect(result).toBe('my-package@v1.0.0');
     });
 
+    it('should strip @ prefix from scoped package names and replace / with -', () => {
+      const result = formatTag('1.0.0', 'v', '@releasekit/version', '${' + 'packageName}-v${' + 'version}', true);
+      expect(result).toBe('releasekit-version-v1.0.0');
+    });
+
+    it('should handle unscoped package names with @ prefix', () => {
+      const result = formatTag('1.0.0', 'v', '@my-pkg', '${' + 'packageName}-v${' + 'version}', true);
+      expect(result).toBe('my-pkg-v1.0.0');
+    });
+
     it('should format tag with version template only', () => {
       const result = formatTag('1.0.0', 'v', undefined, 'version-${' + 'version}', false);
       expect(result).toBe('version-1.0.0');
@@ -83,6 +93,11 @@ describe('formatting', () => {
     it('should use default package-specific format when packageSpecificTags is true', () => {
       const result = formatTag('1.0.0', 'v', 'my-package', undefined, true);
       expect(result).toBe('my-package@v1.0.0');
+    });
+
+    it('should use sanitized package name in default package-specific format', () => {
+      const result = formatTag('1.0.0', 'v', '@releasekit/version', undefined, true);
+      expect(result).toBe('releasekit-version@v1.0.0');
     });
   });
 

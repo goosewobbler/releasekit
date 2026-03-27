@@ -141,28 +141,30 @@ describe('tagsAndBranches', () => {
       vi.resetAllMocks();
     });
 
-    it('should find tag in format packageName@versionPrefix+version', async () => {
-      mockGitTags(['test-package@v1.0.0', 'test-package@v0.9.0', 'other-package@v1.2.0']);
+    it('should find tag in format packageName-versionPrefix+version', async () => {
+      mockGitTags(['test-package-v1.0.0', 'test-package-v0.9.0', 'other-package-v1.2.0']);
 
       const result = await getLatestTagForPackage('test-package', 'v', {
         packageSpecificTags: true,
+        tagTemplate: '${packageName}-${prefix}${version}',
       });
 
-      expect(result).toBe('test-package@v1.0.0');
+      expect(result).toBe('test-package-v1.0.0');
       expect(log).toHaveBeenCalledWith(
         'Looking for tags for package test-package with prefix v, packageSpecificTags: true',
         'debug',
       );
     });
 
-    it('should find tag in format versionPrefix+packageName@version', async () => {
-      mockGitTags(['vtest-package@1.0.0', 'vother-package@1.2.0']);
+    it('should find tag in format versionPrefix-packageName-version', async () => {
+      mockGitTags(['vtest-package-1.0.0', 'vother-package-1.2.0']);
 
       const result = await getLatestTagForPackage('test-package', 'v', {
         packageSpecificTags: true,
+        tagTemplate: '${prefix}${packageName}-${version}',
       });
 
-      expect(result).toBe('vtest-package@1.0.0');
+      expect(result).toBe('vtest-package-1.0.0');
 
       expect(log).toHaveBeenCalledWith(
         'Looking for tags for package test-package with prefix v, packageSpecificTags: true',
@@ -171,40 +173,43 @@ describe('tagsAndBranches', () => {
 
       expect(log).toHaveBeenCalledWith('Retrieved 2 tags', 'debug');
 
-      expect(log).toHaveBeenCalledWith('Found 1 package tags using pattern: vpackageName@...', 'debug');
+      expect(log).toHaveBeenCalledWith('Found 1 package tags using configured pattern', 'debug');
 
-      expect(log).toHaveBeenCalledWith('Using most recently created tag: vtest-package@1.0.0', 'debug');
+      expect(log).toHaveBeenCalledWith('Using most recently created tag: vtest-package-1.0.0', 'debug');
     });
 
-    it('should find tag in format packageName@version when no prefix is provided', async () => {
-      mockGitTags(['test-package@1.0.0', 'test-package@0.9.0', 'other-package@1.2.0']);
+    it('should find tag in format packageName-version when no prefix is provided', async () => {
+      mockGitTags(['test-package-1.0.0', 'test-package-0.9.0', 'other-package-1.2.0']);
 
       const result = await getLatestTagForPackage('test-package', undefined, {
         packageSpecificTags: true,
+        tagTemplate: '${packageName}-${version}',
       });
 
-      expect(result).toBe('test-package@1.0.0');
+      expect(result).toBe('test-package-1.0.0');
       expect(log).toHaveBeenCalledWith(
         'Looking for tags for package test-package with prefix none, packageSpecificTags: true',
         'debug',
       );
     });
 
-    it('should handle special characters in package name', async () => {
-      mockGitTags(['@scope/test-package@v1.0.0', '@scope/other-package@v1.2.0']);
+    it('should handle scoped package names', async () => {
+      mockGitTags(['scope-test-package-v1.0.0', 'scope-other-package-v1.2.0']);
 
       const result = await getLatestTagForPackage('@scope/test-package', 'v', {
         packageSpecificTags: true,
+        tagTemplate: '${packageName}-${prefix}${version}',
       });
 
-      expect(result).toBe('@scope/test-package@v1.0.0');
+      expect(result).toBe('scope-test-package-v1.0.0');
     });
 
     it('should return empty string if no tags match packageName pattern', async () => {
-      mockGitTags(['other-package@v1.0.0', 'another-package@v0.9.0']);
+      mockGitTags(['other-package-v1.0.0', 'another-package-v0.9.0']);
 
       const result = await getLatestTagForPackage('test-package', 'v', {
         packageSpecificTags: true,
+        tagTemplate: '${packageName}-${prefix}${version}',
       });
 
       expect(result).toBe('');
@@ -213,8 +218,8 @@ describe('tagsAndBranches', () => {
         'debug',
       );
       expect(log).toHaveBeenCalledWith('Retrieved 2 tags', 'debug');
-      expect(log).toHaveBeenCalledWith('No matching tags found for pattern: packageName@version', 'debug');
-      expect(log).toHaveBeenCalledWith('Available tags: other-package@v1.0.0, another-package@v0.9.0', 'debug');
+      expect(log).toHaveBeenCalledWith('No matching tags found for configured tag pattern', 'debug');
+      expect(log).toHaveBeenCalledWith('Available tags: other-package-v1.0.0, another-package-v0.9.0', 'debug');
     });
 
     it('should return empty string if no tags are found at all', async () => {
@@ -444,71 +449,76 @@ describe('tagsAndBranches', () => {
 
       it('should return the most recently created package tag (first in list)', async () => {
         // mockGitTags simulates git --sort=-creatordate: first = most recently created
-        mockGitTags(['test-package@v1.0.5', 'test-package@v1.2.0', 'test-package@v1.1.0', 'other-package@v2.0.0']);
+        mockGitTags(['test-package-v1.0.5', 'test-package-v1.2.0', 'test-package-v1.1.0', 'other-package-v2.0.0']);
 
         const result = await getLatestTagForPackage('test-package', 'v', {
           packageSpecificTags: true,
+          tagTemplate: '${packageName}-${prefix}${version}',
         });
 
         // Returns first matching tag (most recently created), not semver-highest
-        expect(result).toBe('test-package@v1.0.5');
-        expect(log).toHaveBeenCalledWith('Using most recently created tag: test-package@v1.0.5', 'debug');
+        expect(result).toBe('test-package-v1.0.5');
+        expect(log).toHaveBeenCalledWith('Using most recently created tag: test-package-v1.0.5', 'debug');
       });
 
       it('should prefer stable patch release created after a prerelease', async () => {
         // Simulates the real scenario: v0.3.0-next.4 was created first (prerelease track),
         // then v0.2.1 stable patch was released later — git puts v0.2.1 first.
-        mockGitTags(['test-package@v0.2.1', 'test-package@v0.3.0-next.4', 'test-package@v0.3.0-next.3']);
+        mockGitTags(['test-package-v0.2.1', 'test-package-v0.3.0-next.4', 'test-package-v0.3.0-next.3']);
 
         const result = await getLatestTagForPackage('test-package', 'v', {
           packageSpecificTags: true,
+          tagTemplate: '${packageName}-${prefix}${version}',
         });
 
-        expect(result).toBe('test-package@v0.2.1');
-        expect(log).toHaveBeenCalledWith('Using most recently created tag: test-package@v0.2.1', 'debug');
+        expect(result).toBe('test-package-v0.2.1');
+        expect(log).toHaveBeenCalledWith('Using most recently created tag: test-package-v0.2.1', 'debug');
       });
 
       it('should return the most recently created tag for versionPrefix+packageName format', async () => {
-        mockGitTags(['vtest-package@1.2.0', 'vtest-package@1.0.5', 'vother-package@2.0.0']);
+        mockGitTags(['vtest-package-1.2.0', 'vtest-package-1.0.5', 'vother-package-2.0.0']);
 
         const result = await getLatestTagForPackage('test-package', 'v', {
           packageSpecificTags: true,
+          tagTemplate: '${prefix}${packageName}-${version}',
         });
 
-        expect(result).toBe('vtest-package@1.2.0');
-        expect(log).toHaveBeenCalledWith('Using most recently created tag: vtest-package@1.2.0', 'debug');
+        expect(result).toBe('vtest-package-1.2.0');
+        expect(log).toHaveBeenCalledWith('Using most recently created tag: vtest-package-1.2.0', 'debug');
       });
 
-      it('should return the most recently created tag for packageName@version format (no prefix)', async () => {
-        mockGitTags(['test-package@1.0.0', 'test-package@0.9.0', 'test-package@0.10.5']);
+      it('should return the most recently created tag for packageName-version format (no prefix)', async () => {
+        mockGitTags(['test-package-1.0.0', 'test-package-0.9.0', 'test-package-0.10.5']);
 
         const result = await getLatestTagForPackage('test-package', undefined, {
           packageSpecificTags: true,
+          tagTemplate: '${packageName}-${version}',
         });
 
-        expect(result).toBe('test-package@1.0.0');
+        expect(result).toBe('test-package-1.0.0');
       });
 
       it('should return most recently created tag for custom prefix fallback pattern', async () => {
-        mockGitTags(['my-package@release-2.0.0', 'my-package@release-1.9.0', 'my-package@release-1.0.5']);
+        mockGitTags(['my-package-release-2.0.0', 'my-package-release-1.9.0', 'my-package-release-1.0.5']);
 
         const result = await getLatestTagForPackage('my-package', 'release-', {
           packageSpecificTags: true,
+          tagTemplate: '${packageName}-${prefix}${version}',
         });
 
-        expect(result).toBe('my-package@release-2.0.0');
-        expect(log).toHaveBeenCalledWith('Found 3 package tags using pattern: packageName@release-...', 'debug');
-        expect(log).toHaveBeenCalledWith('Using most recently created tag: my-package@release-2.0.0', 'debug');
+        expect(result).toBe('my-package-release-2.0.0');
+        expect(log).toHaveBeenCalledWith('Using most recently created tag: my-package-release-2.0.0', 'debug');
       });
 
       it('should return first matching tag regardless of version ordering', async () => {
-        mockGitTags(['test-package@v1.2.0', 'test-package@v1.1.0', 'test-package@v1.0.0']);
+        mockGitTags(['test-package-v1.2.0', 'test-package-v1.1.0', 'test-package-v1.0.0']);
 
         const result = await getLatestTagForPackage('test-package', 'v', {
           packageSpecificTags: true,
+          tagTemplate: '${packageName}-${prefix}${version}',
         });
 
-        expect(result).toBe('test-package@v1.2.0');
+        expect(result).toBe('test-package-v1.2.0');
       });
     });
 
@@ -588,17 +598,14 @@ describe('tagsAndBranches', () => {
       });
 
       it('should handle package names with special regex characters', async () => {
-        mockGitTags([
-          '@scope/package-with.dots@v1.0.0',
-          '@scope/package-with+plus@v2.0.0',
-          '@scope/other-package@v1.5.0',
-        ]);
+        mockGitTags(['scope-package-with.dots-v1.0.0', 'scope-package-withplus-v2.0.0', 'scope-other-package-v1.5.0']);
 
         const result = await getLatestTagForPackage('@scope/package-with.dots', 'v', {
           packageSpecificTags: true,
+          tagTemplate: '${packageName}-${prefix}${version}',
         });
 
-        expect(result).toBe('@scope/package-with.dots@v1.0.0');
+        expect(result).toBe('scope-package-with.dots-v1.0.0');
       });
 
       it('should handle version comparison edge cases correctly', async () => {
@@ -660,41 +667,44 @@ describe('tagsAndBranches', () => {
       it('should return most recently created package tag for complex version prefixes', async () => {
         // Most recently created tag first (git --sort=-creatordate order)
         mockGitTags([
-          'frontend@release-2.1.0',
-          'frontend@release-1.9.0',
-          'frontend@release-1.0.5',
-          'backend@release-3.0.0',
+          'frontend-release-2.1.0',
+          'frontend-release-1.9.0',
+          'frontend-release-1.0.5',
+          'backend-release-3.0.0',
         ]);
 
         const result = await getLatestTagForPackage('frontend', 'release-', {
           packageSpecificTags: true,
+          tagTemplate: '${packageName}-${prefix}${version}',
         });
 
-        expect(result).toBe('frontend@release-2.1.0');
-        expect(log).toHaveBeenCalledWith('Using most recently created tag: frontend@release-2.1.0', 'debug');
+        expect(result).toBe('frontend-release-2.1.0');
+        expect(log).toHaveBeenCalledWith('Using most recently created tag: frontend-release-2.1.0', 'debug');
       });
 
       it('should return most recently created tag for mixed prefix scenarios', async () => {
-        mockGitTags(['api@1.2.0', 'api@1.0.5', 'other@v2.0.0']);
+        mockGitTags(['api-1.2.0', 'api-1.0.5', 'other-v2.0.0']);
 
         const result = await getLatestTagForPackage('api', undefined, {
           packageSpecificTags: true,
+          tagTemplate: '${packageName}-${prefix}${version}',
         });
 
-        expect(result).toBe('api@1.2.0');
-        expect(log).toHaveBeenCalledWith('Using most recently created tag: api@1.2.0', 'debug');
+        expect(result).toBe('api-1.2.0');
+        expect(log).toHaveBeenCalledWith('Using most recently created tag: api-1.2.0', 'debug');
       });
 
       it('should return most recently created tag even when some tags have malformed versions', async () => {
         // Most recently created is first — even if it has a non-semver version string
-        mockGitTags(['pkg@1.0.0', 'pkg@invalid-version', 'pkg@not-a-version']);
+        mockGitTags(['pkg-1.0.0', 'pkg-invalid-version', 'pkg-not-a-version']);
 
         const result = await getLatestTagForPackage('pkg', undefined, {
           packageSpecificTags: true,
+          tagTemplate: '${packageName}-${version}',
         });
 
-        expect(result).toBe('pkg@1.0.0');
-        expect(log).toHaveBeenCalledWith('Using most recently created tag: pkg@1.0.0', 'debug');
+        expect(result).toBe('pkg-1.0.0');
+        expect(log).toHaveBeenCalledWith('Using most recently created tag: pkg-1.0.0', 'debug');
       });
 
       it('should maintain chronological order when semantic versions are identical', async () => {

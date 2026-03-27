@@ -147,9 +147,8 @@ export async function getLatestTagForPackage(
 
     // Strip @ prefix from package names for tag matching (e.g., @releasekit/version -> releasekit-version)
     const sanitizedPackageName = packageName.startsWith('@') ? packageName.slice(1).replace(/\//g, '-') : packageName;
-    // Escape @ in package name for regex - use sanitized for new template patterns, raw for fallback patterns
+    // Escape package name for regex
     const escapedPackageName = escapeRegExp(sanitizedPackageName);
-    const escapedRawPackageName = escapeRegExp(packageName);
     const escapedPrefix = versionPrefix ? escapeRegExp(versionPrefix) : '';
 
     log(
@@ -192,7 +191,7 @@ export async function getLatestTagForPackage(
       log(`Using package tag pattern: ${packageTagPattern}`, 'debug');
 
       const packageTagRegex = new RegExp(`^${packageTagPattern}$`);
-      let packageTags = allTags.filter((tag) => packageTagRegex.test(tag));
+      const packageTags = allTags.filter((tag) => packageTagRegex.test(tag));
 
       log(`Found ${packageTags.length} matching tags for ${packageName}`, 'debug');
 
@@ -205,41 +204,8 @@ export async function getLatestTagForPackage(
         return packageTags[0];
       }
 
-      // If no tags were found with the configured pattern, fall back to the standard patterns
-
-      // First try the most common format: packageName@versionPrefix+version
-      if (versionPrefix) {
-        const pattern1 = new RegExp(`^${escapedRawPackageName}@${escapeRegExp(versionPrefix)}`);
-        packageTags = allTags.filter((tag) => pattern1.test(tag));
-
-        // Return the most recently created tag (allTags is sorted by --sort=-creatordate)
-        if (packageTags.length > 0) {
-          log(`Found ${packageTags.length} package tags using pattern: packageName@${versionPrefix}...`, 'debug');
-          log(`Using most recently created tag: ${packageTags[0]}`, 'debug');
-          return packageTags[0];
-        }
-      }
-
-      // Try the alternative format: versionPrefix+packageName@version
-      if (versionPrefix) {
-        const pattern2 = new RegExp(`^${escapeRegExp(versionPrefix)}${escapedRawPackageName}@`);
-        packageTags = allTags.filter((tag) => pattern2.test(tag));
-
-        // Return the most recently created tag (allTags is sorted by --sort=-creatordate)
-        if (packageTags.length > 0) {
-          log(`Found ${packageTags.length} package tags using pattern: ${versionPrefix}packageName@...`, 'debug');
-          log(`Using most recently created tag: ${packageTags[0]}`, 'debug');
-          return packageTags[0];
-        }
-      }
-
-      // Fallback to no prefix: packageName@version
-      const pattern3 = new RegExp(`^${escapedRawPackageName}@`);
-      packageTags = allTags.filter((tag) => pattern3.test(tag));
-
-      // Sort and log found tags for debugging
       if (packageTags.length === 0) {
-        log('No matching tags found for pattern: packageName@version', 'debug');
+        log('No matching tags found for configured tag pattern', 'debug');
         if (allTags.length > 0) {
           log(`Available tags: ${allTags.join(', ')}`, 'debug');
         } else {
@@ -248,7 +214,6 @@ export async function getLatestTagForPackage(
         return '';
       }
 
-      // Return the most recently created tag (allTags is sorted by --sort=-creatordate)
       log(`Found ${packageTags.length} package tags for ${packageName}`, 'debug');
       log(`Using most recently created tag: ${packageTags[0]}`, 'debug');
       return packageTags[0];
