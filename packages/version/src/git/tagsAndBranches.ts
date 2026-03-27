@@ -159,7 +159,6 @@ export async function getLatestTagForPackage(
     // Instead of using the package option which requires lerna mode,
     // get all tags and filter manually for the package
     // For package-specific tags, we need ALL git tags (not just semver ones)
-    // Our tags have package prefixes like "@releasekit/version@v1.0.0"
     // which git-semver-tags doesn't recognize, so we use git tag -l
     let allTags: string[] = [];
     try {
@@ -204,19 +203,13 @@ export async function getLatestTagForPackage(
         return packageTags[0];
       }
 
-      if (packageTags.length === 0) {
-        log('No matching tags found for configured tag pattern', 'debug');
-        if (allTags.length > 0) {
-          log(`Available tags: ${allTags.join(', ')}`, 'debug');
-        } else {
-          log('No tags available in the repository', 'debug');
-        }
-        return '';
+      log('No matching tags found for configured tag pattern', 'debug');
+      if (allTags.length > 0) {
+        log(`Available tags: ${allTags.join(', ')}`, 'debug');
+      } else {
+        log('No tags available in the repository', 'debug');
       }
-
-      log(`Found ${packageTags.length} package tags for ${packageName}`, 'debug');
-      log(`Using most recently created tag: ${packageTags[0]}`, 'debug');
-      return packageTags[0];
+      return '';
     }
 
     // Package-specific tags disabled, return empty string to fall back to global tags
