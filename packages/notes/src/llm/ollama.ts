@@ -45,12 +45,6 @@ export class OllamaProvider extends BaseLLMProvider {
   }
 
   async complete(prompt: string, options?: CompleteOptions): Promise<string> {
-    if (!this.apiKey) {
-      throw new LLMError(
-        'Ollama API request skipped: OLLAMA_API_KEY is not set. Set the environment variable or use --no-llm to skip LLM processing.',
-      );
-    }
-
     const requestBody: OllamaChatRequest = {
       model: this.model,
       messages: [{ role: 'user', content: prompt }],
@@ -76,6 +70,11 @@ export class OllamaProvider extends BaseLLMProvider {
       });
 
       if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          throw new LLMError(
+            `Ollama request failed: ${response.status} ${response.statusText}. This usually means authentication is required but OLLAMA_API_KEY is not set. Set the environment variable or use --no-llm to skip LLM processing.`,
+          );
+        }
         const text = await response.text();
         throw new LLMError(`Ollama request failed: ${response.status} ${text}`);
       }
