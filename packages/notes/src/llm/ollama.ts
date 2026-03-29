@@ -71,9 +71,10 @@ export class OllamaProvider extends BaseLLMProvider {
 
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
-          throw new LLMError(
-            `Ollama request failed: ${response.status} ${response.statusText}. This usually means authentication is required but OLLAMA_API_KEY is not set. Set the environment variable or use --no-llm to skip LLM processing.`,
-          );
+          const keyHint = this.apiKey
+            ? 'OLLAMA_API_KEY is set but may be invalid or rejected by the server.'
+            : 'OLLAMA_API_KEY is not set. Set the environment variable or use --no-llm to skip LLM processing.';
+          throw new LLMError(`Ollama request failed: ${response.status} ${response.statusText}. ${keyHint}`);
         }
         const text = await response.text();
         throw new LLMError(`Ollama request failed: ${response.status} ${text}`);
