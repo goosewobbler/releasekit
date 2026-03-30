@@ -205,10 +205,10 @@ describe('github-release stage', () => {
     expect(args).not.toContain('--notes');
   });
 
-  it('should always use --generate-notes when notes is github', async () => {
+  it('should always use --generate-notes when body is generated', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const config = getDefaultConfig();
-    config.githubRelease.releaseNotes = 'github';
+    config.githubRelease.body = 'generated';
 
     const ctx = createContext({ config });
     await runGithubReleaseStage(ctx);
@@ -218,10 +218,10 @@ describe('github-release stage', () => {
     expect(args).not.toContain('--notes');
   });
 
-  it('should pass no notes flags when notes is none', async () => {
+  it('should pass no notes flags when body is none', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const config = getDefaultConfig();
-    config.githubRelease.releaseNotes = 'none';
+    config.githubRelease.body = 'none';
 
     const ctx = createContext({ config });
     await runGithubReleaseStage(ctx);
@@ -229,24 +229,6 @@ describe('github-release stage', () => {
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
     expect(args).not.toContain('--generate-notes');
     expect(args).not.toContain('--notes');
-  });
-
-  it('should read from explicit file path when notes is a path', async () => {
-    const { execCommand } = await import('../../../src/utils/exec.js');
-    vi.mocked(fs.readFileSync).mockImplementation((filePath) => {
-      if (String(filePath) === './my-notes.md') return 'Notes from custom file';
-      throw new Error('ENOENT');
-    });
-
-    const config = getDefaultConfig();
-    config.githubRelease.releaseNotes = './my-notes.md';
-
-    const ctx = createContext({ config });
-    await runGithubReleaseStage(ctx);
-
-    const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
-    expect(args).toContain('--notes');
-    expect(args).toContain('Notes from custom file');
   });
 
   it('should create per-package releases by default', async () => {

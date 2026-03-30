@@ -1,49 +1,66 @@
-import * as fs from 'node:fs';
 import type { VersionPackageChangelog } from '@releasekit/core';
 import { debug, info, success, warn } from '@releasekit/core';
 import type { GitHubReleaseResult, PipelineContext } from '../types.js';
 import { execCommand } from '../utils/exec.js';
 import { isPrerelease } from '../utils/semver.js';
 
+type BodySource = 'auto' | 'releaseNotes' | 'changelog' | 'generated' | 'none';
+
 /**
- * Resolve notes for a given tag based on the `releaseNotes` config.
+ * Resolve notes for a given tag based on the `body` config.
  *
  * Resolution order for 'auto':
- *   1. In-memory per-package notes from the notes pipeline (ctx.releaseNotes)
- *   2. Per-package changelog entries from the version output
+ *   1. If releaseNotes enabled in notes config → use in-memory release notes from pipeline
+ *   2. If changelog enabled → use per-package changelog entries from version output
  *   3. GitHub's auto-generated notes (--generate-notes flag)
  *
  * Other values:
- *   'github' → always --generate-notes
- *   'none'   → no notes body
- *   string   → read that file path
+ *   'releaseNotes' → use in-memory release notes from pipeline (error if not enabled)
+ *   'changelog'    → use changelog entries from version output
+ *   'generated'    → always --generate-notes
+ *   'none'         → no notes body
  */
 function resolveNotes(
-  notesSetting: string,
+  bodySource: BodySource,
   tag: string,
   changelogs: VersionPackageChangelog[],
+  releaseNotesEnabled: boolean,
   pipelineNotes?: Record<string, string>,
 ): { body?: string; useGithubNotes: boolean } {
-  if (notesSetting === 'none') {
+  if (bodySource === 'none') {
     return { useGithubNotes: false };
   }
 
-  if (notesSetting === 'github') {
+  if (bodySource === 'generated') {
     return { useGithubNotes: true };
   }
 
-  // Explicit file path
-  if (notesSetting !== 'auto') {
-    const body = readFileIfExists(notesSetting);
-    if (body) return { body, useGithubNotes: false };
-    debug(`Notes file not found: ${notesSetting}, falling back to GitHub auto-notes`);
+  if (bodySource === 'releaseNotes') {
+    if (!releaseNotesEnabled) {
+      warn('releaseNotes is not enabled in notes config but body is set to releaseNotes');
+      return { useGithubNotes: true };
+    }
+    if (pipelineNotes) {
+      const body = findNotesForTag(tag, pipelineNotes);
+      if (body) return { body, useGithubNotes: false };
+    }
+    warn('No release notes found in pipeline output, falling back to GitHub auto-notes');
+    return { useGithubNotes: true };
+  }
+
+  if (bodySource === 'changelog') {
+    const packageBody = formatChangelogForTag(tag, changelogs);
+    if (packageBody) {
+      return { body: packageBody, useGithubNotes: false };
+    }
+    warn('No changelog found for tag, falling back to GitHub auto-notes');
     return { useGithubNotes: true };
   }
 
   // 'auto' mode — layered fallback
 
-  // 1. Try in-memory per-package notes from the notes pipeline
-  if (pipelineNotes) {
+  // 1. Try in-memory release notes from the notes pipeline
+  if (releaseNotesEnabled && pipelineNotes) {
     const body = findNotesForTag(tag, pipelineNotes);
     if (body) return { body, useGithubNotes: false };
   }
@@ -90,15 +107,6 @@ function findNotesForTag(tag: string, notes: Record<string, string>): string | u
   const entries = Object.values(notes).filter((b) => b.trim());
   if (entries.length === 1 && isVersionOnlyTag(tag)) return entries[0];
   return undefined;
-}
-
-function readFileIfExists(filePath: string): string | undefined {
-  try {
-    const content = fs.readFileSync(filePath, 'utf-8').trim();
-    return content || undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 /**
@@ -177,10 +185,13 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
     }
 
     // Resolve notes for this tag
+    // releaseNotesEnabled = whether we have any release notes content from the notes pipeline
+    const releaseNotesEnabled = !!(ctx.releaseNotes && Object.keys(ctx.releaseNotes).length > 0);
     const { body, useGithubNotes } = resolveNotes(
-      config.githubRelease.releaseNotes,
+      config.githubRelease.body,
       tag,
       ctx.input.changelogs,
+      releaseNotesEnabled,
       ctx.releaseNotes,
     );
     if (body) {

@@ -2,13 +2,22 @@
 import * as fs from 'node:fs';
 import * as readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
-import { EXIT_CODES, error, info, readPackageVersion, setLogLevel, setQuietMode, success } from '@releasekit/core';
+import { loadConfig, saveAuth } from '@releasekit/config';
+import {
+  EXIT_CODES,
+  error,
+  info,
+  readPackageVersion,
+  setLogLevel,
+  setQuietMode,
+  success,
+  warn,
+} from '@releasekit/core';
 import { Command } from 'commander';
-import { getDefaultConfig, loadConfig, saveAuth } from './core/config.js';
 import { runPipeline } from './core/pipeline.js';
-import type { OutputConfig } from './core/types.js';
 import { getExitCode, NotesError } from './errors/index.js';
 import { parseVersionOutput } from './input/version-output.js';
+import { detectMonorepo } from './monorepo/aggregator.js';
 
 export function createNotesCommand(): Command {
   const cmd = new Command('notes').description(
@@ -19,7 +28,12 @@ export function createNotesCommand(): Command {
     .command('generate', { isDefault: true })
     .description('Generate changelog from input data')
     .option('-i, --input <file>', 'Input file (default: stdin)')
-    .option('-o, --output <spec>', 'Output spec (format:file)', collectOutputs, [] as OutputConfig[])
+    .option('--no-changelog', 'Disable changelog generation')
+    .option('--changelog-mode <mode>', 'Changelog location mode (root|packages|both)')
+    .option('--changelog-file <name>', 'Changelog file name override')
+    .option('--release-notes-mode <mode>', 'Enable release notes and set location (root|packages|both)')
+    .option('--release-notes-file <name>', 'Release notes file name override')
+    .option('--no-release-notes', 'Disable release notes generation')
     .option('-t, --template <path>', 'Template file or directory')
     .option('-e, --engine <engine>', 'Template engine (handlebars|liquid|ejs)')
     .option('--monorepo <mode>', 'Monorepo mode (root|packages|both)')
@@ -30,8 +44,8 @@ export function createNotesCommand(): Command {
     .option('--no-llm', 'Disable LLM processing')
     .option('--target <package>', 'Filter to a specific package name')
     .option('--config <path>', 'Config file path')
+    .option('--regenerate', 'Regenerate entire changelog instead of prepending new entries')
     .option('--dry-run', 'Preview without writing')
-    .option('--regenerate', 'Regenerate entire changelog')
     .option('-v, --verbose', 'Increase verbosity', increaseVerbosity, 0)
     .option('-q, --quiet', 'Suppress non-error output')
     .action(async (options) => {
@@ -39,55 +53,110 @@ export function createNotesCommand(): Command {
       if (options.quiet) setQuietMode(true);
 
       try {
-        const config = loadConfig(process.cwd(), options.config);
-
-        if (options.output.length > 0) {
-          config.output = options.output;
+        const loadedConfig = loadConfig({ cwd: process.cwd(), configPath: options.config });
+        const config: import('./core/types.js').Config = loadedConfig?.notes ?? {};
+        // Inherit top-level monorepo path config so rootPath/packagesPath overrides work
+        // without requiring a (now-removed) duplicate notes.monorepo key.
+        if (loadedConfig?.monorepo && !config.monorepo) {
+          config.monorepo = loadedConfig.monorepo;
         }
 
-        if (config.output.length === 0) {
-          config.output = getDefaultConfig().output;
+        if (options.changelog === false) {
+          config.changelog = false;
+        } else if (options.changelogMode || options.changelogFile) {
+          const existing = config.changelog !== false ? (config.changelog ?? {}) : {};
+          const mode = (options.changelogMode ?? existing.mode ?? 'root') as 'root' | 'packages' | 'both';
+          config.changelog = {
+            ...existing,
+            mode,
+            ...(options.changelogFile ? { file: options.changelogFile } : {}),
+          };
+        }
+
+        if (options.releaseNotes === false) {
+          config.releaseNotes = false;
+        } else if (options.releaseNotesMode || options.releaseNotesFile) {
+          const existing = config.releaseNotes !== false ? (config.releaseNotes ?? {}) : {};
+          const mode = (options.releaseNotesMode ?? existing.mode ?? 'root') as 'root' | 'packages' | 'both';
+          config.releaseNotes = {
+            ...existing,
+            mode,
+            ...(options.releaseNotesFile ? { file: options.releaseNotesFile } : {}),
+          };
+        }
+
+        if (config.changelog === false && (options.template || options.engine)) {
+          const ignored = [options.template && '--template', options.engine && '--engine']
+            .filter(Boolean)
+            .join(' and ');
+          warn(`${ignored} ignored: changelog is disabled via --no-changelog`);
+        }
+
+        if (options.template && config.changelog !== false) {
+          const existing = config.changelog ?? {};
+          config.changelog = {
+            ...existing,
+            templates: { ...existing.templates, path: options.template },
+          };
+        }
+
+        if (options.engine && config.changelog !== false) {
+          const existing = config.changelog ?? {};
+          config.changelog = {
+            ...existing,
+            templates: { ...existing.templates, engine: options.engine as 'handlebars' | 'liquid' | 'ejs' },
+          };
         }
 
         if (options.regenerate) {
           config.updateStrategy = 'regenerate';
         }
 
-        if (options.template) {
-          config.templates = { ...config.templates, path: options.template };
-        }
-
-        if (options.engine) {
-          config.templates = { ...config.templates, engine: options.engine };
-        }
-
         if (options.llm === false) {
-          info('LLM processing disabled via --no-llm flag');
-          delete config.llm;
+          if (config.releaseNotes && typeof config.releaseNotes !== 'boolean' && config.releaseNotes.llm) {
+            info('LLM processing disabled via --no-llm flag');
+            config.releaseNotes = { ...config.releaseNotes, llm: undefined };
+          }
         } else if (options.llmProvider || options.llmModel || options.llmBaseUrl || options.llmTasks) {
-          config.llm = config.llm ?? { provider: 'openai-compatible', model: '' };
-          if (options.llmProvider) config.llm.provider = options.llmProvider;
-          if (options.llmModel) config.llm.model = options.llmModel;
-          if (options.llmBaseUrl) config.llm.baseURL = options.llmBaseUrl;
-          if (options.llmTasks) {
-            const taskNames = (options.llmTasks as string).split(',').map((t: string) => t.trim());
-            config.llm.tasks = {
-              enhance: taskNames.includes('enhance'),
-              summarize: taskNames.includes('summarize'),
-              categorize: taskNames.includes('categorize'),
-              releaseNotes: taskNames.includes('release-notes') || taskNames.includes('releaseNotes'),
+          if (config.releaseNotes === false) {
+            warn('--llm-* flags ignored: release notes are disabled via --no-release-notes');
+          } else {
+            const existingRn = typeof config.releaseNotes === 'object' ? config.releaseNotes : {};
+            const existingLlm = existingRn.llm;
+            const llm = {
+              provider: existingLlm?.provider ?? 'openai-compatible',
+              model: existingLlm?.model ?? '',
+              ...(existingLlm ?? {}),
             };
-          }
-          info(`LLM configured: ${config.llm.provider}${config.llm.model ? ` (${config.llm.model})` : ''}`);
-          if (config.llm.baseURL) {
-            info(`LLM base URL: ${config.llm.baseURL}`);
-          }
-          const taskList = Object.entries(config.llm.tasks || {})
-            .filter(([, enabled]) => enabled)
-            .map(([name]) => name)
-            .join(', ');
-          if (taskList) {
-            info(`LLM tasks: ${taskList}`);
+            if (options.llmProvider) llm.provider = options.llmProvider;
+            if (options.llmModel) llm.model = options.llmModel;
+            if (options.llmBaseUrl) llm.baseURL = options.llmBaseUrl;
+            if (options.llmTasks) {
+              const taskNames = (options.llmTasks as string).split(',').map((t: string) => t.trim());
+              llm.tasks = {
+                enhance: taskNames.includes('enhance'),
+                summarize: taskNames.includes('summarize'),
+                categorize: taskNames.includes('categorize'),
+                releaseNotes: taskNames.includes('release-notes') || taskNames.includes('releaseNotes'),
+              };
+            }
+
+            config.releaseNotes = {
+              ...existingRn,
+              llm: llm as import('./core/types.js').LLMConfig,
+            };
+
+            info(`LLM configured: ${llm.provider}${llm.model ? ` (${llm.model})` : ''}`);
+            if (llm.baseURL) {
+              info(`LLM base URL: ${llm.baseURL}`);
+            }
+            const taskList = Object.entries(llm.tasks || {})
+              .filter(([, enabled]) => enabled)
+              .map(([name]) => name)
+              .join(', ');
+            if (taskList) {
+              info(`LLM tasks: ${taskList}`);
+            }
           }
         }
 
@@ -112,7 +181,16 @@ export function createNotesCommand(): Command {
         }
 
         if (options.monorepo) {
-          config.monorepo = { ...config.monorepo, mode: options.monorepo as 'root' | 'packages' | 'both' };
+          const monoMode = options.monorepo as 'root' | 'packages' | 'both';
+          config.monorepo = { ...config.monorepo, mode: monoMode };
+          // Wire through to changelog/releaseNotes mode so --monorepo controls file output.
+          // Explicit --changelog-mode / --release-notes-mode take priority if both are set.
+          if (config.changelog !== false && !options.changelogMode) {
+            config.changelog = { ...(config.changelog ?? {}), mode: monoMode };
+          }
+          if (config.releaseNotes !== false && config.releaseNotes !== undefined && !options.releaseNotesMode) {
+            config.releaseNotes = { ...config.releaseNotes, mode: monoMode };
+          }
         }
 
         await runPipeline(input, config, options.dryRun ?? false);
@@ -139,11 +217,26 @@ export function createNotesCommand(): Command {
         process.exit(EXIT_CODES.GENERAL_ERROR);
       }
 
+      let changelogMode: 'root' | 'packages' | 'both';
+      try {
+        const detected = detectMonorepo(process.cwd());
+        changelogMode = detected.isMonorepo ? 'packages' : 'root';
+        info(
+          detected.isMonorepo
+            ? 'Monorepo detected — using mode: packages'
+            : 'Single-package repo detected — using mode: root',
+        );
+      } catch {
+        changelogMode = 'root';
+        info('Could not detect project type — using mode: root');
+      }
+
       const defaultConfig = {
-        $schema: 'https://releasekit.dev/schema.json',
+        $schema: 'https://goosewobbler.github.io/releasekit/schema.json',
         notes: {
-          output: [{ format: 'markdown', file: 'CHANGELOG.md' }],
-          updateStrategy: 'prepend',
+          changelog: {
+            mode: changelogMode,
+          },
         },
       };
 
@@ -187,25 +280,11 @@ export function createNotesCommand(): Command {
   return cmd;
 }
 
-function collectOutputs(value: string, previous: OutputConfig[]): OutputConfig[] {
-  const parts = value.split(':');
-  const format = (parts[0] ?? 'markdown') as OutputConfig['format'];
-  const file = parts[1];
-  const spec: OutputConfig = { format };
-
-  if (file) {
-    spec.file = file;
-  }
-
-  return [...previous, spec];
-}
-
 function increaseVerbosity(_: string, previous: number): number {
   return previous + 1;
 }
 
 function setVerbosity(level: number): void {
-  // 0 = info (default), 1 = debug (-v), 2 = trace (-vv)
   const levels = ['info', 'debug', 'trace'] as const;
   setLogLevel(levels[Math.min(level, levels.length - 1)] ?? 'info');
 }
@@ -240,7 +319,6 @@ function handleError(err: unknown): void {
   process.exit(EXIT_CODES.GENERAL_ERROR);
 }
 
-// Standalone entry point (only when run directly, not when imported by dispatcher)
 const isMain = (() => {
   try {
     return process.argv[1] ? fs.realpathSync(process.argv[1]) === fileURLToPath(import.meta.url) : false;

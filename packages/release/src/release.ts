@@ -118,7 +118,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   let publishOutput: ReleaseOutput['publishOutput'];
   if (!options.skipPublish) {
     info('Publishing...');
-    publishOutput = await runPublishStep(versionOutput, options, packageNotes, notesFiles);
+    publishOutput = await runPublishStep(versionOutput, options, releaseNotes ?? packageNotes, notesFiles);
     success('Publish complete');
   }
 
@@ -174,13 +174,9 @@ interface NotesStepResult {
 }
 
 async function runNotesStep(versionOutput: VersionOutput, options: ReleaseOptions): Promise<NotesStepResult> {
-  const { parseVersionOutput, runPipeline, loadConfig, getDefaultConfig } = await import('@releasekit/notes');
+  const { parseVersionOutput, runPipeline, loadConfig } = await import('@releasekit/notes');
 
   const config = loadConfig(options.projectDir, options.config);
-
-  if (config.output.length === 0) {
-    config.output = getDefaultConfig().output;
-  }
 
   const input = parseVersionOutput(JSON.stringify(versionOutput));
   const result = await runPipeline(input, config, options.dryRun);

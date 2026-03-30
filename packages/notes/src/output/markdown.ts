@@ -157,7 +157,7 @@ export function writeMarkdown(
     return;
   }
 
-  if (config.updateStrategy === 'prepend' && fs.existsSync(outputPath) && contexts.length === 1) {
+  if (config.updateStrategy !== 'regenerate' && fs.existsSync(outputPath) && contexts.length === 1) {
     const firstContext = contexts[0];
     if (firstContext) {
       const updated = prependVersion(outputPath, firstContext, options);

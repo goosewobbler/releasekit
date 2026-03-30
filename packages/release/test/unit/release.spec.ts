@@ -38,13 +38,11 @@ vi.mock('@releasekit/version', () => ({
 
 const mockNotesRunPipeline = vi.fn();
 const mockNotesLoadConfig = vi.fn();
-const mockNotesGetDefaultConfig = vi.fn();
 const mockParseVersionOutput = vi.fn();
 
 vi.mock('@releasekit/notes', () => ({
   runPipeline: (...args: unknown[]) => mockNotesRunPipeline(...args),
   loadConfig: (...args: unknown[]) => mockNotesLoadConfig(...args),
-  getDefaultConfig: () => mockNotesGetDefaultConfig(),
   parseVersionOutput: (...args: unknown[]) => mockParseVersionOutput(...args),
 }));
 
@@ -109,7 +107,7 @@ const versionOutputNoChanges: VersionOutput = {
   tags: [],
 };
 
-const mockNotesConfig = { output: [{ format: 'markdown' as const, file: 'CHANGELOG.md' }] };
+const mockNotesConfig = { changelog: { mode: 'packages' as const } };
 const mockPublishConfig = {
   npm: { enabled: true },
   git: { push: true, pushMethod: 'auto', remote: 'origin', branch: undefined },
@@ -141,7 +139,6 @@ describe('runRelease', () => {
     mockVersionEngineRun.mockResolvedValue(undefined);
     mockGetJsonData.mockReturnValue(versionOutputWithChanges);
     mockNotesLoadConfig.mockReturnValue(mockNotesConfig);
-    mockNotesGetDefaultConfig.mockReturnValue({ output: [{ format: 'markdown', file: 'CHANGELOG.md' }] });
     mockParseVersionOutput.mockReturnValue({ source: 'version', packages: [] });
     mockNotesRunPipeline.mockResolvedValue({
       packageNotes: { 'test-pkg': '## [1.1.0] - 2026-01-01\n\n### Added\n- New feature\n' },
@@ -387,14 +384,6 @@ describe('runRelease', () => {
     await runRelease({ ...defaultOptions, dryRun: true });
 
     expect(mockNotesRunPipeline).toHaveBeenCalledWith(expect.anything(), expect.anything(), true);
-  });
-
-  it('should use default notes output when config has none', async () => {
-    mockNotesLoadConfig.mockReturnValue({ output: [] });
-
-    await runRelease(defaultOptions);
-
-    expect(mockNotesGetDefaultConfig).toHaveBeenCalled();
   });
 
   it('should pass version output to notes as JSON', async () => {

@@ -225,12 +225,12 @@ describe('loadNotesConfig', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(
       JSON.stringify({
-        notes: { updateStrategy: 'regenerate' },
+        notes: { changelog: { mode: 'packages' } },
       }),
     );
 
     const result = loadNotesConfig();
-    expect(result?.updateStrategy).toBe('regenerate');
+    expect(result?.changelog).toMatchObject({ mode: 'packages' });
   });
 
   it('should return undefined when no notes config exists', () => {

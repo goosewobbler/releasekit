@@ -11,7 +11,6 @@ import {
   MonorepoConfigSchema,
   NotesConfigSchema,
   NpmConfigSchema,
-  OutputConfigSchema,
   PublishConfigSchema,
   ReleaseConfigSchema,
   ReleaseKitConfigSchema,
@@ -167,7 +166,7 @@ describe('GitHubReleaseConfigSchema', () => {
     expect(result.draft).toBe(true);
     expect(result.perPackage).toBe(true);
     expect(result.prerelease).toBe('auto');
-    expect(result.releaseNotes).toBe('auto');
+    expect(result.body).toBe('auto');
   });
 
   it('should accept prerelease as boolean or auto', () => {
@@ -176,13 +175,18 @@ describe('GitHubReleaseConfigSchema', () => {
     expect(GitHubReleaseConfigSchema.parse({ prerelease: 'auto' }).prerelease).toBe('auto');
   });
 
-  it('should accept releaseNotes as auto, github, none, or file path', () => {
-    expect(GitHubReleaseConfigSchema.parse({ releaseNotes: 'auto' }).releaseNotes).toBe('auto');
-    expect(GitHubReleaseConfigSchema.parse({ releaseNotes: 'github' }).releaseNotes).toBe('github');
-    expect(GitHubReleaseConfigSchema.parse({ releaseNotes: 'none' }).releaseNotes).toBe('none');
-    expect(GitHubReleaseConfigSchema.parse({ releaseNotes: './RELEASE_NOTES.md' }).releaseNotes).toBe(
-      './RELEASE_NOTES.md',
-    );
+  it('should accept body as auto, releaseNotes, changelog, generated, or none', () => {
+    const result = GitHubReleaseConfigSchema.parse({ body: 'auto' });
+    expect(result.body).toBe('auto');
+
+    for (const body of ['releaseNotes', 'changelog', 'generated', 'none'] as const) {
+      expect(GitHubReleaseConfigSchema.parse({ body }).body).toBe(body);
+    }
+  });
+
+  it('should default to auto', () => {
+    const result = GitHubReleaseConfigSchema.parse({});
+    expect(result.body).toBe('auto');
   });
 });
 
@@ -202,39 +206,6 @@ describe('PublishConfigSchema', () => {
     expect(result.npm.enabled).toBe(true);
     expect(result.cargo.enabled).toBe(false);
     expect(result.githubRelease.enabled).toBe(true);
-  });
-});
-
-describe('OutputConfigSchema', () => {
-  it('should require format', () => {
-    const result = OutputConfigSchema.parse({ format: 'markdown' });
-    expect(result.format).toBe('markdown');
-  });
-
-  it('should accept all format values', () => {
-    for (const format of ['markdown', 'github-release', 'json'] as const) {
-      expect(OutputConfigSchema.parse({ format }).format).toBe(format);
-    }
-  });
-
-  it('should accept optional file and options', () => {
-    const result = OutputConfigSchema.parse({
-      format: 'markdown',
-      file: 'CHANGELOG.md',
-      options: { header: 'Changelog' },
-    });
-    expect(result.file).toBe('CHANGELOG.md');
-    expect(result.options).toEqual({ header: 'Changelog' });
-  });
-
-  it('should accept per-output templates', () => {
-    const result = OutputConfigSchema.parse({
-      format: 'markdown',
-      file: 'RELEASE_NOTES.md',
-      templates: { path: './templates/release.liquid', engine: 'liquid' },
-    });
-    expect(result.templates?.path).toBe('./templates/release.liquid');
-    expect(result.templates?.engine).toBe('liquid');
   });
 });
 
@@ -441,10 +412,49 @@ describe('TemplateConfigSchema', () => {
 });
 
 describe('NotesConfigSchema', () => {
-  it('should apply defaults', () => {
+  it('should accept empty object', () => {
     const result = NotesConfigSchema.parse({});
-    expect(result.updateStrategy).toBe('prepend');
-    expect(result.output).toEqual([{ format: 'markdown', file: 'CHANGELOG.md' }]);
+    expect(result.changelog).toBeUndefined();
+    expect(result.releaseNotes).toBeUndefined();
+  });
+
+  it('should accept changelog with mode', () => {
+    const result = NotesConfigSchema.parse({ changelog: { mode: 'packages' } });
+    expect(result.changelog).toMatchObject({ mode: 'packages' });
+  });
+
+  it('should accept false to disable changelog', () => {
+    const result = NotesConfigSchema.parse({ changelog: false });
+    expect(result.changelog).toBe(false);
+  });
+
+  it('should accept changelog with file name override', () => {
+    const result = NotesConfigSchema.parse({ changelog: { mode: 'root', file: 'CHANGES.md' } });
+    expect(result.changelog).toMatchObject({ mode: 'root', file: 'CHANGES.md' });
+  });
+
+  it('should accept releaseNotes with mode', () => {
+    const result = NotesConfigSchema.parse({ releaseNotes: { mode: 'root' } });
+    expect(result.releaseNotes).toMatchObject({ mode: 'root' });
+  });
+
+  it('should accept false to disable releaseNotes', () => {
+    const result = NotesConfigSchema.parse({ releaseNotes: false });
+    expect(result.releaseNotes).toBe(false);
+  });
+
+  it('should accept releaseNotes with file and templates', () => {
+    const result = NotesConfigSchema.parse({
+      releaseNotes: {
+        mode: 'root',
+        file: 'RELEASE_NOTES.md',
+        templates: { path: './templates/release.liquid', engine: 'liquid' },
+      },
+    });
+    expect(result.releaseNotes).toMatchObject({ mode: 'root', file: 'RELEASE_NOTES.md' });
+    expect((result.releaseNotes as { templates?: { path?: string } })?.templates?.path).toBe(
+      './templates/release.liquid',
+    );
   });
 });
 
@@ -566,14 +576,14 @@ describe('ReleaseKitConfigSchema', () => {
       monorepo: { mode: 'packages' },
       version: { preset: 'conventional' },
       publish: { npm: { enabled: true } },
-      notes: { updateStrategy: 'prepend' },
+      notes: { changelog: { mode: 'packages' } },
       ci: { prPreview: true, autoRelease: false },
     });
     expect(result.git?.remote).toBe('origin');
     expect(result.monorepo?.mode).toBe('packages');
     expect(result.version?.preset).toBe('conventional');
     expect(result.publish?.npm.enabled).toBe(true);
-    expect(result.notes?.updateStrategy).toBe('prepend');
+    expect(result.notes?.changelog).toMatchObject({ mode: 'packages' });
     expect(result.ci?.prPreview).toBe(true);
     expect(result.ci?.autoRelease).toBe(false);
   });

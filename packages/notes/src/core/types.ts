@@ -1,3 +1,4 @@
+import type { MonorepoConfig } from '@releasekit/config';
 import type { RetryOptions } from '../utils/retry.js';
 
 export type { RetryOptions };
@@ -73,18 +74,6 @@ export interface LLMOptions {
   temperature?: number;
 }
 
-export interface ScopeRules {
-  allowed?: string[];
-  caseSensitive?: boolean;
-  invalidScopeAction?: 'remove' | 'keep' | 'fallback';
-  fallbackScope?: string;
-}
-
-export interface ScopeConfig {
-  mode?: 'restricted' | 'packages' | 'none' | 'unrestricted';
-  rules?: ScopeRules;
-}
-
 export interface LLMPromptOverrides {
   enhance?: string;
   categorize?: string;
@@ -104,44 +93,32 @@ export interface LLMCategory {
   scopes?: string[];
 }
 
-export interface LLMConfig {
-  provider: string;
-  model: string;
-  baseURL?: string;
-  apiKey?: string;
-  options?: LLMOptions;
-  concurrency?: number;
-  retry?: RetryOptions;
-  tasks?: {
-    summarize?: boolean;
-    enhance?: boolean;
-    categorize?: boolean;
-    releaseNotes?: boolean;
-  };
-  categories?: LLMCategory[];
-  style?: string;
-  scopes?: ScopeConfig;
-  prompts?: LLMPromptsConfig;
+export interface ScopeRules {
+  allowed?: string[];
+  caseSensitive?: boolean;
+  invalidScopeAction?: 'remove' | 'keep' | 'fallback';
+  fallbackScope?: string;
 }
 
-export type OutputFormat = 'markdown' | 'github-release' | 'json';
-
-export interface OutputConfig {
-  format: OutputFormat;
-  file?: string;
-  options?: Record<string, unknown>;
-  templates?: TemplateConfig;
-}
-
-export type MonorepoMode = 'root' | 'packages' | 'both';
-
-export interface MonorepoConfig {
-  mode?: MonorepoMode;
-  rootPath?: string;
-  packagesPath?: string;
+export interface ScopeConfig {
+  mode?: 'restricted' | 'packages' | 'none' | 'unrestricted';
+  rules?: ScopeRules;
 }
 
 export type UpdateStrategy = 'prepend' | 'regenerate';
+
+export interface Config {
+  changelog?: false | ChangelogConfig;
+  releaseNotes?: false | ReleaseNotesConfig;
+  monorepo?: MonorepoConfig;
+  updateStrategy?: UpdateStrategy;
+}
+
+export interface CompleteOptions {
+  maxTokens?: number;
+  temperature?: number;
+  timeout?: number;
+}
 
 export type TemplateEngine = 'handlebars' | 'liquid' | 'ejs';
 
@@ -150,20 +127,44 @@ export interface TemplateConfig {
   engine?: TemplateEngine;
 }
 
-export interface Config {
-  input?: {
-    source?: string;
-    file?: string;
+export interface LLMConfig {
+  provider: string;
+  model: string;
+  baseURL?: string;
+  apiKey?: string;
+  options?: {
+    timeout?: number;
+    maxTokens?: number;
+    temperature?: number;
   };
-  output: OutputConfig[];
-  monorepo?: MonorepoConfig;
-  templates?: TemplateConfig;
-  llm?: LLMConfig;
-  updateStrategy?: UpdateStrategy;
+  concurrency?: number;
+  retry?: RetryOptions;
+  tasks?: {
+    summarize?: boolean;
+    enhance?: boolean;
+    categorize?: boolean;
+    releaseNotes?: boolean;
+  };
+  categories?: Array<{ name: string; description: string; scopes?: string[] }>;
+  style?: string;
+  scopes?: ScopeConfig;
+  prompts?: {
+    instructions?: Record<string, string>;
+    templates?: Record<string, string>;
+  };
 }
 
-export interface CompleteOptions {
-  maxTokens?: number;
-  temperature?: number;
-  timeout?: number;
+export type LocationMode = 'root' | 'packages' | 'both';
+
+export interface ChangelogConfig {
+  mode?: LocationMode;
+  file?: string;
+  templates?: TemplateConfig;
+}
+
+export interface ReleaseNotesConfig {
+  mode?: LocationMode;
+  file?: string;
+  templates?: TemplateConfig;
+  llm?: LLMConfig;
 }

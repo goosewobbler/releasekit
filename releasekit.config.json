@@ -1,5 +1,5 @@
 {
-  "$schema": "./releasekit.schema.json",
+  "$schema": "https://goosewobbler.github.io/releasekit/schema.json",
   "git": {
     "branch": "main",
     "skipHooks": true
@@ -16,55 +16,62 @@
     "packageSpecificTags": true
   },
   "notes": {
-    "output": [
-      { "format": "markdown", "file": "CHANGELOG.md" },
-      {
-        "format": "markdown",
-        "file": "RELEASE_NOTES.md",
-        "templates": { "path": "./templates/release-notes/release.liquid", "engine": "liquid" }
+    "changelog": {
+      "mode": "packages"
+    },
+    "releaseNotes": {
+      "mode": "root",
+      "file": "RELEASE_NOTES.md",
+      "templates": {
+        "path": "./templates/release-notes/release.liquid",
+        "engine": "liquid"
+      },
+      "llm": {
+        "provider": "ollama",
+        "model": "minimax-m2.7:cloud",
+        "baseURL": "https://ollama.com/api",
+        "tasks": {
+          "enhance": true,
+          "categorize": true
+        },
+        "categories": [
+          { "name": "New", "description": "New features and additions" },
+          { "name": "Fixed", "description": "Bug fixes including security and performance fixes" },
+          { "name": "Changed", "description": "Changes to existing functionality" },
+          { "name": "Removed", "description": "Features that were removed" },
+          { "name": "Documentation", "description": "Documentation updates" },
+          {
+            "name": "Developer",
+            "description": "Internal changes",
+            "scopes": [
+              "Dependencies",
+              "CI",
+              "Testing",
+              "Build System",
+              "Code Quality",
+              "Infrastructure",
+              "Tooling",
+              "Performance",
+              "Security"
+            ]
+          }
+        ],
+        "scopes": {
+          "mode": "restricted",
+          "rules": {
+            "caseSensitive": false,
+            "invalidScopeAction": "remove"
+          }
+        },
+        "style": "Use past tense descriptions. Be concise. Focus on what changed, not implementation details."
       }
-    ],
-    "llm": {
-      "provider": "ollama",
-      "model": "minimax-m2.7:cloud",
-      "baseURL": "https://ollama.com/api",
-      "tasks": {
-        "enhance": true,
-        "categorize": true
-      },
-      "categories": [
-        { "name": "New", "description": "New features and additions" },
-        { "name": "Fixed", "description": "Bug fixes including security and performance fixes" },
-        { "name": "Changed", "description": "Changes to existing functionality" },
-        { "name": "Removed", "description": "Features that were removed" },
-        { "name": "Documentation", "description": "Documentation updates" },
-        {
-          "name": "Developer",
-          "description": "Internal changes",
-          "scopes": [
-            "Dependencies",
-            "CI",
-            "Testing",
-            "Build System",
-            "Code Quality",
-            "Infrastructure",
-            "Tooling",
-            "Performance",
-            "Security"
-          ]
-        }
-      ],
-      "scopes": {
-        "mode": "restricted",
-        "rules": {
-          "caseSensitive": false,
-          "invalidScopeAction": "remove"
-        }
-      },
-      "style": "Use past tense descriptions. Be concise. Focus on what changed, not implementation details."
     }
   },
-  "publish": {},
+  "publish": {
+    "githubRelease": {
+      "body": "auto"
+    }
+  },
   "release": {
     "ci": {
       "skipPatterns": ["chore: release ", "chore(deps):", "chore(deps-dev):"]

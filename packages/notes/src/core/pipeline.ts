@@ -12,8 +12,6 @@ import {
   generateReleaseNotes,
   summarizeEntries,
 } from '../llm/index.js';
-import { createGitHubRelease, parseRepoUrl } from '../output/github-release.js';
-import { writeJson } from '../output/json.js';
 import { type FormatVersionOptions, formatVersion, writeMarkdown } from '../output/markdown.js';
 import { renderTemplate } from '../templates/index.js';
 import { withRetry } from '../utils/retry.js';
@@ -24,8 +22,10 @@ import type {
   EnhancedCategory,
   EnhancedData,
   LLMCategory,
+  LLMConfig,
   PackageChangelog,
   TemplateContext,
+  TemplateEngine,
 } from './types.js';
 
 function generateCompareUrl(repoUrl: string, from: string, to: string, packageName?: string): string {
@@ -108,21 +108,17 @@ export function createDocumentContext(contexts: TemplateContext[], repoUrl?: str
   };
 }
 
-async function processWithLLM(context: TemplateContext, config: Config): Promise<TemplateContext> {
-  if (!config.llm) {
-    return context;
-  }
-
-  const tasks = config.llm.tasks ?? {};
+async function processWithLLM(context: TemplateContext, llmConfig: LLMConfig): Promise<TemplateContext> {
+  const tasks = llmConfig.tasks ?? {};
   const llmContext = {
     packageName: context.packageName,
     version: context.version,
     previousVersion: context.previousVersion ?? undefined,
     date: context.date,
-    categories: config.llm.categories,
-    style: config.llm.style,
-    scopes: config.llm.scopes,
-    prompts: config.llm.prompts,
+    categories: llmConfig.categories,
+    style: llmConfig.style,
+    scopes: llmConfig.scopes,
+    prompts: llmConfig.prompts,
   };
 
   const enhanced: EnhancedData = {
@@ -130,18 +126,16 @@ async function processWithLLM(context: TemplateContext, config: Config): Promise
   };
 
   try {
-    info(`Using LLM provider: ${config.llm.provider}${config.llm.model ? ` (${config.llm.model})` : ''}`);
-    if (config.llm.baseURL) {
-      info(`LLM base URL: ${config.llm.baseURL}`);
+    info(`Using LLM provider: ${llmConfig.provider}${llmConfig.model ? ` (${llmConfig.model})` : ''}`);
+    if (llmConfig.baseURL) {
+      info(`LLM base URL: ${llmConfig.baseURL}`);
     }
 
-    const rawProvider = createProvider(config.llm);
-    const retryOpts = config.llm.retry ?? LLM_DEFAULTS.retry;
-    const configOptions = config.llm.options;
+    const rawProvider = createProvider(llmConfig);
+    const retryOpts = llmConfig.retry ?? LLM_DEFAULTS.retry;
+    const configOptions = llmConfig.options;
     const provider: LLMProvider = {
       name: rawProvider.name,
-      // Merge user-configured options (timeout, maxTokens, temperature) as base defaults,
-      // allowing any per-call overrides to take precedence.
       complete: (prompt, opts) =>
         withRetry(() => rawProvider.complete(prompt, { ...configOptions, ...opts }), retryOpts),
     };
@@ -152,7 +146,6 @@ async function processWithLLM(context: TemplateContext, config: Config): Promise
     info(`Running LLM tasks: ${activeTasks.join(', ')}`);
 
     if (tasks.enhance && tasks.categorize) {
-      // Combined single-call: enhance + categorize in one LLM request
       info('Enhancing and categorizing entries with LLM...');
       const result = await enhanceAndCategorize(provider, context.entries, llmContext);
       enhanced.entries = result.enhancedEntries;
@@ -161,7 +154,7 @@ async function processWithLLM(context: TemplateContext, config: Config): Promise
     } else {
       if (tasks.enhance) {
         info('Enhancing entries with LLM...');
-        enhanced.entries = await enhanceEntries(provider, context.entries, llmContext, config.llm.concurrency);
+        enhanced.entries = await enhanceEntries(provider, context.entries, llmContext, llmConfig.concurrency);
         info(`Enhanced ${enhanced.entries.length} entries`);
       }
 
@@ -221,24 +214,22 @@ function getBuiltinTemplatePath(style: string): string {
 
 async function generateWithTemplate(
   contexts: TemplateContext[],
-  config: Config,
+  templatesConfig: { path?: string; engine?: string } | undefined,
   outputPath: string,
+  repoUrl: string | undefined,
   dryRun: boolean,
 ): Promise<void> {
   let templatePath: string;
 
-  if (config.templates?.path) {
-    templatePath = path.resolve(config.templates.path);
+  if (templatesConfig?.path) {
+    templatePath = path.resolve(templatesConfig.path);
   } else {
     templatePath = getBuiltinTemplatePath('keep-a-changelog');
   }
 
-  const documentContext = createDocumentContext(
-    contexts,
-    config.templates?.path ? undefined : (contexts[0]?.repoUrl ?? undefined),
-  );
+  const documentContext = createDocumentContext(contexts, templatesConfig?.path ? undefined : repoUrl);
 
-  const result = renderTemplate(templatePath, documentContext, config.templates?.engine);
+  const result = renderTemplate(templatePath, documentContext, templatesConfig?.engine as TemplateEngine | undefined);
 
   if (dryRun) {
     info(`[DRY RUN] Changelog preview (would write to ${outputPath}):`);
@@ -275,123 +266,142 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
 
   let contexts = input.packages.map(createTemplateContext);
 
-  if (config.llm && !process.env.CHANGELOG_NO_LLM) {
+  // changelog defaults to on (mode: root) when omitted; false = explicitly disabled.
+  // mode defaults to 'root' for any object config that omits it (e.g. { file: 'CHANGES.md' }).
+  const changelogConfig = config.changelog === false ? false : { mode: 'root' as const, ...(config.changelog ?? {}) };
+  // releaseNotes: undefined = off (default), false = explicitly disabled, object = configured.
+  // mode defaults to 'root' only when file output is explicitly intended (mode or file is set).
+  // Omitting both lets LLM run without writing any file, as documented in the schema.
+  const releaseNotesConfig =
+    config.releaseNotes === false || config.releaseNotes === undefined
+      ? undefined
+      : config.releaseNotes.mode !== undefined || config.releaseNotes.file !== undefined
+        ? { mode: 'root' as const, ...config.releaseNotes }
+        : config.releaseNotes;
+
+  const llmConfig = releaseNotesConfig?.llm;
+  if (llmConfig && !process.env.CHANGELOG_NO_LLM) {
     info('Processing with LLM enhancement');
-    contexts = await Promise.all(contexts.map((ctx) => processWithLLM(ctx, config)));
+    contexts = await Promise.all(contexts.map((ctx) => processWithLLM(ctx, llmConfig)));
   }
 
   const files: string[] = [];
 
-  // Include package name in version headers when there are multiple packages
-  // or when the single package has a scoped name (monorepo package like @scope/pkg)
   const fmtOpts: FormatVersionOptions = {
     includePackageName: contexts.length > 1 || contexts.some((c) => c.packageName.includes('/')),
   };
 
-  for (const output of config.output) {
-    const file = output.file ?? (output.format === 'json' ? 'changelog.json' : 'CHANGELOG.md');
-    const isChangelog = /changelog/i.test(file);
-    const outputKind = isChangelog ? 'changelog' : 'release notes';
-    info(`Generating ${outputKind} → ${file}`);
+  if (changelogConfig !== false && changelogConfig.mode) {
+    const fileName = changelogConfig.file ?? 'CHANGELOG.md';
+    const mode = changelogConfig.mode;
 
-    switch (output.format) {
-      case 'markdown': {
-        const file = output.file ?? 'CHANGELOG.md';
-        try {
-          const effectiveTemplateConfig = output.templates ?? config.templates;
+    info(`Generating changelog → ${fileName}`);
 
-          if (effectiveTemplateConfig?.path || output.options?.template) {
-            const configWithTemplate = { ...config, templates: effectiveTemplateConfig };
-            await generateWithTemplate(contexts, configWithTemplate, file, dryRun);
-          } else {
-            writeMarkdown(file, contexts, config, dryRun, fmtOpts);
-          }
-          if (!dryRun) files.push(file);
-        } catch (error) {
-          warn(`Failed to write ${file}: ${error instanceof Error ? error.message : String(error)}`);
+    try {
+      if (mode === 'root' || mode === 'both') {
+        if (changelogConfig.templates?.path) {
+          await generateWithTemplate(
+            contexts,
+            changelogConfig.templates,
+            fileName,
+            contexts[0]?.repoUrl ?? undefined,
+            dryRun,
+          );
+        } else {
+          writeMarkdown(fileName, contexts, config, dryRun, fmtOpts);
         }
-        break;
+        if (!dryRun) files.push(fileName);
       }
-      case 'json': {
-        const file = output.file ?? 'changelog.json';
-        try {
-          writeJson(file, contexts, dryRun);
-          if (!dryRun) files.push(file);
-        } catch (error) {
-          warn(`Failed to write ${file}: ${error instanceof Error ? error.message : String(error)}`);
-        }
-        break;
+
+      if (mode === 'packages' || mode === 'both') {
+        const monoFiles = await writeMonorepoFiles(contexts, config, dryRun, changelogConfig.file ?? 'CHANGELOG.md');
+        files.push(...monoFiles);
       }
-      case 'github-release': {
-        if (dryRun) {
-          info('[DRY RUN] Would create GitHub release');
-          break;
-        }
-
-        const firstContext = contexts[0];
-        if (!firstContext) {
-          warn('No context available for GitHub release');
-          break;
-        }
-
-        const repoUrl = firstContext.repoUrl;
-        if (!repoUrl) {
-          warn('No repo URL available, cannot create GitHub release');
-          break;
-        }
-
-        const parsed = parseRepoUrl(repoUrl);
-        if (!parsed) {
-          warn(`Could not parse repo URL: ${repoUrl}`);
-          break;
-        }
-
-        await createGitHubRelease(firstContext, {
-          owner: parsed.owner,
-          repo: parsed.repo,
-          draft: output.options?.draft as boolean | undefined,
-          prerelease: output.options?.prerelease as boolean | undefined,
-        });
-        break;
-      }
+    } catch (error) {
+      warn(`Failed to write changelog: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
-  // Write monorepo changelogs if configured
-  if (config.monorepo?.mode) {
-    const { detectMonorepo, writeMonorepoChangelogs } = await import('../monorepo/aggregator.js');
-    const cwd = process.cwd();
-    const detected = detectMonorepo(cwd);
+  if (releaseNotesConfig?.mode) {
+    const fileName = releaseNotesConfig.file ?? 'RELEASE_NOTES.md';
+    const mode = releaseNotesConfig.mode;
 
-    if (detected.isMonorepo) {
-      const monoFiles = writeMonorepoChangelogs(
-        contexts,
-        {
-          rootPath: config.monorepo.rootPath ?? cwd,
-          packagesPath: config.monorepo.packagesPath ?? detected.packagesPath,
-          mode: config.monorepo.mode,
-        },
-        config,
-        dryRun,
-      );
-      files.push(...monoFiles);
+    info(`Generating release notes → ${fileName}`);
+
+    try {
+      if (mode === 'root' || mode === 'both') {
+        if (releaseNotesConfig.templates?.path) {
+          await generateWithTemplate(
+            contexts,
+            releaseNotesConfig.templates,
+            fileName,
+            contexts[0]?.repoUrl ?? undefined,
+            dryRun,
+          );
+        } else {
+          writeMarkdown(fileName, contexts, config, dryRun, fmtOpts);
+        }
+        if (!dryRun) files.push(fileName);
+      }
+
+      if (mode === 'packages' || mode === 'both') {
+        const monoFiles = await writeMonorepoFiles(
+          contexts,
+          config,
+          dryRun,
+          releaseNotesConfig.file ?? 'RELEASE_NOTES.md',
+        );
+        files.push(...monoFiles);
+      }
+    } catch (error) {
+      warn(`Failed to write release notes: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
-  // Build per-package rendered markdown from the (possibly LLM-enhanced) contexts
   const packageNotes: Record<string, string> = {};
-  const releaseNotes: Record<string, string> = {};
+  const releaseNotesResult: Record<string, string> = {};
   for (const ctx of contexts) {
     packageNotes[ctx.packageName] = formatVersion(ctx);
     if (ctx.enhanced?.releaseNotes) {
-      releaseNotes[ctx.packageName] = ctx.enhanced.releaseNotes;
+      releaseNotesResult[ctx.packageName] = ctx.enhanced.releaseNotes;
     }
   }
 
-  return { packageNotes, files, releaseNotes: Object.keys(releaseNotes).length > 0 ? releaseNotes : undefined };
+  return {
+    packageNotes,
+    files,
+    releaseNotes: Object.keys(releaseNotesResult).length > 0 ? releaseNotesResult : undefined,
+  };
 }
 
 export async function processInput(inputJson: string, config: Config, dryRun: boolean): Promise<PipelineResult> {
   const input = parseVersionOutput(inputJson);
   return runPipeline(input, config, dryRun);
+}
+
+async function writeMonorepoFiles(
+  contexts: TemplateContext[],
+  config: Config,
+  dryRun: boolean,
+  fileName: string,
+): Promise<string[]> {
+  const { detectMonorepo, writeMonorepoChangelogs } = await import('../monorepo/aggregator.js');
+  const cwd = process.cwd();
+  const detected = detectMonorepo(cwd);
+
+  if (!detected.isMonorepo) return [];
+
+  const monoFiles = writeMonorepoChangelogs(
+    contexts,
+    {
+      rootPath: config.monorepo?.rootPath ?? cwd,
+      packagesPath: config.monorepo?.packagesPath ?? detected.packagesPath,
+      mode: 'packages',
+      fileName,
+    },
+    config,
+    dryRun,
+  );
+
+  return monoFiles;
 }

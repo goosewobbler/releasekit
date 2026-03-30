@@ -103,19 +103,34 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       const formattedPrefix = formatVersionPrefix(versionPrefix || 'v');
       let latestTag = await getLatestTag();
 
-      // Find the main package if specified
+      // Find the main package if specified.
+      // mainPkgPath / mainPkgName drive changelog extraction and naming.
+      // versionSourcePath / versionSourceName are used only for reading the base
+      // version (package.json) and resolving package-specific git tags.
       let mainPkgPath = packages.root;
       let mainPkgName: string | undefined;
+      let versionSourcePath = mainPkgPath;
+      let versionSourceName: string | undefined;
 
       if (mainPackage) {
         const mainPkg = packages.packages.find((p) => p.packageJson.name === mainPackage);
         if (mainPkg) {
           mainPkgPath = mainPkg.dir;
           mainPkgName = mainPkg.packageJson.name;
+          versionSourcePath = mainPkgPath;
+          versionSourceName = mainPkgName;
           log(`Using ${mainPkgName} as primary package for version determination`, 'info');
         } else {
           log(`Main package '${mainPackage}' not found. Using root package for version determination.`, 'warning');
         }
+      } else if (packages.packages.length > 0) {
+        // In sync mode without an explicit mainPackage, use the first workspace package
+        // as the version source so we read a real version (e.g. 0.3.1) instead of the
+        // root package.json's placeholder (e.g. 0.0.0). The changelog is still extracted
+        // from the root, and the changelog entry is still named 'monorepo'.
+        versionSourcePath = packages.packages[0].dir;
+        versionSourceName = packages.packages[0].packageJson.name;
+        log(`No mainPackage specified; using ${versionSourceName} as sync version source`, 'info');
       }
 
       // Make sure we have a valid path for version calculation
@@ -124,30 +139,30 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         log(`No valid package path found, using current working directory: ${mainPkgPath}`, 'warning');
       }
 
-      // If we have a main package, try to get package-specific tags first
-      if (mainPkgName) {
-        const packageSpecificTag = await getLatestTagForPackage(mainPkgName, formattedPrefix, {
+      // Try to get package-specific tags for the version source package
+      if (versionSourceName) {
+        const packageSpecificTag = await getLatestTagForPackage(versionSourceName, formattedPrefix, {
           tagTemplate,
           packageSpecificTags: config.packageSpecificTags,
         });
 
         if (packageSpecificTag) {
           latestTag = packageSpecificTag;
-          log(`Using package-specific tag for ${mainPkgName}: ${latestTag}`, 'debug');
+          log(`Using package-specific tag for ${versionSourceName}: ${latestTag}`, 'debug');
         } else {
-          log(`No package-specific tag found for ${mainPkgName}, using global tag: ${latestTag}`, 'debug');
+          log(`No package-specific tag found for ${versionSourceName}, using global tag: ${latestTag}`, 'debug');
         }
       }
 
-      // Calculate the next version using the main package if specified
+      // Calculate the next version using the version source package
       const nextVersion = await calculateVersion(config, {
         latestTag,
         versionPrefix: formattedPrefix,
         branchPattern,
         baseBranch,
         prereleaseIdentifier,
-        path: mainPkgPath,
-        name: mainPkgName,
+        path: versionSourcePath,
+        name: versionSourceName,
         type: config.type,
       });
 
@@ -289,7 +304,10 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         nextVersion,
         formattedPrefix,
         tagPackageName,
-        tagTemplate,
+        // Only pass tagTemplate when we have a package name to substitute into it.
+        // In multi-package sync mode tagPackageName is null, so omit the template to
+        // avoid a spurious ${packageName} warning and a malformed tag like "-v1.0.0".
+        tagPackageName ? tagTemplate : undefined,
         config.packageSpecificTags || false,
       );
 
