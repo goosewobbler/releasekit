@@ -18,9 +18,7 @@ function makeContext(overrides: Partial<TemplateContext> = {}): TemplateContext 
   };
 }
 
-const minimalConfig: Config = {
-  output: [{ format: 'markdown', file: 'CHANGELOG.md' }],
-};
+const minimalConfig: Config = {};
 
 describe('writeMarkdown: dry run', () => {
   let info: ReturnType<typeof vi.fn>;
