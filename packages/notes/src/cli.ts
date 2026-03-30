@@ -195,7 +195,7 @@ export function createNotesCommand(): Command {
       }
 
       const defaultConfig = {
-        $schema: 'https://releasekit.dev/schema.json',
+        $schema: 'https://goosewobbler.github.io/releasekit/schema.json',
         notes: {
           changelog: {
             mode: changelogMode,
