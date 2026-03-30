@@ -55,6 +55,11 @@ export function createNotesCommand(): Command {
       try {
         const loadedConfig = loadConfig({ cwd: process.cwd(), configPath: options.config });
         const config: import('./core/types.js').Config = loadedConfig?.notes ?? {};
+        // Inherit top-level monorepo path config so rootPath/packagesPath overrides work
+        // without requiring a (now-removed) duplicate notes.monorepo key.
+        if (loadedConfig?.monorepo && !config.monorepo) {
+          config.monorepo = loadedConfig.monorepo;
+        }
 
         if (options.changelog === false) {
           config.changelog = false;
