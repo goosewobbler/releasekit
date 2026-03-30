@@ -35,6 +35,7 @@ export function createNotesCommand(): Command {
     .option('--no-llm', 'Disable LLM processing')
     .option('--target <package>', 'Filter to a specific package name')
     .option('--config <path>', 'Config file path')
+    .option('--regenerate', 'Regenerate entire changelog instead of prepending new entries')
     .option('--dry-run', 'Preview without writing')
     .option('-v, --verbose', 'Increase verbosity', increaseVerbosity, 0)
     .option('-q, --quiet', 'Suppress non-error output')
@@ -56,7 +57,11 @@ export function createNotesCommand(): Command {
             config.changelog = { ...existing };
           }
           if (options.changelogFile && config.changelog !== false) {
-            config.changelog = { ...(config.changelog ?? {}), file: options.changelogFile };
+            config.changelog = {
+              ...(config.changelog ?? {}),
+              mode: ((config.changelog as { mode?: string })?.mode ?? 'root') as 'root' | 'packages' | 'both',
+              file: options.changelogFile,
+            };
           }
         }
 
@@ -68,7 +73,11 @@ export function createNotesCommand(): Command {
             config.releaseNotes = { ...existing, mode: options.releaseNotesMode as 'root' | 'packages' | 'both' };
           }
           if (options.releaseNotesFile && config.releaseNotes !== false) {
-            config.releaseNotes = { ...(config.releaseNotes ?? {}), file: options.releaseNotesFile };
+            config.releaseNotes = {
+              ...(config.releaseNotes ?? {}),
+              mode: (config.releaseNotes?.mode ?? 'root') as 'root' | 'packages' | 'both',
+              file: options.releaseNotesFile,
+            };
           }
         }
 
@@ -86,6 +95,10 @@ export function createNotesCommand(): Command {
             ...existing,
             templates: { ...existing.templates, engine: options.engine as 'handlebars' | 'liquid' | 'ejs' },
           };
+        }
+
+        if (options.regenerate) {
+          config.updateStrategy = 'regenerate';
         }
 
         if (options.llm === false) {
