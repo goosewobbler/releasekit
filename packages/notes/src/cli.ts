@@ -8,6 +8,7 @@ import { Command } from 'commander';
 import { runPipeline } from './core/pipeline.js';
 import { getExitCode, NotesError } from './errors/index.js';
 import { parseVersionOutput } from './input/version-output.js';
+import { detectMonorepo } from './monorepo/aggregator.js';
 
 export function createNotesCommand(): Command {
   const cmd = new Command('notes').description(
@@ -179,12 +180,25 @@ export function createNotesCommand(): Command {
         process.exit(EXIT_CODES.GENERAL_ERROR);
       }
 
+      let changelogMode: 'root' | 'packages' | 'both';
+      try {
+        const detected = detectMonorepo(process.cwd());
+        changelogMode = detected.isMonorepo ? 'packages' : 'root';
+        info(
+          detected.isMonorepo
+            ? 'Monorepo detected — using mode: packages'
+            : 'Single-package repo detected — using mode: root',
+        );
+      } catch {
+        changelogMode = 'root';
+        info('Could not detect project type — using mode: root');
+      }
+
       const defaultConfig = {
         $schema: 'https://releasekit.dev/schema.json',
         notes: {
           changelog: {
-            enabled: true,
-            file: { name: 'CHANGELOG.md', location: 'packages' },
+            mode: changelogMode,
           },
         },
       };
