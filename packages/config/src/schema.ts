@@ -82,14 +82,14 @@ export const GitHubReleaseConfigSchema = z.object({
   perPackage: z.boolean().default(true),
   prerelease: z.union([z.literal('auto'), z.boolean()]).default('auto'),
   /**
-   * Controls how release notes are sourced for GitHub releases.
-   * - 'auto': Use RELEASE_NOTES.md if it exists, then per-package changelog
-   *   data from the version output, then GitHub's auto-generated notes.
-   * - 'github': Always use GitHub's auto-generated notes.
-   * - 'none': No notes body.
-   * - Any other string: Treated as a file path to read notes from.
+   * Controls the source for the GitHub release body.
+   * - 'auto': Use release notes if enabled, else changelog, else GitHub auto-generated.
+   * - 'releaseNotes': Use LLM-generated release notes (requires notes.releaseNotes.enabled: true).
+   * - 'changelog': Use formatted changelog entries.
+   * - 'generated': Use GitHub's auto-generated notes.
+   * - 'none': No body.
    */
-  releaseNotes: z.union([z.literal('auto'), z.literal('github'), z.literal('none'), z.string()]).default('auto'),
+  body: z.enum(['auto', 'releaseNotes', 'changelog', 'generated', 'none']).default('auto'),
 });
 
 export const VerifyRegistryConfigSchema = z.object({
@@ -136,7 +136,7 @@ export const PublishConfigSchema = z.object({
     draft: true,
     perPackage: true,
     prerelease: 'auto',
-    releaseNotes: 'auto',
+    body: 'auto',
   }),
   verify: VerifyConfigSchema.default({
     npm: {
@@ -159,10 +159,11 @@ export const TemplateConfigSchema = z.object({
   engine: z.enum(['handlebars', 'liquid', 'ejs']).optional(),
 });
 
-export const OutputConfigSchema = z.object({
-  format: z.enum(['markdown', 'github-release', 'json']),
+export const LocationModeSchema = z.enum(['root', 'packages', 'both']);
+
+export const ChangelogConfigSchema = z.object({
+  mode: LocationModeSchema.optional(),
   file: z.string().optional(),
-  options: z.record(z.string(), z.unknown()).optional(),
   templates: TemplateConfigSchema.optional(),
 });
 
@@ -232,18 +233,21 @@ export const LLMConfigSchema = z.object({
   prompts: LLMPromptsConfigSchema.optional(),
 });
 
+export const ReleaseNotesConfigSchema = z.object({
+  mode: LocationModeSchema.optional(),
+  file: z.string().optional(),
+  templates: TemplateConfigSchema.optional(),
+  llm: LLMConfigSchema.optional(),
+});
+
 export const NotesInputConfigSchema = z.object({
   source: z.string().optional(),
   file: z.string().optional(),
 });
 
 export const NotesConfigSchema = z.object({
-  input: NotesInputConfigSchema.optional(),
-  output: z.array(OutputConfigSchema).default([{ format: 'markdown', file: 'CHANGELOG.md' }]),
-  monorepo: MonorepoConfigSchema.optional(),
-  templates: TemplateConfigSchema.optional(),
-  llm: LLMConfigSchema.optional(),
-  updateStrategy: z.enum(['prepend', 'regenerate']).default('prepend'),
+  changelog: z.union([z.literal(false), ChangelogConfigSchema]).optional(),
+  releaseNotes: z.union([z.literal(false), ReleaseNotesConfigSchema]).optional(),
 });
 
 export const CILabelsConfigSchema = z.object({
@@ -321,7 +325,9 @@ export type GitHubReleaseConfig = z.infer<typeof GitHubReleaseConfigSchema>;
 export type VerifyRegistryConfig = z.infer<typeof VerifyRegistryConfigSchema>;
 export type VerifyConfig = z.infer<typeof VerifyConfigSchema>;
 export type PublishConfig = z.infer<typeof PublishConfigSchema>;
-export type OutputConfig = z.infer<typeof OutputConfigSchema>;
+export type LocationMode = z.infer<typeof LocationModeSchema>;
+export type ChangelogConfig = z.infer<typeof ChangelogConfigSchema>;
+export type ReleaseNotesConfig = z.infer<typeof ReleaseNotesConfigSchema>;
 export type LLMConfig = z.infer<typeof LLMConfigSchema>;
 export type LLMCategory = z.infer<typeof LLMCategorySchema>;
 export type ScopeRules = z.infer<typeof ScopeRulesSchema>;
