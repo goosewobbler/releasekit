@@ -209,6 +209,52 @@ describe('createNotesCommand', () => {
       );
     });
 
+    it('should wire --monorepo mode through to changelog mode', async () => {
+      vi.mocked(loadConfig).mockReturnValue(undefined as never);
+
+      await createNotesCommand().parse(['node', 'test', 'generate', '-i', 'input.json', '--monorepo', 'packages']);
+
+      expect(runPipeline).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ changelog: expect.objectContaining({ mode: 'packages' }) }),
+        false,
+      );
+    });
+
+    it('should let --changelog-mode override --monorepo when both are set', async () => {
+      vi.mocked(loadConfig).mockReturnValue(undefined as never);
+
+      await createNotesCommand().parse([
+        'node',
+        'test',
+        'generate',
+        '-i',
+        'input.json',
+        '--monorepo',
+        'packages',
+        '--changelog-mode',
+        'root',
+      ]);
+
+      expect(runPipeline).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ changelog: expect.objectContaining({ mode: 'root' }) }),
+        false,
+      );
+    });
+
+    it('should not enable releaseNotes when --monorepo is set but releaseNotes is not configured', async () => {
+      vi.mocked(loadConfig).mockReturnValue(undefined as never);
+
+      await createNotesCommand().parse(['node', 'test', 'generate', '-i', 'input.json', '--monorepo', 'packages']);
+
+      expect(runPipeline).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.not.objectContaining({ releaseNotes: expect.objectContaining({ mode: expect.anything() }) }),
+        false,
+      );
+    });
+
     it('should pass --dry-run flag to pipeline', async () => {
       vi.mocked(loadConfig).mockReturnValue(undefined as never);
 

@@ -180,7 +180,16 @@ export function createNotesCommand(): Command {
         }
 
         if (options.monorepo) {
-          config.monorepo = { ...config.monorepo, mode: options.monorepo as 'root' | 'packages' | 'both' };
+          const monoMode = options.monorepo as 'root' | 'packages' | 'both';
+          config.monorepo = { ...config.monorepo, mode: monoMode };
+          // Wire through to changelog/releaseNotes mode so --monorepo controls file output.
+          // Explicit --changelog-mode / --release-notes-mode take priority if both are set.
+          if (config.changelog !== false && !options.changelogMode) {
+            config.changelog = { ...(config.changelog ?? {}), mode: monoMode };
+          }
+          if (config.releaseNotes !== false && config.releaseNotes !== undefined && !options.releaseNotesMode) {
+            config.releaseNotes = { ...config.releaseNotes, mode: monoMode };
+          }
         }
 
         await runPipeline(input, config, options.dryRun ?? false);
