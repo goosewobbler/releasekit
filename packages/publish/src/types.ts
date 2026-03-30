@@ -33,8 +33,8 @@ export interface GitHubReleaseConfig {
   draft: boolean;
   perPackage: boolean;
   prerelease: 'auto' | boolean;
-  /** 'auto' | 'github' | 'none' | file path */
-  releaseNotes: string;
+  /** 'auto' | 'releaseNotes' | 'changelog' | 'generated' | 'none' */
+  body: 'auto' | 'releaseNotes' | 'changelog' | 'generated' | 'none';
 }
 
 export interface VerifyRegistryConfig {
@@ -162,7 +162,7 @@ export function getDefaultConfig(): PublishConfig {
       draft: true,
       perPackage: true,
       prerelease: 'auto',
-      releaseNotes: 'auto',
+      body: 'auto',
     },
     verify: {
       npm: {
@@ -217,7 +217,7 @@ export function toPublishConfig(config: BasePublishConfig | undefined): PublishC
       draft: config.githubRelease?.draft ?? defaults.githubRelease.draft,
       perPackage: config.githubRelease?.perPackage ?? defaults.githubRelease.perPackage,
       prerelease: config.githubRelease?.prerelease ?? defaults.githubRelease.prerelease,
-      releaseNotes: config.githubRelease?.releaseNotes ?? defaults.githubRelease.releaseNotes,
+      body: config.githubRelease?.body ?? defaults.githubRelease.body,
     },
     verify: {
       npm: {

@@ -44,7 +44,7 @@ describe('config', () => {
       expect(config.githubRelease.enabled).toBe(true);
       expect(config.githubRelease.draft).toBe(true);
       expect(config.githubRelease.perPackage).toBe(true);
-      expect(config.githubRelease.releaseNotes).toBe('auto');
+      expect(config.githubRelease.body).toBe('auto');
 
       expect(config.verify.npm.enabled).toBe(true);
       expect(config.verify.npm.maxAttempts).toBe(5);
