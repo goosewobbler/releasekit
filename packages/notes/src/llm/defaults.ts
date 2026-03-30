@@ -12,7 +12,7 @@ export const LLM_DEFAULTS = {
   models: {
     openai: 'gpt-4o-mini',
     'openai-compatible': 'gpt-4o-mini',
-    anthropic: 'claude-3-5-haiku-latest',
+    anthropic: 'claude-haiku-4-5-20251001',
     ollama: 'llama3.2',
   },
 } as const;
