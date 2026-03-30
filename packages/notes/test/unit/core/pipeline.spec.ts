@@ -1,3 +1,4 @@
+import * as fs from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildOrderedCategories } from '../../../src/core/pipeline.js';
 import type { ChangelogInput, CompleteOptions, Config } from '../../../src/core/types.js';
@@ -8,6 +9,13 @@ vi.mock('../../../src/llm/index.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../src/llm/index.js')>();
   return { ...actual, createProvider: vi.fn() };
 });
+
+vi.mock('node:fs');
+
+vi.mock('../../../src/monorepo/aggregator.js', () => ({
+  detectMonorepo: vi.fn().mockReturnValue({ isMonorepo: true, packagesPath: 'packages' }),
+  writeMonorepoChangelogs: vi.fn().mockReturnValue([]),
+}));
 
 const sampleInput: ChangelogInput = {
   source: 'version',
@@ -103,6 +111,35 @@ describe('Pipeline: config.llm.options passthrough', () => {
     await runPipeline(sampleInput, config, false);
 
     expect(capturedOpts).toMatchObject({ maxTokens: 4000 });
+  });
+});
+
+describe('Pipeline: mode both does not double-write root', () => {
+  beforeEach(() => {
+    vi.mocked(fs.existsSync).mockReturnValue(false);
+    vi.mocked(fs.mkdirSync).mockReturnValue(undefined as never);
+    vi.mocked(fs.writeFileSync).mockReturnValue(undefined);
+  });
+
+  it('should pass mode: packages to writeMonorepoChangelogs when changelog mode is both', async () => {
+    const { writeMonorepoChangelogs } = await import('../../../src/monorepo/aggregator.js');
+    const { runPipeline } = await import('../../../src/core/pipeline.js');
+
+    const config: Config = { changelog: { mode: 'both' } };
+    await runPipeline(sampleInput, config, false);
+
+    expect(writeMonorepoChangelogs).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ mode: 'packages' }),
+      expect.anything(),
+      false,
+    );
+    expect(writeMonorepoChangelogs).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ mode: 'both' }),
+      expect.anything(),
+      expect.anything(),
+    );
   });
 });
 

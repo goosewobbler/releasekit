@@ -388,7 +388,7 @@ async function writeMonorepoFiles(
     {
       rootPath: config.monorepo?.rootPath ?? cwd,
       packagesPath: config.monorepo?.packagesPath ?? detected.packagesPath,
-      mode: location === 'both' ? 'both' : 'packages',
+      mode: 'packages',
     },
     config,
     dryRun,
