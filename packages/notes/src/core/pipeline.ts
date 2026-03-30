@@ -270,11 +270,14 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
   // mode defaults to 'root' for any object config that omits it (e.g. { file: 'CHANGES.md' }).
   const changelogConfig = config.changelog === false ? false : { mode: 'root' as const, ...(config.changelog ?? {}) };
   // releaseNotes: undefined = off (default), false = explicitly disabled, object = configured.
-  // mode defaults to 'root' so a file-only config (e.g. { file: 'NOTES.md' }) still produces output.
+  // mode defaults to 'root' only when file output is explicitly intended (mode or file is set).
+  // Omitting both lets LLM run without writing any file, as documented in the schema.
   const releaseNotesConfig =
     config.releaseNotes === false || config.releaseNotes === undefined
       ? undefined
-      : { mode: 'root' as const, ...config.releaseNotes };
+      : config.releaseNotes.mode !== undefined || config.releaseNotes.file !== undefined
+        ? { mode: 'root' as const, ...config.releaseNotes }
+        : config.releaseNotes;
 
   const llmConfig = releaseNotesConfig?.llm;
   if (llmConfig && !process.env.CHANGELOG_NO_LLM) {
@@ -311,13 +314,7 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
       }
 
       if (mode === 'packages' || mode === 'both') {
-        const monoFiles = await writeMonorepoFiles(
-          contexts,
-          config,
-          mode,
-          dryRun,
-          changelogConfig.file ?? 'CHANGELOG.md',
-        );
+        const monoFiles = await writeMonorepoFiles(contexts, config, dryRun, changelogConfig.file ?? 'CHANGELOG.md');
         files.push(...monoFiles);
       }
     } catch (error) {
@@ -351,7 +348,6 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
         const monoFiles = await writeMonorepoFiles(
           contexts,
           config,
-          mode,
           dryRun,
           releaseNotesConfig.file ?? 'RELEASE_NOTES.md',
         );
@@ -386,12 +382,9 @@ export async function processInput(inputJson: string, config: Config, dryRun: bo
 async function writeMonorepoFiles(
   contexts: TemplateContext[],
   config: Config,
-  location: 'root' | 'packages' | 'both',
   dryRun: boolean,
   fileName: string,
 ): Promise<string[]> {
-  if (location === 'root') return [];
-
   const { detectMonorepo, writeMonorepoChangelogs } = await import('../monorepo/aggregator.js');
   const cwd = process.cwd();
   const detected = detectMonorepo(cwd);

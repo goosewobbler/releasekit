@@ -252,4 +252,21 @@ describe('Pipeline: file-only config defaults mode to root', () => {
     expect(result.files).toContain('NOTES.md');
     expect(fs.writeFileSync).toHaveBeenCalledWith('NOTES.md', expect.any(String), 'utf-8');
   });
+
+  it('should not write a release notes file when only LLM config is set (no mode or file)', async () => {
+    const { runPipeline } = await import('../../../src/core/pipeline.js');
+
+    const config: Config = {
+      changelog: false,
+      releaseNotes: { llm: { provider: 'openai-compatible', model: 'gpt-4o', tasks: { releaseNotes: true } } },
+    };
+    const result = await runPipeline(sampleInput, config, false);
+
+    expect(result.files).toHaveLength(0);
+    expect(fs.writeFileSync).not.toHaveBeenCalledWith(
+      expect.stringContaining('RELEASE_NOTES'),
+      expect.anything(),
+      expect.anything(),
+    );
+  });
 });
