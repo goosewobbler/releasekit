@@ -113,8 +113,8 @@ export function createNotesCommand(): Command {
         }
 
         if (options.llm === false) {
-          info('LLM processing disabled via --no-llm flag');
-          if (config.releaseNotes && typeof config.releaseNotes !== 'boolean') {
+          if (config.releaseNotes && typeof config.releaseNotes !== 'boolean' && config.releaseNotes.llm) {
+            info('LLM processing disabled via --no-llm flag');
             config.releaseNotes = { ...config.releaseNotes, llm: undefined };
           }
         } else if (options.llmProvider || options.llmModel || options.llmBaseUrl || options.llmTasks) {
