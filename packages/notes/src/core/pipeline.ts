@@ -314,7 +314,13 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
       }
 
       if (mode === 'packages' || mode === 'both') {
-        const monoFiles = await writeMonorepoFiles(contexts, config, mode, dryRun);
+        const monoFiles = await writeMonorepoFiles(
+          contexts,
+          config,
+          mode,
+          dryRun,
+          changelogConfig.file ?? 'CHANGELOG.md',
+        );
         files.push(...monoFiles);
       }
     } catch (error) {
@@ -345,7 +351,13 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
       }
 
       if (mode === 'packages' || mode === 'both') {
-        const monoFiles = await writeMonorepoFiles(contexts, config, mode, dryRun);
+        const monoFiles = await writeMonorepoFiles(
+          contexts,
+          config,
+          mode,
+          dryRun,
+          releaseNotesConfig.file ?? 'RELEASE_NOTES.md',
+        );
         files.push(...monoFiles);
       }
     } catch (error) {
@@ -379,6 +391,7 @@ async function writeMonorepoFiles(
   config: Config,
   location: 'root' | 'packages' | 'both',
   dryRun: boolean,
+  fileName: string,
 ): Promise<string[]> {
   if (location === 'root') return [];
 
@@ -394,6 +407,7 @@ async function writeMonorepoFiles(
       rootPath: config.monorepo?.rootPath ?? cwd,
       packagesPath: config.monorepo?.packagesPath ?? detected.packagesPath,
       mode: 'packages',
+      fileName,
     },
     config,
     dryRun,

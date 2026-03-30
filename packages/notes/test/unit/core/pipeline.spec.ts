@@ -115,10 +115,12 @@ describe('Pipeline: config.llm.options passthrough', () => {
 });
 
 describe('Pipeline: mode both does not double-write root', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.mocked(fs.existsSync).mockReturnValue(false);
     vi.mocked(fs.mkdirSync).mockReturnValue(undefined as never);
     vi.mocked(fs.writeFileSync).mockReturnValue(undefined);
+    const { writeMonorepoChangelogs } = await import('../../../src/monorepo/aggregator.js');
+    vi.mocked(writeMonorepoChangelogs).mockClear();
   });
 
   it('should pass mode: packages to writeMonorepoChangelogs when changelog mode is both', async () => {
@@ -139,6 +141,46 @@ describe('Pipeline: mode both does not double-write root', () => {
       expect.objectContaining({ mode: 'both' }),
       expect.anything(),
       expect.anything(),
+    );
+  });
+
+  it('should pass the changelog fileName to writeMonorepoChangelogs', async () => {
+    const { writeMonorepoChangelogs } = await import('../../../src/monorepo/aggregator.js');
+    const { runPipeline } = await import('../../../src/core/pipeline.js');
+
+    const config: Config = { changelog: { mode: 'packages', file: 'CHANGES.md' } };
+    await runPipeline(sampleInput, config, false);
+
+    expect(writeMonorepoChangelogs).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ fileName: 'CHANGES.md' }),
+      expect.anything(),
+      false,
+    );
+  });
+
+  it('should pass separate fileNames when both changelog and releaseNotes use mode: packages', async () => {
+    const { writeMonorepoChangelogs } = await import('../../../src/monorepo/aggregator.js');
+    const { runPipeline } = await import('../../../src/core/pipeline.js');
+
+    const config: Config = {
+      changelog: { mode: 'packages', file: 'CHANGELOG.md' },
+      releaseNotes: { mode: 'packages', file: 'RELEASE_NOTES.md' },
+    };
+    await runPipeline(sampleInput, config, false);
+
+    expect(writeMonorepoChangelogs).toHaveBeenCalledTimes(2);
+    expect(writeMonorepoChangelogs).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ fileName: 'CHANGELOG.md' }),
+      expect.anything(),
+      false,
+    );
+    expect(writeMonorepoChangelogs).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ fileName: 'RELEASE_NOTES.md' }),
+      expect.anything(),
+      false,
     );
   });
 });

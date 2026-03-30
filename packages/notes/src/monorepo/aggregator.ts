@@ -9,6 +9,7 @@ export interface MonorepoOptions {
   rootPath: string;
   packagesPath: string;
   mode: 'root' | 'packages' | 'both';
+  fileName?: string;
 }
 
 /** Write a file and return true if written (not dry-run). */
@@ -62,7 +63,7 @@ export function writeMonorepoChangelogs(
   const files: string[] = [];
 
   if (options.mode === 'root' || options.mode === 'both') {
-    const rootPath = path.join(options.rootPath, 'CHANGELOG.md');
+    const rootPath = path.join(options.rootPath, options.fileName ?? 'CHANGELOG.md');
     // Root changelog includes package names since it aggregates multiple packages
     const fmtOpts = { includePackageName: true };
 
@@ -96,7 +97,7 @@ export function writeMonorepoChangelogs(
         packageDirMap.get(packageName) ?? (simpleName ? packageDirMap.get(simpleName) : undefined) ?? null;
 
       if (packageDir) {
-        const changelogPath = path.join(packageDir, 'CHANGELOG.md');
+        const changelogPath = path.join(packageDir, options.fileName ?? 'CHANGELOG.md');
         info(`Writing changelog for ${packageName} to ${changelogPath}`);
         const pkgContent =
           config.updateStrategy !== 'regenerate' && fs.existsSync(changelogPath)
