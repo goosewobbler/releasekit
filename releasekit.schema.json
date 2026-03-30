@@ -5,32 +5,6 @@
   "description": "Configuration schema for ReleaseKit - Automated versioning, changelog generation, and publishing",
   "type": "object",
   "additionalProperties": false,
-  "$defs": {
-    "MonorepoConfig": {
-      "type": "object",
-      "description": "Monorepo configuration",
-      "additionalProperties": false,
-      "properties": {
-        "mode": {
-          "type": "string",
-          "enum": ["root", "packages", "both"],
-          "description": "Changelog aggregation mode"
-        },
-        "rootPath": {
-          "type": "string",
-          "description": "Path to root changelog"
-        },
-        "packagesPath": {
-          "type": "string",
-          "description": "Path to packages directory"
-        },
-        "mainPackage": {
-          "type": "string",
-          "description": "Main package name for versioning"
-        }
-      }
-    }
-  },
   "properties": {
     "$schema": {
       "type": "string",
@@ -72,7 +46,28 @@
       }
     },
     "monorepo": {
-      "$ref": "#/$defs/MonorepoConfig"
+      "type": "object",
+      "description": "Monorepo configuration",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["root", "packages", "both"],
+          "description": "Changelog aggregation mode"
+        },
+        "rootPath": {
+          "type": "string",
+          "description": "Path to root changelog"
+        },
+        "packagesPath": {
+          "type": "string",
+          "description": "Path to packages directory"
+        },
+        "mainPackage": {
+          "type": "string",
+          "description": "Main package name for versioning"
+        }
+      }
     },
     "version": {
       "type": "object",
@@ -552,9 +547,6 @@
               }
             }
           ]
-        },
-        "monorepo": {
-          "$ref": "#/$defs/MonorepoConfig"
         }
       }
     },
