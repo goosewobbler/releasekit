@@ -65,15 +65,11 @@ export function createNotesCommand(): Command {
           config.changelog = false;
         } else if (options.changelogMode || options.changelogFile) {
           const existing = config.changelog !== false ? (config.changelog ?? {}) : {};
+          const mode = (options.changelogMode ?? existing.mode ?? 'root') as 'root' | 'packages' | 'both';
           config.changelog = {
             ...existing,
-            ...(options.changelogMode ? { mode: options.changelogMode as 'root' | 'packages' | 'both' } : {}),
-            ...(options.changelogFile
-              ? {
-                  mode: ((config.changelog as { mode?: string })?.mode ?? 'root') as 'root' | 'packages' | 'both',
-                  file: options.changelogFile,
-                }
-              : {}),
+            mode,
+            ...(options.changelogFile ? { file: options.changelogFile } : {}),
           };
         }
 
@@ -81,15 +77,11 @@ export function createNotesCommand(): Command {
           config.releaseNotes = false;
         } else if (options.releaseNotesMode || options.releaseNotesFile) {
           const existing = config.releaseNotes !== false ? (config.releaseNotes ?? {}) : {};
+          const mode = (options.releaseNotesMode ?? existing.mode ?? 'root') as 'root' | 'packages' | 'both';
           config.releaseNotes = {
             ...existing,
-            ...(options.releaseNotesMode ? { mode: options.releaseNotesMode } : {}),
-            ...(options.releaseNotesFile
-              ? {
-                  mode: existing.mode ?? 'root',
-                  file: options.releaseNotesFile,
-                }
-              : {}),
+            mode,
+            ...(options.releaseNotesFile ? { file: options.releaseNotesFile } : {}),
           };
         }
 

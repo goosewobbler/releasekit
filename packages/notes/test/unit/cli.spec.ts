@@ -197,6 +197,50 @@ describe('createNotesCommand', () => {
       );
     });
 
+    it('should preserve --changelog-mode when combined with --changelog-file', async () => {
+      vi.mocked(loadConfig).mockReturnValue(undefined as never);
+
+      await createNotesCommand().parse([
+        'node',
+        'test',
+        'generate',
+        '-i',
+        'input.json',
+        '--changelog-mode',
+        'packages',
+        '--changelog-file',
+        'CHANGES.md',
+      ]);
+
+      expect(runPipeline).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ changelog: expect.objectContaining({ mode: 'packages', file: 'CHANGES.md' }) }),
+        false,
+      );
+    });
+
+    it('should preserve --release-notes-mode when combined with --release-notes-file', async () => {
+      vi.mocked(loadConfig).mockReturnValue(undefined as never);
+
+      await createNotesCommand().parse([
+        'node',
+        'test',
+        'generate',
+        '-i',
+        'input.json',
+        '--release-notes-mode',
+        'packages',
+        '--release-notes-file',
+        'NOTES.md',
+      ]);
+
+      expect(runPipeline).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ releaseNotes: expect.objectContaining({ mode: 'packages', file: 'NOTES.md' }) }),
+        false,
+      );
+    });
+
     it('should set updateStrategy to regenerate with --regenerate', async () => {
       vi.mocked(loadConfig).mockReturnValue(undefined as never);
 
