@@ -14,8 +14,5 @@ export function loadConfig(projectDir: string = process.cwd(), configFile?: stri
 }
 
 export function getDefaultConfig(): NotesConfig {
-  return {
-    output: [{ format: 'markdown', file: 'CHANGELOG.md' }],
-    updateStrategy: 'prepend',
-  };
+  return {};
 }

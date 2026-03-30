@@ -48,12 +48,14 @@ describe('Pipeline: config.llm.options passthrough', () => {
   it('should pass config.llm.options to provider complete() calls', async () => {
     const { runPipeline } = await import('../../../src/core/pipeline.js');
     const config: Config = {
-      output: [{ format: 'markdown', file: '/dev/null' }],
-      llm: {
-        provider: 'ollama',
-        model: 'llama3',
-        options: { maxTokens: 8000, timeout: 90000, temperature: 0.2 },
-        tasks: { categorize: true },
+      changelog: false,
+      releaseNotes: {
+        llm: {
+          provider: 'ollama',
+          model: 'llama3',
+          options: { maxTokens: 8000, timeout: 90000, temperature: 0.2 },
+          tasks: { categorize: true },
+        },
       },
     };
 
@@ -65,11 +67,13 @@ describe('Pipeline: config.llm.options passthrough', () => {
   it('should work without config.llm.options set (no opts passed to complete)', async () => {
     const { runPipeline } = await import('../../../src/core/pipeline.js');
     const config: Config = {
-      output: [{ format: 'markdown', file: '/dev/null' }],
-      llm: {
-        provider: 'ollama',
-        model: 'llama3',
-        tasks: { categorize: true },
+      changelog: false,
+      releaseNotes: {
+        llm: {
+          provider: 'ollama',
+          model: 'llama3',
+          tasks: { categorize: true },
+        },
       },
     };
 
@@ -85,12 +89,14 @@ describe('Pipeline: config.llm.options passthrough', () => {
     // We verify the config options ARE present when no per-call override exists.
     const { runPipeline } = await import('../../../src/core/pipeline.js');
     const config: Config = {
-      output: [{ format: 'markdown', file: '/dev/null' }],
-      llm: {
-        provider: 'ollama',
-        model: 'llama3',
-        options: { maxTokens: 4000 },
-        tasks: { categorize: true },
+      changelog: false,
+      releaseNotes: {
+        llm: {
+          provider: 'ollama',
+          model: 'llama3',
+          options: { maxTokens: 4000 },
+          tasks: { categorize: true },
+        },
       },
     };
 

@@ -18,12 +18,10 @@ describe('loadConfig()', () => {
     delete process.env.TEST_API_KEY;
   });
 
-  it('should return default config when no config file exists', () => {
+  it('should return empty config when no config file exists', () => {
     withTempDir((dir) => {
       const config = loadConfig(dir);
-      expect(config.output[0]?.format).toBe('markdown');
-      expect(config.output[0]?.file).toBe('CHANGELOG.md');
-      expect(config.updateStrategy).toBe('prepend');
+      expect(config).toEqual({});
     });
   });
 
@@ -33,16 +31,14 @@ describe('loadConfig()', () => {
         path.join(dir, 'releasekit.config.json'),
         JSON.stringify({
           notes: {
-            output: [{ format: 'json', file: 'out.json' }],
-            updateStrategy: 'regenerate',
+            changelog: { mode: 'packages', file: 'CHANGELOG.md' },
           },
         }),
         'utf-8',
       );
 
       const config = loadConfig(dir);
-      expect(config.output[0]?.format).toBe('json');
-      expect(config.updateStrategy).toBe('regenerate');
+      expect(config.changelog).toMatchObject({ mode: 'packages', file: 'CHANGELOG.md' });
     });
   });
 
@@ -54,15 +50,17 @@ describe('loadConfig()', () => {
         path.join(dir, 'releasekit.config.json'),
         JSON.stringify({
           notes: {
-            output: [],
-            llm: { provider: 'openai', model: 'gpt-4o-mini', apiKey: '{env:TEST_API_KEY}' },
+            releaseNotes: {
+              llm: { provider: 'openai', model: 'gpt-4o-mini', apiKey: '{env:TEST_API_KEY}' },
+            },
           },
         }),
         'utf-8',
       );
 
       const config = loadConfig(dir);
-      expect(config.llm?.apiKey).toBe('sk-test-123');
+      expect(config.releaseNotes).not.toBe(false);
+      expect((config.releaseNotes as { llm?: { apiKey?: string } })?.llm?.apiKey).toBe('sk-test-123');
     });
   });
 
@@ -72,15 +70,17 @@ describe('loadConfig()', () => {
         path.join(dir, 'releasekit.config.json'),
         JSON.stringify({
           notes: {
-            output: [],
-            llm: { provider: 'openai', model: 'gpt-4o-mini', apiKey: '{env:DEFINITELY_NOT_SET_XYZ}' },
+            releaseNotes: {
+              llm: { provider: 'openai', model: 'gpt-4o-mini', apiKey: '{env:DEFINITELY_NOT_SET_XYZ}' },
+            },
           },
         }),
         'utf-8',
       );
 
       const config = loadConfig(dir);
-      expect(config.llm?.apiKey).toBeUndefined();
+      expect(config.releaseNotes).not.toBe(false);
+      expect((config.releaseNotes as { llm?: { apiKey?: string } })?.llm?.apiKey).toBeUndefined();
     });
   });
 
@@ -89,18 +89,14 @@ describe('loadConfig()', () => {
       fs.writeFileSync(
         path.join(dir, 'releasekit.config.json'),
         `{
-  // This is a comment
-  "notes": {
-    "output": [{ "format": "markdown" }],
-    /* block comment */
-    "updateStrategy": "regenerate"
-  }
+  // comment
+  "notes": { "changelog": { "mode": "packages" } }
 }`,
         'utf-8',
       );
 
       const config = loadConfig(dir);
-      expect(config.updateStrategy).toBe('regenerate');
+      expect(config.changelog).toMatchObject({ mode: 'packages' });
     });
   });
 
@@ -108,15 +104,15 @@ describe('loadConfig()', () => {
     withTempDir((dir) => {
       fs.writeFileSync(
         path.join(dir, 'releasekit.config.json'),
-        JSON.stringify({ notes: { output: [{ format: 'markdown' }] } }),
+        JSON.stringify({ notes: { changelog: false } }),
         'utf-8',
       );
 
       const customPath = path.join(dir, 'custom.json');
-      fs.writeFileSync(customPath, JSON.stringify({ notes: { output: [{ format: 'json' }] } }), 'utf-8');
+      fs.writeFileSync(customPath, JSON.stringify({ notes: { changelog: { mode: 'packages' } } }), 'utf-8');
 
       const config = loadConfig(dir, customPath);
-      expect(config.output[0]?.format).toBe('json');
+      expect(config.changelog).toMatchObject({ mode: 'packages' });
     });
   });
 

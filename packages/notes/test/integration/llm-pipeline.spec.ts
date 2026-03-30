@@ -58,12 +58,14 @@ const sampleInput: ChangelogInput = {
 describe('Pipeline: dry-run skips LLM', () => {
   it('should not throw even when LLM provider is misconfigured', async () => {
     // If dry-run skips LLM, a nonexistent provider should not cause a failure.
-    const config: Config = {
-      output: [{ format: 'markdown', file: '/dev/null' }],
-      llm: { provider: 'nonexistent-provider', model: 'any', tasks: { enhance: true } },
+    const config = {
+      changelog: false,
+      releaseNotes: {
+        llm: { provider: 'nonexistent-provider', model: 'any', tasks: { enhance: true } },
+      },
     };
 
-    await expect(runPipeline(sampleInput, config, true)).resolves.not.toThrow();
+    await expect(runPipeline(sampleInput, config as any, true)).resolves.not.toThrow();
   });
 });
 
@@ -176,12 +178,14 @@ describe('Pipeline: LLM error fallback', () => {
   it('should not throw when LLM createProvider throws', async () => {
     // 'nonexistent-provider' will throw LLMError inside createProvider,
     // which is caught by the try/catch in processWithLLM → falls back to raw entries.
-    const config: Config = {
-      output: [{ format: 'markdown', file: '/dev/null' }],
-      llm: { provider: 'nonexistent-provider', model: 'any', tasks: { enhance: true } },
+    const config = {
+      changelog: false,
+      releaseNotes: {
+        llm: { provider: 'nonexistent-provider', model: 'any', tasks: { enhance: true } },
+      },
     };
 
-    await expect(runPipeline(sampleInput, config, false)).resolves.not.toThrow();
+    await expect(runPipeline(sampleInput, config as any, false)).resolves.not.toThrow();
   });
 });
 
@@ -217,11 +221,11 @@ describe('Pipeline: package name in changelog headers', () => {
     };
 
     const outFile = path.join(tmpDir, 'CHANGELOG.md');
-    const config: Config = {
-      output: [{ format: 'markdown', file: outFile }],
+    const config = {
+      changelog: { mode: 'root', file: outFile },
     };
 
-    await runPipeline(scopedInput, config, false);
+    await runPipeline(scopedInput, config as any, false);
 
     const content = fs.readFileSync(outFile, 'utf-8');
     expect(content).toContain('## [@releasekit/notes@0.3.0]');
@@ -244,11 +248,11 @@ describe('Pipeline: package name in changelog headers', () => {
     };
 
     const outFile = path.join(tmpDir, 'CHANGELOG.md');
-    const config: Config = {
-      output: [{ format: 'markdown', file: outFile }],
+    const config = {
+      changelog: { mode: 'root', file: outFile },
     };
 
-    await runPipeline(unscopedInput, config, false);
+    await runPipeline(unscopedInput, config as any, false);
 
     const content = fs.readFileSync(outFile, 'utf-8');
     expect(content).toContain('## [2.0.0]');

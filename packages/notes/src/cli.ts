@@ -2,11 +2,10 @@
 import * as fs from 'node:fs';
 import * as readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
+import { loadConfig, saveAuth } from '@releasekit/config';
 import { EXIT_CODES, error, info, readPackageVersion, setLogLevel, setQuietMode, success } from '@releasekit/core';
 import { Command } from 'commander';
-import { getDefaultConfig, loadConfig, saveAuth } from './core/config.js';
 import { runPipeline } from './core/pipeline.js';
-import type { OutputConfig } from './core/types.js';
 import { getExitCode, NotesError } from './errors/index.js';
 import { parseVersionOutput } from './input/version-output.js';
 
@@ -19,7 +18,12 @@ export function createNotesCommand(): Command {
     .command('generate', { isDefault: true })
     .description('Generate changelog from input data')
     .option('-i, --input <file>', 'Input file (default: stdin)')
-    .option('-o, --output <spec>', 'Output spec (format:file)', collectOutputs, [] as OutputConfig[])
+    .option('--no-changelog', 'Disable changelog generation')
+    .option('--changelog-mode <mode>', 'Changelog location mode (root|packages|both)')
+    .option('--changelog-file <name>', 'Changelog file name override')
+    .option('--release-notes-mode <mode>', 'Enable release notes and set location (root|packages|both)')
+    .option('--release-notes-file <name>', 'Release notes file name override')
+    .option('--no-release-notes', 'Disable release notes generation')
     .option('-t, --template <path>', 'Template file or directory')
     .option('-e, --engine <engine>', 'Template engine (handlebars|liquid|ejs)')
     .option('--monorepo <mode>', 'Monorepo mode (root|packages|both)')
@@ -31,7 +35,6 @@ export function createNotesCommand(): Command {
     .option('--target <package>', 'Filter to a specific package name')
     .option('--config <path>', 'Config file path')
     .option('--dry-run', 'Preview without writing')
-    .option('--regenerate', 'Regenerate entire changelog')
     .option('-v, --verbose', 'Increase verbosity', increaseVerbosity, 0)
     .option('-q, --quiet', 'Suppress non-error output')
     .action(async (options) => {
@@ -39,50 +42,87 @@ export function createNotesCommand(): Command {
       if (options.quiet) setQuietMode(true);
 
       try {
-        const config = loadConfig(process.cwd(), options.config);
+        const loadedConfig = loadConfig({ cwd: process.cwd(), configPath: options.config });
+        const config: import('./core/types.js').Config = loadedConfig?.notes ?? {};
 
-        if (options.output.length > 0) {
-          config.output = options.output;
+        if (options.changelog === false) {
+          config.changelog = false;
+        } else {
+          const existing = config.changelog !== false ? (config.changelog ?? {}) : {};
+          if (options.changelogMode) {
+            config.changelog = { ...existing, mode: options.changelogMode as 'root' | 'packages' | 'both' };
+          } else if (options.changelogFile) {
+            config.changelog = { ...existing };
+          }
+          if (options.changelogFile && config.changelog !== false) {
+            config.changelog = { ...(config.changelog ?? {}), file: options.changelogFile };
+          }
         }
 
-        if (config.output.length === 0) {
-          config.output = getDefaultConfig().output;
-        }
-
-        if (options.regenerate) {
-          config.updateStrategy = 'regenerate';
+        if (options.releaseNotes === false) {
+          config.releaseNotes = false;
+        } else {
+          const existing = config.releaseNotes !== false ? (config.releaseNotes ?? {}) : {};
+          if (options.releaseNotesMode) {
+            config.releaseNotes = { ...existing, mode: options.releaseNotesMode as 'root' | 'packages' | 'both' };
+          }
+          if (options.releaseNotesFile && config.releaseNotes !== false) {
+            config.releaseNotes = { ...(config.releaseNotes ?? {}), file: options.releaseNotesFile };
+          }
         }
 
         if (options.template) {
-          config.templates = { ...config.templates, path: options.template };
+          const existing = config.changelog !== false ? (config.changelog ?? {}) : {};
+          config.changelog = {
+            ...existing,
+            templates: { ...existing.templates, path: options.template },
+          };
         }
 
         if (options.engine) {
-          config.templates = { ...config.templates, engine: options.engine };
+          const existing = config.changelog !== false ? (config.changelog ?? {}) : {};
+          config.changelog = {
+            ...existing,
+            templates: { ...existing.templates, engine: options.engine as 'handlebars' | 'liquid' | 'ejs' },
+          };
         }
 
         if (options.llm === false) {
           info('LLM processing disabled via --no-llm flag');
-          delete config.llm;
+          if (config.releaseNotes && config.releaseNotes !== false) {
+            config.releaseNotes = { ...config.releaseNotes, llm: undefined };
+          }
         } else if (options.llmProvider || options.llmModel || options.llmBaseUrl || options.llmTasks) {
-          config.llm = config.llm ?? { provider: 'openai-compatible', model: '' };
-          if (options.llmProvider) config.llm.provider = options.llmProvider;
-          if (options.llmModel) config.llm.model = options.llmModel;
-          if (options.llmBaseUrl) config.llm.baseURL = options.llmBaseUrl;
+          const existingRn = config.releaseNotes !== false ? (config.releaseNotes ?? {}) : {};
+          const existingLlm = existingRn.llm;
+          const llm = {
+            provider: existingLlm?.provider ?? 'openai-compatible',
+            model: existingLlm?.model ?? '',
+            ...(existingLlm ?? {}),
+          };
+          if (options.llmProvider) llm.provider = options.llmProvider;
+          if (options.llmModel) llm.model = options.llmModel;
+          if (options.llmBaseUrl) llm.baseURL = options.llmBaseUrl;
           if (options.llmTasks) {
             const taskNames = (options.llmTasks as string).split(',').map((t: string) => t.trim());
-            config.llm.tasks = {
+            llm.tasks = {
               enhance: taskNames.includes('enhance'),
               summarize: taskNames.includes('summarize'),
               categorize: taskNames.includes('categorize'),
               releaseNotes: taskNames.includes('release-notes') || taskNames.includes('releaseNotes'),
             };
           }
-          info(`LLM configured: ${config.llm.provider}${config.llm.model ? ` (${config.llm.model})` : ''}`);
-          if (config.llm.baseURL) {
-            info(`LLM base URL: ${config.llm.baseURL}`);
+
+          config.releaseNotes = {
+            ...existingRn,
+            llm: llm as import('./core/types.js').LLMConfig,
+          };
+
+          info(`LLM configured: ${llm.provider}${llm.model ? ` (${llm.model})` : ''}`);
+          if (llm.baseURL) {
+            info(`LLM base URL: ${llm.baseURL}`);
           }
-          const taskList = Object.entries(config.llm.tasks || {})
+          const taskList = Object.entries(llm.tasks || {})
             .filter(([, enabled]) => enabled)
             .map(([name]) => name)
             .join(', ');
@@ -142,8 +182,10 @@ export function createNotesCommand(): Command {
       const defaultConfig = {
         $schema: 'https://releasekit.dev/schema.json',
         notes: {
-          output: [{ format: 'markdown', file: 'CHANGELOG.md' }],
-          updateStrategy: 'prepend',
+          changelog: {
+            enabled: true,
+            file: { name: 'CHANGELOG.md', location: 'packages' },
+          },
         },
       };
 
@@ -187,25 +229,11 @@ export function createNotesCommand(): Command {
   return cmd;
 }
 
-function collectOutputs(value: string, previous: OutputConfig[]): OutputConfig[] {
-  const parts = value.split(':');
-  const format = (parts[0] ?? 'markdown') as OutputConfig['format'];
-  const file = parts[1];
-  const spec: OutputConfig = { format };
-
-  if (file) {
-    spec.file = file;
-  }
-
-  return [...previous, spec];
-}
-
 function increaseVerbosity(_: string, previous: number): number {
   return previous + 1;
 }
 
 function setVerbosity(level: number): void {
-  // 0 = info (default), 1 = debug (-v), 2 = trace (-vv)
   const levels = ['info', 'debug', 'trace'] as const;
   setLogLevel(levels[Math.min(level, levels.length - 1)] ?? 'info');
 }
@@ -240,7 +268,6 @@ function handleError(err: unknown): void {
   process.exit(EXIT_CODES.GENERAL_ERROR);
 }
 
-// Standalone entry point (only when run directly, not when imported by dispatcher)
 const isMain = (() => {
   try {
     return process.argv[1] ? fs.realpathSync(process.argv[1]) === fileURLToPath(import.meta.url) : false;
