@@ -540,6 +540,36 @@
                           }
                         }
                       }
+                    },
+                    "retry": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "maxAttempts": { "type": "integer", "minimum": 1, "description": "Maximum number of attempts" },
+                        "initialDelay": { "type": "integer", "minimum": 0, "description": "Initial delay in ms" },
+                        "maxDelay": { "type": "integer", "minimum": 0, "description": "Maximum delay in ms" },
+                        "backoffFactor": {
+                          "type": "number",
+                          "minimum": 1,
+                          "description": "Delay multiplier per attempt"
+                        }
+                      }
+                    },
+                    "prompts": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "instructions": {
+                          "type": "object",
+                          "additionalProperties": { "type": "string" },
+                          "description": "Per-task instruction overrides"
+                        },
+                        "templates": {
+                          "type": "object",
+                          "additionalProperties": { "type": "string" },
+                          "description": "Per-task prompt template overrides"
+                        }
+                      }
                     }
                   },
                   "required": ["provider", "model"]
@@ -547,6 +577,11 @@
               }
             }
           ]
+        },
+        "updateStrategy": {
+          "type": "string",
+          "enum": ["prepend", "regenerate"],
+          "description": "How to update existing changelog files. 'prepend' adds new entries to the top; 'regenerate' rewrites the file from scratch."
         }
       }
     },
