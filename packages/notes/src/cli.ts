@@ -89,11 +89,11 @@ export function createNotesCommand(): Command {
 
         if (options.llm === false) {
           info('LLM processing disabled via --no-llm flag');
-          if (config.releaseNotes && config.releaseNotes !== false) {
+          if (config.releaseNotes && typeof config.releaseNotes !== 'boolean') {
             config.releaseNotes = { ...config.releaseNotes, llm: undefined };
           }
         } else if (options.llmProvider || options.llmModel || options.llmBaseUrl || options.llmTasks) {
-          const existingRn = config.releaseNotes !== false ? (config.releaseNotes ?? {}) : {};
+          const existingRn = typeof config.releaseNotes === 'object' ? config.releaseNotes : {};
           const existingLlm = existingRn.llm;
           const llm = {
             provider: existingLlm?.provider ?? 'openai-compatible',
