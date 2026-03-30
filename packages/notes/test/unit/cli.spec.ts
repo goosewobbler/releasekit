@@ -78,6 +78,58 @@ describe('createNotesCommand', () => {
       );
     });
 
+    it('should default changelog mode to root when only --changelog-file is set', async () => {
+      vi.mocked(loadConfig).mockReturnValue(undefined as never);
+
+      await createNotesCommand().parse([
+        'node',
+        'test',
+        'generate',
+        '-i',
+        'input.json',
+        '--changelog-file',
+        'CHANGES.md',
+      ]);
+
+      expect(runPipeline).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ changelog: expect.objectContaining({ mode: 'root', file: 'CHANGES.md' }) }),
+        false,
+      );
+    });
+
+    it('should default release notes mode to root when only --release-notes-file is set', async () => {
+      vi.mocked(loadConfig).mockReturnValue(undefined as never);
+
+      await createNotesCommand().parse([
+        'node',
+        'test',
+        'generate',
+        '-i',
+        'input.json',
+        '--release-notes-file',
+        'NOTES.md',
+      ]);
+
+      expect(runPipeline).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ releaseNotes: expect.objectContaining({ mode: 'root', file: 'NOTES.md' }) }),
+        false,
+      );
+    });
+
+    it('should set updateStrategy to regenerate with --regenerate', async () => {
+      vi.mocked(loadConfig).mockReturnValue(undefined as never);
+
+      await createNotesCommand().parse(['node', 'test', 'generate', '-i', 'input.json', '--regenerate']);
+
+      expect(runPipeline).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ updateStrategy: 'regenerate' }),
+        false,
+      );
+    });
+
     it('should pass --dry-run flag to pipeline', async () => {
       vi.mocked(loadConfig).mockReturnValue(undefined as never);
 

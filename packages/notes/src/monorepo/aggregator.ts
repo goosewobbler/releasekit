@@ -68,7 +68,7 @@ export function writeMonorepoChangelogs(
 
     info(`Writing root changelog to ${rootPath}`);
     let rootContent: string;
-    if (config.updateStrategy === 'prepend' && fs.existsSync(rootPath)) {
+    if (config.updateStrategy !== 'regenerate' && fs.existsSync(rootPath)) {
       // Build new sections and prepend to existing file
       const newSections = contexts.map((ctx) => formatVersion(ctx, fmtOpts)).join('\n');
       const existing = fs.readFileSync(rootPath, 'utf-8');
@@ -99,7 +99,7 @@ export function writeMonorepoChangelogs(
         const changelogPath = path.join(packageDir, 'CHANGELOG.md');
         info(`Writing changelog for ${packageName} to ${changelogPath}`);
         const pkgContent =
-          config.updateStrategy === 'prepend' && fs.existsSync(changelogPath)
+          config.updateStrategy !== 'regenerate' && fs.existsSync(changelogPath)
             ? prependVersion(changelogPath, ctx)
             : renderMarkdown([ctx]);
         if (writeFile(changelogPath, pkgContent, dryRun)) {
