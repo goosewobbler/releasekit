@@ -78,6 +78,40 @@ describe('createNotesCommand', () => {
       );
     });
 
+    it('should keep changelog disabled when --no-changelog and --template are combined', async () => {
+      vi.mocked(loadConfig).mockReturnValue(undefined as never);
+
+      await createNotesCommand().parse([
+        'node',
+        'test',
+        'generate',
+        '-i',
+        'input.json',
+        '--no-changelog',
+        '--template',
+        'my-template',
+      ]);
+
+      expect(runPipeline).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ changelog: false }), false);
+    });
+
+    it('should keep changelog disabled when --no-changelog and --engine are combined', async () => {
+      vi.mocked(loadConfig).mockReturnValue(undefined as never);
+
+      await createNotesCommand().parse([
+        'node',
+        'test',
+        'generate',
+        '-i',
+        'input.json',
+        '--no-changelog',
+        '--engine',
+        'handlebars',
+      ]);
+
+      expect(runPipeline).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ changelog: false }), false);
+    });
+
     it('should default changelog mode to root when only --changelog-file is set', async () => {
       vi.mocked(loadConfig).mockReturnValue(undefined as never);
 

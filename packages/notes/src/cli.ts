@@ -81,16 +81,16 @@ export function createNotesCommand(): Command {
           }
         }
 
-        if (options.template) {
-          const existing = config.changelog !== false ? (config.changelog ?? {}) : {};
+        if (options.template && config.changelog !== false) {
+          const existing = config.changelog ?? {};
           config.changelog = {
             ...existing,
             templates: { ...existing.templates, path: options.template },
           };
         }
 
-        if (options.engine) {
-          const existing = config.changelog !== false ? (config.changelog ?? {}) : {};
+        if (options.engine && config.changelog !== false) {
+          const existing = config.changelog ?? {};
           config.changelog = {
             ...existing,
             templates: { ...existing.templates, engine: options.engine as 'handlebars' | 'liquid' | 'ejs' },
