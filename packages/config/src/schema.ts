@@ -248,6 +248,7 @@ export const NotesInputConfigSchema = z.object({
 export const NotesConfigSchema = z.object({
   changelog: z.union([z.literal(false), ChangelogConfigSchema]).optional(),
   releaseNotes: z.union([z.literal(false), ReleaseNotesConfigSchema]).optional(),
+  updateStrategy: z.enum(['prepend', 'regenerate']).optional(),
 });
 
 export const CILabelsConfigSchema = z.object({
