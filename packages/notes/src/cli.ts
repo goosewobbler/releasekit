@@ -3,7 +3,16 @@ import * as fs from 'node:fs';
 import * as readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, saveAuth } from '@releasekit/config';
-import { EXIT_CODES, error, info, readPackageVersion, setLogLevel, setQuietMode, success } from '@releasekit/core';
+import {
+  EXIT_CODES,
+  error,
+  info,
+  readPackageVersion,
+  setLogLevel,
+  setQuietMode,
+  success,
+  warn,
+} from '@releasekit/core';
 import { Command } from 'commander';
 import { runPipeline } from './core/pipeline.js';
 import { getExitCode, NotesError } from './errors/index.js';
@@ -77,6 +86,13 @@ export function createNotesCommand(): Command {
                 }
               : {}),
           };
+        }
+
+        if (config.changelog === false && (options.template || options.engine)) {
+          const ignored = [options.template && '--template', options.engine && '--engine']
+            .filter(Boolean)
+            .join(' and ');
+          warn(`${ignored} ignored: changelog is disabled via --no-changelog`);
         }
 
         if (options.template && config.changelog !== false) {

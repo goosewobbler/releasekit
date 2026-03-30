@@ -25,6 +25,7 @@ import type {
   LLMConfig,
   PackageChangelog,
   TemplateContext,
+  TemplateEngine,
 } from './types.js';
 
 function generateCompareUrl(repoUrl: string, from: string, to: string, packageName?: string): string {
@@ -228,11 +229,7 @@ async function generateWithTemplate(
 
   const documentContext = createDocumentContext(contexts, templatesConfig?.path ? undefined : repoUrl);
 
-  const result = renderTemplate(
-    templatePath,
-    documentContext,
-    templatesConfig?.engine as 'handlebars' | 'ejs' | undefined,
-  );
+  const result = renderTemplate(templatePath, documentContext, templatesConfig?.engine as TemplateEngine | undefined);
 
   if (dryRun) {
     info(`[DRY RUN] Changelog preview (would write to ${outputPath}):`);

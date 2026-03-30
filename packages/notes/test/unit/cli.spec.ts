@@ -11,6 +11,7 @@ vi.mock('../../src/monorepo/aggregator.js', () => ({
 }));
 
 import { loadConfig } from '@releasekit/config';
+import { warn } from '@releasekit/core';
 import { createNotesCommand } from '../../src/cli.js';
 import { runPipeline } from '../../src/core/pipeline.js';
 import { parseVersionOutput } from '../../src/input/version-output.js';
@@ -110,6 +111,50 @@ describe('createNotesCommand', () => {
       ]);
 
       expect(runPipeline).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ changelog: false }), false);
+    });
+
+    it('should warn when --template is ignored due to --no-changelog', async () => {
+      vi.mocked(loadConfig).mockReturnValue(undefined as never);
+
+      await createNotesCommand().parse([
+        'node',
+        'test',
+        'generate',
+        '-i',
+        'input.json',
+        '--no-changelog',
+        '--template',
+        'my-template',
+      ]);
+
+      expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining('--template'));
+      expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining('--no-changelog'));
+    });
+
+    it('should warn when --engine is ignored due to --no-changelog', async () => {
+      vi.mocked(loadConfig).mockReturnValue(undefined as never);
+
+      await createNotesCommand().parse([
+        'node',
+        'test',
+        'generate',
+        '-i',
+        'input.json',
+        '--no-changelog',
+        '--engine',
+        'handlebars',
+      ]);
+
+      expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining('--engine'));
+      expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining('--no-changelog'));
+    });
+
+    it('should not warn when --template is used without --no-changelog', async () => {
+      vi.mocked(loadConfig).mockReturnValue(undefined as never);
+
+      await createNotesCommand().parse(['node', 'test', 'generate', '-i', 'input.json', '--template', 'my-template']);
+
+      expect(vi.mocked(warn)).not.toHaveBeenCalledWith(expect.stringContaining('--template'));
     });
 
     it('should default changelog mode to root when only --changelog-file is set', async () => {
