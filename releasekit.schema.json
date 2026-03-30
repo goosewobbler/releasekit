@@ -5,6 +5,32 @@
   "description": "Configuration schema for ReleaseKit - Automated versioning, changelog generation, and publishing",
   "type": "object",
   "additionalProperties": false,
+  "$defs": {
+    "MonorepoConfig": {
+      "type": "object",
+      "description": "Monorepo configuration",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["root", "packages", "both"],
+          "description": "Changelog aggregation mode"
+        },
+        "rootPath": {
+          "type": "string",
+          "description": "Path to root changelog"
+        },
+        "packagesPath": {
+          "type": "string",
+          "description": "Path to packages directory"
+        },
+        "mainPackage": {
+          "type": "string",
+          "description": "Main package name for versioning"
+        }
+      }
+    }
+  },
   "properties": {
     "$schema": {
       "type": "string",
@@ -46,28 +72,7 @@
       }
     },
     "monorepo": {
-      "type": "object",
-      "description": "Monorepo configuration",
-      "additionalProperties": false,
-      "properties": {
-        "mode": {
-          "type": "string",
-          "enum": ["root", "packages", "both"],
-          "description": "Changelog aggregation mode"
-        },
-        "rootPath": {
-          "type": "string",
-          "description": "Path to root changelog"
-        },
-        "packagesPath": {
-          "type": "string",
-          "description": "Path to packages directory"
-        },
-        "mainPackage": {
-          "type": "string",
-          "description": "Main package name for versioning"
-        }
-      }
+      "$ref": "#/$defs/MonorepoConfig"
     },
     "version": {
       "type": "object",
@@ -172,6 +177,7 @@
         "cargo": {
           "type": "object",
           "description": "Cargo/Rust configuration",
+          "additionalProperties": false,
           "properties": {
             "enabled": {
               "type": "boolean",
@@ -227,6 +233,7 @@
         "npm": {
           "type": "object",
           "description": "NPM publishing configuration",
+          "additionalProperties": false,
           "properties": {
             "enabled": {
               "type": "boolean",
@@ -271,6 +278,7 @@
         "cargo": {
           "type": "object",
           "description": "Cargo publishing configuration",
+          "additionalProperties": false,
           "properties": {
             "enabled": {
               "type": "boolean",
@@ -298,6 +306,7 @@
         "githubRelease": {
           "type": "object",
           "description": "GitHub Release configuration",
+          "additionalProperties": false,
           "properties": {
             "enabled": {
               "type": "boolean",
@@ -319,19 +328,22 @@
               "default": "auto",
               "description": "Mark as prerelease"
             },
-            "releaseNotes": {
+            "body": {
               "type": "string",
+              "enum": ["auto", "releaseNotes", "changelog", "generated", "none"],
               "default": "auto",
-              "description": "How to source release notes. 'auto': RELEASE_NOTES.md → per-package changelog → GitHub auto-notes. 'github': GitHub auto-notes. 'none': no notes. Any other string: file path."
+              "description": "Source for GitHub release body. 'auto': use release notes if enabled, else changelog, else GitHub auto. 'releaseNotes': use LLM-generated release notes. 'changelog': use changelog entries. 'generated': GitHub auto-generated. 'none': no body."
             }
           }
         },
         "verify": {
           "type": "object",
           "description": "Registry verification configuration",
+          "additionalProperties": false,
           "properties": {
             "npm": {
               "type": "object",
+              "additionalProperties": false,
               "properties": {
                 "enabled": {
                   "type": "boolean",
@@ -360,6 +372,7 @@
             },
             "cargo": {
               "type": "object",
+              "additionalProperties": false,
               "properties": {
                 "enabled": {
                   "type": "boolean",
@@ -392,271 +405,156 @@
     },
     "notes": {
       "type": "object",
-      "description": "Changelog generation configuration",
+      "description": "Changelog and release notes configuration",
       "additionalProperties": false,
       "properties": {
-        "input": {
-          "type": "object",
-          "description": "Input source configuration",
-          "properties": {
-            "source": {
-              "type": "string",
-              "description": "Input source type"
-            },
-            "file": {
-              "type": "string",
-              "description": "Input file path"
-            }
-          }
-        },
-        "output": {
-          "type": "array",
-          "description": "Output configurations",
-          "default": [{ "format": "markdown", "file": "CHANGELOG.md" }],
-          "items": {
-            "type": "object",
-            "properties": {
-              "format": {
-                "type": "string",
-                "enum": ["markdown", "github-release", "json"],
-                "description": "Output format"
-              },
-              "file": {
-                "type": "string",
-                "description": "Output file path"
-              },
-              "options": {
-                "type": "object",
-                "description": "Format-specific options"
-              },
-              "templates": {
-                "type": "object",
-                "description": "Per-output template configuration",
-                "properties": {
-                  "path": {
-                    "type": "string",
-                    "description": "Path to custom template"
-                  },
-                  "engine": {
-                    "type": "string",
-                    "enum": ["handlebars", "liquid", "ejs"],
-                    "description": "Template engine"
-                  }
-                }
-              }
-            },
-            "required": ["format"]
-          }
-        },
-        "monorepo": {
-          "$ref": "#/properties/monorepo"
-        },
-        "templates": {
-          "type": "object",
-          "description": "Template configuration",
-          "properties": {
-            "path": {
-              "type": "string",
-              "description": "Path to custom templates"
-            },
-            "engine": {
-              "type": "string",
-              "enum": ["handlebars", "liquid", "ejs"],
-              "description": "Template engine"
-            }
-          }
-        },
-        "llm": {
-          "type": "object",
-          "description": "LLM configuration for enhanced changelogs",
-          "properties": {
-            "provider": {
-              "type": "string",
-              "description": "LLM provider (e.g., 'anthropic', 'openai', 'ollama')"
-            },
-            "model": {
-              "type": "string",
-              "description": "Model identifier"
-            },
-            "baseURL": {
-              "type": "string",
-              "description": "Custom API base URL"
-            },
-            "apiKey": {
-              "type": "string",
-              "description": "API key (consider using environment variables)"
-            },
-            "options": {
+        "changelog": {
+          "oneOf": [
+            { "type": "boolean", "enum": [false], "description": "Set to false to disable changelog generation" },
+            {
               "type": "object",
-              "description": "LLM request options",
-              "properties": {
-                "timeout": {
-                  "type": "integer",
-                  "description": "Request timeout in milliseconds"
-                },
-                "maxTokens": {
-                  "type": "integer",
-                  "description": "Maximum tokens to generate"
-                },
-                "temperature": {
-                  "type": "number",
-                  "description": "Sampling temperature"
-                }
-              }
-            },
-            "concurrency": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Number of concurrent LLM requests"
-            },
-            "retry": {
-              "type": "object",
-              "description": "Retry configuration",
-              "properties": {
-                "maxAttempts": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "description": "Maximum retry attempts"
-                },
-                "initialDelay": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "description": "Initial retry delay in milliseconds"
-                },
-                "maxDelay": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "description": "Maximum retry delay in milliseconds"
-                },
-                "backoffFactor": {
-                  "type": "number",
-                  "minimum": 1,
-                  "description": "Exponential backoff factor"
-                }
-              }
-            },
-            "tasks": {
-              "type": "object",
-              "description": "LLM task toggles",
-              "properties": {
-                "summarize": {
-                  "type": "boolean",
-                  "description": "Enable summarization"
-                },
-                "enhance": {
-                  "type": "boolean",
-                  "description": "Enable entry enhancement"
-                },
-                "categorize": {
-                  "type": "boolean",
-                  "description": "Enable categorization"
-                },
-                "releaseNotes": {
-                  "type": "boolean",
-                  "description": "Enable release note generation"
-                }
-              }
-            },
-            "categories": {
-              "type": "array",
-              "description": "Custom categories for Developer section",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "description": "Category name"
-                  },
-                  "description": {
-                    "type": "string",
-                    "description": "Category description"
-                  },
-                  "scopes": {
-                    "type": "array",
-                    "items": { "type": "string" },
-                    "description": "Scopes belonging to this category"
-                  }
-                },
-                "required": ["name", "description"]
-              }
-            },
-            "style": {
-              "type": "string",
-              "description": "Writing style for LLM-generated content"
-            },
-            "scopes": {
-              "type": "object",
-              "description": "Scope validation configuration",
+              "description": "Changelog file configuration",
+              "additionalProperties": false,
               "properties": {
                 "mode": {
                   "type": "string",
-                  "enum": ["restricted", "packages", "none", "unrestricted"],
-                  "default": "unrestricted",
-                  "description": "Scope validation mode"
+                  "enum": ["root", "packages", "both"],
+                  "description": "Controls where changelog files are written. When omitted, defaults to packages."
                 },
-                "rules": {
+                "file": {
+                  "type": "string",
+                  "description": "Changelog file name override (default: CHANGELOG.md)"
+                },
+                "templates": {
                   "type": "object",
-                  "description": "Scope rules",
+                  "description": "Template configuration for changelog",
+                  "additionalProperties": false,
                   "properties": {
-                    "allowed": {
-                      "type": "array",
-                      "items": { "type": "string" },
-                      "description": "Allowed scope names"
-                    },
-                    "caseSensitive": {
-                      "type": "boolean",
-                      "default": false,
-                      "description": "Whether scope matching is case-sensitive"
-                    },
-                    "invalidScopeAction": {
+                    "path": {
                       "type": "string",
-                      "enum": ["remove", "keep", "fallback"],
-                      "default": "remove",
-                      "description": "What to do with invalid scopes"
+                      "description": "Path to custom template"
                     },
-                    "fallbackScope": {
+                    "engine": {
                       "type": "string",
-                      "description": "Scope to use when invalidScopeAction is 'fallback'"
+                      "enum": ["handlebars", "liquid", "ejs"],
+                      "description": "Template engine"
                     }
                   }
                 }
               }
-            },
-            "prompts": {
+            }
+          ]
+        },
+        "releaseNotes": {
+          "oneOf": [
+            { "type": "boolean", "enum": [false], "description": "Set to false to disable release notes" },
+            {
               "type": "object",
-              "description": "Custom LLM prompt overrides",
+              "description": "Release notes configuration",
+              "additionalProperties": false,
               "properties": {
-                "instructions": {
-                  "type": "object",
-                  "description": "Custom instruction overrides",
-                  "properties": {
-                    "enhance": { "type": "string" },
-                    "categorize": { "type": "string" },
-                    "enhanceAndCategorize": { "type": "string" },
-                    "summarize": { "type": "string" },
-                    "releaseNotes": { "type": "string" }
-                  }
+                "mode": {
+                  "type": "string",
+                  "enum": ["root", "packages", "both"],
+                  "description": "Where to write release notes file. Omit to skip file output (LLM still runs if configured)."
+                },
+                "file": {
+                  "type": "string",
+                  "description": "Release notes file name override (default: RELEASE_NOTES.md)"
                 },
                 "templates": {
                   "type": "object",
-                  "description": "Custom template overrides",
+                  "description": "Template configuration for release notes",
+                  "additionalProperties": false,
                   "properties": {
-                    "enhance": { "type": "string" },
-                    "categorize": { "type": "string" },
-                    "enhanceAndCategorize": { "type": "string" },
-                    "summarize": { "type": "string" },
-                    "releaseNotes": { "type": "string" }
+                    "path": {
+                      "type": "string",
+                      "description": "Path to custom template"
+                    },
+                    "engine": {
+                      "type": "string",
+                      "enum": ["handlebars", "liquid", "ejs"],
+                      "description": "Template engine"
+                    }
                   }
+                },
+                "llm": {
+                  "type": "object",
+                  "description": "LLM configuration for release notes",
+                  "additionalProperties": false,
+                  "properties": {
+                    "provider": { "type": "string", "description": "LLM provider" },
+                    "model": { "type": "string", "description": "Model identifier" },
+                    "baseURL": { "type": "string", "description": "Custom API base URL" },
+                    "apiKey": { "type": "string", "description": "API key" },
+                    "options": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "timeout": { "type": "integer", "description": "Request timeout in ms" },
+                        "maxTokens": { "type": "integer", "description": "Max tokens to generate" },
+                        "temperature": { "type": "number", "description": "Sampling temperature" }
+                      }
+                    },
+                    "concurrency": { "type": "integer", "minimum": 1, "description": "Concurrent LLM requests" },
+                    "tasks": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "summarize": { "type": "boolean", "description": "Enable summarization" },
+                        "enhance": { "type": "boolean", "description": "Enable entry enhancement" },
+                        "categorize": { "type": "boolean", "description": "Enable categorization" },
+                        "releaseNotes": { "type": "boolean", "description": "Enable release note generation" }
+                      }
+                    },
+                    "categories": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "name": { "type": "string" },
+                          "description": { "type": "string" },
+                          "scopes": { "type": "array", "items": { "type": "string" } }
+                        },
+                        "required": ["name", "description"]
+                      }
+                    },
+                    "style": { "type": "string", "description": "Writing style for LLM" },
+                    "scopes": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "mode": {
+                          "type": "string",
+                          "enum": ["restricted", "packages", "none", "unrestricted"],
+                          "default": "unrestricted"
+                        },
+                        "rules": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "allowed": { "type": "array", "items": { "type": "string" } },
+                            "caseSensitive": { "type": "boolean", "default": false },
+                            "invalidScopeAction": {
+                              "type": "string",
+                              "enum": ["remove", "keep", "fallback"],
+                              "default": "remove"
+                            },
+                            "fallbackScope": { "type": "string" }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "required": ["provider", "model"]
                 }
               }
             }
-          }
+          ]
         },
-        "updateStrategy": {
-          "type": "string",
-          "enum": ["prepend", "regenerate"],
-          "default": "prepend",
-          "description": "How to update existing changelog"
+        "monorepo": {
+          "$ref": "#/$defs/MonorepoConfig"
         }
       }
     },
