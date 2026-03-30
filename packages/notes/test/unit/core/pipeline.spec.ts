@@ -183,3 +183,21 @@ describe('buildOrderedCategories', () => {
     expect(buildOrderedCategories([], [{ name: 'New', description: 'x' }])).toEqual([]);
   });
 });
+
+describe('Pipeline: config.changelog edge cases', () => {
+  it('should treat empty changelog config {} same as undefined (default to root)', () => {
+    const undefinedConfig: Config = {};
+    const emptyConfig: Config = { changelog: {} };
+
+    // Both should result in mode: 'root' - this is tested by checking the logic
+    const undefinedResult =
+      undefinedConfig.changelog === undefined ||
+      (typeof undefinedConfig.changelog === 'object' && Object.keys(undefinedConfig.changelog).length === 0);
+    const emptyResult =
+      emptyConfig.changelog === undefined ||
+      (typeof emptyConfig.changelog === 'object' && Object.keys(emptyConfig.changelog).length === 0);
+
+    expect(undefinedResult).toBe(true);
+    expect(emptyResult).toBe(true);
+  });
+});

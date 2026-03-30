@@ -49,36 +49,34 @@ export function createNotesCommand(): Command {
 
         if (options.changelog === false) {
           config.changelog = false;
-        } else {
+        } else if (options.changelogMode || options.changelogFile) {
           const existing = config.changelog !== false ? (config.changelog ?? {}) : {};
-          if (options.changelogMode) {
-            config.changelog = { ...existing, mode: options.changelogMode as 'root' | 'packages' | 'both' };
-          } else if (options.changelogFile) {
-            config.changelog = { ...existing };
-          }
-          if (options.changelogFile && config.changelog !== false) {
-            config.changelog = {
-              ...(config.changelog ?? {}),
-              mode: ((config.changelog as { mode?: string })?.mode ?? 'root') as 'root' | 'packages' | 'both',
-              file: options.changelogFile,
-            };
-          }
+          config.changelog = {
+            ...existing,
+            ...(options.changelogMode ? { mode: options.changelogMode as 'root' | 'packages' | 'both' } : {}),
+            ...(options.changelogFile
+              ? {
+                  mode: ((config.changelog as { mode?: string })?.mode ?? 'root') as 'root' | 'packages' | 'both',
+                  file: options.changelogFile,
+                }
+              : {}),
+          };
         }
 
         if (options.releaseNotes === false) {
           config.releaseNotes = false;
-        } else {
+        } else if (options.releaseNotesMode || options.releaseNotesFile) {
           const existing = config.releaseNotes !== false ? (config.releaseNotes ?? {}) : {};
-          if (options.releaseNotesMode) {
-            config.releaseNotes = { ...existing, mode: options.releaseNotesMode as 'root' | 'packages' | 'both' };
-          }
-          if (options.releaseNotesFile && config.releaseNotes !== false) {
-            config.releaseNotes = {
-              ...(config.releaseNotes ?? {}),
-              mode: (config.releaseNotes?.mode ?? 'root') as 'root' | 'packages' | 'both',
-              file: options.releaseNotesFile,
-            };
-          }
+          config.releaseNotes = {
+            ...existing,
+            ...(options.releaseNotesMode ? { mode: options.releaseNotesMode } : {}),
+            ...(options.releaseNotesFile
+              ? {
+                  mode: existing.mode ?? 'root',
+                  file: options.releaseNotesFile,
+                }
+              : {}),
+          };
         }
 
         if (options.template && config.changelog !== false) {

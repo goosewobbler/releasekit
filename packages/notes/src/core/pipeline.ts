@@ -269,8 +269,12 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
 
   let contexts = input.packages.map(createTemplateContext);
 
-  // changelog defaults to on (mode: root) when omitted; false = explicitly disabled
-  const changelogConfig = config.changelog === undefined ? { mode: 'root' as const } : config.changelog;
+  // changelog defaults to on (mode: root) when omitted or empty; false = explicitly disabled
+  const changelogConfig =
+    config.changelog === undefined ||
+    (typeof config.changelog === 'object' && Object.keys(config.changelog).length === 0)
+      ? { mode: 'root' as const }
+      : config.changelog;
   // releaseNotes: undefined = off (default), false = explicitly disabled, object = configured
   const releaseNotesConfig = config.releaseNotes === false ? undefined : config.releaseNotes;
 
