@@ -118,41 +118,45 @@ export function createNotesCommand(): Command {
             config.releaseNotes = { ...config.releaseNotes, llm: undefined };
           }
         } else if (options.llmProvider || options.llmModel || options.llmBaseUrl || options.llmTasks) {
-          const existingRn = typeof config.releaseNotes === 'object' ? config.releaseNotes : {};
-          const existingLlm = existingRn.llm;
-          const llm = {
-            provider: existingLlm?.provider ?? 'openai-compatible',
-            model: existingLlm?.model ?? '',
-            ...(existingLlm ?? {}),
-          };
-          if (options.llmProvider) llm.provider = options.llmProvider;
-          if (options.llmModel) llm.model = options.llmModel;
-          if (options.llmBaseUrl) llm.baseURL = options.llmBaseUrl;
-          if (options.llmTasks) {
-            const taskNames = (options.llmTasks as string).split(',').map((t: string) => t.trim());
-            llm.tasks = {
-              enhance: taskNames.includes('enhance'),
-              summarize: taskNames.includes('summarize'),
-              categorize: taskNames.includes('categorize'),
-              releaseNotes: taskNames.includes('release-notes') || taskNames.includes('releaseNotes'),
+          if (config.releaseNotes === false) {
+            warn('--llm-* flags ignored: release notes are disabled via --no-release-notes');
+          } else {
+            const existingRn = typeof config.releaseNotes === 'object' ? config.releaseNotes : {};
+            const existingLlm = existingRn.llm;
+            const llm = {
+              provider: existingLlm?.provider ?? 'openai-compatible',
+              model: existingLlm?.model ?? '',
+              ...(existingLlm ?? {}),
             };
-          }
+            if (options.llmProvider) llm.provider = options.llmProvider;
+            if (options.llmModel) llm.model = options.llmModel;
+            if (options.llmBaseUrl) llm.baseURL = options.llmBaseUrl;
+            if (options.llmTasks) {
+              const taskNames = (options.llmTasks as string).split(',').map((t: string) => t.trim());
+              llm.tasks = {
+                enhance: taskNames.includes('enhance'),
+                summarize: taskNames.includes('summarize'),
+                categorize: taskNames.includes('categorize'),
+                releaseNotes: taskNames.includes('release-notes') || taskNames.includes('releaseNotes'),
+              };
+            }
 
-          config.releaseNotes = {
-            ...existingRn,
-            llm: llm as import('./core/types.js').LLMConfig,
-          };
+            config.releaseNotes = {
+              ...existingRn,
+              llm: llm as import('./core/types.js').LLMConfig,
+            };
 
-          info(`LLM configured: ${llm.provider}${llm.model ? ` (${llm.model})` : ''}`);
-          if (llm.baseURL) {
-            info(`LLM base URL: ${llm.baseURL}`);
-          }
-          const taskList = Object.entries(llm.tasks || {})
-            .filter(([, enabled]) => enabled)
-            .map(([name]) => name)
-            .join(', ');
-          if (taskList) {
-            info(`LLM tasks: ${taskList}`);
+            info(`LLM configured: ${llm.provider}${llm.model ? ` (${llm.model})` : ''}`);
+            if (llm.baseURL) {
+              info(`LLM base URL: ${llm.baseURL}`);
+            }
+            const taskList = Object.entries(llm.tasks || {})
+              .filter(([, enabled]) => enabled)
+              .map(([name]) => name)
+              .join(', ');
+            if (taskList) {
+              info(`LLM tasks: ${taskList}`);
+            }
           }
         }
 

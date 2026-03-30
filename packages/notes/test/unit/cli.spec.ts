@@ -113,6 +113,45 @@ describe('createNotesCommand', () => {
       expect(runPipeline).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ changelog: false }), false);
     });
 
+    it('should keep releaseNotes disabled when --no-release-notes and --llm-provider are combined', async () => {
+      vi.mocked(loadConfig).mockReturnValue(undefined as never);
+
+      await createNotesCommand().parse([
+        'node',
+        'test',
+        'generate',
+        '-i',
+        'input.json',
+        '--no-release-notes',
+        '--llm-provider',
+        'anthropic',
+      ]);
+
+      expect(runPipeline).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ releaseNotes: false }),
+        false,
+      );
+    });
+
+    it('should warn when --llm-* flags are ignored due to --no-release-notes', async () => {
+      vi.mocked(loadConfig).mockReturnValue(undefined as never);
+
+      await createNotesCommand().parse([
+        'node',
+        'test',
+        'generate',
+        '-i',
+        'input.json',
+        '--no-release-notes',
+        '--llm-provider',
+        'anthropic',
+      ]);
+
+      expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining('--llm-*'));
+      expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining('--no-release-notes'));
+    });
+
     it('should warn when --template is ignored due to --no-changelog', async () => {
       vi.mocked(loadConfig).mockReturnValue(undefined as never);
 
