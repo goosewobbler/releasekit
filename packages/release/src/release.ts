@@ -118,7 +118,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   let publishOutput: ReleaseOutput['publishOutput'];
   if (!options.skipPublish) {
     info('Publishing...');
-    publishOutput = await runPublishStep(versionOutput, options, packageNotes, notesFiles);
+    publishOutput = await runPublishStep(versionOutput, options, releaseNotes ?? packageNotes, notesFiles);
     success('Publish complete');
   }
 
