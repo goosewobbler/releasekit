@@ -1,5 +1,5 @@
 {
-  "$schema": "./releasekit.schema.json",
+  "$schema": "https://goosewobbler.github.io/releasekit/schema.json",
   "git": {
     "branch": "main",
     "skipHooks": true

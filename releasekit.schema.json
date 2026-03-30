@@ -419,7 +419,7 @@
                 "mode": {
                   "type": "string",
                   "enum": ["root", "packages", "both"],
-                  "description": "Controls where changelog files are written. When omitted, defaults to packages."
+                  "description": "Where to write changelog files. root: repo root only. packages: per-package (monorepos). both: repo root and per-package. When omitted entirely (no changelog config), defaults to root."
                 },
                 "file": {
                   "type": "string",
