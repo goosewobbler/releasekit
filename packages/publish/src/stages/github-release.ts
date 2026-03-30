@@ -17,7 +17,7 @@ type BodySource = 'auto' | 'releaseNotes' | 'changelog' | 'generated' | 'none';
  * Other values:
  *   'releaseNotes' → use in-memory release notes from pipeline (error if not enabled)
  *   'changelog'    → use changelog entries from version output
- *   'github'       → always --generate-notes
+ *   'generated'    → always --generate-notes
  *   'none'         → no notes body
  */
 function resolveNotes(
