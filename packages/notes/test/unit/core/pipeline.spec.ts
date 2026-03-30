@@ -184,20 +184,30 @@ describe('buildOrderedCategories', () => {
   });
 });
 
-describe('Pipeline: config.changelog edge cases', () => {
-  it('should treat empty changelog config {} same as undefined (default to root)', () => {
-    const undefinedConfig: Config = {};
-    const emptyConfig: Config = { changelog: {} };
+describe('Pipeline: file-only config defaults mode to root', () => {
+  beforeEach(() => {
+    vi.mocked(fs.existsSync).mockReturnValue(false);
+    vi.mocked(fs.mkdirSync).mockReturnValue(undefined as never);
+    vi.mocked(fs.writeFileSync).mockReturnValue(undefined);
+  });
 
-    // Both should result in mode: 'root' - this is tested by checking the logic
-    const undefinedResult =
-      undefinedConfig.changelog === undefined ||
-      (typeof undefinedConfig.changelog === 'object' && Object.keys(undefinedConfig.changelog).length === 0);
-    const emptyResult =
-      emptyConfig.changelog === undefined ||
-      (typeof emptyConfig.changelog === 'object' && Object.keys(emptyConfig.changelog).length === 0);
+  it('should write changelog when config has file but no mode', async () => {
+    const { runPipeline } = await import('../../../src/core/pipeline.js');
 
-    expect(undefinedResult).toBe(true);
-    expect(emptyResult).toBe(true);
+    const config: Config = { changelog: { file: 'CHANGES.md' } };
+    const result = await runPipeline(sampleInput, config, false);
+
+    expect(result.files).toContain('CHANGES.md');
+    expect(fs.writeFileSync).toHaveBeenCalledWith('CHANGES.md', expect.any(String), 'utf-8');
+  });
+
+  it('should write release notes when config has file but no mode', async () => {
+    const { runPipeline } = await import('../../../src/core/pipeline.js');
+
+    const config: Config = { changelog: false, releaseNotes: { file: 'NOTES.md' } };
+    const result = await runPipeline(sampleInput, config, false);
+
+    expect(result.files).toContain('NOTES.md');
+    expect(fs.writeFileSync).toHaveBeenCalledWith('NOTES.md', expect.any(String), 'utf-8');
   });
 });

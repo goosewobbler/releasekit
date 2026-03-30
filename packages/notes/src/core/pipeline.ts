@@ -269,14 +269,15 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
 
   let contexts = input.packages.map(createTemplateContext);
 
-  // changelog defaults to on (mode: root) when omitted or empty; false = explicitly disabled
-  const changelogConfig =
-    config.changelog === undefined ||
-    (typeof config.changelog === 'object' && Object.keys(config.changelog).length === 0)
-      ? { mode: 'root' as const }
-      : config.changelog;
-  // releaseNotes: undefined = off (default), false = explicitly disabled, object = configured
-  const releaseNotesConfig = config.releaseNotes === false ? undefined : config.releaseNotes;
+  // changelog defaults to on (mode: root) when omitted; false = explicitly disabled.
+  // mode defaults to 'root' for any object config that omits it (e.g. { file: 'CHANGES.md' }).
+  const changelogConfig = config.changelog === false ? false : { mode: 'root' as const, ...(config.changelog ?? {}) };
+  // releaseNotes: undefined = off (default), false = explicitly disabled, object = configured.
+  // mode defaults to 'root' so a file-only config (e.g. { file: 'NOTES.md' }) still produces output.
+  const releaseNotesConfig =
+    config.releaseNotes === false || config.releaseNotes === undefined
+      ? undefined
+      : { mode: 'root' as const, ...config.releaseNotes };
 
   const llmConfig = releaseNotesConfig?.llm;
   if (llmConfig && !process.env.CHANGELOG_NO_LLM) {
