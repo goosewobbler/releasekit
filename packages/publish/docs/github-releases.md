@@ -140,6 +140,29 @@ Set `"draft": false` to publish releases immediately.
 
 ---
 
+## Release Title (`titleTemplate`)
+
+Controls the title of each GitHub Release when a package name is resolved from the tag.
+
+```json
+{
+  "publish": {
+    "githubRelease": {
+      "titleTemplate": "${packageName}: ${version}"
+    }
+  }
+}
+```
+
+| Variable | Value |
+|----------|-------|
+| `${packageName}` | Original scoped package name, e.g. `@scope/pkg` |
+| `${version}` | Version string extracted from the tag, e.g. `v1.0.0` |
+
+The default produces titles like `@releasekit/version: v1.0.0`. Version-only tags (e.g. `v1.0.0` with no package prefix) always use the tag string directly.
+
+---
+
 ## Per-Package Releases
 
 In a monorepo, a separate GitHub Release is created for each published package by default.
@@ -168,7 +191,8 @@ Set `"perPackage": false` to create a single release for the entire repo.
       "draft": true,
       "prerelease": "auto",
       "perPackage": true,
-      "body": "auto"
+      "body": "auto",
+      "titleTemplate": "${packageName}: ${version}"
     }
   }
 }

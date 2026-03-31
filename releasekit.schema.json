@@ -328,6 +328,11 @@
               "enum": ["auto", "releaseNotes", "changelog", "generated", "none"],
               "default": "auto",
               "description": "Source for GitHub release body. 'auto': use release notes if enabled, else changelog, else GitHub auto. 'releaseNotes': use LLM-generated release notes. 'changelog': use changelog entries. 'generated': GitHub auto-generated. 'none': no body."
+            },
+            "titleTemplate": {
+              "type": "string",
+              "default": "${packageName}: ${version}",
+              "description": "Template for the GitHub release title when a package name is resolved. Available variables: ${packageName} (original scoped name, e.g. '@scope/pkg'), ${version} (e.g. 'v1.0.0'). Version-only tags always use the tag string directly."
             }
           }
         },

@@ -35,6 +35,8 @@ export interface GitHubReleaseConfig {
   prerelease: 'auto' | boolean;
   /** 'auto' | 'releaseNotes' | 'changelog' | 'generated' | 'none' */
   body: 'auto' | 'releaseNotes' | 'changelog' | 'generated' | 'none';
+  /** Template for the release title when a package name is resolved. Variables: ${packageName}, ${version}. */
+  titleTemplate: string;
 }
 
 export interface VerifyRegistryConfig {
@@ -163,6 +165,7 @@ export function getDefaultConfig(): PublishConfig {
       perPackage: true,
       prerelease: 'auto',
       body: 'auto',
+      titleTemplate: '${packageName}: ${version}',
     },
     verify: {
       npm: {
@@ -218,6 +221,7 @@ export function toPublishConfig(config: BasePublishConfig | undefined): PublishC
       perPackage: config.githubRelease?.perPackage ?? defaults.githubRelease.perPackage,
       prerelease: config.githubRelease?.prerelease ?? defaults.githubRelease.prerelease,
       body: config.githubRelease?.body ?? defaults.githubRelease.body,
+      titleTemplate: config.githubRelease?.titleTemplate ?? defaults.githubRelease.titleTemplate,
     },
     verify: {
       npm: {

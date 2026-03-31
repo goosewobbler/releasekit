@@ -22,3 +22,5 @@ export type {
   VersionPackageChangelog,
   VersionPackageUpdate,
 } from './types.js';
+
+export { sanitizePackageName } from './utils.js';

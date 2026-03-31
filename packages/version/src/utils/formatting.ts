@@ -2,6 +2,7 @@
  * Formatting utilities for releasekit-version
  */
 
+import { sanitizePackageName } from '@releasekit/core';
 import { log } from './logging.js';
 
 /**
@@ -30,7 +31,7 @@ export function formatTag(
   packageSpecificTags?: boolean,
 ): string {
   // Strip @ prefix from package names for tags (e.g., @releasekit/version -> releasekit-version)
-  const sanitizedPackageName = packageName?.startsWith('@') ? packageName.slice(1).replace(/\//g, '-') : packageName;
+  const sanitizedPackageName = packageName ? sanitizePackageName(packageName) : packageName;
 
   // Show context-specific warning if template uses packageName but no package name is available
   if (template?.includes('${' + 'packageName}') && !packageName) {
@@ -105,7 +106,7 @@ export function formatTagPrefix(
   packageSpecificTags?: boolean,
 ): string {
   // Strip @ prefix from package names for tags (e.g., @releasekit/version -> releasekit-version)
-  const sanitizedPackageName = packageName?.startsWith('@') ? packageName.slice(1).replace(/\//g, '-') : packageName;
+  const sanitizedPackageName = packageName ? sanitizePackageName(packageName) : packageName;
 
   if (template) {
     // For template-based tags, we need to create a prefix pattern

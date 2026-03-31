@@ -239,7 +239,7 @@ describe('github-release stage', () => {
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
     // Title should use original package name, not sanitized tag prefix
     expect(args).toContain('--title');
-    expect(args[args.indexOf('--title') + 1]).toBe('@releasekit/version @ v0.4.1');
+    expect(args[args.indexOf('--title') + 1]).toBe('@releasekit/version: v0.4.1');
     // Body should use changelog content, not --generate-notes
     expect(args).toContain('--notes');
     expect(args).not.toContain('--generate-notes');
@@ -425,7 +425,30 @@ describe('github-release stage', () => {
 
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
     const titleIndex = args.indexOf('--title');
-    expect(args[titleIndex + 1]).toBe('@releasekit/release @ v1.0.0');
+    expect(args[titleIndex + 1]).toBe('@releasekit/release: v1.0.0');
+  });
+
+  it('should apply a custom titleTemplate', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    const config = getDefaultConfig();
+    config.githubRelease.titleTemplate = '${packageName} @ ${version}';
+
+    const ctx = createContext({
+      config,
+      output: {
+        dryRun: false,
+        git: { committed: true, tags: ['@releasekit/release@v1.0.0'], pushed: true },
+        npm: [],
+        cargo: [],
+        verification: [],
+        githubReleases: [],
+      },
+    });
+
+    await runGithubReleaseStage(ctx);
+
+    const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
+    expect(args[args.indexOf('--title') + 1]).toBe('@releasekit/release @ v1.0.0');
   });
 
   it('should include package name in title for non-scoped package tags', async () => {
@@ -445,6 +468,6 @@ describe('github-release stage', () => {
 
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
     const titleIndex = args.indexOf('--title');
-    expect(args[titleIndex + 1]).toBe('my-package @ v1.0.0');
+    expect(args[titleIndex + 1]).toBe('my-package: v1.0.0');
   });
 });
