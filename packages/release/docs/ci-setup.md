@@ -187,8 +187,11 @@ steps:
       node-version: '20'
       registry-url: 'https://registry.npmjs.org'
 
-  - name: Remove setup-node auth config (required for OIDC)
-    run: rm -f .npmrc
+  - name: Strip setup-node auth from .npmrc (required for OIDC)
+    run: |
+      if [ -f .npmrc ]; then
+        sed -i '/^\/\/.*:_authToken=/d; /^always-auth=/d' .npmrc
+      fi
 
   - run: npx releasekit release
     env:
