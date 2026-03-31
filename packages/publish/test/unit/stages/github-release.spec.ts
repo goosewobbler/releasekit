@@ -205,6 +205,71 @@ describe('github-release stage', () => {
     expect(args).not.toContain('--notes');
   });
 
+  it('should match sanitized tag format (scope-pkg-vX.Y.Z) to scoped package name', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+
+    const ctx = createContext({
+      input: {
+        dryRun: false,
+        updates: [],
+        changelogs: [
+          {
+            packageName: '@releasekit/version',
+            version: '0.4.1',
+            previousVersion: '0.4.0',
+            revisionRange: 'releasekit-version-v0.4.0..HEAD',
+            repoUrl: null,
+            entries: [{ type: 'fix', description: 'create per-package tags' }],
+          },
+        ],
+        tags: ['releasekit-version-v0.4.1'],
+      },
+      output: {
+        dryRun: false,
+        git: { committed: true, tags: ['releasekit-version-v0.4.1'], pushed: true },
+        npm: [],
+        cargo: [],
+        verification: [],
+        githubReleases: [],
+      },
+    });
+
+    await runGithubReleaseStage(ctx);
+
+    const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
+    // Title should use original package name, not sanitized tag prefix
+    expect(args).toContain('--title');
+    expect(args[args.indexOf('--title') + 1]).toBe('@releasekit/version @ v0.4.1');
+    // Body should use changelog content, not --generate-notes
+    expect(args).toContain('--notes');
+    expect(args).not.toContain('--generate-notes');
+    expect(args[args.indexOf('--notes') + 1]).toContain('create per-package tags');
+  });
+
+  it('should match sanitized tag to release notes keyed by scoped package name', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+
+    const ctx = createContext({
+      input: { dryRun: false, updates: [], changelogs: [], tags: ['releasekit-version-v0.4.1'] },
+      output: {
+        dryRun: false,
+        git: { committed: true, tags: ['releasekit-version-v0.4.1'], pushed: true },
+        npm: [],
+        cargo: [],
+        verification: [],
+        githubReleases: [],
+      },
+      releaseNotes: { '@releasekit/version': 'LLM-enhanced release notes' },
+    });
+
+    await runGithubReleaseStage(ctx);
+
+    const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
+    expect(args).toContain('--notes');
+    expect(args[args.indexOf('--notes') + 1]).toBe('LLM-enhanced release notes');
+    expect(args).not.toContain('--generate-notes');
+  });
+
   it('should always use --generate-notes when body is generated', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const config = getDefaultConfig();
