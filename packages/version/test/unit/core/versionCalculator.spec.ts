@@ -461,16 +461,15 @@ describe('Version Calculator', () => {
       expect(version).toBe('1.3.2-next.0');
     });
 
-    it('should correctly strip sanitized dash-format package prefix from tag (regression: 0.4.1 → 0.1.0)', async () => {
-      // Reproduce the bug where a scoped package name like @releasekit/version produces
-      // tags in the sanitized dash format (releasekit-version-v0.4.1) via a tagTemplate.
-      // The old code built the strip pattern as "@releasekit/version@v", which never matched
-      // "releasekit-version-v0.4.1", so semver extraction fell back to '0.0.0' and a minor
-      // bump produced '0.1.0' instead of '0.5.0'.
+    it('should correctly strip sanitized dash-format package prefix from tag', async () => {
+      // A scoped package name produces tags in the sanitized dash format via a tagTemplate
+      // (e.g. "@scope/pkg" → "scope-pkg-v1.2.3"). semver.clean returns null for compound
+      // strings, so the strip pattern must handle the dash separator as well as the default
+      // "@" separator, otherwise version extraction falls back to '0.0.0'.
       vi.resetAllMocks();
 
-      // Use a semver.clean mock that behaves like the real library: only pure semver strings
-      // (optionally v-prefixed) are accepted; compound tags like "pkg-v0.4.1" return null.
+      // Mock semver.clean to behave like the real library: only pure semver strings
+      // (optionally v-prefixed) are accepted; compound tags like "scope-pkg-v1.2.3" return null.
       vi.spyOn(semver, 'clean').mockImplementation((version) => {
         if (typeof version !== 'string') return null;
         const match = version.match(/^v?(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?)$/);
@@ -479,30 +478,30 @@ describe('Version Calculator', () => {
       vi.spyOn(semver, 'prerelease').mockReturnValue(null);
       vi.spyOn(versionUtils, 'getBestVersionSource').mockResolvedValue({
         source: 'git',
-        version: 'releasekit-version-v0.4.1',
+        version: 'scope-pkg-v1.2.3',
         reason: 'Versions equal, using git tag',
       });
-      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('0.5.0');
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.3.0');
       vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
-        version: '0.4.1',
+        version: '1.2.3',
         manifestFound: true,
-        manifestPath: '/repo/packages/version/package.json',
+        manifestPath: '/repo/packages/pkg/package.json',
         manifestType: 'package.json',
       });
 
       const options: VersionOptions = {
-        latestTag: 'releasekit-version-v0.4.1',
+        latestTag: 'scope-pkg-v1.2.3',
         type: 'minor',
         versionPrefix: 'v',
-        path: '/repo/packages/version',
-        name: '@releasekit/version',
+        path: '/repo/packages/pkg',
+        name: '@scope/pkg',
       };
 
       const version = await calculateVersion(defaultConfig as Config, options);
 
-      // The version extracted from the tag should be '0.4.1', not '0.0.0'
-      expect(versionUtils.bumpVersion).toHaveBeenCalledWith('0.4.1', 'minor', undefined);
-      expect(version).toBe('0.5.0');
+      // Version must be extracted from the tag correctly, not fall back to '0.0.0'
+      expect(versionUtils.bumpVersion).toHaveBeenCalledWith('1.2.3', 'minor', undefined);
+      expect(version).toBe('1.3.0');
     });
   });
 
