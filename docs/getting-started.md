@@ -98,7 +98,25 @@ This will:
 5. Push to remote
 6. Create a GitHub Release (draft by default)
 
-Set `GITHUB_TOKEN` in your environment for the GitHub Release step.
+**npm authentication** — for a local run you need to be logged in to npm:
+
+```bash
+npm login
+```
+
+Or set `NODE_AUTH_TOKEN` in your environment if you prefer token-based auth:
+
+```bash
+NODE_AUTH_TOKEN=npm_... releasekit release
+```
+
+**GitHub Release** — set `GITHUB_TOKEN` in your environment:
+
+```bash
+GITHUB_TOKEN=ghp_... releasekit release
+```
+
+In CI, both tokens are typically available as secrets or via OIDC — see the [CI setup guide](../packages/release/docs/ci-setup.md) for details.
 
 ---
 
