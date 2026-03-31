@@ -53,14 +53,11 @@ export function createNpmSubprocessIsolation(options: {
     }
   })();
 
+  // OIDC mode: no token in .npmrc — npm trusted publishing uses the OIDC exchange directly.
+  // The caller (workflow step) must strip the auth-token line that actions/setup-node injects;
+  // otherwise its _authToken=${NODE_AUTH_TOKEN} placeholder expands to an empty string and
+  // triggers ENEEDAUTH instead of falling through to the OIDC exchange.
   const lines: string[] = [`registry=${registryUrl}`];
-
-  if (authMethod === 'oidc') {
-    // OIDC mode: no token in .npmrc — npm trusted publishing uses the OIDC exchange directly.
-    // The project .npmrc from actions/setup-node must be removed by the caller (workflow step)
-    // before running this; otherwise its _authToken=${NODE_AUTH_TOKEN} placeholder (which expands
-    // to an empty string when NODE_AUTH_TOKEN is unset) triggers ENEEDAUTH.
-  }
 
   if (authMethod === 'token' && token) {
     // Use registry-scoped token to avoid affecting other registries.

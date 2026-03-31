@@ -68,9 +68,12 @@ jobs:
       - name: Build packages
         run: pnpm build
 
-      - name: Remove setup-node auth config (OIDC mode)
+      - name: Strip setup-node auth token from .npmrc (OIDC mode)
         if: ${{ inputs.npm_auth == 'oidc' && !inputs.dry_run }}
-        run: rm -f .npmrc
+        run: |
+          if [ -f .npmrc ]; then
+            sed -i '/^\/\/.*:_authToken=/d; /^always-auth=/d' .npmrc
+          fi
 
       - name: Run releasekit
         id: release
