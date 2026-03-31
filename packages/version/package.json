@@ -1,6 +1,6 @@
 {
   "name": "@releasekit/version",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Semantic versioning based on Git history and conventional commits",
   "type": "module",
   "module": "./dist/index.js",
@@ -33,7 +33,12 @@
     "lint": "biome check .",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": ["version", "semver", "git", "package"],
+  "keywords": [
+    "version",
+    "semver",
+    "git",
+    "package"
+  ],
   "author": {
     "name": "Sam Maister",
     "email": "goosewobbler@protonmail.com"

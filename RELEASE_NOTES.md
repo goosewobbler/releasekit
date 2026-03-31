@@ -3,38 +3,39 @@
 ## `monorepo` @ 0.4.0
 
 ### New:
+- Added init command for project initialization.
 - Added package name sanitization in the formatTag function.
 - Added package name sanitization in the formatTag function.
-- Added npm_auth input for authentication configuration in workflows.
+- Added npm_auth input for specifying authentication method in workflows.
 - **CI**: Added label checking step to release-on-push workflow.
 - Added version header and separators to release notes template.
-- Added publishSucceeded flag to output with updated pipeline logic.
+- Added publishSucceeded flag to output and updated pipeline logic.
 - **CI**: Added sync option to release workflows.
-- Added release notes display in workflow summary.
+- Added release notes display to release workflow summary.
 - Added title extraction from tags for GitHub releases.
 - Added push-triggered release workflow.
 - Added release preview functionality.
 - Added --branch option to specify push branch.
 - Added release pipeline automation configuration.
-- Reworked CLI structure and added dispatcher.
-- Implemented ordered category building for enhanced data in notes.
+- Reworked CLI structure with a new dispatcher.
+- Implemented ordered category building for enhanced data.
 - Added changelog preview to release summary.
-- Added user-configured LLM options passthrough to provider.
+- Added ability to pass user-configured LLM options to provider.
 - Enhanced JSON extraction from LLM responses.
 - Added GitHub Pages deployment workflow.
-- Added package name to changelog version headers.
+- Included package name in changelog version headers.
 - Enabled package names in per-package root changelogs.
-- Added skipGitCommit option for enhanced Git commit handling.
+- Enhanced Git commit handling with skipGitCommit option.
 - Added skipHooks option to Git configuration.
-- Added sensitive information redaction in command display.
+- Added redaction of sensitive information in command display.
 - Added httpsTokenEnv to Git configuration schema.
 - Enhanced Git and npm publish stages with token support.
 - Enhanced release notes and scope configurations.
-- Added scope and prompt configurations for LLM tasks.
+- Introduced scope and prompt configurations for LLM tasks.
 - Enhanced Verify and Publish configuration schemas.
 - Added JSON schema for ReleaseKit configuration.
-- Enhanced categorizeEntries to validate and clear existing scopes.
-- **Security**: Added input length limits and safer regex patterns to prevent ReDoS attacks.
+- Enhanced categorizeEntries to validate scopes and clear existing ones.
+- **Security**: Implemented input length limits and safer regex patterns to prevent ReDoS attacks.
 - Added functions to identify repo-level commits and check package touches.
 - Added functions to extract changelog entries with commit hashes.
 - Added strictReachable option to version configuration.
@@ -43,149 +44,152 @@
 - Introduced releasekit configuration and enhanced LLM processing.
 - Enhanced LLM configuration and processing.
 - Enhanced release workflow with Ollama integration.
+- Added automation plan.
 - Added release package.
 - Added run function to CLI and updated tests.
-- **Testing**: Added integration testing workflow and enhanced CI configuration.
+- **CI**: Added integration testing workflow and enhanced CI configuration.
+- Added issue templates for bug reports and feature requests.
+- Added Code of Conduct, Contributing guidelines, and Security Policy.
 - Added @releasekit/config package for shared configuration management.
-- Added @releasekit/publish package for publishing to npm and crates.io.
+- Implemented @releasekit/publish package for publishing to npm and crates.io.
+- Initialized ReleaseKit monorepo with core packages, CI/CD workflows, and configuration files.
 
 ### Fixed:
-- **CI**: Fixed CI detection logic to properly handle PUBLISH and RELEASE conditions.
-- Fixed release previews by implementing shared entry deduplication.
-- Fixed schema URL in releasekit.schema.json.
-- **Testing**: Fixed command execution in test-packages.ts.
+- Fixed GitHub release creation to only trigger when a tag is actually pushed.
+- Fixed failures in automatic release publishing.
+- **CI**: Added PUBLISH and RELEASE conditions to CI detection logic.
+- Implemented shared entry deduplication in release previews.
+- Updated schema URL in releasekit.schema.json.
+- Fixed command execution in test-packages.ts.
 - Improved output labeling for changelogs and release notes.
-- Fixed LLM model version in releasekit configuration.
-- Fixed test for unresolved environment variable handling.
-- Fixed handling of sole variable references in configuration substitution.
-- Fixed JSON mode logging behavior.
+- Updated LLM model version in releasekit configuration.
+- Updated test for unresolved environment variable handling.
+- Fixed handling of sole variable references in substitution.
+- Updated JSON mode logging behavior.
 - Fixed always-auth handling for OIDC and token authentication.
 - Improved token-based HTTPS authentication handling.
-- **Security**: Fixed CodeQL alert: removed useless regular-expression character escape.
-- **Security**: Fixed shell injection vulnerability in setGitConfig.
-- Fixed categoryMap updates using optional chaining.
-- Fixed regex handling in formatCommitMessage for special characters.
-- **Security**: Fixed shell injection vulnerability by escaping double quotes in setGitConfig.
-- Fixed tag retrieval for package-specific versions.
-- Fixed markdown output to be written to stdout.
+- **Security**: Fixed CodeQL alert by removing useless regular-expression character escape.
+- **Security**: Enhanced escaping in setGitConfig to prevent shell injection vulnerabilities.
+- Fixed categoryMap updates to use optional chaining.
+- Improved regex handling in formatCommitMessage for special characters.
+- **Security**: Escaped double quotes in setGitConfig to prevent shell injection.
+- Improved tag retrieval for package-specific versions.
+- Allowed markdown output to be written to stdout.
 - Refined commit extraction logic in changelog parser.
-- Fixed npm-related issues.
-- **Testing**: Fixed dry run update bug and added tests.
-- **CI**: Fixed CI to run integration tests when E2E files change.
+- Fixed npm issues.
+- Fixed dry run update bug and added tests.
+- **CI**: Set integration tests to run when E2E files change.
 - Implemented changelog generation in sync versioning strategy.
-- **CI**: Fixed cache key output in CI workflow.
+- **CI**: Updated cache key output in CI workflow.
 
 ### Changed:
-- Improved documentation clarity and examples.
-- Added missing CI property to schema configuration.
-- Reworked configuration structure for improved flexibility.
-- **Dependencies**: Updated actions/upload-pages-artifact to v4.
-- **Dependencies**: Updated actions/deploy-pages to v5.
+- Removed npmrc configuration manipulation.
+- Released @releasekit packages at version 0.4.0.
+- Added missing CI property to schema.
+- Reworked configuration system for improved flexibility.
+- **Dependencies**: Updated GitHub Actions upload-pages-artifact to v4.
+- **Dependencies**: Updated GitHub Actions deploy-pages to v5.
 - Improved error handling for API key validation in release notes.
-- **Dependencies**: Updated Handlebars to version 4.7.9.
-- **CI**: Switched to using local releasekit for CI workflows.
+- **Dependencies**: Updated handlebars dependency to v4.7.9.
+- **CI**: Switched to using local releasekit version.
 - Updated note formatting in release previews.
-- Updated releasekit version to 0.3.1 in workflows.
-- Updated all releasekit packages to version 0.3.1.
-- Reordered setup steps and added build step to release workflow.
-- Updated all releasekit packages to version 0.3.0.
-- **Dependencies**: Updated smol-toml dependency to version 1.6.1.
-- Configured Dependabot to skip development dependency commits.
-- Updated release workflow to install releasekit from npm.
-- **CI**: Upgraded actions/checkout to v6 in CI workflow examples.
+- Updated releasekit version to 0.3.1 in workflow.
+- Released @releasekit packages at version 0.3.1.
+- Reordered setup steps and added build step in release workflow.
+- Released @releasekit packages at version 0.3.0.
+- **Dependencies**: Updated smol-toml dependency to v1.6.1.
+- Configured system to skip dependabot development dependency commits.
+- Updated release workflow to use releasekit from npm.
+- Upgraded actions/checkout to v6 in CI workflow examples.
 - Renamed package-versioner to releasekit-version.
 - Removed backwards-compatible alias for BaseVersionError.
-- Updated function names for consistency across release module.
-- Renamed package-versioner to version output in notes.
-- Cleaned up error handling and imports in notes module.
+- Updated function names for consistency.
+- Renamed package-versioner output to version.
+- Cleaned up error handling and imports.
 - Updated tag retrieval to use chronological ordering.
-- Removed unused code from notes module.
+- Removed unused code.
 - Improved dry run logging for changelog and release notes.
-- Updated all releasekit packages to version 0.2.1.
-- Set private packages to version 0.0.0.
+- Released @releasekit packages at version 0.2.1.
+- Set version of private packages to 0.0.0.
 - Downgraded package versions.
-- Removed pages.yml from workflow paths to avoid unnecessary redeploys.
-- Updated README files to clarify configuration setup.
+- Removed pages.yml from workflow paths to prevent unnecessary schema redeployments.
 - Updated lockfile.
-- **Testing**: Added cross-OS package testing.
-- Updated README files to emphasize ESM support.
-- Converted to ESM-only modules.
-- **Testing**: Enhanced package testing workflow in test-packages.ts.
+- Expanded package testing to run on all operating systems.
+- Transitioned to ESM-only module system.
+- Enhanced package testing workflow.
 - **CI**: Updated CI build workflow to pack all core packages.
-- **CI**: Added package tests to CI workflow.
-- **Build System**: Updated tsup configuration to externalize all bare specifiers.
-- **Build System**: Updated tsup configuration to include external dependencies.
+- **CI**: Configured package tests to run on CI.
+- Updated tsup configuration to externalize all bare specifiers.
+- Updated tsup configuration to include external dependencies.
 - Updated lockfile.
-- **Build System**: Simplified build scripts and added tsup configuration files.
+- Simplified build scripts and added tsup configuration files.
 - **Dependencies**: Updated dorny/paths-filter to v4.
-- **CI**: Updated GitHub Actions permissions in PR workflow.
-- Updated all releasekit packages to version 0.3.0-next.4.
+- Updated GitHub Actions permissions in PR workflow.
+- Released @releasekit packages at version 0.3.0-next.4.
 - Added OLLAMA_API_KEY to release workflows.
-- Updated all releasekit packages to version 0.3.0-next.3.
-- Updated all releasekit packages to version 0.3.0-next.2.
+- Released @releasekit packages at version 0.3.0-next.3.
+- Released @releasekit packages at version 0.3.0-next.2.
 - Updated schema.
-- Updated all releasekit packages to version 0.3.0-next.1.
+- Released @releasekit packages at version 0.3.0-next.1.
 - Added step to create bin stubs for CLI packages.
 - Simplified header assignment and removed unused case in validateScope.
-- Updated all releasekit packages to version 0.3.0-next.0.
+- Released @releasekit packages at version 0.3.0-next.0.
 - Updated package description and formatted keywords and files for consistency.
-- Clarified package description.
+- Clarified description.
 - Improved error logging in release process.
 - Streamlined runPipeline and enhanced monorepo handling.
-- Updated GitHub release schema for enhanced release notes handling.
+- Updated GitHub release schema to enhance release notes handling.
 - Updated GitHub release configuration and commit handling.
-- Updated all releasekit packages to version 0.2.0.
-- Moved config items into top-level git section.
+- Released @releasekit packages at version 0.2.0.
+- Moved configuration items into top-level git section.
 - Enabled skipHooks option in releasekit configuration.
 - Added git.skipHooks configuration option.
-- **CI**: Updated GitHub Actions setup with latest pnpm and Node.js versions.
-- Improved README documentation.
+- Updated GitHub Actions to use latest pnpm and Node.js versions.
 - Simplified job name in release workflow.
 - Corrected label text.
-- Updated README for GitHub Actions configuration.
-- **Dependencies**: Updated production dependencies (4 packages).
-- **Dependencies**: Updated liquidjs to version 10.25.0.
-- Removed LLM config override.
-- **Dependencies**: Updated development dependencies (2 packages).
-- Updated all releasekit packages to version 0.2.0-next.12.
-- Updated all releasekit packages to version 0.2.0-next.12.
+- **Dependencies**: Updated production dependencies with 4 updates.
+- **Dependencies**: Updated liquidjs to v10.25.0.
+- Removed LLM configuration override.
+- **Dependencies**: Updated development dependencies with 2 updates.
+- Released @releasekit packages at version 0.2.0-next.12.
+- Released @releasekit packages at version 0.2.0-next.12.
 - Added release package to issue templates.
 - **Dependencies**: Updated zod and other package versions.
 - **Dependencies**: Updated dependencies.
-- Updated all releasekit packages to version 0.2.0-next.11.
-- Updated all releasekit packages to version 0.2.0-next.11.
+- Released @releasekit packages at version 0.2.0-next.11.
+- Released @releasekit packages at version 0.2.0-next.11.
 - **Dependencies**: Updated amannn/action-semantic-pull-request to v6.
 - Updated version handling in generateCompareUrl function.
-- Updated all releasekit packages to version 0.2.0-next.10.
-- Updated all releasekit packages to version 0.2.0-next.10.
+- Released @releasekit packages at version 0.2.0-next.10.
+- Released @releasekit packages at version 0.2.0-next.10.
 - Enhanced version extraction for compare URLs.
-- Updated all releasekit packages to version 0.2.0-next.9.
-- Updated all releasekit packages to version 0.2.0-next.9.
-- Updated all releasekit packages to version 0.2.0-next.8.
-- Updated all releasekit packages to version 0.2.0-next.8.
+- Released @releasekit packages at version 0.2.0-next.9.
+- Released @releasekit packages at version 0.2.0-next.9.
+- Released @releasekit packages at version 0.2.0-next.8.
+- Released @releasekit packages at version 0.2.0-next.8.
 - Updated releasekit configuration categories and descriptions.
-- Updated all releasekit packages to version 0.2.0-next.7.
-- Updated all releasekit packages to version 0.2.0-next.7.
-- **CI**: Set fetch-depth to 0 for checkout step in release post workflow.
-- Updated all releasekit packages to version 0.2.0-next.6.
-- Updated all releasekit packages to version 0.2.0-next.6.
+- Released @releasekit packages at version 0.2.0-next.7.
+- Released @releasekit packages at version 0.2.0-next.7.
+- Set fetch-depth to 0 for checkout step in release post workflow.
+- Released @releasekit packages at version 0.2.0-next.6.
+- Released @releasekit packages at version 0.2.0-next.6.
 - Simplified logging message for LLM processing.
-- Updated all releasekit packages to version 0.2.0-next.5.
-- Updated all releasekit packages to version 0.2.0-next.5.
-- Added version badges to package table in README.
-- Updated all releasekit packages to version 0.2.0-next.4.
-- Updated all releasekit packages to version 0.2.0-next.4.
+- Released @releasekit packages at version 0.2.0-next.5.
+- Released @releasekit packages at version 0.2.0-next.5.
+- Updated package table in README to include version badges.
+- Released @releasekit packages at version 0.2.0-next.4.
+- Released @releasekit packages at version 0.2.0-next.4.
 - Unified logging to console.error for all log levels.
-- Updated all releasekit packages to version 0.2.0-next.3.
-- Updated all releasekit packages to version 0.2.0-next.3.
-- Updated all releasekit packages to version 0.2.0-next.2.
-- Updated all releasekit packages to version 0.2.0-next.2.
+- Released @releasekit packages at version 0.2.0-next.3.
+- Released @releasekit packages at version 0.2.0-next.3.
+- Released @releasekit packages at version 0.2.0-next.2.
+- Released @releasekit packages at version 0.2.0-next.2.
 - Enhanced release workflow and notes generation for specific packages.
-- Updated all releasekit packages to version 0.2.0-next.1.
-- Updated all releasekit packages to version 0.2.0-next.1.
-- Updated all releasekit packages to version 0.2.0-next.0.
+- Released @releasekit packages at version 0.2.0-next.1.
+- Released @releasekit packages at version 0.2.0-next.1.
+- Updated package versions to 0.2.0-next.0 for all releasekit packages.
 - Updated release workflow and enhanced type safety in categorization.
-- Refined npm publishing workflow and improved type handling.
+- Refined npm publishing workflow and improved type handling in categorization.
 - Updated npm publishing workflow to unset NODE_AUTH_TOKEN.
 - Enhanced npm publishing workflow with OIDC configuration.
 - Streamlined npm publish process by specifying registry URL.
@@ -193,49 +197,52 @@
 - Refactored package publishing function to include package directory.
 - Updated Node.js version requirements and added .nvmrc file.
 - Improved release workflow by ensuring local tags are deleted before creation.
-- Downgraded @releasekit/notes to version 0.1.0 to align with versioning strategy.
-- Downgraded @releasekit/publish, @releasekit/release, and @releasekit/version to version 0.1.0.
+- Downgraded @releasekit/notes to 0.1.0 to align with versioning strategy.
+- Downgraded package versions to 0.1.0 for @releasekit/publish, @releasekit/release, and @releasekit/version.
 - Refined release workflow by separating commit and push steps.
 - Added mismatch strategy to releasekit configuration.
 - Updated package publishing command to include provenance and public access.
 - Enhanced release workflows with package and bump inputs.
-- Updated all releasekit packages to version 0.2.0-next.0.
-- Updated all releasekit packages to version 0.2.0.
+- Released @releasekit packages at version 0.2.0-next.0.
+- Released @releasekit packages at version 0.2.0.
 - Updated release workflows to support prerelease versioning.
 - Enhanced release workflows with improved summary formatting and package details.
-- Updated release workflow to use built CLI for version bumps.
+- Updated release workflow to use built version of CLI for version bumps.
 - Updated release workflow to use pnpm for script execution.
-- **CI**: Updated release workflow permissions for contents.
-- **CI**: Updated release workflow permissions.
-- Updated package descriptions and READMEs.
-- Updated bootstrap documentation for new package.
+- Updated release workflow permissions for contents.
+- Updated release workflow permissions.
 - **CI**: Updated CI configuration for new package.
-- Added automation plan.
 - **Dependencies**: Updated actions/checkout to v6.
 - **Dependencies**: Updated actions/download-artifact to v8.
 - **Dependencies**: Updated actions/upload-artifact to v7.
-- Added realistic usage patterns for composable tools.
-- **CI**: Updated CI workflows with additional conditions and OS support.
+- **CI**: Updated CI workflows to include additional conditions and OS support.
 - Enhanced CLI execution logic for package handling.
-- **Testing**: Simplified E2E testing workflow and updated dependencies.
+- Simplified E2E testing workflow and updated dependencies.
 - Refactored versioning CLI and enhanced build process.
 - Updated lockfile.
 - **Dependencies**: Updated github/codeql-action to v4.
 - **Dependencies**: Updated actions/checkout to v6.
 - **CI**: Added tsx support and enhanced CI workflows.
+- Removed compiled artifacts.
 - Simplified changelog comments in version strategies.
-- **CI**: Enhanced CI/CD workflows and configuration management.
-- Added issue templates for bug reports and feature requests.
-- Added Code of Conduct, Contributing guidelines, and Security Policy.
-- **Dependencies**: Added more dependencies to catalog.
+- Enhanced CI/CD workflows and configuration management.
+- Added more dependencies to catalog.
 - Improved code sharing across packages.
 - Migrated logging utilities to @releasekit/core.
-- Initialized ReleaseKit monorepo with core packages, CI/CD workflows, and configuration files.
 
 ### Removed:
 - Removed PLAN.md file.
 - Removed unused release workflows and scripts.
 - Removed bootstrap link.
-- Removed Bootstrap Guide document as the release workflow is now streamlined.
-- Removed compiled artifacts.
+- Removed Bootstrap Guide document as the workflow is now streamlined and automated.
+
+### Documentation:
+- Improved documentation across the project.
+- Clarified configuration setup in README files.
+- Emphasized ESM support in README files.
+- Improved README files.
+- Updated README for GitHub Actions configuration.
+- Updated package descriptions and READMEs.
+- Updated bootstrap documentation for new package.
+- Showed realistic usage patterns for composable tools.
 

@@ -65,7 +65,7 @@ The pipeline is **fail-fast**: the first package publish failure throws immediat
 | `--registry <type>` | Registry to publish to: `npm`, `cargo`, `all` | `all` |
 | `--npm-auth <method>` | NPM auth method: `oidc`, `token`, `auto` | `auto` |
 | `--dry-run` | Simulate all operations | `false` |
-| `--skip-git` | Skip git commit/tag/push | `false` |
+| `--skip-git` | Skip git commit/tag/push (also skips GitHub release — no tag to release against) | `false` |
 | `--skip-publish` | Skip registry publishing | `false` |
 | `--skip-github-release` | Skip GitHub Release creation | `false` |
 | `--skip-verification` | Skip post-publish verification | `false` |

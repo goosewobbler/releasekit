@@ -99,14 +99,29 @@ describe('pipeline', () => {
     ]);
   });
 
-  it('should skip git stages when --skip-git', async () => {
+  it('should skip git stages and github release when --skip-git', async () => {
     const { runGitCommitStage } = await import('../../src/stages/git-commit.js');
     const { runGitPushStage } = await import('../../src/stages/git-push.js');
+    const { runGithubReleaseStage } = await import('../../src/stages/github-release.js');
 
     await runPipeline(minimalInput, getDefaultConfig(), { ...defaultOptions, skipGit: true });
 
     expect(runGitCommitStage).not.toHaveBeenCalled();
     expect(runGitPushStage).not.toHaveBeenCalled();
+    expect(runGithubReleaseStage).not.toHaveBeenCalled();
+  });
+
+  it('should skip github release when config.git.push is false', async () => {
+    const { runGitPushStage } = await import('../../src/stages/git-push.js');
+    const { runGithubReleaseStage } = await import('../../src/stages/github-release.js');
+
+    const config = getDefaultConfig();
+    config.git.push = false;
+
+    await runPipeline(minimalInput, config, defaultOptions);
+
+    expect(runGitPushStage).toHaveBeenCalled();
+    expect(runGithubReleaseStage).not.toHaveBeenCalled();
   });
 
   it('should skip publish stages when --skip-publish', async () => {
