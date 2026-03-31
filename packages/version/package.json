@@ -43,7 +43,7 @@
     "directory": "packages/version"
   },
   "license": "MIT",
-  "files": ["dist", "docs", "version.schema.json"],
+  "files": ["dist", "docs", "README.md", "LICENSE", "version.schema.json"],
   "publishConfig": {
     "access": "public"
   },
