@@ -80,47 +80,87 @@ function isVersionOnlyTag(tag: string): boolean {
   return /^v?\d+\.\d+\.\d+/.test(tag);
 }
 
-/** Extract title from tag for GitHub release name.
- * - Package-specific (e.g., "@releasekit/release@v0.3.0") → "@releasekit/release @ v0.3.0"
- * - Version-only (e.g., "v0.3.0") → "v0.3.0"
+/** Derive the sanitized package name as used by formatTag in @releasekit/version.
+ * "@scope/pkg" → "scope-pkg", "pkg" → "pkg"
  */
-function getTitleFromTag(tag: string): string {
-  const atIndex = tag.lastIndexOf('@');
-  if (atIndex === -1) {
-    return tag;
+function sanitizePackageName(name: string): string {
+  return name.startsWith('@') ? name.slice(1).replace(/\//g, '-') : name;
+}
+
+interface TagResolution {
+  packageName: string;
+  version: string;
+}
+
+/** Match a tag against a list of package names, handling two formats:
+ *  - Raw:       "@scope/pkg@v1.0.0"   (separator: @, no tagTemplate)
+ *  - Sanitized: "scope-pkg-v1.0.0"    (separator: -, tagTemplate uses ${packageName})
+ *
+ *  Sorts by sanitized name length (longest first) to resolve prefix ambiguity.
+ */
+function resolveTagPackage(tag: string, packageNames: string[]): TagResolution | null {
+  const sorted = [...packageNames].sort((a, b) => sanitizePackageName(b).length - sanitizePackageName(a).length);
+  for (const packageName of sorted) {
+    const atPrefix = `${packageName}@`;
+    if (tag.startsWith(atPrefix)) {
+      return { packageName, version: tag.slice(atPrefix.length) };
+    }
+    const dashPrefix = `${sanitizePackageName(packageName)}-`;
+    if (tag.startsWith(dashPrefix)) {
+      return { packageName, version: tag.slice(dashPrefix.length) };
+    }
   }
-  const packageName = tag.slice(0, atIndex);
-  const version = tag.slice(atIndex + 1);
-  return `${packageName} @ ${version}`;
+  return null;
+}
+
+/** Extract title for GitHub release name using the original (unsanitized) package name.
+ * - "@releasekit/version" matched from "releasekit-version-v0.4.1" → "@releasekit/version @ v0.4.1"
+ * - "@releasekit/release@v0.3.0"                                   → "@releasekit/release @ v0.3.0"
+ * - "v0.3.0"                                                        → "v0.3.0"
+ */
+function getTitleFromTag(tag: string, changelogs: VersionPackageChangelog[]): string {
+  if (changelogs.length > 0) {
+    const resolved = resolveTagPackage(
+      tag,
+      changelogs.map((c) => c.packageName),
+    );
+    if (resolved) return `${resolved.packageName} @ ${resolved.version}`;
+  }
+  // Fallback: try splitting on last @ for unsanitized "pkg@version" tags
+  const atIndex = tag.lastIndexOf('@');
+  if (atIndex === -1) return tag;
+  return `${tag.slice(0, atIndex)} @ ${tag.slice(atIndex + 1)}`;
 }
 
 /** Match a tag to a package name in the notes map. */
 function findNotesForTag(tag: string, notes: Record<string, string>): string | undefined {
-  // Boundary-aware match: tag format is "packageName@vX.Y.Z"
-  for (const [packageName, body] of Object.entries(notes)) {
-    if (tag.startsWith(`${packageName}@`) && body.trim()) {
-      return body;
-    }
+  const resolved = resolveTagPackage(tag, Object.keys(notes));
+  if (resolved) {
+    const body = notes[resolved.packageName];
+    if (body?.trim()) return body;
   }
-  // Single-package fallback: only for version-only tags (e.g., "v1.0.0")
-  // not for package-specific tags (e.g., "pkg@v1.0.0", "@scope/pkg@v1.0.0")
+  // Single-package fallback for version-only tags (e.g., "v1.0.0")
   const entries = Object.values(notes).filter((b) => b.trim());
   if (entries.length === 1 && isVersionOnlyTag(tag)) return entries[0];
   return undefined;
 }
 
 /**
- * Extract the package name from a tag (e.g., '@releasekit/version@v0.2.0' → '@releasekit/version')
- * and format that package's changelog entries into markdown.
+ * Find the changelog for a given tag and format its entries as markdown.
  */
 function formatChangelogForTag(tag: string, changelogs: VersionPackageChangelog[]): string | undefined {
   if (changelogs.length === 0) return undefined;
 
-  // Try to match tag to a package changelog (boundary-aware: "packageName@vX.Y.Z")
-  const changelog = changelogs.find((c) => tag.startsWith(`${c.packageName}@`));
+  const resolved = resolveTagPackage(
+    tag,
+    changelogs.map((c) => c.packageName),
+  );
+  const target = resolved
+    ? changelogs.find((c) => c.packageName === resolved.packageName)
+    : changelogs.length === 1 && isVersionOnlyTag(tag)
+      ? changelogs[0]
+      : undefined;
 
-  // For single-package repos with version-only tags, use the first changelog
-  const target = changelog ?? (changelogs.length === 1 && isVersionOnlyTag(tag) ? changelogs[0] : undefined);
   if (!target || target.entries.length === 0) return undefined;
 
   const lines: string[] = [];
@@ -174,7 +214,7 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
     };
 
     const ghArgs = ['release', 'create', tag];
-    ghArgs.push('--title', getTitleFromTag(tag));
+    ghArgs.push('--title', getTitleFromTag(tag, ctx.input.changelogs));
 
     if (config.githubRelease.draft) {
       ghArgs.push('--draft');

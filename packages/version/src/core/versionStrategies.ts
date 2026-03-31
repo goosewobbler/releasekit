@@ -275,20 +275,36 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         ];
       }
 
-      // Track changelog data for JSON output
-      addChangelogData({
-        packageName: mainPkgName || 'monorepo',
-        version: nextVersion,
-        previousVersion: latestTag || null,
-        revisionRange,
-        repoUrl: null,
-        entries: changelogEntries,
-      });
-
       // Build the commit message package name from all updated workspace packages.
       // Pass undefined when only the root was updated so formatCommitMessage leaves
       // the ${packageName} placeholder empty rather than inserting the literal 'root'.
       const workspaceNames = updatedPackages.filter((n) => n !== 'root');
+
+      // Track changelog data for JSON output.
+      // In per-package tag mode, emit one changelog entry per workspace package so the
+      // notes pipeline can write a CHANGELOG.md to each package directory and the
+      // publish pipeline can match tags to the right release notes.
+      if (config.packageSpecificTags && workspaceNames.length > 0) {
+        for (const pkgName of workspaceNames) {
+          addChangelogData({
+            packageName: pkgName,
+            version: nextVersion,
+            previousVersion: latestTag || null,
+            revisionRange,
+            repoUrl: null,
+            entries: changelogEntries,
+          });
+        }
+      } else {
+        addChangelogData({
+          packageName: mainPkgName || 'monorepo',
+          version: nextVersion,
+          previousVersion: latestTag || null,
+          revisionRange,
+          repoUrl: null,
+          entries: changelogEntries,
+        });
+      }
       const commitPackageName = workspaceNames.length > 0 ? workspaceNames.join(', ') : undefined;
 
       // Create tags. When packageSpecificTags is enabled and there are workspace packages,

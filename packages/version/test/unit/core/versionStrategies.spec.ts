@@ -441,6 +441,35 @@ describe('Version Strategies', () => {
         expect(jsonOutput.addTag).toHaveBeenCalledTimes(2);
       });
 
+      it('should emit one changelog entry per workspace package when packageSpecificTags is true', async () => {
+        const config: Partial<Config> = {
+          ...defaultConfig,
+          sync: true,
+          packageSpecificTags: true,
+        };
+
+        const syncStrategy = strategies.createSyncStrategy(config as Config);
+        await syncStrategy(mockPackages);
+
+        expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(expect.objectContaining({ packageName: 'package-a' }));
+        expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(expect.objectContaining({ packageName: 'package-b' }));
+        expect(jsonOutput.addChangelogData).toHaveBeenCalledTimes(2);
+      });
+
+      it('should emit a single monorepo changelog entry when packageSpecificTags is false', async () => {
+        const config: Partial<Config> = {
+          ...defaultConfig,
+          sync: true,
+          packageSpecificTags: false,
+        };
+
+        const syncStrategy = strategies.createSyncStrategy(config as Config);
+        await syncStrategy(mockPackages);
+
+        expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(expect.objectContaining({ packageName: 'monorepo' }));
+        expect(jsonOutput.addChangelogData).toHaveBeenCalledTimes(1);
+      });
+
       it('should create fallback changelog entry when no commits found', async () => {
         vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockReturnValue([]);
 
