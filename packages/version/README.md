@@ -133,10 +133,19 @@ Configure via `releasekit.config.json`:
 | `cargo.enabled` | Update Cargo.toml files | `true` |
 | `cargo.paths` | Directories containing Cargo.toml | auto-detect |
 
+## Using in CI
+
+A few things to keep in mind when running `releasekit-version` in a pipeline:
+
+- **Always pass `fetch-depth: 0`** on checkout — the tool reads git history to determine the version bump and will produce incorrect results on a shallow clone.
+- **Use `--json`** for reliable downstream parsing. Text output format can change; the JSON schema is stable.
+- **`NO_COLOR=1`** disables ANSI colour codes in log output. Most CI environments set `CI=true` automatically, which the tool detects and adjusts for.
+
+If you are running the full release pipeline (version + changelog + publish), use `@releasekit/release` instead of invoking `releasekit-version` directly. See the [CI setup guide](../release/docs/ci-setup.md).
+
 ## Documentation
 
 - [Versioning Strategies and Concepts](./docs/versioning.md)
-- [CI/CD Integration](./docs/CI_CD_INTEGRATION.md)
 
 ## Acknowledgements
 
