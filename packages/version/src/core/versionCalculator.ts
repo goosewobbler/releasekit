@@ -10,6 +10,7 @@ import semver from 'semver';
 import { getCurrentBranch } from '../git/repository.js';
 import { getCommitsLength, lastMergeBranchName } from '../git/tagsAndBranches.js';
 import type { Config, VersionOptions } from '../types.js';
+import { escapeRegExp } from '../utils/formatting.js';
 import { log } from '../utils/logging.js';
 import { getVersionFromManifests } from '../utils/manifestHelpers.js';
 import {
@@ -54,10 +55,6 @@ export async function calculateVersion(config: Config, options: VersionOptions):
 
   try {
     const originalPrefix = versionPrefix || '';
-
-    function escapeRegExp(string: string): string {
-      return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    }
 
     // Build a regex pattern that strips the package + separator prefix from a tag, supporting
     // both separator styles produced by formatTag:
