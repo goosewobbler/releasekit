@@ -470,6 +470,31 @@ describe('Version Strategies', () => {
         expect(jsonOutput.addChangelogData).toHaveBeenCalledTimes(1);
       });
 
+      it('should fall through to mainPkgName when packageSpecificTags is true but no workspace packages exist', async () => {
+        const rootOnlyRepo = {
+          root: '/test/workspace',
+          rootDir: '/test/workspace',
+          tool: 'npm' as unknown as Tool,
+          packages: [] as unknown[],
+        } as unknown as PackagesWithRoot;
+
+        const config: Partial<Config> = {
+          ...defaultConfig,
+          sync: true,
+          packageSpecificTags: true,
+        };
+
+        const syncStrategy = strategies.createSyncStrategy(config as Config);
+        await syncStrategy(rootOnlyRepo);
+
+        // workspaceNames is empty, so the per-package branch is skipped and
+        // the single-entry path falls through to mainPkgName || 'monorepo'.
+        // mainPkgName is undefined here (no mainPackage config, no workspace packages),
+        // so the entry is keyed as 'monorepo'.
+        expect(jsonOutput.addChangelogData).toHaveBeenCalledTimes(1);
+        expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(expect.objectContaining({ packageName: 'monorepo' }));
+      });
+
       it('should create fallback changelog entry when no commits found', async () => {
         vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockReturnValue([]);
 
