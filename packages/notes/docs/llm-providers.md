@@ -205,14 +205,14 @@ Append extra instructions to the built-in prompt:
 
 ### Full prompt template override
 
-Replace the entire prompt for a task (use `{entries}`, `{packageName}`, `{version}` as placeholders):
+Replace the entire prompt for a task. The string is sent to the LLM verbatim — no placeholder substitution is applied.
 
 ```json
 {
   "llm": {
     "prompts": {
       "templates": {
-        "enhance": "Improve this changelog entry for {packageName} {version}. Entry: {entry}. Return only the improved text."
+        "enhance": "You are a technical writer. Rewrite the changelog entry below as a single, concise sentence in plain English. Return only the rewritten text, nothing else."
       }
     }
   }
