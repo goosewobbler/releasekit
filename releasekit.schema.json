@@ -585,6 +585,84 @@
         }
       }
     },
+    "ci": {
+      "type": "object",
+      "description": "CI automation configuration for release triggers, PR previews, and label management",
+      "additionalProperties": false,
+      "properties": {
+        "releaseStrategy": {
+          "type": "string",
+          "enum": ["manual", "direct", "standing-pr", "scheduled"],
+          "default": "direct",
+          "description": "How releases are delivered. 'direct': release on merge to main. 'manual': releases triggered manually (e.g. workflow_dispatch). 'standing-pr': changes accumulate in a release PR. 'scheduled': releases triggered on a schedule."
+        },
+        "releaseTrigger": {
+          "type": "string",
+          "enum": ["commit", "label"],
+          "default": "label",
+          "description": "What triggers a release. 'label': a PR bump label (release:patch/minor/major) is required. 'commit': conventional commits drive the bump automatically; every merge can trigger a release."
+        },
+        "prPreview": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable PR preview comments showing what would be released if the PR is merged. Set to false to disable."
+        },
+        "autoRelease": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically trigger a release when CI conditions are met, without manual intervention."
+        },
+        "skipPatterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["chore: release "],
+          "description": "Commit message prefixes that suppress a release. The default matches the release commit template to prevent release loops."
+        },
+        "minChanges": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Minimum number of packages with releasable changes required to trigger a release."
+        },
+        "labels": {
+          "type": "object",
+          "description": "PR label names used for release control. Override to match your repository's label conventions.",
+          "additionalProperties": false,
+          "properties": {
+            "stable": {
+              "type": "string",
+              "default": "release:stable",
+              "description": "Label to graduate a prerelease to stable"
+            },
+            "prerelease": {
+              "type": "string",
+              "default": "release:prerelease",
+              "description": "Label to create a prerelease"
+            },
+            "skip": {
+              "type": "string",
+              "default": "release:skip",
+              "description": "Label to suppress a release on this PR"
+            },
+            "major": {
+              "type": "string",
+              "default": "release:major",
+              "description": "Label to force a major bump"
+            },
+            "minor": {
+              "type": "string",
+              "default": "release:minor",
+              "description": "Label to force a minor bump"
+            },
+            "patch": {
+              "type": "string",
+              "default": "release:patch",
+              "description": "Label to force a patch bump"
+            }
+          }
+        }
+      }
+    },
     "release": {
       "type": "object",
       "description": "Release pipeline automation configuration",
