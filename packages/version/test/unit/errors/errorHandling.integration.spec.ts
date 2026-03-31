@@ -91,7 +91,7 @@ describe('Error Handling Integration', () => {
       ]);
 
       expect(configError.suggestions).toEqual([
-        'Create a version.config.json file in your project root',
+        'Create a releasekit.config.json file in your project root',
         'Check the documentation for configuration examples',
       ]);
 

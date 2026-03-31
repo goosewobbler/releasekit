@@ -39,7 +39,7 @@ describe('VersionError', () => {
       expect(error.code).toBe(VersionErrorCode.CONFIG_REQUIRED);
       expect(error.message).toBe('Configuration is required');
       expect(error.suggestions).toEqual([
-        'Create a version.config.json file in your project root',
+        'Create a releasekit.config.json file in your project root',
         'Check the documentation for configuration examples',
       ]);
     });
@@ -77,7 +77,7 @@ describe('VersionError', () => {
       expect(error.code).toBe(VersionErrorCode.INVALID_CONFIG);
       expect(error.message).toBe('Invalid configuration');
       expect(error.suggestions).toEqual([
-        'Validate version.config.json syntax',
+        'Validate releasekit.config.json syntax',
         'Check configuration against schema',
         'Review documentation for valid configuration options',
       ]);
@@ -92,7 +92,7 @@ describe('VersionError', () => {
       expect(error.suggestions).toEqual([
         'Verify package name spelling and case',
         'Check if package exists in workspace',
-        'Review packages configuration in version.config.json',
+        'Review packages configuration in releasekit.config.json',
       ]);
     });
 
@@ -154,7 +154,7 @@ describe('VersionError', () => {
       expect(errorSpy).toHaveBeenCalledTimes(4);
       expect(errorSpy.mock.calls[0]?.[0]).toContain('Configuration is required');
       expect(errorSpy.mock.calls[1]?.[0]).toContain('Suggested solutions');
-      expect(errorSpy.mock.calls[2]?.[0]).toContain('Create a version.config.json');
+      expect(errorSpy.mock.calls[2]?.[0]).toContain('Create a releasekit.config.json');
       expect(errorSpy.mock.calls[3]?.[0]).toContain('Check the documentation');
     });
 

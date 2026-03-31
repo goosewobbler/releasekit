@@ -285,31 +285,19 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         entries: changelogEntries,
       });
 
-      // Create tag using the template
-      // In sync mode with single package, respect packageSpecificTags setting
-      let tagPackageName: string | null = null;
-
-      // If packageSpecificTags is enabled and we have exactly one package, use its name for the tag
-      if (config.packageSpecificTags && packages.packages.length === 1) {
-        tagPackageName = packages.packages[0].packageJson.name;
-      }
-
       // Build the commit message package name from all updated workspace packages.
       // Pass undefined when only the root was updated so formatCommitMessage leaves
       // the ${packageName} placeholder empty rather than inserting the literal 'root'.
       const workspaceNames = updatedPackages.filter((n) => n !== 'root');
       const commitPackageName = workspaceNames.length > 0 ? workspaceNames.join(', ') : undefined;
 
-      const nextTag = formatTag(
-        nextVersion,
-        formattedPrefix,
-        tagPackageName,
-        // Only pass tagTemplate when we have a package name to substitute into it.
-        // In multi-package sync mode tagPackageName is null, so omit the template to
-        // avoid a spurious ${packageName} warning and a malformed tag like "-v1.0.0".
-        tagPackageName ? tagTemplate : undefined,
-        config.packageSpecificTags || false,
-      );
+      // Create tags. When packageSpecificTags is enabled and there are workspace packages,
+      // create one tag per package (matching per-package strategy behaviour). Otherwise
+      // fall back to a single root tag (e.g. v1.0.0).
+      const nextTags =
+        config.packageSpecificTags && workspaceNames.length > 0
+          ? workspaceNames.map((pkgName) => formatTag(nextVersion, formattedPrefix, pkgName, tagTemplate, true))
+          : [formatTag(nextVersion, formattedPrefix, null, undefined, false)];
 
       // Format commit message - when commitPackageName is intentionally undefined (no workspace
       // packages), we do the substitution manually to avoid spurious warnings. The double-space
@@ -338,14 +326,16 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       // (e.g. 'chore: release  v1.0.0' → 'chore: release v1.0.0') and trim edges.
       formattedCommitMessage = formattedCommitMessage.replace(/\s{2,}/g, ' ').trim();
 
-      // Track tag and commit message for JSON output (git ops now handled by publish)
-      addTag(nextTag);
+      // Track tags and commit message for JSON output (git ops now handled by publish)
+      for (const tag of nextTags) {
+        addTag(tag);
+      }
       setCommitMessage(formattedCommitMessage);
 
       if (!dryRun) {
-        log(`Version ${nextVersion} prepared (tag: ${nextTag})`, 'success');
+        log(`Version ${nextVersion} prepared (tags: ${nextTags.join(', ')})`, 'success');
       } else {
-        log(`Would create tag: ${nextTag}`, 'info');
+        log(`Would create tags: ${nextTags.join(', ')}`, 'info');
       }
     } catch (error) {
       if (BaseVersionError.isVersionError(error)) {

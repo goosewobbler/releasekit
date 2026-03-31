@@ -208,7 +208,7 @@ function extractCommitsFromGitLog(projectDir: string, revisionRange: string, fil
       // Check if it might be a package-specific tag format issue
       if (tagName.startsWith('v') && !tagName.includes('@')) {
         log(
-          `Error: Tag "${tagName}" not found. If you're using package-specific tags (like "package-name@v1.0.0"), you may need to configure "tagTemplate" in your version.config.json to use: \${packageName}@\${prefix}\${version}`,
+          `Error: Tag "${tagName}" not found. If you're using package-specific tags (like "package-name@v1.0.0"), you may need to configure "tagTemplate" in your releasekit.config.json to use: \${packageName}@\${prefix}\${version}`,
           'error',
         );
       } else {
