@@ -6,16 +6,12 @@ vi.mock('@releasekit/config');
 vi.mock('../../src/core/pipeline.js');
 vi.mock('../../src/input/version-output.js');
 vi.mock('@releasekit/core');
-vi.mock('../../src/monorepo/aggregator.js', () => ({
-  detectMonorepo: vi.fn(),
-}));
 
 import { loadConfig } from '@releasekit/config';
 import { warn } from '@releasekit/core';
 import { createNotesCommand } from '../../src/cli.js';
 import { runPipeline } from '../../src/core/pipeline.js';
 import { parseVersionOutput } from '../../src/input/version-output.js';
-import { detectMonorepo } from '../../src/monorepo/aggregator.js';
 
 describe('createNotesCommand', () => {
   beforeEach(() => {
@@ -23,7 +19,6 @@ describe('createNotesCommand', () => {
     vi.mocked(loadConfig).mockReturnValue({} as never);
     vi.mocked(fs.readFileSync).mockImplementation(() => '{"packages": []}' as never);
     vi.mocked(parseVersionOutput).mockReturnValue({ source: 'version', packages: [] });
-    vi.mocked(detectMonorepo).mockReturnValue({ isMonorepo: false, packagesPath: '' });
   });
 
   afterEach(() => {
@@ -344,53 +339,6 @@ describe('createNotesCommand', () => {
       await createNotesCommand().parse(['node', 'test', 'generate', '-i', 'input.json', '--dry-run']);
 
       expect(runPipeline).toHaveBeenCalledWith(expect.anything(), expect.anything(), true);
-    });
-  });
-
-  describe('init subcommand', () => {
-    it('should write mode: root for a single-package repo', async () => {
-      vi.mocked(fs.existsSync).mockReturnValue(false);
-      vi.mocked(fs.writeFileSync).mockImplementation(() => undefined);
-      vi.mocked(detectMonorepo).mockReturnValue({ isMonorepo: false, packagesPath: '' });
-
-      await createNotesCommand().parseAsync(['node', 'test', 'init']);
-
-      const written = vi.mocked(fs.writeFileSync).mock.calls[0]?.[1] as string;
-      expect(JSON.parse(written)).toMatchObject({ notes: { changelog: { mode: 'root' } } });
-    });
-
-    it('should write mode: packages for a monorepo', async () => {
-      vi.mocked(fs.existsSync).mockReturnValue(false);
-      vi.mocked(fs.writeFileSync).mockImplementation(() => undefined);
-      vi.mocked(detectMonorepo).mockReturnValue({ isMonorepo: true, packagesPath: 'packages' });
-
-      await createNotesCommand().parseAsync(['node', 'test', 'init']);
-
-      const written = vi.mocked(fs.writeFileSync).mock.calls[0]?.[1] as string;
-      expect(JSON.parse(written)).toMatchObject({ notes: { changelog: { mode: 'packages' } } });
-    });
-
-    it('should write mode: root when detection throws', async () => {
-      vi.mocked(fs.existsSync).mockReturnValue(false);
-      vi.mocked(fs.writeFileSync).mockImplementation(() => undefined);
-      vi.mocked(detectMonorepo).mockImplementation(() => {
-        throw new Error('fs error');
-      });
-
-      await createNotesCommand().parseAsync(['node', 'test', 'init']);
-
-      const written = vi.mocked(fs.writeFileSync).mock.calls[0]?.[1] as string;
-      expect(JSON.parse(written)).toMatchObject({ notes: { changelog: { mode: 'root' } } });
-    });
-
-    it('should exit with an error when config already exists and --force is not set', () => {
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
-
-      createNotesCommand().parse(['node', 'test', 'init']);
-
-      expect(mockExit).toHaveBeenCalledWith(expect.any(Number));
-      mockExit.mockRestore();
     });
   });
 });
