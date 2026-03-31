@@ -1,5 +1,5 @@
 import type { VersionOutput } from '@releasekit/core';
-import { BasePublishError, PipelineError } from '../errors/index.js';
+import { BasePublishError, createPublishError, PipelineError, PublishErrorCode } from '../errors/index.js';
 import { runCargoPublishStage } from '../stages/cargo-publish.js';
 import { runGitCommitStage } from '../stages/git-commit.js';
 import { runGitPushStage } from '../stages/git-push.js';
@@ -77,7 +77,19 @@ export async function runPipeline(
       if (options.registry === 'all' || options.registry === 'cargo') {
         await runCargoPublishStage(ctx);
       }
-      ctx.output.publishSucceeded = true;
+
+      // Derive overall publish success from per-package results.
+      ctx.output.publishSucceeded = ctx.output.npm.every((r) => r.success) && ctx.output.cargo.every((r) => r.success);
+
+      // If every attempted (non-skipped) package failed, abort — prevents the version commit
+      // and tag being pushed to the remote with no corresponding packages on the registry.
+      const attempted = [...ctx.output.npm, ...ctx.output.cargo].filter((r) => !r.skipped);
+      if (!options.dryRun && attempted.length > 0 && attempted.every((r) => !r.success)) {
+        throw createPublishError(
+          PublishErrorCode.NPM_PUBLISH_ERROR,
+          `all ${attempted.length} package(s) failed to publish — version commit and tag will not be pushed`,
+        );
+      }
     }
 
     // Stage 6: Verification
@@ -91,8 +103,8 @@ export async function runPipeline(
       await runGitPushStage(ctx);
     }
 
-    // Stage 8: GitHub release
-    if (!options.skipGithubRelease) {
+    // Stage 8: GitHub release — only if the tag was actually pushed (or git is entirely skipped)
+    if (!options.skipGithubRelease && (options.skipGit || ctx.output.git.pushed)) {
       await runGithubReleaseStage(ctx);
     }
   } catch (error) {

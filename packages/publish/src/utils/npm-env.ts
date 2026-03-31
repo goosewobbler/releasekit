@@ -56,8 +56,10 @@ export function createNpmSubprocessIsolation(options: {
   const lines: string[] = [`registry=${registryUrl}`];
 
   if (authMethod === 'oidc') {
-    // Prevent setup-node's always-auth=true from forcing token lookups during OIDC publishing.
-    lines.push('always-auth=false');
+    // OIDC mode: no token in .npmrc — npm trusted publishing uses the OIDC exchange directly.
+    // The project .npmrc from actions/setup-node must be removed by the caller (workflow step)
+    // before running this; otherwise its _authToken=${NODE_AUTH_TOKEN} placeholder (which expands
+    // to an empty string when NODE_AUTH_TOKEN is unset) triggers ENEEDAUTH.
   }
 
   if (authMethod === 'token' && token) {
@@ -82,10 +84,7 @@ export function createNpmSubprocessIsolation(options: {
       // Auth-specific hardening
       ...(isOidc
         ? {
-            // Prevent setup-node's always-auth from forcing token lookups
-            NPM_CONFIG_ALWAYS_AUTH: 'false',
-            npm_config_always_auth: 'false',
-            // Explicitly prevent token-based publishing from being selected implicitly
+            // Prevent any ambient token from overriding OIDC trusted publishing
             NODE_AUTH_TOKEN: undefined,
             NPM_TOKEN: undefined,
           }

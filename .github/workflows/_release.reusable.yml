@@ -68,6 +68,10 @@ jobs:
       - name: Build packages
         run: pnpm build
 
+      - name: Remove setup-node auth config (OIDC mode)
+        if: ${{ inputs.npm_auth == 'oidc' && !inputs.dry_run }}
+        run: rm -f .npmrc
+
       - name: Run releasekit
         id: release
         env:
