@@ -116,7 +116,7 @@ For self-hosted or third-party OpenAI-compatible APIs (LM Studio, vLLM, Azure Op
 }
 ```
 
-Set `baseURL` to the endpoint's base path. If the endpoint requires authentication, set `apiKey` in config or pass via `--llm-base-url` and `--llm-tasks` flags.
+Set `baseURL` to the endpoint's base path. If the endpoint requires authentication, set `apiKey` in the config or store it with `releasekit-notes auth openai-compatible`.
 
 ---
 
