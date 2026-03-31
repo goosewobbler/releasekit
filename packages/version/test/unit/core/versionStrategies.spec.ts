@@ -421,6 +421,26 @@ describe('Version Strategies', () => {
         );
       });
 
+      it('should create one tag per workspace package when packageSpecificTags is true', async () => {
+        vi.mocked(formatting.formatTag, { partial: true }).mockImplementation((_version, _prefix, packageName) =>
+          packageName ? `${packageName}-v1.1.0` : 'v1.1.0',
+        );
+
+        const config: Partial<Config> = {
+          ...defaultConfig,
+          sync: true,
+          packageSpecificTags: true,
+          tagTemplate: '${' + 'packageName}-v${' + 'version}',
+        };
+
+        const syncStrategy = strategies.createSyncStrategy(config as Config);
+        await syncStrategy(mockPackages);
+
+        expect(jsonOutput.addTag).toHaveBeenCalledWith('package-a-v1.1.0');
+        expect(jsonOutput.addTag).toHaveBeenCalledWith('package-b-v1.1.0');
+        expect(jsonOutput.addTag).toHaveBeenCalledTimes(2);
+      });
+
       it('should create fallback changelog entry when no commits found', async () => {
         vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockReturnValue([]);
 
