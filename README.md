@@ -85,7 +85,7 @@ ReleaseKit uses a single `releasekit.config.json` file at the project root:
   "git": { "remote": "origin", "branch": "main" },
   "version": { "tagTemplate": "v{version}", "preset": "conventional" },
   "publish": { "npm": { "enabled": true, "access": "public" } },
-  "notes": { "output": [{ "format": "markdown", "file": "CHANGELOG.md" }] },
+  "notes": { "changelog": { "mode": "root" } },
   "ci": {
     "releaseStrategy": "direct",   // "manual" | "direct" | "standing-pr" | "scheduled"
     "releaseTrigger": "label",     // "commit" | "label"
