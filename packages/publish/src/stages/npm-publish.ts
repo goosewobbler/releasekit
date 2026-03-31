@@ -9,7 +9,7 @@ import { createNpmSubprocessIsolation } from '../utils/npm-env.js';
 import { buildPublishCommand, buildViewCommand } from '../utils/package-manager.js';
 import { getDistTag } from '../utils/semver.js';
 
-/** Error strategy: CATCHES per-package. One failure doesn't block others. */
+/** Error strategy: FAIL-FAST. First publish failure aborts the stage. */
 export async function runNpmPublishStage(ctx: PipelineContext): Promise<void> {
   const { input, config, cliOptions, cwd } = ctx;
   const dryRun = cliOptions.dryRun;
@@ -109,12 +109,15 @@ export async function runNpmPublishStage(ctx: PipelineContext): Promise<void> {
         if (!dryRun) {
           success(`Published ${update.packageName}@${update.newVersion} to npm`);
         }
+        ctx.output.npm.push(result);
       } catch (error) {
         result.reason = error instanceof Error ? error.message : String(error);
-        warn(`Failed to publish ${update.packageName}: ${result.reason}`);
+        ctx.output.npm.push(result);
+        throw createPublishError(
+          PublishErrorCode.NPM_PUBLISH_ERROR,
+          `${update.packageName}@${update.newVersion}: ${result.reason}`,
+        );
       }
-
-      ctx.output.npm.push(result);
     }
   } finally {
     npmIsolation.cleanup();
