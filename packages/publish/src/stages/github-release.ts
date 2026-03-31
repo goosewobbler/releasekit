@@ -113,16 +113,15 @@ function resolveTagPackage(tag: string, packageNames: string[]): TagResolution |
  * - "@releasekit/version" matched from "releasekit-version-v0.4.1" → e.g. "@releasekit/version: v0.4.1"
  * - "@releasekit/release@v0.3.0"                                   → e.g. "@releasekit/release: v0.3.0"
  * - "v0.3.0"                                                        → "v0.3.0"
+ *
+ * @param packageNames - deduplicated union of changelog package names and release notes keys
  */
-function getTitleFromTag(tag: string, changelogs: VersionPackageChangelog[], titleTemplate: string): string {
+function getTitleFromTag(tag: string, packageNames: string[], titleTemplate: string): string {
   const applyTemplate = (packageName: string, version: string): string =>
     titleTemplate.replace(/\$\{packageName\}/g, packageName).replace(/\$\{version\}/g, version);
 
-  if (changelogs.length > 0) {
-    const resolved = resolveTagPackage(
-      tag,
-      changelogs.map((c) => c.packageName),
-    );
+  if (packageNames.length > 0) {
+    const resolved = resolveTagPackage(tag, packageNames);
     if (resolved) return applyTemplate(resolved.packageName, resolved.version);
   }
   // Fallback: try splitting on last @ for unsanitized "pkg@version" tags
@@ -215,7 +214,11 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
     };
 
     const ghArgs = ['release', 'create', tag];
-    ghArgs.push('--title', getTitleFromTag(tag, ctx.input.changelogs, config.githubRelease.titleTemplate));
+    const titlePackageNames = [
+      ...ctx.input.changelogs.map((c) => c.packageName),
+      ...(ctx.releaseNotes ? Object.keys(ctx.releaseNotes) : []),
+    ];
+    ghArgs.push('--title', getTitleFromTag(tag, [...new Set(titlePackageNames)], config.githubRelease.titleTemplate));
 
     if (config.githubRelease.draft) {
       ghArgs.push('--draft');
