@@ -3,6 +3,7 @@
  */
 
 import { cwd } from 'node:process';
+import { sanitizePackageName } from '@releasekit/core';
 import { Bumper } from 'conventional-recommended-bump';
 import type { ReleaseType } from 'semver';
 import semver from 'semver';
@@ -54,20 +55,24 @@ export async function calculateVersion(config: Config, options: VersionOptions):
   try {
     const originalPrefix = versionPrefix || '';
 
-    function determineTagSearchPattern(packageName: string | undefined, prefix: string): string {
-      // If no package name is provided or packageSpecificTags is disabled, use global pattern
-      if (!packageName) {
-        return prefix;
-      }
-      return `${packageName}@${prefix}`;
-    }
-
     function escapeRegExp(string: string): string {
       return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
-    const tagSearchPattern = determineTagSearchPattern(name, originalPrefix);
-    const escapedTagPattern = escapeRegExp(tagSearchPattern);
+    // Build a regex pattern that strips the package + separator prefix from a tag, supporting
+    // both separator styles produced by formatTag:
+    //   • raw-scoped:     "@scope/pkg@v"   (default, no tagTemplate)
+    //   • sanitized-dash: "scope-pkg-v"    (tagTemplate using ${packageName} with dash)
+    // Without this, semver extraction falls back to '0.0.0' for dash-format tags.
+    function buildTagStripPattern(packageName: string | undefined, prefix: string): string {
+      if (!packageName) return escapeRegExp(prefix);
+      const sanitized = sanitizePackageName(packageName);
+      const escapedRaw = escapeRegExp(`${packageName}@${prefix}`);
+      const escapedDash = escapeRegExp(`${sanitized}-${prefix}`);
+      return `(?:${escapedRaw}|${escapedDash})`;
+    }
+
+    const escapedTagPattern = buildTagStripPattern(name, originalPrefix);
 
     // Get the best available version source using smart fallback
     let versionSource: VersionSourceResult | undefined;
