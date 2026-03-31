@@ -187,12 +187,6 @@ steps:
       node-version: '20'
       registry-url: 'https://registry.npmjs.org'
 
-  - name: Strip setup-node auth from .npmrc (required for OIDC)
-    run: |
-      if [ -f .npmrc ]; then
-        sed -i '/^\/\/.*:_authToken=/d; /^always-auth=/d' .npmrc
-      fi
-
   - run: npx releasekit release
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
