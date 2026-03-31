@@ -29,7 +29,7 @@ This provides the `releasekit` command. Individual tools (`releasekit-version`, 
 Run the init command to create a `releasekit.config.json` with sensible defaults:
 
 ```bash
-releasekit-notes init
+releasekit init
 ```
 
 Or create it manually. The minimal config for a single-package npm project:
@@ -40,6 +40,16 @@ Or create it manually. The minimal config for a single-package npm project:
   "notes": {
     "changelog": { "mode": "root" }
   },
+  "publish": {
+    "npm": { "enabled": true }
+  }
+}
+```
+
+For a scoped package (`@scope/name`), add `"access": "public"` — npm defaults scoped packages to restricted:
+
+```json
+{
   "publish": {
     "npm": { "enabled": true, "access": "public" }
   }
@@ -59,7 +69,7 @@ For a monorepo with packages under `packages/`, write a changelog per package:
     "changelog": { "mode": "packages" }
   },
   "publish": {
-    "npm": { "enabled": true, "access": "public" }
+    "npm": { "enabled": true }
   }
 }
 ```

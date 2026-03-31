@@ -17,7 +17,6 @@ import { Command } from 'commander';
 import { runPipeline } from './core/pipeline.js';
 import { getExitCode, NotesError } from './errors/index.js';
 import { parseVersionOutput } from './input/version-output.js';
-import { detectMonorepo } from './monorepo/aggregator.js';
 
 export function createNotesCommand(): Command {
   const cmd = new Command('notes').description(
@@ -203,45 +202,6 @@ export function createNotesCommand(): Command {
       } catch (err) {
         handleError(err);
       }
-    });
-
-  cmd
-    .command('init')
-    .description('Create default configuration file')
-    .option('-f, --force', 'Overwrite existing config')
-    .action((options) => {
-      const configPath = 'releasekit.config.json';
-
-      if (fs.existsSync(configPath) && !options.force) {
-        error(`Config file already exists at ${configPath}. Use --force to overwrite.`);
-        process.exit(EXIT_CODES.GENERAL_ERROR);
-      }
-
-      let changelogMode: 'root' | 'packages' | 'both';
-      try {
-        const detected = detectMonorepo(process.cwd());
-        changelogMode = detected.isMonorepo ? 'packages' : 'root';
-        info(
-          detected.isMonorepo
-            ? 'Monorepo detected — using mode: packages'
-            : 'Single-package repo detected — using mode: root',
-        );
-      } catch {
-        changelogMode = 'root';
-        info('Could not detect project type — using mode: root');
-      }
-
-      const defaultConfig = {
-        $schema: 'https://goosewobbler.github.io/releasekit/schema.json',
-        notes: {
-          changelog: {
-            mode: changelogMode,
-          },
-        },
-      };
-
-      fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2), 'utf-8');
-      success(`Created config file at ${configPath}`);
     });
 
   cmd
