@@ -76,8 +76,8 @@
       "properties": {
         "tagTemplate": {
           "type": "string",
-          "default": "v{version}",
-          "description": "Template for Git tags"
+          "default": "${prefix}${version}",
+          "description": "Template for Git tags. Available variables: ${version} (version number), ${prefix} (versionPrefix value, e.g. 'v'), ${packageName} (sanitized package name, e.g. 'scope-pkg'). Example: \"${packageName}-${prefix}${version}\" produces \"scope-pkg-v1.2.3\"."
         },
         "packageSpecificTags": {
           "type": "boolean",
