@@ -68,25 +68,6 @@ jobs:
       - name: Build packages
         run: pnpm build
 
-      - name: Debug .npmrc (OIDC mode)
-        if: ${{ inputs.npm_auth == 'oidc' && !inputs.dry_run }}
-        run: |
-          echo "=== .npmrc existence ==="
-          if [ -f .npmrc ]; then
-            echo "File exists"
-            echo "=== .npmrc contents ==="
-            cat .npmrc
-          else
-            echo "No .npmrc file found"
-          fi
-
-      - name: Strip setup-node auth token from .npmrc (OIDC mode)
-        if: ${{ inputs.npm_auth == 'oidc' && !inputs.dry_run }}
-        run: |
-          if [ -f .npmrc ]; then
-            sed -i '/^\/\/.*:_authToken=/d; /^always-auth=/d' .npmrc
-          fi
-
       - name: Run releasekit
         id: release
         env:
