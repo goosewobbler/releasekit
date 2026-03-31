@@ -108,6 +108,7 @@ describe('createInitCommand', () => {
       createInitCommand().parse(['node', 'init']);
 
       expect(mockExit).toHaveBeenCalledWith(EXIT_CODES.GENERAL_ERROR);
+      expect(vi.mocked(fs.writeFileSync)).not.toHaveBeenCalled();
       mockExit.mockRestore();
     });
 

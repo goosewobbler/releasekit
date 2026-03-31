@@ -13,47 +13,47 @@ export function createInitCommand(): Command {
       if (fs.existsSync(configPath) && !options.force) {
         error(`Config file already exists at ${configPath}. Use --force to overwrite.`);
         process.exit(EXIT_CODES.GENERAL_ERROR);
-      }
+      } else {
+        let changelogMode: 'root' | 'packages' | 'both';
+        try {
+          const detected = detectMonorepo(process.cwd());
+          changelogMode = detected.isMonorepo ? 'packages' : 'root';
+          info(
+            detected.isMonorepo
+              ? 'Monorepo detected — using mode: packages'
+              : 'Single-package repo detected — using mode: root',
+          );
+        } catch {
+          changelogMode = 'root';
+          info('Could not detect project type — using mode: root');
+        }
 
-      let changelogMode: 'root' | 'packages' | 'both';
-      try {
-        const detected = detectMonorepo(process.cwd());
-        changelogMode = detected.isMonorepo ? 'packages' : 'root';
-        info(
-          detected.isMonorepo
-            ? 'Monorepo detected — using mode: packages'
-            : 'Single-package repo detected — using mode: root',
-        );
-      } catch {
-        changelogMode = 'root';
-        info('Could not detect project type — using mode: root');
-      }
+        let packageName: string | undefined;
+        try {
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf-8')) as { name?: string };
+          packageName = pkg.name;
+        } catch {
+          // no package.json or unreadable — omit access
+        }
+        const isScoped = packageName?.startsWith('@') ?? false;
 
-      let packageName: string | undefined;
-      try {
-        const pkg = JSON.parse(fs.readFileSync('package.json', 'utf-8')) as { name?: string };
-        packageName = pkg.name;
-      } catch {
-        // no package.json or unreadable — omit access
-      }
-      const isScoped = packageName?.startsWith('@') ?? false;
-
-      const defaultConfig = {
-        $schema: 'https://goosewobbler.github.io/releasekit/schema.json',
-        notes: {
-          changelog: {
-            mode: changelogMode,
+        const defaultConfig = {
+          $schema: 'https://goosewobbler.github.io/releasekit/schema.json',
+          notes: {
+            changelog: {
+              mode: changelogMode,
+            },
           },
-        },
-        publish: {
-          npm: {
-            enabled: true,
-            ...(isScoped ? { access: 'public' } : {}),
+          publish: {
+            npm: {
+              enabled: true,
+              ...(isScoped ? { access: 'public' } : {}),
+            },
           },
-        },
-      };
+        };
 
-      fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2), 'utf-8');
-      success(`Created ${configPath}`);
+        fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2), 'utf-8');
+        success(`Created ${configPath}`);
+      }
     });
 }
