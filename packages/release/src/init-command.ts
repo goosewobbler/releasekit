@@ -29,6 +29,15 @@ export function createInitCommand(): Command {
         info('Could not detect project type — using mode: root');
       }
 
+      let packageName: string | undefined;
+      try {
+        const pkg = JSON.parse(fs.readFileSync('package.json', 'utf-8')) as { name?: string };
+        packageName = pkg.name;
+      } catch {
+        // no package.json or unreadable — omit access
+      }
+      const isScoped = packageName?.startsWith('@') ?? false;
+
       const defaultConfig = {
         $schema: 'https://goosewobbler.github.io/releasekit/schema.json',
         notes: {
@@ -39,7 +48,7 @@ export function createInitCommand(): Command {
         publish: {
           npm: {
             enabled: true,
-            access: 'public',
+            ...(isScoped ? { access: 'public' } : {}),
           },
         },
       };
