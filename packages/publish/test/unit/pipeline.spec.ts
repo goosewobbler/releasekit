@@ -120,7 +120,7 @@ describe('pipeline', () => {
 
     await runPipeline(minimalInput, config, defaultOptions);
 
-    expect(runGitPushStage).not.toHaveBeenCalled();
+    expect(runGitPushStage).toHaveBeenCalled();
     expect(runGithubReleaseStage).not.toHaveBeenCalled();
   });
 
