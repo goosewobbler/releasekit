@@ -1,6 +1,10 @@
 # @releasekit/release
 
-Unified release pipeline: version, changelog, and publish in a single command.
+[![@releasekit/release](https://img.shields.io/badge/@releasekit-release-9feaf9?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@releasekit/release)
+[![Version](https://img.shields.io/npm/v/@releasekit/release?color=28a745&labelColor=1a1a1a)](https://www.npmjs.com/package/@releasekit/release)
+[![Downloads](https://img.shields.io/npm/dw/@releasekit/release?color=6f42c1&labelColor=1a1a1a)](https://www.npmjs.com/package/@releasekit/release)
+
+**Unified release pipeline: version, changelog, and publish in a single command.**
 
 ## Features
 
@@ -274,6 +278,11 @@ jobs:
 ```
 
 A template is also available at [`templates/workflows/release-preview.yml`](../../templates/workflows/release-preview.yml).
+
+## Documentation
+
+**Getting Started**
+- [CI Setup](./docs/ci-setup.md) — GitHub Actions workflows (push, label, OIDC, PR preview, prerelease)
 
 ## License
 
