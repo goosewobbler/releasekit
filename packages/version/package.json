@@ -1,6 +1,6 @@
 {
   "name": "@releasekit/version",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Semantic versioning based on Git history and conventional commits",
   "type": "module",
   "module": "./dist/index.js",
@@ -49,7 +49,12 @@
     "directory": "packages/version"
   },
   "license": "MIT",
-  "files": ["dist", "docs", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
   "publishConfig": {
     "access": "public"
   },
