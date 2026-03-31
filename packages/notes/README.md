@@ -74,14 +74,6 @@ releasekit-notes --input version-data.json \
 | `-v, --verbose` | Verbose logging (repeat for more: `-vv`) | — |
 | `-q, --quiet` | Suppress non-error output | — |
 
-### `releasekit-notes init`
-
-Create a default `releasekit.config.json`.
-
-```bash
-releasekit-notes init [--force]
-```
-
 ### `releasekit-notes auth <provider>`
 
 Store an API key for an LLM provider.

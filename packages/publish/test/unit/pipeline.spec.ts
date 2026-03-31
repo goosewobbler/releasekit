@@ -49,7 +49,7 @@ const minimalInput: VersionOutput = {
 
 describe('pipeline', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
   });
 
   it('should run all stages in order', async () => {
@@ -78,8 +78,9 @@ describe('pipeline', () => {
     vi.mocked(runVerifyStage).mockImplementation(async () => {
       callOrder.push('verify');
     });
-    vi.mocked(runGitPushStage).mockImplementation(async () => {
+    vi.mocked(runGitPushStage).mockImplementation(async (ctx) => {
       callOrder.push('git-push');
+      ctx.output.git.pushed = true;
     });
     vi.mocked(runGithubReleaseStage).mockImplementation(async () => {
       callOrder.push('github-release');

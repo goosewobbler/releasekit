@@ -7,7 +7,7 @@ import { hasCargoAuth } from '../utils/auth.js';
 import { extractPathDeps, parseCargoToml } from '../utils/cargo.js';
 import { execCommand, execCommandSafe } from '../utils/exec.js';
 
-/** Error strategy: CATCHES per-crate. */
+/** Error strategy: FAIL-FAST. First publish failure aborts the stage. */
 export async function runCargoPublishStage(ctx: PipelineContext): Promise<void> {
   const { input, config, cliOptions, cwd } = ctx;
   const dryRun = cliOptions.dryRun;
@@ -77,12 +77,15 @@ export async function runCargoPublishStage(ctx: PipelineContext): Promise<void> 
       if (!dryRun) {
         success(`Published ${crate.name}@${crate.version} to crates.io`);
       }
+      ctx.output.cargo.push(result);
     } catch (error) {
       result.reason = error instanceof Error ? error.message : String(error);
-      warn(`Failed to publish ${crate.name}: ${result.reason}`);
+      ctx.output.cargo.push(result);
+      throw createPublishError(
+        PublishErrorCode.CARGO_PUBLISH_ERROR,
+        `${crate.name}@${crate.version}: ${result.reason}`,
+      );
     }
-
-    ctx.output.cargo.push(result);
   }
 }
 

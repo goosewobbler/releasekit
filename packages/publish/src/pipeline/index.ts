@@ -77,7 +77,9 @@ export async function runPipeline(
       if (options.registry === 'all' || options.registry === 'cargo') {
         await runCargoPublishStage(ctx);
       }
-      ctx.output.publishSucceeded = true;
+
+      // Stages throw on first failure (fail-fast), so reaching here means all packages succeeded.
+      ctx.output.publishSucceeded = ctx.output.npm.every((r) => r.success) && ctx.output.cargo.every((r) => r.success);
     }
 
     // Stage 6: Verification
@@ -91,8 +93,8 @@ export async function runPipeline(
       await runGitPushStage(ctx);
     }
 
-    // Stage 8: GitHub release
-    if (!options.skipGithubRelease) {
+    // Stage 8: GitHub release — only if the tag was actually pushed (or git is entirely skipped)
+    if (!options.skipGithubRelease && (options.skipGit || ctx.output.git.pushed)) {
       await runGithubReleaseStage(ctx);
     }
   } catch (error) {

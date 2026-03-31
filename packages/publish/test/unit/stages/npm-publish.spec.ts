@@ -201,6 +201,21 @@ describe('npm-publish stage', () => {
     expect(args).not.toContain('--provenance');
   });
 
+  it('should throw on publish failure (fail-fast)', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    vi.mocked(execCommand).mockRejectedValue(new Error('ENEEDAUTH'));
+
+    const dir = createTmpDir();
+    const pkgDir = path.join(dir, 'packages', 'pkg');
+    fs.mkdirSync(pkgDir, { recursive: true });
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: '@test/pkg', version: '1.0.0' }));
+
+    const ctx = createContext(dir);
+    await expect(runNpmPublishStage(ctx)).rejects.toThrow('ENEEDAUTH');
+    expect(ctx.output.npm).toHaveLength(1);
+    expect(ctx.output.npm[0]?.success).toBe(false);
+  });
+
   it('should skip when npm disabled', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const config = getDefaultConfig();

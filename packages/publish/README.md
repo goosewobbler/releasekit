@@ -54,6 +54,8 @@ The publish pipeline runs in order:
 8. **Git Push** - Push commits and tags to remote
 9. **GitHub Release** - Create GitHub releases
 
+The pipeline is **fail-fast**: the first package publish failure throws immediately. Git push and GitHub release are skipped, so the version commit and tag remain local until the issue is fixed and the release is retried.
+
 ## CLI Reference
 
 | Flag | Description | Default |
