@@ -268,6 +268,8 @@ describe('github-release stage', () => {
     expect(args).toContain('--notes');
     expect(args[args.indexOf('--notes') + 1]).toBe('LLM-enhanced release notes');
     expect(args).not.toContain('--generate-notes');
+    // Title should be resolved via the releaseNotes keys even though changelogs is empty
+    expect(args[args.indexOf('--title') + 1]).toBe('@releasekit/version: v0.4.1');
   });
 
   it('should always use --generate-notes when body is generated', async () => {
