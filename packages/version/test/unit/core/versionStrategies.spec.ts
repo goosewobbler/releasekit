@@ -430,7 +430,7 @@ describe('Version Strategies', () => {
           ...defaultConfig,
           sync: true,
           packageSpecificTags: true,
-          tagTemplate: '${' + 'packageName}-v${' + 'version}',
+          tagTemplate: '${' + 'packageName}-${' + 'prefix}${' + 'version}',
         };
 
         const syncStrategy = strategies.createSyncStrategy(config as Config);
