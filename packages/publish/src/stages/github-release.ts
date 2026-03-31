@@ -1,5 +1,5 @@
 import type { VersionPackageChangelog } from '@releasekit/core';
-import { debug, info, success, warn } from '@releasekit/core';
+import { debug, info, sanitizePackageName, success, warn } from '@releasekit/core';
 import type { GitHubReleaseResult, PipelineContext } from '../types.js';
 import { execCommand } from '../utils/exec.js';
 import { isPrerelease } from '../utils/semver.js';
@@ -80,13 +80,6 @@ function isVersionOnlyTag(tag: string): boolean {
   return /^v?\d+\.\d+\.\d+/.test(tag);
 }
 
-/** Derive the sanitized package name as used by formatTag in @releasekit/version.
- * "@scope/pkg" → "scope-pkg", "pkg" → "pkg"
- */
-function sanitizePackageName(name: string): string {
-  return name.startsWith('@') ? name.slice(1).replace(/\//g, '-') : name;
-}
-
 interface TagResolution {
   packageName: string;
   version: string;
@@ -107,29 +100,35 @@ function resolveTagPackage(tag: string, packageNames: string[]): TagResolution |
     }
     const dashPrefix = `${sanitizePackageName(packageName)}-`;
     if (tag.startsWith(dashPrefix)) {
-      return { packageName, version: tag.slice(dashPrefix.length) };
+      const versionPart = tag.slice(dashPrefix.length);
+      if (/^v?\d/.test(versionPart)) {
+        return { packageName, version: versionPart };
+      }
     }
   }
   return null;
 }
 
 /** Extract title for GitHub release name using the original (unsanitized) package name.
- * - "@releasekit/version" matched from "releasekit-version-v0.4.1" → "@releasekit/version @ v0.4.1"
- * - "@releasekit/release@v0.3.0"                                   → "@releasekit/release @ v0.3.0"
+ * - "@releasekit/version" matched from "releasekit-version-v0.4.1" → e.g. "@releasekit/version: v0.4.1"
+ * - "@releasekit/release@v0.3.0"                                   → e.g. "@releasekit/release: v0.3.0"
  * - "v0.3.0"                                                        → "v0.3.0"
  */
-function getTitleFromTag(tag: string, changelogs: VersionPackageChangelog[]): string {
+function getTitleFromTag(tag: string, changelogs: VersionPackageChangelog[], titleTemplate: string): string {
+  const applyTemplate = (packageName: string, version: string): string =>
+    titleTemplate.replace(/\$\{packageName\}/g, packageName).replace(/\$\{version\}/g, version);
+
   if (changelogs.length > 0) {
     const resolved = resolveTagPackage(
       tag,
       changelogs.map((c) => c.packageName),
     );
-    if (resolved) return `${resolved.packageName} @ ${resolved.version}`;
+    if (resolved) return applyTemplate(resolved.packageName, resolved.version);
   }
   // Fallback: try splitting on last @ for unsanitized "pkg@version" tags
   const atIndex = tag.lastIndexOf('@');
   if (atIndex === -1) return tag;
-  return `${tag.slice(0, atIndex)} @ ${tag.slice(atIndex + 1)}`;
+  return applyTemplate(tag.slice(0, atIndex), tag.slice(atIndex + 1));
 }
 
 /** Match a tag to a package name in the notes map. */
@@ -216,7 +215,7 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
     };
 
     const ghArgs = ['release', 'create', tag];
-    ghArgs.push('--title', getTitleFromTag(tag, ctx.input.changelogs));
+    ghArgs.push('--title', getTitleFromTag(tag, ctx.input.changelogs, config.githubRelease.titleTemplate));
 
     if (config.githubRelease.draft) {
       ghArgs.push('--draft');

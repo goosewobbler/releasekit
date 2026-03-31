@@ -90,6 +90,12 @@ export const GitHubReleaseConfigSchema = z.object({
    * - 'none': No body.
    */
   body: z.enum(['auto', 'releaseNotes', 'changelog', 'generated', 'none']).default('auto'),
+  /**
+   * Template string for the GitHub release title when a package name is resolved.
+   * Available variables: ${packageName} (original scoped name), ${version} (e.g. "v1.0.0").
+   * Version-only tags (e.g. "v1.0.0") always use the tag as-is.
+   */
+  titleTemplate: z.string().default('${packageName}: ${version}'),
 });
 
 export const VerifyRegistryConfigSchema = z.object({
@@ -137,6 +143,7 @@ export const PublishConfigSchema = z.object({
     perPackage: true,
     prerelease: 'auto',
     body: 'auto',
+    titleTemplate: '${packageName}: ${version}',
   }),
   verify: VerifyConfigSchema.default({
     npm: {
