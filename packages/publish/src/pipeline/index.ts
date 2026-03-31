@@ -93,8 +93,8 @@ export async function runPipeline(
       await runGitPushStage(ctx);
     }
 
-    // Stage 8: GitHub release — only if the tag was actually pushed (or git is entirely skipped)
-    if (!options.skipGithubRelease && (options.skipGit || ctx.output.git.pushed)) {
+    // Stage 8: GitHub release — only if the push stage confirmed the tag landed on GitHub.
+    if (!options.skipGithubRelease && ctx.output.git.pushed) {
       await runGithubReleaseStage(ctx);
     }
   } catch (error) {
