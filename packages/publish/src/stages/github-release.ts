@@ -155,11 +155,13 @@ function formatChangelogForTag(tag: string, changelogs: VersionPackageChangelog[
     tag,
     changelogs.map((c) => c.packageName),
   );
-  const target = resolved
-    ? changelogs.find((c) => c.packageName === resolved.packageName)
-    : changelogs.length === 1 && isVersionOnlyTag(tag)
-      ? changelogs[0]
-      : undefined;
+
+  let target: VersionPackageChangelog | undefined;
+  if (resolved) {
+    target = changelogs.find((c) => c.packageName === resolved.packageName);
+  } else if (changelogs.length === 1 && isVersionOnlyTag(tag)) {
+    target = changelogs[0];
+  }
 
   if (!target || target.entries.length === 0) return undefined;
 
