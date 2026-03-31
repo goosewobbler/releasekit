@@ -174,4 +174,4 @@ Set `"perPackage": false` to create a single release for the entire repo.
 }
 ```
 
-See the [full publish configuration reference](./configuration.md) for all options.
+See the [@releasekit/publish README](../README.md) for all options.
