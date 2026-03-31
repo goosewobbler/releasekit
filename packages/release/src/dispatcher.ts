@@ -6,6 +6,7 @@ import { createNotesCommand } from '@releasekit/notes/cli';
 import { createPublishCommand } from '@releasekit/publish/cli';
 import { createVersionCommand } from '@releasekit/version/cli';
 import { Command } from 'commander';
+import { createInitCommand } from './init-command.js';
 import { createReleaseCommand } from './release-command.js';
 
 export function createDispatcherProgram(): Command {
@@ -14,6 +15,7 @@ export function createDispatcherProgram(): Command {
     .description('Unified release pipeline: version, changelog, and publish')
     .version(readPackageVersion(import.meta.url));
   program.addCommand(createReleaseCommand(), { isDefault: true });
+  program.addCommand(createInitCommand());
   program.addCommand(createVersionCommand());
   program.addCommand(createNotesCommand());
   program.addCommand(createPublishCommand());
