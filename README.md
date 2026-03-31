@@ -78,42 +78,50 @@ See the package READMEs for full CLI reference.
 
 ## Configuration
 
-ReleaseKit uses a single `releasekit.config.json` file at the project root:
+ReleaseKit uses a single `releasekit.config.json` at the project root. Add `$schema` for editor autocompletion:
 
-```jsonc
+```json
 {
-  "git": { "remote": "origin", "branch": "main" },
-  "version": { "tagTemplate": "v{version}", "preset": "conventional" },
-  "publish": { "npm": { "enabled": true, "access": "public" } },
-  "notes": { "output": [{ "format": "markdown", "file": "CHANGELOG.md" }] },
-  "ci": {
-    "releaseStrategy": "direct",   // "manual" | "direct" | "standing-pr" | "scheduled"
-    "releaseTrigger": "label",     // "commit" | "label"
-    "prPreview": true,
-    "labels": {
-      "stable": "release:stable",
-      "prerelease": "release:prerelease",
-      "skip": "release:skip",
-      "major": "release:major",
-      "minor": "release:minor",
-      "patch": "release:patch"
-    }
+  "$schema": "https://goosewobbler.github.io/releasekit/schema.json",
+  "notes": {
+    "changelog": { "mode": "root" }
+  },
+  "publish": {
+    "npm": { "enabled": true, "access": "public" }
   }
 }
 ```
 
-See [@releasekit/release — CI Configuration](./packages/release/README.md#ci-configuration) for full details on release triggers, strategies, and PR labels.
+All configuration is optional — ReleaseKit uses sensible defaults. The full set of top-level keys:
+
+| Key | Description |
+|-----|-------------|
+| `git` | Remote name, branch, push method |
+| `version` | Tag template, commit presets, monorepo strategy |
+| `notes` | Changelog and release notes output, templates, LLM |
+| `publish` | npm, Cargo, GitHub Releases |
+| `release` | Pipeline steps, CI skip patterns |
+| `ci` | Release triggers, PR labels, preview comments |
+| `monorepo` | Package paths for monorepo projects |
+
+See the per-package docs for full option references.
 
 ## Documentation
 
-- [@releasekit/release — README](./packages/release/README.md)
-- [@releasekit/release — CI Configuration](./packages/release/README.md#ci-configuration)
-- [@releasekit/version — README](./packages/version/README.md)
-- [@releasekit/version — Versioning strategies](./packages/version/docs/versioning.md)
-- [@releasekit/version — CI/CD integration](./packages/version/docs/CI_CD_INTEGRATION.md)
-- [@releasekit/notes — README](./packages/notes/README.md)
-- [@releasekit/publish — README](./packages/publish/README.md)
-- [Contributing](./CONTRIBUTING.md)
+**[Getting Started](./docs/getting-started.md)** — install, first dry run, first release, CI setup
+
+**Reference**
+- [@releasekit/release](./packages/release/README.md) — unified pipeline, CI automation, programmatic API
+- [@releasekit/version](./packages/version/README.md) — versioning strategies, JSON output
+- [@releasekit/notes](./packages/notes/README.md) — changelog, release notes, LLM, templates
+- [@releasekit/publish](./packages/publish/README.md) — npm, crates.io, GitHub Releases
+
+**Guides**
+- [CI setup](./packages/release/docs/ci-setup.md) — GitHub Actions workflows
+- [LLM providers](./packages/notes/docs/llm-providers.md) — AI-enhanced release notes
+- [GitHub Releases](./packages/publish/docs/github-releases.md) — release body options
+
+[Contributing](./CONTRIBUTING.md)
 
 ## Development
 

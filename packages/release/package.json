@@ -27,14 +27,7 @@
     "lint": "biome check .",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": [
-    "release",
-    "version",
-    "changelog",
-    "publish",
-    "cli",
-    "ci"
-  ],
+  "keywords": ["release", "version", "changelog", "publish", "cli", "ci"],
   "author": {
     "name": "Sam Maister",
     "email": "goosewobbler@protonmail.com"
@@ -45,11 +38,7 @@
     "directory": "packages/release"
   },
   "license": "MIT",
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
+  "files": ["dist", "docs", "README.md", "LICENSE"],
   "publishConfig": {
     "access": "public"
   },

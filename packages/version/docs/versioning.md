@@ -4,7 +4,7 @@
 
 ## How the Next Version is Calculated
 
-There are two primary methods the tool uses to decide the version bump (e.g., patch, minor, major), configured via the `versionStrategy` option in `version.config.json`:
+There are two primary methods the tool uses to decide the version bump (e.g., patch, minor, major), configured via the `versionStrategy` option in `releasekit.config.json`:
 
 ### 1. Conventional Commits (`versionStrategy: "conventional"`)
 
@@ -14,7 +14,7 @@ This is the default strategy. `releasekit-version` analyzes Git commit messages 
 -   **Minor Bump (e.g., 1.2.3 -> 1.3.0):** Triggered by `feat:` commit types.
 -   **Major Bump (e.g., 1.2.3 -> 2.0.0):** Triggered by commits with `BREAKING CHANGE:` in the footer or `feat!:`, `fix!:` etc. in the header.
 
-The specific preset used for analysis (e.g., "angular", "conventional") can be set using the `preset` option in `version.config.json`.
+The specific preset used for analysis (e.g., "angular", "conventional") can be set using the `preset` option in `releasekit.config.json`.
 
 **Format:** `<type>(<scope>): <subject>`
 
@@ -39,9 +39,9 @@ The specific preset used for analysis (e.g., "angular", "conventional") can be s
 
 This strategy uses the name of the current Git branch (or the most recently merged branch matching a pattern, if applicable) to determine the version bump.
 
-You define patterns in the `branchPattern` array in `version.config.json`. Each pattern is a string like `"prefix:bumptype"`.
+You define patterns in the `branchPattern` array in `releasekit.config.json`. Each pattern is a string like `"prefix:bumptype"`.
 
-**Example `version.config.json`:**
+**Example `releasekit.config.json`:**
 
 ```json
 {
@@ -156,7 +156,7 @@ Mismatches are detected in the following cases:
 - Git tag is ahead by a major or minor version (e.g., tag `2.0.0` vs package `1.0.0`)
 - Git tag is a prerelease but package.json is a stable release (e.g., tag `1.0.0-beta.1` vs package `1.0.0`)
 
-Configure it in `version.config.json`:
+Configure it in `releasekit.config.json`:
 ```json
 {
   "mismatchStrategy": "prefer-package"
@@ -277,7 +277,7 @@ This configuration will process all packages in the `@mycompany` scope except fo
 
 ### Tag Template Configuration
 
-You can customize how tags are formatted using the following configuration options in `version.config.json`:
+You can customize how tags are formatted using the following configuration options in `releasekit.config.json`:
 
 ```json
 {
@@ -430,7 +430,7 @@ For global commit messages, use templates without `${packageName}`:
 
 ## Monorepo Versioning Modes
 
-While primarily used for single packages now, `releasekit-version` retains options for monorepo workflows, controlled mainly by the `sync` flag in `version.config.json`.
+While primarily used for single packages now, `releasekit-version` retains options for monorepo workflows, controlled mainly by the `sync` flag in `releasekit.config.json`.
 
 ### Sync Mode (`sync: true`)
 
@@ -475,7 +475,7 @@ npx releasekit-version --bump minor --prerelease beta
 # Result: 1.0.0 -> 1.1.0-beta.0
 ```
 
-You can also set a default prerelease identifier in your `version.config.json`:
+You can also set a default prerelease identifier in your `releasekit.config.json`:
 
 ```json
 {

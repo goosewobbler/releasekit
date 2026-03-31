@@ -1,6 +1,10 @@
 # @releasekit/publish
 
-Publish packages to npm and crates.io with git tagging and GitHub releases.
+[![@releasekit/publish](https://img.shields.io/badge/@releasekit-publish-9feaf9?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@releasekit/publish)
+[![Version](https://img.shields.io/npm/v/@releasekit/publish?color=28a745&labelColor=1a1a1a)](https://www.npmjs.com/package/@releasekit/publish)
+[![Downloads](https://img.shields.io/npm/dw/@releasekit/publish?color=6f42c1&labelColor=1a1a1a)](https://www.npmjs.com/package/@releasekit/publish)
+
+**Publish packages to npm and crates.io with git tagging and GitHub releases.**
 
 ## Features
 
@@ -126,7 +130,7 @@ Configure via `releasekit.config.json`:
     "githubRelease": {
       "enabled": true,
       "draft": true,
-      "generateNotes": true
+      "body": "auto"
     },
     "verify": {
       "npm": {
@@ -143,6 +147,11 @@ Configure via `releasekit.config.json`:
 ```
 
 See [@releasekit/config](../config/README.md) for full configuration options.
+
+## Documentation
+
+**Guides**
+- [GitHub Releases](./docs/github-releases.md) — release body options, LLM prose, draft workflow
 
 ## License
 

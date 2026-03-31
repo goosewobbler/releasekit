@@ -1,15 +1,21 @@
 # @releasekit/notes
 
-Release notes and changelog generation from conventional commits with LLM-powered enhancement and flexible templating
+[![@releasekit/notes](https://img.shields.io/badge/@releasekit-notes-9feaf9?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@releasekit/notes)
+[![Version](https://img.shields.io/npm/v/@releasekit/notes?color=28a745&labelColor=1a1a1a)](https://www.npmjs.com/package/@releasekit/notes)
+[![Downloads](https://img.shields.io/npm/dw/@releasekit/notes?color=6f42c1&labelColor=1a1a1a)](https://www.npmjs.com/package/@releasekit/notes)
+
+**Changelog and release notes generation from conventional commits**
+
+Generates CHANGELOG.md and release notes from `@releasekit/version` output, with optional LLM-powered enhancement and flexible templating.
 
 ## Features
 
-- **Multiple input sources** — `@releasekit/version` JSON, git log, or manual JSON
-- **Flexible templating** — Liquid, Handlebars, or EJS with single-file or composable templates
-- **LLM enhancement** (optional) — summarize, categorize, enhance descriptions, generate release notes
-- **Monorepo support** — root aggregation, per-package changelogs, or both
-- **Multiple outputs** — Markdown, JSON, or GitHub Releases API
-- **Dry-run mode** — preview without writing files
+- 📝 **Conventional changelog** — Keep a Changelog, Angular, or custom format
+- 🤖 **LLM enhancement** (optional) — enhance descriptions, summarize, categorize, or generate prose release notes
+- 🎨 **Flexible templating** — Liquid, Handlebars, or EJS; single-file or composable layout
+- 📦 **Monorepo support** — root aggregation, per-package changelogs, or both
+- 🔀 **Two outputs** — `CHANGELOG.md` and `RELEASE_NOTES.md` are configured independently
+- 🔍 **Dry-run mode** — preview without writing files
 
 ## Installation
 
@@ -19,7 +25,7 @@ npm install -g @releasekit/notes
 pnpm add -g @releasekit/notes
 ```
 
-> **Note:** This package is ESM only and requires Node.js 20+.
+> **Note:** ESM only. Requires Node.js 20+.
 
 ## Quick Start
 
@@ -30,37 +36,47 @@ releasekit-version --json | releasekit-notes
 # From a file
 releasekit-notes --input version-data.json
 
-# With LLM enhancement
-releasekit-notes --input version-data.json --llm-provider openai --llm-model gpt-4o-mini
-
 # Preview without writing
 releasekit-notes --dry-run
+
+# With LLM enhancement
+releasekit-notes --input version-data.json \
+  --llm-provider openai \
+  --llm-model gpt-4o-mini \
+  --llm-tasks enhance,summarize
 ```
 
 ## CLI Reference
 
+### `releasekit-notes generate` (default)
+
 | Flag | Description | Default |
 |------|-------------|---------|
 | `-i, --input <file>` | Input file path | stdin |
-| `-o, --output <spec>` | Output spec (`format:file`) | config |
+| `--changelog-mode <mode>` | Changelog location: `root`, `packages`, `both` | `root` |
+| `--changelog-file <name>` | Changelog file name override | `CHANGELOG.md` |
+| `--no-changelog` | Disable changelog generation | — |
+| `--release-notes-mode <mode>` | Enable release notes file output: `root`, `packages`, `both` | — |
+| `--release-notes-file <name>` | Release notes file name override | `RELEASE_NOTES.md` |
+| `--no-release-notes` | Disable release notes generation | — |
 | `-t, --template <path>` | Template file or directory | built-in |
 | `-e, --engine <engine>` | Template engine: `handlebars`, `liquid`, `ejs` | `liquid` |
 | `--monorepo <mode>` | Monorepo mode: `root`, `packages`, `both` | — |
 | `--llm-provider <name>` | LLM provider | — |
 | `--llm-model <model>` | LLM model | — |
-| `--llm-tasks <tasks>` | Comma-separated LLM tasks | — |
-| `--no-llm` | Disable LLM processing | `false` |
+| `--llm-base-url <url>` | Base URL for openai-compatible providers | — |
+| `--llm-tasks <tasks>` | Comma-separated tasks: `enhance`, `summarize`, `categorize`, `release-notes` | — |
+| `--no-llm` | Disable LLM processing | — |
+| `--target <package>` | Filter to a specific package name | — |
 | `--config <path>` | Config file path | `releasekit.config.json` |
+| `--regenerate` | Regenerate entire file instead of prepending | `false` |
 | `--dry-run` | Preview without writing | `false` |
-| `--regenerate` | Regenerate entire changelog | `false` |
-| `-v, --verbose` | Verbose logging | `false` |
-| `-q, --quiet` | Suppress non-error output | `false` |
-
-## Subcommands
+| `-v, --verbose` | Verbose logging (repeat for more: `-vv`) | — |
+| `-q, --quiet` | Suppress non-error output | — |
 
 ### `releasekit-notes init`
 
-Create a default configuration file.
+Create a default `releasekit.config.json`.
 
 ```bash
 releasekit-notes init [--force]
@@ -68,12 +84,14 @@ releasekit-notes init [--force]
 
 ### `releasekit-notes auth <provider>`
 
-Configure API key for an LLM provider.
+Store an API key for an LLM provider.
 
 ```bash
-releasekit-notes auth openai --key sk-...
-releasekit-notes auth anthropic
+releasekit-notes auth openai
+releasekit-notes auth anthropic --key sk-ant-...
 ```
+
+Keys are saved to `~/.config/releasekit/auth.json`.
 
 ### `releasekit-notes providers`
 
@@ -81,56 +99,67 @@ List available LLM providers.
 
 ## Configuration
 
-Configure via `releasekit.config.json`:
+All options live under the `notes` key in `releasekit.config.json`:
 
 ```json
 {
+  "$schema": "https://goosewobbler.github.io/releasekit/schema.json",
   "notes": {
-    "output": [
-      { "format": "markdown", "file": "CHANGELOG.md" }
-    ],
-    "updateStrategy": "prepend",
-    "templates": {
-      "path": "./templates/",
-      "engine": "liquid"
-    },
-    "llm": {
-      "provider": "openai",
-      "model": "gpt-4o-mini",
-      "tasks": {
-        "summarize": true,
-        "enhance": true
+    "changelog": {
+      "mode": "root",
+      "file": "CHANGELOG.md",
+      "templates": {
+        "path": "./templates/changelog/",
+        "engine": "liquid"
       }
-    }
+    },
+    "releaseNotes": {
+      "mode": "root",
+      "llm": {
+        "provider": "openai",
+        "model": "gpt-4o-mini",
+        "tasks": {
+          "enhance": true,
+          "summarize": true
+        }
+      }
+    },
+    "updateStrategy": "prepend"
   }
 }
 ```
 
+`changelog` and `releaseNotes` are configured independently. Set either to `false` to disable it entirely.
+
 ## LLM Providers
 
-| Provider | Config Key | Notes |
-|----------|------------|-------|
-| OpenAI | `openai` | Requires `OPENAI_API_KEY` |
-| Anthropic | `anthropic` | Requires `ANTHROPIC_API_KEY` |
-| Ollama | `ollama` | Local, no API key needed |
-| OpenAI-Compatible | `openai-compatible` | Any OpenAI-compatible endpoint |
+LLM configuration lives under `notes.releaseNotes.llm`:
+
+| Provider | Key | Auth |
+|----------|-----|------|
+| OpenAI | `openai` | `OPENAI_API_KEY` or `releasekit-notes auth openai` |
+| Anthropic | `anthropic` | `ANTHROPIC_API_KEY` or `releasekit-notes auth anthropic` |
+| Ollama | `ollama` | None (local) |
+| OpenAI-compatible | `openai-compatible` | Varies — set `baseURL` and `apiKey` |
 
 ### LLM Tasks
 
-| Task | Description |
+| Task | What it does |
 |------|-------------|
-| `enhance` | Improve entry descriptions |
-| `summarize` | Create version summary |
-| `categorize` | Group entries by category |
-| `releaseNotes` | Generate release notes |
+| `enhance` | Rewrites each changelog entry description to be clearer |
+| `summarize` | Generates a one-paragraph summary of the release |
+| `categorize` | Groups entries into user-friendly categories (Features, Fixes, …) |
+| `releaseNotes` | Generates full prose release notes (use as GitHub release body) |
 
 ## Templates
 
-### Built-in
+### Built-in Templates
 
-- `keep-a-changelog` — Keep a Changelog format (default)
-- `angular` — Angular-style changelog
-- `github-release` — GitHub release notes
+| Name | Engine | Description |
+|------|--------|-------------|
+| `keep-a-changelog` | Liquid | [Keep a Changelog](https://keepachangelog.com) format (default) |
+| `angular` | Handlebars | Angular-style changelog |
+| `github-release` | EJS | GitHub release notes format |
 
 ### Custom Templates
 
@@ -138,31 +167,36 @@ Configure via `releasekit.config.json`:
 # Single file
 releasekit-notes --template ./my-changelog.liquid
 
-# Composable directory
+# Composable directory (document + version + entry)
 releasekit-notes --template ./templates/
 ```
 
-Composable directory structure:
-
-```
-templates/
-├── document.liquid
-├── version.liquid
-└── entry.liquid
-```
+See **[Templates guide](./docs/templates.md)** for the full template context reference and authoring guide.
 
 ## Monorepo Support
 
 ```bash
 # Root changelog only (aggregates all packages)
-releasekit-notes --monorepo root
+releasekit-notes --changelog-mode root
 
 # Per-package changelogs
-releasekit-notes --monorepo packages
+releasekit-notes --changelog-mode packages
 
-# Both
-releasekit-notes --monorepo both
+# Both root and per-package
+releasekit-notes --changelog-mode both
 ```
+
+See **[Monorepo guide](./docs/monorepo.md)** for details on file placement and aggregation behaviour.
+
+## Documentation
+
+**Getting Started**
+- [Configuration reference](./docs/configuration.md) — all `notes.*` options
+- [LLM providers](./docs/llm-providers.md) — provider setup, auth, tasks, prompt customisation
+
+**Guides**
+- [Templates](./docs/templates.md) — custom template authoring and context reference
+- [Monorepo](./docs/monorepo.md) — per-package and root output modes
 
 ## License
 
