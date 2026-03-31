@@ -1,0 +1,177 @@
+# GitHub Releases
+
+`@releasekit/publish` creates a GitHub Release for each published package. This guide covers configuration options and how to use LLM-generated prose as the release body.
+
+## Enabling GitHub Releases
+
+GitHub Releases are enabled by default. Requires `GITHUB_TOKEN` with `contents: write` permission.
+
+```json
+{
+  "publish": {
+    "githubRelease": {
+      "enabled": true
+    }
+  }
+}
+```
+
+To disable:
+
+```json
+{
+  "publish": {
+    "githubRelease": { "enabled": false }
+  }
+}
+```
+
+---
+
+## Release Body (`body`)
+
+Controls what appears in the GitHub Release description.
+
+| Value | Behaviour |
+|-------|-----------|
+| `"auto"` (default) | Use LLM release notes if available, otherwise changelog entries, otherwise GitHub auto-generated notes |
+| `"releaseNotes"` | Use LLM-generated prose release notes (requires `notes.releaseNotes.llm.tasks.releaseNotes: true`) |
+| `"changelog"` | Use the formatted changelog entries for this version |
+| `"generated"` | GitHub's auto-generated release notes (from merged PRs and commits) |
+| `"none"` | No release body |
+
+```json
+{
+  "publish": {
+    "githubRelease": {
+      "body": "releaseNotes"
+    }
+  }
+}
+```
+
+---
+
+## Using LLM-Generated Release Notes
+
+To populate the GitHub Release body with LLM-written prose:
+
+**1. Enable the `releaseNotes` LLM task in notes config:**
+
+```json
+{
+  "notes": {
+    "releaseNotes": {
+      "llm": {
+        "provider": "openai",
+        "model": "gpt-4o-mini",
+        "tasks": { "releaseNotes": true }
+      }
+    }
+  },
+  "publish": {
+    "githubRelease": {
+      "body": "releaseNotes"
+    }
+  }
+}
+```
+
+The notes step runs first, the LLM generates prose release notes, and the publish step forwards them to the GitHub Release API.
+
+If `body` is `"auto"` (default), LLM release notes are used automatically when available — no extra config needed.
+
+**2. Optionally write release notes to a file** as well:
+
+```json
+{
+  "notes": {
+    "releaseNotes": {
+      "mode": "root",
+      "llm": {
+        "provider": "anthropic",
+        "model": "claude-haiku-4-5",
+        "tasks": { "releaseNotes": true }
+      }
+    }
+  }
+}
+```
+
+When `mode` is set, a `RELEASE_NOTES.md` file is written in addition to the GitHub Release being populated.
+
+---
+
+## Draft Releases
+
+Releases are created as drafts by default, giving you a chance to review before publishing.
+
+```json
+{
+  "publish": {
+    "githubRelease": {
+      "draft": true
+    }
+  }
+}
+```
+
+Set `"draft": false` to publish releases immediately.
+
+---
+
+## Prerelease Marking
+
+```json
+{
+  "publish": {
+    "githubRelease": {
+      "prerelease": "auto"
+    }
+  }
+}
+```
+
+| Value | Behaviour |
+|-------|-----------|
+| `"auto"` (default) | Marked as prerelease when the version contains a prerelease identifier (e.g. `1.0.0-beta.1`) |
+| `true` | Always marked as prerelease |
+| `false` | Never marked as prerelease |
+
+---
+
+## Per-Package Releases
+
+In a monorepo, a separate GitHub Release is created for each published package by default.
+
+```json
+{
+  "publish": {
+    "githubRelease": {
+      "perPackage": true
+    }
+  }
+}
+```
+
+Set `"perPackage": false` to create a single release for the entire repo.
+
+---
+
+## Full Configuration Reference
+
+```json
+{
+  "publish": {
+    "githubRelease": {
+      "enabled": true,
+      "draft": true,
+      "prerelease": "auto",
+      "perPackage": true,
+      "body": "auto"
+    }
+  }
+}
+```
+
+See the [full publish configuration reference](./configuration.md) for all options.
