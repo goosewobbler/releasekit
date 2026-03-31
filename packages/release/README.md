@@ -75,6 +75,18 @@ If no releasable changes are found after step 1, the command exits with code 0 a
 | `-q, --quiet` | Suppress non-error output | `false` |
 | `--project-dir <path>` | Project directory | cwd |
 
+### `releasekit init`
+
+Create a default `releasekit.config.json` in the current directory.
+
+```bash
+releasekit init [--force]
+```
+
+Detects monorepo layout and sets `changelog.mode` accordingly. Adds `access: "public"` only for scoped packages (`@scope/name`), which npm defaults to restricted.
+
+Use `--force` to overwrite an existing config file.
+
 ### `releasekit preview`
 
 Posts a release preview comment on a pull request showing what would be released if merged.

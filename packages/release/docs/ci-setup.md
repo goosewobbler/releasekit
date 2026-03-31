@@ -170,9 +170,11 @@ A ready-to-use template is available at [`templates/workflows/release-preview.ym
 
 With OIDC, no `NPM_TOKEN` secret is required. The workflow exchanges a GitHub-issued OIDC token for a short-lived npm token at publish time.
 
-Requirements:
+**Requirements:**
 - npm `>=9.5.0`
-- Package must have an Automation policy configured at npmjs.com
+- Each package must have an **Automation policy** configured at npmjs.com (Settings → Automation policies → add a GitHub Actions OIDC publisher for your repo and workflow)
+
+**Important:** `actions/setup-node` with `registry-url` writes a project `.npmrc` that injects `_authToken=${NODE_AUTH_TOKEN}`. When `NODE_AUTH_TOKEN` is unset, npm resolves this to an empty token and fails with `ENEEDAUTH` instead of falling through to the OIDC exchange. Delete the file before publishing:
 
 ```yaml
 permissions:
@@ -184,6 +186,9 @@ steps:
     with:
       node-version: '20'
       registry-url: 'https://registry.npmjs.org'
+
+  - name: Remove setup-node auth config (required for OIDC)
+    run: rm -f .npmrc
 
   - run: npx releasekit release
     env:
