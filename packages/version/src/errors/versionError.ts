@@ -36,7 +36,7 @@ export function createVersionError(code: VersionErrorCode, details?: string): Ve
   // Provide helpful suggestions for specific error types
   const suggestions: Record<VersionErrorCode, string[] | undefined> = {
     [VersionErrorCode.CONFIG_REQUIRED]: [
-      'Create a version.config.json file in your project root',
+      'Create a releasekit.config.json file in your project root',
       'Check the documentation for configuration examples',
     ],
     [VersionErrorCode.PACKAGES_NOT_FOUND]: [
@@ -50,14 +50,14 @@ export function createVersionError(code: VersionErrorCode, details?: string): Ve
       'Ensure proper monorepo structure',
     ],
     [VersionErrorCode.INVALID_CONFIG]: [
-      'Validate version.config.json syntax',
+      'Validate releasekit.config.json syntax',
       'Check configuration against schema',
       'Review documentation for valid configuration options',
     ],
     [VersionErrorCode.PACKAGE_NOT_FOUND]: [
       'Verify package name spelling and case',
       'Check if package exists in workspace',
-      'Review packages configuration in version.config.json',
+      'Review packages configuration in releasekit.config.json',
     ],
     [VersionErrorCode.VERSION_CALCULATION_ERROR]: [
       'Ensure git repository has commits',

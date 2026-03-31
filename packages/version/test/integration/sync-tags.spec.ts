@@ -20,7 +20,7 @@ import { cleanupTempDir, symlinkNodeModules } from '../utils/tempFixture.js';
 let tempDir: string;
 
 function writeReleaseKitConfig(dir: string, versionConfig: Record<string, unknown>) {
-  // The CLI reads releasekit.config.json (not version.config.json)
+  // The CLI reads releasekit.config.json
   writeFileSync(join(dir, 'releasekit.config.json'), JSON.stringify({ version: versionConfig }, null, 2));
 }
 

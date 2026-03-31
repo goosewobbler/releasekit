@@ -5,7 +5,7 @@ import { join } from 'node:path';
 const originalFixtures = new Map<string, string>();
 
 /**
- * Recursively find all config files (package.json and version.config.json) in the given directory
+ * Recursively find all config files (package.json and releasekit.config.json) in the given directory
  */
 export function findConfigFiles(directory: string): string[] {
   const files: string[] = [];
@@ -22,7 +22,7 @@ export function findConfigFiles(directory: string): string[] {
       files.push(...findConfigFiles(itemPath));
     } else if (
       item.name === 'package.json' ||
-      item.name === 'version.config.json' ||
+      item.name === 'releasekit.config.json' ||
       item.name === 'pnpm-workspace.yaml'
     ) {
       files.push(itemPath);

@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 /**
  * Create a package.json file in the given directory
@@ -15,43 +15,6 @@ export function createPackageJson(dir: string, name: string, version = '0.1.0') 
 
   // Create a dummy index.js file to give the package some actual content
   writeFileSync(join(dir, 'index.js'), 'console.log("Hello from package");');
-}
-
-/**
- * Create a version.config.json file in the given directory
- */
-export function createVersionConfig(dir: string, config: Record<string, unknown>) {
-  writeFileSync(join(dir, 'version.config.json'), JSON.stringify(config, null, 2));
-
-  // Create the packages directory structure if specified
-  if (config.packages && Array.isArray(config.packages)) {
-    for (const pkgPath of config.packages) {
-      if (pkgPath === './' || pkgPath === '.') {
-        // Make sure the root has a package.json if it doesn't already
-        const rootPackageJsonPath = join(dir, 'package.json');
-        if (!existsSync(rootPackageJsonPath)) {
-          createPackageJson(dir, basename(dir));
-        }
-        continue;
-      }
-
-      // Handle glob pattern by creating a basic structure
-      if (pkgPath.includes('*')) {
-        const basePath = pkgPath.replace('/*', '');
-        const packagesDir = join(dir, basePath);
-
-        if (!existsSync(packagesDir)) {
-          mkdirSync(packagesDir, { recursive: true });
-        }
-      } else {
-        // Handle direct path
-        const packageDir = join(dir, pkgPath);
-        if (!existsSync(packageDir)) {
-          mkdirSync(packageDir, { recursive: true });
-        }
-      }
-    }
-  }
 }
 
 /**
