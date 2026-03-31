@@ -104,13 +104,21 @@ Configure the trigger in `releasekit.config.json`:
 
 ```json
 {
-  "release": {
-    "ci": {}
+  "ci": {
+    "releaseTrigger": "label",
+    "labels": {
+      "major": "release:major",
+      "minor": "release:minor",
+      "patch": "release:patch",
+      "skip": "release:skip"
+    }
   }
 }
 ```
 
-See [@releasekit/release — CI Configuration](../README.md#ci-configuration) for `releaseTrigger` and `releaseStrategy` options.
+Without a `release:patch/minor/major` label on the merged PR, no release is triggered. The `labels` block shown above reflects the defaults — omit it if your repository already uses those label names.
+
+See [@releasekit/release — CI Configuration](../README.md#ci-configuration) for all `ci.*` options.
 
 ---
 
