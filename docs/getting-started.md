@@ -29,7 +29,7 @@ This provides the `releasekit` command. Individual tools (`releasekit-version`, 
 Run the init command to create a `releasekit.config.json` with sensible defaults:
 
 ```bash
-releasekit-notes init
+releasekit init
 ```
 
 Or create it manually. The minimal config for a single-package npm project:
