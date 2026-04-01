@@ -40,7 +40,7 @@ export class OllamaProvider extends BaseLLMProvider {
     super();
 
     this.baseURL = config.baseURL ?? process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434';
-    this.model = config.model ?? LLM_DEFAULTS.models.ollama;
+    this.model = config.model ?? process.env.OLLAMA_MODEL ?? LLM_DEFAULTS.models.ollama;
     this.apiKey = config.apiKey ?? process.env.OLLAMA_API_KEY;
   }
 
