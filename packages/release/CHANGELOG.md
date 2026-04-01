@@ -10,6 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.2] - 2026-04-01
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.1...releasekit-version-v0.7.2)
+
+### Changed
+- **deps**: bump the production-dependencies group across 1 directory with 7 updates (#79)
+- update skipPatterns in releasekit.config.json to remove dependabot PR patterns
+- **deps-dev**: bump the development-dependencies group across 1 directory with 5 updates (#38)
+
 ## [0.7.1] - 2026-04-01
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.0...releasekit-version-v0.7.1)
