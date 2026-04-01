@@ -1,49 +1,45 @@
 
 
-## `@releasekit/version` @ 0.7.2
-
-### Changed:
-- **Dependencies**: Updated 7 production dependencies to their latest versions.
-- **Tooling**: Updated release configuration to stop skipping dependabot pull requests.
-- **Dependencies**: Updated 5 development dependencies to their latest versions.
-
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.1...releasekit-version-v0.7.2
-
----
-
-
-## `@releasekit/notes` @ 0.7.2
-
-### Changed:
-- Adjusted release generation to exclude dependabot pull requests from release notes.
+## `@releasekit/version` @ 0.7.3
 
 ### Developer:
-- **Dependencies**: Updated 7 production dependencies to the latest versions.
-- **Dependencies**: Updated 5 development dependencies to the latest versions.
+- **Code Quality**: Updated execSync command in test-e2e.ts to use array syntax for improved readability.
+- **CI**: Added git SSH configuration step for tag pushes in release workflow.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.1...releasekit-version-v0.7.2
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.2...releasekit-version-v0.7.3
 
 ---
 
 
-## `@releasekit/publish` @ 0.7.2
+## `@releasekit/notes` @ 0.7.3
 
 ### Developer:
-- **Dependencies**: Bumped 7 production dependencies in a single directory.
-- **Tooling**: Removed dependabot PR patterns from the release kit skip patterns.
-- **Dependencies**: Bumped 5 development dependencies in a single directory.
+- **Testing**: Improved the readability of the end‑to‑end test by using array syntax for the execSync command.
+- **CI**: Added an SSH configuration step to the release workflow to enable secure tag pushes.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.1...releasekit-version-v0.7.2
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.2...releasekit-version-v0.7.3
 
 ---
 
 
-## `@releasekit/release` @ 0.7.2
+## `@releasekit/publish` @ 0.7.3
 
 ### Changed:
-- **Dependencies**: Updated 7 production dependencies across the project.
-- Updated configuration to no longer skip Dependabot pull request patterns.
-- **Dependencies**: Updated 5 development dependencies across the project.
+- Added a git SSH configuration step to enable tag pushes in the release workflow.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.1...releasekit-version-v0.7.2
+### Developer:
+- **Code Quality**: Improved readability of the execSync command in test-e2e.ts by switching to array syntax.
+
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.2...releasekit-version-v0.7.3
+
+---
+
+
+## `@releasekit/release` @ 0.7.3
+
+### Developer:
+- **Code Quality**: Improved readability of the execSync command in test-e2e.ts by using array syntax.
+- **CI**: Added git SSH configuration step for tag pushes in the release workflow.
+
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.2...releasekit-version-v0.7.3
 

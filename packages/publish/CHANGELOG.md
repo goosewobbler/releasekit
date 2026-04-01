@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.3] - 2026-04-01
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.2...releasekit-version-v0.7.3)
+
+### Changed
+- add git SSH configuration step for tag pushes in release workflow
+
+### Fixed
+- update execSync command in test-e2e.ts to use array syntax for improved readability
+
 ## [0.7.2] - 2026-04-01
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.1...releasekit-version-v0.7.2)
