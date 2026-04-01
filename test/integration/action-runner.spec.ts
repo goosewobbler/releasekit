@@ -20,7 +20,7 @@ describe('action runner', () => {
     tempDirs.length = 0;
   });
 
-  it('builds release args from inputs', () => {
+  it('should build release args from inputs', () => {
     const args = buildReleaseArgs({
       config: 'releasekit.config.json',
       projectDir: '.',
@@ -71,7 +71,7 @@ describe('action runner', () => {
     expect(args).not.toContain('--quiet');
   });
 
-  it('builds preview args and honors preview dry-run fallback', () => {
+  it('should build preview args and honor dry-run fallback', () => {
     const args = buildPreviewArgs({
       config: 'releasekit.config.json',
       projectDir: '.',
@@ -99,12 +99,13 @@ describe('action runner', () => {
         '--prerelease',
         'true',
         '--stable',
+        '--dry-run',
         '--quiet',
       ]),
     );
   });
 
-  it('parses action env inputs', () => {
+  it('should parse action env inputs', () => {
     const parsed = parseInputs({
       INPUT_MODE: 'preview',
       INPUT_PROJECT_DIR: 'repo',
@@ -120,16 +121,16 @@ describe('action runner', () => {
     expect(parsed.skipGithubRelease).toBe('true');
   });
 
-  it('extracts release JSON output when present', () => {
+  it('should extract release JSON output when present', () => {
     const parsed = parseReleaseOutput('{"versionOutput":{"updates":[{"packageName":"a"}],"tags":["v1.0.0"]}}');
     expect(parsed?.versionOutput?.tags).toEqual(['v1.0.0']);
   });
 
-  it('returns undefined for non-JSON release output', () => {
+  it('should return undefined for non-JSON release output', () => {
     expect(parseReleaseOutput('plain logs')).toBeUndefined();
   });
 
-  it('runs cli with generated args', () => {
+  it('should run cli with generated args', () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-action-runner-test-'));
     tempDirs.push(tempDir);
     const cliPath = path.join(tempDir, 'fake-cli.mjs');
