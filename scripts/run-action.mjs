@@ -149,6 +149,10 @@ export function runAction(input, options = {}) {
     env: process.env,
   });
 
+  if (result.error) {
+    console.error('[run-action] spawn failed:', result.error.message);
+  }
+
   return { mode, args, ...result };
 }
 

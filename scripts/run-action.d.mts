@@ -45,4 +45,3 @@ export function runAction(
   stderr?: string;
   error?: Error;
 };
-
