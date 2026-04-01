@@ -1,43 +1,43 @@
 
 
-## `@releasekit/version` @ 0.7.7
+## `@releasekit/version` @ 0.7.8
 
 ### General:
-- consolidate array formatting in package.json files for consistency across projects
-- add output for action tag in release workflow to capture generated release tag
+- simplify commit logic in release workflow by always committing dist files and conditionally updating major alias for stable releases
+- refine lint-staged configuration in package.json to exclude yml files from formatting
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.6...releasekit-version-v0.7.7
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.7...releasekit-version-v0.7.8
 
 ---
 
 
-## `@releasekit/notes` @ 0.7.7
+## `@releasekit/notes` @ 0.7.8
 
 ### General:
-- consolidate array formatting in package.json files for consistency across projects
-- add output for action tag in release workflow to capture generated release tag
+- simplify commit logic in release workflow by always committing dist files and conditionally updating major alias for stable releases
+- refine lint-staged configuration in package.json to exclude yml files from formatting
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.6...releasekit-version-v0.7.7
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.7...releasekit-version-v0.7.8
 
 ---
 
 
-## `@releasekit/publish` @ 0.7.7
+## `@releasekit/publish` @ 0.7.8
 
 ### General:
-- consolidate array formatting in package.json files for consistency across projects
-- add output for action tag in release workflow to capture generated release tag
+- simplify commit logic in release workflow by always committing dist files and conditionally updating major alias for stable releases
+- refine lint-staged configuration in package.json to exclude yml files from formatting
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.6...releasekit-version-v0.7.7
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.7...releasekit-version-v0.7.8
 
 ---
 
 
-## `@releasekit/release` @ 0.7.7
+## `@releasekit/release` @ 0.7.8
 
 ### General:
-- consolidate array formatting in package.json files for consistency across projects
-- add output for action tag in release workflow to capture generated release tag
+- simplify commit logic in release workflow by always committing dist files and conditionally updating major alias for stable releases
+- refine lint-staged configuration in package.json to exclude yml files from formatting
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.6...releasekit-version-v0.7.7
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.7...releasekit-version-v0.7.8
 

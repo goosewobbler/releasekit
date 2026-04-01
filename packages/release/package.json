@@ -1,6 +1,6 @@
 {
   "name": "@releasekit/release",
-  "version": "0.7.7",
+  "version": "0.7.8",
   "description": "Unified release pipeline: version, changelog, and publish in a single command",
   "type": "module",
   "module": "./dist/index.js",
@@ -27,7 +27,14 @@
     "lint": "biome check .",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": ["release", "version", "changelog", "publish", "cli", "ci"],
+  "keywords": [
+    "release",
+    "version",
+    "changelog",
+    "publish",
+    "cli",
+    "ci"
+  ],
   "author": {
     "name": "Sam Maister",
     "email": "goosewobbler@protonmail.com"
@@ -38,7 +45,12 @@
     "directory": "packages/release"
   },
   "license": "MIT",
-  "files": ["dist", "docs", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
   "publishConfig": {
     "access": "public"
   },

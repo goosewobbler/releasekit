@@ -16,6 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.8] - 2026-04-01
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.7...releasekit-version-v0.7.8)
+
+### Changed
+- simplify commit logic in release workflow by always committing dist files and conditionally updating major alias for stable releases
+- refine lint-staged configuration in package.json to exclude yml files from formatting
+
 ## [0.7.7] - 2026-04-01
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.6...releasekit-version-v0.7.7)
