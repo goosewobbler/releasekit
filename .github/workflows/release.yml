@@ -64,6 +64,7 @@ jobs:
     if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     outputs:
       should_release: ${{ steps.check.outputs.should_release }}
+      bump: ${{ steps.check.outputs.bump }}
     steps:
       - name: Check for release labels
         id: check
@@ -90,11 +91,17 @@ jobs:
             exit 0
           fi
 
-          # Check labels directly from the PR data (already fetched above)
+          # Extract the release label and derive the bump type from it.
+          # 'stable' maps to 'auto' (conventional commits determine type, no prerelease).
+          # All other labels map 1:1 to their bump type.
           LABELS=$(echo "$PRS_OUTPUT" | jq -r '.[].labels[].name' 2>/dev/null)
-          if echo "$LABELS" | grep -qE "^release:(patch|minor|major|prerelease|stable)$"; then
+          RELEASE_LABEL=$(echo "$LABELS" | grep -E "^release:(patch|minor|major|prerelease|stable)$" | head -1)
+          if [ -n "$RELEASE_LABEL" ]; then
+            BUMP_TYPE="${RELEASE_LABEL#release:}"
+            [ "$BUMP_TYPE" = "stable" ] && BUMP_TYPE="auto"
             echo "should_release=true" >> "$GITHUB_OUTPUT"
-            echo "Release label found on merged PRs"
+            echo "bump=$BUMP_TYPE" >> "$GITHUB_OUTPUT"
+            echo "Release label '${RELEASE_LABEL}' found — bump: ${BUMP_TYPE}"
             exit 0
           fi
 
@@ -111,7 +118,7 @@ jobs:
       contents: write
     with:
       packages: all
-      bump: auto
+      bump: ${{ needs.check-labels.outputs.bump || 'auto' }}
       sync: true
       dry_run: false
       npm_auth: oidc
