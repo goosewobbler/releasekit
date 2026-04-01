@@ -218,7 +218,7 @@ describe('Pipeline: releaseNotes in output', () => {
       releaseNotes: {
         mode: 'root' as const,
         file: outFile,
-        templates: { path: templatePath, engine: 'liquid' },
+        templates: { path: templatePath, engine: 'liquid' as const },
       },
     };
 
@@ -251,7 +251,7 @@ describe('Pipeline: releaseNotes in output', () => {
       releaseNotes: {
         mode: 'root' as const,
         file: outFile,
-        templates: { path: templatePath, engine: 'liquid' },
+        templates: { path: templatePath, engine: 'liquid' as const },
       },
     };
 

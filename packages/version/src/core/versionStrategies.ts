@@ -302,7 +302,12 @@ export function createSyncStrategy(config: Config): StrategyFunction {
               url = pkgJson.repository.url;
             }
             if (url) {
-              if (url.startsWith('git+') && url.endsWith('.git')) url = url.slice(4, -4);
+              if (url.startsWith('git+')) {
+                url = url.slice(4);
+              }
+              if (url.endsWith('.git')) {
+                url = url.slice(0, -4);
+              }
               repoUrl = url;
               break;
             }

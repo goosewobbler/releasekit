@@ -43,17 +43,25 @@ function generateCompareUrl(repoUrl: string, from: string, to: string, packageNa
     toVersion = `${packageName}@${to.startsWith('v') ? '' : 'v'}${to}`;
   } else {
     // Detect compound tags like "scope-pkg-v1.2.3" (dash-format package-specific tags).
-    // Extract the prefix (including any version-prefix character like "v") so the "to"
-    // tag is constructed with the same prefix, e.g. "scope-pkg-v1.2.3" → "scope-pkg-v2.0.0".
-    const compoundMatch = from.match(/^(.*?)(v?)(\d+\.\d+\.\d+.*)$/);
-    if (compoundMatch && compoundMatch[1]) {
-      // Non-empty package prefix → compound tag
+    // Use index-based string operations instead of regex to avoid ReDoS on inputs with
+    // many repeated digits (polynomial backtracking with lazy + greedy quantifiers).
+    const toClean = to.replace(/^v/, '');
+    const dashVPos = from.lastIndexOf('-v');
+    if (dashVPos > 0 && from.charCodeAt(dashVPos + 2) >= 48 && from.charCodeAt(dashVPos + 2) <= 57) {
+      // "-v" followed by a digit → compound tag with explicit "v" prefix
       fromVersion = from;
-      toVersion = `${compoundMatch[1]}${compoundMatch[2]}${to.replace(/^v/, '')}`;
+      toVersion = `${from.slice(0, dashVPos + 1)}v${toClean}`;
     } else {
-      // Plain version tag (e.g. "v1.2.3" or "1.2.3") — strip leading v for consistency
-      fromVersion = from.replace(/^v/, '');
-      toVersion = to.replace(/^v/, '');
+      const lastDash = from.lastIndexOf('-');
+      if (lastDash > 0 && from.charCodeAt(lastDash + 1) >= 48 && from.charCodeAt(lastDash + 1) <= 57) {
+        // "-{digit}" → compound tag without "v" prefix
+        fromVersion = from;
+        toVersion = `${from.slice(0, lastDash + 1)}${toClean}`;
+      } else {
+        // Plain version tag (e.g. "v1.2.3" or "1.2.3") — strip leading v for consistency
+        fromVersion = from.replace(/^v/, '');
+        toVersion = toClean;
+      }
     }
   }
 
