@@ -31,58 +31,20 @@ Future features to enable fully automated release workflows (e.g. commits to mai
 - Template workflow: `templates/workflows/release-preview.yml`
 - Self-hosted workflow: `.github/workflows/release-preview.yml`
 
+### Push-Triggered Release Workflow (Feature 1)
+- `.github/workflows/release.yml` implements automated releases on main push
+- Uses `workflow_run` trigger to run after CI passes
+- Detects release labels on merged PRs (`release:patch`, `release:minor`, `release:major`, `release:prerelease`, `release:stable`)
+- Automatically determines bump type from label
+- Calls `_release.reusable.yml` reusable workflow for actual release
+- Manual trigger also available via `workflow_dispatch`
+- Release commits include `[skip ci]` to prevent infinite loops
+
 ---
 
 ## Planned Features
 
-### 1. Push-Triggered Release Workflow
-
-**Goal:** Commits to `main` automatically trigger a release when there are releasable changes.
-
-**What exists today:**
-- `release.yml` is `workflow_dispatch` only (manual trigger)
-- CI workflow already runs on push to main but only runs tests
-- The reusable workflows (`_release-prepare`, `_release-publish`, `_release-post`) are already modular
-
-**What to build:**
-- New workflow file: `.github/workflows/release-on-push.yml`
-- Trigger: `push` to `main` (with path filters to ignore release commits)
-- Calls `releasekit release` (the new unified CLI) or reuses existing reusable workflows
-- Must filter out release commits to prevent infinite loops — use `[skip ci]` in commit messages (already in version templates) AND/OR check commit author (bot)
-- Should run after CI passes (use `workflow_run` trigger on CI completion, or call CI as a reusable workflow first)
-
-**Example workflow structure:**
-```yaml
-on:
-  push:
-    branches: [main]
-
-jobs:
-  ci:
-    # Run tests first
-    uses: ./.github/workflows/ci.yml
-
-  release:
-    needs: ci
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: ./.github/workflows/actions/setup-workspace
-      - run: pnpm build
-      - run: releasekit release --json
-```
-
-**Considerations:**
-- `fetch-depth: 0` is required for commit analysis
-- GITHUB_TOKEN permissions: `contents: write`, `id-token: write` (for npm provenance)
-- Deploy key or PAT for pushing commits/tags (GITHUB_TOKEN can't trigger further workflows)
-
----
-
-### 2. GitHub Action (`releasekit/action`)
+### 1. GitHub Action (`releasekit/action`)
 
 **Goal:** Provide a reusable GitHub Action so other repos can use releasekit with minimal config.
 
@@ -111,12 +73,6 @@ jobs:
 - Need to publish `@releasekit/release` to npm first (or bundle in the action)
 - Handle authentication: npm token, GitHub token, cargo token
 - Support OIDC for npm provenance in the action context
-
----
-
-### 3. Release Preview on PRs ✓
-
-> **Completed** — see "Completed" section above.
 
 ---
 
@@ -170,9 +126,9 @@ jobs:
 
 ### 5. Config-Driven Automation Mode ✓
 
-> **Completed** — see "Completed" section above.
+> **Completed** - see "Completed" section above.
 >
-> **TODO:** `skipPatterns`, `minChanges`, and `autoRelease` fields are defined in the schema but not yet consumed by any workflow or CLI logic. Wire these up when implementing push-triggered releases (feature 1) and scheduled releases.
+> `skipPatterns`, `minChanges`, and `autoRelease` fields are defined in the schema and used by `.github/workflows/release.yml` for automated releases.
 
 ---
 
@@ -182,9 +138,9 @@ jobs:
 |---------|--------|--------|--------|
 | Config-driven automation (5) | Low | Medium | ✓ Done |
 | Release preview on PRs (3) | Medium | Medium | ✓ Done |
-| Push-triggered workflow (1) | Low | High | Next |
-| GitHub Action (2) | Medium | High | Planned |
-| Standing release PR (4) | High | Medium | Planned (schema ready) |
-| Scheduled releases | Medium | Medium | Planned (schema ready) |
+| Push-triggered workflow (1) | Low | High | ✓ Done |
+| GitHub Action (1) | Medium | High | ✓ Done |
+| Standing release PR (4) | High | Medium | Planned |
+| Scheduled releases | Medium | Medium | Planned |
 
-**Next up:** Push-triggered release workflow (feature 1). The CI config schema (`releaseStrategy: 'direct'`, `skipPatterns`, `autoRelease`) is already in place to support it.
+**Next up:** Standing release PR (feature 4) - a PR that auto-updates when changes are detected.
