@@ -99,7 +99,6 @@ describe('action runner', () => {
         '--prerelease',
         'true',
         '--stable',
-        '--dry-run',
         '--quiet',
       ]),
     );

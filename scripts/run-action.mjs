@@ -69,7 +69,7 @@ export function buildPreviewArgs(input) {
 
   pushBooleanFlag(args, '--stable', input.previewStable);
   const effectivePreviewDryRun = normalizeBoolean(input.previewDryRun) || normalizeBoolean(input.dryRun);
-  pushBooleanFlag(args, '--dry-run', effectivePreviewDryRun ? 'true' : 'false');
+  pushBooleanFlag(args, '--dry-run', effectivePreviewDryRun);
   pushBooleanFlag(args, '--verbose', input.verbose);
   pushBooleanFlag(args, '--quiet', input.quiet);
 
