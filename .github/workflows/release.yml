@@ -143,18 +143,6 @@ jobs:
       DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
       OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
-  build-action-auto:
-    name: Build and tag action dist
-    needs: release-auto
-    if: ${{ needs.release-auto.outputs.action_tag != '' }}
-    uses: ./.github/workflows/_action-release.reusable.yml
-    permissions:
-      contents: write
-    with:
-      tag: ${{ needs.release-auto.outputs.action_tag }}
-    secrets:
-      DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
-
   build-action-manual:
     name: Build and tag action dist
     needs: release-manual
@@ -164,5 +152,17 @@ jobs:
       contents: write
     with:
       tag: ${{ needs.release-manual.outputs.action_tag }}
+    secrets:
+      DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+
+  build-action-auto:
+    name: Build and tag action dist
+    needs: release-auto
+    if: ${{ github.event_name == 'workflow_run' && needs.release-auto.outputs.action_tag != '' }}
+    uses: ./.github/workflows/_action-release.reusable.yml
+    permissions:
+      contents: write
+    with:
+      tag: ${{ needs.release-auto.outputs.action_tag }}
     secrets:
       DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}

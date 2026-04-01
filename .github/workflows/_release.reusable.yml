@@ -169,10 +169,11 @@ jobs:
         id: extract-tag
         if: ${{ !inputs.dry_run }}
         run: |
+          ACTION_TAG=""
           if [ -f release-output.json ]; then
             ACTION_TAG=$(jq -r '.versionOutput.tags[] | select(startswith("releasekit-release-v"))' release-output.json 2>/dev/null | head -1)
-            echo "action_tag=${ACTION_TAG}" >> "$GITHUB_OUTPUT"
           fi
+          echo "action_tag=${ACTION_TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Summary
         env:
