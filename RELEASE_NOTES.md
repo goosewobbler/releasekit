@@ -1,35 +1,43 @@
 
 
-## `@releasekit/version` @ 0.6.0
+## `@releasekit/version` @ 0.6.1
 
 ### Fixed:
-- Fixed an issue where commit counts were not calculated from the repository root in sync mode.
-- Fixed an issue where release notes were not being populated in the output, and simplified the GitHub release body fallback logic.
+- Suppressed the heading and added a compare URL in per‑package release notes.
+- Passed the PR label bump type through to the release workflow.
+
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.6.0...releasekit-version-v0.6.1
 
 ---
 
 
-## `@releasekit/notes` @ 0.6.0
+## `@releasekit/notes` @ 0.6.1
 
 ### Fixed:
-- Fixed version counting to correctly count commits from the repository root in sync mode.
-- Fixed release notes generation to correctly populate the releaseNotes output and simplify the GitHub release body fallback.
+- Suppressed the heading and added a compare URL in per‑package release notes.
+- Fixed the release workflow to pass the PR label bump type through.
+
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.6.0...releasekit-version-v0.6.1
 
 ---
 
 
-## `@releasekit/publish` @ 0.6.0
+## `@releasekit/publish` @ 0.6.1
 
 ### Fixed:
-- Fixed counting of commits from repository root in sync mode.
-- Fixed release notes output and simplified GitHub release body fallback.
+- Fixed release notes generation to suppress the heading and include a compare URL for each package.
+- **CI**: Fixed the release workflow to correctly pass PR label bump type information through to the workflow.
+
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.6.0...releasekit-version-v0.6.1
 
 ---
 
 
-## `@releasekit/release` @ 0.6.0
+## `@releasekit/release` @ 0.6.1
 
 ### Fixed:
-- Fixed an issue where commit counting didn't work correctly when running in sync mode from the repository root.
-- Fixed an issue where release notes output wasn't being populated correctly and simplified the GitHub release body fallback logic.
+- Fixed release notes generation to suppress heading and include a compare URL for each package.
+- Fixed release workflow to pass the PR label bump type through correctly.
+
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.6.0...releasekit-version-v0.6.1
 

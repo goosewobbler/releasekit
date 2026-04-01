@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.6.1] - 2026-04-01
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.6.0...releasekit-version-v0.6.1)
+
+### Fixed
+- **notes**: suppress heading and add compare URL in per-package release notes (#95)
+- **release**: pass PR label bump type through to the release workflow
+
 ## [0.6.0] - 2026-04-01
 
 ### Fixed
