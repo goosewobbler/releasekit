@@ -55,7 +55,7 @@ export class VersionEngine {
       }
 
       const pkgsResult = getPackagesSync(cwd()) as PackagesWithRoot;
-      if (!pkgsResult || !pkgsResult.packages) {
+      if (!pkgsResult?.packages) {
         throw createVersionError(VersionErrorCode.PACKAGES_NOT_FOUND);
       }
 

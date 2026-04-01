@@ -1,7 +1,7 @@
 import { type LoadOptions, loadPublishConfig } from '@releasekit/config';
 import { type PublishConfig, toPublishConfig } from './types.js';
 
-export { toPublishConfig, type PublishConfig, type LoadOptions };
+export { type LoadOptions, type PublishConfig, toPublishConfig };
 
 export function loadConfig(options?: LoadOptions): PublishConfig {
   const baseConfig = loadPublishConfig(options);
