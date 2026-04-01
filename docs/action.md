@@ -56,7 +56,7 @@ uses: goosewobbler/releasekit@v1
 | Input | Default | Description |
 |---|---|---|
 | `bump` | - | Force bump (`patch|minor|major`) |
-| `prerelease` | - | Prerelease identifier (or empty for default) |
+| `prerelease` | - | Prerelease identifier (e.g. `alpha`, `beta`) |
 | `sync` | `false` | Synchronized versioning |
 | `target` | - | Comma-separated package targets |
 | `branch` | - | Override push branch |
