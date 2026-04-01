@@ -148,6 +148,8 @@ jobs:
     needs: release-auto
     if: ${{ needs.release-auto.outputs.action_tag != '' }}
     uses: ./.github/workflows/_action-release.reusable.yml
+    permissions:
+      contents: write
     with:
       tag: ${{ needs.release-auto.outputs.action_tag }}
     secrets:
@@ -158,6 +160,8 @@ jobs:
     needs: release-manual
     if: ${{ needs.release-manual.outputs.action_tag != '' }}
     uses: ./.github/workflows/_action-release.reusable.yml
+    permissions:
+      contents: write
     with:
       tag: ${{ needs.release-manual.outputs.action_tag }}
     secrets:
