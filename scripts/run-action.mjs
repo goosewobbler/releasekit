@@ -37,10 +37,8 @@ export function buildReleaseArgs(input) {
   pushOptionalArg(args, '--branch', input.branch);
   pushOptionalArg(args, '--npm-auth', input.npmAuth);
 
-  if (input.prerelease !== undefined && input.prerelease !== '') {
+  if (input.prerelease) {
     args.push('--prerelease', input.prerelease);
-  } else if (input.prerelease === '') {
-    args.push('--prerelease');
   }
 
   pushBooleanFlag(args, '--dry-run', input.dryRun);
@@ -65,10 +63,8 @@ export function buildPreviewArgs(input) {
   pushOptionalArg(args, '--pr', input.pr);
   pushOptionalArg(args, '--repo', input.repo);
 
-  if (input.previewPrerelease !== undefined && input.previewPrerelease !== '') {
+  if (input.previewPrerelease) {
     args.push('--prerelease', input.previewPrerelease);
-  } else if (input.previewPrerelease === '') {
-    args.push('--prerelease');
   }
 
   pushBooleanFlag(args, '--stable', input.previewStable);
@@ -117,7 +113,7 @@ export function parseInputs(env = process.env) {
     quiet: env.INPUT_QUIET,
 
     bump: normalizeString(env.INPUT_BUMP),
-    prerelease: env.INPUT_PRERELEASE,
+    prerelease: normalizeString(env.INPUT_PRERELEASE),
     sync: env.INPUT_SYNC,
     target: normalizeString(env.INPUT_TARGET),
     branch: normalizeString(env.INPUT_BRANCH),
@@ -130,7 +126,7 @@ export function parseInputs(env = process.env) {
 
     pr: normalizeString(env.INPUT_PR),
     repo: normalizeString(env.INPUT_REPO),
-    previewPrerelease: env.INPUT_PREVIEW_PRERELEASE,
+    previewPrerelease: normalizeString(env.INPUT_PREVIEW_PRERELEASE),
     previewStable: env.INPUT_PREVIEW_STABLE,
     previewDryRun: env.INPUT_PREVIEW_DRY_RUN,
   };
