@@ -33,12 +33,7 @@
     "lint": "biome check .",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": [
-    "version",
-    "semver",
-    "git",
-    "package"
-  ],
+  "keywords": ["version", "semver", "git", "package"],
   "author": {
     "name": "Sam Maister",
     "email": "goosewobbler@protonmail.com"
@@ -49,12 +44,7 @@
     "directory": "packages/version"
   },
   "license": "MIT",
-  "files": [
-    "dist",
-    "docs",
-    "README.md",
-    "LICENSE"
-  ],
+  "files": ["dist", "docs", "README.md", "LICENSE"],
   "publishConfig": {
     "access": "public"
   },
