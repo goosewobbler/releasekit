@@ -149,6 +149,21 @@ describe('compareUrl: platform detection', () => {
     );
   });
 
+  it('should generate compare URL for dash-format pre-release tags without v prefix', () => {
+    const ctx = createTemplateContext({
+      packageName: '@releasekit/notes',
+      version: '0.3.0-next.2',
+      previousVersion: 'releasekit-notes-0.3.0-next.1',
+      revisionRange: 'releasekit-notes-0.3.0-next.1..HEAD',
+      repoUrl: 'https://github.com/goosewobbler/releasekit',
+      date: '2026-01-01',
+      entries: [],
+    });
+    expect(ctx.compareUrl).toBe(
+      'https://github.com/goosewobbler/releasekit/compare/releasekit-notes-0.3.0-next.1...releasekit-notes-0.3.0-next.2',
+    );
+  });
+
   it('should omit compareUrl when no previousVersion', () => {
     const ctx = createTemplateContext({
       packageName: 'pkg',
