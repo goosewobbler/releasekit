@@ -15,6 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.7] - 2026-04-01
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.6...releasekit-version-v0.7.7)
+
+### Changed
+- consolidate array formatting in package.json files for consistency across projects
+- add output for action tag in release workflow to capture generated release tag
+
 ## [0.7.6] - 2026-04-01
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.5...releasekit-version-v0.7.6)
