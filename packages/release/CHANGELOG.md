@@ -12,6 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.4] - 2026-04-01
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.3...releasekit-version-v0.7.4)
+
+### Changed
+- update release workflow to include write permissions for contents
+- add reusable workflow for action release, including build, commit, and tagging logic
+
 ## [0.7.3] - 2026-04-01
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.2...releasekit-version-v0.7.3)
