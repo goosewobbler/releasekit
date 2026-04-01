@@ -24,14 +24,16 @@ uses: goosewobbler/releasekit@v1
 
 - Recommended job permissions:
   - `id-token: write` (OIDC trusted publishing)
+  - `contents: read` (checkout)
   - `contents: write` (git push + GitHub Releases)
 - Required env:
   - `GITHUB_TOKEN`
 
 ### Preview mode
 
-  - Recommended job permissions:
-    - `pull-requests: write` (posting/updating PR comments)
+- Recommended job permissions:
+  - `contents: read` (checkout)
+  - `pull-requests: write` (posting/updating PR comments)
 - Required env:
   - `GITHUB_TOKEN`
 
@@ -135,6 +137,7 @@ jobs:
   preview:
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pull-requests: write
     steps:
       - uses: actions/checkout@v6
@@ -150,16 +153,23 @@ jobs:
 ### Preview mode dry run (markdown only)
 
 ```yaml
-- id: rk
-  uses: goosewobbler/releasekit@v1
-  with:
-    mode: preview
-    preview-dry-run: "true"
-  env:
-    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - id: rk
+        uses: goosewobbler/releasekit@v1
+        with:
+          mode: preview
+          preview-dry-run: "true"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-- run: |
-    echo "${{ steps.rk.outputs.preview-markdown }}"
+      - run: |
+          echo "${{ steps.rk.outputs.preview-markdown }}"
 ```
 
 ## Versioning and distribution policy

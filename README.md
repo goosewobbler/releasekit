@@ -103,6 +103,7 @@ jobs:
 jobs:
   preview:
     permissions:
+      contents: read
       pull-requests: write
     runs-on: ubuntu-latest
     steps:
