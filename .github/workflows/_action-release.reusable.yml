@@ -44,13 +44,7 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
         run: |
           git add -f packages/release/dist/
-
-          # Only create a commit if the dist files differ from what's in the tag
-          if git diff --cached --quiet; then
-            echo "No dist changes to commit, tagging current HEAD"
-          else
-            git commit -m "chore: build action dist for ${RELEASE_TAG} [skip ci]"
-          fi
+          git commit -m "chore: build action dist for ${RELEASE_TAG} [skip ci]"
 
           # Extract semver from tag: releasekit-release-v1.2.3 -> 1.2.3
           VERSION="${RELEASE_TAG#releasekit-release-v}"
@@ -64,6 +58,10 @@ jobs:
             git push origin "v${VERSION}"
           fi
 
-          # Moving major alias — always force-update
-          git tag -f "v${MAJOR}"
-          git push origin -f "v${MAJOR}"
+          # Moving major alias — only update for stable releases
+          if [[ "${VERSION}" != *"-"* ]]; then
+            git tag -f "v${MAJOR}"
+            git push origin -f "v${MAJOR}"
+          else
+            echo "Prerelease ${VERSION} — skipping major alias update"
+          fi
