@@ -1,79 +1,35 @@
 
 
-## `@releasekit/version` @ 0.5.0
-
-### New:
-- Added a titleTemplate config option and moved sanitizePackageName to the core module.
+## `@releasekit/version` @ 0.6.0
 
 ### Fixed:
-- Fixed tagTemplate to use the configured prefix placeholder instead of a hardcoded 'v'.
-- Fixed version extraction to correctly strip the sanitized dash-format package prefix from tags.
-- Fixed publishing to resolve the title from releaseNotes keys when no changelogs are present.
-- Fixed changelog data and tag matching for per-package sync releases.
-
-### Developer:
-- **Code Quality**: Removed duplicate escapeRegExp implementation by using the shared utility in the version module.
-- **Testing**: Generalized the dash-format tag strip regression test to cover more cases.
-- **Code Quality**: Simplified the formatChangelogForTag function by replacing a nested ternary with clearer logic.
+- Fixed an issue where commit counts were not calculated from the repository root in sync mode.
+- Fixed an issue where release notes were not being populated in the output, and simplified the GitHub release body fallback logic.
 
 ---
 
 
-## `@releasekit/notes` @ 0.5.0
-
-### New:
-- Extracted sanitizePackageName to the core and added a new titleTemplate configuration option.
+## `@releasekit/notes` @ 0.6.0
 
 ### Fixed:
-- Fixed configuration to use a variable prefix in tag templates instead of the hardcoded 'v'.
-- Fixed version extraction to strip the sanitized dash-format package prefix from tags.
-- Fixed publishing to resolve title from releaseNotes keys when no changelogs are present.
-- Fixed changelog data and tag matching for per-package sync releases.
-
-### Changed:
-- Updated version component to use the shared escapeRegExp utility, removing duplicated code.
-- Simplified formatChangelogForTag by replacing nested ternary with clearer logic.
-
-### Developer:
-- **Testing**: Generalized the regression test for dash-format tag stripping to cover additional cases.
+- Fixed version counting to correctly count commits from the repository root in sync mode.
+- Fixed release notes generation to correctly populate the releaseNotes output and simplify the GitHub release body fallback.
 
 ---
 
 
-## `@releasekit/publish` @ 0.5.0
-
-### New:
-- Extracted sanitizePackageName into the core module and added a configurable titleTemplate option.
+## `@releasekit/publish` @ 0.6.0
 
 ### Fixed:
-- Fixed the tag template to use the configurable prefix placeholder instead of a hardcoded 'v'.
-- Stripped the sanitized dash-format package prefix when extracting the version from a tag.
-- Resolved the release title from the releaseNotes keys when no changelogs are present.
-- Corrected changelog data and tag matching for per-package synchronized releases.
-
-### Changed:
-- Used the shared escapeRegExp utility from formatting utils instead of duplicating it locally.
-- Replaced the nested ternary operator in formatChangelogForTag with clearer logic.
-
-### Developer:
-- **Testing**: Generalized the regression test for dash-format tag stripping.
+- Fixed counting of commits from repository root in sync mode.
+- Fixed release notes output and simplified GitHub release body fallback.
 
 ---
 
 
-## `@releasekit/release` @ 0.5.0
-
-### New:
-- **Code Quality**: Added a new titleTemplate config option and moved sanitizePackageName to the core module.
+## `@releasekit/release` @ 0.6.0
 
 ### Fixed:
-- Fixed the tag template to use the configurable prefix instead of a hardcoded 'v'.
-- Fixed version extraction to strip the sanitized dash-format package prefix from tags.
-- Fixed release title resolution to fall back to the releaseNotes keys when changelogs are empty.
-- Fixed changelog data and tag matching for per-package synchronized releases.
-
-### Changed:
-- **Code Quality**: Replaced the local duplicate escapeRegExp function with the version from the formatting utilities.
-- **Testing**: Generalized the dash-format tag stripping regression test to cover more cases.
-- **Code Quality**: Replaced a nested ternary expression in formatChangelogForTag with clearer logic.
+- Fixed an issue where commit counting didn't work correctly when running in sync mode from the repository root.
+- Fixed an issue where release notes output wasn't being populated correctly and simplified the GitHub release body fallback logic.
 
