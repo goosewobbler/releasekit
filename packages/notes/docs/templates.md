@@ -67,6 +67,8 @@ The outermost template (`document`) receives:
 | `project.repoUrl` | `string \| null` | Repository URL |
 | `versions` | `TemplateContext[]` | All rendered versions, newest first |
 | `unreleased` | `TemplateContext \| undefined` | Unreleased changes, if any |
+| `compareUrls` | `Record<string, string> \| undefined` | Map of version → compare URL for all versions |
+| `perPackage` | `boolean \| undefined` | `true` when rendered inline for a single package (e.g. GitHub release body). Use this to suppress document-level headings that are redundant when the content is embedded in a release that already shows the package name and version. |
 
 ### Version context
 

@@ -4,8 +4,10 @@ Categories are pre-ordered by the pipeline (New → Fixed → Changed → Remove
 Developer entries use bolded subcategory labels.
 {%- endcomment -%}
 {%- for version in versions %}
+{%- unless perPackage %}
 
 ## `{{ version.packageName }}` @ {{ version.version }}
+{%- endunless %}
 
 {%- if version.enhanced.categories %}
 {%- for cat in version.enhanced.categories %}

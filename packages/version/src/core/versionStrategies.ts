@@ -287,6 +287,36 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       // the ${packageName} placeholder empty rather than inserting the literal 'root'.
       const workspaceNames = updatedPackages.filter((n) => n !== 'root');
 
+      // Extract repoUrl from root package.json (or versionSourcePath as fallback)
+      // so the notes pipeline can generate compare URLs in GitHub releases.
+      let repoUrl: string | null = null;
+      for (const searchPath of [mainPkgPath, versionSourcePath].filter(Boolean) as string[]) {
+        try {
+          const pkgJsonPath = path.join(searchPath, 'package.json');
+          if (fs.existsSync(pkgJsonPath)) {
+            const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'));
+            let url: string | undefined;
+            if (typeof pkgJson.repository === 'string') {
+              url = pkgJson.repository;
+            } else if (pkgJson.repository?.url) {
+              url = pkgJson.repository.url;
+            }
+            if (url) {
+              if (url.startsWith('git+')) {
+                url = url.slice(4);
+              }
+              if (url.endsWith('.git')) {
+                url = url.slice(0, -4);
+              }
+              repoUrl = url;
+              break;
+            }
+          }
+        } catch {
+          // non-fatal — repoUrl stays null
+        }
+      }
+
       // Track changelog data for JSON output.
       // In per-package tag mode, emit one changelog entry per workspace package so the
       // notes pipeline can write a CHANGELOG.md to each package directory and the
@@ -298,7 +328,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
             version: nextVersion,
             previousVersion: latestTag || null,
             revisionRange,
-            repoUrl: null,
+            repoUrl,
             entries: changelogEntries,
           });
         }
@@ -308,7 +338,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
           version: nextVersion,
           previousVersion: latestTag || null,
           revisionRange,
-          repoUrl: null,
+          repoUrl,
           entries: changelogEntries,
         });
       }

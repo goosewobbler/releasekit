@@ -28,6 +28,29 @@ import type {
   TemplateEngine,
 } from './types.js';
 
+/**
+ * For dash-format compound tags (e.g. "scope-pkg-1.2.3" or "scope-pkg-1.2.3-next.1"),
+ * find the index of the '-' that separates the package prefix from the semver version.
+ * Scans right-to-left so pre-release dashes (e.g. the '-' in "1.2.3-next.1") are skipped.
+ * Returns -1 when no semver-like segment is found (plain version tag).
+ */
+function findCompoundTagSepPos(tag: string): number {
+  let pos = tag.lastIndexOf('-');
+  while (pos > 0) {
+    const afterDash = pos + 1;
+    if (tag.charCodeAt(afterDash) >= 48 && tag.charCodeAt(afterDash) <= 57) {
+      // Digit after dash — confirm semver-like by requiring ≥2 dots in the remainder
+      let dots = 0;
+      for (let i = afterDash; i < tag.length; i++) {
+        if (tag[i] === '.') dots++;
+      }
+      if (dots >= 2) return pos;
+    }
+    pos = tag.lastIndexOf('-', pos - 1);
+  }
+  return -1;
+}
+
 function generateCompareUrl(repoUrl: string, from: string, to: string, packageName?: string): string {
   // Check if using package-specific tags (from version contains @ and package name)
   const isPackageSpecific = from.includes('@') && packageName && from.includes(packageName);
@@ -42,9 +65,27 @@ function generateCompareUrl(repoUrl: string, from: string, to: string, packageNa
     fromVersion = from;
     toVersion = `${packageName}@${to.startsWith('v') ? '' : 'v'}${to}`;
   } else {
-    // Plain version tags - remove leading 'v' if present for consistency
-    fromVersion = from.replace(/^v/, '');
-    toVersion = to.replace(/^v/, '');
+    // Detect compound tags like "scope-pkg-v1.2.3" (dash-format package-specific tags).
+    // Use index-based string operations instead of regex to avoid ReDoS on inputs with
+    // many repeated digits (polynomial backtracking with lazy + greedy quantifiers).
+    const toClean = to.replace(/^v/, '');
+    const dashVPos = from.lastIndexOf('-v');
+    if (dashVPos > 0 && from.charCodeAt(dashVPos + 2) >= 48 && from.charCodeAt(dashVPos + 2) <= 57) {
+      // "-v" followed by a digit → compound tag with explicit "v" prefix
+      fromVersion = from;
+      toVersion = `${from.slice(0, dashVPos + 1)}v${toClean}`;
+    } else {
+      const sepPos = findCompoundTagSepPos(from);
+      if (sepPos > 0) {
+        // Compound tag without "v" prefix (e.g. "scope-pkg-1.2.3" or "scope-pkg-1.2.3-next.1")
+        fromVersion = from;
+        toVersion = `${from.slice(0, sepPos + 1)}${toClean}`;
+      } else {
+        // Plain version tag (e.g. "v1.2.3" or "1.2.3") — strip leading v for consistency
+        fromVersion = from.replace(/^v/, '');
+        toVersion = toClean;
+      }
+    }
   }
 
   if (/gitlab\.com/i.test(repoUrl)) {
@@ -369,7 +410,7 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
       if (releaseNotesConfig.templates?.path) {
         try {
           const templatePath = path.resolve(releaseNotesConfig.templates.path);
-          const docCtx = createDocumentContext([ctx], undefined);
+          const docCtx = { ...createDocumentContext([ctx], undefined), perPackage: true };
           const rendered = renderTemplate(
             templatePath,
             docCtx,

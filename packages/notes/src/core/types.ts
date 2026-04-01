@@ -66,6 +66,10 @@ export interface DocumentContext {
   versions: TemplateContext[];
   unreleased?: TemplateContext;
   compareUrls?: Record<string, string>;
+  /** True when rendered for a single-package inline context (e.g. GitHub release body).
+   *  Templates can use this to suppress document-level headings that are redundant
+   *  when the content is embedded in a release that already shows the package/version. */
+  perPackage?: boolean;
 }
 
 export interface LLMOptions {
