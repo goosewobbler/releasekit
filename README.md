@@ -76,6 +76,49 @@ releasekit-version --json | releasekit-publish
 
 See the package READMEs for full CLI reference.
 
+### GitHub Action (`releasekit/action`)
+
+Use ReleaseKit as a composite GitHub Action with two modes: `release` and `preview`.
+
+```yaml
+jobs:
+  release:
+    permissions:
+      id-token: write
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: goosewobbler/releasekit@v1
+        with:
+          mode: release
+          json: "true"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+```yaml
+jobs:
+  preview:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: goosewobbler/releasekit@v1
+        with:
+          mode: preview
+          preview-dry-run: "true"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+See [docs/action.md](./docs/action.md) for full input/output reference and rollout guidance.
+
 ## Configuration
 
 ReleaseKit uses a single `releasekit.config.json` at the project root. Add `$schema` for editor autocompletion:

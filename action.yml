@@ -1,0 +1,132 @@
+name: ReleaseKit
+description: Run ReleaseKit in preview or release mode
+author: goosewobbler
+
+inputs:
+  mode:
+    description: Action mode (release or preview)
+    required: false
+    default: release
+  config:
+    description: Path to releasekit config file
+    required: false
+  project-dir:
+    description: Project directory to run in
+    required: false
+    default: .
+  dry-run:
+    description: Dry-run mode
+    required: false
+    default: "false"
+  json:
+    description: Enable JSON output (release mode)
+    required: false
+    default: "false"
+  verbose:
+    description: Enable verbose logging
+    required: false
+    default: "false"
+  quiet:
+    description: Suppress non-error output
+    required: false
+    default: "false"
+
+  bump:
+    description: Force bump type (patch|minor|major)
+    required: false
+  prerelease:
+    description: Create prerelease version (optional identifier)
+    required: false
+  sync:
+    description: Use synchronized versioning
+    required: false
+    default: "false"
+  target:
+    description: Target packages (comma-separated)
+    required: false
+  branch:
+    description: Override git branch used for push
+    required: false
+  npm-auth:
+    description: NPM auth method (auto|oidc|token)
+    required: false
+    default: auto
+  skip-notes:
+    description: Skip changelog generation
+    required: false
+    default: "false"
+  skip-publish:
+    description: Skip registry publishing and git operations
+    required: false
+    default: "false"
+  skip-git:
+    description: Skip git commit/tag/push
+    required: false
+    default: "false"
+  skip-github-release:
+    description: Skip GitHub release creation
+    required: false
+    default: "false"
+  skip-verification:
+    description: Skip post-publish verification
+    required: false
+    default: "false"
+
+  pr:
+    description: Pull request number (preview mode)
+    required: false
+  repo:
+    description: Repository in owner/repo format (preview mode)
+    required: false
+  preview-prerelease:
+    description: Force prerelease preview (optional identifier)
+    required: false
+  preview-stable:
+    description: Force stable preview
+    required: false
+    default: "false"
+  preview-dry-run:
+    description: Print preview markdown without posting
+    required: false
+    default: "false"
+
+outputs:
+  success:
+    description: Whether action completed successfully
+    value: ${{ steps.run.outputs.success }}
+  mode:
+    description: Executed mode
+    value: ${{ steps.run.outputs.mode }}
+  has-changes:
+    description: "Whether a release has changes (release mode, requires json: true)"
+    value: ${{ steps.run.outputs.has-changes }}
+  version-output:
+    description: Version output JSON (release mode)
+    value: ${{ steps.run.outputs.version-output }}
+  tags:
+    description: Comma-separated tags (release mode)
+    value: ${{ steps.run.outputs.tags }}
+  release-output:
+    description: Full release output JSON (release mode)
+    value: ${{ steps.run.outputs.release-output }}
+  preview-markdown:
+    description: Preview markdown (preview mode with dry-run)
+    value: ${{ steps.run.outputs.preview-markdown }}
+  preview-posted:
+    description: Whether preview was posted (preview mode, non-dry-run)
+    value: ${{ steps.run.outputs.preview-posted }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "24"
+        registry-url: https://registry.npmjs.org
+
+    - name: Run ReleaseKit action
+      id: run
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: node scripts/run-action.mjs
