@@ -4,9 +4,14 @@ name: Action Release
 # creates/updates the action version tags (v1.2.3, v1) that consumers pin to.
 
 on:
-  push:
-    tags:
-      - "releasekit-release-v*"
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+    secrets:
+      DEPLOY_KEY:
+        required: true
 
 permissions:
   contents: write
@@ -21,6 +26,7 @@ jobs:
         with:
           fetch-depth: 0
           ssh-key: ${{ secrets.DEPLOY_KEY }}
+          ref: ${{ inputs.tag }}
 
       - name: Configure git
         run: |
@@ -35,7 +41,7 @@ jobs:
 
       - name: Commit dist and tag
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
           git add -f packages/release/dist/
 

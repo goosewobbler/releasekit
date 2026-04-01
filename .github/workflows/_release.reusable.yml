@@ -41,7 +41,8 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-
+    outputs:
+      action_tag: ${{ steps.extract-tag.outputs.action_tag }}
     steps:
       - name: Checkout (SSH)
         if: ${{ !inputs.dry_run }}
@@ -162,6 +163,15 @@ jobs:
             echo "$RELEASE_OUTPUT" > release-output.json
           else
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract action tag
+        id: extract-tag
+        if: ${{ !inputs.dry_run }}
+        run: |
+          if [ -f release-output.json ]; then
+            ACTION_TAG=$(jq -r '.versionOutput.tags[] | select(startswith("releasekit-release-v"))' release-output.json 2>/dev/null | head -1)
+            echo "action_tag=${ACTION_TAG}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Summary
