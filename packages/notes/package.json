@@ -1,6 +1,6 @@
 {
   "name": "@releasekit/notes",
-  "version": "0.7.4",
+  "version": "0.7.5",
   "description": "Release notes and changelog generation with LLM-powered enhancement and flexible templating",
   "type": "module",
   "module": "./dist/index.js",
@@ -32,7 +32,13 @@
     "lint": "biome check .",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": ["changelog", "release-notes", "llm", "template", "cli"],
+  "keywords": [
+    "changelog",
+    "release-notes",
+    "llm",
+    "template",
+    "cli"
+  ],
   "author": "Sam Maister <goosewobbler@protonmail.com>",
   "license": "MIT",
   "repository": {
@@ -40,7 +46,13 @@
     "url": "git+https://github.com/goosewobbler/releasekit.git",
     "directory": "packages/notes"
   },
-  "files": ["dist", "docs", "templates", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "docs",
+    "templates",
+    "README.md",
+    "LICENSE"
+  ],
   "publishConfig": {
     "access": "public"
   },

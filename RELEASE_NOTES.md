@@ -1,43 +1,43 @@
 
 
-## `@releasekit/version` @ 0.7.4
+## `@releasekit/version` @ 0.7.5
 
 ### General:
-- update release workflow to include write permissions for contents
-- add reusable workflow for action release, including build, commit, and tagging logic
+- streamline package.json formatting by consolidating array elements for keywords and files
+- update release workflow condition to trigger only on workflow_dispatch event
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.3...releasekit-version-v0.7.4
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.4...releasekit-version-v0.7.5
 
 ---
 
 
-## `@releasekit/notes` @ 0.7.4
+## `@releasekit/notes` @ 0.7.5
 
 ### General:
-- update release workflow to include write permissions for contents
-- add reusable workflow for action release, including build, commit, and tagging logic
+- streamline package.json formatting by consolidating array elements for keywords and files
+- update release workflow condition to trigger only on workflow_dispatch event
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.3...releasekit-version-v0.7.4
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.4...releasekit-version-v0.7.5
 
 ---
 
 
-## `@releasekit/publish` @ 0.7.4
+## `@releasekit/publish` @ 0.7.5
 
 ### General:
-- update release workflow to include write permissions for contents
-- add reusable workflow for action release, including build, commit, and tagging logic
+- streamline package.json formatting by consolidating array elements for keywords and files
+- update release workflow condition to trigger only on workflow_dispatch event
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.3...releasekit-version-v0.7.4
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.4...releasekit-version-v0.7.5
 
 ---
 
 
-## `@releasekit/release` @ 0.7.4
+## `@releasekit/release` @ 0.7.5
 
 ### General:
-- update release workflow to include write permissions for contents
-- add reusable workflow for action release, including build, commit, and tagging logic
+- streamline package.json formatting by consolidating array elements for keywords and files
+- update release workflow condition to trigger only on workflow_dispatch event
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.3...releasekit-version-v0.7.4
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.4...releasekit-version-v0.7.5
 

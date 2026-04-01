@@ -1,6 +1,6 @@
 {
   "name": "@releasekit/publish",
-  "version": "0.7.4",
+  "version": "0.7.5",
   "description": "Publish packages to npm and crates.io with git tagging and GitHub releases",
   "type": "module",
   "module": "./dist/index.js",
@@ -32,7 +32,13 @@
     "lint": "biome check .",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": ["publish", "npm", "cargo", "release", "ci"],
+  "keywords": [
+    "publish",
+    "npm",
+    "cargo",
+    "release",
+    "ci"
+  ],
   "author": {
     "name": "Sam Maister",
     "email": "goosewobbler@protonmail.com"
@@ -43,7 +49,12 @@
     "directory": "packages/publish"
   },
   "license": "MIT",
-  "files": ["dist", "docs", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
   "publishConfig": {
     "access": "public"
   },

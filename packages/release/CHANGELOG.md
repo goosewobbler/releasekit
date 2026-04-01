@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.5] - 2026-04-01
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.4...releasekit-version-v0.7.5)
+
+### Changed
+- streamline package.json formatting by consolidating array elements for keywords and files
+
+### Fixed
+- update release workflow condition to trigger only on workflow_dispatch event
+
 ## [0.7.4] - 2026-04-01
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.3...releasekit-version-v0.7.4)
