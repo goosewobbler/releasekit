@@ -13,6 +13,10 @@ export interface VersionConfigBase {
   branchPattern?: string[];
   baseBranch?: string;
   path?: string;
+  /** Override the directory used for commit-count checks. When set, commit counting
+   *  uses this path instead of `path`. Useful in sync mode where the version is read
+   *  from a workspace package but commits should be counted against the repo root. */
+  commitCheckPath?: string;
   name?: string;
   strictReachable?: boolean;
 }

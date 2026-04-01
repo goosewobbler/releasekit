@@ -103,6 +103,10 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       const formattedPrefix = formatVersionPrefix(versionPrefix || 'v');
       let latestTag = await getLatestTag();
 
+      // Capture the repo root before any mainPackage branch can overwrite mainPkgPath.
+      // This is used as commitCheckPath so commit counting always spans the full repo.
+      const repoRoot = packages.root ?? process.cwd();
+
       // Find the main package if specified.
       // mainPkgPath / mainPkgName drive changelog extraction and naming.
       // versionSourcePath / versionSourceName are used only for reading the base
@@ -154,7 +158,9 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         }
       }
 
-      // Calculate the next version using the version source package
+      // Calculate the next version using the version source package.
+      // commitCheckPath is set to the repo root so that commits across all workspace
+      // packages are counted — not just those under the version source subdirectory.
       const nextVersion = await calculateVersion(config, {
         latestTag,
         versionPrefix: formattedPrefix,
@@ -162,6 +168,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         baseBranch,
         prereleaseIdentifier,
         path: versionSourcePath,
+        commitCheckPath: repoRoot,
         name: versionSourceName,
         type: config.type,
       });
