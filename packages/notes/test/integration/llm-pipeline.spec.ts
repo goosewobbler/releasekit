@@ -76,7 +76,7 @@ describe('Pipeline: dry-run skips LLM', () => {
 describe('LLM tasks: enhance', () => {
   it('should replace entry descriptions with provider responses', async () => {
     const provider = makeMockProvider('Polished description');
-    const result = await enhanceEntries(provider, sampleInput.packages[0]!.entries, {
+    const result = await enhanceEntries(provider, sampleInput.packages[0]?.entries, {
       packageName: 'my-lib',
       version: '2.0.0',
     });
@@ -94,7 +94,7 @@ describe('LLM tasks: enhance', () => {
       },
     };
 
-    const result = await enhanceEntries(provider, sampleInput.packages[0]!.entries, {});
+    const result = await enhanceEntries(provider, sampleInput.packages[0]?.entries, {});
     expect(result[0]?.description).toBe('Add streaming support');
     expect(result[1]?.description).toBe('Fix null pointer');
   });
@@ -128,7 +128,7 @@ describe('LLM tasks: enhance', () => {
 describe('LLM tasks: summarize', () => {
   it('should return the summary from the provider', async () => {
     const provider = makeMockProvider('This release brings streaming and fixes.');
-    const summary = await summarizeEntries(provider, sampleInput.packages[0]!.entries, {
+    const summary = await summarizeEntries(provider, sampleInput.packages[0]?.entries, {
       packageName: 'my-lib',
       version: '2.0.0',
     });
@@ -139,7 +139,7 @@ describe('LLM tasks: summarize', () => {
 
 describe('LLM tasks: categorize', () => {
   it('should group entries by category from JSON response', async () => {
-    const entries = sampleInput.packages[0]!.entries;
+    const entries = sampleInput.packages[0]?.entries;
     const jsonResponse = JSON.stringify({ Features: [0], Fixes: [1], Maintenance: [2] });
     const provider = makeMockProvider(jsonResponse);
 
@@ -151,7 +151,7 @@ describe('LLM tasks: categorize', () => {
 
   it('should fall back to General on invalid JSON and not throw', async () => {
     const provider = makeMockProvider('not json');
-    const result = await categorizeEntries(provider, sampleInput.packages[0]!.entries, {});
+    const result = await categorizeEntries(provider, sampleInput.packages[0]?.entries, {});
     expect(result[0]?.category).toBe('General');
     expect(result[0]?.entries).toHaveLength(3);
   });
@@ -161,7 +161,7 @@ describe('LLM tasks: release notes', () => {
   it('should return release notes from the provider', async () => {
     const notes = '## v2.0.0\n\nThis release adds streaming and fixes a null pointer.';
     const provider = makeMockProvider(notes);
-    const result = await generateReleaseNotes(provider, sampleInput.packages[0]!.entries, {
+    const result = await generateReleaseNotes(provider, sampleInput.packages[0]?.entries, {
       packageName: 'my-lib',
       version: '2.0.0',
       date: '2026-01-15',

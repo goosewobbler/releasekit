@@ -88,7 +88,7 @@ export async function categorizeEntries(
       // Apply scopes to entries (only if LLM provided a valid scope)
       for (const [indexStr, scope] of Object.entries(scopeMap)) {
         const idx = Number.parseInt(indexStr, 10);
-        if (entriesCopy[idx] && scope && scope.trim()) {
+        if (entriesCopy[idx] && scope?.trim()) {
           entriesCopy[idx] = { ...entriesCopy[idx], scope: scope.trim() };
         }
       }

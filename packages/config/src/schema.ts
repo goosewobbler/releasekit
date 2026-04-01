@@ -95,6 +95,7 @@ export const GitHubReleaseConfigSchema = z.object({
    * Available variables: ${packageName} (original scoped name), ${version} (e.g. "v1.0.0").
    * Version-only tags (e.g. "v1.0.0") always use the tag as-is.
    */
+  /* biome-ignore lint/suspicious/noTemplateCurlyInString: default template value */
   titleTemplate: z.string().default('${packageName}: ${version}'),
 });
 
@@ -143,6 +144,7 @@ export const PublishConfigSchema = z.object({
     perPackage: true,
     prerelease: 'auto',
     body: 'auto',
+    /* biome-ignore lint/suspicious/noTemplateCurlyInString: default template value */
     titleTemplate: '${packageName}: ${version}',
   }),
   verify: VerifyConfigSchema.default({

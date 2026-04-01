@@ -165,6 +165,7 @@ export function getDefaultConfig(): PublishConfig {
       perPackage: true,
       prerelease: 'auto',
       body: 'auto',
+      /* biome-ignore lint/suspicious/noTemplateCurlyInString: default template value */
       titleTemplate: '${packageName}: ${version}',
     },
     verify: {
