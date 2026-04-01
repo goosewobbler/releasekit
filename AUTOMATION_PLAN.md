@@ -139,8 +139,8 @@ Future features to enable fully automated release workflows (e.g. commits to mai
 | Config-driven automation (5) | Low | Medium | ✓ Done |
 | Release preview on PRs (3) | Medium | Medium | ✓ Done |
 | Push-triggered workflow (1) | Low | High | ✓ Done |
-| GitHub Action (2) | Medium | High | Next |
+| GitHub Action (1) | Medium | High | Next |
 | Standing release PR (4) | High | Medium | Planned |
 | Scheduled releases | Medium | Medium | Planned |
 
-**Next up:** GitHub Action (feature 2) - a reusable action for other repos to use releasekit.
+**Next up:** GitHub Action (feature 1) - a reusable action for other repos to use releasekit.
