@@ -13,6 +13,11 @@ uses: goosewobbler/releasekit@v1
 - `release` (default): runs the full unified release pipeline.
 - `preview`: runs PR preview comment generation.
 
+## Requirements
+
+- Node.js 20+ must be available in the job. All GitHub-hosted runners include a compatible version by default. If you need a specific version, add `actions/setup-node` before this action.
+- For npm publishing, run `actions/setup-node` with `registry-url: https://registry.npmjs.org` before this action so that `NODE_AUTH_TOKEN` is wired up correctly.
+
 ## Required permissions and env
 
 ### Release mode
@@ -103,6 +108,10 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
       - id: rk
         uses: goosewobbler/releasekit@v1
         with:
