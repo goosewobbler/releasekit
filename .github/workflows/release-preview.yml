@@ -29,7 +29,10 @@ jobs:
       - name: Setup workspace
         uses: ./.github/workflows/actions/setup-workspace
 
+      - name: Build packages
+        run: pnpm build
+
       - name: Release preview
-        run: pnpm tsx packages/release/src/cli.ts preview
+        run: node packages/release/dist/cli.js preview
         env:
           GITHUB_TOKEN: ${{ github.token }}
