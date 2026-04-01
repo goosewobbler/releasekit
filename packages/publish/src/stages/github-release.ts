@@ -11,8 +11,7 @@ type BodySource = 'auto' | 'releaseNotes' | 'changelog' | 'generated' | 'none';
  *
  * Resolution order for 'auto':
  *   1. If releaseNotes enabled in notes config → use in-memory release notes from pipeline
- *   2. If changelog enabled → use per-package changelog entries from version output
- *   3. GitHub's auto-generated notes (--generate-notes flag)
+ *   2. GitHub's auto-generated notes (--generate-notes flag)
  *
  * Other values:
  *   'releaseNotes' → use in-memory release notes from pipeline (error if not enabled)

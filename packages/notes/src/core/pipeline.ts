@@ -369,7 +369,7 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
       if (releaseNotesConfig.templates?.path) {
         try {
           const templatePath = path.resolve(releaseNotesConfig.templates.path);
-          const docCtx = createDocumentContext([ctx], ctx.repoUrl ?? undefined);
+          const docCtx = createDocumentContext([ctx], undefined);
           const rendered = renderTemplate(
             templatePath,
             docCtx,
