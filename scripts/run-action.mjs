@@ -206,5 +206,10 @@ function main() {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-  main();
+  try {
+    main();
+  } catch (err) {
+    process.stderr.write(`[run-action] uncaught error: ${err instanceof Error ? err.message : String(err)}\n`);
+    process.exit(1);
+  }
 }
