@@ -25,8 +25,8 @@ uses: goosewobbler/releasekit@v1
 
 ### Preview mode
 
-- Recommended job permissions:
-  - `contents: write` (posting/updating PR comments)
+  - Recommended job permissions:
+    - `pull-requests: write` (posting/updating PR comments)
 - Required env:
   - `GITHUB_TOKEN`
 
@@ -126,7 +126,7 @@ jobs:
   preview:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v6
         with:

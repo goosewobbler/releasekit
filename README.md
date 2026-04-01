@@ -103,7 +103,7 @@ jobs:
 jobs:
   preview:
     permissions:
-      contents: write
+      pull-requests: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
