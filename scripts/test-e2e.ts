@@ -177,7 +177,7 @@ function runTests(isolatedDir: string): void {
         RELEASEKIT_ROOT: join(e2eDir, 'node_modules'),
       };
 
-      execSync(`bash ${testFile}`, {
+      execSync(['bash', testFile].join(' '), {
         cwd: e2eDir,
         stdio: 'inherit',
         encoding: 'utf-8',
