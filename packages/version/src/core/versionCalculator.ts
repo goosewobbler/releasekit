@@ -39,6 +39,7 @@ export async function calculateVersion(config: Config, options: VersionOptions):
     latestTag,
     name,
     path: pkgPath,
+    commitCheckPath,
     type: optionsType,
     prereleaseIdentifier: optionsPrereleaseIdentifier,
   } = options;
@@ -194,8 +195,10 @@ export async function calculateVersion(config: Config, options: VersionOptions):
       // Check if we have a version source to compare against for commit counting
       // Use the actual version source (could be git tag or package version) instead of raw latestTag
       if (versionSource && versionSource.source === 'git') {
-        // If we're using a git tag as version source, check for new commits since that tag
-        const checkPath = pkgPath || cwd();
+        // If we're using a git tag as version source, check for new commits since that tag.
+        // commitCheckPath overrides pkgPath for this check (used by sync mode to count
+        // commits from the repo root rather than a single workspace package directory).
+        const checkPath = commitCheckPath || pkgPath || cwd();
         const commitsLength = getCommitsLength(checkPath, versionSource.version); // Use the actual tag from version source
         if (commitsLength === 0) {
           log(

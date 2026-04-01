@@ -259,6 +259,29 @@ describe('Version Strategies', () => {
       );
     });
 
+    it('should pass commitCheckPath as repo root regardless of version source package', async () => {
+      // Regression: without commitCheckPath, getCommitsLength was called with the version
+      // source package dir (e.g. packages/version), so changes in other packages were
+      // invisible and no bump was produced even when other packages had new commits.
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        sync: true,
+      };
+
+      const syncStrategy = strategies.createSyncStrategy(config as Config);
+      await syncStrategy(mockPackages);
+
+      // path should be the first workspace package (version source)
+      // commitCheckPath should be the repo root so all commits are visible
+      expect(calculator.calculateVersion).toHaveBeenCalledWith(
+        config as Config,
+        expect.objectContaining({
+          path: '/test/workspace/packages/a',
+          commitCheckPath: '/test/workspace',
+        }),
+      );
+    });
+
     it('should pass combined package names to formatCommitMessage for multi-package sync', async () => {
       const config: Partial<Config> = {
         ...defaultConfig,

@@ -154,7 +154,9 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         }
       }
 
-      // Calculate the next version using the version source package
+      // Calculate the next version using the version source package.
+      // commitCheckPath is set to the repo root so that commits across all workspace
+      // packages are counted — not just those under the version source subdirectory.
       const nextVersion = await calculateVersion(config, {
         latestTag,
         versionPrefix: formattedPrefix,
@@ -162,6 +164,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         baseBranch,
         prereleaseIdentifier,
         path: versionSourcePath,
+        commitCheckPath: mainPkgPath ?? process.cwd(),
         name: versionSourceName,
         type: config.type,
       });
