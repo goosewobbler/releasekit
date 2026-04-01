@@ -47,7 +47,7 @@ on:
       sync:
         description: Use synchronized versioning across all packages
         type: boolean
-        default: false
+        default: true
       dry_run:
         description: Dry run (no publish, no push)
         type: boolean
