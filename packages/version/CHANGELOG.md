@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.6] - 2026-04-01
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.5...releasekit-version-v0.7.6)
+
+### Changed
+- swap build action dependencies in release workflow for better clarity and functionality
+- update default value for sync option in release workflow to true
+
 ## [0.7.5] - 2026-04-01
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.4...releasekit-version-v0.7.5)
