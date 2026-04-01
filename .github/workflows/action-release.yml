@@ -1,12 +1,12 @@
 name: Action Release
 
-# Runs when @releasekit/release is tagged. Builds the dist, commits it, and
+# Runs when releasekit-release is tagged. Builds the dist, commits it, and
 # creates/updates the action version tags (v1.2.3, v1) that consumers pin to.
 
 on:
   push:
     tags:
-      - "@releasekit/release@*"
+      - "releasekit-release-v*"
 
 permissions:
   contents: write
@@ -46,8 +46,8 @@ jobs:
             git commit -m "chore: build action dist for ${RELEASE_TAG} [skip ci]"
           fi
 
-          # Extract semver from tag: @releasekit/release@1.2.3 -> 1.2.3
-          VERSION="${RELEASE_TAG#@releasekit/release@}"
+          # Extract semver from tag: releasekit-release-v1.2.3 -> 1.2.3
+          VERSION="${RELEASE_TAG#releasekit-release-v}"
           MAJOR="${VERSION%%.*}"
 
           # Immutable patch tag — skip if it already exists (idempotent re-runs)
