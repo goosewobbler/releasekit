@@ -215,12 +215,13 @@ describe('Version Strategies', () => {
       // Execute
       await syncStrategy(mockPackages);
 
-      // Verify that version calculation used package-b
+      // Verify that version calculation used package-b for version source but repo root for commit check
       expect(calculator.calculateVersion).toHaveBeenCalledWith(
         config as Config,
         expect.objectContaining({
           path: '/test/workspace/packages/b',
           name: 'package-b',
+          commitCheckPath: '/test/workspace',
         }),
       );
 
