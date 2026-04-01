@@ -190,6 +190,58 @@ describe('Pipeline: LLM error fallback', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Pipeline: releaseNotes in output
+// ---------------------------------------------------------------------------
+
+describe('Pipeline: releaseNotes in output', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-release-notes-test-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('should populate releaseNotes in result when a template is configured', async () => {
+    // Minimal liquid template that renders something deterministic
+    const templatePath = path.join(tmpDir, 'release.liquid');
+    fs.writeFileSync(
+      templatePath,
+      '{%- for version in versions %}Release notes for {{ version.packageName }} {{ version.version }}{%- endfor %}',
+    );
+
+    const outFile = path.join(tmpDir, 'RELEASE_NOTES.md');
+    const config = {
+      changelog: false as const,
+      releaseNotes: {
+        mode: 'root' as const,
+        file: outFile,
+        templates: { path: templatePath, engine: 'liquid' },
+      },
+    };
+
+    const result = await runPipeline(sampleInput, config, false);
+
+    expect(result.releaseNotes).toBeDefined();
+    expect(result.releaseNotes?.['my-lib']).toContain('my-lib');
+    expect(result.releaseNotes?.['my-lib']).toContain('2.0.0');
+  });
+
+  it('should not populate releaseNotes in result when releaseNotes config is absent', async () => {
+    const outFile = path.join(tmpDir, 'CHANGELOG.md');
+    const config = {
+      changelog: { mode: 'root' as const, file: outFile },
+    };
+
+    const result = await runPipeline(sampleInput, config, false);
+
+    expect(result.releaseNotes).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Pipeline: package name in changelog headers
 // ---------------------------------------------------------------------------
 

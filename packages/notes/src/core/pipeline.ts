@@ -364,6 +364,30 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
     packageNotes[ctx.packageName] = formatVersion(ctx);
     if (ctx.enhanced?.releaseNotes) {
       releaseNotesResult[ctx.packageName] = ctx.enhanced.releaseNotes;
+    } else if (releaseNotesConfig) {
+      // Populate release notes for the workflow summary even when no LLM releaseNotes task ran.
+      if (releaseNotesConfig.templates?.path) {
+        try {
+          const templatePath = path.resolve(releaseNotesConfig.templates.path);
+          const docCtx = createDocumentContext([ctx], undefined);
+          const rendered = renderTemplate(
+            templatePath,
+            docCtx,
+            releaseNotesConfig.templates.engine as TemplateEngine | undefined,
+          );
+          releaseNotesResult[ctx.packageName] = rendered.content;
+        } catch (err) {
+          warn(
+            `Failed to render release notes template for ${ctx.packageName}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          warn(`Release notes preview will not be available for ${ctx.packageName} in the workflow summary`);
+        }
+      } else {
+        info(
+          `No LLM release notes or template output for ${ctx.packageName}, using formatted changelog as release notes preview`,
+        );
+        releaseNotesResult[ctx.packageName] = formatVersion(ctx);
+      }
     }
   }
 

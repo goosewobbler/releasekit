@@ -269,4 +269,26 @@ describe('Pipeline: file-only config defaults mode to root', () => {
       expect.anything(),
     );
   });
+
+  it('should populate releaseNotes in result when releaseNotesConfig is set without tasks.releaseNotes', async () => {
+    const { runPipeline } = await import('../../../src/core/pipeline.js');
+
+    const config: Config = {
+      changelog: false,
+      releaseNotes: { mode: 'root', file: 'RELEASE_NOTES.md' },
+    };
+    const result = await runPipeline(sampleInput, config, false);
+
+    expect(result.releaseNotes).toBeDefined();
+    expect(result.releaseNotes?.['test-pkg']).toBeTruthy();
+  });
+
+  it('should not populate releaseNotes in result when releaseNotesConfig is not set', async () => {
+    const { runPipeline } = await import('../../../src/core/pipeline.js');
+
+    const config: Config = { changelog: { mode: 'root' } };
+    const result = await runPipeline(sampleInput, config, false);
+
+    expect(result.releaseNotes).toBeUndefined();
+  });
 });

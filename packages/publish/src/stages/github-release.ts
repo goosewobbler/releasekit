@@ -11,8 +11,7 @@ type BodySource = 'auto' | 'releaseNotes' | 'changelog' | 'generated' | 'none';
  *
  * Resolution order for 'auto':
  *   1. If releaseNotes enabled in notes config → use in-memory release notes from pipeline
- *   2. If changelog enabled → use per-package changelog entries from version output
- *   3. GitHub's auto-generated notes (--generate-notes flag)
+ *   2. GitHub's auto-generated notes (--generate-notes flag)
  *
  * Other values:
  *   'releaseNotes' → use in-memory release notes from pipeline (error if not enabled)
@@ -57,21 +56,13 @@ function resolveNotes(
     return { useGithubNotes: true };
   }
 
-  // 'auto' mode — layered fallback
-
-  // 1. Try in-memory release notes from the notes pipeline
+  // 'auto' mode — try release notes, fall back to GitHub auto-generated notes
   if (releaseNotesEnabled && pipelineNotes) {
     const body = findNotesForTag(tag, pipelineNotes);
     if (body) return { body, useGithubNotes: false };
+    warn(`Release notes configured but no content found for tag ${tag}, falling back to GitHub auto-generated notes`);
   }
 
-  // 2. Try per-package changelog from version output
-  const packageBody = formatChangelogForTag(tag, changelogs);
-  if (packageBody) {
-    return { body: packageBody, useGithubNotes: false };
-  }
-
-  // 3. Fall back to GitHub auto-notes
   return { useGithubNotes: true };
 }
 
