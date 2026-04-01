@@ -1,6 +1,6 @@
 {
   "name": "releasekit-monorepo",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "description": "Release tooling for automated versioning and changelog generation",
@@ -44,7 +44,12 @@
     "typescript": "catalog:"
   },
   "lint-staged": {
-    "**/*.ts": ["biome check --write", "eslint --fix --cache"],
-    "**/*.{yml,md,json}": ["biome format --write ."]
+    "**/*.ts": [
+      "biome check --write",
+      "eslint --fix --cache"
+    ],
+    "**/*.{yml,md,json}": [
+      "biome format --write ."
+    ]
   }
 }
