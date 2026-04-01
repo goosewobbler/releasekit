@@ -239,6 +239,30 @@ describe('Pipeline: releaseNotes in output', () => {
 
     expect(result.releaseNotes).toBeUndefined();
   });
+
+  it('should set perPackage:true on the template context so headings can be suppressed', async () => {
+    // Template that emits the perPackage flag value so we can assert it was set
+    const templatePath = path.join(tmpDir, 'release.liquid');
+    fs.writeFileSync(templatePath, 'perPackage={{ perPackage }}');
+
+    const outFile = path.join(tmpDir, 'RELEASE_NOTES.md');
+    const config = {
+      changelog: false as const,
+      releaseNotes: {
+        mode: 'root' as const,
+        file: outFile,
+        templates: { path: templatePath, engine: 'liquid' },
+      },
+    };
+
+    const result = await runPipeline(sampleInput, config, false);
+
+    // per-package in-memory render should have perPackage=true
+    expect(result.releaseNotes?.['my-lib']).toBe('perPackage=true');
+    // file render goes through generateWithTemplate which does NOT set perPackage
+    const fileContent = fs.readFileSync(outFile, 'utf-8');
+    expect(fileContent).toBe('perPackage=');
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -42,9 +42,19 @@ function generateCompareUrl(repoUrl: string, from: string, to: string, packageNa
     fromVersion = from;
     toVersion = `${packageName}@${to.startsWith('v') ? '' : 'v'}${to}`;
   } else {
-    // Plain version tags - remove leading 'v' if present for consistency
-    fromVersion = from.replace(/^v/, '');
-    toVersion = to.replace(/^v/, '');
+    // Detect compound tags like "scope-pkg-v1.2.3" (dash-format package-specific tags).
+    // Extract the prefix (including any version-prefix character like "v") so the "to"
+    // tag is constructed with the same prefix, e.g. "scope-pkg-v1.2.3" → "scope-pkg-v2.0.0".
+    const compoundMatch = from.match(/^(.*?)(v?)(\d+\.\d+\.\d+.*)$/);
+    if (compoundMatch && compoundMatch[1]) {
+      // Non-empty package prefix → compound tag
+      fromVersion = from;
+      toVersion = `${compoundMatch[1]}${compoundMatch[2]}${to.replace(/^v/, '')}`;
+    } else {
+      // Plain version tag (e.g. "v1.2.3" or "1.2.3") — strip leading v for consistency
+      fromVersion = from.replace(/^v/, '');
+      toVersion = to.replace(/^v/, '');
+    }
   }
 
   if (/gitlab\.com/i.test(repoUrl)) {
@@ -369,7 +379,7 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
       if (releaseNotesConfig.templates?.path) {
         try {
           const templatePath = path.resolve(releaseNotesConfig.templates.path);
-          const docCtx = createDocumentContext([ctx], undefined);
+          const docCtx = { ...createDocumentContext([ctx], undefined), perPackage: true };
           const rendered = renderTemplate(
             templatePath,
             docCtx,
