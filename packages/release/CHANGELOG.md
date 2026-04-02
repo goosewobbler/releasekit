@@ -33,6 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.25] - 2026-04-02
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.24...releasekit-version-v0.7.25)
+
+### Changed
+- remove working-directory specification for pnpm install in action.yml
+
 ## [0.7.24] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.23...releasekit-version-v0.7.24)

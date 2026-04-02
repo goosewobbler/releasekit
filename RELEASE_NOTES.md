@@ -1,39 +1,39 @@
 
 
-## `@releasekit/version` @ 0.7.24
+## `@releasekit/version` @ 0.7.25
 
 ### General:
-- remove pnpm version specification in action.yml for simplified setup
+- remove working-directory specification for pnpm install in action.yml
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.23...releasekit-version-v0.7.24
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.24...releasekit-version-v0.7.25
 
 ---
 
 
-## `@releasekit/notes` @ 0.7.24
+## `@releasekit/notes` @ 0.7.25
 
 ### General:
-- remove pnpm version specification in action.yml for simplified setup
+- remove working-directory specification for pnpm install in action.yml
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.23...releasekit-version-v0.7.24
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.24...releasekit-version-v0.7.25
 
 ---
 
 
-## `@releasekit/publish` @ 0.7.24
+## `@releasekit/publish` @ 0.7.25
 
 ### General:
-- remove pnpm version specification in action.yml for simplified setup
+- remove working-directory specification for pnpm install in action.yml
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.23...releasekit-version-v0.7.24
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.24...releasekit-version-v0.7.25
 
 ---
 
 
-## `@releasekit/release` @ 0.7.24
+## `@releasekit/release` @ 0.7.25
 
 ### General:
-- remove pnpm version specification in action.yml for simplified setup
+- remove working-directory specification for pnpm install in action.yml
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.23...releasekit-version-v0.7.24
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.24...releasekit-version-v0.7.25
 
