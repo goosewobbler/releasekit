@@ -164,7 +164,6 @@ export function runAction(input, options = {}) {
       try {
         const entries = fs.readdirSync(p);
         return entries
-          .filter((e) => e.startsWith('.pnpm'))
           .map((e) => path.join(p, e))
           .filter((e) => {
             try {
