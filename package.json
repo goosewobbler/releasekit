@@ -1,6 +1,6 @@
 {
   "name": "releasekit-monorepo",
-  "version": "0.7.8",
+  "version": "0.7.9",
   "private": true,
   "type": "module",
   "description": "Release tooling for automated versioning and changelog generation",
