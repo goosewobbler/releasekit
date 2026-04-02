@@ -39,6 +39,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.31] - 2026-04-02
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.30...releasekit-version-v0.7.31)
+
+### Changed
+- simplify action runtime dependency installation in action.yml and update script to use pnpm directly
+
 ## [0.7.30] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.29...releasekit-version-v0.7.30)
