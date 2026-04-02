@@ -1,9 +1,9 @@
 
 
-## `@releasekit/release` @ 0.7.38
+## `@releasekit/release` @ 0.7.39
 
 ### General:
-- use pnpm exec and clean INPUT_* env vars for proper resolution
+- prioritize user project node_modules in NODE_PATH
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.7.37...releasekit-release-v0.7.38
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.7.38...releasekit-release-v0.7.39
 

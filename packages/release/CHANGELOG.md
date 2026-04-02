@@ -47,6 +47,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.39] - 2026-04-02
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.7.38...releasekit-release-v0.7.39)
+
+### Fixed
+- prioritize user project node_modules in NODE_PATH
+
 ## [0.7.38] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.7.37...releasekit-release-v0.7.38)
