@@ -144,11 +144,16 @@ export function runAction(input, options = {}) {
     options.cliPath ??
     path.resolve(fileURLToPath(import.meta.url), '..', '..', 'packages', 'release', 'dist', 'cli.js');
 
+  const actionNodeModules = path.resolve(fileURLToPath(import.meta.url), '..', '..', 'node_modules');
+
   const args = mode === 'release' ? buildReleaseArgs(input) : buildPreviewArgs(input);
 
   const result = spawnSync(process.execPath, [cliPath, ...args], {
     encoding: 'utf-8',
-    env: process.env,
+    env: {
+      ...process.env,
+      NODE_PATH: actionNodeModules,
+    },
   });
 
   if (result.error) {
