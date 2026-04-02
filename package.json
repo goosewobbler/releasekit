@@ -1,6 +1,6 @@
 {
   "name": "releasekit-monorepo",
-  "version": "0.7.10",
+  "version": "0.7.11",
   "private": true,
   "type": "module",
   "description": "Release tooling for automated versioning and changelog generation",
@@ -48,6 +48,8 @@
       "biome check --write",
       "eslint --fix --cache"
     ],
-    "**/*.{md,json}": ["biome format --write"]
+    "**/*.{md,json}": [
+      "biome format --write"
+    ]
   }
 }

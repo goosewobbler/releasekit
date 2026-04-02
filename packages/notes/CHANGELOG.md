@@ -19,6 +19,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.11] - 2026-04-02
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.10...releasekit-version-v0.7.11)
+
+### Added
+- add branding information to action.yml and enhance release workflow with GitHub token and conditional release creation
+
+### Fixed
+- remove yml from lint-staged to avoid biome hidden dir errors
+
 ## [0.7.10] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.9...releasekit-version-v0.7.10)
