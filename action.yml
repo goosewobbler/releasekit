@@ -156,4 +156,5 @@ runs:
       env:
         GITHUB_TOKEN: ${{ github.token }}
         NPM_TOKEN: ${{ inputs.npm-token }}
+        VERBOSE: ${{ inputs.verbose }}
       run: node ${{ github.action_path }}/scripts/run-action.mjs

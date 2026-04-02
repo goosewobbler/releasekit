@@ -146,14 +146,46 @@ export function runAction(input, options = {}) {
 
   const args = mode === 'release' ? buildReleaseArgs(input) : buildPreviewArgs(input);
 
-  const result = spawnSync('pnpm', ['exec', 'node', cliPath, ...args], {
+  const projectDir = input.projectDir || '.';
+  const actionDir = fileURLToPath(import.meta.url).replace(/[/\\]scripts[/\\]run-action.mjs$/, '');
+
+  const nodePaths = [
+    path.join(actionDir, 'node_modules'),
+    path.join(actionDir, 'node_modules', '.pnpm'),
+    path.join(actionDir, 'packages', 'version', 'node_modules'),
+    path.join(actionDir, 'packages', 'release', 'node_modules'),
+    path.join(actionDir, 'packages', 'notes', 'node_modules'),
+    path.join(actionDir, 'packages', 'publish', 'node_modules'),
+  ]
+    .filter((p) => {
+      try {
+        fs.accessSync(p);
+        return true;
+      } catch {
+        return false;
+      }
+    })
+    .join(':');
+
+  if (process.env.VERBOSE === 'true' || input.verbose) {
+    console.error('[run-action] DEBUG:');
+    console.error(`  actionDir: ${actionDir}`);
+    console.error(`  projectDir: ${projectDir}`);
+    console.error(`  cliPath: ${cliPath}`);
+    console.error(`  NODE_PATH: ${nodePaths}`);
+  }
+
+  const result = spawnSync(process.execPath, [cliPath, ...args], {
     encoding: 'utf-8',
-    env: process.env,
-    cwd: fileURLToPath(import.meta.url).replace(/[/\\]scripts[/\\]run-action.mjs$/, ''),
+    env: {
+      ...process.env,
+      NODE_PATH: nodePaths,
+    },
+    cwd: path.resolve(actionDir, projectDir),
   });
 
-  if (result.error) {
-    console.error('[run-action] spawn failed:', result.error.message);
+  if (process.env.VERBOSE === 'true' || input.verbose) {
+    console.error('[run-action] DEBUG exit:', result.status);
   }
 
   return { mode, args, ...result };
