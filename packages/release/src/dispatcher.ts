@@ -2,9 +2,9 @@
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { readPackageVersion } from '@releasekit/core';
-import { createNotesCommand } from '@releasekit/notes/cli';
-import { createPublishCommand } from '@releasekit/publish/cli';
-import { createVersionCommand } from '@releasekit/version/cli';
+import { createNotesCommand } from '@releasekit/notes';
+import { createPublishCommand } from '@releasekit/publish';
+import { createVersionCommand } from '@releasekit/version';
 import { Command } from 'commander';
 import { createInitCommand } from './init-command.js';
 import { createPreviewCommand } from './preview-command.js';

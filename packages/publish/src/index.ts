@@ -1,3 +1,4 @@
+export { createPublishCommand } from './command.js';
 // Config
 export { getDefaultConfig, loadConfig } from './config.js';
 // Errors
