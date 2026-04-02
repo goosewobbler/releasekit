@@ -218,7 +218,7 @@ export function runAction(input, options = {}) {
     delete spawnEnv[k];
   }
 
-  const result = spawnSync('pnpm', ['exec', 'node', cliPath, ...args], {
+  const result = spawnSync('node', [cliPath, ...args], {
     encoding: 'utf-8',
     env: spawnEnv,
     cwd: resolvedProjectDir,
