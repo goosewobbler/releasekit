@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.19] - 2026-04-02
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.18...releasekit-version-v0.7.19)
+
+### Changed
+- **release**: add 'zod' to external dependencies in tsup.config.ts for enhanced functionality
+
 ## [0.7.18] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.17...releasekit-version-v0.7.18)
