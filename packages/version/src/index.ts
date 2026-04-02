@@ -1,4 +1,5 @@
 // Re-export public API
+export { createVersionCommand } from './command.js';
 export { loadConfig } from './config.js';
 export { calculateVersion } from './core/versionCalculator.js';
 export { VersionEngine } from './core/versionEngine.js';
