@@ -8,8 +8,11 @@ export default defineConfig({
   // Because they are bundled they must remain in devDependencies, NOT dependencies.
   // Moving them to dependencies would cause pnpm to fetch them from the registry
   // as standalone packages, producing a 404 (they are not published independently).
-  noExternal: ['@releasekit/core', '@releasekit/config'],
-  // Externalize all other bare specifiers. noExternal takes precedence above,
-  // so core/config are still bundled despite this rule.
-  external: [/^[^.]/],
+  noExternal: [
+    '@releasekit/core',
+    '@releasekit/config',
+    '@releasekit/version',
+    '@releasekit/notes',
+    '@releasekit/publish',
+  ],
 });
