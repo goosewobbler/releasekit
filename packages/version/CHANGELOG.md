@@ -37,6 +37,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.29] - 2026-04-02
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.28...releasekit-version-v0.7.29)
+
+### Changed
+- update action.yml to specify working-directory for installing action runtime dependencies
+
 ## [0.7.28] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.27...releasekit-version-v0.7.28)
