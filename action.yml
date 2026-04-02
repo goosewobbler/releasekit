@@ -51,6 +51,10 @@ inputs:
   branch:
     description: Override git branch used for push
     required: false
+  node-version:
+    description: Node.js version
+    required: false
+    default: "20"
   npm-auth:
     description: NPM auth method (auto|oidc|token)
     required: false
@@ -123,6 +127,27 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v6
+      with:
+        version: latest
+
+    - name: Setup Node
+      uses: actions/setup-node@v6
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'pnpm'
+
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+      shell: bash
+      working-directory: ${{ github.action_path }}
+
     - name: Run ReleaseKit action
       id: run
       shell: bash
