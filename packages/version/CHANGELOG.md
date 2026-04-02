@@ -21,6 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.13] - 2026-04-02
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.12...releasekit-version-v0.7.13)
+
+### Changed
+- **release**: change shims to bundle for improved output configuration
+
 ## [0.7.12] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.11...releasekit-version-v0.7.12)
