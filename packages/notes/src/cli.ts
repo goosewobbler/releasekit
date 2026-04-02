@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { readPackageVersion } from '@releasekit/core';
 import { createNotesCommand } from './command.js';
 
-export { createNotesCommand } from './command.js';
+export { createNotesCommand };
 
 const isMain = (() => {
   try {

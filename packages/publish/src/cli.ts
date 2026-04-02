@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { readPackageVersion } from '@releasekit/core';
 import { createPublishCommand } from './command.js';
 
-export { createPublishCommand } from './command.js';
+export { createPublishCommand };
 
 const isMain = (() => {
   try {

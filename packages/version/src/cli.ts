@@ -5,7 +5,7 @@ import { readPackageVersion } from '@releasekit/core';
 import { Command } from 'commander';
 import { createVersionCommand } from './command.js';
 
-export { createVersionCommand } from './command.js';
+export { createVersionCommand };
 
 // Standalone entry point (only when run directly, not when imported by dispatcher)
 const isMain = (() => {
