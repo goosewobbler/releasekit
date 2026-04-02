@@ -1,9 +1,9 @@
 
 
-## `@releasekit/release` @ 0.7.39
+## `@releasekit/release` @ 0.7.40
 
 ### General:
-- prioritize user project node_modules in NODE_PATH
+- resolve projectDir relative to cwd not action dir
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.7.38...releasekit-release-v0.7.39
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.7.39...releasekit-release-v0.7.40
 
