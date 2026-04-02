@@ -20,5 +20,6 @@ var require = __createRequire(import.meta.url);`.trim(),
     '@releasekit/publish',
     'chalk',
     'smol-toml',
+    'zod',
   ],
 } as Options);
