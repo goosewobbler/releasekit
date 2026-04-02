@@ -1,6 +1,6 @@
 {
   "name": "@releasekit/release",
-  "version": "0.7.14",
+  "version": "0.7.15",
   "description": "Unified release pipeline: version, changelog, and publish in a single command",
   "type": "module",
   "module": "./dist/index.js",

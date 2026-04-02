@@ -23,6 +23,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.15] - 2026-04-02
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.14...releasekit-version-v0.7.15)
+
+### Changed
+- **release**: refactor banner in tsup.config.ts to use alias for createRequire for improved ESM compatibility
+- **release**: add banner to tsup.config.ts for module require support in ESM builds
+- **release**: update tsup.config.ts to remove 'events' from external dependencies and add 'commander' to noExternal for improved bundling
+- **release**: update tsup.config.ts to remove dts and minify options, adjust entry points, and expand noExternal list for improved bundling
+
 ## [0.7.14] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.13...releasekit-version-v0.7.14)
