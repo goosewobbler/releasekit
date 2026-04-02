@@ -1,6 +1,6 @@
 {
   "name": "@releasekit/publish",
-  "version": "0.7.29",
+  "version": "0.7.30",
   "description": "Publish packages to npm and crates.io with git tagging and GitHub releases",
   "type": "module",
   "module": "./dist/index.js",

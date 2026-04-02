@@ -1,39 +1,39 @@
 
 
-## `@releasekit/version` @ 0.7.29
+## `@releasekit/version` @ 0.7.30
 
 ### General:
-- update action.yml to specify working-directory for installing action runtime dependencies
+- update action.yml to include build step after installing action runtime dependencies
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.28...releasekit-version-v0.7.29
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.29...releasekit-version-v0.7.30
 
 ---
 
 
-## `@releasekit/notes` @ 0.7.29
+## `@releasekit/notes` @ 0.7.30
 
 ### General:
-- update action.yml to specify working-directory for installing action runtime dependencies
+- update action.yml to include build step after installing action runtime dependencies
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.28...releasekit-version-v0.7.29
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.29...releasekit-version-v0.7.30
 
 ---
 
 
-## `@releasekit/publish` @ 0.7.29
+## `@releasekit/publish` @ 0.7.30
 
 ### General:
-- update action.yml to specify working-directory for installing action runtime dependencies
+- update action.yml to include build step after installing action runtime dependencies
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.28...releasekit-version-v0.7.29
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.29...releasekit-version-v0.7.30
 
 ---
 
 
-## `@releasekit/release` @ 0.7.29
+## `@releasekit/release` @ 0.7.30
 
 ### General:
-- update action.yml to specify working-directory for installing action runtime dependencies
+- update action.yml to include build step after installing action runtime dependencies
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.28...releasekit-version-v0.7.29
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.29...releasekit-version-v0.7.30
 
