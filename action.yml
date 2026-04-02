@@ -2,6 +2,10 @@ name: ReleaseKit
 description: Run ReleaseKit in preview or release mode
 author: goosewobbler
 
+branding:
+  icon: package
+  color: green
+
 inputs:
   mode:
     description: Action mode (release or preview)

@@ -42,6 +42,7 @@ jobs:
       - name: Commit dist and tag
         env:
           RELEASE_TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           git add -f packages/release/dist/
           git commit --no-verify -m "chore: build action dist for ${RELEASE_TAG} [skip ci]"
@@ -56,6 +57,11 @@ jobs:
           else
             git tag "v${VERSION}"
             git push origin "v${VERSION}"
+            if [[ "${VERSION}" != *"-"* ]]; then
+              gh release create "v${VERSION}" --title "v${VERSION}" --generate-notes
+            else
+              gh release create "v${VERSION}" --title "v${VERSION}" --generate-notes --prerelease
+            fi
           fi
 
           # Moving major alias — only update for stable releases
