@@ -50,6 +50,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.42] - 2026-04-02
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.7.41...releasekit-release-v0.7.42)
+
+### Fixed
+- run CLI with node directly instead of pnpm exec
+
 ## [0.7.41] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.7.40...releasekit-release-v0.7.41)
