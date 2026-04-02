@@ -30,6 +30,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.22] - 2026-04-02
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.21...releasekit-version-v0.7.22)
+
+### Changed
+- add node-version input and setup steps for pnpm and Node.js in action.yml
+- **release**: remove '@octokit/rest' and clean up external dependencies in tsup.config.ts
+
 ## [0.7.21] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.20...releasekit-version-v0.7.21)
