@@ -1,39 +1,39 @@
 
 
-## `@releasekit/version` @ 0.7.26
+## `@releasekit/version` @ 0.7.27
 
 ### General:
-- update action.yml to use dynamic working-directory and set environment variables for GITHUB_TOKEN and NPM_TOKEN
+- add npm-token input to action.yml for optional NPM token usage
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.25...releasekit-version-v0.7.26
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.26...releasekit-version-v0.7.27
 
 ---
 
 
-## `@releasekit/notes` @ 0.7.26
+## `@releasekit/notes` @ 0.7.27
 
 ### General:
-- update action.yml to use dynamic working-directory and set environment variables for GITHUB_TOKEN and NPM_TOKEN
+- add npm-token input to action.yml for optional NPM token usage
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.25...releasekit-version-v0.7.26
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.26...releasekit-version-v0.7.27
 
 ---
 
 
-## `@releasekit/publish` @ 0.7.26
+## `@releasekit/publish` @ 0.7.27
 
 ### General:
-- update action.yml to use dynamic working-directory and set environment variables for GITHUB_TOKEN and NPM_TOKEN
+- add npm-token input to action.yml for optional NPM token usage
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.25...releasekit-version-v0.7.26
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.26...releasekit-version-v0.7.27
 
 ---
 
 
-## `@releasekit/release` @ 0.7.26
+## `@releasekit/release` @ 0.7.27
 
 ### General:
-- update action.yml to use dynamic working-directory and set environment variables for GITHUB_TOKEN and NPM_TOKEN
+- add npm-token input to action.yml for optional NPM token usage
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.25...releasekit-version-v0.7.26
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.26...releasekit-version-v0.7.27
 

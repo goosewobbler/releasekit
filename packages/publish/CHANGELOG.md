@@ -35,6 +35,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.27] - 2026-04-02
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.26...releasekit-version-v0.7.27)
+
+### Changed
+- add npm-token input to action.yml for optional NPM token usage
+
 ## [0.7.26] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.25...releasekit-version-v0.7.26)
