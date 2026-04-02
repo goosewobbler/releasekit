@@ -1,43 +1,39 @@
 
 
-## `@releasekit/version` @ 0.7.9
+## `@releasekit/version` @ 0.7.10
 
 ### General:
-- remove .github directory from includes in biome.jsonc while preserving existing exclusions
-- update includes in biome.jsonc to prioritize .github directory while maintaining existing exclusions
+- skip git hooks in action dist commit
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.8...releasekit-version-v0.7.9
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.9...releasekit-version-v0.7.10
 
 ---
 
 
-## `@releasekit/notes` @ 0.7.9
+## `@releasekit/notes` @ 0.7.10
 
 ### General:
-- remove .github directory from includes in biome.jsonc while preserving existing exclusions
-- update includes in biome.jsonc to prioritize .github directory while maintaining existing exclusions
+- skip git hooks in action dist commit
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.8...releasekit-version-v0.7.9
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.9...releasekit-version-v0.7.10
 
 ---
 
 
-## `@releasekit/publish` @ 0.7.9
+## `@releasekit/publish` @ 0.7.10
 
 ### General:
-- remove .github directory from includes in biome.jsonc while preserving existing exclusions
-- update includes in biome.jsonc to prioritize .github directory while maintaining existing exclusions
+- skip git hooks in action dist commit
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.8...releasekit-version-v0.7.9
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.9...releasekit-version-v0.7.10
 
 ---
 
 
-## `@releasekit/release` @ 0.7.9
+## `@releasekit/release` @ 0.7.10
 
 ### General:
-- remove .github directory from includes in biome.jsonc while preserving existing exclusions
-- update includes in biome.jsonc to prioritize .github directory while maintaining existing exclusions
+- skip git hooks in action dist commit
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.8...releasekit-version-v0.7.9
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.9...releasekit-version-v0.7.10
 
