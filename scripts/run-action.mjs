@@ -158,61 +158,35 @@ export function runAction(input, options = {}) {
     resolvedProjectDir = path.resolve(process.cwd(), projectDir);
   }
 
-  const userProjectPaths = [
-    path.join(resolvedProjectDir, 'node_modules'),
-    path.join(resolvedProjectDir, 'node_modules', '.pnpm'),
-  ];
+  const actionNodeModules = path.join(actionDir, 'node_modules');
+  const actionPnpmStore = path.join(actionDir, 'node_modules', '.pnpm');
 
-  const actionBasePaths = [
-    path.join(actionDir, 'node_modules'),
-    path.join(actionDir, 'node_modules', '.pnpm'),
-    path.join(actionDir, 'packages', 'version', 'node_modules'),
-    path.join(actionDir, 'packages', 'release', 'node_modules'),
-    path.join(actionDir, 'packages', 'notes', 'node_modules'),
-    path.join(actionDir, 'packages', 'publish', 'node_modules'),
-  ];
+  const userNodeModules = path.join(resolvedProjectDir, 'node_modules');
+  const userPnpmStore = path.join(resolvedProjectDir, 'node_modules', '.pnpm');
 
-  if (resolvedProjectDir === actionDir && projectDir !== '.') {
-    const altProjectDir = path.resolve(actionDir, projectDir);
-    userProjectPaths.push(path.join(altProjectDir, 'node_modules'));
-    userProjectPaths.push(path.join(altProjectDir, 'node_modules', '.pnpm'));
-  }
-
-  const allBasePaths = [...userProjectPaths, ...actionBasePaths];
-
-  function scanPnpmDirs(basePaths) {
-    return basePaths.flatMap((p) => {
+  function collectNodePaths(baseDirs) {
+    const paths = [];
+    for (const base of baseDirs) {
+      paths.push(base);
       try {
-        const entries = fs.readdirSync(p);
-        return entries
-          .map((e) => path.join(p, e))
-          .filter((e) => {
-            try {
-              return fs.statSync(e).isDirectory();
-            } catch {
-              return false;
-            }
-          })
-          .flatMap((e) => {
-            if (e.includes('.pnpm')) {
-              const pkgDir = path.join(e, 'node_modules');
+        if (base.includes('.pnpm')) {
+          const entries = fs.readdirSync(base, { withFileTypes: true });
+          for (const entry of entries) {
+            if (entry.isDirectory()) {
+              const pkgNodeModules = path.join(base, entry.name, 'node_modules');
               try {
-                if (fs.statSync(pkgDir).isDirectory()) {
-                  return [pkgDir];
-                }
-              } catch {
-                return [];
-              }
+                fs.accessSync(pkgNodeModules);
+                paths.push(pkgNodeModules);
+              } catch {}
             }
-            return [];
-          });
-      } catch {
-        return [];
-      }
-    });
+          }
+        }
+      } catch {}
+    }
+    return paths;
   }
 
-  const nodePaths = [...allBasePaths, ...scanPnpmDirs(allBasePaths)]
+  const nodePaths = collectNodePaths([actionNodeModules, actionPnpmStore, userNodeModules, userPnpmStore])
     .filter((p) => {
       try {
         fs.accessSync(p);
@@ -229,8 +203,11 @@ export function runAction(input, options = {}) {
     console.error(`  projectDir: ${projectDir}`);
     console.error(`  resolvedProjectDir: ${resolvedProjectDir}`);
     console.error(`  cliPath: ${cliPath}`);
-    console.error(`  NODE_PATH: ${nodePaths}`);
     console.error(`  cwd: ${resolvedProjectDir}`);
+    console.error(`  NODE_PATH entries:`, nodePaths.split(':').length);
+    for (const p of nodePaths.split(':')) {
+      console.error(`    - ${p}`);
+    }
   }
 
   const spawnEnv = {
