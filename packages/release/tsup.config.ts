@@ -13,6 +13,7 @@ var require = __createRequire(import.meta.url);`.trim(),
   minify: false,
   splitting: false,
   noExternal: [
+    '@octokit/rest',
     '@releasekit/core',
     '@releasekit/config',
     '@releasekit/version',
