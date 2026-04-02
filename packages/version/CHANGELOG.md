@@ -28,6 +28,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.20] - 2026-04-02
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.19...releasekit-version-v0.7.20)
+
+### Changed
+- **release**: add 'commander' to external dependencies in tsup.config.ts for enhanced functionality
+
 ## [0.7.19] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.18...releasekit-version-v0.7.19)
