@@ -1,9 +1,9 @@
 
 
-## `@releasekit/release` @ 0.7.33
+## `@releasekit/release` @ 0.7.34
 
 ### General:
-- scan .pnpm subdirs in NODE_PATH for module resolution
+- filter non-directories from .pnpm scan
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.7.32...releasekit-release-v0.7.33
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.7.33...releasekit-release-v0.7.34
 
