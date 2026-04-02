@@ -213,9 +213,11 @@ export function runAction(input, options = {}) {
     ...process.env,
     NODE_PATH: nodePaths,
   };
-  delete spawnEnv.INPUT_PROJECT_DIR;
+  for (const k of Object.keys(spawnEnv).filter((k) => k.startsWith('INPUT_'))) {
+    delete spawnEnv[k];
+  }
 
-  const result = spawnSync(process.execPath, [cliPath, ...args], {
+  const result = spawnSync('pnpm', ['exec', 'node', cliPath, ...args], {
     encoding: 'utf-8',
     env: spawnEnv,
     cwd: path.resolve(actionDir, projectDir),
