@@ -20,6 +20,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.12] - 2026-04-02
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.11...releasekit-version-v0.7.12)
+
+### Added
+- update action.yml name to include branding for automated versioning and release
+
+### Changed
+- move command factories to new modules with no isMain guard (#100)
+- **version**: replace micromatch with minimatch in package filtering and matching utilities, update dependencies in package.json and pnpm-lock.yaml
+- enable shims in tsup.config.ts for better compatibility with external modules
+- update tsup.config.ts to set platform to 'node' for improved compatibility
+- update tsup.config.ts to include additional noExternal packages for better bundling
+
 ## [0.7.11] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.10...releasekit-version-v0.7.11)
