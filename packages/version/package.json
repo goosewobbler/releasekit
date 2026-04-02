@@ -33,12 +33,7 @@
     "lint": "biome check .",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": [
-    "version",
-    "semver",
-    "git",
-    "package"
-  ],
+  "keywords": ["version", "semver", "git", "package"],
   "author": {
     "name": "Sam Maister",
     "email": "goosewobbler@protonmail.com"
@@ -49,18 +44,13 @@
     "directory": "packages/version"
   },
   "license": "MIT",
-  "files": [
-    "dist",
-    "docs",
-    "README.md",
-    "LICENSE"
-  ],
+  "files": ["dist", "docs", "README.md", "LICENSE"],
   "publishConfig": {
     "access": "public"
   },
   "dependencies": {
     "@manypkg/get-packages": "^3.1.0",
-    "@types/micromatch": "^4.0.10",
+    "@types/minimatch": "^5.1.2",
     "chalk": "catalog:",
     "commander": "catalog:",
     "conventional-changelog-angular": "^8.3.1",
@@ -70,7 +60,7 @@
     "conventional-recommended-bump": "^11.2.0",
     "figlet": "^1.11.0",
     "git-semver-tags": "^8.0.1",
-    "micromatch": "^4.0.8",
+    "minimatch": "^10.2.5",
     "semver": "catalog:",
     "smol-toml": "catalog:",
     "zod": "catalog:"

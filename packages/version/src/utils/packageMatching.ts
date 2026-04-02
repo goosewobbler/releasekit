@@ -2,7 +2,7 @@
  * Package matching utilities for scope-based and exact name matching
  */
 
-import micromatch from 'micromatch';
+import { minimatch } from 'minimatch';
 import { log } from './logging.js';
 
 /**
@@ -28,11 +28,8 @@ export function matchesPackageTarget(packageName: string, target: string): boole
 
   // Handle all patterns (including complex scoped patterns) using micromatch
   try {
-    return micromatch.isMatch(packageName, target, {
+    return minimatch(packageName, target, {
       dot: true,
-      contains: false, // Changed to false to ensure full pattern matching
-      noglobstar: false,
-      bash: true,
     });
   } catch (error) {
     log(`Invalid pattern "${target}": ${error instanceof Error ? error.message : String(error)}`, 'warning');

@@ -4,7 +4,7 @@
 
 import path from 'node:path';
 import type { Package } from '@manypkg/get-packages';
-import micromatch from 'micromatch';
+import { minimatch } from 'minimatch';
 import { log } from './logging.js';
 
 /**
@@ -59,10 +59,8 @@ function filterByDirectoryPattern(packages: Package[], pattern: string, workspac
 
     // Handle glob patterns
     try {
-      return micromatch.isMatch(normalizedRelativePath, normalizedPattern, {
+      return minimatch(normalizedRelativePath, normalizedPattern, {
         dot: true,
-        noglobstar: false,
-        bash: true,
       });
     } catch (error) {
       log(
@@ -104,11 +102,8 @@ function matchesPackageNamePattern(packageName: string, pattern: string): boolea
 
   // Handle all other patterns using micromatch
   try {
-    return micromatch.isMatch(packageName, pattern, {
+    return minimatch(packageName, pattern, {
       dot: true,
-      contains: false,
-      noglobstar: false,
-      bash: true,
     });
   } catch (error) {
     log(
