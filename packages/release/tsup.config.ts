@@ -18,5 +18,6 @@ var require = __createRequire(import.meta.url);`.trim(),
     '@releasekit/version',
     '@releasekit/notes',
     '@releasekit/publish',
+    'chalk',
   ],
 } as Options);
