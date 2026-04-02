@@ -44,6 +44,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.36] - 2026-04-02
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.7.35...releasekit-release-v0.7.36)
+
+### Fixed
+- properly traverse .pnpm dirs to find packages
+
 ## [0.7.35] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.7.34...releasekit-release-v0.7.35)
