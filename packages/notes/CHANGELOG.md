@@ -34,6 +34,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.26] - 2026-04-02
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.25...releasekit-version-v0.7.26)
+
+### Changed
+- update action.yml to use dynamic working-directory and set environment variables for GITHUB_TOKEN and NPM_TOKEN
+
 ## [0.7.25] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.24...releasekit-version-v0.7.25)
