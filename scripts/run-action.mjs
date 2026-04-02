@@ -149,13 +149,25 @@ export function runAction(input, options = {}) {
   const projectDir = input.projectDir || '.';
   const actionDir = fileURLToPath(import.meta.url).replace(/[/\\]scripts[/\\]run-action.mjs$/, '');
 
-  const nodePaths = [
+  const basePaths = [
     path.join(actionDir, 'node_modules'),
     path.join(actionDir, 'node_modules', '.pnpm'),
     path.join(actionDir, 'packages', 'version', 'node_modules'),
     path.join(actionDir, 'packages', 'release', 'node_modules'),
     path.join(actionDir, 'packages', 'notes', 'node_modules'),
     path.join(actionDir, 'packages', 'publish', 'node_modules'),
+  ];
+
+  const nodePaths = [
+    ...basePaths,
+    ...basePaths.flatMap((p) => {
+      try {
+        const entries = fs.readdirSync(p);
+        return entries.filter((e) => e.startsWith('.pnpm')).map((e) => path.join(p, e));
+      } catch {
+        return [];
+      }
+    }),
   ]
     .filter((p) => {
       try {
