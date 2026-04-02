@@ -206,14 +206,18 @@ export function runAction(input, options = {}) {
     console.error(`  projectDir: ${projectDir}`);
     console.error(`  cliPath: ${cliPath}`);
     console.error(`  NODE_PATH: ${nodePaths}`);
+    console.error(`  cwd: ${path.resolve(actionDir, projectDir)}`);
   }
+
+  const spawnEnv = {
+    ...process.env,
+    NODE_PATH: nodePaths,
+  };
+  delete spawnEnv.INPUT_PROJECT_DIR;
 
   const result = spawnSync(process.execPath, [cliPath, ...args], {
     encoding: 'utf-8',
-    env: {
-      ...process.env,
-      NODE_PATH: nodePaths,
-    },
+    env: spawnEnv,
     cwd: path.resolve(actionDir, projectDir),
   });
 
