@@ -44,7 +44,7 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
         run: |
           git add -f packages/release/dist/
-          git commit -m "chore: build action dist for ${RELEASE_TAG} [skip ci]"
+          git commit --no-verify -m "chore: build action dist for ${RELEASE_TAG} [skip ci]"
 
           # Extract semver from tag: releasekit-release-v1.2.3 -> 1.2.3
           VERSION="${RELEASE_TAG#releasekit-release-v}"
