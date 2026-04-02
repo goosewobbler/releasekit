@@ -1,18 +1,25 @@
-import { defineConfig } from 'tsup';
+import { defineConfig, type Options } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/cli.ts', 'src/dispatcher.ts'],
+  entry: ['src/dispatcher.ts', 'src/cli.ts'],
   format: ['esm'],
   platform: 'node',
   bundle: true,
-  shims: true,
+  dts: false,
+  minify: false,
   splitting: false,
-  dts: { resolve: ['@releasekit/core', '@releasekit/config'] },
+  external: ['commander', 'events', 'node:events'],
   noExternal: [
     '@releasekit/core',
     '@releasekit/config',
     '@releasekit/version',
     '@releasekit/notes',
     '@releasekit/publish',
+    'chalk',
+    'ora',
+    'semver',
+    'zod',
+    'smol-toml',
+    '@octokit/rest',
   ],
-});
+} as Options);
