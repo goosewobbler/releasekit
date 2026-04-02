@@ -213,6 +213,7 @@ export function runAction(input, options = {}) {
   const spawnEnv = {
     ...process.env,
     NODE_PATH: nodePaths,
+    PNPM_HOME: process.env.PNPM_HOME,
   };
   for (const k of Object.keys(spawnEnv).filter((k) => k.startsWith('INPUT_'))) {
     delete spawnEnv[k];
