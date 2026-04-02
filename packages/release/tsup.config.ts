@@ -3,8 +3,10 @@ import { defineConfig } from 'tsup';
 export default defineConfig({
   entry: ['src/index.ts', 'src/cli.ts', 'src/dispatcher.ts'],
   format: ['esm'],
+  platform: 'node',
   bundle: true,
-  treeshake: false,
+  shims: true,
+  splitting: false,
   dts: { resolve: ['@releasekit/core', '@releasekit/config'] },
   noExternal: [
     '@releasekit/core',
@@ -12,6 +14,5 @@ export default defineConfig({
     '@releasekit/version',
     '@releasekit/notes',
     '@releasekit/publish',
-    'commander',
   ],
 });
