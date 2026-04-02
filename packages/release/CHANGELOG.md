@@ -43,6 +43,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.35] - 2026-04-02
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.7.34...releasekit-release-v0.7.35)
+
+### Fixed
+- scan all directories in node_modules for better resolution
+
 ## [0.7.34] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.7.33...releasekit-release-v0.7.34)

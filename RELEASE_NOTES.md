@@ -1,9 +1,9 @@
 
 
-## `@releasekit/release` @ 0.7.34
+## `@releasekit/release` @ 0.7.35
 
 ### General:
-- filter non-directories from .pnpm scan
+- scan all directories in node_modules for better resolution
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.7.33...releasekit-release-v0.7.34
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.7.34...releasekit-release-v0.7.35
 
