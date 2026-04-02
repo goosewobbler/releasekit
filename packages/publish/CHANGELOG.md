@@ -31,6 +31,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.23] - 2026-04-02
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.22...releasekit-version-v0.7.23)
+
+### Changed
+- downgrade pnpm/action-setup from v6 to v5 in action.yml
+
 ## [0.7.22] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.21...releasekit-version-v0.7.22)
