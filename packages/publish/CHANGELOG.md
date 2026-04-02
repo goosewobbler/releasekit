@@ -40,6 +40,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.32] - 2026-04-02
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.31...releasekit-version-v0.7.32)
+
+### Changed
+- add verbose logging option to run-action script and update action.yml to pass verbose input
+
 ## [0.7.31] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.30...releasekit-version-v0.7.31)
