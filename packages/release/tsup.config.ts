@@ -4,7 +4,7 @@ export default defineConfig({
   entry: ['src/index.ts', 'src/cli.ts', 'src/dispatcher.ts'],
   format: ['esm'],
   platform: 'node',
-  shims: true,
+  bundle: true,
   dts: { resolve: ['@releasekit/core', '@releasekit/config'] },
   // @releasekit/core and @releasekit/config are inlined into every output file.
   // Because they are bundled they must remain in devDependencies, NOT dependencies.
