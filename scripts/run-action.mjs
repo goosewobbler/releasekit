@@ -149,7 +149,14 @@ export function runAction(input, options = {}) {
   const projectDir = input.projectDir || '.';
   const actionDir = fileURLToPath(import.meta.url).replace(/[/\\]scripts[/\\]run-action.mjs$/, '');
 
-  const resolvedProjectDir = path.resolve(actionDir, projectDir);
+  let resolvedProjectDir;
+  if (path.isAbsolute(projectDir)) {
+    resolvedProjectDir = projectDir;
+  } else if (projectDir === '.') {
+    resolvedProjectDir = process.cwd();
+  } else {
+    resolvedProjectDir = path.resolve(process.cwd(), projectDir);
+  }
 
   const userProjectPaths = [
     path.join(resolvedProjectDir, 'node_modules'),
@@ -164,6 +171,12 @@ export function runAction(input, options = {}) {
     path.join(actionDir, 'packages', 'notes', 'node_modules'),
     path.join(actionDir, 'packages', 'publish', 'node_modules'),
   ];
+
+  if (resolvedProjectDir === actionDir && projectDir !== '.') {
+    const altProjectDir = path.resolve(actionDir, projectDir);
+    userProjectPaths.push(path.join(altProjectDir, 'node_modules'));
+    userProjectPaths.push(path.join(altProjectDir, 'node_modules', '.pnpm'));
+  }
 
   const allBasePaths = [...userProjectPaths, ...actionBasePaths];
 
