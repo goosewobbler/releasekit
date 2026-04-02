@@ -149,7 +149,14 @@ export function runAction(input, options = {}) {
   const projectDir = input.projectDir || '.';
   const actionDir = fileURLToPath(import.meta.url).replace(/[/\\]scripts[/\\]run-action.mjs$/, '');
 
-  const basePaths = [
+  const resolvedProjectDir = path.resolve(actionDir, projectDir);
+
+  const userProjectPaths = [
+    path.join(resolvedProjectDir, 'node_modules'),
+    path.join(resolvedProjectDir, 'node_modules', '.pnpm'),
+  ];
+
+  const actionBasePaths = [
     path.join(actionDir, 'node_modules'),
     path.join(actionDir, 'node_modules', '.pnpm'),
     path.join(actionDir, 'packages', 'version', 'node_modules'),
@@ -158,9 +165,10 @@ export function runAction(input, options = {}) {
     path.join(actionDir, 'packages', 'publish', 'node_modules'),
   ];
 
-  const nodePaths = [
-    ...basePaths,
-    ...basePaths.flatMap((p) => {
+  const allBasePaths = [...userProjectPaths, ...actionBasePaths];
+
+  function scanPnpmDirs(basePaths) {
+    return basePaths.flatMap((p) => {
       try {
         const entries = fs.readdirSync(p);
         return entries
@@ -188,8 +196,10 @@ export function runAction(input, options = {}) {
       } catch {
         return [];
       }
-    }),
-  ]
+    });
+  }
+
+  const nodePaths = [...allBasePaths, ...scanPnpmDirs(allBasePaths)]
     .filter((p) => {
       try {
         fs.accessSync(p);
@@ -204,9 +214,10 @@ export function runAction(input, options = {}) {
     console.error('[run-action] DEBUG:');
     console.error(`  actionDir: ${actionDir}`);
     console.error(`  projectDir: ${projectDir}`);
+    console.error(`  resolvedProjectDir: ${resolvedProjectDir}`);
     console.error(`  cliPath: ${cliPath}`);
     console.error(`  NODE_PATH: ${nodePaths}`);
-    console.error(`  cwd: ${path.resolve(actionDir, projectDir)}`);
+    console.error(`  cwd: ${resolvedProjectDir}`);
   }
 
   const spawnEnv = {
@@ -220,7 +231,7 @@ export function runAction(input, options = {}) {
   const result = spawnSync('pnpm', ['exec', 'node', cliPath, ...args], {
     encoding: 'utf-8',
     env: spawnEnv,
-    cwd: path.resolve(actionDir, projectDir),
+    cwd: resolvedProjectDir,
   });
 
   if (process.env.VERBOSE === 'true' || input.verbose) {
