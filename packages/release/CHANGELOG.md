@@ -22,6 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.14] - 2026-04-02
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.13...releasekit-version-v0.7.14)
+
+### Changed
+- **release**: update tsup.config.ts to set platform to 'node', enable shims, and disable code splitting for improved bundling
+- **release**: update tsup.config.ts to disable treeshaking and add 'commander' to noExternal for improved bundling
+
 ## [0.7.13] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.12...releasekit-version-v0.7.13)
