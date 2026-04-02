@@ -36,6 +36,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.28] - 2026-04-02
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.27...releasekit-version-v0.7.28)
+
+### Changed
+- set NODE_PATH in environment variables for action execution
+
 ## [0.7.27] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.26...releasekit-version-v0.7.27)
