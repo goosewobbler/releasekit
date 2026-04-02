@@ -1,9 +1,9 @@
 
 
-## `@releasekit/release` @ 0.7.36
+## `@releasekit/release` @ 0.7.37
 
 ### General:
-- properly traverse .pnpm dirs to find packages
+- remove INPUT_PROJECT_DIR from spawned env to fix path resolution
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.7.35...releasekit-release-v0.7.36
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.7.36...releasekit-release-v0.7.37
 
