@@ -26,6 +26,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.18] - 2026-04-02
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.17...releasekit-version-v0.7.18)
+
+### Changed
+- **release**: add 'smol-toml' to external dependencies in tsup.config.ts for enhanced functionality
+
 ## [0.7.17] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.16...releasekit-version-v0.7.17)
