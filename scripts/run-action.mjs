@@ -163,7 +163,16 @@ export function runAction(input, options = {}) {
     ...basePaths.flatMap((p) => {
       try {
         const entries = fs.readdirSync(p);
-        return entries.filter((e) => e.startsWith('.pnpm')).map((e) => path.join(p, e));
+        return entries
+          .filter((e) => e.startsWith('.pnpm'))
+          .map((e) => path.join(p, e))
+          .filter((e) => {
+            try {
+              return fs.statSync(e).isDirectory();
+            } catch {
+              return false;
+            }
+          });
       } catch {
         return [];
       }
