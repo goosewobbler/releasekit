@@ -171,6 +171,19 @@ export function runAction(input, options = {}) {
             } catch {
               return false;
             }
+          })
+          .flatMap((e) => {
+            if (e.includes('.pnpm')) {
+              const pkgDir = path.join(e, 'node_modules');
+              try {
+                if (fs.statSync(pkgDir).isDirectory()) {
+                  return [pkgDir];
+                }
+              } catch {
+                return [];
+              }
+            }
+            return [];
           });
       } catch {
         return [];
