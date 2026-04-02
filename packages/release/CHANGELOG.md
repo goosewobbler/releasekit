@@ -51,6 +51,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.43] - 2026-04-02
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.7.42...releasekit-release-v0.7.43)
+
+### Fixed
+- add PNPM_HOME to spawned env for proper resolution
+
 ## [0.7.42] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.7.41...releasekit-release-v0.7.42)
