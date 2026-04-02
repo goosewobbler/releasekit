@@ -2,10 +2,8 @@ import { defineConfig, type Options } from 'tsup';
 
 export default defineConfig({
   banner: {
-    js: `
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-    `.trim(),
+    js: `import {createRequire as __createRequire} from 'module';
+var require = __createRequire(import.meta.url);`.trim(),
   },
   entry: ['src/dispatcher.ts', 'src/cli.ts'],
   format: ['esm'],
