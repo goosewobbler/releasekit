@@ -6,6 +6,43 @@ export function createOctokit(token: string): Octokit {
 }
 
 /**
+ * Find merged PR(s) associated with a commit.
+ * Returns the PR numbers that were merged and included this commit.
+ */
+export async function findMergedPRsForCommit(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  commitSha: string,
+): Promise<number[]> {
+  try {
+    const { data: prs } = await octokit.rest.repos.listPullRequestsAssociatedWithCommit({
+      owner,
+      repo,
+      commit_sha: commitSha,
+    });
+
+    return prs.filter((pr) => pr.merged_at !== null).map((pr) => pr.number);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Find the most recently merged PR associated with a commit.
+ * Returns the PR number or null if none found.
+ */
+export async function findLatestMergedPR(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  commitSha: string,
+): Promise<number | undefined> {
+  const prs = await findMergedPRsForCommit(octokit, owner, repo, commitSha);
+  return prs.length > 0 ? prs[0] : undefined;
+}
+
+/**
  * Find an existing release preview comment on the PR by looking for the HTML marker.
  */
 export async function findPreviewComment(

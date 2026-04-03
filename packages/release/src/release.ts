@@ -1,8 +1,10 @@
 import { execSync } from 'node:child_process';
-import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
+import type { CIConfig } from '@releasekit/config';
+import { loadCIConfig, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput } from '@releasekit/core';
-import { error, info, setJsonMode, setLogLevel, setQuietMode, success } from '@releasekit/core';
+import { error, info, setJsonMode, setLogLevel, setQuietMode, success, warn } from '@releasekit/core';
 import type { ReleaseType } from 'semver';
+import { createOctokit, fetchPRLabels, findMergedPRsForCommit } from './preview-github.js';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
 
 function getHeadCommitMessage(cwd?: string): string | null {
@@ -11,6 +13,83 @@ function getHeadCommitMessage(cwd?: string): string | null {
   } catch {
     return null;
   }
+}
+
+function getGitHubContext(): { owner: string; repo: string; sha: string } | null {
+  const repo = process.env.GITHUB_REPOSITORY;
+  const sha = process.env.GITHUB_SHA;
+
+  if (!repo || !sha) {
+    return null;
+  }
+
+  const [owner, repoName] = repo.split('/');
+  if (!owner || !repoName) {
+    return null;
+  }
+
+  return { owner, repo: repoName, sha };
+}
+
+interface ScopeLabelResult {
+  target: string | undefined;
+  scopeLabels: string[];
+}
+
+async function applyScopeLabelsFromPR(
+  ciConfig: CIConfig | undefined,
+  options: ReleaseOptions,
+): Promise<ScopeLabelResult> {
+  const scopeLabels = ciConfig?.scopeLabels ?? {};
+  const defaultScope = ciConfig?.defaultScope;
+
+  const githubContext = getGitHubContext();
+  if (!githubContext) {
+    return { target: options.target, scopeLabels: [] };
+  }
+
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) {
+    warn('No GITHUB_TOKEN available — skipping scope label detection');
+    return { target: options.target, scopeLabels: [] };
+  }
+
+  const octokit = createOctokit(token);
+
+  const prNumbers = await findMergedPRsForCommit(octokit, githubContext.owner, githubContext.repo, githubContext.sha);
+  if (prNumbers.length === 0) {
+    info('No merged PRs found for HEAD commit — releasing all packages');
+    return { target: options.target, scopeLabels: [] };
+  }
+
+  const allLabels: string[] = [];
+  for (const prNumber of prNumbers) {
+    const labels = await fetchPRLabels(octokit, githubContext.owner, githubContext.repo, prNumber);
+    allLabels.push(...labels);
+  }
+
+  const matchedScopePatterns: string[] = [];
+  for (const [labelName, packagePattern] of Object.entries(scopeLabels)) {
+    if (allLabels.includes(labelName)) {
+      info(`Scope label "${labelName}" detected — limiting release to packages matching "${packagePattern}"`);
+      matchedScopePatterns.push(packagePattern);
+    }
+  }
+
+  let finalTarget = options.target;
+  if (matchedScopePatterns.length > 0) {
+    const existingTargets = options.target ? options.target.split(',').map((t) => t.trim()) : [];
+    finalTarget = [...existingTargets, ...matchedScopePatterns].join(', ');
+  } else if (defaultScope && Object.keys(scopeLabels).length > 0) {
+    const defaultPattern = scopeLabels[defaultScope];
+    if (defaultPattern) {
+      info(`No scope label found — using default scope "${defaultScope}" (${defaultPattern})`);
+      const existingTargets = options.target ? options.target.split(',').map((t) => t.trim()) : [];
+      finalTarget = [...existingTargets, defaultPattern].join(', ');
+    }
+  }
+
+  return { target: finalTarget, scopeLabels: matchedScopePatterns };
 }
 
 export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseOutput | null> {
@@ -30,6 +109,15 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
     throw err;
   }
   const releaseConfig = releaseKitConfig.release;
+
+  // Apply scope labels from PR labels (if GitHub context available)
+  const ciConfig = loadCIConfig({ cwd: options.projectDir, configPath: options.config });
+  if (ciConfig?.scopeLabels) {
+    const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
+    if (scopeResult.target !== options.target) {
+      options.target = scopeResult.target;
+    }
+  }
 
   // Apply skipPatterns: exit early if HEAD commit matches a skip pattern
   if (releaseConfig?.ci?.skipPatterns?.length) {

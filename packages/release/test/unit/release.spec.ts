@@ -1,17 +1,28 @@
 import type { VersionOutput } from '@releasekit/core';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReleaseOptions } from '../../src/types.js';
 
 // --- Mocks ---
 
 const mockLoadReleaseKitConfig = vi.fn();
+const mockLoadCIConfig = vi.fn();
+const mockCreateOctokit = vi.fn();
+const mockFindMergedPRsForCommit = vi.fn();
+const mockFetchPRLabels = vi.fn();
 
 vi.mock('@releasekit/config', () => ({
   loadConfig: (...args: unknown[]) => mockLoadReleaseKitConfig(...args),
+  loadCIConfig: (...args: unknown[]) => mockLoadCIConfig(...args),
 }));
 
 vi.mock('node:child_process', () => ({
   execSync: vi.fn().mockReturnValue('feat: some feature\n'),
+}));
+
+vi.mock('../../src/preview-github.js', () => ({
+  createOctokit: (...args: unknown[]) => mockCreateOctokit(...args),
+  findMergedPRsForCommit: (...args: unknown[]) => mockFindMergedPRsForCommit(...args),
+  fetchPRLabels: (...args: unknown[]) => mockFetchPRLabels(...args),
 }));
 
 const mockEnableJsonOutput = vi.fn();
@@ -60,12 +71,19 @@ vi.mock('@releasekit/core', async (importOriginal) => {
     ...actual,
     error: vi.fn(),
     info: vi.fn(),
+    warn: vi.fn(),
     success: vi.fn(),
     setLogLevel: vi.fn(),
     setQuietMode: vi.fn(),
     setJsonMode: vi.fn(),
   };
 });
+
+vi.mock('../../src/preview-github.js', () => ({
+  createOctokit: vi.fn().mockReturnValue({}),
+  findMergedPRsForCommit: vi.fn().mockResolvedValue([]),
+  fetchPRLabels: vi.fn().mockResolvedValue([]),
+}));
 
 // --- Fixtures ---
 
@@ -594,6 +612,67 @@ describe('runRelease', () => {
 
       const result = await runRelease(defaultOptions);
 
+      expect(result).not.toBeNull();
+    });
+  });
+
+  // --- Scope label tests ---
+
+  describe('scope labels', () => {
+    const originalEnv = { ...process.env };
+
+    beforeEach(async () => {
+      vi.clearAllMocks();
+
+      mockLoadReleaseKitConfig.mockReturnValue({});
+      mockVersionLoadConfig.mockReturnValue({ preset: 'conventional-commits' });
+      mockVersionEngineGetWorkspacePackages.mockResolvedValue({
+        packages: [{ packageJson: { name: 'test-pkg' }, dir: '/test/project' }],
+        root: '/test/project',
+      });
+      mockVersionEngineRun.mockResolvedValue(undefined);
+      mockGetJsonData.mockReturnValue(versionOutputWithChanges);
+      mockNotesLoadConfig.mockReturnValue(mockNotesConfig);
+      mockParseVersionOutput.mockReturnValue({ source: 'version', packages: [] });
+      mockNotesRunPipeline.mockResolvedValue({
+        packageNotes: { 'test-pkg': '## [1.1.0] - 2026-01-01\n\n### Added\n- New feature\n' },
+        files: [],
+      });
+
+      process.env.GITHUB_REPOSITORY = 'owner/repo';
+      process.env.GITHUB_SHA = 'abc123';
+      process.env.GITHUB_TOKEN = 'test-token';
+    });
+
+    afterEach(() => {
+      process.env = originalEnv;
+    });
+
+    it('should skip scope labels when no GitHub context', async () => {
+      delete process.env.GITHUB_REPOSITORY;
+      delete process.env.GITHUB_SHA;
+      delete process.env.GITHUB_TOKEN;
+
+      mockLoadCIConfig.mockReturnValue({
+        scopeLabels: {
+          'scope:shared': '@wdio/native-*',
+        },
+      });
+
+      const { runRelease } = await import('../../src/release.js');
+      const result = await runRelease(defaultOptions);
+
+      expect(mockFindMergedPRsForCommit).not.toHaveBeenCalled();
+      expect(result).not.toBeNull();
+    });
+
+    it('should skip scope labels when no scopeLabels configured', async () => {
+      mockLoadCIConfig.mockReturnValue({});
+
+      const { runRelease } = await import('../../src/release.js');
+      const result = await runRelease(defaultOptions);
+
+      expect(mockFindMergedPRsForCommit).not.toHaveBeenCalled();
       expect(result).not.toBeNull();
     });
   });
