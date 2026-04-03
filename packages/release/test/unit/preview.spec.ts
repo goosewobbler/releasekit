@@ -161,6 +161,22 @@ describe('runPreview', () => {
     );
   });
 
+  it('major + minor labels in commit mode use major (no conflict)', async () => {
+    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
+    mockFetchPRLabels.mockResolvedValue(['release:major', 'release:minor', 'release:patch']);
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major' }));
+    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+      expect.anything(),
+      'owner',
+      'repo',
+      1,
+      expect.stringContaining('labeled for a **major** release'),
+    );
+  });
+
   it('falls back to stdout when context resolution fails', async () => {
     mockResolvePreviewContext.mockImplementation(() => {
       throw new Error('No GITHUB_TOKEN');
@@ -367,6 +383,15 @@ describe('runPreview', () => {
   });
 
   it('release:prerelease alone defaults to patch bump', async () => {
+    mockFetchPRLabels.mockResolvedValue(['release:prerelease']);
+    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'patch', prerelease: true }));
+  });
+
+  it('release:prerelease with release:minor uses minor bump', async () => {
     mockFetchPRLabels.mockResolvedValue(['release:prerelease', 'release:minor']);
     mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
 

@@ -234,7 +234,8 @@ async function applyLabelOverrides(
   // Detect label conflicts using shared utility
   const conflict = detectLabelConflicts(prLabels, labels);
 
-  if (conflict.bumpConflict) {
+  // Bump conflicts only matter in label mode (in commit mode only release:major is meaningful)
+  if (trigger === 'label' && conflict.bumpConflict) {
     warn(`Conflicting bump labels detected (${conflict.bumpLabelsPresent.join(', ')}) — release blocked`);
     labelContext.noBumpLabel = true;
     labelContext.bumpConflict = true;
