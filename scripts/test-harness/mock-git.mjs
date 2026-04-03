@@ -2,6 +2,8 @@ import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
+const DEFAULT_BRANCH = 'master';
+
 export function createBareRemote(remotePath) {
   if (fs.existsSync(remotePath)) {
     fs.rmSync(remotePath, { recursive: true });
@@ -16,8 +18,7 @@ export function initGitRepo(projectDir, remotePath) {
   execSync('git config user.name "Test User"', { cwd: projectDir, stdio: 'pipe' });
   execSync('git config user.email "test@example.com"', { cwd: projectDir, stdio: 'pipe' });
 
-  const defaultBranch = 'master';
-  execSync(`git symbolic-ref HEAD refs/heads/${defaultBranch}`, { cwd: projectDir, stdio: 'pipe' });
+  execSync(`git symbolic-ref HEAD refs/heads/${DEFAULT_BRANCH}`, { cwd: projectDir, stdio: 'pipe' });
 
   if (remotePath) {
     execSync(`git remote add origin ${remotePath}`, { cwd: projectDir, stdio: 'pipe' });
@@ -27,7 +28,7 @@ export function initGitRepo(projectDir, remotePath) {
   execSync('git commit -m "initial commit"', { cwd: projectDir, stdio: 'pipe' });
 
   if (remotePath) {
-    execSync(`git push -u origin ${defaultBranch}`, { cwd: projectDir, stdio: 'pipe' });
+    execSync(`git push -u origin ${DEFAULT_BRANCH}`, { cwd: projectDir, stdio: 'pipe' });
   }
 }
 
@@ -64,7 +65,7 @@ export function getLastVersion(projectDir) {
 }
 
 export function pushToRemote(projectDir) {
-  execSync('git push origin main --tags', { cwd: projectDir, stdio: 'pipe' });
+  execSync(`git push origin ${DEFAULT_BRANCH} --tags`, { cwd: projectDir, stdio: 'pipe' });
 }
 
 export function getRemoteRefs(remotePath) {
