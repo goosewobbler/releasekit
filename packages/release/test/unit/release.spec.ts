@@ -690,8 +690,9 @@ describe('runRelease', () => {
       expect(result).toBeNull();
     });
 
-    it('should block release when multiple bump labels conflict detected', async () => {
+    it('should block release when multiple bump labels conflict detected in label mode', async () => {
       mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'label',
         scopeLabels: {
           'scope:shared': '@wdio/native-*',
         },
@@ -703,6 +704,19 @@ describe('runRelease', () => {
       const result = await runRelease(defaultOptions);
 
       expect(result).toBeNull();
+    });
+
+    it('should NOT block release when multiple bump labels in commit mode (uses major)', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'commit',
+      });
+      mockFindMergedPRsForCommit.mockResolvedValue([123]);
+      mockFetchPRLabels.mockResolvedValue(['release:major', 'release:minor']);
+
+      const { runRelease } = await import('../../src/release.js');
+      const result = await runRelease(defaultOptions);
+
+      expect(result).not.toBeNull();
     });
   });
 });

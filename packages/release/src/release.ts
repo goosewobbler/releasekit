@@ -4,7 +4,7 @@ import { loadCIConfig, loadConfig as loadReleaseKitConfig } from '@releasekit/co
 import type { VersionOutput } from '@releasekit/core';
 import { error, info, setJsonMode, setLogLevel, setQuietMode, success, warn } from '@releasekit/core';
 import type { ReleaseType } from 'semver';
-import { checkAndWarnBumpConflict, DEFAULT_LABELS } from './label-utils.js';
+import { DEFAULT_LABELS, detectLabelConflicts } from './label-utils.js';
 import { createOctokit, fetchPRLabels, findMergedPRsForCommit } from './preview-github.js';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
 
@@ -124,7 +124,21 @@ async function checkPRLabelConflicts(ciConfig: CIConfig | undefined): Promise<bo
   }
 
   const ciLabels = ciConfig?.labels ?? DEFAULT_LABELS;
-  return checkAndWarnBumpConflict(allLabels, ciLabels);
+  const trigger = ciConfig?.releaseTrigger ?? 'label';
+  const conflict = detectLabelConflicts(allLabels, ciLabels);
+
+  // Bump conflicts only matter in label mode (commit mode uses only release:major)
+  if (trigger === 'label' && conflict.bumpConflict) {
+    warn(`Conflicting bump labels detected (${conflict.bumpLabelsPresent.join(', ')}) — release blocked`);
+    return true;
+  }
+
+  if (conflict.prereleaseConflict) {
+    warn(`Conflicting labels "${ciLabels.stable}" and "${ciLabels.prerelease}" detected — release blocked`);
+    return true;
+  }
+
+  return false;
 }
 
 export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseOutput | null> {
