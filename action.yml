@@ -10,7 +10,7 @@ inputs:
   mode:
     description: Action mode (release or preview)
     required: false
-    default: release
+    default: preview
   config:
     description: Path to releasekit config file
     required: false

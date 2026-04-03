@@ -15,8 +15,8 @@ export function createDispatcherProgram(): Command {
     .name('releasekit')
     .description('Unified release pipeline: version, changelog, and publish')
     .version(readPackageVersion(import.meta.url));
-  program.addCommand(createReleaseCommand(), { isDefault: true });
   program.addCommand(createPreviewCommand());
+  program.addCommand(createReleaseCommand());
   program.addCommand(createInitCommand());
   program.addCommand(createVersionCommand());
   program.addCommand(createNotesCommand());
