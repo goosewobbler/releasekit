@@ -77,12 +77,6 @@ async function applyScopeLabelsFromPR(
     allLabels.push(...labels);
   }
 
-  // Check for label conflicts
-  const ciLabels = ciConfig?.labels ?? DEFAULT_LABELS;
-  if (checkAndWarnBumpConflict(allLabels, ciLabels)) {
-    return { target: options.target, scopeLabels: [], blocked: true };
-  }
-
   const matchedScopePatterns: string[] = [];
   for (const [labelName, packagePattern] of Object.entries(scopeLabels)) {
     if (allLabels.includes(labelName)) {
@@ -103,6 +97,34 @@ async function applyScopeLabelsFromPR(
   }
 
   return { target: finalTarget, scopeLabels: matchedScopePatterns };
+}
+
+async function checkPRLabelConflicts(ciConfig: CIConfig | undefined): Promise<boolean> {
+  const githubContext = getGitHubContext();
+  if (!githubContext) {
+    return false;
+  }
+
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) {
+    return false;
+  }
+
+  const octokit = createOctokit(token);
+
+  const prNumbers = await findMergedPRsForCommit(octokit, githubContext.owner, githubContext.repo, githubContext.sha);
+  if (prNumbers.length === 0) {
+    return false;
+  }
+
+  const allLabels: string[] = [];
+  for (const prNumber of prNumbers) {
+    const labels = await fetchPRLabels(octokit, githubContext.owner, githubContext.repo, prNumber);
+    allLabels.push(...labels);
+  }
+
+  const ciLabels = ciConfig?.labels ?? DEFAULT_LABELS;
+  return checkAndWarnBumpConflict(allLabels, ciLabels);
 }
 
 export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseOutput | null> {
@@ -126,12 +148,18 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   // Apply scope labels from PR labels (if GitHub context available)
   // Skip in dry-run mode since preview.ts already handles scope labels
   const ciConfig = loadCIConfig({ cwd: options.projectDir, configPath: options.config });
-  if (ciConfig?.scopeLabels && !options.dryRun) {
-    const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
-    if (scopeResult.blocked) {
+
+  // Always check for label conflicts regardless of scopeLabels config
+  if (!options.dryRun) {
+    const hasConflicts = await checkPRLabelConflicts(ciConfig);
+    if (hasConflicts) {
       info('Release blocked due to conflicting PR labels');
       return null;
     }
+  }
+
+  if (ciConfig?.scopeLabels) {
+    const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
     if (scopeResult.target !== options.target) {
       options.target = scopeResult.target;
     }

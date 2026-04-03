@@ -1,7 +1,7 @@
 import type { CIConfig } from '@releasekit/config';
 import { loadCIConfig, loadConfig } from '@releasekit/config';
 import { info, success, warn } from '@releasekit/core';
-import { detectLabelConflicts } from './label-utils.js';
+import { DEFAULT_LABELS, detectLabelConflicts } from './label-utils.js';
 import type { PreviewContext } from './preview-context.js';
 import { resolvePreviewContext } from './preview-context.js';
 import { detectPrerelease } from './preview-detect.js';
@@ -26,15 +26,6 @@ interface LabelOverrideResult {
   options: PreviewOptions;
   labelContext: LabelContext;
 }
-
-const DEFAULT_LABELS = {
-  stable: 'release:stable',
-  prerelease: 'release:prerelease',
-  skip: 'release:skip',
-  major: 'release:major',
-  minor: 'release:minor',
-  patch: 'release:patch',
-};
 
 export async function runPreview(options: PreviewOptions): Promise<void> {
   // Check if preview is enabled in config

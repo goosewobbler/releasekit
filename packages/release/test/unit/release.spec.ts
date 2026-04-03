@@ -663,13 +663,15 @@ describe('runRelease', () => {
       expect(result).not.toBeNull();
     });
 
-    it('should skip scope labels when no scopeLabels configured', async () => {
+    it('should not block release when no scopeLabels configured and no conflicts', async () => {
       mockLoadCIConfig.mockReturnValue({});
+      mockFindMergedPRsForCommit.mockResolvedValue([123]);
+      mockFetchPRLabels.mockResolvedValue(['release:minor']);
 
       const { runRelease } = await import('../../src/release.js');
       const result = await runRelease(defaultOptions);
 
-      expect(mockFindMergedPRsForCommit).not.toHaveBeenCalled();
+      expect(mockFindMergedPRsForCommit).toHaveBeenCalled();
       expect(result).not.toBeNull();
     });
 
