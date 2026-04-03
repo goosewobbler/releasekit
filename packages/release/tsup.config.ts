@@ -24,5 +24,8 @@ var require = __createRequire(import.meta.url);`.trim(),
     'conventional-commits-filter',
     'conventional-commits-parser',
     'conventional-recommended-bump',
+    '@conventional-changelog/git-client',
+    '@simple-libs/stream-utils',
+    '@simple-libs/child-process-utils',
   ],
 } as Options);
