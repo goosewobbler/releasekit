@@ -86,14 +86,12 @@ async function applyScopeLabelsFromPR(
 
   let finalTarget = options.target;
   if (matchedScopePatterns.length > 0) {
-    const existingTargets = options.target ? options.target.split(',').map((t) => t.trim()) : [];
-    finalTarget = [...existingTargets, ...matchedScopePatterns].join(', ');
+    finalTarget = matchedScopePatterns.join(', ');
   } else if (defaultScope && Object.keys(scopeLabels).length > 0) {
     const defaultPattern = scopeLabels[defaultScope];
     if (defaultPattern) {
       info(`No scope label found — using default scope "${defaultScope}" (${defaultPattern})`);
-      const existingTargets = options.target ? options.target.split(',').map((t) => t.trim()) : [];
-      finalTarget = [...existingTargets, defaultPattern].join(', ');
+      finalTarget = defaultPattern;
     }
   }
 

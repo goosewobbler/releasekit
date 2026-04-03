@@ -88,10 +88,12 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
 
   if (labelContext.trigger === 'commit') {
     if (labelContext.skip) {
-      return ['> **Warning:** This PR is marked to skip release.', ''];
+      lines.push('> **Warning:** This PR is marked to skip release.', '');
+      return lines;
     }
     if (labelContext.bumpLabel === 'major') {
-      return ['> **Important:** This PR is labeled for a **major** release.', ''];
+      lines.push('> **Important:** This PR is labeled for a **major** release.', '');
+      return lines;
     }
   }
 

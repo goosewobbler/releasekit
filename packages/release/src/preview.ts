@@ -200,17 +200,19 @@ async function applyLabelOverrides(
   const matchedScopePatterns: string[] = [];
   for (const [labelName, packagePattern] of Object.entries(scopeLabels)) {
     if (prLabels.includes(labelName)) {
-      info(`PR label "${labelName}" detected — limiting release to packages matching "${packagePattern}"`);
+      info(`PR label "${labelName}" detected — limiting release to packages matching "${packagePattern}")`);
       matchedScopePatterns.push(packagePattern);
     }
   }
   labelContext.scopeLabels = matchedScopePatterns;
 
-  // Apply scope filter if any scope labels matched
+  // Apply scope filter if any scope labels matched, otherwise use defaultScope if configured
   if (matchedScopePatterns.length > 0) {
-    const existingTargets = result.target ? result.target.split(',').map((t) => t.trim()) : [];
-    const allTargets = [...existingTargets, ...matchedScopePatterns];
-    result.target = allTargets.join(', ');
+    result.target = matchedScopePatterns.join(', ');
+  } else if (ciConfig?.defaultScope && scopeLabels[ciConfig.defaultScope]) {
+    const defaultPattern = scopeLabels[ciConfig.defaultScope];
+    info(`No scope label found — using default scope "${ciConfig.defaultScope}" (${defaultPattern})`);
+    result.target = defaultPattern;
   }
 
   if (trigger === 'commit') {

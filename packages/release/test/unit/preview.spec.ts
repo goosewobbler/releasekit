@@ -658,7 +658,7 @@ describe('runPreview', () => {
     expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*', bump: undefined }));
   });
 
-  it('CLI --target flag takes priority over scope labels', async () => {
+  it('CLI --target flag is replaced by scope labels', async () => {
     mockLoadCIConfig.mockReturnValue({
       releaseTrigger: 'commit',
       scopeLabels: {
@@ -669,8 +669,8 @@ describe('runPreview', () => {
 
     await runPreview({ projectDir: '/test', dryRun: false, target: '@custom/pkg' });
 
-    // CLI target should be combined with scope label patterns
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@custom/pkg, @wdio/native-*' }));
+    // Scope labels replace CLI target
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*' }));
   });
 
   it('displays scope in preview comment banner', async () => {
