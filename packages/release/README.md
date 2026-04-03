@@ -223,6 +223,13 @@ The `ci` section controls automation behavior:
       "major": "release:major",
       "minor": "release:minor",
       "patch": "release:patch"
+    },
+
+    // Map PR labels to package filters for scoped releases
+    // Example: a PR with "scope:shared" label only releases matching packages
+    "scopeLabels": {
+      "scope:shared": "@myorg/shared-*",
+      "scope:frontend": "@myorg/web-*"
     }
   }
 }
@@ -244,6 +251,61 @@ Both modes support `release:stable` and `release:prerelease` as modifiers.
 | `manual` | Releases are triggered manually (e.g. via `workflow_dispatch`) |
 | `standing-pr` | Changes accumulate in a standing release PR *(planned)* |
 | `scheduled` | Releases are triggered on a schedule *(planned)* |
+
+#### Scope-Based Release
+
+Use `scopeLabels` to filter which packages are released based on PR labels. This is useful for monorepos with distinct package groups.
+
+When a PR has a matching scope label, only packages matching the pattern are included in the release:
+
+```json
+{
+  "ci": {
+    "scopeLabels": {
+      "scope:shared": "@myorg/shared-*",
+      "scope:ui": "@myorg/ui-*"
+    },
+    "defaultScope": "scope:shared"
+  }
+}
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `scopeLabels` | Map of PR label names to package patterns |
+| `defaultScope` | Fallback scope to use when no scope label is found (must reference a key in `scopeLabels`) |
+
+**Usage:**
+- `scope:shared` + `release:minor` → Release only `@myorg/shared-*` packages with minor bump
+- `scope:shared` + `scope:ui` → Release both matching scope groups
+- `scope:shared` (no release label) → Release only shared packages, bump determined by conventional commits
+- No scope label but `defaultScope` configured → Use default scope pattern
+
+Multiple scope labels are combined with OR logic. Without a `release:*` label, conventional commits determine the version bump.
+
+**How it works:**
+
+- **Preview mode**: Reads labels directly from the PR
+- **Release mode**: When triggered via `workflow_run` after a PR merge, releasekit finds the merged PR(s) for the HEAD commit and reads their labels automatically
+
+**Example workflow configuration:**
+
+```yaml
+# Pass all packages - releasekit filters by scope labels
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: goosewobbler/releasekit@v1
+        with:
+          mode: release
+          # All packages included; scope labels filter at runtime
+          target: "@myorg/shared-*,@myorg/ui-*,@myorg/api-*"
+```
+
+With this setup, releasekit automatically detects which packages to release based on the PR labels.
 
 ### PR Preview
 
