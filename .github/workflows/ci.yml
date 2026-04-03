@@ -57,10 +57,10 @@ jobs:
           cache_key: ${{ needs.build.outputs.cache_key }}
 
       - name: Run action test harness (preview)
-        run: pnpm test:harness:preview
+        run: pnpm test:action:preview
 
       - name: Run action test harness (release)
-        run: pnpm test:harness:release
+        run: pnpm test:action:release
 
   lint:
     name: Lint
