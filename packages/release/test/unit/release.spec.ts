@@ -675,6 +675,17 @@ describe('runRelease', () => {
       expect(result).not.toBeNull();
     });
 
+    it('should block release when prerelease + stable conflict detected without scopeLabels', async () => {
+      mockLoadCIConfig.mockReturnValue({});
+      mockFindMergedPRsForCommit.mockResolvedValue([123]);
+      mockFetchPRLabels.mockResolvedValue(['release:stable', 'release:prerelease']);
+
+      const { runRelease } = await import('../../src/release.js');
+      const result = await runRelease(defaultOptions);
+
+      expect(result).toBeNull();
+    });
+
     it('should block release when prerelease + stable conflict detected', async () => {
       mockLoadCIConfig.mockReturnValue({
         scopeLabels: {

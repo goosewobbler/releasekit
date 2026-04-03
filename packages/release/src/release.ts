@@ -32,49 +32,49 @@ function getGitHubContext(): { owner: string; repo: string; sha: string } | null
   return { owner, repo: repoName, sha };
 }
 
-interface ScopeLabelResult {
+interface PRLabelsResult {
   target: string | undefined;
   scopeLabels: string[];
-  blocked?: boolean;
+  labels: string[];
 }
 
 async function applyScopeLabelsFromPR(
   ciConfig: CIConfig | undefined,
   options: ReleaseOptions,
-): Promise<ScopeLabelResult> {
+): Promise<PRLabelsResult> {
   const scopeLabels = ciConfig?.scopeLabels ?? {};
   const defaultScope = ciConfig?.defaultScope;
 
   const githubContext = getGitHubContext();
   if (!githubContext) {
-    return { target: options.target, scopeLabels: [] };
+    return { target: options.target, scopeLabels: [], labels: [] };
   }
 
   const token = process.env.GITHUB_TOKEN;
   if (!token) {
     warn('No GITHUB_TOKEN available — skipping scope label detection');
-    return { target: options.target, scopeLabels: [] };
+    return { target: options.target, scopeLabels: [], labels: [] };
   }
 
   const octokit = createOctokit(token);
 
   const prNumbers = await findMergedPRsForCommit(octokit, githubContext.owner, githubContext.repo, githubContext.sha);
+  const allLabels: string[] = [];
+  for (const prNumber of prNumbers) {
+    const labels = await fetchPRLabels(octokit, githubContext.owner, githubContext.repo, prNumber);
+    allLabels.push(...labels);
+  }
+
   if (prNumbers.length === 0) {
     if (defaultScope && Object.keys(scopeLabels).length > 0) {
       const defaultPattern = scopeLabels[defaultScope];
       if (defaultPattern) {
         info(`No merged PRs found — using default scope "${defaultScope}" (${defaultPattern})`);
-        return { target: defaultPattern, scopeLabels: [] };
+        return { target: defaultPattern, scopeLabels: [], labels: allLabels };
       }
     }
     info('No merged PRs found for HEAD commit — releasing all packages');
-    return { target: options.target, scopeLabels: [] };
-  }
-
-  const allLabels: string[] = [];
-  for (const prNumber of prNumbers) {
-    const labels = await fetchPRLabels(octokit, githubContext.owner, githubContext.repo, prNumber);
-    allLabels.push(...labels);
+    return { target: options.target, scopeLabels: [], labels: allLabels };
   }
 
   const matchedScopePatterns: string[] = [];
@@ -96,49 +96,7 @@ async function applyScopeLabelsFromPR(
     }
   }
 
-  return { target: finalTarget, scopeLabels: matchedScopePatterns };
-}
-
-async function checkPRLabelConflicts(ciConfig: CIConfig | undefined): Promise<boolean> {
-  const githubContext = getGitHubContext();
-  if (!githubContext) {
-    return false;
-  }
-
-  const token = process.env.GITHUB_TOKEN;
-  if (!token) {
-    return false;
-  }
-
-  const octokit = createOctokit(token);
-
-  const prNumbers = await findMergedPRsForCommit(octokit, githubContext.owner, githubContext.repo, githubContext.sha);
-  if (prNumbers.length === 0) {
-    return false;
-  }
-
-  const allLabels: string[] = [];
-  for (const prNumber of prNumbers) {
-    const labels = await fetchPRLabels(octokit, githubContext.owner, githubContext.repo, prNumber);
-    allLabels.push(...labels);
-  }
-
-  const ciLabels = ciConfig?.labels ?? DEFAULT_LABELS;
-  const trigger = ciConfig?.releaseTrigger ?? 'label';
-  const conflict = detectLabelConflicts(allLabels, ciLabels);
-
-  // Bump conflicts only matter in label mode (commit mode uses only release:major)
-  if (trigger === 'label' && conflict.bumpConflict) {
-    warn(`Conflicting bump labels detected (${conflict.bumpLabelsPresent.join(', ')}) — release blocked`);
-    return true;
-  }
-
-  if (conflict.prereleaseConflict) {
-    warn(`Conflicting labels "${ciLabels.stable}" and "${ciLabels.prerelease}" detected — release blocked`);
-    return true;
-  }
-
-  return false;
+  return { target: finalTarget, scopeLabels: matchedScopePatterns, labels: allLabels };
 }
 
 export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseOutput | null> {
@@ -163,16 +121,31 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   // Skip in dry-run mode since preview.ts already handles scope labels
   const ciConfig = loadCIConfig({ cwd: options.projectDir, configPath: options.config });
 
-  // Always check for label conflicts regardless of scopeLabels config
+  let prLabels: string[] = [];
   if (!options.dryRun) {
-    const hasConflicts = await checkPRLabelConflicts(ciConfig);
-    if (hasConflicts) {
+    const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
+    prLabels = scopeResult.labels;
+    if (scopeResult.target !== options.target) {
+      options.target = scopeResult.target;
+    }
+
+    // Check for label conflicts using the already-fetched labels
+    const ciLabels = ciConfig?.labels ?? DEFAULT_LABELS;
+    const trigger = ciConfig?.releaseTrigger ?? 'label';
+    const conflict = detectLabelConflicts(prLabels, ciLabels);
+
+    if (trigger === 'label' && conflict.bumpConflict) {
+      warn(`Conflicting bump labels detected (${conflict.bumpLabelsPresent.join(', ')}) — release blocked`);
       info('Release blocked due to conflicting PR labels');
       return null;
     }
-  }
 
-  if (ciConfig?.scopeLabels) {
+    if (conflict.prereleaseConflict) {
+      warn(`Conflicting labels "${ciLabels.stable}" and "${ciLabels.prerelease}" detected — release blocked`);
+      info('Release blocked due to conflicting PR labels');
+      return null;
+    }
+  } else if (ciConfig?.scopeLabels) {
     const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
     if (scopeResult.target !== options.target) {
       options.target = scopeResult.target;
