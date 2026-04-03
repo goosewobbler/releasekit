@@ -56,6 +56,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.48] - 2026-04-03
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.47...releasekit-version-v0.7.48)
+
+### Changed
+- add git configuration step and enhance input handling in action.yml; remove debug logging from run-action.mjs
+
 ## [0.7.47] - 2026-04-03
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.46...releasekit-version-v0.7.47)

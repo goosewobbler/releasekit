@@ -1,39 +1,39 @@
 
 
-## `@releasekit/version` @ 0.7.47
+## `@releasekit/version` @ 0.7.48
 
 ### General:
-- update noExternal dependencies in tsup configuration for release and version packages
+- add git configuration step and enhance input handling in action.yml; remove debug logging from run-action.mjs
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.46...releasekit-version-v0.7.47
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.47...releasekit-version-v0.7.48
 
 ---
 
 
-## `@releasekit/notes` @ 0.7.47
+## `@releasekit/notes` @ 0.7.48
 
 ### General:
-- update noExternal dependencies in tsup configuration for release and version packages
+- add git configuration step and enhance input handling in action.yml; remove debug logging from run-action.mjs
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.46...releasekit-version-v0.7.47
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.47...releasekit-version-v0.7.48
 
 ---
 
 
-## `@releasekit/publish` @ 0.7.47
+## `@releasekit/publish` @ 0.7.48
 
 ### General:
-- update noExternal dependencies in tsup configuration for release and version packages
+- add git configuration step and enhance input handling in action.yml; remove debug logging from run-action.mjs
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.46...releasekit-version-v0.7.47
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.47...releasekit-version-v0.7.48
 
 ---
 
 
-## `@releasekit/release` @ 0.7.47
+## `@releasekit/release` @ 0.7.48
 
 ### General:
-- update noExternal dependencies in tsup configuration for release and version packages
+- add git configuration step and enhance input handling in action.yml; remove debug logging from run-action.mjs
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.46...releasekit-version-v0.7.47
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.47...releasekit-version-v0.7.48
 
