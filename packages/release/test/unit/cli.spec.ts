@@ -13,8 +13,8 @@ describe('createReleaseProgram', () => {
     expect(createReleaseProgram().name()).toBe('releasekit-release');
   });
 
-  it('should have release as the default subcommand', () => {
+  it('should have preview as the default subcommand', () => {
     const program = createReleaseProgram();
-    expect((program as unknown as { _defaultCommandName: string })._defaultCommandName).toBe('release');
+    expect((program as unknown as { _defaultCommandName: string })._defaultCommandName).toBe('preview');
   });
 });
