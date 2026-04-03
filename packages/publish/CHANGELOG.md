@@ -41,6 +41,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.44] - 2026-04-03
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.32...releasekit-version-v0.7.44)
+
+### Changed
+- update package versions to 0.7.43 and streamline keywords and files in package.json for notes, publish, and version packages
+- add conventional changelog packages to tsup configuration
+- release @releasekit/release@0.7.43 [skip ci]
+- release @releasekit/release@0.7.42 [skip ci]
+- release @releasekit/release@0.7.41 [skip ci]
+- release @releasekit/release@0.7.40 [skip ci]
+- release @releasekit/release@0.7.39 [skip ci]
+- release @releasekit/release@0.7.38 [skip ci]
+- release @releasekit/release@0.7.37 [skip ci]
+- release @releasekit/release@0.7.36 [skip ci]
+- release @releasekit/release@0.7.35 [skip ci]
+- release @releasekit/release@0.7.34 [skip ci]
+- release @releasekit/release@0.7.33 [skip ci]
+
+### Fixed
+- add PNPM_HOME to spawned env for proper resolution
+- run CLI with node directly instead of pnpm exec
+- scan pnpm subdirs for node_modules resolution
+- resolve projectDir relative to cwd not action dir
+- prioritize user project node_modules in NODE_PATH
+- use pnpm exec and clean INPUT_* env vars for proper resolution
+- remove INPUT_PROJECT_DIR from spawned env to fix path resolution
+- properly traverse .pnpm dirs to find packages
+- scan all directories in node_modules for better resolution
+- filter non-directories from .pnpm scan
+- scan .pnpm subdirs in NODE_PATH for module resolution
+
 ## [0.7.32] - 2026-04-02
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.31...releasekit-version-v0.7.32)
