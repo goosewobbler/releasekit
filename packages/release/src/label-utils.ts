@@ -63,8 +63,3 @@ export function checkAndWarnBumpConflict(prLabels: string[], labels: LabelConfig
 
   return false;
 }
-
-export function hasLabelConflicts(prLabels: string[], labels: LabelConfig = DEFAULT_LABELS): boolean {
-  const conflict = detectLabelConflicts(prLabels, labels);
-  return conflict.bumpConflict || conflict.prereleaseConflict;
-}
