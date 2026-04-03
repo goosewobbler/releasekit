@@ -1,5 +1,3 @@
-import { warn } from '@releasekit/core';
-
 export interface LabelConfig {
   stable: string;
   prerelease: string;
@@ -46,20 +44,4 @@ export function detectLabelConflicts(prLabels: string[], labels: LabelConfig = D
     hasStable,
     hasPrerelease,
   };
-}
-
-export function checkAndWarnBumpConflict(prLabels: string[], labels: LabelConfig = DEFAULT_LABELS): boolean {
-  const conflict = detectLabelConflicts(prLabels, labels);
-
-  if (conflict.bumpConflict) {
-    warn(`Conflicting bump labels detected (${conflict.bumpLabelsPresent.join(', ')}) — release blocked`);
-    return true;
-  }
-
-  if (conflict.prereleaseConflict) {
-    warn(`Conflicting labels "${labels.stable}" and "${labels.prerelease}" detected — release blocked`);
-    return true;
-  }
-
-  return false;
 }
