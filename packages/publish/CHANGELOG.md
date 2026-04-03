@@ -43,6 +43,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.46] - 2026-04-03
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.45...releasekit-version-v0.7.46)
+
+### Changed
+- remove noExternal dependencies from tsup configuration for release and version packages
+- update package.json and pnpm-lock.yaml to include conventional changelog dependencies
+
 ## [0.7.45] - 2026-04-03
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.44...releasekit-version-v0.7.45)
