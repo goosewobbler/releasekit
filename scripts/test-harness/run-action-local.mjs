@@ -129,14 +129,15 @@ export function runActionLocal(inputWithEnvVars, options = {}) {
     ...process.env,
     ...inputWithEnvVars,
   };
-  for (const k of Object.keys(spawnEnv).filter((k) => k.startsWith('INPUT_'))) {
-    delete spawnEnv[k];
-  }
 
-  const input = parseInputs(spawnEnv);
+  const input = parseInputs(inputWithEnvVars);
   const mode = input.mode;
   if (mode !== 'release' && mode !== 'preview') {
     throw new Error(`Invalid mode: ${mode}. Expected "release" or "preview".`);
+  }
+
+  for (const k of Object.keys(spawnEnv).filter((k) => k.startsWith('INPUT_'))) {
+    delete spawnEnv[k];
   }
 
   const args = mode === 'release' ? buildReleaseArgs(input) : buildPreviewArgs(input);

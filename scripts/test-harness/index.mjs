@@ -47,7 +47,6 @@ try {
     INPUT_MODE: mode,
     INPUT_PROJECT_DIR: testProject.projectDir,
     INPUT_CONFIG: 'releasekit.config.json',
-    INPUT_VERBOSE: 'true',
     INPUT_DRY_RUN: 'true',
     INPUT_SKIP_PUBLISH: 'true',
     INPUT_SKIP_GITHUB_RELEASE: 'true',
@@ -56,6 +55,7 @@ try {
   };
 
   if (mode === 'release') {
+    envVars.INPUT_VERBOSE = 'true';
     envVars.INPUT_JSON = 'true';
     if (options.bump) {
       envVars.INPUT_BUMP = options.bump;
