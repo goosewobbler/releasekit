@@ -11,7 +11,7 @@ export function createReleaseProgram(): Command {
     .name('releasekit-release')
     .description('Unified release pipeline: version, changelog, and publish')
     .version(readPackageVersion(import.meta.url))
-    .addCommand(createPreviewCommand())
+    .addCommand(createPreviewCommand(), { isDefault: true })
     .addCommand(createReleaseCommand());
 }
 

@@ -53,8 +53,8 @@ describe('createDispatcherProgram', () => {
     expect(cmd).toBeDefined();
   });
 
-  it('should have release as the default command', () => {
+  it('should have preview as the default command', () => {
     const program = createDispatcherProgram();
-    expect((program as unknown as { _defaultCommandName: string })._defaultCommandName).toBe('release');
+    expect((program as unknown as { _defaultCommandName: string })._defaultCommandName).toBe('preview');
   });
 });
