@@ -62,6 +62,7 @@ export function buildPreviewArgs(input) {
   pushOptionalArg(args, '--project-dir', input.projectDir);
   pushOptionalArg(args, '--pr', input.pr);
   pushOptionalArg(args, '--repo', input.repo);
+  pushOptionalArg(args, '--target', input.previewTarget);
 
   if (input.previewPrerelease) {
     args.push('--prerelease', input.previewPrerelease);
@@ -131,6 +132,7 @@ export function parseInputs(env = process.env) {
     previewPrerelease: normalizeString(env.INPUT_PREVIEW_PRERELEASE),
     previewStable: env.INPUT_PREVIEW_STABLE,
     previewDryRun: env.INPUT_PREVIEW_DRY_RUN,
+    previewTarget: normalizeString(env.INPUT_PREVIEW_TARGET),
   };
 }
 
