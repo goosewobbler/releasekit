@@ -5,7 +5,7 @@ export default defineConfig({
     js: `import {createRequire as __createRequire} from 'module';
 var require = __createRequire(import.meta.url);`.trim(),
   },
-  entry: ['src/dispatcher.ts', 'src/cli.ts'],
+  entry: ['src/index.ts', 'src/dispatcher.ts', 'src/cli.ts'],
   format: ['esm'],
   platform: 'node',
   bundle: true,
