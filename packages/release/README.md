@@ -285,6 +285,12 @@ When a PR has a matching scope label, only packages matching the pattern are inc
 
 Multiple scope labels are combined with OR logic. Without a `release:*` label, conventional commits determine the version bump.
 
+**Label conflicts:**
+
+Conflicting labels will block the release and post a comment explaining the issue:
+- Multiple bump labels (`release:major` + `release:minor` + `release:patch`) → blocked
+- Conflicting release type (`release:stable` + `release:prerelease`) → blocked
+
 **How it works:**
 
 - **Preview mode**: Reads labels directly from the PR
