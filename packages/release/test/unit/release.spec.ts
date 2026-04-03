@@ -79,12 +79,6 @@ vi.mock('@releasekit/core', async (importOriginal) => {
   };
 });
 
-vi.mock('../../src/preview-github.js', () => ({
-  createOctokit: vi.fn().mockReturnValue({}),
-  findMergedPRsForCommit: vi.fn().mockResolvedValue([]),
-  fetchPRLabels: vi.fn().mockResolvedValue([]),
-}));
-
 // --- Fixtures ---
 
 const defaultOptions: ReleaseOptions = {
@@ -148,6 +142,9 @@ describe('runRelease', () => {
     vi.clearAllMocks();
 
     // Default mock setup
+    mockCreateOctokit.mockReturnValue({});
+    mockFindMergedPRsForCommit.mockResolvedValue([]);
+    mockFetchPRLabels.mockResolvedValue([]);
     mockLoadReleaseKitConfig.mockReturnValue({});
     mockVersionLoadConfig.mockReturnValue({ preset: 'conventional-commits' });
     mockVersionEngineGetWorkspacePackages.mockResolvedValue({
