@@ -55,6 +55,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.47] - 2026-04-03
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.46...releasekit-version-v0.7.47)
+
+### Changed
+- update noExternal dependencies in tsup configuration for release and version packages
+
 ## [0.7.46] - 2026-04-03
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.45...releasekit-version-v0.7.46)

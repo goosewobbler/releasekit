@@ -1,43 +1,39 @@
 
 
-## `@releasekit/version` @ 0.7.46
+## `@releasekit/version` @ 0.7.47
 
 ### General:
-- remove noExternal dependencies from tsup configuration for release and version packages
-- update package.json and pnpm-lock.yaml to include conventional changelog dependencies
+- update noExternal dependencies in tsup configuration for release and version packages
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.45...releasekit-version-v0.7.46
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.46...releasekit-version-v0.7.47
 
 ---
 
 
-## `@releasekit/notes` @ 0.7.46
+## `@releasekit/notes` @ 0.7.47
 
 ### General:
-- remove noExternal dependencies from tsup configuration for release and version packages
-- update package.json and pnpm-lock.yaml to include conventional changelog dependencies
+- update noExternal dependencies in tsup configuration for release and version packages
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.45...releasekit-version-v0.7.46
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.46...releasekit-version-v0.7.47
 
 ---
 
 
-## `@releasekit/publish` @ 0.7.46
+## `@releasekit/publish` @ 0.7.47
 
 ### General:
-- remove noExternal dependencies from tsup configuration for release and version packages
-- update package.json and pnpm-lock.yaml to include conventional changelog dependencies
+- update noExternal dependencies in tsup configuration for release and version packages
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.45...releasekit-version-v0.7.46
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.46...releasekit-version-v0.7.47
 
 ---
 
 
-## `@releasekit/release` @ 0.7.46
+## `@releasekit/release` @ 0.7.47
 
 ### General:
-- remove noExternal dependencies from tsup configuration for release and version packages
-- update package.json and pnpm-lock.yaml to include conventional changelog dependencies
+- update noExternal dependencies in tsup configuration for release and version packages
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.45...releasekit-version-v0.7.46
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.46...releasekit-version-v0.7.47
 
