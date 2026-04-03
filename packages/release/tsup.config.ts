@@ -12,5 +12,11 @@ var require = __createRequire(import.meta.url);`.trim(),
   dts: false,
   minify: false,
   splitting: false,
-  noExternal: [],
+  noExternal: [
+    '@releasekit/core',
+    '@releasekit/config',
+    '@releasekit/version',
+    '@releasekit/notes',
+    '@releasekit/publish',
+  ],
 } as Options);

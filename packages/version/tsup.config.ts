@@ -6,6 +6,6 @@ export default defineConfig({
   platform: 'node',
   bundle: true,
   dts: { resolve: ['@releasekit/core', '@releasekit/config'] },
-  noExternal: [],
+  noExternal: ['@releasekit/core', '@releasekit/config'],
   external: [/^[^.]/],
 } as Options);
