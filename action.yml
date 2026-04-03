@@ -149,12 +149,43 @@ runs:
       working-directory: ${{ github.action_path }}
       shell: bash
 
+    - name: Configure git
+      run: |
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git config --global user.name "github-actions[bot]"
+      shell: bash
+
     - name: Run ReleaseKit action
       id: run
       shell: bash
       working-directory: ${{ inputs.project-dir || '.' }}
       env:
+        INPUT_MODE: ${{ inputs.mode }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_PROJECT_DIR: ${{ inputs.project-dir }}
+        INPUT_DRY_RUN: ${{ inputs.dry-run }}
+        INPUT_JSON: ${{ inputs.json }}
+        INPUT_VERBOSE: ${{ inputs.verbose }}
+        INPUT_QUIET: ${{ inputs.quiet }}
+        INPUT_BUMP: ${{ inputs.bump }}
+        INPUT_PRERELEASE: ${{ inputs.prerelease }}
+        INPUT_SYNC: ${{ inputs.sync }}
+        INPUT_TARGET: ${{ inputs.target }}
+        INPUT_BRANCH: ${{ inputs.branch }}
+        INPUT_NPM_AUTH: ${{ inputs.npm-auth }}
+        INPUT_NPM_TOKEN: ${{ inputs.npm-token }}
+        INPUT_SKIP_NOTES: ${{ inputs.skip-notes }}
+        INPUT_SKIP_PUBLISH: ${{ inputs.skip-publish }}
+        INPUT_SKIP_GIT: ${{ inputs.skip-git }}
+        INPUT_SKIP_GITHUB_RELEASE: ${{ inputs.skip-github-release }}
+        INPUT_SKIP_VERIFICATION: ${{ inputs.skip-verification }}
+        INPUT_PR: ${{ inputs.pr }}
+        INPUT_REPO: ${{ inputs.repo }}
+        INPUT_PREVIEW_PRERELEASE: ${{ inputs.preview-prerelease }}
+        INPUT_PREVIEW_STABLE: ${{ inputs.preview-stable }}
+        INPUT_PREVIEW_DRY_RUN: ${{ inputs.preview-dry-run }}
         GITHUB_TOKEN: ${{ github.token }}
         NPM_TOKEN: ${{ inputs.npm-token }}
         VERBOSE: ${{ inputs.verbose }}
+        OLLAMA_API_KEY: ${{ env.OLLAMA_API_KEY }}
       run: node ${{ github.action_path }}/scripts/run-action.mjs

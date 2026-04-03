@@ -197,19 +197,6 @@ export function runAction(input, options = {}) {
     })
     .join(':');
 
-  if (process.env.VERBOSE === 'true' || input.verbose) {
-    console.error('[run-action] DEBUG:');
-    console.error(`  actionDir: ${actionDir}`);
-    console.error(`  projectDir: ${projectDir}`);
-    console.error(`  resolvedProjectDir: ${resolvedProjectDir}`);
-    console.error(`  cliPath: ${cliPath}`);
-    console.error(`  cwd: ${resolvedProjectDir}`);
-    console.error(`  NODE_PATH entries:`, nodePaths.split(':').length);
-    for (const p of nodePaths.split(':')) {
-      console.error(`    - ${p}`);
-    }
-  }
-
   const spawnEnv = {
     ...process.env,
     NODE_PATH: nodePaths,
@@ -224,10 +211,6 @@ export function runAction(input, options = {}) {
     env: spawnEnv,
     cwd: resolvedProjectDir,
   });
-
-  if (process.env.VERBOSE === 'true' || input.verbose) {
-    console.error('[run-action] DEBUG exit:', result.status);
-  }
 
   return { mode, args, ...result };
 }
