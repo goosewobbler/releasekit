@@ -116,8 +116,9 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   const releaseConfig = releaseKitConfig.release;
 
   // Apply scope labels from PR labels (if GitHub context available)
+  // Skip in dry-run mode since preview.ts already handles scope labels
   const ciConfig = loadCIConfig({ cwd: options.projectDir, configPath: options.config });
-  if (ciConfig?.scopeLabels) {
+  if (ciConfig?.scopeLabels && !options.dryRun) {
     const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
     if (scopeResult.target !== options.target) {
       options.target = scopeResult.target;
