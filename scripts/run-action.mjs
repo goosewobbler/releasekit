@@ -106,7 +106,7 @@ function setFailure(errorMessage) {
 
 export function parseInputs(env = process.env) {
   return {
-    mode: normalizeString(env.INPUT_MODE) ?? 'release',
+    mode: normalizeString(env.INPUT_MODE) ?? 'preview',
     config: normalizeString(env.INPUT_CONFIG),
     projectDir: normalizeString(env.INPUT_PROJECT_DIR) ?? '.',
     dryRun: env.INPUT_DRY_RUN,
