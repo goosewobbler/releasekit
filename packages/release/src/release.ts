@@ -58,6 +58,14 @@ async function applyScopeLabelsFromPR(
 
   const prNumbers = await findMergedPRsForCommit(octokit, githubContext.owner, githubContext.repo, githubContext.sha);
   if (prNumbers.length === 0) {
+    if (defaultScope && Object.keys(scopeLabels).length > 0) {
+      const defaultPattern = scopeLabels[defaultScope];
+      if (defaultPattern) {
+        info(`No merged PRs found — using default scope "${defaultScope}" (${defaultPattern})`);
+        const existingTargets = options.target ? options.target.split(',').map((t) => t.trim()) : [];
+        return { target: [...existingTargets, defaultPattern].join(', '), scopeLabels: [] };
+      }
+    }
     info('No merged PRs found for HEAD commit — releasing all packages');
     return { target: options.target, scopeLabels: [] };
   }
