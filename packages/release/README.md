@@ -293,7 +293,7 @@ Multiple scope labels are combined with OR logic. Without a `release:*` label, c
 **Example workflow configuration:**
 
 ```yaml
-# Pass all packages - releasekit filters by scope labels
+# Specify a fallback target - scope labels will filter to specific packages when found
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -301,11 +301,11 @@ jobs:
       - uses: goosewobbler/releasekit@v1
         with:
           mode: release
-          # All packages included; scope labels filter at runtime
+          # Fallback target - used when no scope label is found
           target: "@myorg/shared-*,@myorg/ui-*,@myorg/api-*"
 ```
 
-With this setup, releasekit automatically detects which packages to release based on the PR labels.
+With this setup, releasekit will use the specified packages as fallback. When a PR has a scope label, it will be used instead to filter to just those packages.
 
 ### PR Preview
 
