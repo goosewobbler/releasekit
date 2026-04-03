@@ -4,6 +4,7 @@ import { loadCIConfig, loadConfig as loadReleaseKitConfig } from '@releasekit/co
 import type { VersionOutput } from '@releasekit/core';
 import { error, info, setJsonMode, setLogLevel, setQuietMode, success, warn } from '@releasekit/core';
 import type { ReleaseType } from 'semver';
+import { checkAndWarnBumpConflict, DEFAULT_LABELS } from './label-utils.js';
 import { createOctokit, fetchPRLabels, findMergedPRsForCommit } from './preview-github.js';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
 
@@ -34,6 +35,7 @@ function getGitHubContext(): { owner: string; repo: string; sha: string } | null
 interface ScopeLabelResult {
   target: string | undefined;
   scopeLabels: string[];
+  blocked?: boolean;
 }
 
 async function applyScopeLabelsFromPR(
@@ -73,6 +75,12 @@ async function applyScopeLabelsFromPR(
   for (const prNumber of prNumbers) {
     const labels = await fetchPRLabels(octokit, githubContext.owner, githubContext.repo, prNumber);
     allLabels.push(...labels);
+  }
+
+  // Check for label conflicts
+  const ciLabels = ciConfig?.labels ?? DEFAULT_LABELS;
+  if (checkAndWarnBumpConflict(allLabels, ciLabels)) {
+    return { target: options.target, scopeLabels: [], blocked: true };
   }
 
   const matchedScopePatterns: string[] = [];
@@ -120,6 +128,10 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   const ciConfig = loadCIConfig({ cwd: options.projectDir, configPath: options.config });
   if (ciConfig?.scopeLabels && !options.dryRun) {
     const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
+    if (scopeResult.blocked) {
+      info('Release blocked due to conflicting PR labels');
+      return null;
+    }
     if (scopeResult.target !== options.target) {
       options.target = scopeResult.target;
     }

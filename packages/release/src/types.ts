@@ -6,6 +6,7 @@ export interface ReleaseOptions {
   dryRun: boolean;
   bump?: string;
   prerelease?: string | boolean;
+  stable?: boolean;
   sync: boolean;
   target?: string;
   branch?: string;
