@@ -62,8 +62,7 @@ async function applyScopeLabelsFromPR(
       const defaultPattern = scopeLabels[defaultScope];
       if (defaultPattern) {
         info(`No merged PRs found — using default scope "${defaultScope}" (${defaultPattern})`);
-        const existingTargets = options.target ? options.target.split(',').map((t) => t.trim()) : [];
-        return { target: [...existingTargets, defaultPattern].join(', '), scopeLabels: [] };
+        return { target: defaultPattern, scopeLabels: [] };
       }
     }
     info('No merged PRs found for HEAD commit — releasing all packages');
