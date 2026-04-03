@@ -29,20 +29,6 @@ export async function findMergedPRsForCommit(
 }
 
 /**
- * Find the most recently merged PR associated with a commit.
- * Returns the PR number or null if none found.
- */
-export async function findLatestMergedPR(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  commitSha: string,
-): Promise<number | undefined> {
-  const prs = await findMergedPRsForCommit(octokit, owner, repo, commitSha);
-  return prs.length > 0 ? prs[0] : undefined;
-}
-
-/**
  * Find an existing release preview comment on the PR by looking for the HTML marker.
  */
 export async function findPreviewComment(
