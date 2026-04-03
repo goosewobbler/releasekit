@@ -290,6 +290,17 @@ export const CIConfigSchema = z.object({
     minor: 'release:minor',
     patch: 'release:patch',
   }),
+  /**
+   * Map of scope labels to package patterns.
+   * When a PR has a label matching a key, only packages matching the corresponding pattern will be released.
+   */
+  scopeLabels: z.record(z.string(), z.string()).optional(),
+  /**
+   * Default scope to use when no scope label is found on the merged PR.
+   * Must reference a key from scopeLabels (e.g., "scope:shared").
+   * Only applies when scopeLabels is configured.
+   */
+  defaultScope: z.string().optional(),
 });
 
 export const ReleaseCIConfigSchema = z.object({

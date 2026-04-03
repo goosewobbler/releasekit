@@ -18,6 +18,7 @@ export interface PreviewOptions {
   prerelease?: string | boolean;
   stable?: boolean;
   bump?: string;
+  target?: string;
 }
 
 interface LabelOverrideResult {
@@ -89,6 +90,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
       verbose: false,
       quiet: true,
       projectDir: effectiveOptions.projectDir,
+      target: effectiveOptions.target,
     });
   } else {
     info('No release label detected — skipping version analysis');
@@ -148,12 +150,14 @@ function resolvePrerelease(
  * - `skip` label → marks release as skipped (preview still shows what would release)
  * - `major` label → forces major bump override
  * - `stable`/`prerelease` labels → modifier overrides (when CLI flags unset)
+ * - `scope:*` labels → filter packages by configured scope patterns
  *
  * **label mode**:
  * - `major`/`minor`/`patch` labels → required to trigger release, determines bump type
- * - No bump label → no release (noBumpLabel = true)
+ * - No bump label → no release (noBumpLabel = true), UNLESS scope:* labels are present (then use conventional commits)
  * - `stable`/`prerelease` labels → modifier overrides on top
  * - `skip` label → ignored (redundant, no bump label already means no release)
+ * - `scope:*` labels → filter packages by configured scope patterns (allows conventional commits bump)
  *
  * CLI flags always take highest priority over labels.
  */
@@ -165,6 +169,7 @@ async function applyLabelOverrides(
 ): Promise<LabelOverrideResult> {
   const trigger = ciConfig?.releaseTrigger ?? 'label';
   const labels = ciConfig?.labels ?? DEFAULT_LABELS;
+  const scopeLabels = ciConfig?.scopeLabels ?? {};
   const defaultLabelContext: LabelContext = { trigger, skip: false, noBumpLabel: false };
 
   if (!context) {
@@ -189,7 +194,26 @@ async function applyLabelOverrides(
   }
 
   const result = { ...options };
-  const labelContext: LabelContext = { trigger, skip: false, noBumpLabel: false, labels };
+  const labelContext: LabelContext = { trigger, skip: false, noBumpLabel: false, labels, scopeLabels: [] };
+
+  // Handle scope labels - build list of matched scope patterns
+  const matchedScopePatterns: string[] = [];
+  for (const [labelName, packagePattern] of Object.entries(scopeLabels)) {
+    if (prLabels.includes(labelName)) {
+      info(`PR label "${labelName}" detected — limiting release to packages matching "${packagePattern}")`);
+      matchedScopePatterns.push(packagePattern);
+    }
+  }
+  labelContext.scopeLabels = matchedScopePatterns;
+
+  // Apply scope filter if any scope labels matched, otherwise use defaultScope if configured
+  if (matchedScopePatterns.length > 0) {
+    result.target = matchedScopePatterns.join(', ');
+  } else if (ciConfig?.defaultScope && scopeLabels[ciConfig.defaultScope]) {
+    const defaultPattern = scopeLabels[ciConfig.defaultScope];
+    info(`No scope label found — using default scope "${ciConfig.defaultScope}" (${defaultPattern})`);
+    result.target = defaultPattern;
+  }
 
   if (trigger === 'commit') {
     // Skip label check
@@ -218,9 +242,12 @@ async function applyLabelOverrides(
       info(`PR label "${labels.patch}" detected — patch release`);
       labelContext.bumpLabel = 'patch';
       result.bump = 'patch';
-    } else {
+    } else if (matchedScopePatterns.length === 0) {
+      // No bump label AND no scope labels → require release label in label mode
       labelContext.noBumpLabel = true;
     }
+    // If scope labels are present but no release label, we don't set noBumpLabel = true
+    // This allows conventional commits to determine the bump
   }
 
   // Stable/prerelease label modifiers (both modes, only when CLI flags unset)

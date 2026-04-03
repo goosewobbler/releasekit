@@ -11,6 +11,7 @@ export function createPreviewCommand(): Command {
     .option('--repo <owner/repo>', 'Repository (auto-detected from GITHUB_REPOSITORY)')
     .option('-p, --prerelease [identifier]', 'Force prerelease preview (auto-detected by default)')
     .option('--stable', 'Force stable release preview (graduation from prerelease)', false)
+    .option('-t, --target <packages>', 'Target specific packages (comma-separated)')
     .option(
       '-d, --dry-run',
       'Print the comment to stdout without posting (GitHub context not available in dry-run mode)',
@@ -26,6 +27,7 @@ export function createPreviewCommand(): Command {
           prerelease: opts.prerelease,
           stable: opts.stable,
           dryRun: opts.dryRun,
+          target: opts.target,
         });
       } catch (error) {
         console.error(error instanceof Error ? error.message : String(error));

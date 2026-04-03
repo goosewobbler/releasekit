@@ -76,6 +76,7 @@ uses: goosewobbler/releasekit@v1
 | `preview-prerelease` | - | Force prerelease preview identifier |
 | `preview-stable` | `false` | Force stable preview |
 | `preview-dry-run` | `false` | Print markdown instead of posting |
+| `preview-target` | - | Comma-separated package targets |
 
 ## Outputs
 
