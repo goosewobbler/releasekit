@@ -571,4 +571,157 @@ describe('runPreview', () => {
 
     consoleSpy.mockRestore();
   });
+
+  // --- Scope label tests ---
+
+  it('applies scope label to filter packages in commit mode', async () => {
+    mockLoadCIConfig.mockReturnValue({
+      releaseTrigger: 'commit',
+      scopeLabels: {
+        'scope:shared': '@wdio/native-*',
+        'scope:tauri': '@wdio/tauri-*',
+      },
+    });
+    mockFetchPRLabels.mockResolvedValue(['scope:shared']);
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*' }));
+    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+      expect.anything(),
+      'owner',
+      'repo',
+      1,
+      expect.stringContaining('**Scope:**'),
+    );
+  });
+
+  it('applies scope label in label mode without requiring release label', async () => {
+    mockLoadCIConfig.mockReturnValue({
+      releaseTrigger: 'label',
+      scopeLabels: {
+        'scope:shared': '@wdio/native-*',
+      },
+    });
+    mockFetchPRLabels.mockResolvedValue(['scope:shared']);
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    // Should run release analysis because scope label is present (even without release label)
+    expect(mockRunRelease).toHaveBeenCalled();
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*' }));
+  });
+
+  it('combines multiple scope labels with OR logic', async () => {
+    mockLoadCIConfig.mockReturnValue({
+      releaseTrigger: 'commit',
+      scopeLabels: {
+        'scope:shared': '@wdio/native-*',
+        'scope:tauri': '@wdio/tauri-*',
+      },
+    });
+    mockFetchPRLabels.mockResolvedValue(['scope:shared', 'scope:tauri']);
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    // Should include both patterns
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*, @wdio/tauri-*' }));
+  });
+
+  it('combines scope label with release label', async () => {
+    mockLoadCIConfig.mockReturnValue({
+      releaseTrigger: 'label',
+      scopeLabels: {
+        'scope:shared': '@wdio/native-*',
+      },
+    });
+    mockFetchPRLabels.mockResolvedValue(['scope:shared', 'release:minor']);
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*', bump: 'minor' }));
+  });
+
+  it('scope label without release label uses conventional commits in label mode', async () => {
+    mockLoadCIConfig.mockReturnValue({
+      releaseTrigger: 'label',
+      scopeLabels: {
+        'scope:shared': '@wdio/native-*',
+      },
+    });
+    mockFetchPRLabels.mockResolvedValue(['scope:shared']);
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    // Should run release analysis but not set bump (let conventional commits decide)
+    expect(mockRunRelease).toHaveBeenCalled();
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*', bump: undefined }));
+  });
+
+  it('CLI --target flag takes priority over scope labels', async () => {
+    mockLoadCIConfig.mockReturnValue({
+      releaseTrigger: 'commit',
+      scopeLabels: {
+        'scope:shared': '@wdio/native-*',
+      },
+    });
+    mockFetchPRLabels.mockResolvedValue(['scope:shared']);
+
+    await runPreview({ projectDir: '/test', dryRun: false, target: '@custom/pkg' });
+
+    // CLI target should be combined with scope label patterns
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@custom/pkg, @wdio/native-*' }));
+  });
+
+  it('displays scope in preview comment banner', async () => {
+    mockLoadCIConfig.mockReturnValue({
+      releaseTrigger: 'commit',
+      scopeLabels: {
+        'scope:shared': '@wdio/native-*',
+      },
+    });
+    mockFetchPRLabels.mockResolvedValue(['scope:shared']);
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+      expect.anything(),
+      'owner',
+      'repo',
+      1,
+      expect.stringContaining('**Scope:** @wdio/native-*'),
+    );
+  });
+
+  it('uses custom scope label names from CI config', async () => {
+    mockLoadCIConfig.mockReturnValue({
+      releaseTrigger: 'commit',
+      scopeLabels: {
+        'shared-pkg': '@wdio/native-*',
+      },
+    });
+    mockFetchPRLabels.mockResolvedValue(['shared-pkg']);
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*' }));
+  });
+
+  it('no scope label runs all packages', async () => {
+    mockLoadCIConfig.mockReturnValue({
+      releaseTrigger: 'commit',
+      scopeLabels: {
+        'scope:shared': '@wdio/native-*',
+      },
+    });
+    mockFetchPRLabels.mockResolvedValue(['bug']);
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    // When no scope label present, target should not be set to a scope pattern
+    expect(mockRunRelease).toHaveBeenCalled();
+    const callArgs = mockRunRelease.mock.calls[0][0];
+    // Target should be undefined or not contain scope patterns
+    expect(callArgs.target).toBeUndefined();
+  });
 });

@@ -420,4 +420,76 @@ describe('formatPreviewComment', () => {
     const result = formatPreviewComment(output);
     expect(result).toContain('N/A → 1.0.0');
   });
+
+  // --- Scope label context ---
+
+  describe('scope labels in label context', () => {
+    it('shows scope banner when scope labels present', () => {
+      const result = formatPreviewComment(releaseOutput, {
+        labelContext: {
+          trigger: 'commit',
+          skip: false,
+          noBumpLabel: false,
+          scopeLabels: ['@wdio/native-*'],
+        },
+      });
+      expect(result).toContain('**Scope:**');
+      expect(result).toContain('@wdio/native-*');
+    });
+
+    it('shows multiple scope labels', () => {
+      const result = formatPreviewComment(releaseOutput, {
+        labelContext: {
+          trigger: 'commit',
+          skip: false,
+          noBumpLabel: false,
+          scopeLabels: ['@wdio/native-*', '@wdio/tauri-*'],
+        },
+      });
+      expect(result).toContain('**Scope:**');
+      expect(result).toContain('@wdio/native-*');
+      expect(result).toContain('@wdio/tauri-*');
+    });
+
+    it('shows scope with bump label in label mode', () => {
+      const result = formatPreviewComment(releaseOutput, {
+        labelContext: {
+          trigger: 'label',
+          skip: false,
+          bumpLabel: 'minor',
+          noBumpLabel: false,
+          scopeLabels: ['@wdio/native-*'],
+        },
+      });
+      expect(result).toContain('**Scope:**');
+      expect(result).toContain('@wdio/native-*');
+      expect(result).toContain('labeled for a **minor** release');
+    });
+
+    it('omits scope when no scope labels present', () => {
+      const result = formatPreviewComment(releaseOutput, {
+        labelContext: {
+          trigger: 'commit',
+          skip: false,
+          noBumpLabel: false,
+        },
+      });
+      expect(result).not.toContain('**Scope:**');
+    });
+
+    it('shows scope even when noBumpLabel is true in label mode', () => {
+      const result = formatPreviewComment(null, {
+        labelContext: {
+          trigger: 'label',
+          skip: false,
+          noBumpLabel: true,
+          scopeLabels: ['@wdio/native-*'],
+        },
+      });
+      // Scope should still show even when there's no bump label
+      expect(result).toContain('**Scope:**');
+      expect(result).toContain('@wdio/native-*');
+      expect(result).toContain('No release label detected');
+    });
+  });
 });

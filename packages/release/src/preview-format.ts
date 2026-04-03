@@ -37,6 +37,7 @@ export interface LabelContext {
     minor: string;
     patch: string;
   };
+  scopeLabels?: string[];
 }
 
 export interface FormatOptions {
@@ -78,6 +79,13 @@ function getIntroMessage(strategy: ReleaseStrategy, standingPrNumber?: number): 
 function getLabelBanner(labelContext?: LabelContext): string[] {
   if (!labelContext) return [];
 
+  const lines: string[] = [];
+
+  // Add scope label info if present
+  if (labelContext.scopeLabels && labelContext.scopeLabels.length > 0) {
+    lines.push(`> **Scope:** ${labelContext.scopeLabels.join(', ')}`, '');
+  }
+
   if (labelContext.trigger === 'commit') {
     if (labelContext.skip) {
       return ['> **Warning:** This PR is marked to skip release.', ''];
@@ -93,14 +101,16 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
       const labelExamples = labels
         ? `\`${labels.patch}\`, \`${labels.minor}\`, or \`${labels.major}\``
         : 'a release label (e.g., `release:patch`, `release:minor`, `release:major`)';
-      return ['> No release label detected.', `> **Note:** Add ${labelExamples} to trigger a release.`, ''];
+      lines.push('> No release label detected.', `> **Note:** Add ${labelExamples} to trigger a release.`, '');
+      return lines;
     }
     if (labelContext.bumpLabel) {
-      return [`> This PR is labeled for a **${labelContext.bumpLabel}** release.`, ''];
+      lines.push(`> This PR is labeled for a **${labelContext.bumpLabel}** release.`, '');
+      return lines;
     }
   }
 
-  return [];
+  return lines;
 }
 
 export function formatPreviewComment(result: ReleaseOutput | null, options?: FormatOptions): string {
