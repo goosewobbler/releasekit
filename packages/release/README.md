@@ -241,7 +241,7 @@ The `ci` section controls automation behavior:
 
 **`commit`** — Conventional commits drive the bump type automatically. Every merge can trigger a release. Use the `release:skip` label to prevent a release, or `bump:major` to override the commit-derived bump to major.
 
-Both modes support `release:stable` and `release:prerelease` as modifiers.
+Both modes support `release:stable` and `release:prerelease` as channel modifiers. `release:stable` alone promotes a prerelease to stable without requiring a bump label. `release:prerelease` must be combined with a `bump:*` label — alone, it does not trigger a release.
 
 #### Release Strategy
 

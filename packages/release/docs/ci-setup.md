@@ -63,9 +63,25 @@ Only release when a PR is merged with a release label. Conventional commits dete
 | `bump:patch` | Bump patch version |
 | `bump:minor` | Bump minor version |
 | `bump:major` | Bump major version |
-| `release:stable` | Graduate prerelease to stable (e.g. `1.0.0-next.6` → `1.0.0`). Can be used standalone or with a bump:* label |
-| `release:prerelease` | Create/increment prerelease (e.g. `1.0.0-next.6` → `1.0.0-next.7`). Without a bump:* label, defaults to patch. Can be used standalone or with a bump:* label |
-| `release:skip` | Suppress release on this PR |
+| `release:stable` | Promote a prerelease to stable (e.g. `1.0.0-next.6` → `1.0.0`). Can be used alone — no bump label needed. Has no effect on stable versions. |
+| `release:prerelease` | Channel modifier — must be combined with a `bump:*` label. Alone, no release is triggered. |
+| `release:skip` | Suppress release on this PR (commit trigger mode only) |
+
+#### Label combinations
+
+| Labels | Current version | Result |
+|--------|-----------------|--------|
+| `bump:patch` | `1.0.0` | `1.0.1` |
+| `bump:minor` | `1.0.0` | `1.1.0` |
+| `bump:major` | `1.0.0` | `2.0.0` |
+| `release:prerelease` + `bump:patch` | `1.0.0` | `1.0.1-next.0` |
+| `release:prerelease` + `bump:minor` | `1.0.0` | `1.1.0-next.0` |
+| `release:prerelease` + `bump:major` | `1.0.0` | `2.0.0-next.0` |
+| `release:prerelease` + `bump:patch` | `1.0.0-next.6` | `1.0.0-next.7` |
+| `release:prerelease` alone | any | No release — add a `bump:*` label |
+| `release:stable` alone | `1.0.0-next.6` | `1.0.0` |
+| `release:stable` alone | `1.0.0` | No prerelease effect — bump (if any) from conventional commits |
+| `release:stable` + any `bump:*` | `1.0.0-next.6` | `1.0.0` — bump label is ignored during stable promotion |
 
 ```yaml
 # .github/workflows/release.yml
