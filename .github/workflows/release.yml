@@ -91,19 +91,19 @@ jobs:
             exit 0
           fi
 
-          # Check if any bump:* label exists on merged PRs.
+          # Check if any release label exists on merged PRs.
           # releasekit will read the actual labels and determine bump type.
           LABELS=$(echo "$PRS_OUTPUT" | jq -r '.[].labels[].name' 2>/dev/null)
           
-          if echo "$LABELS" | grep -qE "^bump:(patch|minor|major)$"; then
+          if echo "$LABELS" | grep -qE "^(bump:(patch|minor|major)|release:stable)$"; then
             echo "should_release=true" >> "$GITHUB_OUTPUT"
             echo "bump=auto" >> "$GITHUB_OUTPUT"
-            echo "Bump label found on merged PRs — releasekit will determine bump type"
+            echo "Release label found on merged PRs — releasekit will determine action"
             exit 0
           fi
           
           echo "should_release=false" >> "$GITHUB_OUTPUT"
-          echo "No bump label found on merged PRs, skipping release"
+          echo "No release label found on merged PRs, skipping release"
 
   release-auto:
     name: Auto Release
