@@ -287,9 +287,11 @@ async function applyLabelOverrides(
     } else if (conflict.hasStable) {
       info(`PR label "${labels.stable}" detected — using stable release preview`);
       result.stable = true;
+      labelContext.stable = true;
     } else if (conflict.hasPrerelease) {
       info(`PR label "${labels.prerelease}" detected — using prerelease preview`);
       result.prerelease = true;
+      labelContext.prerelease = true;
       // Default to patch bump when only prerelease label is present (label mode only)
       if (trigger === 'label' && !result.bump) {
         info('No bump label found — defaulting to patch bump for prerelease release');

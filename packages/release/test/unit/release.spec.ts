@@ -666,7 +666,7 @@ describe('runRelease', () => {
     it('should not block release when no scopeLabels configured and no conflicts', async () => {
       mockLoadCIConfig.mockReturnValue({});
       mockFindMergedPRsForCommit.mockResolvedValue([123]);
-      mockFetchPRLabels.mockResolvedValue(['release:minor']);
+      mockFetchPRLabels.mockResolvedValue(['bump:minor']);
 
       const { runRelease } = await import('../../src/release.js');
       const result = await runRelease(defaultOptions);
@@ -709,7 +709,7 @@ describe('runRelease', () => {
         },
       });
       mockFindMergedPRsForCommit.mockResolvedValue([123]);
-      mockFetchPRLabels.mockResolvedValue(['scope:shared', 'release:major', 'release:minor']);
+      mockFetchPRLabels.mockResolvedValue(['scope:shared', 'bump:major', 'bump:minor']);
 
       const { runRelease } = await import('../../src/release.js');
       const result = await runRelease(defaultOptions);
@@ -722,7 +722,7 @@ describe('runRelease', () => {
         releaseTrigger: 'commit',
       });
       mockFindMergedPRsForCommit.mockResolvedValue([123]);
-      mockFetchPRLabels.mockResolvedValue(['release:major', 'release:minor']);
+      mockFetchPRLabels.mockResolvedValue(['bump:major', 'bump:minor']);
 
       const { runRelease } = await import('../../src/release.js');
       const result = await runRelease(defaultOptions);
@@ -735,7 +735,7 @@ describe('runRelease', () => {
         releaseTrigger: 'label',
       });
       mockFindMergedPRsForCommit.mockResolvedValue([123, 456]);
-      mockFetchPRLabels.mockResolvedValueOnce(['release:major']).mockResolvedValueOnce(['release:minor']);
+      mockFetchPRLabels.mockResolvedValueOnce(['bump:major']).mockResolvedValueOnce(['bump:minor']);
 
       const { runRelease } = await import('../../src/release.js');
       const result = await runRelease(defaultOptions);
@@ -748,9 +748,7 @@ describe('runRelease', () => {
         releaseTrigger: 'label',
       });
       mockFindMergedPRsForCommit.mockResolvedValue([123, 456]);
-      mockFetchPRLabels
-        .mockResolvedValueOnce(['release:major', 'release:minor'])
-        .mockResolvedValueOnce(['release:patch']);
+      mockFetchPRLabels.mockResolvedValueOnce(['bump:major', 'bump:minor']).mockResolvedValueOnce(['release:patch']);
 
       const { runRelease } = await import('../../src/release.js');
       const result = await runRelease(defaultOptions);

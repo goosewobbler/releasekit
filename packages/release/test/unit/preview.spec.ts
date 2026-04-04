@@ -280,8 +280,8 @@ describe('runPreview', () => {
 
   describe('PR labels', () => {
     describe('commit trigger mode', () => {
-      it('should force major bump when release:major label is present', async () => {
-        mockFetchPRLabels.mockResolvedValue(['release:major']);
+      it('should force major bump when bump:major label is present', async () => {
+        mockFetchPRLabels.mockResolvedValue(['bump:major']);
 
         await runPreview({ projectDir: '/test', dryRun: false });
 
@@ -297,7 +297,7 @@ describe('runPreview', () => {
 
       it('should ignore minor and patch labels in commit mode', async () => {
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
-        mockFetchPRLabels.mockResolvedValue(['release:major', 'release:minor', 'release:patch']);
+        mockFetchPRLabels.mockResolvedValue(['bump:major', 'bump:minor', 'bump:patch']);
 
         await runPreview({ projectDir: '/test', dryRun: false });
 
@@ -329,7 +329,7 @@ describe('runPreview', () => {
 
       it('should prioritize skip over major label', async () => {
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
-        mockFetchPRLabels.mockResolvedValue(['release:skip', 'release:major']);
+        mockFetchPRLabels.mockResolvedValue(['release:skip', 'bump:major']);
 
         await runPreview({ projectDir: '/test', dryRun: false });
 
@@ -345,7 +345,7 @@ describe('runPreview', () => {
 
       it('should compose major and prerelease labels', async () => {
         mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
-        mockFetchPRLabels.mockResolvedValue(['release:major', 'release:prerelease']);
+        mockFetchPRLabels.mockResolvedValue(['bump:major', 'release:prerelease']);
 
         await runPreview({ projectDir: '/test', dryRun: false });
 
@@ -366,31 +366,31 @@ describe('runPreview', () => {
           'owner',
           'repo',
           1,
-          expect.stringContaining('No release label detected'),
+          expect.stringContaining('No bump label detected'),
         );
       });
 
-      it('should trigger patch preview when release:patch label is present', async () => {
+      it('should trigger patch preview when bump:patch label is present', async () => {
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
-        mockFetchPRLabels.mockResolvedValue(['release:patch']);
+        mockFetchPRLabels.mockResolvedValue(['bump:patch']);
 
         await runPreview({ projectDir: '/test', dryRun: false });
 
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'patch' }));
       });
 
-      it('should trigger minor preview when release:minor label is present', async () => {
+      it('should trigger minor preview when bump:minor label is present', async () => {
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
-        mockFetchPRLabels.mockResolvedValue(['release:minor']);
+        mockFetchPRLabels.mockResolvedValue(['bump:minor']);
 
         await runPreview({ projectDir: '/test', dryRun: false });
 
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor' }));
       });
 
-      it('should trigger major preview when release:major label is present', async () => {
+      it('should trigger major preview when bump:major label is present', async () => {
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
-        mockFetchPRLabels.mockResolvedValue(['release:major']);
+        mockFetchPRLabels.mockResolvedValue(['bump:major']);
 
         await runPreview({ projectDir: '/test', dryRun: false });
 
@@ -400,7 +400,7 @@ describe('runPreview', () => {
       it('should compose bump label and prerelease label', async () => {
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
         mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
-        mockFetchPRLabels.mockResolvedValue(['release:minor', 'release:prerelease']);
+        mockFetchPRLabels.mockResolvedValue(['bump:minor', 'release:prerelease']);
 
         await runPreview({ projectDir: '/test', dryRun: false });
 
@@ -409,7 +409,7 @@ describe('runPreview', () => {
 
       it('should ignore skip label in label mode', async () => {
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
-        mockFetchPRLabels.mockResolvedValue(['release:skip', 'release:minor']);
+        mockFetchPRLabels.mockResolvedValue(['release:skip', 'bump:minor']);
 
         await runPreview({ projectDir: '/test', dryRun: false });
 
@@ -427,7 +427,7 @@ describe('runPreview', () => {
         expect(consoleSpy).toHaveBeenCalled();
         const output = consoleSpy.mock.calls[0]?.[0] as string;
         expect(output).toContain('<!-- releasekit-preview -->');
-        expect(output).toContain('No release label detected');
+        expect(output).toContain('No bump label detected');
 
         consoleSpy.mockRestore();
       });
@@ -457,7 +457,7 @@ describe('runPreview', () => {
     describe('bump label conflicts', () => {
       it('should block release when multiple bump labels present in label mode', async () => {
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
-        mockFetchPRLabels.mockResolvedValue(['release:patch', 'release:major']);
+        mockFetchPRLabels.mockResolvedValue(['bump:patch', 'bump:major']);
 
         await runPreview({ projectDir: '/test', dryRun: false });
 
@@ -472,7 +472,7 @@ describe('runPreview', () => {
       });
 
       it('should block release when all three bump labels present in label mode', async () => {
-        mockFetchPRLabels.mockResolvedValue(['release:major', 'release:minor', 'release:patch']);
+        mockFetchPRLabels.mockResolvedValue(['bump:major', 'bump:minor', 'bump:patch']);
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
 
         await runPreview({ projectDir: '/test', dryRun: false });
@@ -490,7 +490,7 @@ describe('runPreview', () => {
 
     describe('stable/prerelease conflicts', () => {
       it('should block release when release:stable and release:prerelease both present', async () => {
-        mockFetchPRLabels.mockResolvedValue(['release:stable', 'release:prerelease', 'release:minor']);
+        mockFetchPRLabels.mockResolvedValue(['release:stable', 'release:prerelease', 'bump:minor']);
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
 
         await runPreview({ projectDir: '/test', dryRun: false });
@@ -518,8 +518,8 @@ describe('runPreview', () => {
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'patch', prerelease: true }));
       });
 
-      it('should use minor bump when prerelease and release:minor labels present', async () => {
-        mockFetchPRLabels.mockResolvedValue(['release:prerelease', 'release:minor']);
+      it('should use minor bump when prerelease and bump:minor labels present', async () => {
+        mockFetchPRLabels.mockResolvedValue(['release:prerelease', 'bump:minor']);
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
 
         await runPreview({ projectDir: '/test', dryRun: false });
@@ -530,7 +530,7 @@ describe('runPreview', () => {
 
     describe('stable label', () => {
       it('should graduate prerelease to stable when stable label is present', async () => {
-        mockFetchPRLabels.mockResolvedValue(['release:stable', 'release:minor']);
+        mockFetchPRLabels.mockResolvedValue(['release:stable', 'bump:minor']);
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
         mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'beta' });
 
@@ -616,7 +616,7 @@ describe('runPreview', () => {
           'scope:shared': '@wdio/native-*',
         },
       });
-      mockFetchPRLabels.mockResolvedValue(['scope:shared', 'release:minor']);
+      mockFetchPRLabels.mockResolvedValue(['scope:shared', 'bump:minor']);
 
       await runPreview({ projectDir: '/test', dryRun: false });
 

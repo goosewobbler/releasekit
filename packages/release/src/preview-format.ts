@@ -31,6 +31,8 @@ export interface LabelContext {
   noBumpLabel: boolean;
   bumpConflict?: boolean;
   prereleaseConflict?: boolean;
+  prerelease?: boolean;
+  stable?: boolean;
   labels?: {
     stable: string;
     prerelease: string;
@@ -129,12 +131,29 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
       const labels = labelContext.labels;
       const labelExamples = labels
         ? `\`${labels.patch}\`, \`${labels.minor}\`, or \`${labels.major}\``
-        : 'a release label (e.g., `release:patch`, `release:minor`, `release:major`)';
-      lines.push('> No release label detected.', `> **Note:** Add ${labelExamples} to trigger a release.`, '');
+        : 'a bump label (e.g., `bump:patch`, `bump:minor`, `bump:major`)';
+      lines.push('> No bump label detected.', `> **Note:** Add ${labelExamples} to trigger a release.`, '');
       return lines;
     }
+
     if (labelContext.bumpLabel) {
-      lines.push(`> This PR is labeled for a **${labelContext.bumpLabel}** release.`, '');
+      const parts: string[] = [labelContext.bumpLabel];
+      if (labelContext.prerelease) {
+        parts.push('prerelease');
+      }
+      if (labelContext.stable) {
+        parts.push('stable');
+      }
+      const labelText = parts.join(' ');
+      lines.push(`> This PR is labeled for a **${labelText}** release.`, '');
+      return lines;
+    }
+
+    // Only prerelease/stable label present (no bump label)
+    if (labelContext.prerelease || labelContext.stable) {
+      const type = labelContext.prerelease ? 'prerelease' : 'stable';
+      const defaultBump = 'patch';
+      lines.push(`> This PR is labeled for a **${defaultBump}** release (${type}).`, '');
       return lines;
     }
   }

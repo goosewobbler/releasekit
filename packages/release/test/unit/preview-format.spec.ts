@@ -303,10 +303,10 @@ describe('formatPreviewComment', () => {
       const result = formatPreviewComment(null, {
         labelContext: { trigger: 'label', skip: false, noBumpLabel: true },
       });
-      expect(result).toContain('No release label detected');
-      expect(result).toContain('release:patch');
-      expect(result).toContain('release:minor');
-      expect(result).toContain('release:major');
+      expect(result).toContain('No bump label detected');
+      expect(result).toContain('bump:patch');
+      expect(result).toContain('bump:minor');
+      expect(result).toContain('bump:major');
       expect(result).not.toContain('### Packages');
     });
 
@@ -326,7 +326,7 @@ describe('formatPreviewComment', () => {
           },
         },
       });
-      expect(result).toContain('No release label detected');
+      expect(result).toContain('No bump label detected');
       expect(result).toContain('`custom:patch`');
       expect(result).toContain('`custom:minor`');
       expect(result).toContain('`custom:major`');
@@ -489,7 +489,7 @@ describe('formatPreviewComment', () => {
       // Scope should still show even when there's no bump label
       expect(result).toContain('**Scope:**');
       expect(result).toContain('@wdio/native-*');
-      expect(result).toContain('No release label detected');
+      expect(result).toContain('No bump label detected');
     });
   });
 });
