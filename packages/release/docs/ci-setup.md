@@ -63,8 +63,8 @@ Only release when a PR is merged with a release label. Conventional commits dete
 | `bump:patch` | Bump patch version |
 | `bump:minor` | Bump minor version |
 | `bump:major` | Bump major version |
-| `release:stable` | Graduate a prerelease to stable |
-| `release:prerelease` | Create a prerelease |
+| `release:stable` | Graduate prerelease to stable (e.g. `1.0.0-next.6` → `1.0.0`). Can be used standalone or with a bump:* label |
+| `release:prerelease` | Create/increment prerelease (e.g. `1.0.0-next.6` → `1.0.0-next.7`). Without a bump:* label, defaults to patch. Can be used standalone or with a bump:* label |
 | `release:skip` | Suppress release on this PR |
 
 ```yaml
