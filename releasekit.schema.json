@@ -605,7 +605,7 @@
           "type": "string",
           "enum": ["commit", "label"],
           "default": "label",
-          "description": "What triggers a release. 'label': a PR bump label (release:patch/minor/major) is required. 'commit': conventional commits drive the bump automatically; every merge can trigger a release."
+          "description": "What triggers a release. 'label': a PR bump label (bump:patch/minor/major) is required. 'commit': conventional commits drive the bump automatically; every merge can trigger a release."
         },
         "prPreview": {
           "type": "boolean",
@@ -651,17 +651,17 @@
             },
             "major": {
               "type": "string",
-              "default": "release:major",
+              "default": "bump:major",
               "description": "Label to force a major bump"
             },
             "minor": {
               "type": "string",
-              "default": "release:minor",
+              "default": "bump:minor",
               "description": "Label to force a minor bump"
             },
             "patch": {
               "type": "string",
-              "default": "release:patch",
+              "default": "bump:patch",
               "description": "Label to force a patch bump"
             }
           }
