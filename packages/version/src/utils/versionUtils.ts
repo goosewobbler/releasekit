@@ -128,6 +128,17 @@ export function bumpVersion(currentVersion: string, bumpType: ReleaseType, prere
       return semver.inc(currentVersion, bumpType) || '';
     }
 
+    // When prerelease is explicitly requested (via flag or label), increment the prerelease
+    // instead of cleaning to stable. This applies:
+    // - prerelease flag + major bump on x.0.0-next.y -> x.0.0-next.y+1
+    // - prerelease flag + minor bump on x.y.0-next.y -> x.y.0-next.y+1
+    // - prerelease flag + patch bump on x.y.z-next.y -> x.y.z-next.y+1
+    if (prereleaseIdentifier) {
+      const preBumpType = `pre${bumpType}` as ReleaseType;
+      log(`Incrementing prerelease for ${currentVersion} using ${preBumpType}`, 'debug');
+      return semver.inc(currentVersion, preBumpType, prereleaseIdentifier) || '';
+    }
+
     // Special case: When bumping a prerelease version using the bump type that matches its level,
     // we "clean" to the stable version instead of incrementing to the next version
     // Examples:
