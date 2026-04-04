@@ -757,5 +757,21 @@ describe('runRelease', () => {
 
       expect(result).toBeNull();
     });
+
+    it('should block dry-run when PR has conflicting labels', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'label',
+        scopeLabels: {
+          'scope:shared': '@wdio/native-*',
+        },
+      });
+      mockFindMergedPRsForCommit.mockResolvedValue([123]);
+      mockFetchPRLabels.mockResolvedValue(['release:stable', 'release:prerelease']);
+
+      const { runRelease } = await import('../../src/release.js');
+      const result = await runRelease({ ...defaultOptions, dryRun: true });
+
+      expect(result).toBeNull();
+    });
   });
 });

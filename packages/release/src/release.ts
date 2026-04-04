@@ -152,6 +152,10 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
     }
   } else if (ciConfig?.scopeLabels) {
     const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
+    if (scopeResult.blocked) {
+      info('Release blocked due to conflicting PR labels');
+      return null;
+    }
     if (scopeResult.target !== options.target) {
       options.target = scopeResult.target;
     }
