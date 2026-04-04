@@ -153,20 +153,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   // Skip in dry-run mode since preview.ts already handles scope labels
   const ciConfig = loadCIConfig({ cwd: options.projectDir, configPath: options.config });
 
-  if (!options.dryRun) {
-    const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
-    if (scopeResult.blocked) {
-      info('Release blocked due to conflicting PR labels');
-      return null;
-    }
-    if (scopeResult.skipped) {
-      info('Release skipped due to release:skip label');
-      return null;
-    }
-    if (scopeResult.target !== options.target) {
-      options.target = scopeResult.target;
-    }
-  } else if (ciConfig?.scopeLabels) {
+  if (!options.dryRun || ciConfig?.scopeLabels) {
     const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
     if (scopeResult.blocked) {
       info('Release blocked due to conflicting PR labels');

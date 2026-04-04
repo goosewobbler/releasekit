@@ -155,7 +155,7 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
       return lines;
     }
     if (labelContext.prerelease) {
-      // Commit mode only: release:prerelease modifier set, bump driven by conventional commits
+      // release:prerelease modifier set, bump driven by conventional commits
       lines.push('> This PR is labeled for a **prerelease** release (bump from conventional commits).', '');
       return lines;
     }
