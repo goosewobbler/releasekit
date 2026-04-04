@@ -663,14 +663,115 @@ describe('runRelease', () => {
       expect(result).not.toBeNull();
     });
 
-    it('should skip scope labels when no scopeLabels configured', async () => {
+    it('should not block release when no scopeLabels configured and no conflicts', async () => {
       mockLoadCIConfig.mockReturnValue({});
+      mockFindMergedPRsForCommit.mockResolvedValue([123]);
+      mockFetchPRLabels.mockResolvedValue(['release:minor']);
 
       const { runRelease } = await import('../../src/release.js');
       const result = await runRelease(defaultOptions);
 
-      expect(mockFindMergedPRsForCommit).not.toHaveBeenCalled();
+      expect(mockFindMergedPRsForCommit).toHaveBeenCalled();
       expect(result).not.toBeNull();
+    });
+
+    it('should block release when prerelease + stable conflict detected without scopeLabels', async () => {
+      mockLoadCIConfig.mockReturnValue({});
+      mockFindMergedPRsForCommit.mockResolvedValue([123]);
+      mockFetchPRLabels.mockResolvedValue(['release:stable', 'release:prerelease']);
+
+      const { runRelease } = await import('../../src/release.js');
+      const result = await runRelease(defaultOptions);
+
+      expect(result).toBeNull();
+    });
+
+    it('should block release when prerelease + stable conflict detected', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        scopeLabels: {
+          'scope:shared': '@wdio/native-*',
+        },
+      });
+      mockFindMergedPRsForCommit.mockResolvedValue([123]);
+      mockFetchPRLabels.mockResolvedValue(['scope:shared', 'release:stable', 'release:prerelease']);
+
+      const { runRelease } = await import('../../src/release.js');
+      const result = await runRelease(defaultOptions);
+
+      expect(result).toBeNull();
+    });
+
+    it('should block release when multiple bump labels conflict detected in label mode', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'label',
+        scopeLabels: {
+          'scope:shared': '@wdio/native-*',
+        },
+      });
+      mockFindMergedPRsForCommit.mockResolvedValue([123]);
+      mockFetchPRLabels.mockResolvedValue(['scope:shared', 'release:major', 'release:minor']);
+
+      const { runRelease } = await import('../../src/release.js');
+      const result = await runRelease(defaultOptions);
+
+      expect(result).toBeNull();
+    });
+
+    it('should NOT block release when multiple bump labels in commit mode (uses major)', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'commit',
+      });
+      mockFindMergedPRsForCommit.mockResolvedValue([123]);
+      mockFetchPRLabels.mockResolvedValue(['release:major', 'release:minor']);
+
+      const { runRelease } = await import('../../src/release.js');
+      const result = await runRelease(defaultOptions);
+
+      expect(result).not.toBeNull();
+    });
+
+    it('should NOT block release when different PRs have different bump labels', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'label',
+      });
+      mockFindMergedPRsForCommit.mockResolvedValue([123, 456]);
+      mockFetchPRLabels.mockResolvedValueOnce(['release:major']).mockResolvedValueOnce(['release:minor']);
+
+      const { runRelease } = await import('../../src/release.js');
+      const result = await runRelease(defaultOptions);
+
+      expect(result).not.toBeNull();
+    });
+
+    it('should block release when same PR has conflicting labels', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'label',
+      });
+      mockFindMergedPRsForCommit.mockResolvedValue([123, 456]);
+      mockFetchPRLabels
+        .mockResolvedValueOnce(['release:major', 'release:minor'])
+        .mockResolvedValueOnce(['release:patch']);
+
+      const { runRelease } = await import('../../src/release.js');
+      const result = await runRelease(defaultOptions);
+
+      expect(result).toBeNull();
+    });
+
+    it('should block dry-run when PR has conflicting labels', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'label',
+        scopeLabels: {
+          'scope:shared': '@wdio/native-*',
+        },
+      });
+      mockFindMergedPRsForCommit.mockResolvedValue([123]);
+      mockFetchPRLabels.mockResolvedValue(['release:stable', 'release:prerelease']);
+
+      const { runRelease } = await import('../../src/release.js');
+      const result = await runRelease({ ...defaultOptions, dryRun: true });
+
+      expect(result).toBeNull();
     });
   });
 });

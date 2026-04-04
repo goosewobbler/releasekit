@@ -4,6 +4,7 @@ import { loadCIConfig, loadConfig as loadReleaseKitConfig } from '@releasekit/co
 import type { VersionOutput } from '@releasekit/core';
 import { error, info, setJsonMode, setLogLevel, setQuietMode, success, warn } from '@releasekit/core';
 import type { ReleaseType } from 'semver';
+import { DEFAULT_LABELS, detectLabelConflicts } from './label-utils.js';
 import { createOctokit, fetchPRLabels, findMergedPRsForCommit } from './preview-github.js';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
 
@@ -31,48 +32,69 @@ function getGitHubContext(): { owner: string; repo: string; sha: string } | null
   return { owner, repo: repoName, sha };
 }
 
-interface ScopeLabelResult {
+interface PRLabelsResult {
   target: string | undefined;
   scopeLabels: string[];
+  labels: string[];
+  blocked?: boolean;
 }
 
 async function applyScopeLabelsFromPR(
   ciConfig: CIConfig | undefined,
   options: ReleaseOptions,
-): Promise<ScopeLabelResult> {
+): Promise<PRLabelsResult> {
   const scopeLabels = ciConfig?.scopeLabels ?? {};
   const defaultScope = ciConfig?.defaultScope;
 
   const githubContext = getGitHubContext();
   if (!githubContext) {
-    return { target: options.target, scopeLabels: [] };
+    return { target: options.target, scopeLabels: [], labels: [] };
   }
 
   const token = process.env.GITHUB_TOKEN;
   if (!token) {
     warn('No GITHUB_TOKEN available — skipping scope label detection');
-    return { target: options.target, scopeLabels: [] };
+    return { target: options.target, scopeLabels: [], labels: [] };
   }
 
   const octokit = createOctokit(token);
 
   const prNumbers = await findMergedPRsForCommit(octokit, githubContext.owner, githubContext.repo, githubContext.sha);
+  const allLabels: string[] = [];
+  const perPRLabels: Map<number, string[]> = new Map();
+
+  for (const prNumber of prNumbers) {
+    const labels = await fetchPRLabels(octokit, githubContext.owner, githubContext.repo, prNumber);
+    allLabels.push(...labels);
+    perPRLabels.set(prNumber, labels);
+  }
+
+  // Check for label conflicts per-PR (not aggregated across PRs)
+  // Labels from different PRs don't conflict with each other
+  for (const [prNumber, labels] of perPRLabels) {
+    const conflict = detectLabelConflicts(labels, ciConfig?.labels ?? DEFAULT_LABELS);
+    if (conflict.prereleaseConflict) {
+      warn(
+        `PR #${prNumber} has conflicting labels "${ciConfig?.labels?.stable ?? 'release:stable'}" and "${ciConfig?.labels?.prerelease ?? 'release:prerelease'}" — release blocked`,
+      );
+      return { target: options.target, scopeLabels: [], labels: [], blocked: true };
+    }
+    if (conflict.bumpConflict && (ciConfig?.releaseTrigger ?? 'label') === 'label') {
+      warn(`PR #${prNumber} has conflicting bump labels (${conflict.bumpLabelsPresent.join(', ')}) — release blocked`);
+      return { target: options.target, scopeLabels: [], labels: [], blocked: true };
+    }
+  }
+
   if (prNumbers.length === 0) {
     if (defaultScope && Object.keys(scopeLabels).length > 0) {
       const defaultPattern = scopeLabels[defaultScope];
       if (defaultPattern) {
         info(`No merged PRs found — using default scope "${defaultScope}" (${defaultPattern})`);
-        return { target: defaultPattern, scopeLabels: [] };
+        return { target: defaultPattern, scopeLabels: [], labels: allLabels };
       }
     }
     info('No merged PRs found for HEAD commit — releasing all packages');
-    return { target: options.target, scopeLabels: [] };
-  }
-
-  const allLabels: string[] = [];
-  for (const prNumber of prNumbers) {
-    const labels = await fetchPRLabels(octokit, githubContext.owner, githubContext.repo, prNumber);
-    allLabels.push(...labels);
+    return { target: options.target, scopeLabels: [], labels: allLabels };
   }
 
   const matchedScopePatterns: string[] = [];
@@ -94,7 +116,7 @@ async function applyScopeLabelsFromPR(
     }
   }
 
-  return { target: finalTarget, scopeLabels: matchedScopePatterns };
+  return { target: finalTarget, scopeLabels: matchedScopePatterns, labels: allLabels };
 }
 
 export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseOutput | null> {
@@ -118,8 +140,22 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   // Apply scope labels from PR labels (if GitHub context available)
   // Skip in dry-run mode since preview.ts already handles scope labels
   const ciConfig = loadCIConfig({ cwd: options.projectDir, configPath: options.config });
-  if (ciConfig?.scopeLabels && !options.dryRun) {
+
+  if (!options.dryRun) {
     const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
+    if (scopeResult.blocked) {
+      info('Release blocked due to conflicting PR labels');
+      return null;
+    }
+    if (scopeResult.target !== options.target) {
+      options.target = scopeResult.target;
+    }
+  } else if (ciConfig?.scopeLabels) {
+    const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
+    if (scopeResult.blocked) {
+      info('Release blocked due to conflicting PR labels');
+      return null;
+    }
     if (scopeResult.target !== options.target) {
       options.target = scopeResult.target;
     }

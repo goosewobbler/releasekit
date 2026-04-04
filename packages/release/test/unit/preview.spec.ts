@@ -161,6 +161,22 @@ describe('runPreview', () => {
     );
   });
 
+  it('major + minor labels in commit mode use major (no conflict)', async () => {
+    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
+    mockFetchPRLabels.mockResolvedValue(['release:major', 'release:minor', 'release:patch']);
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major' }));
+    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+      expect.anything(),
+      'owner',
+      'repo',
+      1,
+      expect.stringContaining('labeled for a **major** release'),
+    );
+  });
+
   it('falls back to stdout when context resolution fails', async () => {
     mockResolvePreviewContext.mockImplementation(() => {
       throw new Error('No GITHUB_TOKEN');
@@ -366,6 +382,81 @@ describe('runPreview', () => {
     expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: 'beta' }));
   });
 
+  it('release:prerelease alone defaults to patch bump', async () => {
+    mockFetchPRLabels.mockResolvedValue(['release:prerelease']);
+    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'patch', prerelease: true }));
+  });
+
+  it('release:prerelease with release:minor uses minor bump', async () => {
+    mockFetchPRLabels.mockResolvedValue(['release:prerelease', 'release:minor']);
+    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor', prerelease: true }));
+  });
+
+  it('release:stable alone graduates prerelease to stable', async () => {
+    mockFetchPRLabels.mockResolvedValue(['release:stable', 'release:minor']);
+    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+    mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'beta' });
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    const callArgs = mockRunRelease.mock.calls[0][0];
+    expect(callArgs.bump).toBe('minor');
+    expect(callArgs.stable).toBe(true);
+  });
+
+  it('release:stable alone without bump label runs release analysis but no bump', async () => {
+    mockFetchPRLabels.mockResolvedValue(['release:stable']);
+    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+    mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'beta' });
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    expect(mockRunRelease).toHaveBeenCalled();
+    const callArgs = mockRunRelease.mock.calls[0][0];
+    expect(callArgs.bump).toBeUndefined();
+    expect(callArgs.stable).toBe(true);
+  });
+
+  it('release:stable + release:prerelease conflict blocks release', async () => {
+    mockFetchPRLabels.mockResolvedValue(['release:stable', 'release:prerelease', 'release:minor']);
+    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    expect(mockRunRelease).not.toHaveBeenCalled();
+    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+      expect.anything(),
+      'owner',
+      'repo',
+      1,
+      expect.stringContaining('Conflicting release type labels detected'),
+    );
+  });
+
+  it('multiple bump labels conflict blocks release', async () => {
+    mockFetchPRLabels.mockResolvedValue(['release:major', 'release:minor', 'release:patch']);
+    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+
+    await runPreview({ projectDir: '/test', dryRun: false });
+
+    expect(mockRunRelease).not.toHaveBeenCalled();
+    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+      expect.anything(),
+      'owner',
+      'repo',
+      1,
+      expect.stringContaining('Conflicting bump labels detected'),
+    );
+  });
+
   it('skips label fetch in dry-run mode', async () => {
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
@@ -489,13 +580,20 @@ describe('runPreview', () => {
     expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major' }));
   });
 
-  it('highest bump label wins when multiple present in label mode', async () => {
+  it('multiple bump labels in label mode blocks release', async () => {
     mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
     mockFetchPRLabels.mockResolvedValue(['release:patch', 'release:major']);
 
     await runPreview({ projectDir: '/test', dryRun: false });
 
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major' }));
+    expect(mockRunRelease).not.toHaveBeenCalled();
+    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+      expect.anything(),
+      'owner',
+      'repo',
+      1,
+      expect.stringContaining('Conflicting bump labels detected'),
+    );
   });
 
   it('bump label and prerelease label compose in label mode', async () => {

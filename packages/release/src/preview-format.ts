@@ -29,6 +29,8 @@ export interface LabelContext {
   skip: boolean;
   bumpLabel?: string;
   noBumpLabel: boolean;
+  bumpConflict?: boolean;
+  prereleaseConflict?: boolean;
   labels?: {
     stable: string;
     prerelease: string;
@@ -97,7 +99,32 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
     }
   }
 
+  // Show prereleaseConflict error regardless of trigger mode
+  if (labelContext.prereleaseConflict) {
+    const labels = labelContext.labels;
+    const stableLabel = labels?.stable ?? 'release:stable';
+    const prereleaseLabel = labels?.prerelease ?? 'release:prerelease';
+    lines.push(
+      '> **Error:** Conflicting release type labels detected.',
+      `> **Note:** Please use only one of \`${stableLabel}\` or \`${prereleaseLabel}\` at a time.`,
+      '',
+    );
+    return lines;
+  }
+
   if (labelContext.trigger === 'label') {
+    if (labelContext.bumpConflict) {
+      const labels = labelContext.labels;
+      const labelExamples = labels
+        ? `\`${labels.patch}\`, \`${labels.minor}\`, or \`${labels.major}\``
+        : 'a release label (e.g., `release:patch`, `release:minor`, `release:major`)';
+      lines.push(
+        '> **Error:** Conflicting bump labels detected.',
+        `> **Note:** Please use only one release label at a time. Use ${labelExamples}.`,
+        '',
+      );
+      return lines;
+    }
     if (labelContext.noBumpLabel) {
       const labels = labelContext.labels;
       const labelExamples = labels

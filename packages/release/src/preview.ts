@@ -1,6 +1,7 @@
 import type { CIConfig } from '@releasekit/config';
 import { loadCIConfig, loadConfig } from '@releasekit/config';
 import { info, success, warn } from '@releasekit/core';
+import { DEFAULT_LABELS, detectLabelConflicts } from './label-utils.js';
 import type { PreviewContext } from './preview-context.js';
 import { resolvePreviewContext } from './preview-context.js';
 import { detectPrerelease } from './preview-detect.js';
@@ -25,15 +26,6 @@ interface LabelOverrideResult {
   options: PreviewOptions;
   labelContext: LabelContext;
 }
-
-const DEFAULT_LABELS = {
-  stable: 'release:stable',
-  prerelease: 'release:prerelease',
-  skip: 'release:skip',
-  major: 'release:major',
-  minor: 'release:minor',
-  patch: 'release:patch',
-};
 
 export async function runPreview(options: PreviewOptions): Promise<void> {
   // Check if preview is enabled in config
@@ -81,6 +73,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
       sync: false,
       bump: effectiveOptions.bump,
       prerelease: prereleaseFlag,
+      stable: effectiveOptions.stable,
       skipNotes: true,
       skipPublish: true,
       skipGit: true,
@@ -170,7 +163,13 @@ async function applyLabelOverrides(
   const trigger = ciConfig?.releaseTrigger ?? 'label';
   const labels = ciConfig?.labels ?? DEFAULT_LABELS;
   const scopeLabels = ciConfig?.scopeLabels ?? {};
-  const defaultLabelContext: LabelContext = { trigger, skip: false, noBumpLabel: false };
+  const defaultLabelContext: LabelContext = {
+    trigger,
+    skip: false,
+    noBumpLabel: false,
+    bumpConflict: false,
+    prereleaseConflict: false,
+  };
 
   if (!context) {
     // No GitHub context (dry-run or unavailable). If the caller explicitly supplied --bump,
@@ -194,13 +193,21 @@ async function applyLabelOverrides(
   }
 
   const result = { ...options };
-  const labelContext: LabelContext = { trigger, skip: false, noBumpLabel: false, labels, scopeLabels: [] };
+  const labelContext: LabelContext = {
+    trigger,
+    skip: false,
+    noBumpLabel: false,
+    bumpConflict: false,
+    prereleaseConflict: false,
+    labels,
+    scopeLabels: [],
+  };
 
   // Handle scope labels - build list of matched scope patterns
   const matchedScopePatterns: string[] = [];
   for (const [labelName, packagePattern] of Object.entries(scopeLabels)) {
     if (prLabels.includes(labelName)) {
-      info(`PR label "${labelName}" detected — limiting release to packages matching "${packagePattern}")`);
+      info(`PR label "${labelName}" detected — limiting release to packages matching "${packagePattern}"`);
       matchedScopePatterns.push(packagePattern);
     }
   }
@@ -213,6 +220,22 @@ async function applyLabelOverrides(
     const defaultPattern = scopeLabels[ciConfig.defaultScope];
     info(`No scope label found — using default scope "${ciConfig.defaultScope}" (${defaultPattern})`);
     result.target = defaultPattern;
+  }
+
+  // Detect label conflicts using shared utility
+  const conflict = detectLabelConflicts(prLabels, labels);
+
+  // Bump conflicts only matter in label mode (in commit mode only release:major is meaningful)
+  if (trigger === 'label' && conflict.bumpConflict) {
+    warn(`Conflicting bump labels detected (${conflict.bumpLabelsPresent.join(', ')}) — release blocked`);
+    labelContext.noBumpLabel = true;
+    labelContext.bumpConflict = true;
+  }
+
+  if (conflict.prereleaseConflict) {
+    warn(`Conflicting labels "${labels.stable}" and "${labels.prerelease}" detected — release blocked`);
+    labelContext.noBumpLabel = true;
+    labelContext.prereleaseConflict = true;
   }
 
   if (trigger === 'commit') {
@@ -230,7 +253,10 @@ async function applyLabelOverrides(
     }
   } else {
     // Label mode: bump label required
-    if (prLabels.includes(labels.major)) {
+    // Skip processing individual labels if there's a conflict
+    if (conflict.bumpConflict || conflict.prereleaseConflict) {
+      // Already warned and set noBumpLabel = true above
+    } else if (prLabels.includes(labels.major)) {
       info(`PR label "${labels.major}" detected — major release`);
       labelContext.bumpLabel = 'major';
       result.bump = 'major';
@@ -244,7 +270,11 @@ async function applyLabelOverrides(
       result.bump = 'patch';
     } else if (matchedScopePatterns.length === 0) {
       // No bump label AND no scope labels → require release label in label mode
-      labelContext.noBumpLabel = true;
+      // But allow if stable/prerelease label is present
+      const hasStableOrPrerelease = conflict.hasStable || conflict.hasPrerelease;
+      if (!hasStableOrPrerelease) {
+        labelContext.noBumpLabel = true;
+      }
     }
     // If scope labels are present but no release label, we don't set noBumpLabel = true
     // This allows conventional commits to determine the bump
@@ -252,12 +282,20 @@ async function applyLabelOverrides(
 
   // Stable/prerelease label modifiers (both modes, only when CLI flags unset)
   if (!options.stable && options.prerelease === undefined) {
-    if (prLabels.includes(labels.stable)) {
+    if (conflict.hasStable && conflict.hasPrerelease) {
+      // Already handled in conflict detection above
+    } else if (conflict.hasStable) {
       info(`PR label "${labels.stable}" detected — using stable release preview`);
       result.stable = true;
-    } else if (prLabels.includes(labels.prerelease)) {
+    } else if (conflict.hasPrerelease) {
       info(`PR label "${labels.prerelease}" detected — using prerelease preview`);
       result.prerelease = true;
+      // Default to patch bump when only prerelease label is present (label mode only)
+      if (trigger === 'label' && !result.bump) {
+        info('No bump label found — defaulting to patch bump for prerelease release');
+        result.bump = 'patch';
+        labelContext.bumpLabel = 'patch';
+      }
     }
   }
 
