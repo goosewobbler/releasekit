@@ -92,9 +92,20 @@ jobs:
           fi
 
           # Extract the release label and derive the bump type from it.
+          # Supports both bump:patch/minor/major and legacy release:patch/minor/major
           # 'stable' maps to 'auto' (conventional commits determine type, no prerelease).
           # All other labels map 1:1 to their bump type.
           LABELS=$(echo "$PRS_OUTPUT" | jq -r '.[].labels[].name' 2>/dev/null)
+          # First check for new bump:* labels
+          BUMP_LABEL=$(echo "$LABELS" | grep -E "^bump:(patch|minor|major)$" | head -1)
+          if [ -n "$BUMP_LABEL" ]; then
+            BUMP_TYPE="${BUMP_LABEL#bump:}"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "bump=$BUMP_TYPE" >> "$GITHUB_OUTPUT"
+            echo "Release label '${BUMP_LABEL}' found — bump: ${BUMP_TYPE}"
+            exit 0
+          fi
+          # Then check for legacy release:* labels
           RELEASE_LABEL=$(echo "$LABELS" | grep -E "^release:(patch|minor|major|prerelease|stable)$" | head -1)
           if [ -n "$RELEASE_LABEL" ]; then
             BUMP_TYPE="${RELEASE_LABEL#release:}"
