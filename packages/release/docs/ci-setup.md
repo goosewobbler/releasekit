@@ -60,9 +60,9 @@ Only release when a PR is merged with a release label. Conventional commits dete
 
 | Label | Effect |
 |-------|--------|
-| `release:patch` | Bump patch version |
-| `release:minor` | Bump minor version |
-| `release:major` | Bump major version |
+| `bump:patch` | Bump patch version |
+| `bump:minor` | Bump minor version |
+| `bump:major` | Bump major version |
 | `release:stable` | Graduate a prerelease to stable |
 | `release:prerelease` | Create a prerelease |
 | `release:skip` | Suppress release on this PR |
@@ -107,16 +107,16 @@ Configure the trigger in `releasekit.config.json`:
   "ci": {
     "releaseTrigger": "label",
     "labels": {
-      "major": "release:major",
-      "minor": "release:minor",
-      "patch": "release:patch",
+      "major": "bump:major",
+      "minor": "bump:minor",
+      "patch": "bump:patch",
       "skip": "release:skip"
     }
   }
 }
 ```
 
-Without a `release:patch/minor/major` label on the merged PR, no release is triggered. The `labels` block shown above reflects the defaults — omit it if your repository already uses those label names.
+Without a `bump:patch/minor/major` label on the merged PR, no release is triggered. The `labels` block shown above reflects the defaults — omit it if your repository already uses those label names.
 
 See [@releasekit/release — CI Configuration](../README.md#ci-configuration) for all `ci.*` options.
 
