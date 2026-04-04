@@ -471,9 +471,9 @@ describe('CIConfigSchema', () => {
       stable: 'release:stable',
       prerelease: 'release:prerelease',
       skip: 'release:skip',
-      major: 'release:major',
-      minor: 'release:minor',
-      patch: 'release:patch',
+      major: 'bump:major',
+      minor: 'bump:minor',
+      patch: 'bump:patch',
     });
   });
 
@@ -541,9 +541,9 @@ describe('CIConfigSchema', () => {
     expect(result.labels.stable).toBe('custom-stable');
     expect(result.labels.prerelease).toBe('release:prerelease');
     expect(result.labels.skip).toBe('release:skip');
-    expect(result.labels.major).toBe('release:major');
-    expect(result.labels.minor).toBe('release:minor');
-    expect(result.labels.patch).toBe('release:patch');
+    expect(result.labels.major).toBe('bump:major');
+    expect(result.labels.minor).toBe('bump:minor');
+    expect(result.labels.patch).toBe('bump:patch');
   });
 });
 
