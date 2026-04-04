@@ -82,7 +82,6 @@ describe('action runner', () => {
       previewDryRun: 'false',
       dryRun: 'true',
       verbose: 'false',
-      quiet: 'true',
     });
 
     expect(args).toEqual(
@@ -100,7 +99,6 @@ describe('action runner', () => {
         'true',
         '--stable',
         '--dry-run',
-        '--quiet',
       ]),
     );
   });
