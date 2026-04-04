@@ -134,9 +134,8 @@ export function bumpVersion(currentVersion: string, bumpType: ReleaseType, prere
     // - prerelease flag + minor bump on x.y.0-next.y -> x.y.0-next.y+1
     // - prerelease flag + patch bump on x.y.z-next.y -> x.y.z-next.y+1
     if (prereleaseIdentifier) {
-      const preBumpType = `pre${bumpType}` as ReleaseType;
-      log(`Incrementing prerelease for ${currentVersion} using ${preBumpType}`, 'debug');
-      return semver.inc(currentVersion, preBumpType, prereleaseIdentifier) || '';
+      log(`Incrementing prerelease for ${currentVersion} using 'prerelease'`, 'debug');
+      return semver.inc(currentVersion, 'prerelease', prereleaseIdentifier) || '';
     }
 
     // Special case: When bumping a prerelease version using the bump type that matches its level,

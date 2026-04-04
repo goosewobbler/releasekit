@@ -172,8 +172,11 @@ describe('Version Utils', () => {
       // Setup semver mocks
       vi.mocked(semver.prerelease, { partial: true }).mockImplementation((version) => {
         if (version === '1.0.0-beta.1') return ['beta', 1];
+        if (version === '1.0.0-beta.2') return ['beta', 2];
+        if (version === '1.0.0-alpha.3') return ['alpha', 3];
         if (version === '1.0.0-next.0') return ['next', 0];
         if (version === '2.0.0-alpha.3') return ['alpha', 3];
+        if (version === '2.0.0-next.0') return ['next', 0];
         if (version === '3.0.0-rc.1') return ['rc', 1];
         if (version === '2.1.0-next.4') return ['next', 4];
         if (version === '3.5.0-beta.12') return ['beta', 12];
@@ -188,6 +191,38 @@ describe('Version Utils', () => {
             minor: 0,
             patch: 0,
             prerelease: ['next', 0],
+          } as unknown as semver.SemVer;
+        }
+        if (version === '2.0.0-next.0') {
+          return {
+            major: 2,
+            minor: 0,
+            patch: 0,
+            prerelease: ['next', 0],
+          } as unknown as semver.SemVer;
+        }
+        if (version === '1.0.0-beta.1') {
+          return {
+            major: 1,
+            minor: 0,
+            patch: 0,
+            prerelease: ['beta', 1],
+          } as unknown as semver.SemVer;
+        }
+        if (version === '1.0.0-beta.2') {
+          return {
+            major: 1,
+            minor: 0,
+            patch: 0,
+            prerelease: ['beta', 2],
+          } as unknown as semver.SemVer;
+        }
+        if (version === '1.0.0-alpha.3') {
+          return {
+            major: 1,
+            minor: 0,
+            patch: 0,
+            prerelease: ['alpha', 3],
           } as unknown as semver.SemVer;
         }
         if (version === '2.0.0-alpha.3') {
@@ -256,26 +291,49 @@ describe('Version Utils', () => {
           return '1.3.2-next.0';
         }
 
+        // Cases for prerelease increment on existing prerelease versions
+        // Using 'prerelease' release type increments the prerelease counter only
+        if (releaseType === 'prerelease' && identifier === 'next') {
+          if (version === '1.0.0-next.0') return '1.0.0-next.1';
+          if (version === '1.0.0-next.4') return '1.0.0-next.5';
+          if (version === '2.0.0-next.0') return '2.0.0-next.1';
+        }
+        if (releaseType === 'prerelease' && identifier === 'beta') {
+          if (version === '1.0.0-beta.1') return '1.0.0-beta.2';
+          if (version === '1.0.0-beta.2') return '1.0.0-beta.3';
+        }
+        if (releaseType === 'prerelease' && identifier === 'alpha') {
+          if (version === '1.0.0-alpha.3') return '1.0.0-alpha.4';
+          if (version === '2.0.0-alpha.3') return '2.0.0-alpha.4';
+        }
+
+        // Handle prepatch/preminor/premajor calls that fall through (for stable versions with identifiers)
+        if (identifier === 'next' || identifier === 'alpha' || identifier === 'beta') {
+          if (version === '2.0.0' && releaseType === 'premajor') return '3.0.0-next.0';
+          if (version === '1.0.0' && releaseType === 'preminor') return '1.1.0-next.0';
+          if (version === '1.0.0' && releaseType === 'prepatch') return '1.0.1-next.0';
+        }
+
         return `${version}.incremented`;
       });
     });
 
     it('should clean prerelease identifiers for major bumps', () => {
       const result = bumpVersion('1.0.0-beta.1', 'major');
-      expect(semver.inc).toHaveBeenCalledWith('1.0.0-beta.1', 'major');
-      expect(result).toBe('2.0.0');
+      expect(semver.inc).not.toHaveBeenCalled(); // Special case bypasses semver.inc
+      expect(result).toBe('1.0.0');
     });
 
     it('should clean prerelease identifiers for minor bumps', () => {
       const result = bumpVersion('1.0.0-beta.1', 'minor');
-      expect(semver.inc).toHaveBeenCalledWith('1.0.0-beta.1', 'minor');
-      expect(result).toBe('1.1.0');
+      expect(semver.inc).not.toHaveBeenCalled(); // Special case bypasses semver.inc
+      expect(result).toBe('1.0.0');
     });
 
     it('should clean prerelease identifiers for patch bumps', () => {
       const result = bumpVersion('1.0.0-beta.1', 'patch');
-      expect(semver.inc).toHaveBeenCalledWith('1.0.0-beta.1', 'patch');
-      expect(result).toBe('1.0.1');
+      expect(semver.inc).not.toHaveBeenCalled(); // Special case bypasses semver.inc
+      expect(result).toBe('1.0.0');
     });
 
     it('should handle special case for 1.0.0-next.0 with major bump', () => {
@@ -367,6 +425,43 @@ describe('Version Utils', () => {
         const result = bumpVersion('1.3.1', 'patch', prereleaseId);
         expect(semver.inc).toHaveBeenCalledWith('1.3.1', 'prepatch', 'next');
         expect(result).toBe('1.3.2-next.0');
+      });
+    });
+
+    describe('prerelease increment on existing prerelease versions', () => {
+      it('should increment prerelease counter with patch bump on 1.0.0-next.0', () => {
+        vi.mocked(semver.inc, { partial: true }).mockClear();
+        const result = bumpVersion('1.0.0-next.0', 'patch', 'next');
+        expect(semver.inc).toHaveBeenCalledWith('1.0.0-next.0', 'prerelease', 'next');
+        expect(result).toBe('1.0.0-next.1');
+      });
+
+      it('should increment prerelease counter with minor bump on 1.0.0-next.0', () => {
+        vi.mocked(semver.inc, { partial: true }).mockClear();
+        const result = bumpVersion('1.0.0-next.0', 'minor', 'next');
+        expect(semver.inc).toHaveBeenCalledWith('1.0.0-next.0', 'prerelease', 'next');
+        expect(result).toBe('1.0.0-next.1');
+      });
+
+      it('should increment prerelease counter with major bump on 1.0.0-next.0', () => {
+        vi.mocked(semver.inc, { partial: true }).mockClear();
+        const result = bumpVersion('1.0.0-next.0', 'major', 'next');
+        expect(semver.inc).toHaveBeenCalledWith('1.0.0-next.0', 'prerelease', 'next');
+        expect(result).toBe('1.0.0-next.1');
+      });
+
+      it('should increment prerelease counter with patch bump on 2.0.0-next.0', () => {
+        vi.mocked(semver.inc, { partial: true }).mockClear();
+        const result = bumpVersion('2.0.0-next.0', 'patch', 'next');
+        expect(semver.inc).toHaveBeenCalledWith('2.0.0-next.0', 'prerelease', 'next');
+        expect(result).toBe('2.0.0-next.1');
+      });
+
+      it('should increment prerelease counter with custom identifier', () => {
+        vi.mocked(semver.inc, { partial: true }).mockClear();
+        const result = bumpVersion('1.0.0-beta.1', 'patch', 'beta');
+        expect(semver.inc).toHaveBeenCalledWith('1.0.0-beta.1', 'prerelease', 'beta');
+        expect(result).toBe('1.0.0-beta.2');
       });
     });
   });
