@@ -471,7 +471,7 @@ describe('runPreview', () => {
         );
       });
 
-      it('should block release when multiple bump labels present (no trigger mode)', async () => {
+      it('should block release when all three bump labels present in label mode', async () => {
         mockFetchPRLabels.mockResolvedValue(['release:major', 'release:minor', 'release:patch']);
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
 

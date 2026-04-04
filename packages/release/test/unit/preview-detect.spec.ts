@@ -26,15 +26,15 @@ describe('parsePrerelease', () => {
     expect(parsePrerelease('1.0.0-rc.1')).toEqual({ isPrerelease: true, identifier: 'rc' });
   });
 
-  it('should return false for stable version', () => {
+  it('should return isPrerelease: false for a stable version', () => {
     expect(parsePrerelease('1.0.0')).toEqual({ isPrerelease: false });
   });
 
-  it('should return false for undefined', () => {
+  it('should return isPrerelease: false for undefined', () => {
     expect(parsePrerelease(undefined)).toEqual({ isPrerelease: false });
   });
 
-  it('should return false for empty string', () => {
+  it('should return isPrerelease: false for empty string', () => {
     expect(parsePrerelease('')).toEqual({ isPrerelease: false });
   });
 
@@ -84,7 +84,7 @@ describe('detectPrerelease', () => {
     expect(mockedFs.readFileSync).toHaveBeenCalledWith('/project/package.json', 'utf-8');
   });
 
-  it('should return false when all versions are stable', () => {
+  it('should return isPrerelease: false when all versions are stable', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(JSON.stringify({ version: '1.0.0' }));
 
