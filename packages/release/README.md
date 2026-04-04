@@ -287,9 +287,9 @@ Multiple scope labels are combined with OR logic. Without a `release:*` label, c
 
 **Label conflicts:**
 
-Conflicting labels will block the release and post a comment explaining the issue:
+In label trigger mode, conflicting labels will block the release and post a comment explaining the issue:
 - Multiple bump labels (`release:major` + `release:minor` + `release:patch`) → blocked
-- Conflicting release type (`release:stable` + `release:prerelease`) → blocked
+- Conflicting release type (`release:stable` + `release:prerelease`) → blocked (both modes)
 
 **How it works:**
 
