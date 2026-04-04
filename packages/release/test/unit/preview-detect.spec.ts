@@ -10,51 +10,51 @@ vi.mock('node:fs', () => ({
 const mockedFs = vi.mocked(fs);
 
 describe('parsePrerelease', () => {
-  it('detects prerelease with identifier', () => {
+  it('should detect prerelease with identifier', () => {
     expect(parsePrerelease('0.3.0-next.4')).toEqual({ isPrerelease: true, identifier: 'next' });
   });
 
-  it('detects prerelease with alpha identifier', () => {
+  it('should detect prerelease with alpha identifier', () => {
     expect(parsePrerelease('1.0.0-alpha.1')).toEqual({ isPrerelease: true, identifier: 'alpha' });
   });
 
-  it('detects prerelease with beta identifier', () => {
+  it('should detect prerelease with beta identifier', () => {
     expect(parsePrerelease('2.1.0-beta.0')).toEqual({ isPrerelease: true, identifier: 'beta' });
   });
 
-  it('detects prerelease with rc identifier', () => {
+  it('should detect prerelease with rc identifier', () => {
     expect(parsePrerelease('1.0.0-rc.1')).toEqual({ isPrerelease: true, identifier: 'rc' });
   });
 
-  it('returns false for stable version', () => {
+  it('should return isPrerelease: false for a stable version', () => {
     expect(parsePrerelease('1.0.0')).toEqual({ isPrerelease: false });
   });
 
-  it('returns false for undefined', () => {
+  it('should return isPrerelease: false for undefined', () => {
     expect(parsePrerelease(undefined)).toEqual({ isPrerelease: false });
   });
 
-  it('returns false for empty string', () => {
+  it('should return isPrerelease: false for empty string', () => {
     expect(parsePrerelease('')).toEqual({ isPrerelease: false });
   });
 
-  it('detects purely numeric prerelease identifier', () => {
+  it('should detect purely numeric prerelease identifier', () => {
     expect(parsePrerelease('1.0.0-0')).toEqual({ isPrerelease: true, identifier: '0' });
   });
 
-  it('detects numeric prerelease with build metadata', () => {
+  it('should detect numeric prerelease with build metadata', () => {
     expect(parsePrerelease('2.0.0-20240101')).toEqual({ isPrerelease: true, identifier: '20240101' });
   });
 
-  it('detects alphanumeric prerelease identifier', () => {
+  it('should detect alphanumeric prerelease identifier', () => {
     expect(parsePrerelease('1.0.0-rc1')).toEqual({ isPrerelease: true, identifier: 'rc1' });
   });
 
-  it('detects hyphenated prerelease identifier', () => {
+  it('should detect hyphenated prerelease identifier', () => {
     expect(parsePrerelease('1.0.0-my-tag.4')).toEqual({ isPrerelease: true, identifier: 'my-tag' });
   });
 
-  it('detects hyphenated prerelease identifier without counter', () => {
+  it('should detect hyphenated prerelease identifier without counter', () => {
     expect(parsePrerelease('1.0.0-canary-build')).toEqual({ isPrerelease: true, identifier: 'canary-build' });
   });
 });
@@ -64,7 +64,7 @@ describe('detectPrerelease', () => {
     vi.clearAllMocks();
   });
 
-  it('detects prerelease from monorepo package paths', () => {
+  it('should detect prerelease from monorepo package paths', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(JSON.stringify({ version: '0.3.0-next.4' }));
 
@@ -74,7 +74,7 @@ describe('detectPrerelease', () => {
     expect(mockedFs.readFileSync).toHaveBeenCalledWith('/project/packages/version/package.json', 'utf-8');
   });
 
-  it('falls back to root package.json when no package paths', () => {
+  it('should fall back to root package.json when no package paths', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(JSON.stringify({ version: '1.0.0-beta.2' }));
 
@@ -84,7 +84,7 @@ describe('detectPrerelease', () => {
     expect(mockedFs.readFileSync).toHaveBeenCalledWith('/project/package.json', 'utf-8');
   });
 
-  it('returns false when all versions are stable', () => {
+  it('should return isPrerelease: false when all versions are stable', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(JSON.stringify({ version: '1.0.0' }));
 
@@ -93,7 +93,7 @@ describe('detectPrerelease', () => {
     expect(result).toEqual({ isPrerelease: false });
   });
 
-  it('returns first prerelease found across packages', () => {
+  it('should return first prerelease found across packages', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync
       .mockReturnValueOnce(JSON.stringify({ version: '1.0.0' }))
@@ -104,7 +104,7 @@ describe('detectPrerelease', () => {
     expect(result).toEqual({ isPrerelease: true, identifier: 'alpha' });
   });
 
-  it('skips missing package.json files', () => {
+  it('should skip missing package.json files', () => {
     mockedFs.existsSync.mockReturnValueOnce(false).mockReturnValueOnce(true);
     mockedFs.readFileSync.mockReturnValue(JSON.stringify({ version: '1.0.0-next.1' }));
 
@@ -113,7 +113,7 @@ describe('detectPrerelease', () => {
     expect(result).toEqual({ isPrerelease: true, identifier: 'next' });
   });
 
-  it('skips unreadable package.json files', () => {
+  it('should skip unreadable package.json files', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync
       .mockImplementationOnce(() => {

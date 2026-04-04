@@ -32,7 +32,7 @@ function createMockOctokit(comments: { id: number; body: string }[] = []) {
 }
 
 describe('findPreviewComment', () => {
-  it('returns comment ID when marker is found', async () => {
+  it('should return comment ID when marker is found', async () => {
     const { octokit } = createMockOctokit([
       { id: 1, body: 'Some other comment' },
       { id: 2, body: '<!-- releasekit-preview -->\n## Release Preview' },
@@ -42,7 +42,7 @@ describe('findPreviewComment', () => {
     expect(result).toBe(2);
   });
 
-  it('returns null when no marker comment exists', async () => {
+  it('should return null when no marker comment exists', async () => {
     const { octokit } = createMockOctokit([
       { id: 1, body: 'Regular comment' },
       { id: 2, body: 'Another comment' },
@@ -52,7 +52,7 @@ describe('findPreviewComment', () => {
     expect(result).toBeNull();
   });
 
-  it('returns null when no comments exist', async () => {
+  it('should return null when no comments exist', async () => {
     const { octokit } = createMockOctokit([]);
 
     const result = await findPreviewComment(octokit, 'owner', 'repo', 1);
@@ -61,7 +61,7 @@ describe('findPreviewComment', () => {
 });
 
 describe('postOrUpdateComment', () => {
-  it('creates a new comment when none exists', async () => {
+  it('should create a new comment when none exists', async () => {
     const { octokit, mocks } = createMockOctokit([]);
     const body = '<!-- releasekit-preview -->\n## Release Preview';
 
@@ -76,7 +76,7 @@ describe('postOrUpdateComment', () => {
     expect(mocks.updateComment).not.toHaveBeenCalled();
   });
 
-  it('updates existing comment when marker is found', async () => {
+  it('should update existing comment when marker is found', async () => {
     const { octokit, mocks } = createMockOctokit([{ id: 42, body: '<!-- releasekit-preview -->\nOld content' }]);
     const body = '<!-- releasekit-preview -->\n## Release Preview (updated)';
 
@@ -93,7 +93,7 @@ describe('postOrUpdateComment', () => {
 });
 
 describe('fetchPRLabels', () => {
-  it('returns label names from PR', async () => {
+  it('should return label names from PR', async () => {
     const { octokit, mocks } = createMockOctokit();
     mocks.getIssue.mockResolvedValue({
       data: { labels: [{ name: 'release:stable' }, { name: 'bug' }] },
@@ -103,7 +103,7 @@ describe('fetchPRLabels', () => {
     expect(labels).toEqual(['release:stable', 'bug']);
   });
 
-  it('handles string labels', async () => {
+  it('should handle string labels', async () => {
     const { octokit, mocks } = createMockOctokit();
     mocks.getIssue.mockResolvedValue({
       data: { labels: ['release:stable', 'enhancement'] },
@@ -113,7 +113,7 @@ describe('fetchPRLabels', () => {
     expect(labels).toEqual(['release:stable', 'enhancement']);
   });
 
-  it('returns empty array when no labels', async () => {
+  it('should return empty array when no labels', async () => {
     const { octokit, mocks } = createMockOctokit();
     mocks.getIssue.mockResolvedValue({ data: { labels: [] } });
 
