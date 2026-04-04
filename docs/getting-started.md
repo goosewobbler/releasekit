@@ -135,7 +135,7 @@ In CI, both tokens are typically available as secrets or via OIDC — see the [C
 The most common setup triggers a release on every push to `main`. See the [CI setup guide](../packages/release/docs/ci-setup.md) for complete GitHub Actions workflows covering:
 
 - Push-to-main releases
-- Label-based triggers (release only when a PR has a `release:patch/minor/major` label)
+- Label-based triggers (release only when a PR has a `bump:patch/minor/major` label)
 - npm OIDC trusted publishing (no `NPM_TOKEN` secret required)
 - PR preview comments
 - Prerelease workflows

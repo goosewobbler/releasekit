@@ -34,7 +34,7 @@ Future features to enable fully automated release workflows (e.g. commits to mai
 ### Push-Triggered Release Workflow (Feature 1)
 - `.github/workflows/release.yml` implements automated releases on main push
 - Uses `workflow_run` trigger to run after CI passes
-- Detects release labels on merged PRs (`release:patch`, `release:minor`, `release:major`, `release:prerelease`, `release:stable`)
+- Detects release labels on merged PRs (`bump:patch`, `bump:minor`, `bump:major`, `release:stable`)
 - Automatically determines bump type from label
 - Calls `_release.reusable.yml` reusable workflow for actual release
 - Manual trigger also available via `workflow_dispatch`

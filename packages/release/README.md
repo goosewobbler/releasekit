@@ -220,9 +220,9 @@ The `ci` section controls automation behavior:
       "stable": "release:stable",
       "prerelease": "release:prerelease",
       "skip": "release:skip",
-      "major": "release:major",
-      "minor": "release:minor",
-      "patch": "release:patch"
+      "major": "bump:major",
+      "minor": "bump:minor",
+      "patch": "bump:patch"
     },
 
     // Map PR labels to package filters for scoped releases
@@ -237,11 +237,11 @@ The `ci` section controls automation behavior:
 
 #### Release Trigger
 
-**`label`** (default) — A PR label (`release:patch`, `release:minor`, or `release:major`) is required to trigger a release. The label determines the bump type. PRs without a release label will not trigger a release when merged.
+**`label`** (default) — A PR label (`bump:patch`, `bump:minor`, or `bump:major`) is required to trigger a release. The label determines the bump type. PRs without a release label will not trigger a release when merged.
 
-**`commit`** — Conventional commits drive the bump type automatically. Every merge can trigger a release. Use the `release:skip` label to prevent a release, or `release:major` to override the commit-derived bump to major.
+**`commit`** — Conventional commits drive the bump type automatically. Every merge can trigger a release. Use the `release:skip` label to prevent a release, or `bump:major` to override the commit-derived bump to major.
 
-Both modes support `release:stable` and `release:prerelease` as modifiers.
+Both modes support `release:stable` and `release:prerelease` as channel modifiers. `release:stable` alone promotes a prerelease to stable without requiring a bump label. `release:prerelease` must be combined with a `bump:*` label — alone, it does not trigger a release.
 
 #### Release Strategy
 
@@ -278,7 +278,7 @@ When a PR has a matching scope label, only packages matching the pattern are inc
 | `defaultScope` | Fallback scope to use when no scope label is found (must reference a key in `scopeLabels`) |
 
 **Usage:**
-- `scope:shared` + `release:minor` → Release only `@myorg/shared-*` packages with minor bump
+- `scope:shared` + `bump:minor` → Release only `@myorg/shared-*` packages with minor bump
 - `scope:shared` + `scope:ui` → Release both matching scope groups
 - `scope:shared` (no release label) → Release only shared packages, bump determined by conventional commits
 - No scope label but `defaultScope` configured → Use default scope pattern
@@ -288,7 +288,7 @@ Multiple scope labels are combined with OR logic. Without a `release:*` label, c
 **Label conflicts:**
 
 In label trigger mode, conflicting labels will block the release and post a comment explaining the issue:
-- Multiple bump labels (`release:major` + `release:minor` + `release:patch`) → blocked
+- Multiple bump labels (`bump:major` + `bump:minor` + `bump:patch`) → blocked
 - Conflicting release type (`release:stable` + `release:prerelease`) → blocked (both modes)
 
 **How it works:**

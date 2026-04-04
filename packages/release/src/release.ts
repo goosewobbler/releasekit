@@ -37,6 +37,7 @@ interface PRLabelsResult {
   scopeLabels: string[];
   labels: string[];
   blocked?: boolean;
+  skipped?: boolean;
 }
 
 async function applyScopeLabelsFromPR(
@@ -71,12 +72,23 @@ async function applyScopeLabelsFromPR(
 
   // Check for label conflicts per-PR (not aggregated across PRs)
   // Labels from different PRs don't conflict with each other
-  for (const [prNumber, labels] of perPRLabels) {
-    const conflict = detectLabelConflicts(labels, ciConfig?.labels ?? DEFAULT_LABELS);
+  const labels = ciConfig?.labels ?? DEFAULT_LABELS;
+  for (const [prNumber, prLabels] of perPRLabels) {
+    const conflict = detectLabelConflicts(prLabels, labels);
+
+    // Check for release:skip label (only in commit trigger mode)
+    if ((ciConfig?.releaseTrigger ?? 'label') === 'commit' && prLabels.includes(labels.skip)) {
+      info(`PR #${prNumber} has "${labels.skip}" label — skipping release`);
+      return { target: options.target, scopeLabels: [], labels: [], skipped: true };
+    }
+
+    // Warn if skip label is used in label mode (not effective)
+    if (prLabels.includes(labels.skip)) {
+      warn(`PR #${prNumber} has "${labels.skip}" label — this has no effect in label trigger mode`);
+    }
+
     if (conflict.prereleaseConflict) {
-      warn(
-        `PR #${prNumber} has conflicting labels "${ciConfig?.labels?.stable ?? 'release:stable'}" and "${ciConfig?.labels?.prerelease ?? 'release:prerelease'}" — release blocked`,
-      );
+      warn(`PR #${prNumber} has conflicting labels "${labels.stable}" and "${labels.prerelease}" — release blocked`);
       return { target: options.target, scopeLabels: [], labels: [], blocked: true };
     }
     if (conflict.bumpConflict && (ciConfig?.releaseTrigger ?? 'label') === 'label') {
@@ -141,19 +153,14 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   // Skip in dry-run mode since preview.ts already handles scope labels
   const ciConfig = loadCIConfig({ cwd: options.projectDir, configPath: options.config });
 
-  if (!options.dryRun) {
+  if (!options.dryRun || ciConfig?.scopeLabels) {
     const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
     if (scopeResult.blocked) {
       info('Release blocked due to conflicting PR labels');
       return null;
     }
-    if (scopeResult.target !== options.target) {
-      options.target = scopeResult.target;
-    }
-  } else if (ciConfig?.scopeLabels) {
-    const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
-    if (scopeResult.blocked) {
-      info('Release blocked due to conflicting PR labels');
+    if (scopeResult.skipped) {
+      info('Release skipped due to release:skip label');
       return null;
     }
     if (scopeResult.target !== options.target) {

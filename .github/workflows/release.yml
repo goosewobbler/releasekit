@@ -91,20 +91,17 @@ jobs:
             exit 0
           fi
 
-          # Extract the release label and derive the bump type from it.
-          # 'stable' maps to 'auto' (conventional commits determine type, no prerelease).
-          # All other labels map 1:1 to their bump type.
+          # Check if any release label exists on merged PRs.
+          # releasekit will read the actual labels and determine bump type.
           LABELS=$(echo "$PRS_OUTPUT" | jq -r '.[].labels[].name' 2>/dev/null)
-          RELEASE_LABEL=$(echo "$LABELS" | grep -E "^release:(patch|minor|major|prerelease|stable)$" | head -1)
-          if [ -n "$RELEASE_LABEL" ]; then
-            BUMP_TYPE="${RELEASE_LABEL#release:}"
-            [ "$BUMP_TYPE" = "stable" ] && BUMP_TYPE="auto"
+          
+          if echo "$LABELS" | grep -qE "^(bump:(patch|minor|major)|release:stable)$"; then
             echo "should_release=true" >> "$GITHUB_OUTPUT"
-            echo "bump=$BUMP_TYPE" >> "$GITHUB_OUTPUT"
-            echo "Release label '${RELEASE_LABEL}' found — bump: ${BUMP_TYPE}"
+            echo "bump=auto" >> "$GITHUB_OUTPUT"
+            echo "Release label found on merged PRs — releasekit will determine action"
             exit 0
           fi
-
+          
           echo "should_release=false" >> "$GITHUB_OUTPUT"
           echo "No release label found on merged PRs, skipping release"
 
