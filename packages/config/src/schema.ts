@@ -264,9 +264,9 @@ export const CILabelsConfigSchema = z.object({
   stable: z.string().default('release:stable'),
   prerelease: z.string().default('release:prerelease'),
   skip: z.string().default('release:skip'),
-  major: z.string().default('release:major'),
-  minor: z.string().default('release:minor'),
-  patch: z.string().default('release:patch'),
+  major: z.string().default('bump:major'),
+  minor: z.string().default('bump:minor'),
+  patch: z.string().default('bump:patch'),
 });
 
 export const CIConfigSchema = z.object({
@@ -286,9 +286,9 @@ export const CIConfigSchema = z.object({
     stable: 'release:stable',
     prerelease: 'release:prerelease',
     skip: 'release:skip',
-    major: 'release:major',
-    minor: 'release:minor',
-    patch: 'release:patch',
+    major: 'bump:major',
+    minor: 'bump:minor',
+    patch: 'bump:patch',
   }),
   /**
    * Map of scope labels to package patterns.

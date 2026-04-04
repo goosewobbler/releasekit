@@ -11,9 +11,9 @@ export const DEFAULT_LABELS: LabelConfig = {
   stable: 'release:stable',
   prerelease: 'release:prerelease',
   skip: 'release:skip',
-  major: 'release:major',
-  minor: 'release:minor',
-  patch: 'release:patch',
+  major: 'bump:major',
+  minor: 'bump:minor',
+  patch: 'bump:patch',
 };
 
 export interface LabelConflictResult {
