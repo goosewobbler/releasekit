@@ -73,8 +73,6 @@ export function buildPreviewArgs(input) {
   if (effectivePreviewDryRun) {
     args.push('--dry-run');
   }
-  pushBooleanFlag(args, '--verbose', input.verbose);
-  pushBooleanFlag(args, '--quiet', input.quiet);
 
   return args;
 }
