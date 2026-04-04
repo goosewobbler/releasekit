@@ -47,6 +47,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.8.1] - 2026-04-04
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.8.0...releasekit-version-v0.8.1)
+
+### Changed
+- **scripts**: remove verbose and quiet flags from buildPreviewArgs function
+
 ## [0.8.0] - 2026-04-04
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.7.48...releasekit-version-v0.8.0)
