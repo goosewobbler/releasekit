@@ -41,24 +41,24 @@ const releaseOutput: ReleaseOutput = {
 };
 
 describe('formatPreviewComment', () => {
-  it('includes marker comment at the top', () => {
+  it('should include marker comment at the top', () => {
     const result = formatPreviewComment(releaseOutput);
     expect(result.startsWith('<!-- releasekit-preview -->')).toBe(true);
   });
 
-  it('wraps entire comment in a collapsed details element', () => {
+  it('should wrap entire comment in a collapsed details element', () => {
     const result = formatPreviewComment(releaseOutput);
     expect(result).toContain('<details>');
     expect(result).toContain('<summary><b>Release Preview</b>');
     expect(result).toMatch(/<\/details>\s*$/);
   });
 
-  it('shows package count in summary for multiple packages', () => {
+  it('should show package count in summary for multiple packages', () => {
     const result = formatPreviewComment(releaseOutput);
     expect(result).toContain('<summary><b>Release Preview</b> — 2 packages</summary>');
   });
 
-  it('shows package name and version in summary for single package', () => {
+  it('should show package name and version in summary for single package', () => {
     const singlePkg: ReleaseOutput = {
       versionOutput: {
         dryRun: true,
@@ -72,13 +72,13 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('<summary><b>Release Preview</b> — my-lib 1.0.0</summary>');
   });
 
-  it('includes package table', () => {
+  it('should include package table', () => {
     const result = formatPreviewComment(releaseOutput);
     expect(result).toContain('| `@releasekit/version` | 0.3.1 |');
     expect(result).toContain('| `@releasekit/notes` | 0.3.1 |');
   });
 
-  it('includes changelog with entry grouping by type', () => {
+  it('should include changelog with entry grouping by type', () => {
     const result = formatPreviewComment(releaseOutput);
     expect(result).toContain('#### Added');
     expect(result).toContain('- New dry-run flag (`cli`)');
@@ -88,7 +88,7 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('- Migrate to Vitest');
   });
 
-  it('wraps each package changelog in details element', () => {
+  it('should wrap each package changelog in details element', () => {
     const result = formatPreviewComment(releaseOutput);
     expect(result).toContain('<details>');
     expect(result).toContain('<b>@releasekit/version</b> 0.3.0 → 0.3.1');
@@ -96,7 +96,7 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('</details>');
   });
 
-  it('includes tags', () => {
+  it('should include tags', () => {
     const result = formatPreviewComment(releaseOutput);
     expect(result).toContain('- `@releasekit/version@v0.3.1`');
     expect(result).toContain('- `@releasekit/notes@v0.3.1`');
@@ -136,24 +136,24 @@ describe('formatPreviewComment', () => {
       notesGenerated: false,
     };
 
-    it('renders sharedEntries in a Project-wide changes section', () => {
+    it('should render sharedEntries in a Project-wide changes section', () => {
       const result = formatPreviewComment(outputWithShared);
       expect(result).toContain('<b>Project-wide changes</b>');
       expect(result).toContain('- Update CI pipeline');
     });
 
-    it('shared entries appear only once, not in individual package changelogs', () => {
+    it('should ensure shared entries appear only once, not in individual package changelogs', () => {
       const result = formatPreviewComment(outputWithShared);
       expect(result.split('Update CI pipeline').length - 1).toBe(1);
     });
 
-    it('keeps package-specific entries in each package changelog', () => {
+    it('should keep package-specific entries in each package changelog', () => {
       const result = formatPreviewComment(outputWithShared);
       expect(result).toContain('- New feature in pkg-a');
       expect(result).toContain('- Bug fix in pkg-b');
     });
 
-    it('omits the package details block when that package has no entries', () => {
+    it('should omit the package details block when that package has no entries', () => {
       const noEntries: ReleaseOutput = {
         versionOutput: {
           dryRun: true,
@@ -190,18 +190,18 @@ describe('formatPreviewComment', () => {
       expect(result.split(sharedEntry.description).length - 1).toBe(1);
     });
 
-    it('does not render a Project-wide section when sharedEntries is absent', () => {
+    it('should not render a Project-wide section when sharedEntries is absent', () => {
       const result = formatPreviewComment(releaseOutput);
       expect(result).not.toContain('Project-wide changes');
     });
   });
 
-  it('includes footer', () => {
+  it('should include footer', () => {
     const result = formatPreviewComment(releaseOutput);
     expect(result).toContain('Updated automatically by [ReleaseKit]');
   });
 
-  it('shows no-changes message when result is null', () => {
+  it('should show no-changes message when result is null', () => {
     const result = formatPreviewComment(null);
     expect(result).toContain('<!-- releasekit-preview -->');
     expect(result).toContain('<summary><b>Release Preview</b> — no release</summary>');
@@ -213,59 +213,59 @@ describe('formatPreviewComment', () => {
   // --- Strategy-specific messaging ---
 
   describe('release strategy messaging', () => {
-    it('uses direct intro by default', () => {
+    it('should use direct intro by default', () => {
       const result = formatPreviewComment(releaseOutput);
       expect(result).toContain('This PR will trigger the following release when merged:');
     });
 
-    it('uses manual intro when strategy is manual', () => {
+    it('should use manual intro when strategy is manual', () => {
       const result = formatPreviewComment(releaseOutput, { strategy: 'manual' });
       expect(result).toContain('If released, this PR would include:');
     });
 
-    it('uses direct intro when strategy is direct', () => {
+    it('should use direct intro when strategy is direct', () => {
       const result = formatPreviewComment(releaseOutput, { strategy: 'direct' });
       expect(result).toContain('This PR will trigger the following release when merged:');
     });
 
-    it('uses standing-pr intro without existing PR number', () => {
+    it('should use standing-pr intro without existing PR number', () => {
       const result = formatPreviewComment(releaseOutput, { strategy: 'standing-pr' });
       expect(result).toContain('Merging this PR will create a new release PR with the following changes:');
     });
 
-    it('uses standing-pr intro with existing PR number', () => {
+    it('should use standing-pr intro with existing PR number', () => {
       const result = formatPreviewComment(releaseOutput, { strategy: 'standing-pr', standingPrNumber: 99 });
       expect(result).toContain('These changes will be added to the release PR (#99) when merged:');
     });
 
-    it('uses scheduled intro when strategy is scheduled', () => {
+    it('should use scheduled intro when strategy is scheduled', () => {
       const result = formatPreviewComment(releaseOutput, { strategy: 'scheduled' });
       expect(result).toContain('These changes will be included in the next scheduled release:');
     });
 
     // No-changes messages per strategy
 
-    it('shows direct no-changes message by default', () => {
+    it('should show direct no-changes message by default', () => {
       const result = formatPreviewComment(null);
       expect(result).toContain('Merging this PR will not trigger a release');
     });
 
-    it('shows manual no-changes message', () => {
+    it('should show manual no-changes message', () => {
       const result = formatPreviewComment(null, { strategy: 'manual' });
       expect(result).toContain('Run the release workflow manually');
     });
 
-    it('shows direct no-changes message', () => {
+    it('should show direct no-changes message', () => {
       const result = formatPreviewComment(null, { strategy: 'direct' });
       expect(result).toContain('Merging this PR will not trigger a release');
     });
 
-    it('shows standing-pr no-changes message', () => {
+    it('should show standing-pr no-changes message', () => {
       const result = formatPreviewComment(null, { strategy: 'standing-pr' });
       expect(result).toContain('will not affect the release PR');
     });
 
-    it('shows scheduled no-changes message', () => {
+    it('should show scheduled no-changes message', () => {
       const result = formatPreviewComment(null, { strategy: 'scheduled' });
       expect(result).toContain('will not be included in the next scheduled release');
     });
@@ -274,14 +274,14 @@ describe('formatPreviewComment', () => {
   // --- Label context banners ---
 
   describe('label context banners', () => {
-    it('shows no banner when no labelContext', () => {
+    it('should show no banner when no labelContext', () => {
       const result = formatPreviewComment(releaseOutput);
       expect(result).not.toContain('**Warning:**');
       expect(result).not.toContain('**Important:**');
       expect(result).not.toContain('labeled for');
     });
 
-    it('shows skip banner in commit mode', () => {
+    it('should show skip banner in commit mode', () => {
       const result = formatPreviewComment(releaseOutput, {
         labelContext: { trigger: 'commit', skip: true, noBumpLabel: false },
       });
@@ -291,7 +291,7 @@ describe('formatPreviewComment', () => {
       expect(result).toContain('### Packages');
     });
 
-    it('shows major override banner in commit mode', () => {
+    it('should show major override banner in commit mode', () => {
       const result = formatPreviewComment(releaseOutput, {
         labelContext: { trigger: 'commit', skip: false, bumpLabel: 'major', noBumpLabel: false },
       });
@@ -299,7 +299,7 @@ describe('formatPreviewComment', () => {
       expect(result).toContain('labeled for a **major** release');
     });
 
-    it('shows "no release label" message in label mode with no bump label', () => {
+    it('should show "no release label" message in label mode with no bump label', () => {
       const result = formatPreviewComment(null, {
         labelContext: { trigger: 'label', skip: false, noBumpLabel: true },
       });
@@ -310,7 +310,7 @@ describe('formatPreviewComment', () => {
       expect(result).not.toContain('### Packages');
     });
 
-    it('uses custom configured labels in the "no release label" message', () => {
+    it('should use custom configured labels in the "no release label" message', () => {
       const result = formatPreviewComment(null, {
         labelContext: {
           trigger: 'label',
@@ -332,7 +332,7 @@ describe('formatPreviewComment', () => {
       expect(result).toContain('`custom:major`');
     });
 
-    it('shows bump label banner in label mode', () => {
+    it('should show bump label banner in label mode', () => {
       const result = formatPreviewComment(releaseOutput, {
         labelContext: { trigger: 'label', skip: false, bumpLabel: 'minor', noBumpLabel: false },
       });
@@ -340,14 +340,14 @@ describe('formatPreviewComment', () => {
       expect(result).toContain('### Packages');
     });
 
-    it('shows patch label banner in label mode', () => {
+    it('should show patch label banner in label mode', () => {
       const result = formatPreviewComment(releaseOutput, {
         labelContext: { trigger: 'label', skip: false, bumpLabel: 'patch', noBumpLabel: false },
       });
       expect(result).toContain('labeled for a **patch** release');
     });
 
-    it('shows major label banner in label mode', () => {
+    it('should show major label banner in label mode', () => {
       const result = formatPreviewComment(releaseOutput, {
         labelContext: { trigger: 'label', skip: false, bumpLabel: 'major', noBumpLabel: false },
       });
@@ -355,7 +355,7 @@ describe('formatPreviewComment', () => {
     });
   });
 
-  it('handles single package without changelogs', () => {
+  it('should handle single package without changelogs', () => {
     const output: ReleaseOutput = {
       versionOutput: {
         dryRun: true,
@@ -372,7 +372,7 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('- `v1.0.0`');
   });
 
-  it('handles entries with unknown types', () => {
+  it('should handle entries with unknown types', () => {
     const output: ReleaseOutput = {
       versionOutput: {
         dryRun: true,
@@ -397,7 +397,7 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('- Something custom');
   });
 
-  it('handles null previousVersion', () => {
+  it('should handle null previousVersion', () => {
     const output: ReleaseOutput = {
       versionOutput: {
         dryRun: true,
@@ -424,7 +424,7 @@ describe('formatPreviewComment', () => {
   // --- Scope label context ---
 
   describe('scope labels in label context', () => {
-    it('shows scope banner when scope labels present', () => {
+    it('should show scope banner when scope labels present', () => {
       const result = formatPreviewComment(releaseOutput, {
         labelContext: {
           trigger: 'commit',
@@ -437,7 +437,7 @@ describe('formatPreviewComment', () => {
       expect(result).toContain('@wdio/native-*');
     });
 
-    it('shows multiple scope labels', () => {
+    it('should show multiple scope labels', () => {
       const result = formatPreviewComment(releaseOutput, {
         labelContext: {
           trigger: 'commit',
@@ -451,7 +451,7 @@ describe('formatPreviewComment', () => {
       expect(result).toContain('@wdio/tauri-*');
     });
 
-    it('shows scope with bump label in label mode', () => {
+    it('should show scope with bump label in label mode', () => {
       const result = formatPreviewComment(releaseOutput, {
         labelContext: {
           trigger: 'label',
@@ -466,7 +466,7 @@ describe('formatPreviewComment', () => {
       expect(result).toContain('labeled for a **minor** release');
     });
 
-    it('omits scope when no scope labels present', () => {
+    it('should omit scope when no scope labels present', () => {
       const result = formatPreviewComment(releaseOutput, {
         labelContext: {
           trigger: 'commit',
@@ -477,7 +477,7 @@ describe('formatPreviewComment', () => {
       expect(result).not.toContain('**Scope:**');
     });
 
-    it('shows scope even when noBumpLabel is true in label mode', () => {
+    it('should show scope even when noBumpLabel is true in label mode', () => {
       const result = formatPreviewComment(null, {
         labelContext: {
           trigger: 'label',

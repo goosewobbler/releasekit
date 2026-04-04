@@ -102,724 +102,613 @@ describe('runPreview', () => {
     runPreview = mod.runPreview;
   });
 
-  it('runs release dry-run and posts comment', async () => {
-    await runPreview({ projectDir: '/test', dryRun: false });
+  describe('basic functionality', () => {
+    it('should run release dry-run and post comment', async () => {
+      await runPreview({ projectDir: '/test', dryRun: false });
 
-    expect(mockRunRelease).toHaveBeenCalledWith(
-      expect.objectContaining({
-        dryRun: true,
-        skipNotes: true,
-        skipPublish: true,
-        skipGit: true,
-        quiet: true,
-      }),
-    );
-    expect(mockPostOrUpdateComment).toHaveBeenCalled();
-  });
-
-  it('skips when CI config disables preview', async () => {
-    mockLoadCIConfig.mockReturnValue({ prPreview: false });
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockRunRelease).not.toHaveBeenCalled();
-    expect(mockPostOrUpdateComment).not.toHaveBeenCalled();
-  });
-
-  it('runs when CI config enables preview', async () => {
-    mockLoadCIConfig.mockReturnValue({ prPreview: true, releaseTrigger: 'commit' });
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockRunRelease).toHaveBeenCalled();
-  });
-
-  it('prints to stdout in dry-run mode instead of posting', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-    await runPreview({ projectDir: '/test', dryRun: true });
-
-    expect(consoleSpy).toHaveBeenCalled();
-    const output = consoleSpy.mock.calls[0]?.[0] as string;
-    expect(output).toContain('<!-- releasekit-preview -->');
-    expect(mockPostOrUpdateComment).not.toHaveBeenCalled();
-
-    consoleSpy.mockRestore();
-  });
-
-  it('handles no releasable changes gracefully', async () => {
-    mockRunRelease.mockResolvedValue(null);
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
-      expect.anything(),
-      'owner',
-      'repo',
-      1,
-      expect.stringContaining('No releasable changes detected'),
-    );
-  });
-
-  it('major + minor labels in commit mode use major (no conflict)', async () => {
-    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
-    mockFetchPRLabels.mockResolvedValue(['release:major', 'release:minor', 'release:patch']);
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major' }));
-    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
-      expect.anything(),
-      'owner',
-      'repo',
-      1,
-      expect.stringContaining('labeled for a **major** release'),
-    );
-  });
-
-  it('falls back to stdout when context resolution fails', async () => {
-    mockResolvePreviewContext.mockImplementation(() => {
-      throw new Error('No GITHUB_TOKEN');
-    });
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(consoleSpy).toHaveBeenCalled();
-    expect(mockPostOrUpdateComment).not.toHaveBeenCalled();
-
-    consoleSpy.mockRestore();
-  });
-
-  it('passes config and projectDir options through', async () => {
-    await runPreview({
-      config: '/custom/config.json',
-      projectDir: '/my/project',
-      dryRun: false,
+      expect(mockRunRelease).toHaveBeenCalledWith(
+        expect.objectContaining({
+          dryRun: true,
+          skipNotes: true,
+          skipPublish: true,
+          skipGit: true,
+          quiet: true,
+        }),
+      );
+      expect(mockPostOrUpdateComment).toHaveBeenCalled();
     });
 
-    expect(mockLoadCIConfig).toHaveBeenCalledWith({
-      cwd: '/my/project',
-      configPath: '/custom/config.json',
+    it('should skip when CI config disables preview', async () => {
+      mockLoadCIConfig.mockReturnValue({ prPreview: false });
+
+      await runPreview({ projectDir: '/test', dryRun: false });
+
+      expect(mockRunRelease).not.toHaveBeenCalled();
+      expect(mockPostOrUpdateComment).not.toHaveBeenCalled();
     });
-    expect(mockRunRelease).toHaveBeenCalledWith(
-      expect.objectContaining({
-        config: '/custom/config.json',
-        projectDir: '/my/project',
-      }),
-    );
-  });
 
-  it('passes pr and repo flags to context resolution', async () => {
-    await runPreview({ projectDir: '/test', dryRun: false, pr: '42', repo: 'org/lib' });
+    it('should run when CI config enables preview', async () => {
+      mockLoadCIConfig.mockReturnValue({ prPreview: true, releaseTrigger: 'commit' });
 
-    expect(mockResolvePreviewContext).toHaveBeenCalledWith({ pr: '42', repo: 'org/lib' });
-  });
+      await runPreview({ projectDir: '/test', dryRun: false });
 
-  // --- Prerelease detection tests ---
-
-  it('auto-detects prerelease and passes to runRelease', async () => {
-    mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'next' });
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: 'next' }));
-  });
-
-  it('does not set prerelease when versions are stable', async () => {
-    mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: undefined }));
-  });
-
-  it('--stable flag overrides auto-detection', async () => {
-    mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'next' });
-
-    await runPreview({ projectDir: '/test', dryRun: false, stable: true });
-
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: undefined }));
-  });
-
-  it('--prerelease flag overrides auto-detection', async () => {
-    mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
-
-    await runPreview({ projectDir: '/test', dryRun: false, prerelease: 'beta' });
-
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: 'beta' }));
-  });
-
-  it('passes package paths from config to detectPrerelease', async () => {
-    mockLoadConfig.mockReturnValue({ version: { packages: ['packages/a', 'packages/b'] } });
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockDetectPrerelease).toHaveBeenCalledWith(['packages/a', 'packages/b'], '/test');
-  });
-
-  it('defaults to empty package paths when no version config', async () => {
-    mockLoadConfig.mockReturnValue({});
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockDetectPrerelease).toHaveBeenCalledWith([], '/test');
-  });
-
-  // --- Release strategy tests ---
-
-  it('uses direct strategy messaging by default (no CI config)', async () => {
-    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
-      expect.anything(),
-      'owner',
-      'repo',
-      1,
-      expect.stringContaining('This PR will trigger the following release when merged:'),
-    );
-  });
-
-  it('uses direct strategy messaging when configured', async () => {
-    mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'direct', releaseTrigger: 'commit' });
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
-      expect.anything(),
-      'owner',
-      'repo',
-      1,
-      expect.stringContaining('This PR will trigger the following release when merged:'),
-    );
-  });
-
-  it('uses manual strategy messaging when explicitly configured', async () => {
-    mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'manual', releaseTrigger: 'commit' });
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
-      expect.anything(),
-      'owner',
-      'repo',
-      1,
-      expect.stringContaining('If released, this PR would include:'),
-    );
-  });
-
-  it('uses scheduled strategy no-changes message', async () => {
-    mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'scheduled', releaseTrigger: 'commit' });
-    mockRunRelease.mockResolvedValue(null);
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
-      expect.anything(),
-      'owner',
-      'repo',
-      1,
-      expect.stringContaining('will not be included in the next scheduled release'),
-    );
-  });
-
-  // --- PR label override tests (commit mode) ---
-
-  it('applies stable label override from PR labels', async () => {
-    mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'next' });
-    mockFetchPRLabels.mockResolvedValue(['release:stable', 'bug']);
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: undefined }));
-  });
-
-  it('applies prerelease label override from PR labels', async () => {
-    mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
-    mockFetchPRLabels.mockResolvedValue(['release:prerelease']);
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: true }));
-  });
-
-  it('uses custom label names from CI config', async () => {
-    mockLoadCIConfig.mockReturnValue({
-      releaseTrigger: 'commit',
-      labels: {
-        stable: 'grad',
-        prerelease: 'pre',
-        skip: 'skip',
-        major: 'major',
-        minor: 'minor',
-        patch: 'patch',
-      },
+      expect(mockRunRelease).toHaveBeenCalled();
     });
-    mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'next' });
-    mockFetchPRLabels.mockResolvedValue(['grad']);
 
-    await runPreview({ projectDir: '/test', dryRun: false });
+    it('should print to stdout in dry-run mode instead of posting', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: undefined }));
-  });
+      await runPreview({ projectDir: '/test', dryRun: true });
 
-  it('CLI --stable flag takes priority over prerelease PR label', async () => {
-    mockFetchPRLabels.mockResolvedValue(['release:prerelease']);
-    mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
+      expect(consoleSpy).toHaveBeenCalled();
+      const output = consoleSpy.mock.calls[0]?.[0] as string;
+      expect(output).toContain('<!-- releasekit-preview -->');
+      expect(mockPostOrUpdateComment).not.toHaveBeenCalled();
 
-    await runPreview({ projectDir: '/test', dryRun: false, stable: true });
-
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: undefined }));
-  });
-
-  it('CLI --prerelease flag takes priority over stable PR label', async () => {
-    mockFetchPRLabels.mockResolvedValue(['release:stable']);
-
-    await runPreview({ projectDir: '/test', dryRun: false, prerelease: 'beta' });
-
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: 'beta' }));
-  });
-
-  it('release:prerelease alone defaults to patch bump', async () => {
-    mockFetchPRLabels.mockResolvedValue(['release:prerelease']);
-    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'patch', prerelease: true }));
-  });
-
-  it('release:prerelease with release:minor uses minor bump', async () => {
-    mockFetchPRLabels.mockResolvedValue(['release:prerelease', 'release:minor']);
-    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor', prerelease: true }));
-  });
-
-  it('release:stable alone graduates prerelease to stable', async () => {
-    mockFetchPRLabels.mockResolvedValue(['release:stable', 'release:minor']);
-    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
-    mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'beta' });
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    const callArgs = mockRunRelease.mock.calls[0][0];
-    expect(callArgs.bump).toBe('minor');
-    expect(callArgs.stable).toBe(true);
-  });
-
-  it('release:stable alone without bump label runs release analysis but no bump', async () => {
-    mockFetchPRLabels.mockResolvedValue(['release:stable']);
-    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
-    mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'beta' });
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockRunRelease).toHaveBeenCalled();
-    const callArgs = mockRunRelease.mock.calls[0][0];
-    expect(callArgs.bump).toBeUndefined();
-    expect(callArgs.stable).toBe(true);
-  });
-
-  it('release:stable + release:prerelease conflict blocks release', async () => {
-    mockFetchPRLabels.mockResolvedValue(['release:stable', 'release:prerelease', 'release:minor']);
-    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockRunRelease).not.toHaveBeenCalled();
-    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
-      expect.anything(),
-      'owner',
-      'repo',
-      1,
-      expect.stringContaining('Conflicting release type labels detected'),
-    );
-  });
-
-  it('multiple bump labels conflict blocks release', async () => {
-    mockFetchPRLabels.mockResolvedValue(['release:major', 'release:minor', 'release:patch']);
-    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockRunRelease).not.toHaveBeenCalled();
-    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
-      expect.anything(),
-      'owner',
-      'repo',
-      1,
-      expect.stringContaining('Conflicting bump labels detected'),
-    );
-  });
-
-  it('skips label fetch in dry-run mode', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-    await runPreview({ projectDir: '/test', dryRun: true });
-
-    expect(mockFetchPRLabels).not.toHaveBeenCalled();
-    consoleSpy.mockRestore();
-  });
-
-  it('gracefully handles label fetch failure', async () => {
-    mockFetchPRLabels.mockRejectedValue(new Error('API rate limit'));
-    mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockRunRelease).toHaveBeenCalled();
-    expect(mockPostOrUpdateComment).toHaveBeenCalled();
-  });
-
-  // --- Commit mode: skip and major labels ---
-
-  it('skip label shows skip banner in commit mode', async () => {
-    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
-    mockFetchPRLabels.mockResolvedValue(['release:skip']);
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    // Still runs dry-run to show what would release
-    expect(mockRunRelease).toHaveBeenCalled();
-    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
-      expect.anything(),
-      'owner',
-      'repo',
-      1,
-      expect.stringContaining('marked to skip release'),
-    );
-  });
-
-  it('major label forces major bump in commit mode', async () => {
-    mockFetchPRLabels.mockResolvedValue(['release:major']);
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major' }));
-    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
-      expect.anything(),
-      'owner',
-      'repo',
-      1,
-      expect.stringContaining('labeled for a **major** release'),
-    );
-  });
-
-  it('skip label takes priority over major label in commit mode', async () => {
-    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
-    mockFetchPRLabels.mockResolvedValue(['release:skip', 'release:major']);
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: undefined }));
-    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
-      expect.anything(),
-      'owner',
-      'repo',
-      1,
-      expect.stringContaining('marked to skip release'),
-    );
-  });
-
-  it('major and prerelease labels compose in commit mode', async () => {
-    mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
-    mockFetchPRLabels.mockResolvedValue(['release:major', 'release:prerelease']);
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major', prerelease: true }));
-  });
-
-  // --- Label trigger mode ---
-
-  it('posts "no label" comment without running release analysis when no bump label in label mode', async () => {
-    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
-    mockFetchPRLabels.mockResolvedValue([]);
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockRunRelease).not.toHaveBeenCalled();
-    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
-      expect.anything(),
-      'owner',
-      'repo',
-      1,
-      expect.stringContaining('No release label detected'),
-    );
-  });
-
-  it('release:patch label triggers patch preview in label mode', async () => {
-    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
-    mockFetchPRLabels.mockResolvedValue(['release:patch']);
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'patch' }));
-  });
-
-  it('release:minor label triggers minor preview in label mode', async () => {
-    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
-    mockFetchPRLabels.mockResolvedValue(['release:minor']);
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor' }));
-  });
-
-  it('release:major label triggers major preview in label mode', async () => {
-    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
-    mockFetchPRLabels.mockResolvedValue(['release:major']);
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major' }));
-  });
-
-  it('multiple bump labels in label mode blocks release', async () => {
-    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
-    mockFetchPRLabels.mockResolvedValue(['release:patch', 'release:major']);
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockRunRelease).not.toHaveBeenCalled();
-    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
-      expect.anything(),
-      'owner',
-      'repo',
-      1,
-      expect.stringContaining('Conflicting bump labels detected'),
-    );
-  });
-
-  it('bump label and prerelease label compose in label mode', async () => {
-    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
-    mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
-    mockFetchPRLabels.mockResolvedValue(['release:minor', 'release:prerelease']);
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor', prerelease: true }));
-  });
-
-  it('skip label is ignored in label mode', async () => {
-    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
-    mockFetchPRLabels.mockResolvedValue(['release:skip', 'release:minor']);
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    // skip is irrelevant — minor label triggers the release
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor' }));
-  });
-
-  it('prints "no label" comment to stdout in dry-run mode with label trigger', async () => {
-    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-    await runPreview({ projectDir: '/test', dryRun: true });
-
-    expect(mockRunRelease).not.toHaveBeenCalled();
-    expect(mockPostOrUpdateComment).not.toHaveBeenCalled();
-    expect(consoleSpy).toHaveBeenCalled();
-    const output = consoleSpy.mock.calls[0]?.[0] as string;
-    expect(output).toContain('<!-- releasekit-preview -->');
-    expect(output).toContain('No release label detected');
-
-    consoleSpy.mockRestore();
-  });
-
-  it('uses custom label names in label mode', async () => {
-    mockLoadCIConfig.mockReturnValue({
-      releaseTrigger: 'label',
-      labels: {
-        stable: 'grad',
-        prerelease: 'pre',
-        skip: 'skip',
-        major: 'bump:major',
-        minor: 'bump:minor',
-        patch: 'bump:patch',
-      },
+      consoleSpy.mockRestore();
     });
-    mockFetchPRLabels.mockResolvedValue(['bump:minor']);
 
-    await runPreview({ projectDir: '/test', dryRun: false });
+    it('should handle no releasable changes gracefully', async () => {
+      mockRunRelease.mockResolvedValue(null);
 
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor' }));
-  });
+      await runPreview({ projectDir: '/test', dryRun: false });
 
-  it('CLI --bump flag is passed through to runRelease', async () => {
-    await runPreview({ projectDir: '/test', dryRun: false, bump: 'patch' });
-
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'patch' }));
-  });
-
-  it('--bump overrides noBumpLabel in dry-run + label-trigger mode', async () => {
-    mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-    await runPreview({ projectDir: '/test', dryRun: true, bump: 'minor' });
-
-    // Version analysis should run because --bump was explicitly supplied
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor' }));
-    expect(consoleSpy).toHaveBeenCalled();
-
-    consoleSpy.mockRestore();
-  });
-
-  // --- Scope label tests ---
-
-  it('applies scope label to filter packages in commit mode', async () => {
-    mockLoadCIConfig.mockReturnValue({
-      releaseTrigger: 'commit',
-      scopeLabels: {
-        'scope:shared': '@wdio/native-*',
-        'scope:tauri': '@wdio/tauri-*',
-      },
+      expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+        expect.anything(),
+        'owner',
+        'repo',
+        1,
+        expect.stringContaining('No releasable changes detected'),
+      );
     });
-    mockFetchPRLabels.mockResolvedValue(['scope:shared']);
 
-    await runPreview({ projectDir: '/test', dryRun: false });
+    it('should fall back to stdout when context resolution fails', async () => {
+      mockResolvePreviewContext.mockRejectedValue(new Error('No context'));
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*' }));
-    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
-      expect.anything(),
-      'owner',
-      'repo',
-      1,
-      expect.stringContaining('**Scope:**'),
-    );
+      await runPreview({ projectDir: '/test', dryRun: true });
+
+      expect(consoleSpy).toHaveBeenCalled();
+      consoleSpy.mockRestore();
+    });
   });
 
-  it('applies scope label in label mode without requiring release label', async () => {
-    mockLoadCIConfig.mockReturnValue({
-      releaseTrigger: 'label',
-      scopeLabels: {
-        'scope:shared': '@wdio/native-*',
-      },
+  describe('options', () => {
+    it('should pass config and projectDir options through', async () => {
+      await runPreview({ projectDir: '/test', config: '/custom/config.json', dryRun: false });
+
+      expect(mockLoadCIConfig).toHaveBeenCalledWith({ cwd: '/test', configPath: '/custom/config.json' });
     });
-    mockFetchPRLabels.mockResolvedValue(['scope:shared']);
 
-    await runPreview({ projectDir: '/test', dryRun: false });
+    it('should pass pr and repo flags to context resolution', async () => {
+      await runPreview({ projectDir: '/test', dryRun: false, pr: '42', repo: 'org/lib' });
 
-    // Should run release analysis because scope label is present (even without release label)
-    expect(mockRunRelease).toHaveBeenCalled();
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*' }));
+      expect(mockResolvePreviewContext).toHaveBeenCalledWith({ pr: '42', repo: 'org/lib' });
+    });
+
+    it('should auto-detect prerelease and pass to runRelease', async () => {
+      mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'next' });
+
+      await runPreview({ projectDir: '/test', dryRun: false });
+
+      expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: 'next' }));
+    });
+
+    it('should not set prerelease when versions are stable', async () => {
+      mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
+
+      await runPreview({ projectDir: '/test', dryRun: false });
+
+      expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: undefined }));
+    });
   });
 
-  it('combines multiple scope labels with OR logic', async () => {
-    mockLoadCIConfig.mockReturnValue({
-      releaseTrigger: 'commit',
-      scopeLabels: {
-        'scope:shared': '@wdio/native-*',
-        'scope:tauri': '@wdio/tauri-*',
-      },
+  describe('CLI flags', () => {
+    describe('--stable', () => {
+      it('should override auto-detection', async () => {
+        mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'next' });
+
+        await runPreview({ projectDir: '/test', dryRun: false, stable: true });
+
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: undefined }));
+      });
+
+      it('should take priority over prerelease PR label', async () => {
+        mockFetchPRLabels.mockResolvedValue(['release:prerelease']);
+        mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
+
+        await runPreview({ projectDir: '/test', dryRun: false, stable: true });
+
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: undefined }));
+      });
     });
-    mockFetchPRLabels.mockResolvedValue(['scope:shared', 'scope:tauri']);
 
-    await runPreview({ projectDir: '/test', dryRun: false });
+    describe('--prerelease', () => {
+      it('should override auto-detection', async () => {
+        mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
 
-    // Should include both patterns
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*, @wdio/tauri-*' }));
+        await runPreview({ projectDir: '/test', dryRun: false, prerelease: 'beta' });
+
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: 'beta' }));
+      });
+
+      it('should take priority over stable PR label', async () => {
+        mockFetchPRLabels.mockResolvedValue(['release:stable']);
+
+        await runPreview({ projectDir: '/test', dryRun: false, prerelease: 'beta' });
+
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: 'beta' }));
+      });
+    });
+
+    describe('--bump', () => {
+      it('should be passed through to runRelease', async () => {
+        await runPreview({ projectDir: '/test', dryRun: false, bump: 'patch' });
+
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'patch' }));
+      });
+
+      it('should override noBumpLabel in dry-run + label-trigger mode', async () => {
+        mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+        const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+        await runPreview({ projectDir: '/test', dryRun: true, bump: 'minor' });
+
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor' }));
+        expect(consoleSpy).toHaveBeenCalled();
+
+        consoleSpy.mockRestore();
+      });
+    });
+
+    describe('--target', () => {
+      it('should be replaced by scope labels', async () => {
+        mockLoadCIConfig.mockReturnValue({
+          releaseTrigger: 'commit',
+          scopeLabels: {
+            'scope:shared': '@wdio/native-*',
+          },
+        });
+        mockFetchPRLabels.mockResolvedValue(['scope:shared']);
+
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@custom/pkg' });
+
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*' }));
+      });
+    });
   });
 
-  it('combines scope label with release label', async () => {
-    mockLoadCIConfig.mockReturnValue({
-      releaseTrigger: 'label',
-      scopeLabels: {
-        'scope:shared': '@wdio/native-*',
-      },
+  describe('PR labels', () => {
+    describe('commit trigger mode', () => {
+      it('should force major bump when release:major label is present', async () => {
+        mockFetchPRLabels.mockResolvedValue(['release:major']);
+
+        await runPreview({ projectDir: '/test', dryRun: false });
+
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major' }));
+        expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+          expect.anything(),
+          'owner',
+          'repo',
+          1,
+          expect.stringContaining('labeled for a **major** release'),
+        );
+      });
+
+      it('should ignore minor and patch labels in commit mode', async () => {
+        mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
+        mockFetchPRLabels.mockResolvedValue(['release:major', 'release:minor', 'release:patch']);
+
+        await runPreview({ projectDir: '/test', dryRun: false });
+
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major' }));
+        expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+          expect.anything(),
+          'owner',
+          'repo',
+          1,
+          expect.stringContaining('labeled for a **major** release'),
+        );
+      });
+
+      it('should show skip banner when release:skip label is present', async () => {
+        mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
+        mockFetchPRLabels.mockResolvedValue(['release:skip']);
+
+        await runPreview({ projectDir: '/test', dryRun: false });
+
+        expect(mockRunRelease).toHaveBeenCalled();
+        expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+          expect.anything(),
+          'owner',
+          'repo',
+          1,
+          expect.stringContaining('marked to skip release'),
+        );
+      });
+
+      it('should prioritize skip over major label', async () => {
+        mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
+        mockFetchPRLabels.mockResolvedValue(['release:skip', 'release:major']);
+
+        await runPreview({ projectDir: '/test', dryRun: false });
+
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: undefined }));
+        expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+          expect.anything(),
+          'owner',
+          'repo',
+          1,
+          expect.stringContaining('marked to skip release'),
+        );
+      });
+
+      it('should compose major and prerelease labels', async () => {
+        mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
+        mockFetchPRLabels.mockResolvedValue(['release:major', 'release:prerelease']);
+
+        await runPreview({ projectDir: '/test', dryRun: false });
+
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major', prerelease: true }));
+      });
     });
-    mockFetchPRLabels.mockResolvedValue(['scope:shared', 'release:minor']);
 
-    await runPreview({ projectDir: '/test', dryRun: false });
+    describe('label trigger mode', () => {
+      it('should post "no label" comment without running release analysis when no bump label present', async () => {
+        mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+        mockFetchPRLabels.mockResolvedValue([]);
 
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*', bump: 'minor' }));
+        await runPreview({ projectDir: '/test', dryRun: false });
+
+        expect(mockRunRelease).not.toHaveBeenCalled();
+        expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+          expect.anything(),
+          'owner',
+          'repo',
+          1,
+          expect.stringContaining('No release label detected'),
+        );
+      });
+
+      it('should trigger patch preview when release:patch label is present', async () => {
+        mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+        mockFetchPRLabels.mockResolvedValue(['release:patch']);
+
+        await runPreview({ projectDir: '/test', dryRun: false });
+
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'patch' }));
+      });
+
+      it('should trigger minor preview when release:minor label is present', async () => {
+        mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+        mockFetchPRLabels.mockResolvedValue(['release:minor']);
+
+        await runPreview({ projectDir: '/test', dryRun: false });
+
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor' }));
+      });
+
+      it('should trigger major preview when release:major label is present', async () => {
+        mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+        mockFetchPRLabels.mockResolvedValue(['release:major']);
+
+        await runPreview({ projectDir: '/test', dryRun: false });
+
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major' }));
+      });
+
+      it('should compose bump label and prerelease label', async () => {
+        mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+        mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
+        mockFetchPRLabels.mockResolvedValue(['release:minor', 'release:prerelease']);
+
+        await runPreview({ projectDir: '/test', dryRun: false });
+
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor', prerelease: true }));
+      });
+
+      it('should ignore skip label in label mode', async () => {
+        mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+        mockFetchPRLabels.mockResolvedValue(['release:skip', 'release:minor']);
+
+        await runPreview({ projectDir: '/test', dryRun: false });
+
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor' }));
+      });
+
+      it('should print "no label" comment to stdout in dry-run mode', async () => {
+        mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+        const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+        await runPreview({ projectDir: '/test', dryRun: true });
+
+        expect(mockRunRelease).not.toHaveBeenCalled();
+        expect(mockPostOrUpdateComment).not.toHaveBeenCalled();
+        expect(consoleSpy).toHaveBeenCalled();
+        const output = consoleSpy.mock.calls[0]?.[0] as string;
+        expect(output).toContain('<!-- releasekit-preview -->');
+        expect(output).toContain('No release label detected');
+
+        consoleSpy.mockRestore();
+      });
+
+      it('should use custom label names', async () => {
+        mockLoadCIConfig.mockReturnValue({
+          releaseTrigger: 'label',
+          labels: {
+            stable: 'grad',
+            prerelease: 'pre',
+            skip: 'skip',
+            major: 'bump:major',
+            minor: 'bump:minor',
+            patch: 'bump:patch',
+          },
+        });
+        mockFetchPRLabels.mockResolvedValue(['bump:minor']);
+
+        await runPreview({ projectDir: '/test', dryRun: false });
+
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor' }));
+      });
+    });
   });
 
-  it('scope label without release label uses conventional commits in label mode', async () => {
-    mockLoadCIConfig.mockReturnValue({
-      releaseTrigger: 'label',
-      scopeLabels: {
-        'scope:shared': '@wdio/native-*',
-      },
+  describe('PR label conflicts', () => {
+    describe('bump label conflicts', () => {
+      it('should block release when multiple bump labels present in label mode', async () => {
+        mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+        mockFetchPRLabels.mockResolvedValue(['release:patch', 'release:major']);
+
+        await runPreview({ projectDir: '/test', dryRun: false });
+
+        expect(mockRunRelease).not.toHaveBeenCalled();
+        expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+          expect.anything(),
+          'owner',
+          'repo',
+          1,
+          expect.stringContaining('Conflicting bump labels detected'),
+        );
+      });
+
+      it('should block release when multiple bump labels present (no trigger mode)', async () => {
+        mockFetchPRLabels.mockResolvedValue(['release:major', 'release:minor', 'release:patch']);
+        mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+
+        await runPreview({ projectDir: '/test', dryRun: false });
+
+        expect(mockRunRelease).not.toHaveBeenCalled();
+        expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+          expect.anything(),
+          'owner',
+          'repo',
+          1,
+          expect.stringContaining('Conflicting bump labels detected'),
+        );
+      });
     });
-    mockFetchPRLabels.mockResolvedValue(['scope:shared']);
 
-    await runPreview({ projectDir: '/test', dryRun: false });
+    describe('stable/prerelease conflicts', () => {
+      it('should block release when release:stable and release:prerelease both present', async () => {
+        mockFetchPRLabels.mockResolvedValue(['release:stable', 'release:prerelease', 'release:minor']);
+        mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
 
-    // Should run release analysis but not set bump (let conventional commits decide)
-    expect(mockRunRelease).toHaveBeenCalled();
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*', bump: undefined }));
+        await runPreview({ projectDir: '/test', dryRun: false });
+
+        expect(mockRunRelease).not.toHaveBeenCalled();
+        expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+          expect.anything(),
+          'owner',
+          'repo',
+          1,
+          expect.stringContaining('Conflicting release type labels detected'),
+        );
+      });
+    });
   });
 
-  it('CLI --target flag is replaced by scope labels', async () => {
-    mockLoadCIConfig.mockReturnValue({
-      releaseTrigger: 'commit',
-      scopeLabels: {
-        'scope:shared': '@wdio/native-*',
-      },
+  describe('stable/prerelease defaults', () => {
+    describe('prerelease label', () => {
+      it('should default to patch bump when prerelease label is present alone', async () => {
+        mockFetchPRLabels.mockResolvedValue(['release:prerelease']);
+        mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+
+        await runPreview({ projectDir: '/test', dryRun: false });
+
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'patch', prerelease: true }));
+      });
+
+      it('should use minor bump when prerelease and release:minor labels present', async () => {
+        mockFetchPRLabels.mockResolvedValue(['release:prerelease', 'release:minor']);
+        mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+
+        await runPreview({ projectDir: '/test', dryRun: false });
+
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor', prerelease: true }));
+      });
     });
-    mockFetchPRLabels.mockResolvedValue(['scope:shared']);
 
-    await runPreview({ projectDir: '/test', dryRun: false, target: '@custom/pkg' });
+    describe('stable label', () => {
+      it('should graduate prerelease to stable when stable label is present', async () => {
+        mockFetchPRLabels.mockResolvedValue(['release:stable', 'release:minor']);
+        mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+        mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'beta' });
 
-    // Scope labels replace CLI target
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*' }));
+        await runPreview({ projectDir: '/test', dryRun: false });
+
+        const callArgs = mockRunRelease.mock.calls[0][0];
+        expect(callArgs.bump).toBe('minor');
+        expect(callArgs.stable).toBe(true);
+      });
+
+      it('should run release analysis but not set bump when stable label present without bump label', async () => {
+        mockFetchPRLabels.mockResolvedValue(['release:stable']);
+        mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
+        mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'beta' });
+
+        await runPreview({ projectDir: '/test', dryRun: false });
+
+        expect(mockRunRelease).toHaveBeenCalled();
+        const callArgs = mockRunRelease.mock.calls[0][0];
+        expect(callArgs.bump).toBeUndefined();
+        expect(callArgs.stable).toBe(true);
+      });
+    });
   });
 
-  it('displays scope in preview comment banner', async () => {
-    mockLoadCIConfig.mockReturnValue({
-      releaseTrigger: 'commit',
-      scopeLabels: {
-        'scope:shared': '@wdio/native-*',
-      },
+  describe('scope labels', () => {
+    it('should filter packages in commit mode when scope label present', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'commit',
+        scopeLabels: {
+          'scope:shared': '@wdio/native-*',
+          'scope:tauri': '@wdio/tauri-*',
+        },
+      });
+      mockFetchPRLabels.mockResolvedValue(['scope:shared']);
+
+      await runPreview({ projectDir: '/test', dryRun: false });
+
+      expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*' }));
+      expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+        expect.anything(),
+        'owner',
+        'repo',
+        1,
+        expect.stringContaining('**Scope:**'),
+      );
     });
-    mockFetchPRLabels.mockResolvedValue(['scope:shared']);
 
-    await runPreview({ projectDir: '/test', dryRun: false });
+    it('should filter packages in label mode without requiring release label', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'label',
+        scopeLabels: {
+          'scope:shared': '@wdio/native-*',
+        },
+      });
+      mockFetchPRLabels.mockResolvedValue(['scope:shared']);
 
-    expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
-      expect.anything(),
-      'owner',
-      'repo',
-      1,
-      expect.stringContaining('**Scope:** @wdio/native-*'),
-    );
+      await runPreview({ projectDir: '/test', dryRun: false });
+
+      expect(mockRunRelease).toHaveBeenCalled();
+      expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*' }));
+    });
+
+    it('should combine multiple scope labels with OR logic', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'commit',
+        scopeLabels: {
+          'scope:shared': '@wdio/native-*',
+          'scope:tauri': '@wdio/tauri-*',
+        },
+      });
+      mockFetchPRLabels.mockResolvedValue(['scope:shared', 'scope:tauri']);
+
+      await runPreview({ projectDir: '/test', dryRun: false });
+
+      expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*, @wdio/tauri-*' }));
+    });
+
+    it('should combine scope label with release label', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'label',
+        scopeLabels: {
+          'scope:shared': '@wdio/native-*',
+        },
+      });
+      mockFetchPRLabels.mockResolvedValue(['scope:shared', 'release:minor']);
+
+      await runPreview({ projectDir: '/test', dryRun: false });
+
+      expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*', bump: 'minor' }));
+    });
+
+    it('should use conventional commits when scope label present but no release label', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'label',
+        scopeLabels: {
+          'scope:shared': '@wdio/native-*',
+        },
+      });
+      mockFetchPRLabels.mockResolvedValue(['scope:shared']);
+
+      await runPreview({ projectDir: '/test', dryRun: false });
+
+      expect(mockRunRelease).toHaveBeenCalled();
+      expect(mockRunRelease).toHaveBeenCalledWith(
+        expect.objectContaining({ target: '@wdio/native-*', bump: undefined }),
+      );
+    });
+
+    it('should display scope in preview comment banner', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'commit',
+        scopeLabels: {
+          'scope:shared': '@wdio/native-*',
+        },
+      });
+      mockFetchPRLabels.mockResolvedValue(['scope:shared']);
+
+      await runPreview({ projectDir: '/test', dryRun: false });
+
+      expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+        expect.anything(),
+        'owner',
+        'repo',
+        1,
+        expect.stringContaining('**Scope:** @wdio/native-*'),
+      );
+    });
+
+    it('should use custom scope label names from CI config', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'commit',
+        scopeLabels: {
+          'shared-pkg': '@wdio/native-*',
+        },
+      });
+      mockFetchPRLabels.mockResolvedValue(['shared-pkg']);
+
+      await runPreview({ projectDir: '/test', dryRun: false });
+
+      expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*' }));
+    });
+
+    it('should run all packages when no scope label present', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'commit',
+        scopeLabels: {
+          'scope:shared': '@wdio/native-*',
+        },
+      });
+      mockFetchPRLabels.mockResolvedValue(['bug']);
+
+      await runPreview({ projectDir: '/test', dryRun: false });
+
+      expect(mockRunRelease).toHaveBeenCalled();
+      const callArgs = mockRunRelease.mock.calls[0][0];
+      expect(callArgs.target).toBeUndefined();
+    });
   });
 
-  it('uses custom scope label names from CI config', async () => {
-    mockLoadCIConfig.mockReturnValue({
-      releaseTrigger: 'commit',
-      scopeLabels: {
-        'shared-pkg': '@wdio/native-*',
-      },
+  describe('label fetching', () => {
+    it('should skip in dry-run mode', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      await runPreview({ projectDir: '/test', dryRun: true });
+
+      expect(mockFetchPRLabels).not.toHaveBeenCalled();
+      consoleSpy.mockRestore();
     });
-    mockFetchPRLabels.mockResolvedValue(['shared-pkg']);
 
-    await runPreview({ projectDir: '/test', dryRun: false });
+    it('should gracefully handle label fetch failure', async () => {
+      mockFetchPRLabels.mockRejectedValue(new Error('API rate limit'));
+      mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
 
-    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*' }));
-  });
+      await runPreview({ projectDir: '/test', dryRun: false });
 
-  it('no scope label runs all packages', async () => {
-    mockLoadCIConfig.mockReturnValue({
-      releaseTrigger: 'commit',
-      scopeLabels: {
-        'scope:shared': '@wdio/native-*',
-      },
+      expect(mockRunRelease).toHaveBeenCalled();
+      expect(mockPostOrUpdateComment).toHaveBeenCalled();
     });
-    mockFetchPRLabels.mockResolvedValue(['bug']);
-
-    await runPreview({ projectDir: '/test', dryRun: false });
-
-    // When no scope label present, target should not be set to a scope pattern
-    expect(mockRunRelease).toHaveBeenCalled();
-    const callArgs = mockRunRelease.mock.calls[0][0];
-    // Target should be undefined or not contain scope patterns
-    expect(callArgs.target).toBeUndefined();
   });
 });
