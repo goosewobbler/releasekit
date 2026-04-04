@@ -48,6 +48,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.9.0] - 2026-04-04
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.8.1...releasekit-version-v0.9.0)
+
+### Added
+- enhance label extraction to support 'bump' labels (#106)
+
+### Changed
+- update label handling from 'release' to 'bump' for consistency (#105)
+
 ## [0.8.1] - 2026-04-04
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.8.0...releasekit-version-v0.8.1)

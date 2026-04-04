@@ -1,39 +1,51 @@
 
 
-## `@releasekit/version` @ 0.8.1
+## `@releasekit/version` @ 0.9.0
 
-### General:
-- **scripts**: remove verbose and quiet flags from buildPreviewArgs function
+### New:
+- Added support for extracting 'bump' labels from commits.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.8.0...releasekit-version-v0.8.1
+### Changed:
+- Changed label handling to use 'bump' instead of 'release' for consistency.
 
----
-
-
-## `@releasekit/notes` @ 0.8.1
-
-### General:
-- **scripts**: remove verbose and quiet flags from buildPreviewArgs function
-
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.8.0...releasekit-version-v0.8.1
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.8.1...releasekit-version-v0.9.0
 
 ---
 
 
-## `@releasekit/publish` @ 0.8.1
+## `@releasekit/notes` @ 0.9.0
 
-### General:
-- **scripts**: remove verbose and quiet flags from buildPreviewArgs function
+### New:
+- Enhanced label extraction to support 'bump' labels.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.8.0...releasekit-version-v0.8.1
+### Changed:
+- Updated label handling from 'release' to 'bump' for consistency.
+
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.8.1...releasekit-version-v0.9.0
 
 ---
 
 
-## `@releasekit/release` @ 0.8.1
+## `@releasekit/publish` @ 0.9.0
 
-### General:
-- **scripts**: remove verbose and quiet flags from buildPreviewArgs function
+### New:
+- Added support for extracting 'bump' labels in the label handling system.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.8.0...releasekit-version-v0.8.1
+### Changed:
+- Changed label handling to use 'bump' instead of 'release' for consistency.
+
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.8.1...releasekit-version-v0.9.0
+
+---
+
+
+## `@releasekit/release` @ 0.9.0
+
+### New:
+- Added support for extracting 'bump' labels.
+
+### Changed:
+- Updated label handling to use 'bump' instead of 'release' for consistency.
+
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.8.1...releasekit-version-v0.9.0
 
