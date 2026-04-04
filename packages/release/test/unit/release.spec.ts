@@ -748,7 +748,7 @@ describe('runRelease', () => {
         releaseTrigger: 'label',
       });
       mockFindMergedPRsForCommit.mockResolvedValue([123, 456]);
-      mockFetchPRLabels.mockResolvedValueOnce(['bump:major', 'bump:minor']).mockResolvedValueOnce(['release:patch']);
+      mockFetchPRLabels.mockResolvedValueOnce(['bump:major', 'bump:minor']).mockResolvedValueOnce(['bump:patch']);
 
       const { runRelease } = await import('../../src/release.js');
       const result = await runRelease(defaultOptions);
