@@ -119,7 +119,7 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
       const labels = labelContext.labels;
       const labelExamples = labels
         ? `\`${labels.patch}\`, \`${labels.minor}\`, or \`${labels.major}\``
-        : 'a release label (e.g., `release:patch`, `release:minor`, `release:major`)';
+        : 'a bump label (e.g., `bump:patch`, `bump:minor`, `bump:major`)';
       lines.push(
         '> **Error:** Conflicting bump labels detected.',
         `> **Note:** Please use only one release label at a time. Use ${labelExamples}.`,
