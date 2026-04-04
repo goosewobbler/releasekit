@@ -729,5 +729,33 @@ describe('runRelease', () => {
 
       expect(result).not.toBeNull();
     });
+
+    it('should NOT block release when different PRs have different bump labels', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'label',
+      });
+      mockFindMergedPRsForCommit.mockResolvedValue([123, 456]);
+      mockFetchPRLabels.mockResolvedValueOnce(['release:major']).mockResolvedValueOnce(['release:minor']);
+
+      const { runRelease } = await import('../../src/release.js');
+      const result = await runRelease(defaultOptions);
+
+      expect(result).not.toBeNull();
+    });
+
+    it('should block release when same PR has conflicting labels', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'label',
+      });
+      mockFindMergedPRsForCommit.mockResolvedValue([123, 456]);
+      mockFetchPRLabels
+        .mockResolvedValueOnce(['release:major', 'release:minor'])
+        .mockResolvedValueOnce(['release:patch']);
+
+      const { runRelease } = await import('../../src/release.js');
+      const result = await runRelease(defaultOptions);
+
+      expect(result).toBeNull();
+    });
   });
 });

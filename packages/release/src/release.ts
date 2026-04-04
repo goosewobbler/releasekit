@@ -36,6 +36,7 @@ interface PRLabelsResult {
   target: string | undefined;
   scopeLabels: string[];
   labels: string[];
+  blocked?: boolean;
 }
 
 async function applyScopeLabelsFromPR(
@@ -60,9 +61,28 @@ async function applyScopeLabelsFromPR(
 
   const prNumbers = await findMergedPRsForCommit(octokit, githubContext.owner, githubContext.repo, githubContext.sha);
   const allLabels: string[] = [];
+  const perPRLabels: Map<number, string[]> = new Map();
+
   for (const prNumber of prNumbers) {
     const labels = await fetchPRLabels(octokit, githubContext.owner, githubContext.repo, prNumber);
     allLabels.push(...labels);
+    perPRLabels.set(prNumber, labels);
+  }
+
+  // Check for label conflicts per-PR (not aggregated across PRs)
+  // Labels from different PRs don't conflict with each other
+  for (const [prNumber, labels] of perPRLabels) {
+    const conflict = detectLabelConflicts(labels, ciConfig?.labels ?? DEFAULT_LABELS);
+    if (conflict.prereleaseConflict) {
+      warn(
+        `PR #${prNumber} has conflicting labels "${ciConfig?.labels?.stable ?? 'release:stable'}" and "${ciConfig?.labels?.prerelease ?? 'release:prerelease'}" — release blocked`,
+      );
+      return { target: options.target, scopeLabels: [], labels: [], blocked: true };
+    }
+    if (conflict.bumpConflict && (ciConfig?.releaseTrigger ?? 'label') === 'label') {
+      warn(`PR #${prNumber} has conflicting bump labels (${conflict.bumpLabelsPresent.join(', ')}) — release blocked`);
+      return { target: options.target, scopeLabels: [], labels: [], blocked: true };
+    }
   }
 
   if (prNumbers.length === 0) {
@@ -121,29 +141,14 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   // Skip in dry-run mode since preview.ts already handles scope labels
   const ciConfig = loadCIConfig({ cwd: options.projectDir, configPath: options.config });
 
-  let prLabels: string[] = [];
   if (!options.dryRun) {
     const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
-    prLabels = scopeResult.labels;
+    if (scopeResult.blocked) {
+      info('Release blocked due to conflicting PR labels');
+      return null;
+    }
     if (scopeResult.target !== options.target) {
       options.target = scopeResult.target;
-    }
-
-    // Check for label conflicts using the already-fetched labels
-    const ciLabels = ciConfig?.labels ?? DEFAULT_LABELS;
-    const trigger = ciConfig?.releaseTrigger ?? 'label';
-    const conflict = detectLabelConflicts(prLabels, ciLabels);
-
-    if (trigger === 'label' && conflict.bumpConflict) {
-      warn(`Conflicting bump labels detected (${conflict.bumpLabelsPresent.join(', ')}) — release blocked`);
-      info('Release blocked due to conflicting PR labels');
-      return null;
-    }
-
-    if (conflict.prereleaseConflict) {
-      warn(`Conflicting labels "${ciLabels.stable}" and "${ciLabels.prerelease}" detected — release blocked`);
-      info('Release blocked due to conflicting PR labels');
-      return null;
     }
   } else if (ciConfig?.scopeLabels) {
     const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
