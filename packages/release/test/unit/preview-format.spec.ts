@@ -353,6 +353,22 @@ describe('formatPreviewComment', () => {
       });
       expect(result).toContain('labeled for a **major** release');
     });
+
+    it('should show stable-only banner in label mode (graduation)', () => {
+      const result = formatPreviewComment(releaseOutput, {
+        labelContext: { trigger: 'label', skip: false, noBumpLabel: false, prerelease: false, stable: true },
+      });
+      expect(result).toContain('labeled for a **stable** release (graduation from prerelease)');
+      expect(result).toContain('### Packages');
+    });
+
+    it('should show prerelease-only banner in label mode (conventional commits driven)', () => {
+      const result = formatPreviewComment(releaseOutput, {
+        labelContext: { trigger: 'label', skip: false, noBumpLabel: false, prerelease: true, stable: false },
+      });
+      expect(result).toContain('labeled for a **prerelease** release (bump from conventional commits)');
+      expect(result).toContain('### Packages');
+    });
   });
 
   it('should handle single package without changelogs', () => {

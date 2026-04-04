@@ -771,5 +771,37 @@ describe('runRelease', () => {
 
       expect(result).toBeNull();
     });
+
+    it('should skip release when release:skip label is present in commit mode', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'commit',
+        scopeLabels: {
+          'scope:shared': '@wdio/native-*',
+        },
+      });
+      mockFindMergedPRsForCommit.mockResolvedValue([123]);
+      mockFetchPRLabels.mockResolvedValue(['release:skip']);
+
+      const { runRelease } = await import('../../src/release.js');
+      const result = await runRelease(defaultOptions);
+
+      expect(result).toBeNull();
+    });
+
+    it('should NOT skip release when release:skip label is present in label mode', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'label',
+        scopeLabels: {
+          'scope:shared': '@wdio/native-*',
+        },
+      });
+      mockFindMergedPRsForCommit.mockResolvedValue([123]);
+      mockFetchPRLabels.mockResolvedValue(['release:skip']);
+
+      const { runRelease } = await import('../../src/release.js');
+      const result = await runRelease(defaultOptions);
+
+      expect(result).not.toBeNull();
+    });
   });
 });

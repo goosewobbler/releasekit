@@ -317,7 +317,7 @@ describe('runPreview', () => {
 
         await runPreview({ projectDir: '/test', dryRun: false });
 
-        expect(mockRunRelease).toHaveBeenCalled();
+        expect(mockRunRelease).not.toHaveBeenCalled();
         expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
           expect.anything(),
           'owner',
@@ -333,7 +333,7 @@ describe('runPreview', () => {
 
         await runPreview({ projectDir: '/test', dryRun: false });
 
-        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: undefined }));
+        expect(mockRunRelease).not.toHaveBeenCalled();
         expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
           expect.anything(),
           'owner',
@@ -509,13 +509,20 @@ describe('runPreview', () => {
 
   describe('stable/prerelease defaults', () => {
     describe('prerelease label', () => {
-      it('should default to patch bump when prerelease label is present alone', async () => {
+      it('should not trigger release when release:prerelease label is present alone', async () => {
         mockFetchPRLabels.mockResolvedValue(['release:prerelease']);
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
 
         await runPreview({ projectDir: '/test', dryRun: false });
 
-        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'patch', prerelease: true }));
+        expect(mockRunRelease).not.toHaveBeenCalled();
+        expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+          expect.anything(),
+          'owner',
+          'repo',
+          1,
+          expect.stringContaining('No bump label detected'),
+        );
       });
 
       it('should use minor bump when prerelease and bump:minor labels present', async () => {

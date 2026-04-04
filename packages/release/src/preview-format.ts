@@ -149,11 +149,14 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
       return lines;
     }
 
-    // Only prerelease/stable label present (no bump label)
-    if (labelContext.prerelease || labelContext.stable) {
-      const type = labelContext.prerelease ? 'prerelease' : 'stable';
-      const defaultBump = 'patch';
-      lines.push(`> This PR is labeled for a **${defaultBump}** release (${type}).`, '');
+    // Only a channel modifier label is present (no bump label)
+    if (labelContext.stable) {
+      lines.push('> This PR is labeled for a **stable** release (graduation from prerelease).', '');
+      return lines;
+    }
+    if (labelContext.prerelease) {
+      // Commit mode only: release:prerelease modifier set, bump driven by conventional commits
+      lines.push('> This PR is labeled for a **prerelease** release (bump from conventional commits).', '');
       return lines;
     }
   }

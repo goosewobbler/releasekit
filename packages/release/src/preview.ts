@@ -53,11 +53,9 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
 
   const strategy = ciConfig?.releaseStrategy ?? 'direct';
 
-  // Run version analysis unless in label mode with no bump label. When no
-  // bump label is present, skip the analysis but still format and post/print
-  // the comment so the PR receives an actionable "add a label" note.
+  // Run version analysis unless release is skipped or in label mode with no bump label
   let result = null;
-  if (!labelContext.noBumpLabel) {
+  if (!labelContext.skip && !labelContext.noBumpLabel) {
     // Determine prerelease mode
     const releaseConfig = loadConfig({ cwd: effectiveOptions.projectDir, configPath: effectiveOptions.config });
     const prereleaseFlag = resolvePrerelease(
@@ -269,15 +267,21 @@ async function applyLabelOverrides(
       labelContext.bumpLabel = 'patch';
       result.bump = 'patch';
     } else if (matchedScopePatterns.length === 0) {
-      // No bump label AND no scope labels → require release label in label mode
-      // But allow if stable/prerelease label is present
-      const hasStableOrPrerelease = conflict.hasStable || conflict.hasPrerelease;
-      if (!hasStableOrPrerelease) {
+      // No bump label AND no scope labels → require bump label in label mode
+      // release:stable alone is permitted (stable promotion doesn't need a bump magnitude)
+      if (!conflict.hasStable) {
         labelContext.noBumpLabel = true;
       }
     }
     // If scope labels are present but no release label, we don't set noBumpLabel = true
     // This allows conventional commits to determine the bump
+
+    // Warn if skip label is used in label mode (not effective, but could be confusing)
+    if (prLabels.includes(labels.skip)) {
+      warn(
+        `PR label "${labels.skip}" has no effect in label trigger mode — skipping is controlled by not adding bump labels`,
+      );
+    }
   }
 
   // Stable/prerelease label modifiers (both modes, only when CLI flags unset)
@@ -292,12 +296,6 @@ async function applyLabelOverrides(
       info(`PR label "${labels.prerelease}" detected — using prerelease preview`);
       result.prerelease = true;
       labelContext.prerelease = true;
-      // Default to patch bump when only prerelease label is present (label mode only)
-      if (trigger === 'label' && !result.bump) {
-        info('No bump label found — defaulting to patch bump for prerelease release');
-        result.bump = 'patch';
-        labelContext.bumpLabel = 'patch';
-      }
     }
   }
 
