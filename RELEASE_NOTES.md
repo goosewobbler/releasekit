@@ -1,39 +1,39 @@
 
 
-## `@releasekit/version` @ 0.10.0
+## `@releasekit/version` @ 0.10.2
 
 ### Fixed:
-- Fixed package filtering to correctly handle wildcard patterns.
+- Fixed handling of scope labels to correctly resolve effective targets during release.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.9.0...releasekit-version-v0.10.0
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.1...releasekit-version-v0.10.2
 
 ---
 
 
-## `@releasekit/notes` @ 0.10.0
+## `@releasekit/notes` @ 0.10.2
 
 ### Fixed:
-- Fixed package filtering to support wildcards.
+- Implemented effective target handling for scope labels.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.9.0...releasekit-version-v0.10.0
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.1...releasekit-version-v0.10.2
 
 ---
 
 
-## `@releasekit/publish` @ 0.10.0
+## `@releasekit/publish` @ 0.10.2
 
 ### Fixed:
-- Fixed package filtering to properly support wildcard patterns.
+- Fixed issue where scope labels weren't properly handled for effective targets.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.9.0...releasekit-version-v0.10.0
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.1...releasekit-version-v0.10.2
 
 ---
 
 
-## `@releasekit/release` @ 0.10.0
+## `@releasekit/release` @ 0.10.2
 
-### Changed:
-- Added wildcard support to package filtering
+### Fixed:
+- Fixed handling of scope labels to properly implement effective target handling.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.9.0...releasekit-version-v0.10.0
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.1...releasekit-version-v0.10.2
 
