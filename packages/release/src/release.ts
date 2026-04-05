@@ -156,7 +156,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   // Determine effective target: CLI target can be overridden by scope labels
   let effectiveTarget = options.target;
 
-  if (!options.dryRun || ciConfig?.scopeLabels) {
+  if (!options.dryRun || (ciConfig?.scopeLabels && Object.keys(ciConfig.scopeLabels).length > 0)) {
     const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
     if (scopeResult.blocked) {
       info('Release blocked due to conflicting PR labels');
