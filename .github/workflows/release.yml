@@ -91,14 +91,33 @@ jobs:
             exit 0
           fi
 
-          # Check if any release label exists on merged PRs.
-          # releasekit will read the actual labels and determine bump type.
+          # Extract the release label and derive the bump type from it.
+          # Only bump:* labels are supported (release:* labels are deprecated).
           LABELS=$(echo "$PRS_OUTPUT" | jq -r '.[].labels[].name' 2>/dev/null)
           
-          if echo "$LABELS" | grep -qE "^(bump:(patch|minor|major)|release:stable)$"; then
+          # Check for bump:* labels
+          BUMP_LABEL=$(echo "$LABELS" | grep -E "^bump:(patch|minor|major)$" | head -1)
+          if [ -n "$BUMP_LABEL" ]; then
+            BUMP_TYPE="${BUMP_LABEL#bump:}"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "bump=$BUMP_TYPE" >> "$GITHUB_OUTPUT"
+            echo "Bump label '${BUMP_LABEL}' found — bump: ${BUMP_TYPE}"
+            exit 0
+          fi
+          
+          # Check for release:stable (standalone graduation from prerelease)
+          if echo "$LABELS" | grep -qE "^release:stable$"; then
             echo "should_release=true" >> "$GITHUB_OUTPUT"
             echo "bump=auto" >> "$GITHUB_OUTPUT"
-            echo "Release label found on merged PRs — releasekit will determine action"
+            echo "release:stable label found — promoting prerelease to stable"
+            exit 0
+          fi
+          
+          # Check for release:prerelease (requires bump:* label, handled by releasekit)
+          if echo "$LABELS" | grep -qE "^release:prerelease$"; then
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "bump=auto" >> "$GITHUB_OUTPUT"
+            echo "release:prerelease label found — creating prerelease"
             exit 0
           fi
           
