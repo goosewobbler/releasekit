@@ -820,6 +820,9 @@ describe('runRelease', () => {
 
       expect(result).not.toBeNull();
       expect(mockVersionEngineRun).toHaveBeenCalled();
+
+      const config = mockVersionLoadConfig.mock.results[0]?.value;
+      expect(config.packages).toEqual(['@wdio/electron-*']);
     });
   });
 });
