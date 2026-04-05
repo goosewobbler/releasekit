@@ -103,6 +103,20 @@ jobs:
             exit 0
           fi
           
+          # Check for release:prerelease + bump:* (creates prerelease)
+          if echo "$LABELS" | grep -qE "^release:prerelease$"; then
+            if echo "$LABELS" | grep -qE "^bump:(patch|minor|major)$"; then
+              echo "should_release=true" >> "$GITHUB_OUTPUT"
+              echo "bump=prerelease" >> "$GITHUB_OUTPUT"
+              echo "release:prerelease + bump:* label found — creating prerelease"
+              exit 0
+            else
+              echo "should_release=false" >> "$GITHUB_OUTPUT"
+              echo "release:prerelease requires a bump:* label — skipping release"
+              exit 0
+            fi
+          fi
+          
           # Check for bump:* labels
           BUMP_LABEL=$(echo "$LABELS" | grep -E "^bump:(patch|minor|major)$" | head -1)
           if [ -n "$BUMP_LABEL" ]; then
@@ -111,22 +125,6 @@ jobs:
             echo "bump=$BUMP_TYPE" >> "$GITHUB_OUTPUT"
             echo "Bump label '${BUMP_LABEL}' found — bump: ${BUMP_TYPE}"
             exit 0
-          fi
-          
-          # Check for release:prerelease (requires bump:* label, handled by releasekit)
-          # release:prerelease alone should not trigger release (per ci-setup.md)
-          if echo "$LABELS" | grep -qE "^release:prerelease$"; then
-            # Check if a bump:* label is also present
-            if echo "$LABELS" | grep -qE "^bump:(patch|minor|major)$"; then
-              echo "should_release=true" >> "$GITHUB_OUTPUT"
-              echo "bump=auto" >> "$GITHUB_OUTPUT"
-              echo "release:prerelease + bump:* label found — creating prerelease"
-              exit 0
-            else
-              echo "should_release=false" >> "$GITHUB_OUTPUT"
-              echo "release:prerelease requires a bump:* label — skipping release"
-              exit 0
-            fi
           fi
           
           echo "should_release=false" >> "$GITHUB_OUTPUT"
