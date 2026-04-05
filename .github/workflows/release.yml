@@ -91,14 +91,48 @@ jobs:
             exit 0
           fi
 
-          # Check if any release label exists on merged PRs.
-          # releasekit will read the actual labels and determine bump type.
+          # Extract the release label and derive the bump type from it.
+          # Only bump:* labels are supported (release:* labels are deprecated).
           LABELS=$(echo "$PRS_OUTPUT" | jq -r '.[].labels[].name' 2>/dev/null)
           
-          if echo "$LABELS" | grep -qE "^(bump:(patch|minor|major)|release:stable)$"; then
+          # Check for release:stable first (takes precedence over bump:* per ci-setup.md)
+          if echo "$LABELS" | grep -qE "^release:stable$"; then
             echo "should_release=true" >> "$GITHUB_OUTPUT"
             echo "bump=auto" >> "$GITHUB_OUTPUT"
-            echo "Release label found on merged PRs — releasekit will determine action"
+            echo "release:stable label found — promoting prerelease to stable"
+            exit 0
+          fi
+          
+          # Check for release:prerelease + bump:* (creates prerelease)
+          if echo "$LABELS" | grep -qE "^release:prerelease$"; then
+            # Map bump label to prerelease bump type
+            PRERELEASE_BUMP="prerelease"
+            if echo "$LABELS" | grep -qE "^bump:patch$"; then
+              PRERELEASE_BUMP="prepatch"
+            elif echo "$LABELS" | grep -qE "^bump:minor$"; then
+              PRERELEASE_BUMP="preminor"
+            elif echo "$LABELS" | grep -qE "^bump:major$"; then
+              PRERELEASE_BUMP="premajor"
+            fi
+            if echo "$LABELS" | grep -qE "^bump:(patch|minor|major)$"; then
+              echo "should_release=true" >> "$GITHUB_OUTPUT"
+              echo "bump=$PRERELEASE_BUMP" >> "$GITHUB_OUTPUT"
+              echo "release:prerelease + bump:* label found — creating $PRERELEASE_BUMP prerelease"
+              exit 0
+            else
+              echo "should_release=false" >> "$GITHUB_OUTPUT"
+              echo "release:prerelease requires a bump:* label — skipping release"
+              exit 0
+            fi
+          fi
+          
+          # Check for bump:* labels
+          BUMP_LABEL=$(echo "$LABELS" | grep -E "^bump:(patch|minor|major)$" | head -1)
+          if [ -n "$BUMP_LABEL" ]; then
+            BUMP_TYPE="${BUMP_LABEL#bump:}"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "bump=$BUMP_TYPE" >> "$GITHUB_OUTPUT"
+            echo "Bump label '${BUMP_LABEL}' found — bump: ${BUMP_TYPE}"
             exit 0
           fi
           
