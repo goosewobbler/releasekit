@@ -153,6 +153,9 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   // Skip in dry-run mode since preview.ts already handles scope labels
   const ciConfig = loadCIConfig({ cwd: options.projectDir, configPath: options.config });
 
+  // Determine effective target: CLI target can be overridden by scope labels
+  let effectiveTarget = options.target;
+
   if (!options.dryRun || ciConfig?.scopeLabels) {
     const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
     if (scopeResult.blocked) {
@@ -164,7 +167,8 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
       return null;
     }
     if (scopeResult.target !== options.target) {
-      options.target = scopeResult.target;
+      info(`Scope labels override target: ${options.target} → ${scopeResult.target}`);
+      effectiveTarget = scopeResult.target;
     }
   }
 
@@ -204,7 +208,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   // File writes are captured as pending writes instead of going to disk, allowing
   // all early-exit guards to be evaluated before the repository is modified.
   info('Running version analysis...');
-  const versionOutput = await runVersionStep({ ...options, dryRun: true });
+  const versionOutput = await runVersionStep({ ...options, target: effectiveTarget, dryRun: true });
   // The preflight always runs with dryRun:true, so _jsonData.dryRun is always
   // true in the snapshot. Restore the caller's actual intent before forwarding
   // to downstream steps (notes, publish) that inspect this flag.

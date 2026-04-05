@@ -803,5 +803,23 @@ describe('runRelease', () => {
 
       expect(result).not.toBeNull();
     });
+
+    it('should override CLI target when scope label is detected', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'label',
+        scopeLabels: {
+          'scope:electron': '@wdio/electron-*',
+          'scope:tauri': '@wdio/tauri-*',
+        },
+      });
+      mockFindMergedPRsForCommit.mockResolvedValue([123]);
+      mockFetchPRLabels.mockResolvedValue(['scope:electron']);
+
+      const { runRelease } = await import('../../src/release.js');
+      const result = await runRelease({ ...defaultOptions, target: '@wdio/native-types,@wdio/tauri-service' });
+
+      expect(result).not.toBeNull();
+      expect(mockVersionEngineRun).toHaveBeenCalled();
+    });
   });
 });
