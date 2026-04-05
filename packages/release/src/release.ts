@@ -159,32 +159,20 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   // Only apply scope labels in non-dry-run (release) mode
   // In dry-run/preview mode, preview.ts already handles scope labels via applyLabelOverrides
   // However, we still call applyScopeLabelsFromPR to detect label conflicts (e.g., release:stable + release:prerelease)
-  if (!options.dryRun) {
-    const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
-    if (scopeResult.blocked) {
-      info('Release blocked due to conflicting PR labels');
-      return null;
-    }
-    if (scopeResult.skipped) {
-      info('Release skipped due to release:skip label');
-      return null;
-    }
-    if (scopeResult.target !== options.target) {
-      info(`Scope labels override target: ${options.target} → ${scopeResult.target}`);
-      effectiveTarget = scopeResult.target;
-    }
-  } else {
-    // In dry-run mode, still check for label conflicts but don't override the target
-    // (preview.ts already handles scope label targeting)
-    const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
-    if (scopeResult.blocked) {
-      info('Release blocked due to conflicting PR labels');
-      return null;
-    }
-    if (scopeResult.skipped) {
-      info('Release skipped due to release:skip label');
-      return null;
-    }
+  const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
+  if (scopeResult.blocked) {
+    info('Release blocked due to conflicting PR labels');
+    return null;
+  }
+  if (scopeResult.skipped) {
+    info('Release skipped due to release:skip label');
+    return null;
+  }
+  // Only update effectiveTarget in real (non-dry-run) mode;
+  // preview.ts already handles scope label targeting in dry-run mode.
+  if (!options.dryRun && scopeResult.target !== options.target) {
+    info(`Scope labels override target: ${options.target} → ${scopeResult.target}`);
+    effectiveTarget = scopeResult.target;
   }
 
   // Apply skipPatterns: exit early if HEAD commit matches a skip pattern

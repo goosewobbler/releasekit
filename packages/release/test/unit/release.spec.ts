@@ -795,6 +795,9 @@ describe('runRelease', () => {
       // In dry-run mode, the scope label should NOT override the CLI target
       // because preview.ts handles scope targeting
       expect(mockVersionEngineRun).toHaveBeenCalled();
+      // Verify the original CLI target was preserved (not overridden by scope:electron → @wdio/electron-*)
+      const config = mockVersionLoadConfig.mock.results[0]?.value;
+      expect(config.packages).toEqual(['@wdio/native-types', '@wdio/tauri-service']);
     });
 
     it('should skip release when release:skip label is present in commit mode', async () => {
