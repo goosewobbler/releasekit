@@ -63,9 +63,9 @@ Only release when a PR is merged with a release label. Conventional commits dete
 | `bump:patch` | Bump patch version |
 | `bump:minor` | Bump minor version |
 | `bump:major` | Bump major version |
-| `release:stable` | Promote a prerelease to stable (e.g. `1.0.0-next.6` → `1.0.0`). Can be used alone — no bump label needed. Has no effect on stable versions. |
-| `release:prerelease` | Channel modifier — must be combined with a `bump:*` label. Alone, no release is triggered. |
-| `release:skip` | Suppress release on this PR (commit trigger mode only) |
+| `release:stable` | Graduate a prerelease to stable |
+| `release:prerelease` | Create a prerelease (requires bump:* label) |
+| `release:skip` | Suppress release on this PR |
 
 #### Label combinations
 
