@@ -60,6 +60,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.10.0] - 2026-04-05
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.9.0...releasekit-version-v0.10.0)
+
+### Fixed
+- **version**: hook up package filtering with wildcard support (#107)
+
 ## [0.9.0] - 2026-04-04
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.8.1...releasekit-version-v0.9.0)
