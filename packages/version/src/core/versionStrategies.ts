@@ -17,7 +17,10 @@ import type { Config } from '../types.js';
 import { formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
 import { addChangelogData, addTag, setCommitMessage } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
-import { shouldProcessPackage as shouldProcessPackageUtil } from '../utils/packageMatching.js';
+import {
+  shouldMatchPackageTargets,
+  shouldProcessPackage as shouldProcessPackageUtil,
+} from '../utils/packageMatching.js';
 import { calculateVersion } from './versionCalculator.js';
 import type { PackagesWithRoot } from './versionEngine.js';
 
@@ -637,7 +640,7 @@ export function createAsyncStrategy(config: Config): StrategyFunction {
       let packagesToProcess = packages.packages;
       if (targets.length > 0) {
         const beforeCount = packagesToProcess.length;
-        packagesToProcess = packagesToProcess.filter((pkg) => targets.includes(pkg.packageJson.name));
+        packagesToProcess = packagesToProcess.filter((pkg) => shouldMatchPackageTargets(pkg.packageJson.name, targets));
         log(
           `Runtime targets filter: ${beforeCount} → ${packagesToProcess.length} packages (${targets.join(', ')})`,
           'info',

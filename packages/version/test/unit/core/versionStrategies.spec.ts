@@ -940,6 +940,62 @@ describe('Version Strategies', () => {
       expect(logging.log).toHaveBeenCalledWith('Processing 1 packages', 'info');
     });
 
+    it('should filter packages using wildcard patterns', async () => {
+      // Setup with packages that have different scopes
+      const mockPackagesWithScopes = {
+        root: '/test/workspace',
+        rootDir: '/test/workspace',
+        tool: 'npm' as unknown as Tool,
+        packages: [
+          {
+            dir: '/test/workspace/packages/a',
+            relativeDir: 'packages/a',
+            packageJson: { name: '@scope/package-a', version: '1.0.0' },
+          },
+          {
+            dir: '/test/workspace/packages/b',
+            relativeDir: 'packages/b',
+            packageJson: { name: '@scope/package-b', version: '1.0.0' },
+          },
+          {
+            dir: '/test/workspace/packages/c',
+            relativeDir: 'packages/c',
+            packageJson: { name: '@other/package-c', version: '1.0.0' },
+          },
+        ],
+      } as unknown as PackagesWithRoot;
+
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        packages: ['@scope/*', '@other/package-c'],
+      };
+
+      const asyncStrategy = strategies.createAsyncStrategy(config as Config);
+
+      // Execute with wildcard targets
+      await asyncStrategy(mockPackagesWithScopes, ['@scope/*']);
+
+      // Verify that both @scope packages are processed
+      const expectedFilteredPackages = [
+        {
+          packageJson: { name: '@scope/package-a', version: '1.0.0' },
+          dir: '/test/workspace/packages/a',
+          relativeDir: 'packages/a',
+        },
+        {
+          packageJson: { name: '@scope/package-b', version: '1.0.0' },
+          dir: '/test/workspace/packages/b',
+          relativeDir: 'packages/b',
+        },
+      ];
+
+      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(expectedFilteredPackages);
+
+      // Check filtering log messages
+      expect(logging.log).toHaveBeenCalledWith('Runtime targets filter: 3 → 2 packages (@scope/*)', 'info');
+      expect(logging.log).toHaveBeenCalledWith('Processing 2 packages', 'info');
+    });
+
     it('should process all packages when no runtime targets are provided', async () => {
       // Setup
       const config: Partial<Config> = {
