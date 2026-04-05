@@ -156,20 +156,23 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   // Determine effective target: CLI target can be overridden by scope labels
   let effectiveTarget = options.target;
 
-  if (!options.dryRun || (ciConfig?.scopeLabels && Object.keys(ciConfig.scopeLabels).length > 0)) {
-    const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
-    if (scopeResult.blocked) {
-      info('Release blocked due to conflicting PR labels');
-      return null;
-    }
-    if (scopeResult.skipped) {
-      info('Release skipped due to release:skip label');
-      return null;
-    }
-    if (scopeResult.target !== options.target) {
-      info(`Scope labels override target: ${options.target} → ${scopeResult.target}`);
-      effectiveTarget = scopeResult.target;
-    }
+  // Only apply scope labels in non-dry-run (release) mode
+  // In dry-run/preview mode, preview.ts already handles scope labels via applyLabelOverrides
+  // However, we still call applyScopeLabelsFromPR to detect label conflicts (e.g., release:stable + release:prerelease)
+  const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
+  if (scopeResult.blocked) {
+    info('Release blocked due to conflicting PR labels');
+    return null;
+  }
+  if (scopeResult.skipped) {
+    info('Release skipped due to release:skip label');
+    return null;
+  }
+  // Only update effectiveTarget in real (non-dry-run) mode;
+  // preview.ts already handles scope label targeting in dry-run mode.
+  if (!options.dryRun && scopeResult.target !== options.target) {
+    info(`Scope labels override target: ${options.target} → ${scopeResult.target}`);
+    effectiveTarget = scopeResult.target;
   }
 
   // Apply skipPatterns: exit early if HEAD commit matches a skip pattern
