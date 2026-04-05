@@ -62,6 +62,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.10.2] - 2026-04-05
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.1...releasekit-version-v0.10.2)
+
+### Fixed
+- **release**: implement effective target handling for scope labels (#109)
+
 ## [0.10.1] - 2026-04-05
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.0...releasekit-version-v0.10.1)

@@ -1,39 +1,39 @@
 
 
-## `@releasekit/version` @ 0.10.1
+## `@releasekit/version` @ 0.10.2
 
-### Developer:
-- **CI**: Enhanced label handling for bump and release scenarios.
+### Fixed:
+- Fixed handling of scope labels to correctly resolve effective targets during release.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.0...releasekit-version-v0.10.1
-
----
-
-
-## `@releasekit/notes` @ 0.10.1
-
-### Changed:
-- **CI**: Enhanced label handling for bump and release scenarios in CI.
-
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.0...releasekit-version-v0.10.1
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.1...releasekit-version-v0.10.2
 
 ---
 
 
-## `@releasekit/publish` @ 0.10.1
+## `@releasekit/notes` @ 0.10.2
 
-### Changed:
-- **CI**: Improved label handling for bump and release automation scenarios.
+### Fixed:
+- Implemented effective target handling for scope labels.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.0...releasekit-version-v0.10.1
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.1...releasekit-version-v0.10.2
 
 ---
 
 
-## `@releasekit/release` @ 0.10.1
+## `@releasekit/publish` @ 0.10.2
 
-### Changed:
-- **CI**: Improved label handling for bump and release workflows in CI.
+### Fixed:
+- Fixed issue where scope labels weren't properly handled for effective targets.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.0...releasekit-version-v0.10.1
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.1...releasekit-version-v0.10.2
+
+---
+
+
+## `@releasekit/release` @ 0.10.2
+
+### Fixed:
+- Fixed handling of scope labels to properly implement effective target handling.
+
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.1...releasekit-version-v0.10.2
 
