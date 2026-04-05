@@ -105,10 +105,19 @@ jobs:
           
           # Check for release:prerelease + bump:* (creates prerelease)
           if echo "$LABELS" | grep -qE "^release:prerelease$"; then
+            # Map bump label to prerelease bump type
+            PRERELEASE_BUMP="prerelease"
+            if echo "$LABELS" | grep -qE "^bump:patch$"; then
+              PRERELEASE_BUMP="prepatch"
+            elif echo "$LABELS" | grep -qE "^bump:minor$"; then
+              PRERELEASE_BUMP="preminor"
+            elif echo "$LABELS" | grep -qE "^bump:major$"; then
+              PRERELEASE_BUMP="premajor"
+            fi
             if echo "$LABELS" | grep -qE "^bump:(patch|minor|major)$"; then
               echo "should_release=true" >> "$GITHUB_OUTPUT"
-              echo "bump=prerelease" >> "$GITHUB_OUTPUT"
-              echo "release:prerelease + bump:* label found — creating prerelease"
+              echo "bump=$PRERELEASE_BUMP" >> "$GITHUB_OUTPUT"
+              echo "release:prerelease + bump:* label found — creating $PRERELEASE_BUMP prerelease"
               exit 0
             else
               echo "should_release=false" >> "$GITHUB_OUTPUT"
