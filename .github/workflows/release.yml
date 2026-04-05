@@ -95,6 +95,14 @@ jobs:
           # Only bump:* labels are supported (release:* labels are deprecated).
           LABELS=$(echo "$PRS_OUTPUT" | jq -r '.[].labels[].name' 2>/dev/null)
           
+          # Check for release:stable first (takes precedence over bump:* per ci-setup.md)
+          if echo "$LABELS" | grep -qE "^release:stable$"; then
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "bump=auto" >> "$GITHUB_OUTPUT"
+            echo "release:stable label found — promoting prerelease to stable"
+            exit 0
+          fi
+          
           # Check for bump:* labels
           BUMP_LABEL=$(echo "$LABELS" | grep -E "^bump:(patch|minor|major)$" | head -1)
           if [ -n "$BUMP_LABEL" ]; then
@@ -105,20 +113,20 @@ jobs:
             exit 0
           fi
           
-          # Check for release:stable (standalone graduation from prerelease)
-          if echo "$LABELS" | grep -qE "^release:stable$"; then
-            echo "should_release=true" >> "$GITHUB_OUTPUT"
-            echo "bump=auto" >> "$GITHUB_OUTPUT"
-            echo "release:stable label found — promoting prerelease to stable"
-            exit 0
-          fi
-          
           # Check for release:prerelease (requires bump:* label, handled by releasekit)
+          # release:prerelease alone should not trigger release (per ci-setup.md)
           if echo "$LABELS" | grep -qE "^release:prerelease$"; then
-            echo "should_release=true" >> "$GITHUB_OUTPUT"
-            echo "bump=auto" >> "$GITHUB_OUTPUT"
-            echo "release:prerelease label found — creating prerelease"
-            exit 0
+            # Check if a bump:* label is also present
+            if echo "$LABELS" | grep -qE "^bump:(patch|minor|major)$"; then
+              echo "should_release=true" >> "$GITHUB_OUTPUT"
+              echo "bump=auto" >> "$GITHUB_OUTPUT"
+              echo "release:prerelease + bump:* label found — creating prerelease"
+              exit 0
+            else
+              echo "should_release=false" >> "$GITHUB_OUTPUT"
+              echo "release:prerelease requires a bump:* label — skipping release"
+              exit 0
+            fi
           fi
           
           echo "should_release=false" >> "$GITHUB_OUTPUT"
