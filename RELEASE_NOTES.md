@@ -1,39 +1,39 @@
 
 
-## `@releasekit/version` @ 0.10.2
+## `@releasekit/version` @ 0.10.3
 
 ### Fixed:
-- Fixed handling of scope labels to correctly resolve effective targets during release.
+- Fixed handling of scope labels for effective target detection.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.1...releasekit-version-v0.10.2
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.2...releasekit-version-v0.10.3
 
 ---
 
 
-## `@releasekit/notes` @ 0.10.2
+## `@releasekit/notes` @ 0.10.3
 
 ### Fixed:
-- Implemented effective target handling for scope labels.
+- Fixed handling of scope labels for target operations.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.1...releasekit-version-v0.10.2
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.2...releasekit-version-v0.10.3
 
 ---
 
 
-## `@releasekit/publish` @ 0.10.2
+## `@releasekit/publish` @ 0.10.3
 
 ### Fixed:
-- Fixed issue where scope labels weren't properly handled for effective targets.
+- Fixed handling of effective targets for scope labels
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.1...releasekit-version-v0.10.2
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.2...releasekit-version-v0.10.3
 
 ---
 
 
-## `@releasekit/release` @ 0.10.2
+## `@releasekit/release` @ 0.10.3
 
 ### Fixed:
-- Fixed handling of scope labels to properly implement effective target handling.
+- Fixed scope label resolution to correctly handle effective targets in release management.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.1...releasekit-version-v0.10.2
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.2...releasekit-version-v0.10.3
 
