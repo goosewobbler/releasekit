@@ -1,39 +1,39 @@
 
 
-## `@releasekit/version` @ 0.10.0
+## `@releasekit/version` @ 0.10.1
 
-### Fixed:
-- Fixed package filtering to correctly handle wildcard patterns.
+### Developer:
+- **CI**: Enhanced label handling for bump and release scenarios.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.9.0...releasekit-version-v0.10.0
-
----
-
-
-## `@releasekit/notes` @ 0.10.0
-
-### Fixed:
-- Fixed package filtering to support wildcards.
-
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.9.0...releasekit-version-v0.10.0
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.0...releasekit-version-v0.10.1
 
 ---
 
 
-## `@releasekit/publish` @ 0.10.0
-
-### Fixed:
-- Fixed package filtering to properly support wildcard patterns.
-
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.9.0...releasekit-version-v0.10.0
-
----
-
-
-## `@releasekit/release` @ 0.10.0
+## `@releasekit/notes` @ 0.10.1
 
 ### Changed:
-- Added wildcard support to package filtering
+- **CI**: Enhanced label handling for bump and release scenarios in CI.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.9.0...releasekit-version-v0.10.0
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.0...releasekit-version-v0.10.1
+
+---
+
+
+## `@releasekit/publish` @ 0.10.1
+
+### Changed:
+- **CI**: Improved label handling for bump and release automation scenarios.
+
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.0...releasekit-version-v0.10.1
+
+---
+
+
+## `@releasekit/release` @ 0.10.1
+
+### Changed:
+- **CI**: Improved label handling for bump and release workflows in CI.
+
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.0...releasekit-version-v0.10.1
 
