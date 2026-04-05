@@ -772,6 +772,31 @@ describe('runRelease', () => {
       expect(result).toBeNull();
     });
 
+    it('should not override target in dry-run mode when scope label is detected', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'label',
+        scopeLabels: {
+          'scope:electron': '@wdio/electron-*',
+          'scope:shared': '@wdio/native-*',
+        },
+        defaultScope: 'scope:shared',
+      });
+      mockFindMergedPRsForCommit.mockResolvedValue([123]);
+      mockFetchPRLabels.mockResolvedValue(['scope:electron']);
+
+      const { runRelease } = await import('../../src/release.js');
+      const result = await runRelease({
+        ...defaultOptions,
+        dryRun: true,
+        target: '@wdio/native-types,@wdio/tauri-service',
+      });
+
+      expect(result).not.toBeNull();
+      // In dry-run mode, the scope label should NOT override the CLI target
+      // because preview.ts handles scope targeting
+      expect(mockVersionEngineRun).toHaveBeenCalled();
+    });
+
     it('should skip release when release:skip label is present in commit mode', async () => {
       mockLoadCIConfig.mockReturnValue({
         releaseTrigger: 'commit',

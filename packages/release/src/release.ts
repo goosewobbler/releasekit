@@ -156,7 +156,10 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   // Determine effective target: CLI target can be overridden by scope labels
   let effectiveTarget = options.target;
 
-  if (!options.dryRun || (ciConfig?.scopeLabels && Object.keys(ciConfig.scopeLabels).length > 0)) {
+  // Only apply scope labels in non-dry-run (release) mode
+  // In dry-run/preview mode, preview.ts already handles scope labels via applyLabelOverrides
+  // However, we still call applyScopeLabelsFromPR to detect label conflicts (e.g., release:stable + release:prerelease)
+  if (!options.dryRun) {
     const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
     if (scopeResult.blocked) {
       info('Release blocked due to conflicting PR labels');
@@ -169,6 +172,18 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
     if (scopeResult.target !== options.target) {
       info(`Scope labels override target: ${options.target} → ${scopeResult.target}`);
       effectiveTarget = scopeResult.target;
+    }
+  } else {
+    // In dry-run mode, still check for label conflicts but don't override the target
+    // (preview.ts already handles scope label targeting)
+    const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
+    if (scopeResult.blocked) {
+      info('Release blocked due to conflicting PR labels');
+      return null;
+    }
+    if (scopeResult.skipped) {
+      info('Release skipped due to release:skip label');
+      return null;
     }
   }
 
