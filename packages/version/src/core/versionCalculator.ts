@@ -116,16 +116,20 @@ export async function calculateVersion(config: Config, options: VersionOptions):
     // This is triggered by `release:stable` without a bump label.
     if (config.stableOnly) {
       const currentVer = getCurrentVersionFromSource();
-      if (!semver.prerelease(currentVer)) {
+      if (semver.prerelease(currentVer)) {
+        // Always graduate prerelease to stable base — bump label magnitude is irrelevant for graduation
+        const parsed = semver.parse(currentVer);
+        if (parsed) {
+          const stableVersion = `${parsed.major}.${parsed.minor}.${parsed.patch}`;
+          log(`Graduating ${name || 'package'} from ${currentVer} to ${stableVersion}`, 'info');
+          return stableVersion;
+        }
+      } else if (!type) {
+        // No explicit bump label: skip already-stable packages
         log(`Skipping ${name || 'package'}: already at stable version ${currentVer}`, 'info');
         return '';
       }
-      const parsed = semver.parse(currentVer);
-      if (parsed) {
-        const stableVersion = `${parsed.major}.${parsed.minor}.${parsed.patch}`;
-        log(`Graduating ${name || 'package'} from ${currentVer} to ${stableVersion}`, 'info');
-        return stableVersion;
-      }
+      // Stable package with explicit bump label: fall through to normal bump logic
     }
 
     // 1. Handle specific type if provided

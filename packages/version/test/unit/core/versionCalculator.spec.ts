@@ -1378,10 +1378,11 @@ describe('Version Calculator', () => {
       expect(versionUtils.bumpVersion).not.toHaveBeenCalled();
     });
 
-    it('should skip an already-stable package (return empty string)', async () => {
+    it('should skip an already-stable package when no bump label is set', async () => {
       const config: Partial<Config> = {
         ...defaultConfig,
         stableOnly: true,
+        // No type — release:stable alone, no bump:* label
       };
 
       const options: VersionOptions = {
@@ -1390,12 +1391,61 @@ describe('Version Calculator', () => {
         path: '/test',
       };
 
-      // semver.prerelease returns null for stable versions (default mock)
       vi.spyOn(semver, 'prerelease').mockReturnValue(null);
 
       const result = await calculateVersion(config as Config, options);
 
       expect(result).toBe('');
+      expect(versionUtils.bumpVersion).not.toHaveBeenCalled();
+    });
+
+    it('should apply bump label to an already-stable package (release:stable + bump:minor)', async () => {
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        stableOnly: true,
+        type: 'minor',
+      };
+
+      const options: VersionOptions = {
+        latestTag: 'v2.0.0',
+        versionPrefix: 'v',
+        path: '/test',
+      };
+
+      vi.spyOn(semver, 'prerelease').mockReturnValue(null);
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('2.1.0');
+
+      const result = await calculateVersion(config as Config, options);
+
+      expect(versionUtils.bumpVersion).toHaveBeenCalledWith('2.0.0', 'minor', undefined);
+      expect(result).toBe('2.1.0');
+    });
+
+    it('should graduate a prerelease package even when a bump label is also set', async () => {
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        stableOnly: true,
+        type: 'minor',
+      };
+
+      const options: VersionOptions = {
+        latestTag: 'v1.0.0-next.6',
+        versionPrefix: 'v',
+        path: '/test',
+      };
+
+      vi.spyOn(semver, 'prerelease').mockReturnValue(['next', 6]);
+      vi.spyOn(semver, 'parse').mockReturnValue({
+        major: 1,
+        minor: 0,
+        patch: 0,
+        prerelease: ['next', 6],
+      } as unknown as semver.SemVer);
+
+      const result = await calculateVersion(config as Config, options);
+
+      // Graduates to 1.0.0, not 1.1.0 — bump magnitude is irrelevant for prerelease graduation
+      expect(result).toBe('1.0.0');
       expect(versionUtils.bumpVersion).not.toHaveBeenCalled();
     });
 
