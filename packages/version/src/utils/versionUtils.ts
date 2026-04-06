@@ -138,8 +138,11 @@ export function bumpVersion(currentVersion: string, bumpType: ReleaseType, prere
       return semver.inc(currentVersion, 'prerelease', prereleaseIdentifier) || '';
     }
 
-    log(`Standard increment for ${currentVersion} with ${bumpType} bump`, 'debug');
-    return semver.inc(currentVersion, bumpType) || '';
+    // For standard bump types on existing prerelease versions (without explicit prereleaseIdentifier),
+    // first extract the stable base, then apply the bump to that
+    const stableBase = `${parsed.major}.${parsed.minor}.${parsed.patch}`;
+    log(`Stripping prerelease base ${currentVersion} -> ${stableBase} before applying ${bumpType} bump`, 'debug');
+    return semver.inc(stableBase, bumpType) || '';
   }
 
   // For non-prerelease versions or non-standard bump types
