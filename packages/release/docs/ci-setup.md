@@ -87,6 +87,7 @@ Only release when a PR is merged with a release label. Conventional commits dete
 | `release:stable` alone | `1.0.0-next.6` | `1.0.0` |
 | `release:stable` alone | `1.0.0` | No release — already at stable version |
 | `release:stable` + any `bump:*` | `1.0.0-next.6` | `1.0.0` — bump label is ignored during stable promotion |
+| `release:stable` + `bump:minor` | `1.0.0` | `1.1.0` — bump applies to already-stable packages |
 
 ```yaml
 # .github/workflows/release.yml
