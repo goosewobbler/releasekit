@@ -112,6 +112,22 @@ export async function calculateVersion(config: Config, options: VersionOptions):
       return versionSource.version;
     }
 
+    // Handle stableOnly mode: graduate prerelease → stable base; skip already-stable packages.
+    // This is triggered by `release:stable` without a bump label.
+    if (config.stableOnly) {
+      const currentVer = getCurrentVersionFromSource();
+      if (!semver.prerelease(currentVer)) {
+        log(`Skipping ${name || 'package'}: already at stable version ${currentVer}`, 'info');
+        return '';
+      }
+      const parsed = semver.parse(currentVer);
+      if (parsed) {
+        const stableVersion = `${parsed.major}.${parsed.minor}.${parsed.patch}`;
+        log(`Graduating ${name || 'package'} from ${currentVer} to ${stableVersion}`, 'info');
+        return stableVersion;
+      }
+    }
+
     // 1. Handle specific type if provided
     const specifiedType = type;
 
