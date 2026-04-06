@@ -74,15 +74,15 @@ Only release when a PR is merged with a release label. Conventional commits dete
 | `bump:patch` | `1.0.0` | `1.0.1` |
 | `bump:minor` | `1.0.0` | `1.1.0` |
 | `bump:major` | `1.0.0` | `2.0.0` |
-| `bump:patch` | `1.0.0-next.6` | `1.0.0` — graduates prerelease to stable patch |
-| `bump:minor` | `1.0.0-next.6` | `1.1.0` — full minor bump past the prerelease |
-| `bump:major` | `1.0.0-next.6` | `2.0.0` — full major bump past the prerelease |
+| `bump:patch` | `1.0.0-next.6` | `1.0.1` — graduates prerelease to stable patch |
+| `bump:minor` | `1.0.0-next.6` | `1.1.0` — graduates prerelease to stable minor |
+| `bump:major` | `1.0.0-next.6` | `2.0.0` — graduates prerelease to stable major |
 | `release:prerelease` + `bump:patch` | `1.0.0` | `1.0.1-next.0` |
 | `release:prerelease` + `bump:minor` | `1.0.0` | `1.1.0-next.0` |
 | `release:prerelease` + `bump:major` | `1.0.0` | `2.0.0-next.0` |
-| `release:prerelease` + `bump:patch` | `1.0.0-next.6` | `1.0.0-next.7` |
-| `release:prerelease` + `bump:minor` | `1.0.0-next.6` | `1.0.0-next.7` — bump magnitude ignored; increments prerelease counter |
-| `release:prerelease` + `bump:major` | `1.0.0-next.6` | `1.0.0-next.7` — bump magnitude ignored; increments prerelease counter |
+| `release:prerelease` + `bump:patch` | `1.0.0-next.6` | `1.0.1-next.0` — bumps stable base to patch, adds prerelease |
+| `release:prerelease` + `bump:minor` | `1.0.0-next.6` | `1.1.0-next.0` — bumps stable base to minor, adds prerelease |
+| `release:prerelease` + `bump:major` | `1.0.0-next.6` | `2.0.0-next.0` — bumps stable base to major, adds prerelease |
 | `release:prerelease` alone | any | No release — add a `bump:*` label |
 | `release:stable` alone | `1.0.0-next.6` | `1.0.0` |
 | `release:stable` alone | `1.0.0` | No release — already at stable version |
