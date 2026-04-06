@@ -126,8 +126,7 @@ describe('Version Calculator', () => {
 
       // For Package.json fallback tests
       if (version === '0.0.0' && releaseType === 'minor') return '0.1.0';
-      if (version === '1.0.0-beta.1' && releaseType === 'major') return '1.0.0';
-      if (version === '1.0.0-next.0' && releaseType === 'major') return '1.0.0';
+      if (version === '2.0.0' && releaseType === 'minor' && !identifier) return '2.1.0';
 
       // For conventional commits
       if (version === '1.0.0' && releaseType === 'patch' && identifier === undefined) return '1.0.1';
@@ -836,7 +835,7 @@ describe('Version Calculator', () => {
         version: '1.0.0-beta.1',
         reason: 'No git tag provided',
       });
-      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.0.0');
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('2.0.0');
 
       const options: VersionOptions = {
         latestTag: '',
@@ -847,12 +846,11 @@ describe('Version Calculator', () => {
 
       const version = await calculateVersion(defaultConfig as Config, options);
 
-      // With our special prerelease handling, 1.0.0-beta.1 with major bump now becomes 1.0.0
-      expect(version).toBe('1.0.0');
+      expect(version).toBe('2.0.0');
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('Using version source: package'), 'info');
     });
 
-    it('should correctly handle major bump on 1.0.0-next.0 to become 1.0.0', async () => {
+    it('should correctly handle major bump on 1.0.0-next.0', async () => {
       // Mock both dependencies properly
       vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
         version: '1.0.0-next.0',
@@ -865,7 +863,7 @@ describe('Version Calculator', () => {
         version: '1.0.0-next.0',
         reason: 'No git tag provided',
       });
-      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.0.0');
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('2.0.0');
 
       const config: Partial<Config> = {
         ...defaultConfig,
@@ -879,7 +877,7 @@ describe('Version Calculator', () => {
       };
 
       const version = await calculateVersion(config as Config, options);
-      expect(version).toBe('1.0.0');
+      expect(version).toBe('2.0.0');
     });
 
     it('should attempt to use package.json version with conventional commits when no latestTag exists', async () => {
@@ -1413,7 +1411,6 @@ describe('Version Calculator', () => {
       };
 
       vi.spyOn(semver, 'prerelease').mockReturnValue(null);
-      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('2.1.0');
 
       const result = await calculateVersion(config as Config, options);
 
