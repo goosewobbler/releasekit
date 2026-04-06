@@ -85,7 +85,7 @@ Only release when a PR is merged with a release label. Conventional commits dete
 | `release:prerelease` + `bump:major` | `1.0.0-next.6` | `1.0.0-next.7` — bump magnitude ignored; increments prerelease counter |
 | `release:prerelease` alone | any | No release — add a `bump:*` label |
 | `release:stable` alone | `1.0.0-next.6` | `1.0.0` |
-| `release:stable` alone | `1.0.0` | No prerelease effect — bump (if any) from conventional commits |
+| `release:stable` alone | `1.0.0` | No release — already at stable version |
 | `release:stable` + any `bump:*` | `1.0.0-next.6` | `1.0.0` — bump label is ignored during stable promotion |
 
 ```yaml
