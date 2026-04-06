@@ -269,16 +269,6 @@ describe('Version Utils', () => {
       });
 
       vi.mocked(semver.inc, { partial: true }).mockImplementation((version, releaseType, identifier) => {
-        if (version === '1.0.0-beta.1' && releaseType === 'major') return '2.0.0';
-        if (version === '1.0.0-beta.1' && releaseType === 'minor') return '1.1.0';
-        if (version === '1.0.0-beta.1' && releaseType === 'patch') return '1.0.1';
-        if (version === '1.0.0-next.0' && releaseType === 'major') return '2.0.0';
-        if (version === '2.0.0-alpha.3' && releaseType === 'major') return '3.0.0';
-        if (version === '3.0.0-rc.1' && releaseType === 'major') return '4.0.0';
-        if (version === '2.1.0-next.4' && releaseType === 'minor') return '2.2.0';
-        if (version === '3.5.0-beta.12' && releaseType === 'minor') return '3.6.0';
-        if (version === '4.0.1-rc.2' && releaseType === 'patch') return '4.0.2';
-
         // Stable base versions (after stripping prerelease)
         if (version === '1.0.0' && releaseType === 'major') return '2.0.0';
         if (version === '1.0.0' && releaseType === 'minor') return '1.1.0';
