@@ -271,10 +271,13 @@ describe('Version Utils', () => {
       vi.mocked(semver.inc, { partial: true }).mockImplementation((version, releaseType, identifier) => {
         if (version === '1.0.0-beta.1' && releaseType === 'major') return '2.0.0';
         if (version === '1.0.0-beta.1' && releaseType === 'minor') return '1.1.0';
-        if (version === '1.0.0-beta.1' && releaseType === 'patch') return '1.0.1';
+        if (version === '1.0.0-beta.1' && releaseType === 'patch') return '1.0.0';
+        if (version === '1.0.0-next.0' && releaseType === 'major') return '2.0.0';
+        if (version === '2.0.0-alpha.3' && releaseType === 'major') return '3.0.0';
+        if (version === '3.0.0-rc.1' && releaseType === 'major') return '4.0.0';
         if (version === '2.1.0-next.4' && releaseType === 'minor') return '2.2.0';
         if (version === '3.5.0-beta.12' && releaseType === 'minor') return '3.6.0';
-        if (version === '4.0.1-rc.2' && releaseType === 'patch') return '4.0.2';
+        if (version === '4.0.1-rc.2' && releaseType === 'patch') return '4.0.1';
 
         if (version === '1.0.0' && releaseType === 'premajor' && identifier === 'alpha') {
           return '2.0.0-alpha.0';
@@ -318,59 +321,58 @@ describe('Version Utils', () => {
       });
     });
 
-    it('should clean prerelease identifiers for major bumps', () => {
+    it('should do a full major bump on a prerelease version', () => {
       const result = bumpVersion('1.0.0-beta.1', 'major');
-      expect(semver.inc).not.toHaveBeenCalled(); // Special case bypasses semver.inc
-      expect(result).toBe('1.0.0');
-    });
-
-    it('should clean prerelease identifiers for minor bumps', () => {
-      const result = bumpVersion('1.0.0-beta.1', 'minor');
-      expect(semver.inc).not.toHaveBeenCalled(); // Special case bypasses semver.inc
-      expect(result).toBe('1.0.0');
-    });
-
-    it('should clean prerelease identifiers for patch bumps', () => {
-      const result = bumpVersion('1.0.0-beta.1', 'patch');
-      expect(semver.inc).not.toHaveBeenCalled(); // Special case bypasses semver.inc
-      expect(result).toBe('1.0.0');
-    });
-
-    it('should handle special case for 1.0.0-next.0 with major bump', () => {
-      const result = bumpVersion('1.0.0-next.0', 'major');
-      expect(result).toBe('1.0.0');
-      expect(semver.inc).not.toHaveBeenCalled(); // Special case bypasses semver.inc
-    });
-
-    it('should handle special case for 2.0.0-alpha.3 with major bump', () => {
-      const result = bumpVersion('2.0.0-alpha.3', 'major');
+      expect(semver.inc).toHaveBeenCalledWith('1.0.0-beta.1', 'major');
       expect(result).toBe('2.0.0');
-      expect(semver.inc).not.toHaveBeenCalled(); // Special case bypasses semver.inc
     });
 
-    it('should handle special case for 3.0.0-rc.1 with major bump', () => {
-      const result = bumpVersion('3.0.0-rc.1', 'major');
+    it('should do a full minor bump on a prerelease version', () => {
+      const result = bumpVersion('1.0.0-beta.1', 'minor');
+      expect(semver.inc).toHaveBeenCalledWith('1.0.0-beta.1', 'minor');
+      expect(result).toBe('1.1.0');
+    });
+
+    it('should do a full patch bump on a prerelease version', () => {
+      const result = bumpVersion('1.0.0-beta.1', 'patch');
+      expect(semver.inc).toHaveBeenCalledWith('1.0.0-beta.1', 'patch');
+      expect(result).toBe('1.0.0');
+    });
+
+    it('should do a full major bump on 1.0.0-next.0', () => {
+      const result = bumpVersion('1.0.0-next.0', 'major');
+      expect(semver.inc).toHaveBeenCalledWith('1.0.0-next.0', 'major');
+      expect(result).toBe('2.0.0');
+    });
+
+    it('should do a full major bump on 2.0.0-alpha.3', () => {
+      const result = bumpVersion('2.0.0-alpha.3', 'major');
+      expect(semver.inc).toHaveBeenCalledWith('2.0.0-alpha.3', 'major');
       expect(result).toBe('3.0.0');
-      expect(semver.inc).not.toHaveBeenCalled(); // Special case bypasses semver.inc
     });
 
-    // New test cases for minor and patch prerelease versions
-    it('should handle special case for 2.1.0-next.4 with minor bump', () => {
+    it('should do a full major bump on 3.0.0-rc.1', () => {
+      const result = bumpVersion('3.0.0-rc.1', 'major');
+      expect(semver.inc).toHaveBeenCalledWith('3.0.0-rc.1', 'major');
+      expect(result).toBe('4.0.0');
+    });
+
+    it('should do a full minor bump on 2.1.0-next.4', () => {
       const result = bumpVersion('2.1.0-next.4', 'minor');
-      expect(result).toBe('2.1.0');
-      expect(semver.inc).not.toHaveBeenCalled(); // Special case bypasses semver.inc
+      expect(semver.inc).toHaveBeenCalledWith('2.1.0-next.4', 'minor');
+      expect(result).toBe('2.2.0');
     });
 
-    it('should handle special case for 3.5.0-beta.12 with minor bump', () => {
+    it('should do a full minor bump on 3.5.0-beta.12', () => {
       const result = bumpVersion('3.5.0-beta.12', 'minor');
-      expect(result).toBe('3.5.0');
-      expect(semver.inc).not.toHaveBeenCalled(); // Special case bypasses semver.inc
+      expect(semver.inc).toHaveBeenCalledWith('3.5.0-beta.12', 'minor');
+      expect(result).toBe('3.6.0');
     });
 
-    it('should handle special case for 4.0.1-rc.2 with patch bump', () => {
+    it('should do a full patch bump on 4.0.1-rc.2', () => {
       const result = bumpVersion('4.0.1-rc.2', 'patch');
+      expect(semver.inc).toHaveBeenCalledWith('4.0.1-rc.2', 'patch');
       expect(result).toBe('4.0.1');
-      expect(semver.inc).not.toHaveBeenCalled(); // Special case bypasses semver.inc
     });
 
     it('should use standard increment for minor bump on 4.0.1-rc.2 (patch prerelease)', () => {

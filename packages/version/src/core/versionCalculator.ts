@@ -126,12 +126,12 @@ export async function calculateVersion(config: Config, options: VersionOptions):
         STANDARD_BUMP_TYPES.includes(specifiedType as 'major' | 'minor' | 'patch') &&
         (isCurrentPrerelease || explicitlyRequestedPrerelease)
       ) {
-        const prereleaseId = explicitlyRequestedPrerelease || isCurrentPrerelease ? normalizedPrereleaseId : undefined;
+        const prereleaseId = explicitlyRequestedPrerelease ? normalizedPrereleaseId : undefined;
 
         log(
           explicitlyRequestedPrerelease
             ? `Creating prerelease version with identifier '${prereleaseId}' using ${specifiedType}`
-            : `Cleaning prerelease identifier from ${currentVersion} for ${specifiedType} bump`,
+            : `Bumping ${currentVersion} with ${specifiedType}`,
           'debug',
         );
         return bumpVersion(currentVersion, specifiedType, prereleaseId);
