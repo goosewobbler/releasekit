@@ -283,6 +283,7 @@ async function runVersionStep(options: ReleaseOptions): Promise<VersionOutput> {
     config.prereleaseIdentifier = options.prerelease === true ? 'next' : options.prerelease;
     config.isPrerelease = true;
   }
+  if (options.stable) config.stableOnly = true;
 
   const cliTargets: string[] = options.target ? options.target.split(',').map((t) => t.trim()) : [];
   if (cliTargets.length > 0) {
