@@ -109,6 +109,10 @@ inputs:
   preview-target:
     description: Target packages in preview mode (comma-separated)
     required: false
+  summary:
+    description: Write GITHUB_STEP_SUMMARY markdown
+    required: false
+    default: "true"
 
 outputs:
   success:
@@ -216,6 +220,7 @@ runs:
         INPUT_PREVIEW_STABLE: ${{ inputs.preview-stable }}
         INPUT_PREVIEW_DRY_RUN: ${{ inputs.preview-dry-run }}
         INPUT_PREVIEW_TARGET: ${{ inputs.preview-target }}
+        INPUT_SUMMARY: ${{ inputs.summary }}
         GITHUB_TOKEN: ${{ github.token }}
         NPM_TOKEN: ${{ inputs.npm-token }}
         VERBOSE: ${{ inputs.verbose }}

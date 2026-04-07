@@ -134,6 +134,7 @@ export function parseInputs(env = process.env) {
     json: env.INPUT_JSON,
     verbose: env.INPUT_VERBOSE,
     quiet: env.INPUT_QUIET,
+    summary: env.INPUT_SUMMARY,
 
     bump: normalizeString(env.INPUT_BUMP),
     prerelease: normalizeString(env.INPUT_PRERELEASE),
@@ -263,17 +264,134 @@ function writePreviewOutputs(input, stdout) {
   setOutput('preview-markdown', dryRun ? stdout : '');
 }
 
+export function writeSummary(markdown) {
+  const summaryPath = process.env.GITHUB_STEP_SUMMARY;
+  if (!summaryPath) return;
+  fs.appendFileSync(summaryPath, markdown);
+}
+
+export function buildReleaseSummary(input, parsed, success) {
+  const lines = [];
+
+  if (!success) {
+    lines.push('## :x: Release Failed');
+    lines.push('');
+    lines.push('The release pipeline encountered an error and did not complete.');
+    lines.push('');
+    return lines.join('\n');
+  }
+
+  const isDryRun = normalizeBoolean(input.dryRun);
+  if (isDryRun) {
+    lines.push('## :warning: Dry Run');
+    lines.push('');
+    lines.push('No changes were published. This was a dry run.');
+    lines.push('');
+  } else {
+    lines.push('## :rocket: Release');
+    lines.push('');
+  }
+
+  const settings = [];
+  if (input.bump) settings.push(`| Bump | \`${input.bump}\` |`);
+  if (input.target) settings.push(`| Target | \`${input.target}\` |`);
+  if (input.scope) settings.push(`| Scope | \`${input.scope}\` |`);
+  if (input.prerelease) settings.push(`| Prerelease | \`${input.prerelease}\` |`);
+
+  if (settings.length > 0) {
+    lines.push('| Setting | Value |');
+    lines.push('|---------|-------|');
+    lines.push(settings.join('\n'));
+    lines.push('');
+  }
+
+  const updates = parsed?.versionOutput?.updates;
+  if (updates && updates.length > 0) {
+    lines.push('### Package Updates');
+    lines.push('');
+    lines.push('| Package | Version |');
+    lines.push('|---------|---------|');
+    for (const update of updates) {
+      lines.push(`| \`${update.packageName}\` | \`${update.newVersion}\` |`);
+    }
+    lines.push('');
+  } else if (!isDryRun) {
+    lines.push('> :information_source: No packages were updated.');
+    lines.push('');
+  }
+
+  const tags = parsed?.versionOutput?.tags;
+  if (Array.isArray(tags) && tags.length > 0) {
+    lines.push('### Tags');
+    lines.push('');
+    for (const tag of tags) {
+      lines.push(`- \`${tag}\``);
+    }
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+export function buildGateSummary(_input, parsed) {
+  const lines = [];
+
+  lines.push('## :mag: Gate Check');
+  lines.push('');
+
+  const shouldRelease = parsed?.shouldRelease === true;
+  const icon = shouldRelease ? ':white_check_mark:' : ':x:';
+  lines.push(`| Check | Result |`);
+  lines.push(`|-------|--------|`);
+  lines.push(`| Should release | ${icon} ${shouldRelease ? 'Yes' : 'No'} |`);
+  if (parsed?.bump) lines.push(`| Bump | \`${parsed.bump}\` |`);
+  if (parsed?.scope) lines.push(`| Scope | \`${parsed.scope}\` |`);
+  if (parsed?.target) lines.push(`| Target | \`${parsed.target}\` |`);
+  lines.push('');
+
+  if (parsed?.blocked) {
+    lines.push(`> :no_entry: **Blocked**: ${parsed.reason}`);
+    lines.push('');
+  } else if (!shouldRelease && parsed?.reason) {
+    lines.push(`> :information_source: ${parsed.reason}`);
+    lines.push('');
+  }
+
+  if (parsed?.labels && parsed.labels.length > 0) {
+    lines.push(`**Labels**: ${parsed.labels.map((l) => `\`${l}\``).join(', ')}`);
+    lines.push('');
+  }
+
+  if (parsed?.prNumbers && parsed.prNumbers.length > 0) {
+    lines.push(`**PRs**: ${parsed.prNumbers.map((n) => `#${n}`).join(', ')}`);
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
 function main() {
   const input = parseInputs();
   const result = runAction(input);
+  const success = result.status === 0;
+  const parsed = normalizeBoolean(input.json) ? parseReleaseOutput(result.stdout ?? '') : undefined;
 
-  if (result.status !== 0) {
+  // Write summary BEFORE setFailure (which calls process.exit)
+  if (normalizeBoolean(input.summary, true)) {
+    if (result.mode === 'release') {
+      writeSummary(buildReleaseSummary(input, parsed, success));
+    } else if (result.mode === 'gate') {
+      const gateParsed = parseReleaseOutput(result.stdout ?? '');
+      writeSummary(buildGateSummary(input, gateParsed));
+    }
+  }
+
+  // Write outputs
+  if (!success) {
     writeCoreOutputs(result.mode, false);
-
     if (result.mode === 'gate') {
       writeGateOutputs(result.stdout ?? '');
     }
-
     process.stderr.write(result.stderr ?? '');
     process.stdout.write(result.stdout ?? '');
     setFailure(`ReleaseKit ${result.mode} failed with exit code ${result.status ?? 1}`);
