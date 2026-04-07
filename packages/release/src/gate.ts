@@ -151,28 +151,30 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
   let reason: string | undefined;
 
   if (releaseTrigger === 'label') {
-    // Label mode: release only if bump:* or release:stable label present
-    const hasBumpLabel = allLabels.some((l) => l.match(/^bump:(patch|minor|major)$/));
-    const hasStableLabel = allLabels.includes('release:stable');
-    const hasPrereleaseLabel = allLabels.includes('release:prerelease');
+    // Label mode: release only if configured bump labels or release:stable are present
+    const hasBumpLabel = allLabels.some(
+      (l) => l === bumpLabels.major || l === bumpLabels.minor || l === bumpLabels.patch,
+    );
+    const hasStableLabel = allLabels.includes(bumpLabels.stable);
+    const hasPrereleaseLabel = allLabels.includes(bumpLabels.prerelease);
 
     if (hasBumpLabel || hasStableLabel) {
       shouldRelease = true;
-      reason = hasStableLabel ? 'release:stable label found' : `bump label found: ${bump}`;
+      reason = hasStableLabel ? `${bumpLabels.stable} label found` : `bump label found: ${bump}`;
     } else if (hasPrereleaseLabel) {
       // Prerelease alone doesn't trigger release - needs bump label
       shouldRelease = false;
-      reason = 'release:prerelease requires a bump:* label';
+      reason = `${bumpLabels.prerelease} requires a bump:* label`;
     } else {
       shouldRelease = false;
-      reason = 'No release labels found (need bump:* or release:stable)';
+      reason = `No release labels found (need bump:* or ${bumpLabels.stable})`;
     }
   } else {
     // Commit mode: release unless skip label present
     const hasSkipLabel = allLabels.includes(bumpLabels.skip);
     if (hasSkipLabel) {
       shouldRelease = false;
-      reason = 'release:skip label found';
+      reason = `${bumpLabels.skip} label found`;
     } else {
       shouldRelease = true;
       reason = 'No skip label in commit mode - proceeding with release';
