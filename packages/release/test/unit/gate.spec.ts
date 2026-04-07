@@ -27,6 +27,13 @@ vi.mock('../../src/release.js', () => ({
     throw new Error(`Scope "${scopeName}" not found`);
   },
   getHeadCommitMessage: vi.fn().mockReturnValue('feat: some feature\n'),
+  getGitHubContext: () => {
+    const repo = process.env.GITHUB_REPOSITORY;
+    const sha = process.env.GITHUB_SHA;
+    if (!repo || !sha) return null;
+    const [owner, repoName] = repo.split('/');
+    return { owner, repo: repoName ?? '', sha };
+  },
   runRelease: vi.fn(),
 }));
 
