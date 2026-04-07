@@ -214,7 +214,9 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   if (releaseConfig?.ci?.skipPatterns?.length) {
     const headCommit = getHeadCommitMessage(options.projectDir);
     if (headCommit) {
-      const matchedPattern = releaseConfig.ci.skipPatterns.find((p) => headCommit.startsWith(p));
+      const matchedPattern = releaseConfig.ci.skipPatterns.find(
+        (p) => headCommit.startsWith(p) || headCommit.includes(p),
+      );
       if (matchedPattern) {
         info(`Skipping release: commit message matches skip pattern "${matchedPattern}"`);
         return null;

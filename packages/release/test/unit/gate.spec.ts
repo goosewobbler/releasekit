@@ -236,7 +236,11 @@ describe('Gate', () => {
           minor: 'bump:minor',
           patch: 'bump:patch',
         },
-        skipPatterns: ['chore: release', '[skip ci]'],
+      },
+      release: {
+        ci: {
+          skipPatterns: ['chore: release', '[skip ci]'],
+        },
       },
     });
     mockFindMergedPRsForCommit.mockResolvedValue([123]);
