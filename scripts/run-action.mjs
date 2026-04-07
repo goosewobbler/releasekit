@@ -333,8 +333,21 @@ export function buildReleaseSummary(input, parsed, success) {
   return lines.join('\n');
 }
 
-export function buildGateSummary(_input, parsed) {
+export function buildGateSummary(_input, parsed, success) {
   const lines = [];
+
+  // Show error banner if the gate step itself failed (not just shouldRelease=false)
+  if (!success) {
+    lines.push('## :x: Gate Failed');
+    lines.push('');
+    lines.push('The gate check encountered an error and did not complete.');
+    lines.push('');
+    if (parsed?.reason) {
+      lines.push(`> **Error**: ${parsed.reason}`);
+      lines.push('');
+    }
+    return lines.join('\n');
+  }
 
   lines.push('## :mag: Gate Check');
   lines.push('');
@@ -382,7 +395,7 @@ function main() {
       writeSummary(buildReleaseSummary(input, parsed, success));
     } else if (result.mode === 'gate') {
       const gateParsed = parseReleaseOutput(result.stdout ?? '');
-      writeSummary(buildGateSummary(input, gateParsed));
+      writeSummary(buildGateSummary(input, gateParsed, success));
     }
   }
 
