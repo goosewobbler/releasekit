@@ -317,11 +317,11 @@ interface NotesStepResult {
 }
 
 async function runNotesStep(versionOutput: VersionOutput, options: ReleaseOptions): Promise<NotesStepResult> {
-  const { parseVersionOutput, runPipeline, loadConfig } = await import('@releasekit/notes');
+  const { versionOutputToChangelogInput, runPipeline, loadConfig } = await import('@releasekit/notes');
 
   const config = loadConfig(options.projectDir, options.config);
 
-  const input = parseVersionOutput(JSON.stringify(versionOutput));
+  const input = versionOutputToChangelogInput(versionOutput);
   const result = await runPipeline(input, config, options.dryRun);
 
   return { packageNotes: result.packageNotes, releaseNotes: result.releaseNotes, files: result.files };

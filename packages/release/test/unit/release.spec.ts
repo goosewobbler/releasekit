@@ -49,12 +49,12 @@ vi.mock('@releasekit/version', () => ({
 
 const mockNotesRunPipeline = vi.fn();
 const mockNotesLoadConfig = vi.fn();
-const mockParseVersionOutput = vi.fn();
+const mockVersionOutputToChangelogInput = vi.fn();
 
 vi.mock('@releasekit/notes', () => ({
   runPipeline: (...args: unknown[]) => mockNotesRunPipeline(...args),
   loadConfig: (...args: unknown[]) => mockNotesLoadConfig(...args),
-  parseVersionOutput: (...args: unknown[]) => mockParseVersionOutput(...args),
+  versionOutputToChangelogInput: (...args: unknown[]) => mockVersionOutputToChangelogInput(...args),
 }));
 
 const mockPublishRunPipeline = vi.fn();
@@ -154,7 +154,7 @@ describe('runRelease', () => {
     mockVersionEngineRun.mockResolvedValue(undefined);
     mockGetJsonData.mockReturnValue(versionOutputWithChanges);
     mockNotesLoadConfig.mockReturnValue(mockNotesConfig);
-    mockParseVersionOutput.mockReturnValue({ source: 'version', packages: [] });
+    mockVersionOutputToChangelogInput.mockReturnValue({ source: 'version', packages: [] });
     mockNotesRunPipeline.mockResolvedValue({
       packageNotes: { 'test-pkg': '## [1.1.0] - 2026-01-01\n\n### Added\n- New feature\n' },
       files: [],
@@ -400,10 +400,10 @@ describe('runRelease', () => {
     expect(mockNotesRunPipeline).toHaveBeenCalledWith(expect.anything(), expect.anything(), true);
   });
 
-  it('should pass version output to notes as JSON', async () => {
+  it('should pass version output to notes directly', async () => {
     await runRelease(defaultOptions);
 
-    expect(mockParseVersionOutput).toHaveBeenCalledWith(JSON.stringify(versionOutputWithChanges));
+    expect(mockVersionOutputToChangelogInput).toHaveBeenCalledWith(versionOutputWithChanges);
   });
 
   it('should pass version output to publish pipeline', async () => {
@@ -629,7 +629,7 @@ describe('runRelease', () => {
       mockVersionEngineRun.mockResolvedValue(undefined);
       mockGetJsonData.mockReturnValue(versionOutputWithChanges);
       mockNotesLoadConfig.mockReturnValue(mockNotesConfig);
-      mockParseVersionOutput.mockReturnValue({ source: 'version', packages: [] });
+      mockVersionOutputToChangelogInput.mockReturnValue({ source: 'version', packages: [] });
       mockNotesRunPipeline.mockResolvedValue({
         packageNotes: { 'test-pkg': '## [1.1.0] - 2026-01-01\n\n### Added\n- New feature\n' },
         files: [],
