@@ -130,7 +130,16 @@ describe('Version Engine', () => {
       );
     });
 
-    it('should normalize prerelease: true to identifier "next"', () => {
+    it('should use configured identifier when prerelease: true', () => {
+      const configWithAlpha = { ...defaultConfig, prereleaseIdentifier: 'alpha' } as Config;
+      new VersionEngine(configWithAlpha, { prerelease: true });
+
+      expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(
+        expect.objectContaining({ prereleaseIdentifier: 'alpha', isPrerelease: true }),
+      );
+    });
+
+    it('should default to "next" when prerelease: true and no configured identifier', () => {
       new VersionEngine(defaultConfig as Config, { prerelease: true });
 
       expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(
