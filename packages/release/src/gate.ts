@@ -218,8 +218,8 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
 }
 
 function detectBumpFromLabels(labels: string[], labelConfig: typeof DEFAULT_LABELS): string | undefined {
-  const hasPrerelease = labels.includes('release:prerelease');
-  const hasStable = labels.includes('release:stable');
+  const hasPrerelease = labels.includes(labelConfig.prerelease);
+  const hasStable = labels.includes(labelConfig.stable);
 
   // Check for release:stable (auto-detect bump from commits)
   if (hasStable) return undefined;
