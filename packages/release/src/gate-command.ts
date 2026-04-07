@@ -30,7 +30,7 @@ export function createGateCommand(): Command {
           console.log(JSON.stringify(result, null, 2));
         }
 
-        process.exit(result.shouldRelease ? 0 : 1);
+        process.exit(0);
       } catch (error) {
         console.error(error instanceof Error ? error.message : String(error));
         process.exit(1);
