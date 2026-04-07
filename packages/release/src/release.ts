@@ -176,7 +176,10 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   const ciConfig = releaseKitConfig.ci;
 
   // Resolve --scope flag to target packages if provided
-  if (options.scope && ciConfig?.scopeLabels) {
+  if (options.scope) {
+    if (!ciConfig?.scopeLabels || Object.keys(ciConfig.scopeLabels).length === 0) {
+      throw new Error(`--scope "${options.scope}" provided but ci.scopeLabels is not configured`);
+    }
     const resolvedTarget = resolveScopeToTarget(options.scope, ciConfig.scopeLabels);
     info(`Scope "${options.scope}" resolved to target: ${resolvedTarget}`);
     options.target = resolvedTarget;
