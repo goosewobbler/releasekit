@@ -53,6 +53,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.10.4] - 2026-04-07
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.3...releasekit-version-v0.10.4)
+
+### Changed
+- **deps-dev**: bump the development-dependencies group with 2 updates (#112)
+- add plan for standing release PRs
+- improve modularity (#114)
+
+### Fixed
+- refine prerelease handling in version calculation (#113)
+
 ## [0.10.3] - 2026-04-05
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.2...releasekit-version-v0.10.3)
