@@ -11,8 +11,7 @@ const mockFindMergedPRsForCommit = vi.fn();
 const mockFetchPRLabels = vi.fn();
 
 vi.mock('@releasekit/config', () => ({
-  loadConfig: (...args: unknown[]) => mockLoadReleaseKitConfig(...args),
-  loadCIConfig: (...args: unknown[]) => mockLoadCIConfig(...args),
+  loadConfig: (...args: unknown[]) => ({ ...mockLoadReleaseKitConfig(...args), ci: mockLoadCIConfig() }),
 }));
 
 vi.mock('node:child_process', () => ({
@@ -146,6 +145,7 @@ describe('runRelease', () => {
     mockFindMergedPRsForCommit.mockResolvedValue([]);
     mockFetchPRLabels.mockResolvedValue([]);
     mockLoadReleaseKitConfig.mockReturnValue({});
+    mockLoadCIConfig.mockReturnValue(undefined);
     mockVersionLoadConfig.mockReturnValue({ preset: 'conventional-commits' });
     mockVersionEngineGetWorkspacePackages.mockResolvedValue({
       packages: [{ packageJson: { name: 'test-pkg' }, dir: '/test/project' }],
