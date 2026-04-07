@@ -8,6 +8,7 @@ export {
   parseVersionOutput,
   parseVersionOutputFile,
   parseVersionOutputStdin,
+  versionOutputToChangelogInput,
 } from './input/version-output.js';
 export { aggregateToRoot, detectMonorepo, writeMonorepoChangelogs } from './monorepo/aggregator.js';
 export { renderJson, writeJson } from './output/json.js';
