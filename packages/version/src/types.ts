@@ -37,6 +37,7 @@ export interface Config extends VersionConfigBase {
   dryRun?: boolean;
   latestTag?: string;
   isPrerelease?: boolean;
+  stableOnly?: boolean;
   mismatchStrategy?: 'error' | 'warn' | 'ignore' | 'prefer-package' | 'prefer-git';
   strictReachable?: boolean;
   cargo?: {

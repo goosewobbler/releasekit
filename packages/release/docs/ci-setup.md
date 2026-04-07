@@ -74,14 +74,20 @@ Only release when a PR is merged with a release label. Conventional commits dete
 | `bump:patch` | `1.0.0` | `1.0.1` |
 | `bump:minor` | `1.0.0` | `1.1.0` |
 | `bump:major` | `1.0.0` | `2.0.0` |
+| `bump:patch` | `1.0.0-next.6` | `1.0.1` — graduates prerelease to stable patch |
+| `bump:minor` | `1.0.0-next.6` | `1.1.0` — graduates prerelease to stable minor |
+| `bump:major` | `1.0.0-next.6` | `2.0.0` — graduates prerelease to stable major |
 | `release:prerelease` + `bump:patch` | `1.0.0` | `1.0.1-next.0` |
 | `release:prerelease` + `bump:minor` | `1.0.0` | `1.1.0-next.0` |
 | `release:prerelease` + `bump:major` | `1.0.0` | `2.0.0-next.0` |
-| `release:prerelease` + `bump:patch` | `1.0.0-next.6` | `1.0.0-next.7` |
+| `release:prerelease` + `bump:patch` | `1.0.0-next.6` | `1.0.0-next.7` — increments prerelease counter |
+| `release:prerelease` + `bump:minor` | `1.0.0-next.6` | `1.0.0-next.7` — increments prerelease counter |
+| `release:prerelease` + `bump:major` | `1.0.0-next.6` | `1.0.0-next.7` — increments prerelease counter |
 | `release:prerelease` alone | any | No release — add a `bump:*` label |
 | `release:stable` alone | `1.0.0-next.6` | `1.0.0` |
-| `release:stable` alone | `1.0.0` | No prerelease effect — bump (if any) from conventional commits |
+| `release:stable` alone | `1.0.0` | No release — already at stable version |
 | `release:stable` + any `bump:*` | `1.0.0-next.6` | `1.0.0` — bump label is ignored during stable promotion |
+| `release:stable` + `bump:minor` | `1.0.0` | `1.1.0` — bump applies to already-stable packages |
 
 ```yaml
 # .github/workflows/release.yml

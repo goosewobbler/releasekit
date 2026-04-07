@@ -112,6 +112,26 @@ export async function calculateVersion(config: Config, options: VersionOptions):
       return versionSource.version;
     }
 
+    // Handle stableOnly mode: graduate prerelease → stable base; skip already-stable packages.
+    // This is triggered by `release:stable` without a bump label.
+    if (config.stableOnly) {
+      const currentVer = getCurrentVersionFromSource();
+      if (semver.prerelease(currentVer)) {
+        // Always graduate prerelease to stable base — bump label magnitude is irrelevant for graduation
+        const parsed = semver.parse(currentVer);
+        if (parsed) {
+          const stableVersion = `${parsed.major}.${parsed.minor}.${parsed.patch}`;
+          log(`Graduating ${name || 'package'} from ${currentVer} to ${stableVersion}`, 'info');
+          return stableVersion;
+        }
+      } else if (!type) {
+        // No explicit bump label: skip already-stable packages
+        log(`Skipping ${name || 'package'}: already at stable version ${currentVer}`, 'info');
+        return '';
+      }
+      // Stable package with explicit bump label: fall through to normal bump logic
+    }
+
     // 1. Handle specific type if provided
     const specifiedType = type;
 
@@ -126,12 +146,12 @@ export async function calculateVersion(config: Config, options: VersionOptions):
         STANDARD_BUMP_TYPES.includes(specifiedType as 'major' | 'minor' | 'patch') &&
         (isCurrentPrerelease || explicitlyRequestedPrerelease)
       ) {
-        const prereleaseId = explicitlyRequestedPrerelease || isCurrentPrerelease ? normalizedPrereleaseId : undefined;
+        const prereleaseId = explicitlyRequestedPrerelease ? normalizedPrereleaseId : undefined;
 
         log(
           explicitlyRequestedPrerelease
             ? `Creating prerelease version with identifier '${prereleaseId}' using ${specifiedType}`
-            : `Cleaning prerelease identifier from ${currentVersion} for ${specifiedType} bump`,
+            : `Bumping ${currentVersion} with ${specifiedType}`,
           'debug',
         );
         return bumpVersion(currentVersion, specifiedType, prereleaseId);

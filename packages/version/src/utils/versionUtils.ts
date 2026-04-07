@@ -138,24 +138,11 @@ export function bumpVersion(currentVersion: string, bumpType: ReleaseType, prere
       return semver.inc(currentVersion, 'prerelease', prereleaseIdentifier) || '';
     }
 
-    // Special case: When bumping a prerelease version using the bump type that matches its level,
-    // we "clean" to the stable version instead of incrementing to the next version
-    // Examples:
-    // - major bump on x.0.0-prerelease -> x.0.0 (not x+1.0.0)
-    // - minor bump on x.y.0-prerelease -> x.y.0 (not x.y+1.0)
-    // - patch bump on x.y.z-prerelease -> x.y.z (not x.y.z+1)
-    if (
-      (bumpType === 'major' && parsed.minor === 0 && parsed.patch === 0) ||
-      (bumpType === 'minor' && parsed.patch === 0) ||
-      bumpType === 'patch'
-    ) {
-      log(`Cleaning prerelease identifier from ${currentVersion} for ${bumpType} bump`, 'debug');
-      return `${parsed.major}.${parsed.minor}.${parsed.patch}`;
-    }
-
-    // For other cases (e.g., minor bump on a patch prerelease), use standard semver increment
-    log(`Standard increment for ${currentVersion} with ${bumpType} bump`, 'debug');
-    return semver.inc(currentVersion, bumpType) || '';
+    // For standard bump types on existing prerelease versions (without explicit prereleaseIdentifier),
+    // first extract the stable base, then apply the bump to that
+    const stableBase = `${parsed.major}.${parsed.minor}.${parsed.patch}`;
+    log(`Stripping prerelease base ${currentVersion} -> ${stableBase} before applying ${bumpType} bump`, 'debug');
+    return semver.inc(stableBase, bumpType) || '';
   }
 
   // For non-prerelease versions or non-standard bump types

@@ -126,8 +126,7 @@ describe('Version Calculator', () => {
 
       // For Package.json fallback tests
       if (version === '0.0.0' && releaseType === 'minor') return '0.1.0';
-      if (version === '1.0.0-beta.1' && releaseType === 'major') return '1.0.0';
-      if (version === '1.0.0-next.0' && releaseType === 'major') return '1.0.0';
+      if (version === '2.0.0' && releaseType === 'minor' && !identifier) return '2.1.0';
 
       // For conventional commits
       if (version === '1.0.0' && releaseType === 'patch' && identifier === undefined) return '1.0.1';
@@ -836,7 +835,7 @@ describe('Version Calculator', () => {
         version: '1.0.0-beta.1',
         reason: 'No git tag provided',
       });
-      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.0.0');
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('2.0.0');
 
       const options: VersionOptions = {
         latestTag: '',
@@ -847,12 +846,11 @@ describe('Version Calculator', () => {
 
       const version = await calculateVersion(defaultConfig as Config, options);
 
-      // With our special prerelease handling, 1.0.0-beta.1 with major bump now becomes 1.0.0
-      expect(version).toBe('1.0.0');
+      expect(version).toBe('2.0.0');
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('Using version source: package'), 'info');
     });
 
-    it('should correctly handle major bump on 1.0.0-next.0 to become 1.0.0', async () => {
+    it('should correctly handle major bump on 1.0.0-next.0', async () => {
       // Mock both dependencies properly
       vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
         version: '1.0.0-next.0',
@@ -865,7 +863,7 @@ describe('Version Calculator', () => {
         version: '1.0.0-next.0',
         reason: 'No git tag provided',
       });
-      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.0.0');
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('2.0.0');
 
       const config: Partial<Config> = {
         ...defaultConfig,
@@ -879,7 +877,7 @@ describe('Version Calculator', () => {
       };
 
       const version = await calculateVersion(config as Config, options);
-      expect(version).toBe('1.0.0');
+      expect(version).toBe('2.0.0');
     });
 
     it('should attempt to use package.json version with conventional commits when no latestTag exists', async () => {
@@ -1347,6 +1345,134 @@ describe('Version Calculator', () => {
         expect(versionUtils.bumpVersion).toHaveBeenCalledWith('1.0.0', 'minor', 'next');
         expect(result).toBe('1.1.0-next.0');
       });
+    });
+  });
+
+  describe('stableOnly mode (release:stable without bump label)', () => {
+    it('should graduate a prerelease package to its stable base version', async () => {
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        stableOnly: true,
+      };
+
+      const options: VersionOptions = {
+        latestTag: 'v1.0.0-next.6',
+        versionPrefix: 'v',
+        path: '/test',
+      };
+
+      vi.spyOn(semver, 'prerelease').mockReturnValue(['next', 6]);
+      vi.spyOn(semver, 'parse').mockReturnValue({
+        major: 1,
+        minor: 0,
+        patch: 0,
+        prerelease: ['next', 6],
+      } as unknown as semver.SemVer);
+
+      const result = await calculateVersion(config as Config, options);
+
+      expect(result).toBe('1.0.0');
+      // bumpVersion should NOT be called — graduation bypasses normal bump logic
+      expect(versionUtils.bumpVersion).not.toHaveBeenCalled();
+    });
+
+    it('should skip an already-stable package when no bump label is set', async () => {
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        stableOnly: true,
+        // No type — release:stable alone, no bump:* label
+      };
+
+      const options: VersionOptions = {
+        latestTag: 'v2.0.0',
+        versionPrefix: 'v',
+        path: '/test',
+      };
+
+      vi.spyOn(semver, 'prerelease').mockReturnValue(null);
+
+      const result = await calculateVersion(config as Config, options);
+
+      expect(result).toBe('');
+      expect(versionUtils.bumpVersion).not.toHaveBeenCalled();
+    });
+
+    it('should apply bump label to an already-stable package (release:stable + bump:minor)', async () => {
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        stableOnly: true,
+        type: 'minor',
+      };
+
+      const options: VersionOptions = {
+        latestTag: 'v2.0.0',
+        versionPrefix: 'v',
+        path: '/test',
+      };
+
+      vi.spyOn(semver, 'prerelease').mockReturnValue(null);
+
+      const result = await calculateVersion(config as Config, options);
+
+      expect(versionUtils.bumpVersion).toHaveBeenCalledWith('2.0.0', 'minor', undefined);
+      expect(result).toBe('2.1.0');
+    });
+
+    it('should graduate a prerelease package even when a bump label is also set', async () => {
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        stableOnly: true,
+        type: 'minor',
+      };
+
+      const options: VersionOptions = {
+        latestTag: 'v1.0.0-next.6',
+        versionPrefix: 'v',
+        path: '/test',
+      };
+
+      vi.spyOn(semver, 'prerelease').mockReturnValue(['next', 6]);
+      vi.spyOn(semver, 'parse').mockReturnValue({
+        major: 1,
+        minor: 0,
+        patch: 0,
+        prerelease: ['next', 6],
+      } as unknown as semver.SemVer);
+
+      const result = await calculateVersion(config as Config, options);
+
+      // Graduates to 1.0.0, not 1.1.0 — bump magnitude is irrelevant for prerelease graduation
+      expect(result).toBe('1.0.0');
+      expect(versionUtils.bumpVersion).not.toHaveBeenCalled();
+    });
+
+    it('should graduate regardless of conventional commits', async () => {
+      // Even with no commits since the prerelease tag, stableOnly graduates
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        stableOnly: true,
+      };
+
+      const options: VersionOptions = {
+        latestTag: 'v1.1.0-beta.3',
+        versionPrefix: 'v',
+        path: '/test',
+      };
+
+      vi.spyOn(semver, 'prerelease').mockReturnValue(['beta', 3]);
+      vi.spyOn(semver, 'parse').mockReturnValue({
+        major: 1,
+        minor: 1,
+        patch: 0,
+        prerelease: ['beta', 3],
+      } as unknown as semver.SemVer);
+      // Zero commits — graduation still proceeds
+      vi.spyOn(gitTags, 'getCommitsLength').mockReturnValue(0);
+
+      const result = await calculateVersion(config as Config, options);
+
+      expect(result).toBe('1.1.0');
+      expect(versionUtils.bumpVersion).not.toHaveBeenCalled();
     });
   });
 });
