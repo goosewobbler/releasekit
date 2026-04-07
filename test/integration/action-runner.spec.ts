@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  buildGateArgs,
   buildPreviewArgs,
   buildReleaseArgs,
   parseInputs,
@@ -148,5 +149,46 @@ describe('action runner', () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('ok');
     expect(result.args).toContain('--dry-run');
+  });
+
+  it('should build gate args with --json and --scope', () => {
+    const args = buildGateArgs({
+      config: 'releasekit.config.json',
+      projectDir: '.',
+      scope: 'electron',
+      verbose: 'false',
+      quiet: 'false',
+    });
+
+    expect(args).toEqual(
+      expect.arrayContaining([
+        'gate',
+        '--json',
+        '--config',
+        'releasekit.config.json',
+        '--project-dir',
+        '.',
+        '--scope',
+        'electron',
+      ]),
+    );
+  });
+
+  it('should parse gate outputs from JSON stdout', () => {
+    const json = JSON.stringify({
+      shouldRelease: true,
+      bump: 'minor',
+      scope: 'electron',
+      target: '@wdio/electron-*',
+      labels: ['bump:minor'],
+      prNumbers: [123],
+    });
+
+    const result: any = parseReleaseOutput(json);
+
+    expect(result.shouldRelease).toBe(true);
+    expect(result.bump).toBe('minor');
+    expect(result.scope).toBe('electron');
+    expect(result.target).toBe('@wdio/electron-*');
   });
 });

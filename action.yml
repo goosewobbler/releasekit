@@ -8,7 +8,7 @@ branding:
 
 inputs:
   mode:
-    description: Action mode (release or preview)
+    description: Action mode (release, preview, or gate)
     required: false
     default: preview
   config:
@@ -117,6 +117,18 @@ outputs:
   mode:
     description: Executed mode
     value: ${{ steps.run.outputs.mode }}
+  should-release:
+    description: Whether a release should proceed (gate mode)
+    value: ${{ steps.run.outputs.should-release }}
+  bump:
+    description: Resolved bump type (gate mode)
+    value: ${{ steps.run.outputs.bump }}
+  gate-scope:
+    description: Resolved scope name (gate mode)
+    value: ${{ steps.run.outputs.gate-scope }}
+  gate-target:
+    description: Resolved target packages (gate mode)
+    value: ${{ steps.run.outputs.gate-target }}
   has-changes:
     description: "Whether a release has changes (release mode, requires json: true)"
     value: ${{ steps.run.outputs.has-changes }}
