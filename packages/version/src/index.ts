@@ -1,4 +1,6 @@
 // Re-export public API
+
+export type { VersionOutput } from '@releasekit/core';
 export { createVersionCommand } from './command.js';
 export { loadConfig } from './config.js';
 export { calculateVersion } from './core/versionCalculator.js';

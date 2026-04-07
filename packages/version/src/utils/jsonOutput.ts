@@ -4,22 +4,10 @@
  */
 
 import fs from 'node:fs';
-import type { VersionChangelogEntry, VersionPackageChangelog } from '@releasekit/core';
+import type { VersionChangelogEntry, VersionOutput, VersionPackageChangelog } from '@releasekit/core';
 
-export type PackageChangelogData = VersionPackageChangelog;
-
-export interface JsonOutputData {
-  dryRun: boolean;
-  updates: Array<{
-    packageName: string;
-    newVersion: string;
-    filePath: string;
-  }>;
-  changelogs: VersionPackageChangelog[];
-  sharedEntries?: VersionChangelogEntry[];
-  commitMessage?: string;
-  tags: string[];
-}
+/** @deprecated Use {@link VersionOutput} from `@releasekit/core` instead. */
+export type JsonOutputData = VersionOutput;
 
 // Flag to control JSON output mode
 let _jsonOutputMode = false;
@@ -28,7 +16,7 @@ let _jsonOutputMode = false;
 const _pendingWrites: Array<{ path: string; content: string }> = [];
 
 // Store collected information for JSON output
-const _jsonData: JsonOutputData = {
+const _jsonData: VersionOutput = {
   dryRun: false,
   updates: [],
   changelogs: [],
@@ -139,7 +127,7 @@ export function setCommitMessage(message: string): void {
 /**
  * Get the current JSON output data (for testing)
  */
-export function getJsonData(): JsonOutputData {
+export function getJsonData(): VersionOutput {
   return { ..._jsonData };
 }
 
