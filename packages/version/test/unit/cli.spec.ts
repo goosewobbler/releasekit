@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createVersionCommand, createVersionProgram } from '../../src/cli.js';
 import * as configModule from '../../src/config.js';
 import { VersionEngine } from '../../src/core/versionEngine.js';
-import type { Config } from '../../src/types.js';
+import type { Config, VersionRunOptions } from '../../src/types.js';
 import * as jsonOutputModule from '../../src/utils/jsonOutput.js';
 
 vi.mock('../../src/config.js');
@@ -38,9 +38,14 @@ describe('createVersionCommand', () => {
   const mockSetStrategy = vi.fn();
   let mockExit: ReturnType<typeof vi.spyOn>;
 
-  function mockEngineCapturingConfig(out: { config?: Config }): void {
-    vi.mocked(VersionEngine, { partial: true }).mockImplementation(function (this: unknown, config: Config) {
+  function mockEngineCapturingConfig(out: { config?: Config; runOptions?: VersionRunOptions }): void {
+    vi.mocked(VersionEngine, { partial: true }).mockImplementation(function (
+      this: unknown,
+      config: Config,
+      runOptions?: VersionRunOptions,
+    ) {
       out.config = config;
+      out.runOptions = runOptions;
       return {
         getWorkspacePackages: mockGetWorkspacePackages,
         run: mockRun,
@@ -87,53 +92,51 @@ describe('createVersionCommand', () => {
     expect(mockRun).toHaveBeenCalled();
   });
 
-  describe('option → config mutations', () => {
-    it('should set config.dryRun when --dry-run is passed', async () => {
-      const captured: { config?: Config } = {};
+  describe('option → runOptions', () => {
+    it('should pass dryRun to engine when --dry-run is passed', async () => {
+      const captured: { config?: Config; runOptions?: VersionRunOptions } = {};
       mockEngineCapturingConfig(captured);
 
       await createVersionCommand().parseAsync(['node', 'test', '--dry-run']);
 
-      expect(captured.config?.dryRun).toBe(true);
+      expect(captured.runOptions?.dryRun).toBe(true);
     });
 
-    it('should set config.sync and use sync strategy when --sync is passed', async () => {
-      const captured: { config?: Config } = {};
+    it('should pass sync to engine when --sync is passed', async () => {
+      const captured: { config?: Config; runOptions?: VersionRunOptions } = {};
       mockEngineCapturingConfig(captured);
 
       await createVersionCommand().parseAsync(['node', 'test', '--sync']);
 
-      expect(captured.config?.sync).toBe(true);
+      expect(captured.runOptions?.sync).toBe(true);
       expect(mockSetStrategy).toHaveBeenCalledWith('sync');
     });
 
-    it('should set config.type when --bump is passed', async () => {
-      const captured: { config?: Config } = {};
+    it('should pass bump to engine when --bump is passed', async () => {
+      const captured: { config?: Config; runOptions?: VersionRunOptions } = {};
       mockEngineCapturingConfig(captured);
 
       await createVersionCommand().parseAsync(['node', 'test', '--bump', 'major']);
 
-      expect(captured.config?.type).toBe('major');
+      expect(captured.runOptions?.bump).toBe('major');
     });
 
-    it('should set prereleaseIdentifier and isPrerelease when --prerelease <id> is passed', async () => {
-      const captured: { config?: Config } = {};
+    it('should pass prerelease string to engine when --prerelease <id> is passed', async () => {
+      const captured: { config?: Config; runOptions?: VersionRunOptions } = {};
       mockEngineCapturingConfig(captured);
 
       await createVersionCommand().parseAsync(['node', 'test', '--prerelease', 'beta']);
 
-      expect(captured.config?.prereleaseIdentifier).toBe('beta');
-      expect(captured.config?.isPrerelease).toBe(true);
+      expect(captured.runOptions?.prerelease).toBe('beta');
     });
 
-    it('should default prereleaseIdentifier to "next" when --prerelease is passed without a value', async () => {
-      const captured: { config?: Config } = {};
+    it('should pass prerelease: true to engine when --prerelease is passed without a value', async () => {
+      const captured: { config?: Config; runOptions?: VersionRunOptions } = {};
       mockEngineCapturingConfig(captured);
 
       await createVersionCommand().parseAsync(['node', 'test', '--prerelease']);
 
-      expect(captured.config?.prereleaseIdentifier).toBe('next');
-      expect(captured.config?.isPrerelease).toBe(true);
+      expect(captured.runOptions?.prerelease).toBe(true);
     });
   });
 
@@ -189,39 +192,43 @@ describe('createVersionCommand', () => {
   });
 
   describe('target flag handling', () => {
-    it('should override config.packages when --target is used', async () => {
-      const captured: { config?: Config } = {};
+    it('should pass targets to engine when --target is used', async () => {
+      const captured: { config?: Config; runOptions?: VersionRunOptions } = {};
       mockEngineCapturingConfig(captured);
 
       await createVersionCommand().parseAsync(['node', 'test', '--target', '@scope/package-a']);
 
-      expect(captured.config?.packages).toEqual(['@scope/package-a']);
+      expect(captured.runOptions?.targets).toEqual(['@scope/package-a']);
+      // Config should not be mutated
+      expect(captured.config?.packages).toEqual(mockConfig.packages);
     });
 
     it('should parse multiple targets from comma-separated string', async () => {
-      const captured: { config?: Config } = {};
+      const captured: { config?: Config; runOptions?: VersionRunOptions } = {};
       mockEngineCapturingConfig(captured);
 
       await createVersionCommand().parseAsync(['node', 'test', '--target', '@scope/package-a,@scope/package-b']);
 
-      expect(captured.config?.packages).toEqual(['@scope/package-a', '@scope/package-b']);
+      expect(captured.runOptions?.targets).toEqual(['@scope/package-a', '@scope/package-b']);
     });
 
-    it('should not override config.packages when no --target flag is provided', async () => {
-      const captured: { config?: Config } = {};
+    it('should not pass targets when no --target flag is provided', async () => {
+      const captured: { config?: Config; runOptions?: VersionRunOptions } = {};
       mockEngineCapturingConfig(captured);
 
       await createVersionCommand().parseAsync(['node', 'test']);
 
+      expect(captured.runOptions?.targets).toBeUndefined();
       expect(captured.config?.packages).toEqual(mockConfig.packages);
     });
 
-    it('should not override config.packages when --target is an empty string', async () => {
-      const captured: { config?: Config } = {};
+    it('should not pass targets when --target is an empty string', async () => {
+      const captured: { config?: Config; runOptions?: VersionRunOptions } = {};
       mockEngineCapturingConfig(captured);
 
       await createVersionCommand().parseAsync(['node', 'test', '--target', '']);
 
+      expect(captured.runOptions?.targets).toBeUndefined();
       expect(captured.config?.packages).toEqual(mockConfig.packages);
     });
   });
