@@ -213,7 +213,6 @@ runs:
         INPUT_SKIP_GIT: ${{ inputs.skip-git }}
         INPUT_SKIP_GITHUB_RELEASE: ${{ inputs.skip-github-release }}
         INPUT_SKIP_VERIFICATION: ${{ inputs.skip-verification }}
-        INPUT_SSH_KEY: ${{ inputs.ssh-key }}
         INPUT_PR: ${{ inputs.pr }}
         INPUT_REPO: ${{ inputs.repo }}
         INPUT_PREVIEW_PRERELEASE: ${{ inputs.preview-prerelease }}
