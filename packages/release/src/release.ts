@@ -1,6 +1,6 @@
 import { execSync } from 'node:child_process';
-import type { CIConfig } from '@releasekit/config';
-import { loadCIConfig, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
+import type { CIConfig, ReleaseConfig } from '@releasekit/config';
+import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput } from '@releasekit/core';
 import { error, info, setJsonMode, setLogLevel, setQuietMode, success, warn } from '@releasekit/core';
 import type { ReleaseType } from 'semver';
@@ -131,6 +131,23 @@ async function applyScopeLabelsFromPR(
   return { target: finalTarget, scopeLabels: matchedScopePatterns, labels: allLabels };
 }
 
+/**
+ * Apply config-driven step overrides to the options object.
+ * Priority order: CLI flags (already set on options) > release.ci overrides > release.steps.
+ * The CLI always wins because both checks guard with !options.skipX before setting.
+ */
+function applyStepOverrides(options: ReleaseOptions, releaseConfig: ReleaseConfig | undefined): void {
+  // Steps array: a step absent from the list is skipped unless CLI already set the flag.
+  if (releaseConfig?.steps) {
+    if (!releaseConfig.steps.includes('notes') && !options.skipNotes) options.skipNotes = true;
+    if (!releaseConfig.steps.includes('publish') && !options.skipPublish) options.skipPublish = true;
+  }
+
+  // ci overrides: can suppress a step even when it appears in 'steps'.
+  if (releaseConfig?.ci?.notes === false && !options.skipNotes) options.skipNotes = true;
+  if (releaseConfig?.ci?.githubRelease === false && !options.skipGithubRelease) options.skipGithubRelease = true;
+}
+
 export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseOutput | null> {
   // Work on a copy so config-driven overrides never mutate the caller's object
   const options = { ...inputOptions };
@@ -148,10 +165,10 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
     throw err;
   }
   const releaseConfig = releaseKitConfig.release;
+  const ciConfig = releaseKitConfig.ci;
 
   // Apply scope labels from PR labels (if GitHub context available)
   // Skip in dry-run mode since preview.ts already handles scope labels
-  const ciConfig = loadCIConfig({ cwd: options.projectDir, configPath: options.config });
 
   // Determine effective target: CLI target can be overridden by scope labels
   let effectiveTarget = options.target;
@@ -187,24 +204,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
     }
   }
 
-  // Apply steps config: absent steps become skipped (CLI --skip-* flags still win)
-  if (releaseConfig?.steps) {
-    if (!releaseConfig.steps.includes('notes') && !options.skipNotes) {
-      options.skipNotes = true;
-    }
-    if (!releaseConfig.steps.includes('publish') && !options.skipPublish) {
-      options.skipPublish = true;
-    }
-  }
-
-  // Apply ci overrides — these take final precedence and can suppress a step
-  // even when it appears in the 'steps' array. Priority order: CLI > ci > steps.
-  if (releaseConfig?.ci?.notes === false && !options.skipNotes) {
-    options.skipNotes = true;
-  }
-  if (releaseConfig?.ci?.githubRelease === false && !options.skipGithubRelease) {
-    options.skipGithubRelease = true;
-  }
+  applyStepOverrides(options, releaseConfig);
 
   // --- Step 1: Version ---
   // Always run the version engine with dryRun:true so no files are written yet.
@@ -276,21 +276,18 @@ async function runVersionStep(options: ReleaseOptions): Promise<VersionOutput> {
 
   const config = loadConfig({ cwd: options.projectDir, configPath: options.config });
 
-  if (options.dryRun) config.dryRun = true;
-  if (options.sync) config.sync = true;
-  if (options.bump) config.type = options.bump as ReleaseType;
-  if (options.prerelease) {
-    config.prereleaseIdentifier = options.prerelease === true ? 'next' : options.prerelease;
-    config.isPrerelease = true;
-  }
-  if (options.stable) config.stableOnly = true;
+  const targets: string[] = options.target ? options.target.split(',').map((t) => t.trim()) : [];
 
-  const cliTargets: string[] = options.target ? options.target.split(',').map((t) => t.trim()) : [];
-  if (cliTargets.length > 0) {
-    config.packages = cliTargets;
-  }
+  const runOptions = {
+    bump: options.bump as ReleaseType | undefined,
+    prerelease: options.prerelease,
+    stable: options.stable,
+    dryRun: options.dryRun,
+    sync: options.sync,
+    targets,
+  };
 
-  const engine = new VersionEngine(config);
+  const engine = new VersionEngine(config, runOptions);
   const pkgsResult = await engine.getWorkspacePackages();
   const resolvedCount = pkgsResult.packages.length;
 
@@ -298,7 +295,8 @@ async function runVersionStep(options: ReleaseOptions): Promise<VersionOutput> {
     throw new Error('No packages found in workspace');
   }
 
-  if (config.sync) {
+  const effectiveSync = options.sync || config.sync;
+  if (effectiveSync) {
     engine.setStrategy('sync');
     await engine.run(pkgsResult);
   } else if (resolvedCount === 1) {
@@ -306,7 +304,7 @@ async function runVersionStep(options: ReleaseOptions): Promise<VersionOutput> {
     await engine.run(pkgsResult);
   } else {
     engine.setStrategy('async');
-    await engine.run(pkgsResult, cliTargets);
+    await engine.run(pkgsResult, targets);
   }
 
   return getJsonData() as VersionOutput;
@@ -319,11 +317,11 @@ interface NotesStepResult {
 }
 
 async function runNotesStep(versionOutput: VersionOutput, options: ReleaseOptions): Promise<NotesStepResult> {
-  const { parseVersionOutput, runPipeline, loadConfig } = await import('@releasekit/notes');
+  const { versionOutputToChangelogInput, runPipeline, loadConfig } = await import('@releasekit/notes');
 
   const config = loadConfig(options.projectDir, options.config);
 
-  const input = parseVersionOutput(JSON.stringify(versionOutput));
+  const input = versionOutputToChangelogInput(versionOutput);
   const result = await runPipeline(input, config, options.dryRun);
 
   return { packageNotes: result.packageNotes, releaseNotes: result.releaseNotes, files: result.files };

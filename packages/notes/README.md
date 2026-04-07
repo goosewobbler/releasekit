@@ -180,6 +180,58 @@ releasekit-notes --changelog-mode both
 
 See **[Monorepo guide](./docs/monorepo.md)** for details on file placement and aggregation behaviour.
 
+## Programmatic API
+
+`@releasekit/notes` can be used as a library in Node.js code.
+
+### With a `VersionOutput` object (recommended)
+
+When integrating with `@releasekit/version` programmatically, pass the typed output directly — no JSON round-trip needed:
+
+```ts
+import { versionOutputToChangelogInput, runPipeline, loadConfig } from '@releasekit/notes';
+import type { VersionOutput } from '@releasekit/version';
+
+// versionOutput comes from getJsonData() after running VersionEngine
+const input = versionOutputToChangelogInput(versionOutput);
+
+const config = loadConfig('/path/to/project');
+const result = await runPipeline(input, config, /* dryRun */ false);
+
+// result.packageNotes — per-package rendered markdown, keyed by package name
+// result.releaseNotes — per-package release notes (when configured)
+// result.files        — file paths written to disk
+```
+
+### From JSON
+
+When reading version output from a file or stdin:
+
+```ts
+import {
+  parseVersionOutput,      // from a JSON string
+  parseVersionOutputFile,  // from a file path
+  parseVersionOutputStdin, // from stdin
+  runPipeline,
+  loadConfig,
+} from '@releasekit/notes';
+
+const input = parseVersionOutputFile('./version-output.json');
+const config = loadConfig();
+const result = await runPipeline(input, config, false);
+```
+
+### Key exports
+
+| Export | Description |
+|--------|-------------|
+| `versionOutputToChangelogInput(data)` | Transform a `VersionOutput` to `ChangelogInput` directly |
+| `parseVersionOutput(json)` | Parse a JSON string into `ChangelogInput` |
+| `parseVersionOutputFile(path)` | Read a file and parse it into `ChangelogInput` |
+| `parseVersionOutputStdin()` | Read stdin and parse it into `ChangelogInput` |
+| `runPipeline(input, config, dryRun)` | Run the full notes pipeline (templates, LLM, file writes) |
+| `loadConfig(projectDir?, configFile?)` | Load `notes` config from `releasekit.config.json` |
+
 ## Documentation
 
 **Getting Started**

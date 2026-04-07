@@ -22,15 +22,7 @@ function normalizeEntryType(type: string): ChangelogEntry['type'] {
   return typeMap[type.toLowerCase()] ?? 'changed';
 }
 
-export function parseVersionOutput(json: string): ChangelogInput {
-  let data: VersionOutput;
-
-  try {
-    data = JSON.parse(json);
-  } catch (error) {
-    throw new InputParseError(`Invalid JSON input: ${error instanceof Error ? error.message : String(error)}`);
-  }
-
+export function versionOutputToChangelogInput(data: VersionOutput): ChangelogInput {
   if (!data.changelogs || !Array.isArray(data.changelogs)) {
     throw new InputParseError('Input must contain a "changelogs" array');
   }
@@ -61,6 +53,18 @@ export function parseVersionOutput(json: string): ChangelogInput {
       repoUrl: repoUrl ?? undefined,
     },
   };
+}
+
+export function parseVersionOutput(json: string): ChangelogInput {
+  let data: VersionOutput;
+
+  try {
+    data = JSON.parse(json);
+  } catch (error) {
+    throw new InputParseError(`Invalid JSON input: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  return versionOutputToChangelogInput(data);
 }
 
 export function parseVersionOutputFile(filePath: string): ChangelogInput {

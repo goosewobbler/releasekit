@@ -11,8 +11,7 @@ const mockFindMergedPRsForCommit = vi.fn();
 const mockFetchPRLabels = vi.fn();
 
 vi.mock('@releasekit/config', () => ({
-  loadConfig: (...args: unknown[]) => mockLoadReleaseKitConfig(...args),
-  loadCIConfig: (...args: unknown[]) => mockLoadCIConfig(...args),
+  loadConfig: (...args: unknown[]) => ({ ...mockLoadReleaseKitConfig(...args), ci: mockLoadCIConfig() }),
 }));
 
 vi.mock('node:child_process', () => ({
@@ -33,10 +32,20 @@ const mockVersionEngineRun = vi.fn();
 const mockVersionEngineSetStrategy = vi.fn();
 const mockVersionEngineGetWorkspacePackages = vi.fn();
 
-const MockVersionEngine = vi.fn(function (this: Record<string, unknown>) {
+const MockVersionEngine = vi.fn(function (this: Record<string, unknown>, config, runOptions) {
+  this.config = config;
+  this.runOptions = runOptions;
   this.run = mockVersionEngineRun;
   this.setStrategy = mockVersionEngineSetStrategy;
   this.getWorkspacePackages = mockVersionEngineGetWorkspacePackages;
+});
+
+// Convenience getter to access the last call's arguments
+Object.defineProperty(MockVersionEngine, 'lastCall', {
+  get() {
+    const calls = MockVersionEngine.mock.calls;
+    return calls.length > 0 ? calls[calls.length - 1] : null;
+  },
 });
 
 vi.mock('@releasekit/version', () => ({
@@ -49,12 +58,12 @@ vi.mock('@releasekit/version', () => ({
 
 const mockNotesRunPipeline = vi.fn();
 const mockNotesLoadConfig = vi.fn();
-const mockParseVersionOutput = vi.fn();
+const mockVersionOutputToChangelogInput = vi.fn();
 
 vi.mock('@releasekit/notes', () => ({
   runPipeline: (...args: unknown[]) => mockNotesRunPipeline(...args),
   loadConfig: (...args: unknown[]) => mockNotesLoadConfig(...args),
-  parseVersionOutput: (...args: unknown[]) => mockParseVersionOutput(...args),
+  versionOutputToChangelogInput: (...args: unknown[]) => mockVersionOutputToChangelogInput(...args),
 }));
 
 const mockPublishRunPipeline = vi.fn();
@@ -146,6 +155,7 @@ describe('runRelease', () => {
     mockFindMergedPRsForCommit.mockResolvedValue([]);
     mockFetchPRLabels.mockResolvedValue([]);
     mockLoadReleaseKitConfig.mockReturnValue({});
+    mockLoadCIConfig.mockReturnValue(undefined);
     mockVersionLoadConfig.mockReturnValue({ preset: 'conventional-commits' });
     mockVersionEngineGetWorkspacePackages.mockResolvedValue({
       packages: [{ packageJson: { name: 'test-pkg' }, dir: '/test/project' }],
@@ -154,7 +164,7 @@ describe('runRelease', () => {
     mockVersionEngineRun.mockResolvedValue(undefined);
     mockGetJsonData.mockReturnValue(versionOutputWithChanges);
     mockNotesLoadConfig.mockReturnValue(mockNotesConfig);
-    mockParseVersionOutput.mockReturnValue({ source: 'version', packages: [] });
+    mockVersionOutputToChangelogInput.mockReturnValue({ source: 'version', packages: [] });
     mockNotesRunPipeline.mockResolvedValue({
       packageNotes: { 'test-pkg': '## [1.1.0] - 2026-01-01\n\n### Added\n- New feature\n' },
       files: [],
@@ -262,48 +272,76 @@ describe('runRelease', () => {
     expect(mockEnableJsonOutput).toHaveBeenCalledWith(true);
   });
 
-  it('should set dryRun on version config', async () => {
+  it('should pass dryRun to VersionEngine', async () => {
     await runRelease({ ...defaultOptions, dryRun: true });
 
-    const config = mockVersionLoadConfig.mock.results[0]?.value;
-    expect(config.dryRun).toBe(true);
+    const runOptions = MockVersionEngine.mock.calls[0]?.[1];
+    expect(runOptions.dryRun).toBe(true);
   });
 
-  it('should set sync on version config', async () => {
+  it('should pass sync to VersionEngine', async () => {
     await runRelease({ ...defaultOptions, sync: true });
 
-    const config = mockVersionLoadConfig.mock.results[0]?.value;
-    expect(config.sync).toBe(true);
+    const runOptions = MockVersionEngine.mock.calls[0]?.[1];
+    expect(runOptions.sync).toBe(true);
     expect(mockVersionEngineSetStrategy).toHaveBeenCalledWith('sync');
   });
 
-  it('should set bump type on version config', async () => {
+  it('should pass bump type to VersionEngine', async () => {
     await runRelease({ ...defaultOptions, bump: 'major' });
 
-    const config = mockVersionLoadConfig.mock.results[0]?.value;
-    expect(config.type).toBe('major');
+    const runOptions = MockVersionEngine.mock.calls[0]?.[1];
+    expect(runOptions.bump).toBe('major');
   });
 
-  it('should set prerelease identifier on version config', async () => {
+  it('should pass prerelease identifier to VersionEngine', async () => {
     await runRelease({ ...defaultOptions, prerelease: 'beta' });
 
-    const config = mockVersionLoadConfig.mock.results[0]?.value;
-    expect(config.prereleaseIdentifier).toBe('beta');
-    expect(config.isPrerelease).toBe(true);
+    const runOptions = MockVersionEngine.mock.calls[0]?.[1];
+    expect(runOptions.prerelease).toBe('beta');
   });
 
-  it('should default prerelease identifier to "next"', async () => {
+  it('should pass prerelease: true to VersionEngine when no identifier given', async () => {
     await runRelease({ ...defaultOptions, prerelease: true });
 
-    const config = mockVersionLoadConfig.mock.results[0]?.value;
-    expect(config.prereleaseIdentifier).toBe('next');
+    const runOptions = MockVersionEngine.mock.calls[0]?.[1];
+    expect(runOptions.prerelease).toBe(true);
   });
 
-  it('should set target packages on version config', async () => {
+  it('should pass stable to VersionEngine', async () => {
+    await runRelease({ ...defaultOptions, stable: true });
+
+    const runOptions = MockVersionEngine.mock.calls[0]?.[1];
+    expect(runOptions.stable).toBe(true);
+  });
+
+  it('should pass target packages to VersionEngine', async () => {
     await runRelease({ ...defaultOptions, target: '@scope/a, @scope/b' });
 
-    const config = mockVersionLoadConfig.mock.results[0]?.value;
-    expect(config.packages).toEqual(['@scope/a', '@scope/b']);
+    const runOptions = MockVersionEngine.mock.calls[0]?.[1];
+    expect(runOptions.targets).toEqual(['@scope/a', '@scope/b']);
+  });
+
+  it('should pass combined runOptions to VersionEngine', async () => {
+    await runRelease({
+      ...defaultOptions,
+      bump: 'minor',
+      prerelease: 'beta',
+      stable: true,
+      sync: true,
+      dryRun: true,
+      target: '@scope/pkg-a',
+    });
+
+    const runOptions = MockVersionEngine.mock.calls[0]?.[1];
+    expect(runOptions).toEqual({
+      bump: 'minor',
+      prerelease: 'beta',
+      stable: true,
+      sync: true,
+      dryRun: true,
+      targets: ['@scope/pkg-a'],
+    });
   });
 
   it('should use single strategy for one package', async () => {
@@ -401,10 +439,10 @@ describe('runRelease', () => {
     expect(mockNotesRunPipeline).toHaveBeenCalledWith(expect.anything(), expect.anything(), true);
   });
 
-  it('should pass version output to notes as JSON', async () => {
+  it('should pass version output to notes directly', async () => {
     await runRelease(defaultOptions);
 
-    expect(mockParseVersionOutput).toHaveBeenCalledWith(JSON.stringify(versionOutputWithChanges));
+    expect(mockVersionOutputToChangelogInput).toHaveBeenCalledWith(versionOutputWithChanges);
   });
 
   it('should pass version output to publish pipeline', async () => {
@@ -630,7 +668,7 @@ describe('runRelease', () => {
       mockVersionEngineRun.mockResolvedValue(undefined);
       mockGetJsonData.mockReturnValue(versionOutputWithChanges);
       mockNotesLoadConfig.mockReturnValue(mockNotesConfig);
-      mockParseVersionOutput.mockReturnValue({ source: 'version', packages: [] });
+      mockVersionOutputToChangelogInput.mockReturnValue({ source: 'version', packages: [] });
       mockNotesRunPipeline.mockResolvedValue({
         packageNotes: { 'test-pkg': '## [1.1.0] - 2026-01-01\n\n### Added\n- New feature\n' },
         files: [],
@@ -796,8 +834,8 @@ describe('runRelease', () => {
       // because preview.ts handles scope targeting
       expect(mockVersionEngineRun).toHaveBeenCalled();
       // Verify the original CLI target was preserved (not overridden by scope:electron → @wdio/electron-*)
-      const config = mockVersionLoadConfig.mock.results[0]?.value;
-      expect(config.packages).toEqual(['@wdio/native-types', '@wdio/tauri-service']);
+      const runOptions = MockVersionEngine.mock.calls[0]?.[1];
+      expect(runOptions.targets).toEqual(['@wdio/native-types', '@wdio/tauri-service']);
     });
 
     it('should skip release when release:skip label is present in commit mode', async () => {
@@ -849,8 +887,8 @@ describe('runRelease', () => {
       expect(result).not.toBeNull();
       expect(mockVersionEngineRun).toHaveBeenCalled();
 
-      const config = mockVersionLoadConfig.mock.results[0]?.value;
-      expect(config.packages).toEqual(['@wdio/electron-*']);
+      const runOptions = MockVersionEngine.mock.calls[0]?.[1];
+      expect(runOptions.targets).toEqual(['@wdio/electron-*']);
     });
   });
 });

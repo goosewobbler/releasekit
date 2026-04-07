@@ -37,22 +37,21 @@ export function createVersionCommand(): Command {
         const config: Config = loadConfig({ cwd: options.projectDir, configPath: options.config });
         log(`Loaded configuration from ${options.config || 'releasekit.config.json'}`, 'info');
 
-        if (options.dryRun) config.dryRun = true;
-        if (options.sync) config.sync = true;
-        if (options.bump) config.type = options.bump;
-        if (options.prerelease) {
-          config.prereleaseIdentifier = options.prerelease === true ? 'next' : options.prerelease;
-          config.isPrerelease = true;
-        }
-
         const cliTargets: string[] = options.target ? options.target.split(',').map((t: string) => t.trim()) : [];
 
         if (cliTargets.length > 0) {
-          config.packages = cliTargets;
           log(`CLI targets specified: ${cliTargets.join(', ')}`, 'info');
         }
 
-        const engine = new VersionEngine(config, !!options.json);
+        const runOptions = {
+          bump: options.bump,
+          prerelease: options.prerelease,
+          dryRun: options.dryRun,
+          sync: options.sync,
+          targets: cliTargets.length > 0 ? cliTargets : undefined,
+        };
+
+        const engine = new VersionEngine(config, runOptions);
 
         const pkgsResult = await engine.getWorkspacePackages();
         const resolvedCount = pkgsResult.packages.length;
@@ -61,7 +60,8 @@ export function createVersionCommand(): Command {
         log(`Config packages: ${JSON.stringify(config.packages)}`, 'debug');
         log(`Config sync: ${config.sync}`, 'debug');
 
-        if (config.sync) {
+        const effectiveSync = options.sync || config.sync;
+        if (effectiveSync) {
           log('Using sync versioning strategy.', 'info');
           engine.setStrategy('sync');
           await engine.run(pkgsResult);

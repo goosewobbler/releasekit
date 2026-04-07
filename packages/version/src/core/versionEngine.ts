@@ -4,7 +4,7 @@ import { getPackagesSync, type Packages } from '@manypkg/get-packages';
 
 import { GitError } from '../errors/gitError.js';
 import { createVersionError, VersionError, VersionErrorCode } from '../errors/versionError.js';
-import type { Config } from '../types.js';
+import type { Config, VersionRunOptions } from '../types.js';
 import { log } from '../utils/logging.js';
 import { filterPackagesByConfig } from '../utils/packageFiltering.js';
 import { createStrategy, createStrategyMap, type StrategyFunction, type StrategyType } from './versionStrategies.js';
@@ -23,25 +23,42 @@ export class VersionEngine {
   private strategies: Record<StrategyType, StrategyFunction>;
   private currentStrategy: StrategyFunction;
 
-  constructor(config: Config, _jsonMode = false) {
+  constructor(config: Config, runOptions?: VersionRunOptions) {
     // Validate required configuration
     if (!config) {
       throw createVersionError(VersionErrorCode.CONFIG_REQUIRED);
     }
 
+    // Apply runtime overrides on top of a shallow copy so the caller's config
+    // object is never mutated.
+    const effective: Config = { ...config };
+
+    if (runOptions) {
+      if (runOptions.dryRun) effective.dryRun = true;
+      if (runOptions.sync) effective.sync = true;
+      if (runOptions.bump) effective.type = runOptions.bump;
+      if (runOptions.prerelease) {
+        effective.prereleaseIdentifier =
+          typeof runOptions.prerelease === 'string' ? runOptions.prerelease : effective.prereleaseIdentifier || 'next';
+        effective.isPrerelease = true;
+      }
+      if (runOptions.stable) effective.stableOnly = true;
+      if (runOptions.targets?.length) effective.packages = runOptions.targets;
+    }
+
     // Default values for required properties
-    if (!config.preset) {
-      config.preset = 'conventional-commits';
+    if (!effective.preset) {
+      effective.preset = 'conventional-commits';
       log('No preset specified, using default: conventional-commits', 'warning');
     }
 
-    this.config = config;
+    this.config = effective;
 
     // Create all strategy functions
-    this.strategies = createStrategyMap(config);
+    this.strategies = createStrategyMap(effective);
 
     // Set initial strategy based on config
-    this.currentStrategy = createStrategy(config);
+    this.currentStrategy = createStrategy(effective);
   }
 
   /**

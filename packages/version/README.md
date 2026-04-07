@@ -143,6 +143,67 @@ A few things to keep in mind when running `releasekit-version` in a pipeline:
 
 If you are running the full release pipeline (version + changelog + publish), use `@releasekit/release` instead of invoking `releasekit-version` directly. See the [CI setup guide](../release/docs/ci-setup.md).
 
+## Programmatic API
+
+`@releasekit/version` can be used as a library in Node.js code. The main entry point is `VersionEngine`.
+
+```ts
+import {
+  loadConfig,
+  VersionEngine,
+  enableJsonOutput,
+  getJsonData,
+} from '@releasekit/version';
+import type { VersionOutput, VersionRunOptions } from '@releasekit/version';
+
+// 1. Load config from releasekit.config.json
+const config = loadConfig({ cwd: '/path/to/project' });
+
+// 2. Describe runtime overrides (none of these mutate the config object)
+const runOptions: VersionRunOptions = {
+  bump: 'minor',       // force bump type
+  dryRun: true,        // preview only
+  targets: ['pkg-a'],  // limit to specific packages
+};
+
+// 3. Enable JSON capture so getJsonData() has results to return
+enableJsonOutput(runOptions.dryRun);
+
+// 4. Run the engine
+const engine = new VersionEngine(config, runOptions);
+const packages = await engine.getWorkspacePackages();
+await engine.run(packages);
+
+// 5. Retrieve the structured output
+const output: VersionOutput = getJsonData();
+// output.updates   — packages that received a version bump
+// output.changelogs — per-package changelog entries
+// output.tags       — git tags that were (or would be) created
+```
+
+### `VersionRunOptions`
+
+All fields are optional. These are applied on top of the loaded config without mutating it.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `bump` | `'major' \| 'minor' \| 'patch'` | Force a specific bump type |
+| `prerelease` | `string \| boolean` | Create a prerelease; `true` uses the configured identifier, a string overrides it |
+| `stable` | `boolean` | Graduate prerelease packages to stable; skip already-stable ones (unless `bump` is also set) |
+| `dryRun` | `boolean` | Preview only — no files written, no git operations |
+| `sync` | `boolean` | Version all packages together at the same version |
+| `targets` | `string[]` | Limit processing to these package name patterns |
+
+### `VersionOutput`
+
+The output type is also exported from `@releasekit/core`:
+
+```ts
+import type { VersionOutput } from '@releasekit/version';
+```
+
+Pass the result directly to `versionOutputToChangelogInput` from `@releasekit/notes` to generate changelogs without serialising to JSON.
+
 ## Documentation
 
 - [Versioning Strategies and Concepts](./docs/versioning.md)

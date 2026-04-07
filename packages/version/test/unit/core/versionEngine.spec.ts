@@ -103,6 +103,55 @@ describe('Version Engine', () => {
       expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(defaultConfig as Config);
       expect(strategyModule.createStrategy).toHaveBeenCalledWith(defaultConfig as Config);
     });
+
+    it('should not mutate the caller config when runOptions are provided', () => {
+      const config: Config = { ...defaultConfig } as Config;
+      new VersionEngine(config, { bump: 'major', dryRun: true, targets: ['pkg-a'] });
+
+      // Original config must be unchanged
+      expect(config.type).toBeUndefined();
+      expect(config.dryRun).toBeUndefined();
+      expect(config.packages).toEqual([]);
+    });
+
+    it('should apply bump, dryRun and targets from runOptions to effective config', () => {
+      new VersionEngine(defaultConfig as Config, { bump: 'minor', dryRun: true, targets: ['pkg-a', 'pkg-b'] });
+
+      expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'minor', dryRun: true, packages: ['pkg-a', 'pkg-b'] }),
+      );
+    });
+
+    it('should apply prerelease string identifier from runOptions', () => {
+      new VersionEngine(defaultConfig as Config, { prerelease: 'beta' });
+
+      expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(
+        expect.objectContaining({ prereleaseIdentifier: 'beta', isPrerelease: true }),
+      );
+    });
+
+    it('should use configured identifier when prerelease: true', () => {
+      const configWithAlpha = { ...defaultConfig, prereleaseIdentifier: 'alpha' } as Config;
+      new VersionEngine(configWithAlpha, { prerelease: true });
+
+      expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(
+        expect.objectContaining({ prereleaseIdentifier: 'alpha', isPrerelease: true }),
+      );
+    });
+
+    it('should default to "next" when prerelease: true and no configured identifier', () => {
+      new VersionEngine(defaultConfig as Config, { prerelease: true });
+
+      expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(
+        expect.objectContaining({ prereleaseIdentifier: 'next', isPrerelease: true }),
+      );
+    });
+
+    it('should apply stable from runOptions as stableOnly on effective config', () => {
+      new VersionEngine(defaultConfig as Config, { stable: true });
+
+      expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(expect.objectContaining({ stableOnly: true }));
+    });
   });
 
   describe('getWorkspacePackages', () => {

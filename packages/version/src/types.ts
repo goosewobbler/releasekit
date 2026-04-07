@@ -1,6 +1,26 @@
 import type { GitConfig, VersionConfig } from '@releasekit/config';
 import type { ReleaseType } from 'semver';
 
+/**
+ * Runtime overrides passed by an orchestrator (e.g. @releasekit/release).
+ * These are separate from file-loaded Config so the engine never mutates the
+ * caller's config object.
+ */
+export interface VersionRunOptions {
+  /** Force a specific bump type (equivalent to --bump). */
+  bump?: ReleaseType;
+  /** Create a prerelease version. Pass a string to override the identifier (e.g. 'beta'),
+   *  or true to use the configured identifier (with 'next' as fallback if none is configured). */
+  prerelease?: string | boolean;
+  /** Graduate prerelease packages to stable; skip already-stable packages
+   *  unless bump is also set, in which case bump applies to stable packages. */
+  stable?: boolean;
+  dryRun?: boolean;
+  sync?: boolean;
+  /** Limit release to these package name patterns (comma-split targets from CLI). */
+  targets?: string[];
+}
+
 export interface GitInfo {
   currentBranch: string;
   mergeBranch?: string;
