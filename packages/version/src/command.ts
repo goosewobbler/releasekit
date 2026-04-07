@@ -52,7 +52,7 @@ export function createVersionCommand(): Command {
           log(`CLI targets specified: ${cliTargets.join(', ')}`, 'info');
         }
 
-        const engine = new VersionEngine(config, !!options.json);
+        const engine = new VersionEngine(config);
 
         const pkgsResult = await engine.getWorkspacePackages();
         const resolvedCount = pkgsResult.packages.length;
