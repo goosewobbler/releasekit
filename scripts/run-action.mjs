@@ -376,6 +376,10 @@ function main() {
   const success = result.status === 0;
   const parsed = normalizeBoolean(input.json) ? parseReleaseOutput(result.stdout ?? '') : undefined;
 
+  // For gate mode: non-zero exit means shouldRelease=false (expected), not a failure
+  // The caller decides whether to proceed via the should-release output
+  const isGateMode = result.mode === 'gate';
+
   // Write summary BEFORE setFailure (which calls process.exit)
   if (normalizeBoolean(input.summary, true)) {
     if (result.mode === 'release') {
@@ -394,6 +398,10 @@ function main() {
     }
     process.stderr.write(result.stderr ?? '');
     process.stdout.write(result.stdout ?? '');
+    // Gate mode: exit 0 even on shouldRelease=false (caller decides via output)
+    if (isGateMode) {
+      process.exit(0);
+    }
     setFailure(`ReleaseKit ${result.mode} failed with exit code ${result.status ?? 1}`);
   }
 
