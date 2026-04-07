@@ -78,6 +78,27 @@ export function buildPreviewArgs(input) {
   return args;
 }
 
+export function buildGateArgs(input) {
+  const args = ['gate'];
+
+  args.push('--json');
+  pushOptionalArg(args, '--config', input.config);
+  pushOptionalArg(args, '--project-dir', input.projectDir);
+  pushOptionalArg(args, '--scope', input.scope);
+  pushBooleanFlag(args, '--verbose', input.verbose);
+  pushBooleanFlag(args, '--quiet', input.quiet);
+
+  return args;
+}
+
+export function writeGateOutputs(stdout) {
+  const parsed = parseReleaseOutput(stdout);
+  setOutput('should-release', parsed?.shouldRelease ? 'true' : 'false');
+  setOutput('bump', parsed?.bump ?? '');
+  setOutput('gate-scope', parsed?.scope ?? '');
+  setOutput('gate-target', parsed?.target ?? '');
+}
+
 export function parseReleaseOutput(stdout) {
   const trimmed = stdout.trim();
   if (!trimmed) return undefined;
@@ -138,15 +159,16 @@ export function parseInputs(env = process.env) {
 
 export function runAction(input, options = {}) {
   const mode = input.mode;
-  if (mode !== 'release' && mode !== 'preview') {
-    throw new Error(`Invalid mode: ${mode}. Expected "release" or "preview".`);
+  if (mode !== 'release' && mode !== 'preview' && mode !== 'gate') {
+    throw new Error(`Invalid mode: ${mode}. Expected "release", "preview", or "gate".`);
   }
 
   const cliPath =
     options.cliPath ??
     path.resolve(fileURLToPath(import.meta.url), '..', '..', 'packages', 'release', 'dist', 'cli.js');
 
-  const args = mode === 'release' ? buildReleaseArgs(input) : buildPreviewArgs(input);
+  const args =
+    mode === 'release' ? buildReleaseArgs(input) : mode === 'gate' ? buildGateArgs(input) : buildPreviewArgs(input);
 
   const projectDir = input.projectDir || '.';
   const actionDir = fileURLToPath(import.meta.url).replace(/[/\\]scripts[/\\]run-action.mjs$/, '');
@@ -247,6 +269,11 @@ function main() {
 
   if (result.status !== 0) {
     writeCoreOutputs(result.mode, false);
+
+    if (result.mode === 'gate') {
+      writeGateOutputs(result.stdout ?? '');
+    }
+
     process.stderr.write(result.stderr ?? '');
     process.stdout.write(result.stdout ?? '');
     setFailure(`ReleaseKit ${result.mode} failed with exit code ${result.status ?? 1}`);
@@ -256,6 +283,8 @@ function main() {
 
   if (result.mode === 'release') {
     writeReleaseOutputs(input, result.stdout ?? '');
+  } else if (result.mode === 'gate') {
+    writeGateOutputs(result.stdout ?? '');
   } else {
     writePreviewOutputs(input, result.stdout ?? '');
   }

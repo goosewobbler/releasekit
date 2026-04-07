@@ -3,6 +3,7 @@ import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { readPackageVersion } from '@releasekit/core';
 import { Command } from 'commander';
+import { createGateCommand } from './gate-command.js';
 import { createPreviewCommand } from './preview-command.js';
 import { createReleaseCommand } from './release-command.js';
 
@@ -12,7 +13,8 @@ export function createReleaseProgram(): Command {
     .description('Unified release pipeline: version, changelog, and publish')
     .version(readPackageVersion(import.meta.url))
     .addCommand(createPreviewCommand(), { isDefault: true })
-    .addCommand(createReleaseCommand());
+    .addCommand(createReleaseCommand())
+    .addCommand(createGateCommand());
 }
 
 const isMain = (() => {
