@@ -891,4 +891,44 @@ describe('runRelease', () => {
       expect(runOptions.targets).toEqual(['@wdio/electron-*']);
     });
   });
+
+  // --- resolveScopeToTarget tests ---
+
+  describe('resolveScopeToTarget', () => {
+    it('should resolve prefixed scope name (scope:electron)', async () => {
+      const { resolveScopeToTarget } = await import('../../src/release.js');
+      const result = resolveScopeToTarget('electron', {
+        'scope:electron': '@wdio/electron-*',
+        'scope:tauri': '@wdio/tauri-*',
+      });
+      expect(result).toBe('@wdio/electron-*');
+    });
+
+    it('should resolve bare scope name when prefixed not found', async () => {
+      const { resolveScopeToTarget } = await import('../../src/release.js');
+      const result = resolveScopeToTarget('electron', {
+        electron: '@wdio/electron-*',
+        tauri: '@wdio/tauri-*',
+      });
+      expect(result).toBe('@wdio/electron-*');
+    });
+
+    it('should prefer prefixed over bare when both exist', async () => {
+      const { resolveScopeToTarget } = await import('../../src/release.js');
+      const result = resolveScopeToTarget('electron', {
+        'scope:electron': '@wdio/electron-scope-*',
+        electron: '@wdio/electron-bare-*',
+      });
+      expect(result).toBe('@wdio/electron-scope-*');
+    });
+
+    it('should throw when scope not found', async () => {
+      const { resolveScopeToTarget } = await import('../../src/release.js');
+      expect(() =>
+        resolveScopeToTarget('unknown', {
+          'scope:electron': '@wdio/electron-*',
+        }),
+      ).toThrow('Scope "unknown" not found in ci.scopeLabels. Available: scope:electron');
+    });
+  });
 });

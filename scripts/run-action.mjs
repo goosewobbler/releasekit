@@ -34,6 +34,7 @@ export function buildReleaseArgs(input) {
   pushOptionalArg(args, '--project-dir', input.projectDir);
   pushOptionalArg(args, '--bump', input.bump);
   pushOptionalArg(args, '--target', input.target);
+  pushOptionalArg(args, '--scope', input.scope);
   pushOptionalArg(args, '--branch', input.branch);
   pushOptionalArg(args, '--npm-auth', input.npmAuth);
 
@@ -117,6 +118,7 @@ export function parseInputs(env = process.env) {
     prerelease: normalizeString(env.INPUT_PRERELEASE),
     sync: env.INPUT_SYNC,
     target: normalizeString(env.INPUT_TARGET),
+    scope: normalizeString(env.INPUT_SCOPE),
     branch: normalizeString(env.INPUT_BRANCH),
     npmAuth: normalizeString(env.INPUT_NPM_AUTH) ?? 'auto',
     skipNotes: env.INPUT_SKIP_NOTES,

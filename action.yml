@@ -48,6 +48,9 @@ inputs:
   target:
     description: Target packages (comma-separated)
     required: false
+  scope:
+    description: Scope name to resolve to target packages from ci.scopeLabels config
+    required: false
   branch:
     description: Override git branch used for push
     required: false
@@ -185,6 +188,7 @@ runs:
         INPUT_PRERELEASE: ${{ inputs.prerelease }}
         INPUT_SYNC: ${{ inputs.sync }}
         INPUT_TARGET: ${{ inputs.target }}
+        INPUT_SCOPE: ${{ inputs.scope }}
         INPUT_BRANCH: ${{ inputs.branch }}
         INPUT_NPM_AUTH: ${{ inputs.npm-auth }}
         INPUT_NPM_TOKEN: ${{ inputs.npm-token }}
