@@ -180,11 +180,14 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
     }
   }
 
-  // Check skipPatterns
-  if (shouldRelease && ciConfig?.skipPatterns?.length) {
+  // Check skipPatterns - use release.ci.skipPatterns for consistency with release.ts
+  const releaseConfig = releaseKitConfig.release;
+  if (shouldRelease && releaseConfig?.ci?.skipPatterns?.length) {
     const headCommit = getHeadCommitMessage(options.projectDir);
     if (headCommit) {
-      const matchedPattern = ciConfig.skipPatterns.find((p) => headCommit.startsWith(p) || headCommit.includes(p));
+      const matchedPattern = releaseConfig.ci.skipPatterns.find(
+        (p) => headCommit.startsWith(p) || headCommit.includes(p),
+      );
       if (matchedPattern) {
         shouldRelease = false;
         reason = `Commit matches skip pattern: "${matchedPattern}"`;
