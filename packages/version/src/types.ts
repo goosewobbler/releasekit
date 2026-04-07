@@ -9,8 +9,8 @@ import type { ReleaseType } from 'semver';
 export interface VersionRunOptions {
   /** Force a specific bump type (equivalent to --bump). */
   bump?: ReleaseType;
-  /** Create a prerelease version. Pass true to use the configured identifier,
-   *  or a string to override it (e.g. 'beta'). */
+  /** Create a prerelease version. Pass a string to override the identifier (e.g. 'beta'),
+   *  or true to use the configured identifier (with 'next' as fallback if none is configured). */
   prerelease?: string | boolean;
   /** Graduate prerelease packages to stable; skip already-stable packages
    *  unless bump is also set, in which case bump applies to stable packages. */

@@ -38,7 +38,8 @@ export class VersionEngine {
       if (runOptions.sync) effective.sync = true;
       if (runOptions.bump) effective.type = runOptions.bump;
       if (runOptions.prerelease) {
-        effective.prereleaseIdentifier = typeof runOptions.prerelease === 'string' ? runOptions.prerelease : 'next';
+        effective.prereleaseIdentifier =
+          typeof runOptions.prerelease === 'string' ? runOptions.prerelease : effective.prereleaseIdentifier || 'next';
         effective.isPrerelease = true;
       }
       if (runOptions.stable) effective.stableOnly = true;
