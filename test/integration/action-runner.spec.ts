@@ -4,8 +4,10 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildGateArgs,
+  buildGateSummary,
   buildPreviewArgs,
   buildReleaseArgs,
+  buildReleaseSummary,
   parseInputs,
   parseReleaseOutput,
   runAction,
@@ -190,5 +192,105 @@ describe('action runner', () => {
     expect(result.bump).toBe('minor');
     expect(result.scope).toBe('electron');
     expect(result.target).toBe('@wdio/electron-*');
+  });
+});
+
+describe('buildReleaseSummary', () => {
+  it('should generate failure banner when success is false', () => {
+    const summary = buildReleaseSummary({ dryRun: 'false' }, undefined, false);
+    expect(summary).toContain('Release Failed');
+  });
+
+  it('should generate dry-run banner when dry-run is true', () => {
+    const summary = buildReleaseSummary({ dryRun: 'true' }, undefined, true);
+    expect(summary).toContain('Dry Run');
+  });
+
+  it('should generate rocket header on successful release', () => {
+    const summary = buildReleaseSummary({ dryRun: 'false' }, undefined, true);
+    expect(summary).toContain('Release');
+  });
+
+  it('should show settings table when bump/target/scope provided', () => {
+    const summary = buildReleaseSummary(
+      { dryRun: 'false', bump: 'minor', target: '@scope/a', scope: 'shared' },
+      undefined,
+      true,
+    );
+    expect(summary).toContain('`minor`');
+    expect(summary).toContain('`@scope/a`');
+    expect(summary).toContain('`shared`');
+  });
+
+  it('should show package updates table from parsed output', () => {
+    const parsed = {
+      versionOutput: {
+        updates: [
+          { packageName: '@scope/a', newVersion: '1.1.0' },
+          { packageName: '@scope/b', newVersion: '2.0.0' },
+        ],
+        tags: ['@scope/a@1.1.0', '@scope/b@2.0.0'],
+      },
+    };
+    const summary = buildReleaseSummary({ dryRun: 'false' }, parsed, true);
+    expect(summary).toContain('`@scope/a`');
+    expect(summary).toContain('`1.1.0`');
+    expect(summary).toContain('`@scope/b`');
+    expect(summary).toContain('`2.0.0`');
+    expect(summary).toContain('@scope/a@1.1.0');
+  });
+
+  it('should show no-changes message when no updates and not dry-run', () => {
+    const summary = buildReleaseSummary({ dryRun: 'false' }, { versionOutput: { updates: [], tags: [] } }, true);
+    expect(summary).toContain('No packages were updated');
+  });
+});
+
+describe('buildGateSummary', () => {
+  it('should generate gate check table with should-release true', () => {
+    const summary = buildGateSummary(
+      {},
+      {
+        shouldRelease: true,
+        bump: 'minor',
+        scope: 'electron',
+        target: '@wdio/electron-*',
+        labels: ['bump:minor'],
+        prNumbers: [123],
+      },
+    );
+    expect(summary).toContain('Gate Check');
+    expect(summary).toContain('Yes');
+    expect(summary).toContain('`minor`');
+    expect(summary).toContain('`electron`');
+    expect(summary).toContain('`bump:minor`');
+  });
+
+  it('should show blocked message when blocked is true', () => {
+    const summary = buildGateSummary(
+      {},
+      {
+        shouldRelease: false,
+        blocked: true,
+        reason: 'Conflicting labels',
+        labels: ['bump:major', 'bump:minor'],
+        prNumbers: [123],
+      },
+    );
+    expect(summary).toContain('Blocked');
+    expect(summary).toContain('Conflicting labels');
+  });
+
+  it('should show reason message when should-release is false', () => {
+    const summary = buildGateSummary(
+      {},
+      {
+        shouldRelease: false,
+        reason: 'No release labels found',
+        labels: [],
+        prNumbers: [123],
+      },
+    );
+    expect(summary).toContain('No release labels found');
   });
 });
