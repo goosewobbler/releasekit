@@ -78,6 +78,8 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
   }
 
   // Collect per-PR labels for conflict detection
+  // Note: Sequential fetch is intentional - we need per-PR labels to detect conflicts
+  // and GitHub API rate limits are per-request, not batched
   const allLabels: string[] = [];
   const perPRLabels: Map<number, string[]> = new Map();
   for (const prNumber of prNumbers) {
