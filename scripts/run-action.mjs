@@ -387,6 +387,7 @@ function main() {
   const input = parseInputs();
   const result = runAction(input);
   const success = result.status === 0;
+  // parsed is used for release/preview output; gateParsed is parsed separately for gate output
   const parsed = normalizeBoolean(input.json) ? parseReleaseOutput(result.stdout ?? '') : undefined;
 
   // Write summary BEFORE setFailure (which calls process.exit)
