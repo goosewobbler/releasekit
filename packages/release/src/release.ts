@@ -8,6 +8,14 @@ import { DEFAULT_LABELS, detectLabelConflicts } from './label-utils.js';
 import { createOctokit, fetchPRLabels, findMergedPRsForCommit } from './preview-github.js';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
 
+export function resolveScopeToTarget(scopeName: string, scopeLabels: Record<string, string>): string {
+  const prefixed = `scope:${scopeName}`;
+  if (scopeLabels[prefixed]) return scopeLabels[prefixed];
+  if (scopeLabels[scopeName]) return scopeLabels[scopeName];
+  const available = Object.keys(scopeLabels).join(', ');
+  throw new Error(`Scope "${scopeName}" not found in ci.scopeLabels. Available: ${available}`);
+}
+
 function getHeadCommitMessage(cwd?: string): string | null {
   try {
     return execSync('git log -1 --pretty=%s', { encoding: 'utf-8', cwd }).trim();
@@ -166,6 +174,13 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   }
   const releaseConfig = releaseKitConfig.release;
   const ciConfig = releaseKitConfig.ci;
+
+  // Resolve --scope flag to target packages if provided
+  if (options.scope && ciConfig?.scopeLabels) {
+    const resolvedTarget = resolveScopeToTarget(options.scope, ciConfig.scopeLabels);
+    info(`Scope "${options.scope}" resolved to target: ${resolvedTarget}`);
+    options.target = resolvedTarget;
+  }
 
   // Apply scope labels from PR labels (if GitHub context available)
   // Skip in dry-run mode since preview.ts already handles scope labels

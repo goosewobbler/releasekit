@@ -12,6 +12,7 @@ export function createReleaseCommand(): Command {
     .option('-p, --prerelease [identifier]', 'Create prerelease version')
     .option('-s, --sync', 'Use synchronized versioning across all packages', false)
     .option('-t, --target <packages>', 'Target specific packages (comma-separated)')
+    .option('--scope <name>', 'Resolve scope name to target packages from ci.scopeLabels config')
     .option('--branch <name>', 'Override the git branch used for push')
     .addOption(new Option('--npm-auth <method>', 'NPM auth method').choices(['auto', 'oidc', 'token']).default('auto'))
     .option('--skip-notes', 'Skip changelog generation', false)
@@ -31,6 +32,7 @@ export function createReleaseCommand(): Command {
         prerelease: opts.prerelease,
         sync: opts.sync,
         target: opts.target,
+        scope: opts.scope,
         branch: opts.branch,
         npmAuth: opts.npmAuth,
         skipNotes: opts.skipNotes,

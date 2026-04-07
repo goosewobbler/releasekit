@@ -9,6 +9,7 @@ export interface ReleaseOptions {
   stable?: boolean;
   sync: boolean;
   target?: string;
+  scope?: string;
   branch?: string;
   skipNotes: boolean;
   skipPublish: boolean;
