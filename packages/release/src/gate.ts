@@ -185,7 +185,7 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
   if (shouldRelease && ciConfig?.skipPatterns?.length) {
     const headCommit = getHeadCommitMessage(options.projectDir);
     if (headCommit) {
-      const matchedPattern = ciConfig.skipPatterns.find((p) => headCommit.startsWith(p));
+      const matchedPattern = ciConfig.skipPatterns.find((p) => headCommit.startsWith(p) || headCommit.includes(p));
       if (matchedPattern) {
         shouldRelease = false;
         reason = `Commit matches skip pattern: "${matchedPattern}"`;
