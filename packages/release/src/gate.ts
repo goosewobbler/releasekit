@@ -1,9 +1,8 @@
-import { execSync } from 'node:child_process';
 import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import { info } from '@releasekit/core';
 import { DEFAULT_LABELS, detectLabelConflicts } from './label-utils.js';
 import { createOctokit, fetchPRLabels, findMergedPRsForCommit } from './preview-github.js';
-import { resolveScopeToTarget } from './release.js';
+import { getHeadCommitMessage, resolveScopeToTarget } from './release.js';
 
 export interface GateOptions {
   config?: string;
@@ -239,12 +238,4 @@ function detectBumpFromLabels(labels: string[], labelConfig: typeof DEFAULT_LABE
   if (labels.includes(labelConfig.patch)) return 'patch';
 
   return undefined;
-}
-
-function getHeadCommitMessage(cwd?: string): string | null {
-  try {
-    return execSync('git log -1 --pretty=%s', { encoding: 'utf-8', cwd }).trim();
-  } catch {
-    return null;
-  }
 }

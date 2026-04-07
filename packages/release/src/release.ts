@@ -16,7 +16,7 @@ export function resolveScopeToTarget(scopeName: string, scopeLabels: Record<stri
   throw new Error(`Scope "${scopeName}" not found in ci.scopeLabels. Available: ${available}`);
 }
 
-function getHeadCommitMessage(cwd?: string): string | null {
+export function getHeadCommitMessage(cwd?: string): string | null {
   try {
     return execSync('git log -1 --pretty=%s', { encoding: 'utf-8', cwd }).trim();
   } catch {

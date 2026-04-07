@@ -26,6 +26,7 @@ vi.mock('../../src/release.js', () => ({
     if (scopeLabels[scopeName]) return scopeLabels[scopeName];
     throw new Error(`Scope "${scopeName}" not found`);
   },
+  getHeadCommitMessage: vi.fn().mockReturnValue('feat: some feature\n'),
   runRelease: vi.fn(),
 }));
 
@@ -225,8 +226,8 @@ describe('Gate', () => {
   });
 
   it('should return shouldRelease: false when HEAD commit matches skipPatterns', async () => {
-    const { execSync } = await import('node:child_process');
-    vi.mocked(execSync).mockReturnValue('chore: release v1.0.0 [skip ci]\n');
+    const { getHeadCommitMessage } = await import('../../src/release.js');
+    vi.mocked(getHeadCommitMessage).mockReturnValue('chore: release v1.0.0 [skip ci]\n');
     mockLoadReleaseKitConfig.mockReturnValue({
       ci: {
         releaseTrigger: 'label',
