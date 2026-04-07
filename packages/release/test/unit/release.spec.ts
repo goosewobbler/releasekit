@@ -32,10 +32,20 @@ const mockVersionEngineRun = vi.fn();
 const mockVersionEngineSetStrategy = vi.fn();
 const mockVersionEngineGetWorkspacePackages = vi.fn();
 
-const MockVersionEngine = vi.fn(function (this: Record<string, unknown>) {
+const MockVersionEngine = vi.fn(function (this: Record<string, unknown>, config, runOptions) {
+  this.config = config;
+  this.runOptions = runOptions;
   this.run = mockVersionEngineRun;
   this.setStrategy = mockVersionEngineSetStrategy;
   this.getWorkspacePackages = mockVersionEngineGetWorkspacePackages;
+});
+
+// Convenience getter to access the last call's arguments
+Object.defineProperty(MockVersionEngine, 'lastCall', {
+  get() {
+    const calls = MockVersionEngine.mock.calls;
+    return calls.length > 0 ? calls[calls.length - 1] : null;
+  },
 });
 
 vi.mock('@releasekit/version', () => ({
@@ -298,11 +308,40 @@ describe('runRelease', () => {
     expect(runOptions.prerelease).toBe(true);
   });
 
+  it('should pass stable to VersionEngine', async () => {
+    await runRelease({ ...defaultOptions, stable: true });
+
+    const runOptions = MockVersionEngine.mock.calls[0]?.[1];
+    expect(runOptions.stable).toBe(true);
+  });
+
   it('should pass target packages to VersionEngine', async () => {
     await runRelease({ ...defaultOptions, target: '@scope/a, @scope/b' });
 
     const runOptions = MockVersionEngine.mock.calls[0]?.[1];
     expect(runOptions.targets).toEqual(['@scope/a', '@scope/b']);
+  });
+
+  it('should pass combined runOptions to VersionEngine', async () => {
+    await runRelease({
+      ...defaultOptions,
+      bump: 'minor',
+      prerelease: 'beta',
+      stable: true,
+      sync: true,
+      dryRun: true,
+      target: '@scope/pkg-a',
+    });
+
+    const runOptions = MockVersionEngine.mock.calls[0]?.[1];
+    expect(runOptions).toEqual({
+      bump: 'minor',
+      prerelease: 'beta',
+      stable: true,
+      sync: true,
+      dryRun: true,
+      targets: ['@scope/pkg-a'],
+    });
   });
 
   it('should use single strategy for one package', async () => {
