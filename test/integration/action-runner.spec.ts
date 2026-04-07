@@ -258,6 +258,7 @@ describe('buildGateSummary', () => {
         labels: ['bump:minor'],
         prNumbers: [123],
       },
+      true,
     );
     expect(summary).toContain('Gate Check');
     expect(summary).toContain('Yes');
@@ -276,6 +277,7 @@ describe('buildGateSummary', () => {
         labels: ['bump:major', 'bump:minor'],
         prNumbers: [123],
       },
+      true,
     );
     expect(summary).toContain('Blocked');
     expect(summary).toContain('Conflicting labels');
@@ -290,7 +292,23 @@ describe('buildGateSummary', () => {
         labels: [],
         prNumbers: [123],
       },
+      true,
     );
     expect(summary).toContain('No release labels found');
+  });
+
+  it('should show error banner when success is false', () => {
+    const summary = buildGateSummary(
+      {},
+      {
+        shouldRelease: false,
+        reason: 'Configuration error',
+        labels: [],
+        prNumbers: [],
+      },
+      false,
+    );
+    expect(summary).toContain('Gate Failed');
+    expect(summary).toContain('encountered an error');
   });
 });
