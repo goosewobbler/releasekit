@@ -7,6 +7,6 @@ export { createAsyncStrategy, createSingleStrategy, createSyncStrategy } from '.
 export { BaseVersionError } from './errors/baseError.js';
 export { createVersionError, VersionErrorCode } from './errors/versionError.js';
 export { PackageProcessor } from './package/packageProcessor.js';
-export type { Config, VersionConfigBase } from './types.js';
+export type { Config, VersionConfigBase, VersionRunOptions } from './types.js';
 export type { JsonOutputData } from './utils/jsonOutput.js';
 export { enableJsonOutput, flushPendingWrites, getJsonData } from './utils/jsonOutput.js';

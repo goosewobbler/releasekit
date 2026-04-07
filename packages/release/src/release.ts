@@ -276,21 +276,18 @@ async function runVersionStep(options: ReleaseOptions): Promise<VersionOutput> {
 
   const config = loadConfig({ cwd: options.projectDir, configPath: options.config });
 
-  if (options.dryRun) config.dryRun = true;
-  if (options.sync) config.sync = true;
-  if (options.bump) config.type = options.bump as ReleaseType;
-  if (options.prerelease) {
-    config.prereleaseIdentifier = options.prerelease === true ? 'next' : options.prerelease;
-    config.isPrerelease = true;
-  }
-  if (options.stable) config.stableOnly = true;
+  const targets: string[] = options.target ? options.target.split(',').map((t) => t.trim()) : [];
 
-  const cliTargets: string[] = options.target ? options.target.split(',').map((t) => t.trim()) : [];
-  if (cliTargets.length > 0) {
-    config.packages = cliTargets;
-  }
+  const runOptions = {
+    bump: options.bump as ReleaseType | undefined,
+    prerelease: options.prerelease,
+    stable: options.stable,
+    dryRun: options.dryRun,
+    sync: options.sync,
+    targets,
+  };
 
-  const engine = new VersionEngine(config);
+  const engine = new VersionEngine(config, runOptions);
   const pkgsResult = await engine.getWorkspacePackages();
   const resolvedCount = pkgsResult.packages.length;
 
@@ -298,7 +295,8 @@ async function runVersionStep(options: ReleaseOptions): Promise<VersionOutput> {
     throw new Error('No packages found in workspace');
   }
 
-  if (config.sync) {
+  const effectiveSync = options.sync || config.sync;
+  if (effectiveSync) {
     engine.setStrategy('sync');
     await engine.run(pkgsResult);
   } else if (resolvedCount === 1) {
@@ -306,7 +304,7 @@ async function runVersionStep(options: ReleaseOptions): Promise<VersionOutput> {
     await engine.run(pkgsResult);
   } else {
     engine.setStrategy('async');
-    await engine.run(pkgsResult, cliTargets);
+    await engine.run(pkgsResult, targets);
   }
 
   return getJsonData() as VersionOutput;

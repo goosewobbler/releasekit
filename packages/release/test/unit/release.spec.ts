@@ -262,48 +262,47 @@ describe('runRelease', () => {
     expect(mockEnableJsonOutput).toHaveBeenCalledWith(true);
   });
 
-  it('should set dryRun on version config', async () => {
+  it('should pass dryRun to VersionEngine', async () => {
     await runRelease({ ...defaultOptions, dryRun: true });
 
-    const config = mockVersionLoadConfig.mock.results[0]?.value;
-    expect(config.dryRun).toBe(true);
+    const runOptions = MockVersionEngine.mock.calls[0]?.[1];
+    expect(runOptions.dryRun).toBe(true);
   });
 
-  it('should set sync on version config', async () => {
+  it('should pass sync to VersionEngine', async () => {
     await runRelease({ ...defaultOptions, sync: true });
 
-    const config = mockVersionLoadConfig.mock.results[0]?.value;
-    expect(config.sync).toBe(true);
+    const runOptions = MockVersionEngine.mock.calls[0]?.[1];
+    expect(runOptions.sync).toBe(true);
     expect(mockVersionEngineSetStrategy).toHaveBeenCalledWith('sync');
   });
 
-  it('should set bump type on version config', async () => {
+  it('should pass bump type to VersionEngine', async () => {
     await runRelease({ ...defaultOptions, bump: 'major' });
 
-    const config = mockVersionLoadConfig.mock.results[0]?.value;
-    expect(config.type).toBe('major');
+    const runOptions = MockVersionEngine.mock.calls[0]?.[1];
+    expect(runOptions.bump).toBe('major');
   });
 
-  it('should set prerelease identifier on version config', async () => {
+  it('should pass prerelease identifier to VersionEngine', async () => {
     await runRelease({ ...defaultOptions, prerelease: 'beta' });
 
-    const config = mockVersionLoadConfig.mock.results[0]?.value;
-    expect(config.prereleaseIdentifier).toBe('beta');
-    expect(config.isPrerelease).toBe(true);
+    const runOptions = MockVersionEngine.mock.calls[0]?.[1];
+    expect(runOptions.prerelease).toBe('beta');
   });
 
-  it('should default prerelease identifier to "next"', async () => {
+  it('should pass prerelease: true to VersionEngine when no identifier given', async () => {
     await runRelease({ ...defaultOptions, prerelease: true });
 
-    const config = mockVersionLoadConfig.mock.results[0]?.value;
-    expect(config.prereleaseIdentifier).toBe('next');
+    const runOptions = MockVersionEngine.mock.calls[0]?.[1];
+    expect(runOptions.prerelease).toBe(true);
   });
 
-  it('should set target packages on version config', async () => {
+  it('should pass target packages to VersionEngine', async () => {
     await runRelease({ ...defaultOptions, target: '@scope/a, @scope/b' });
 
-    const config = mockVersionLoadConfig.mock.results[0]?.value;
-    expect(config.packages).toEqual(['@scope/a', '@scope/b']);
+    const runOptions = MockVersionEngine.mock.calls[0]?.[1];
+    expect(runOptions.targets).toEqual(['@scope/a', '@scope/b']);
   });
 
   it('should use single strategy for one package', async () => {
@@ -796,8 +795,8 @@ describe('runRelease', () => {
       // because preview.ts handles scope targeting
       expect(mockVersionEngineRun).toHaveBeenCalled();
       // Verify the original CLI target was preserved (not overridden by scope:electron → @wdio/electron-*)
-      const config = mockVersionLoadConfig.mock.results[0]?.value;
-      expect(config.packages).toEqual(['@wdio/native-types', '@wdio/tauri-service']);
+      const runOptions = MockVersionEngine.mock.calls[0]?.[1];
+      expect(runOptions.targets).toEqual(['@wdio/native-types', '@wdio/tauri-service']);
     });
 
     it('should skip release when release:skip label is present in commit mode', async () => {
@@ -849,8 +848,8 @@ describe('runRelease', () => {
       expect(result).not.toBeNull();
       expect(mockVersionEngineRun).toHaveBeenCalled();
 
-      const config = mockVersionLoadConfig.mock.results[0]?.value;
-      expect(config.packages).toEqual(['@wdio/electron-*']);
+      const runOptions = MockVersionEngine.mock.calls[0]?.[1];
+      expect(runOptions.targets).toEqual(['@wdio/electron-*']);
     });
   });
 });
