@@ -24,7 +24,7 @@ export function getHeadCommitMessage(cwd?: string): string | null {
   }
 }
 
-function getGitHubContext(): { owner: string; repo: string; sha: string } | null {
+export function getGitHubContext(): { owner: string; repo: string; sha: string } | null {
   const repo = process.env.GITHUB_REPOSITORY;
   const sha = process.env.GITHUB_SHA;
 

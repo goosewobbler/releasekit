@@ -2,16 +2,7 @@ import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import { info } from '@releasekit/core';
 import { DEFAULT_LABELS, detectLabelConflicts } from './label-utils.js';
 import { createOctokit, fetchPRLabels, findMergedPRsForCommit } from './preview-github.js';
-import { getHeadCommitMessage, resolveScopeToTarget } from './release.js';
-
-export interface GateOptions {
-  config?: string;
-  projectDir: string;
-  scope?: string;
-  json?: boolean;
-  verbose?: boolean;
-  quiet?: boolean;
-}
+import { getGitHubContext, getHeadCommitMessage, resolveScopeToTarget } from './release.js';
 
 export interface GateOutput {
   shouldRelease: boolean;
@@ -24,20 +15,13 @@ export interface GateOutput {
   reason?: string;
 }
 
-function getGitHubContext(): { owner: string; repo: string; sha: string } | null {
-  const repo = process.env.GITHUB_REPOSITORY;
-  const sha = process.env.GITHUB_SHA;
-
-  if (!repo || !sha) {
-    return null;
-  }
-
-  const [owner, repoName] = repo.split('/');
-  if (!owner || !repoName) {
-    return null;
-  }
-
-  return { owner, repo: repoName, sha };
+export interface GateOptions {
+  config?: string;
+  projectDir: string;
+  scope?: string;
+  json?: boolean;
+  verbose?: boolean;
+  quiet?: boolean;
 }
 
 export async function runGate(options: GateOptions): Promise<GateOutput> {
@@ -140,9 +124,8 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
     info(`Scope "${options.scope}" resolved to target: ${resolvedTarget}`);
   }
 
-  // Detect bump from labels
-  const bumpLabels = ciConfig?.labels ?? DEFAULT_LABELS;
-  const bump = detectBumpFromLabels(allLabels, bumpLabels);
+  // Detect bump from labels using labelConfig
+  const bump = detectBumpFromLabels(allLabels, labelConfig);
 
   // Determine shouldRelease based on trigger mode
   const releaseTrigger = ciConfig?.releaseTrigger ?? 'label';
@@ -152,28 +135,28 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
   if (releaseTrigger === 'label') {
     // Label mode: release only if configured bump labels or release:stable are present
     const hasBumpLabel = allLabels.some(
-      (l) => l === bumpLabels.major || l === bumpLabels.minor || l === bumpLabels.patch,
+      (l) => l === labelConfig.major || l === labelConfig.minor || l === labelConfig.patch,
     );
-    const hasStableLabel = allLabels.includes(bumpLabels.stable);
-    const hasPrereleaseLabel = allLabels.includes(bumpLabels.prerelease);
+    const hasStableLabel = allLabels.includes(labelConfig.stable);
+    const hasPrereleaseLabel = allLabels.includes(labelConfig.prerelease);
 
     if (hasBumpLabel || hasStableLabel) {
       shouldRelease = true;
-      reason = hasStableLabel ? `${bumpLabels.stable} label found` : `bump label found: ${bump}`;
+      reason = hasStableLabel ? `${labelConfig.stable} label found` : `bump label found: ${bump}`;
     } else if (hasPrereleaseLabel) {
       // Prerelease alone doesn't trigger release - needs bump label
       shouldRelease = false;
-      reason = `${bumpLabels.prerelease} requires a bump:* label`;
+      reason = `${labelConfig.prerelease} requires a bump:* label`;
     } else {
       shouldRelease = false;
-      reason = `No release labels found (need bump:* or ${bumpLabels.stable})`;
+      reason = `No release labels found (need bump:* or ${labelConfig.stable})`;
     }
   } else {
     // Commit mode: release unless skip label present
-    const hasSkipLabel = allLabels.includes(bumpLabels.skip);
+    const hasSkipLabel = allLabels.includes(labelConfig.skip);
     if (hasSkipLabel) {
       shouldRelease = false;
-      reason = `${bumpLabels.skip} label found`;
+      reason = `${labelConfig.skip} label found`;
     } else {
       shouldRelease = true;
       reason = 'No skip label in commit mode - proceeding with release';
