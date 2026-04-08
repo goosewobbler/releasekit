@@ -22,15 +22,17 @@ on:
         required: false
         type: boolean
         default: false
-    outputs:
-      action_tag:
-        description: The releasekit-release tag created by this run, if any
-        value: ${{ jobs.release.outputs.action_tag }}
     secrets:
       DEPLOY_KEY:
         required: false
       OLLAMA_API_KEY:
         required: false
+      ssh_key:
+        required: false
+    outputs:
+      action_tag:
+        description: The releasekit-release tag created by this run, if any
+        value: ${{ jobs.release.outputs.action_tag }}
 
 permissions:
   id-token: write
@@ -135,7 +137,7 @@ jobs:
                 ;;
             esac
           fi
-          
+
           SYNC_FLAG=""
           if [ "$INPUT_SYNC" = "true" ]; then
             SYNC_FLAG="--sync"
