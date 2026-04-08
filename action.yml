@@ -85,6 +85,9 @@ inputs:
     description: Skip post-publish verification
     required: false
     default: "false"
+  ssh-key:
+    description: SSH deploy key for git push (enables SSH checkout when not dry-run)
+    required: false
 
   pr:
     description: Pull request number (preview mode)
@@ -149,23 +152,18 @@ outputs:
     description: Whether preview was posted (preview mode, non-dry-run)
     value: ${{ steps.run.outputs.preview-posted }}
 
-secrets:
-  ssh_key:
-    description: SSH deploy key for git push (enables SSH checkout when not dry-run)
-    required: false
-
 runs:
   using: composite
   steps:
     - name: Checkout (SSH)
-      if: ${{ secrets.ssh_key != '' && inputs.dry-run != 'true' && inputs.mode != 'gate' }}
+      if: ${{ inputs.ssh-key != '' && inputs.dry-run != 'true' && inputs.mode != 'gate' }}
       uses: actions/checkout@v6
       with:
-        ssh-key: ${{ secrets.ssh_key }}
+        ssh-key: ${{ inputs.ssh-key }}
         fetch-depth: 0
 
     - name: Checkout (read-only)
-      if: ${{ secrets.ssh_key == '' || inputs.dry-run == 'true' || inputs.mode == 'gate' }}
+      if: ${{ inputs.ssh-key == '' || inputs.dry-run == 'true' || inputs.mode == 'gate' }}
       uses: actions/checkout@v6
       with:
         fetch-depth: 0
