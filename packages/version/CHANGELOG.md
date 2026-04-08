@@ -54,6 +54,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.11.0] - 2026-04-08
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.4...releasekit-version-v0.11.0)
+
+### Added
+- **action**: enhance gate summary with error handling
+- **action**: implement gate mode handling for release process
+- add GITHUB_STEP_SUMMARY support and enhance release summaries
+- **release**: introduce gate command for release validation
+- add scope input for target resolution in release process
+- add SSH key input for git push and enhance checkout steps
+
+### Changed
+- **release**: clarify sequential label fetching and API rate limits
+- **release**: streamline label detection and improve GitHub context handling
+- **release**: unify skip pattern handling in gate and release logic
+- **action**: remove unused INPUT_SSH_KEY from action.yml
+- **release**: move getHeadCommitMessage to release module
+- **action**: simplify exit handling in gate mode
+- **release**: add scope option and gate command details to README
+- **release**: update label detection to use configurable label references
+- **release**: enhance label handling for release conditions
+
+### Fixed
+- **release**: enhance skip pattern matching in gate logic
+- **release**: ensure consistent exit behavior in gate mode
+- **release**: validate ci.scopeLabels configuration for scope option
+
 ## [0.10.4] - 2026-04-07
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.3...releasekit-version-v0.10.4)

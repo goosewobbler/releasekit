@@ -1,61 +1,107 @@
 
 
-## `@releasekit/version` @ 0.10.4
+## `@releasekit/version` @ 0.11.0
 
-### Fixed:
-- Fixed prerelease version handling in version calculation.
+### General:
+- **release**: clarify sequential label fetching and API rate limits
+- **release**: streamline label detection and improve GitHub context handling
+- **action**: enhance gate summary with error handling
+- **release**: unify skip pattern handling in gate and release logic
+- **action**: remove unused INPUT_SSH_KEY from action.yml
+- **release**: move getHeadCommitMessage to release module
+- **action**: simplify exit handling in gate mode
+- **release**: enhance skip pattern matching in gate logic
+- **release**: add scope option and gate command details to README
+- **release**: update label detection to use configurable label references
+- **release**: ensure consistent exit behavior in gate mode
+- **action**: implement gate mode handling for release process
+- **release**: enhance label handling for release conditions
+- add GITHUB_STEP_SUMMARY support and enhance release summaries
+- **release**: introduce gate command for release validation
+- **release**: validate ci.scopeLabels configuration for scope option
+- add scope input for target resolution in release process
+- add SSH key input for git push and enhance checkout steps
 
-### Developer:
-- **Dependencies**: Updated development dependency group with two new versions.
-- **CI**: Added a plan for standing release pull requests.
-- **Code Quality**: Improved code modularity.
-
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.3...releasekit-version-v0.10.4
-
----
-
-
-## `@releasekit/notes` @ 0.10.4
-
-### Fixed:
-- Refined prerelease handling in version calculation.
-
-### Developer:
-- **Dependencies**: Updated the development dependency group with 2 new versions.
-- **Infrastructure**: Introduced a plan for standing release pull requests.
-- **Code Quality**: Improved code modularity.
-
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.3...releasekit-version-v0.10.4
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.4...releasekit-version-v0.11.0
 
 ---
 
 
-## `@releasekit/publish` @ 0.10.4
+## `@releasekit/notes` @ 0.11.0
 
-### Fixed:
-- Fixed handling of prerelease versions in the version calculation logic.
+### General:
+- **release**: clarify sequential label fetching and API rate limits
+- **release**: streamline label detection and improve GitHub context handling
+- **action**: enhance gate summary with error handling
+- **release**: unify skip pattern handling in gate and release logic
+- **action**: remove unused INPUT_SSH_KEY from action.yml
+- **release**: move getHeadCommitMessage to release module
+- **action**: simplify exit handling in gate mode
+- **release**: enhance skip pattern matching in gate logic
+- **release**: add scope option and gate command details to README
+- **release**: update label detection to use configurable label references
+- **release**: ensure consistent exit behavior in gate mode
+- **action**: implement gate mode handling for release process
+- **release**: enhance label handling for release conditions
+- add GITHUB_STEP_SUMMARY support and enhance release summaries
+- **release**: introduce gate command for release validation
+- **release**: validate ci.scopeLabels configuration for scope option
+- add scope input for target resolution in release process
+- add SSH key input for git push and enhance checkout steps
 
-### Changed:
-- Introduced a plan for regular release pull requests.
-
-### Developer:
-- **Dependencies**: Bumped the development‑dependency group, adding two new packages.
-- **Code Quality**: Improved the modular structure of the codebase.
-
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.3...releasekit-version-v0.10.4
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.4...releasekit-version-v0.11.0
 
 ---
 
 
-## `@releasekit/release` @ 0.10.4
+## `@releasekit/publish` @ 0.11.0
 
-### Fixed:
-- Fixed version calculation to correctly handle prerelease versions.
+### General:
+- **release**: clarify sequential label fetching and API rate limits
+- **release**: streamline label detection and improve GitHub context handling
+- **action**: enhance gate summary with error handling
+- **release**: unify skip pattern handling in gate and release logic
+- **action**: remove unused INPUT_SSH_KEY from action.yml
+- **release**: move getHeadCommitMessage to release module
+- **action**: simplify exit handling in gate mode
+- **release**: enhance skip pattern matching in gate logic
+- **release**: add scope option and gate command details to README
+- **release**: update label detection to use configurable label references
+- **release**: ensure consistent exit behavior in gate mode
+- **action**: implement gate mode handling for release process
+- **release**: enhance label handling for release conditions
+- add GITHUB_STEP_SUMMARY support and enhance release summaries
+- **release**: introduce gate command for release validation
+- **release**: validate ci.scopeLabels configuration for scope option
+- add scope input for target resolution in release process
+- add SSH key input for git push and enhance checkout steps
 
-### Developer:
-- **Dependencies**: Updated development dependencies to their latest versions.
-- **Infrastructure**: Introduced a plan for creating standing release pull requests.
-- **Code Quality**: Improved code modularity for better maintainability.
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.4...releasekit-version-v0.11.0
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.3...releasekit-version-v0.10.4
+---
+
+
+## `@releasekit/release` @ 0.11.0
+
+### General:
+- **release**: clarify sequential label fetching and API rate limits
+- **release**: streamline label detection and improve GitHub context handling
+- **action**: enhance gate summary with error handling
+- **release**: unify skip pattern handling in gate and release logic
+- **action**: remove unused INPUT_SSH_KEY from action.yml
+- **release**: move getHeadCommitMessage to release module
+- **action**: simplify exit handling in gate mode
+- **release**: enhance skip pattern matching in gate logic
+- **release**: add scope option and gate command details to README
+- **release**: update label detection to use configurable label references
+- **release**: ensure consistent exit behavior in gate mode
+- **action**: implement gate mode handling for release process
+- **release**: enhance label handling for release conditions
+- add GITHUB_STEP_SUMMARY support and enhance release summaries
+- **release**: introduce gate command for release validation
+- **release**: validate ci.scopeLabels configuration for scope option
+- add scope input for target resolution in release process
+- add SSH key input for git push and enhance checkout steps
+
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.4...releasekit-version-v0.11.0
 
