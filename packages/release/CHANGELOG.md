@@ -66,6 +66,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.11.1] - 2026-04-08
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.11.0...releasekit-version-v0.11.1)
+
+### Changed
+- **deps**: bump the production-dependencies group across 1 directory with 5 updates (#120)
+- **deps**: bump liquidjs from 10.25.2 to 10.25.5 (#118)
+- **action**: migrate SSH key input to secrets in action.yml (#119)
+
 ## [0.11.0] - 2026-04-08
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.10.4...releasekit-version-v0.11.0)
