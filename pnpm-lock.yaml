@@ -184,6 +184,9 @@ importers:
       liquidjs:
         specifier: ^10.25.5
         version: 10.25.5
+      minimatch:
+        specifier: 'catalog:'
+        version: 10.2.5
       openai:
         specifier: ^6.33.0
         version: 6.33.0(zod@4.3.6)
@@ -230,6 +233,9 @@ importers:
       commander:
         specifier: 'catalog:'
         version: 14.0.3
+      minimatch:
+        specifier: 'catalog:'
+        version: 10.2.5
       semver:
         specifier: 'catalog:'
         version: 7.7.4
