@@ -154,7 +154,7 @@ jobs:
       dry_run: false
       npm_auth: oidc
     secrets:
-      DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+      ssh_key: ${{ secrets.DEPLOY_KEY }}
       OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
   release-manual:
@@ -171,7 +171,7 @@ jobs:
       sync: ${{ inputs.sync }}
       dry_run: ${{ inputs.dry_run }}
     secrets:
-      DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+      ssh_key: ${{ secrets.DEPLOY_KEY }}
       OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
   build-action-manual:
@@ -184,7 +184,7 @@ jobs:
     with:
       tag: ${{ needs.release-manual.outputs.action_tag }}
     secrets:
-      DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+      ssh_key: ${{ secrets.DEPLOY_KEY }}
 
   build-action-auto:
     name: Build and tag action dist
@@ -196,4 +196,4 @@ jobs:
     with:
       tag: ${{ needs.release-auto.outputs.action_tag }}
     secrets:
-      DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+      ssh_key: ${{ secrets.DEPLOY_KEY }}

@@ -22,15 +22,15 @@ on:
         required: false
         type: boolean
         default: false
+    secrets:
+      ssh_key:
+        required: false
+      OLLAMA_API_KEY:
+        required: false
     outputs:
       action_tag:
         description: The releasekit-release tag created by this run, if any
         value: ${{ jobs.release.outputs.action_tag }}
-    secrets:
-      DEPLOY_KEY:
-        required: false
-      OLLAMA_API_KEY:
-        required: false
 
 permissions:
   id-token: write
@@ -53,7 +53,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ssh-key: ${{ secrets.DEPLOY_KEY }}
+          ssh-key: ${{ secrets.ssh_key }}
 
       - name: Checkout (read-only)
         if: ${{ inputs.dry_run }}
@@ -76,7 +76,7 @@ jobs:
       - name: Configure git SSH for tag pushes
         if: ${{ !inputs.dry_run }}
         run: |
-          git config --global core.sshCommand "ssh -i ${{ secrets.DEPLOY_KEY }} -o StrictHostKeyChecking=no"
+          git config --global core.sshCommand "ssh -i ${{ secrets.ssh_key }} -o StrictHostKeyChecking=no"
 
       - name: Run releasekit
         id: release
@@ -135,7 +135,7 @@ jobs:
                 ;;
             esac
           fi
-          
+
           SYNC_FLAG=""
           if [ "$INPUT_SYNC" = "true" ]; then
             SYNC_FLAG="--sync"
