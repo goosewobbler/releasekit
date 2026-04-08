@@ -270,9 +270,6 @@ importers:
 
   packages/release:
     dependencies:
-      '@manypkg/get-packages':
-        specifier: 'catalog:'
-        version: 3.1.0
       '@octokit/rest':
         specifier: 'catalog:'
         version: 22.0.1
@@ -297,9 +294,6 @@ importers:
       conventional-changelog-conventionalcommits:
         specifier: ^9.3.1
         version: 9.3.1
-      minimatch:
-        specifier: 'catalog:'
-        version: 10.2.5
       smol-toml:
         specifier: 'catalog:'
         version: 1.6.1
