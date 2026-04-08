@@ -12,6 +12,7 @@ var require = __createRequire(import.meta.url);`.trim(),
   dts: false,
   minify: false,
   splitting: false,
+  external: ['minimatch'],
   noExternal: [
     '@releasekit/core',
     '@releasekit/config',
