@@ -11,9 +11,13 @@ vi.mock('@releasekit/config', () => ({
   filterPackagesByConfig: () => [],
 }));
 
-vi.mock('@releasekit/core', () => ({
-  shouldProcessPackage: () => true,
-}));
+vi.mock('@releasekit/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@releasekit/core')>();
+  return {
+    ...actual,
+    shouldProcessPackage: () => true,
+  };
+});
 
 vi.mock('node:child_process', () => ({
   execSync: vi.fn().mockReturnValue('feat: some feature\n'),
