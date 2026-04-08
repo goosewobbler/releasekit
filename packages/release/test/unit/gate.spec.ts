@@ -7,6 +7,12 @@ const mockFetchPRLabels = vi.fn();
 
 vi.mock('@releasekit/config', () => ({
   loadConfig: (...args: unknown[]) => mockLoadReleaseKitConfig(...args),
+  shouldProcessPackage: () => true,
+  filterPackagesByConfig: () => [],
+}));
+
+vi.mock('@releasekit/core', () => ({
+  shouldProcessPackage: () => true,
 }));
 
 vi.mock('node:child_process', () => ({
