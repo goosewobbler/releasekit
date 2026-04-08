@@ -4,6 +4,8 @@ packages:
 
 catalog:
   '@biomejs/biome': ^2.4.10
+  '@manypkg/get-packages': ^3.1.0
+  'minimatch': ^10.0.0
   '@octokit/rest': ^22.0.1
   '@types/node': ^22.19.17
   '@types/semver': ^7.7.1
