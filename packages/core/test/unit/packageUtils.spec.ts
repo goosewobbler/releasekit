@@ -1,4 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('minimatch', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('minimatch')>();
+  return {
+    minimatch: vi.fn((...args: Parameters<typeof actual.minimatch>) => actual.minimatch(...args)),
+  };
+});
+
+import { minimatch } from 'minimatch';
 import { matchesPackageTarget, shouldMatchPackageTargets, shouldProcessPackage } from '../../src/packageUtils.js';
 
 describe('packageUtils', () => {
@@ -31,10 +40,15 @@ describe('packageUtils', () => {
     it('should handle invalid minimatch patterns gracefully', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      // Create an invalid pattern that will cause minimatch to throw
-      const result = matchesPackageTarget('test-pkg', '[');
+      vi.mocked(minimatch).mockImplementationOnce(() => {
+        throw new Error('simulated minimatch failure');
+      });
+
+      // Pattern must reach minimatch (not exact match or @scope/* shortcut)
+      const result = matchesPackageTarget('test-pkg', 'pkg-*');
 
       expect(result).toBe(false);
+      expect(minimatch).toHaveBeenCalled();
       expect(consoleSpy).toHaveBeenCalled();
 
       consoleSpy.mockRestore();
