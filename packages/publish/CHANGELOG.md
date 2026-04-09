@@ -56,6 +56,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.12.0] - 2026-04-09
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.11.1...releasekit-version-v0.12.0)
+
+### Added
+- resolve packages in gate (#121)
+
 ## [0.11.1] - 2026-04-08
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.11.0...releasekit-version-v0.11.1)
