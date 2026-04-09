@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   buildGateArgs,
   buildGateSummary,
@@ -30,7 +30,6 @@ describe('action runner', () => {
       bump: 'minor',
       prerelease: 'next',
       sync: 'true',
-      target: '@scope/a,@scope/b',
       branch: 'main',
       npmAuth: 'oidc',
       skipNotes: 'true',
@@ -56,8 +55,6 @@ describe('action runner', () => {
         '--prerelease',
         'next',
         '--sync',
-        '--target',
-        '@scope/a,@scope/b',
         '--branch',
         'main',
         '--npm-auth',
@@ -181,7 +178,6 @@ describe('action runner', () => {
       shouldRelease: true,
       bump: 'minor',
       scope: 'electron',
-      target: '@wdio/electron-*',
       labels: ['bump:minor'],
       prNumbers: [123],
     });
@@ -191,7 +187,6 @@ describe('action runner', () => {
     expect(result.shouldRelease).toBe(true);
     expect(result.bump).toBe('minor');
     expect(result.scope).toBe('electron');
-    expect(result.target).toBe('@wdio/electron-*');
   });
 });
 
@@ -254,7 +249,6 @@ describe('buildGateSummary', () => {
         shouldRelease: true,
         bump: 'minor',
         scope: 'electron',
-        target: '@wdio/electron-*',
         labels: ['bump:minor'],
         prNumbers: [123],
       },
