@@ -26,11 +26,13 @@
   },
   "dependencies": {
     "@releasekit/core": "workspace:*",
+    "minimatch": "catalog:",
     "smol-toml": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
+    "@manypkg/get-packages": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "tsup": "catalog:",

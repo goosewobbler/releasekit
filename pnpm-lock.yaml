@@ -9,6 +9,9 @@ catalogs:
     '@biomejs/biome':
       specifier: ^2.4.10
       version: 2.4.10
+    '@manypkg/get-packages':
+      specifier: ^3.1.0
+      version: 3.1.0
     '@octokit/rest':
       specifier: ^22.0.1
       version: 22.0.1
@@ -27,6 +30,9 @@ catalogs:
     commander:
       specifier: ^14.0.3
       version: 14.0.3
+    minimatch:
+      specifier: ^10.0.0
+      version: 10.2.5
     semver:
       specifier: ^7.7.4
       version: 7.7.4
@@ -92,6 +98,9 @@ importers:
       '@releasekit/core':
         specifier: workspace:*
         version: link:../core
+      minimatch:
+        specifier: 'catalog:'
+        version: 10.2.5
       smol-toml:
         specifier: 'catalog:'
         version: 1.6.1
@@ -102,6 +111,9 @@ importers:
       '@biomejs/biome':
         specifier: 'catalog:'
         version: 2.4.10
+      '@manypkg/get-packages':
+        specifier: 'catalog:'
+        version: 3.1.0
       '@types/node':
         specifier: 'catalog:'
         version: 22.19.17
@@ -120,9 +132,15 @@ importers:
 
   packages/core:
     dependencies:
+      '@manypkg/get-packages':
+        specifier: 'catalog:'
+        version: 3.1.0
       chalk:
         specifier: 'catalog:'
         version: 5.6.2
+      minimatch:
+        specifier: 'catalog:'
+        version: 10.2.5
     devDependencies:
       '@biomejs/biome':
         specifier: 'catalog:'
@@ -166,6 +184,9 @@ importers:
       liquidjs:
         specifier: ^10.25.5
         version: 10.25.5
+      minimatch:
+        specifier: 'catalog:'
+        version: 10.2.5
       openai:
         specifier: ^6.33.0
         version: 6.33.0(zod@4.3.6)
@@ -212,6 +233,9 @@ importers:
       commander:
         specifier: 'catalog:'
         version: 14.0.3
+      minimatch:
+        specifier: 'catalog:'
+        version: 10.2.5
       semver:
         specifier: 'catalog:'
         version: 7.7.4
@@ -252,6 +276,9 @@ importers:
 
   packages/release:
     dependencies:
+      '@manypkg/get-packages':
+        specifier: 'catalog:'
+        version: 3.1.0
       '@octokit/rest':
         specifier: 'catalog:'
         version: 22.0.1
@@ -276,6 +303,9 @@ importers:
       conventional-changelog-conventionalcommits:
         specifier: ^9.3.1
         version: 9.3.1
+      minimatch:
+        specifier: 'catalog:'
+        version: 10.2.5
       smol-toml:
         specifier: 'catalog:'
         version: 1.6.1

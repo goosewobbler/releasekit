@@ -1,15 +1,17 @@
 export interface ActionInputs {
-  mode?: 'release' | 'preview' | string;
+  mode?: 'release' | 'preview' | 'gate' | string;
   config?: string;
   projectDir?: string;
   dryRun?: string;
   json?: string;
   verbose?: string;
   quiet?: string;
+  summary?: string;
   bump?: string;
   prerelease?: string;
   sync?: string;
   target?: string;
+  scope?: string;
   branch?: string;
   npmAuth?: string;
   skipNotes?: string;

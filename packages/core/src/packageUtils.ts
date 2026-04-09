@@ -1,9 +1,9 @@
 /**
- * Package matching utilities for scope-based and exact name matching
+ * Package utility functions for monorepo package matching and filtering
  */
 
 import { minimatch } from 'minimatch';
-import { log } from './logging.js';
+import { log } from './logger.js';
 
 /**
  * Check if a package name matches a target pattern
@@ -15,24 +15,21 @@ import { log } from './logging.js';
  * - Unscoped wildcards: "*" (matches all packages)
  */
 export function matchesPackageTarget(packageName: string, target: string): boolean {
-  // Exact match
   if (packageName === target) {
     return true;
   }
 
-  // Handle simple scope wildcards like "@scope/*" for backward compatibility
   if (target.startsWith('@') && target.endsWith('/*') && !target.includes('**')) {
-    const scope = target.slice(0, -2); // Remove "/*"
+    const scope = target.slice(0, -2);
     return packageName.startsWith(`${scope}/`);
   }
 
-  // Handle all patterns (including complex scoped patterns) using micromatch
   try {
     return minimatch(packageName, target, {
       dot: true,
     });
   } catch (error) {
-    log(`Invalid pattern "${target}": ${error instanceof Error ? error.message : String(error)}`, 'warning');
+    log(`Invalid pattern "${target}": ${error instanceof Error ? error.message : String(error)}`, 'warn');
     return false;
   }
 }
@@ -53,11 +50,9 @@ export function shouldMatchPackageTargets(packageName: string, targets: string[]
  * - Unscoped wildcards: "*"
  */
 export function shouldProcessPackage(packageName: string, skip: string[] = []): boolean {
-  // If no skip patterns, always process
   if (skip.length === 0) {
     return true;
   }
 
-  // Check if package matches any skip pattern
   return !shouldMatchPackageTargets(packageName, skip);
 }

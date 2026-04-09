@@ -7,7 +7,17 @@ const mockFetchPRLabels = vi.fn();
 
 vi.mock('@releasekit/config', () => ({
   loadConfig: (...args: unknown[]) => mockLoadReleaseKitConfig(...args),
+  shouldProcessPackage: () => true,
+  filterPackagesByConfig: () => [],
 }));
+
+vi.mock('@releasekit/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@releasekit/core')>();
+  return {
+    ...actual,
+    shouldProcessPackage: () => true,
+  };
+});
 
 vi.mock('node:child_process', () => ({
   execSync: vi.fn().mockReturnValue('feat: some feature\n'),

@@ -15,12 +15,15 @@ export {
   trace,
   warn,
 } from './logger.js';
-
+export {
+  matchesPackageTarget,
+  shouldMatchPackageTargets,
+  shouldProcessPackage,
+} from './packageUtils.js';
 export type {
   VersionChangelogEntry,
   VersionOutput,
   VersionPackageChangelog,
   VersionPackageUpdate,
 } from './types.js';
-
 export { sanitizePackageName } from './utils.js';

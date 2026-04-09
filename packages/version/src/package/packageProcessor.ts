@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import path from 'node:path';
 import type { Package } from '@manypkg/get-packages';
 import type { VersionChangelogEntry } from '@releasekit/core';
+import { shouldProcessPackage } from '@releasekit/core';
 import { extractChangelogEntriesFromCommits, extractRepoLevelChangelogEntries } from '../changelog/commitParser.js';
 import { calculateVersion } from '../core/versionCalculator.js';
 import { getLatestTagForPackage } from '../git/tagsAndBranches.js';
@@ -11,7 +12,6 @@ import { formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/fo
 import { addChangelogData, addTag, setCommitMessage, setSharedEntries } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { getVersionFromManifests } from '../utils/manifestHelpers.js';
-import { shouldProcessPackage } from '../utils/packageMatching.js';
 import { updatePackageVersion } from './packageManagement.js';
 
 type ChangelogEntry = VersionChangelogEntry;

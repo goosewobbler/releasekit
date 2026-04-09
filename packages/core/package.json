@@ -25,7 +25,9 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "chalk": "catalog:"
+    "@manypkg/get-packages": "catalog:",
+    "chalk": "catalog:",
+    "minimatch": "catalog:"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",

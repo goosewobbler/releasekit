@@ -1,12 +1,11 @@
 import { cwd } from 'node:process';
 
 import { getPackagesSync, type Packages } from '@manypkg/get-packages';
-
+import { filterPackagesByConfig } from '@releasekit/config';
 import { GitError } from '../errors/gitError.js';
 import { createVersionError, VersionError, VersionErrorCode } from '../errors/versionError.js';
 import type { Config, VersionRunOptions } from '../types.js';
 import { log } from '../utils/logging.js';
-import { filterPackagesByConfig } from '../utils/packageFiltering.js';
 import { createStrategy, createStrategyMap, type StrategyFunction, type StrategyType } from './versionStrategies.js';
 
 // Define extended type that includes root property
