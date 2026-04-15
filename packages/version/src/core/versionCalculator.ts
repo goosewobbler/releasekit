@@ -94,7 +94,7 @@ export async function calculateVersion(config: Config, options: VersionOptions):
         mismatchStrategy,
         strictReachable,
       );
-      log(`Using version source: ${versionSource.source} (${versionSource.reason})`, 'debug');
+      log(`Using version source: ${versionSource.source} (${versionSource.reason})`, 'info');
       log(`Version source version: ${versionSource.version}`, 'debug');
     }
 
@@ -319,20 +319,6 @@ export async function calculateVersion(config: Config, options: VersionOptions):
       log(`Checking if conventional commits indicate bump`, 'debug');
       if (!releaseTypeFromCommits) {
         log(`No release type from commits`, 'debug');
-        // First release scenario: no previous tag + explicit bump provided
-        // Bypass commit check and apply the bump directly
-        if (!latestTag && type) {
-          log(`First release scenario in conventional fallback`, 'debug');
-          log(`No previous tag found for ${name || 'project'} - this appears to be a first release`, 'warning');
-          const isPrereleaseBumpType = ['prerelease', 'premajor', 'preminor', 'prepatch'].includes(type);
-          log(`Is prerelease bump type: ${isPrereleaseBumpType}`, 'debug');
-          const prereleaseId = config.isPrerelease || isPrereleaseBumpType ? normalizedPrereleaseId : undefined;
-          log(`Prerelease ID: ${prereleaseId}`, 'debug');
-          const result = bumpVersion(currentVersion, type, prereleaseId);
-          log(`Conventional first release version: ${result}`, 'debug');
-          return result;
-        }
-
         if (latestTag && latestTag.trim() !== '') {
           log(`No relevant commits found for ${name || 'project'} since ${latestTag}, skipping version bump`, 'info');
         } else {
