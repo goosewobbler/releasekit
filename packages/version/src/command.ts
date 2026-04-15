@@ -1,3 +1,4 @@
+import { EXIT_CODES } from '@releasekit/core';
 import { Command } from 'commander';
 import { loadConfig } from './config.js';
 import { VersionEngine } from './core/versionEngine.js';
@@ -20,7 +21,7 @@ export function createVersionCommand(): Command {
     .action(async (options) => {
       if (options.stable && options.prerelease) {
         console.error('Error: Cannot use both --stable and --prerelease at the same time');
-        process.exit(1);
+        process.exit(EXIT_CODES.INPUT_ERROR);
       }
 
       if (options.json) {
