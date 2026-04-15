@@ -10,7 +10,8 @@ export function createReleaseCommand(): Command {
     .option('-d, --dry-run', 'Preview all steps without side effects', false)
     .option('-b, --bump <type>', 'Force bump type (patch|minor|major)')
     .option('-p, --prerelease [identifier]', 'Create prerelease version')
-    .option('-s, --sync', 'Use synchronized versioning across all packages', false)
+    .option('--stable', 'Graduate prerelease packages to stable without bumping', false)
+    .option('--sync', 'Use synchronized versioning across all packages', false)
     .option('-t, --target <packages>', 'Target specific packages (comma-separated)')
     .option('--scope <name>', 'Resolve scope name to target packages from ci.scopeLabels config')
     .option('--branch <name>', 'Override the git branch used for push')
@@ -30,6 +31,7 @@ export function createReleaseCommand(): Command {
         dryRun: opts.dryRun,
         bump: opts.bump,
         prerelease: opts.prerelease,
+        stable: opts.stable,
         sync: opts.sync,
         target: opts.target,
         scope: opts.scope,
