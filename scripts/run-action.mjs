@@ -52,6 +52,7 @@ export function buildReleaseArgs(input) {
   pushBooleanFlag(args, '--json', input.json);
   pushBooleanFlag(args, '--verbose', input.verbose);
   pushBooleanFlag(args, '--quiet', input.quiet);
+  pushBooleanFlag(args, '--stable', input.stable);
 
   return args;
 }
@@ -138,6 +139,7 @@ export function parseInputs(env = process.env) {
 
     bump: normalizeString(env.INPUT_BUMP),
     prerelease: normalizeString(env.INPUT_PRERELEASE),
+    stable: env.INPUT_STABLE,
     sync: env.INPUT_SYNC,
     target: normalizeString(env.INPUT_TARGET),
     scope: normalizeString(env.INPUT_SCOPE),
@@ -297,6 +299,7 @@ export function buildReleaseSummary(input, parsed, success) {
   if (input.target) settings.push(`| Target | \`${input.target}\` |`);
   if (input.scope) settings.push(`| Scope | \`${input.scope}\` |`);
   if (input.prerelease) settings.push(`| Prerelease | \`${input.prerelease}\` |`);
+  if (normalizeBoolean(input.stable)) settings.push(`| Stable | Yes |`);
 
   if (settings.length > 0) {
     lines.push('| Setting | Value |');
