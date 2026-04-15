@@ -37,6 +37,9 @@ let quietMode = false;
 
 export function setLogLevel(level: LogLevel): void {
   currentLevel = level;
+  if (level === 'debug') {
+    process.env.DEBUG = 'true';
+  }
 }
 
 export function setQuietMode(quiet: boolean): void {
