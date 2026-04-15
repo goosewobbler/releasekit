@@ -38,6 +38,24 @@ jobs:
     with:
       os: ubuntu-latest
 
+  lockfile-validation:
+    name: Validate Lockfile
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Validate lockfile
+        run: |
+          doc_count=$(grep -c "^lockfileVersion" pnpm-lock.yaml || echo "0")
+          if [ "$doc_count" != "1" ]; then
+            echo "ERROR: Lockfile has $doc_count documents (expected 1)"
+            exit 1
+          fi
+          echo "Lockfile validated: $doc_count document(s)"
+
   action-test-harness:
     name: Action Test Harness
     needs: [detect-changes, build]
@@ -150,7 +168,7 @@ jobs:
   ci-status:
     name: CI Status
     if: always()
-    needs: [detect-changes, build, action-test-harness, lint, typecheck, unit-tests, integration-tests, package-tests, e2e-tests]
+    needs: [detect-changes, build, lockfile-validation, action-test-harness, lint, typecheck, unit-tests, integration-tests, package-tests, e2e-tests]
     runs-on: ubuntu-latest
     steps:
       - name: Check CI results
