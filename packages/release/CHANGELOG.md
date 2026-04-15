@@ -73,6 +73,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.13.5] - 2026-04-15
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.4...releasekit-version-v0.13.5)
+
+### Added
+- **core**: enable DEBUG environment variable when log level is set to debug
+
 ## [0.13.4] - 2026-04-15
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.3...releasekit-version-v0.13.4)

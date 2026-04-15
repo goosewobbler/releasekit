@@ -1,39 +1,39 @@
 
 
-## `@releasekit/version` @ 0.13.4
+## `@releasekit/version` @ 0.13.5
 
 ### General:
-- enhance first release handling in version calculation (#130)
+- **core**: enable DEBUG environment variable when log level is set to debug
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.3...releasekit-version-v0.13.4
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.4...releasekit-version-v0.13.5
 
 ---
 
 
-## `@releasekit/notes` @ 0.13.4
+## `@releasekit/notes` @ 0.13.5
 
 ### General:
-- enhance first release handling in version calculation (#130)
+- **core**: enable DEBUG environment variable when log level is set to debug
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.3...releasekit-version-v0.13.4
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.4...releasekit-version-v0.13.5
 
 ---
 
 
-## `@releasekit/publish` @ 0.13.4
+## `@releasekit/publish` @ 0.13.5
 
 ### General:
-- enhance first release handling in version calculation (#130)
+- **core**: enable DEBUG environment variable when log level is set to debug
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.3...releasekit-version-v0.13.4
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.4...releasekit-version-v0.13.5
 
 ---
 
 
-## `@releasekit/release` @ 0.13.4
+## `@releasekit/release` @ 0.13.5
 
 ### General:
-- enhance first release handling in version calculation (#130)
+- **core**: enable DEBUG environment variable when log level is set to debug
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.3...releasekit-version-v0.13.4
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.4...releasekit-version-v0.13.5
 
