@@ -1498,5 +1498,41 @@ describe('Version Calculator', () => {
       expect(result).toBe('1.1.0');
       expect(versionUtils.bumpVersion).not.toHaveBeenCalled();
     });
+
+    it('should graduate prerelease for first release when stableOnly=true and type is set', async () => {
+      // First release scenario: no latestTag, but stableOnly=true with explicit type
+      // Should graduate to stable instead of applying the bump
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        stableOnly: true,
+        type: 'patch',
+      };
+
+      const options: VersionOptions = {
+        latestTag: '', // Empty = no tags = first release
+        versionPrefix: 'v',
+        path: '/test',
+      };
+
+      // Mock version source to return prerelease version
+      vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
+        manifestFound: true,
+        version: '1.0.0-next.1',
+      });
+
+      vi.spyOn(semver, 'prerelease').mockReturnValue(['next', 1]);
+      vi.spyOn(semver, 'parse').mockReturnValue({
+        major: 1,
+        minor: 0,
+        patch: 0,
+        prerelease: ['next', 1],
+      } as unknown as semver.SemVer);
+
+      const result = await calculateVersion(config as Config, options);
+
+      // Should graduate to 1.0.0, not apply patch bump (which would be 1.0.1)
+      expect(result).toBe('1.0.0');
+      expect(versionUtils.bumpVersion).not.toHaveBeenCalled();
+    });
   });
 });
