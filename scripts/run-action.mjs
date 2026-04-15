@@ -52,6 +52,7 @@ export function buildReleaseArgs(input) {
   pushBooleanFlag(args, '--json', input.json);
   pushBooleanFlag(args, '--verbose', input.verbose);
   pushBooleanFlag(args, '--quiet', input.quiet);
+  pushBooleanFlag(args, '--stable', input.stable);
 
   return args;
 }
