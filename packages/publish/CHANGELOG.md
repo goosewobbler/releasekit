@@ -59,6 +59,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.13.2] - 2026-04-15
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.1...releasekit-version-v0.13.2)
+
+### Added
+- **ci**: add lockfile validation step to CI workflow (#127)
+
 ## [0.13.1] - 2026-04-15
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.0...releasekit-version-v0.13.1)
