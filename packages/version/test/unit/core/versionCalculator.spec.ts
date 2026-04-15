@@ -245,7 +245,6 @@ describe('Version Calculator', () => {
 
   describe('Specified version type (explicit bump)', () => {
     it('should return initial version if no latestTag and type provided', async () => {
-      // Provide specific mock for this test
       vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValueOnce({
         version: '0.0.0',
         manifestFound: true,
@@ -263,7 +262,6 @@ describe('Version Calculator', () => {
 
       const version = await calculateVersion(defaultConfig as Config, options);
 
-      // Update expectation to match the mock implementation
       expect(version).toBe('0.1.0');
     });
 
@@ -711,6 +709,31 @@ describe('Version Calculator', () => {
       const version = await calculateVersion(defaultConfig as Config, options);
 
       expect(version).toBe('0.0.1');
+    });
+
+    it('should apply explicit bump for first release when no previous tag exists', async () => {
+      vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValueOnce({
+        version: '1.0.0',
+        manifestFound: true,
+        manifestPath: 'path/to/package.json',
+        manifestType: 'package.json',
+      });
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.0.1');
+
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        type: 'patch',
+      };
+
+      const options: VersionOptions = {
+        latestTag: '',
+        versionPrefix: 'v',
+        type: 'patch',
+      };
+
+      const version = await calculateVersion(config as Config, options);
+
+      expect(version).toBe('1.0.1');
     });
   });
 
