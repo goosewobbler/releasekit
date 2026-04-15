@@ -1,43 +1,39 @@
 
 
-## `@releasekit/version` @ 0.13.3
+## `@releasekit/version` @ 0.13.4
 
 ### General:
-- apply bump for first release when no previous tag exists (#128)
-- apply bump for first release when no previous tag exists
+- enhance first release handling in version calculation (#130)
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.2...releasekit-version-v0.13.3
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.3...releasekit-version-v0.13.4
 
 ---
 
 
-## `@releasekit/notes` @ 0.13.3
+## `@releasekit/notes` @ 0.13.4
 
 ### General:
-- apply bump for first release when no previous tag exists (#128)
-- apply bump for first release when no previous tag exists
+- enhance first release handling in version calculation (#130)
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.2...releasekit-version-v0.13.3
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.3...releasekit-version-v0.13.4
 
 ---
 
 
-## `@releasekit/publish` @ 0.13.3
+## `@releasekit/publish` @ 0.13.4
 
 ### General:
-- apply bump for first release when no previous tag exists (#128)
-- apply bump for first release when no previous tag exists
+- enhance first release handling in version calculation (#130)
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.2...releasekit-version-v0.13.3
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.3...releasekit-version-v0.13.4
 
 ---
 
 
-## `@releasekit/release` @ 0.13.3
+## `@releasekit/release` @ 0.13.4
 
 ### General:
-- apply bump for first release when no previous tag exists (#128)
-- apply bump for first release when no previous tag exists
+- enhance first release handling in version calculation (#130)
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.2...releasekit-version-v0.13.3
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.3...releasekit-version-v0.13.4
 

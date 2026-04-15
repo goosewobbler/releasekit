@@ -72,6 +72,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.13.4] - 2026-04-15
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.3...releasekit-version-v0.13.4)
+
+### Fixed
+- enhance first release handling in version calculation (#130)
+
 ## [0.13.3] - 2026-04-15
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.2...releasekit-version-v0.13.3)
