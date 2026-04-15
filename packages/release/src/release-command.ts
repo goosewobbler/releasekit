@@ -10,6 +10,7 @@ export function createReleaseCommand(): Command {
     .option('-d, --dry-run', 'Preview all steps without side effects', false)
     .option('-b, --bump <type>', 'Force bump type (patch|minor|major)')
     .option('-p, --prerelease [identifier]', 'Create prerelease version')
+    .option('--stable', 'Graduate prerelease packages to stable without bumping', false)
     .option('-s, --sync', 'Use synchronized versioning across all packages', false)
     .option('-t, --target <packages>', 'Target specific packages (comma-separated)')
     .option('--scope <name>', 'Resolve scope name to target packages from ci.scopeLabels config')
@@ -25,11 +26,17 @@ export function createReleaseCommand(): Command {
     .option('-q, --quiet', 'Suppress non-error output', false)
     .option('--project-dir <path>', 'Project directory', process.cwd())
     .action(async (opts) => {
+      if (opts.stable && opts.prerelease) {
+        console.error('Error: Cannot use both --stable and --prerelease at the same time');
+        process.exit(EXIT_CODES.INPUT_ERROR);
+      }
+
       const options: ReleaseOptions = {
         config: opts.config,
         dryRun: opts.dryRun,
         bump: opts.bump,
         prerelease: opts.prerelease,
+        stable: opts.stable,
         sync: opts.sync,
         target: opts.target,
         scope: opts.scope,
