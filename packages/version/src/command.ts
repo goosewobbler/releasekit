@@ -12,11 +12,17 @@ export function createVersionCommand(): Command {
     .option('-d, --dry-run', 'Dry run (no changes made)', false)
     .option('-b, --bump <type>', 'Specify bump type (patch|minor|major)')
     .option('-p, --prerelease [identifier]', 'Create prerelease version')
+    .option('--stable', 'Graduate prerelease packages to stable without bumping', false)
     .option('-s, --sync', 'Use synchronized versioning across all packages')
     .option('-j, --json', 'Output results as JSON', false)
     .option('-t, --target <packages>', 'Comma-delimited list of package names to target')
     .option('--project-dir <path>', 'Project directory to run commands in', process.cwd())
     .action(async (options) => {
+      if (options.stable && options.prerelease) {
+        console.error('Error: Cannot use both --stable and --prerelease at the same time');
+        process.exit(1);
+      }
+
       if (options.json) {
         enableJsonOutput(options.dryRun);
       }
@@ -46,6 +52,7 @@ export function createVersionCommand(): Command {
         const runOptions = {
           bump: options.bump,
           prerelease: options.prerelease,
+          stable: options.stable,
           dryRun: options.dryRun,
           sync: options.sync,
           targets: cliTargets.length > 0 ? cliTargets : undefined,
