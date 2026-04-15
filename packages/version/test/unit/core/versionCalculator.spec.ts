@@ -734,6 +734,7 @@ describe('Version Calculator', () => {
       const version = await calculateVersion(config as Config, options);
 
       expect(version).toBe('1.0.1');
+      expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('No previous tag found'), 'warning');
     });
   });
 
