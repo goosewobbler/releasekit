@@ -41,6 +41,10 @@ inputs:
   prerelease:
     description: Create prerelease version (optional identifier)
     required: false
+  stable:
+    description: Graduate prerelease packages to stable without bumping
+    required: false
+    default: "false"
   sync:
     description: Use synchronized versioning
     required: false
@@ -202,6 +206,7 @@ runs:
         INPUT_QUIET: ${{ inputs.quiet }}
         INPUT_BUMP: ${{ inputs.bump }}
         INPUT_PRERELEASE: ${{ inputs.prerelease }}
+        INPUT_STABLE: ${{ inputs.stable }}
         INPUT_SYNC: ${{ inputs.sync }}
         INPUT_TARGET: ${{ inputs.target }}
         INPUT_SCOPE: ${{ inputs.scope }}

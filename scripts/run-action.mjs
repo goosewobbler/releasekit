@@ -138,6 +138,7 @@ export function parseInputs(env = process.env) {
 
     bump: normalizeString(env.INPUT_BUMP),
     prerelease: normalizeString(env.INPUT_PRERELEASE),
+    stable: env.INPUT_STABLE,
     sync: env.INPUT_SYNC,
     target: normalizeString(env.INPUT_TARGET),
     scope: normalizeString(env.INPUT_SCOPE),
