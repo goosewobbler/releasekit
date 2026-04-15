@@ -142,9 +142,13 @@ export async function calculateVersion(config: Config, options: VersionOptions):
       // Bypass commit check and apply bump directly (even without commits)
       if (!latestTag) {
         log(`No previous tag found for ${name || 'project'} - this appears to be a first release`, 'warning');
+        log(`DEBUG: currentVersion=${currentVersion}, specifiedType=${specifiedType}`, 'debug');
         const isPrereleaseBumpType = ['prerelease', 'premajor', 'preminor', 'prepatch'].includes(specifiedType);
         const prereleaseId = config.isPrerelease || isPrereleaseBumpType ? normalizedPrereleaseId : undefined;
-        return bumpVersion(currentVersion, specifiedType, prereleaseId);
+        log(`DEBUG: prereleaseId=${prereleaseId}`, 'debug');
+        const result = bumpVersion(currentVersion, specifiedType, prereleaseId);
+        log(`DEBUG: first-release result=${result}`, 'debug');
+        return result;
       }
 
       // Handle prerelease versions with our helper
