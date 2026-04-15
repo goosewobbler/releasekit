@@ -68,6 +68,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.13.0] - 2026-04-15
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.12.0...releasekit-version-v0.13.0)
+
+### Added
+- add stable option to release & version commands for prerelease graduation (#125)
+
 ## [0.12.0] - 2026-04-09
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.11.1...releasekit-version-v0.12.0)
