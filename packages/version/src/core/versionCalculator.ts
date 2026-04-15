@@ -238,6 +238,15 @@ export async function calculateVersion(config: Config, options: VersionOptions):
 
       // If no git tag or we have commits, check if conventional commits indicate a bump
       if (!releaseTypeFromCommits) {
+        // First release scenario: no previous tag + explicit bump provided
+        // Bypass commit check and apply the bump directly
+        if (!latestTag && type) {
+          log(`No previous tag found for ${name || 'project'} - this appears to be a first release`, 'warning');
+          const isPrereleaseBumpType = ['prerelease', 'premajor', 'preminor', 'prepatch'].includes(type);
+          const prereleaseId = config.isPrerelease || isPrereleaseBumpType ? normalizedPrereleaseId : undefined;
+          return bumpVersion(currentVersion, type, prereleaseId);
+        }
+
         if (latestTag && latestTag.trim() !== '') {
           log(`No relevant commits found for ${name || 'project'} since ${latestTag}, skipping version bump`, 'info');
         } else {
