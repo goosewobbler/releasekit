@@ -60,6 +60,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.13.3] - 2026-04-15
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.2...releasekit-version-v0.13.3)
+
+### Fixed
+- apply bump for first release when no previous tag exists (#128)
+- apply bump for first release when no previous tag exists
+
 ## [0.13.2] - 2026-04-15
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.13.1...releasekit-version-v0.13.2)
