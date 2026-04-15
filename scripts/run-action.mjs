@@ -299,6 +299,7 @@ export function buildReleaseSummary(input, parsed, success) {
   if (input.target) settings.push(`| Target | \`${input.target}\` |`);
   if (input.scope) settings.push(`| Scope | \`${input.scope}\` |`);
   if (input.prerelease) settings.push(`| Prerelease | \`${input.prerelease}\` |`);
+  if (normalizeBoolean(input.stable)) settings.push(`| Stable | Yes |`);
 
   if (settings.length > 0) {
     lines.push('| Setting | Value |');
