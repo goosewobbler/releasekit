@@ -83,6 +83,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.14.1] - 2026-04-16
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.14.0...releasekit-notes-v0.14.1)
+
+### Fixed
+- **release**: allow manual release without target when no PRs are found (#140)
+- **action**: update skip-checkout description formatting in action.yml
+
 ## [0.14.0] - 2026-04-16
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.13.13...releasekit-notes-v0.14.0)
