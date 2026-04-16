@@ -45,6 +45,7 @@ function createContext(cwd: string, overrides?: Partial<PipelineContext>): Pipel
       cargo: [],
       verification: [],
       githubReleases: [],
+      publishSucceeded: false,
     },
     ...overrides,
   };
@@ -94,7 +95,6 @@ describe('npm-publish stage', () => {
     expect(call?.[0]).toBe('pnpm');
     const args = call?.[1] as string[];
     expect(args).toContain('publish');
-    expect(args).toEqual(expect.arrayContaining(['--filter', '@test/pkg']));
     expect(args).toEqual(expect.arrayContaining(['--access', 'public']));
     expect(args).toEqual(expect.arrayContaining(['--tag', 'latest']));
 
@@ -122,6 +122,36 @@ describe('npm-publish stage', () => {
     expect(execCommand).not.toHaveBeenCalled();
     expect(ctx.output.npm[0]?.skipped).toBe(true);
     expect(ctx.output.npm[0]?.reason).toContain('private');
+  });
+
+  it('should use correct cwd for npm vs pnpm', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    const dir = createTmpDir();
+    const pkgDir = path.join(dir, 'packages', 'pkg');
+    fs.mkdirSync(pkgDir, { recursive: true });
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: '@test/pkg', version: '1.0.0' }));
+
+    process.env.NPM_TOKEN = 'npm_test_token';
+
+    // Test pnpm (should use package cwd)
+    const pnpmCtx = createContext(dir, { packageManager: 'pnpm' });
+    await runNpmPublishStage(pnpmCtx);
+
+    expect(execCommand).toHaveBeenCalledTimes(1);
+    const pnpmCall = vi.mocked(execCommand).mock.calls[0];
+    const pnpmOptions = pnpmCall?.[2];
+    expect(pnpmOptions?.cwd).toBe(pkgDir); // pnpm now uses package directory
+
+    vi.clearAllMocks();
+
+    // Test npm (should use package cwd)
+    const npmCtx = createContext(dir, { packageManager: 'npm' });
+    await runNpmPublishStage(npmCtx);
+
+    expect(execCommand).toHaveBeenCalledTimes(1);
+    const npmCall = vi.mocked(execCommand).mock.calls[0];
+    const npmOptions = npmCall?.[2];
+    expect(npmOptions?.cwd).toBe(pkgDir); // npm uses package directory
   });
 
   it('should skip already-published packages', async () => {

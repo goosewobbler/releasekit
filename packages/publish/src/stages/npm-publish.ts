@@ -100,7 +100,7 @@ export async function runNpmPublishStage(ctx: PipelineContext): Promise<void> {
 
       try {
         await execCommand(pubFile, pubArgs, {
-          cwd,
+          cwd: pkgDir, // Always publish from the package directory for reliability
           dryRun,
           label: `npm publish ${update.packageName}@${update.newVersion}`,
           env: npmIsolation.env,
