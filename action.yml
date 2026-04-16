@@ -34,6 +34,10 @@ inputs:
     description: Suppress non-error output
     required: false
     default: "false"
+  skip-checkout:
+    description: Skip repository checkout (assume repo is already checked out). WARNING: Ensure repository has full git history (fetch-depth: 0) for proper version-bumping logic. Shallow clones may cause incorrect version bumps or silent failures.
+    required: false
+    default: "false"
 
   bump:
     description: Force bump type (patch|minor|major)
@@ -160,14 +164,14 @@ runs:
   using: composite
   steps:
     - name: Checkout (SSH)
-      if: ${{ inputs.ssh-key != '' && inputs.dry-run != 'true' && inputs.mode != 'gate' }}
+      if: ${{ inputs.skip-checkout != 'true' && inputs.ssh-key != '' && inputs.dry-run != 'true' && inputs.mode != 'gate' }}
       uses: actions/checkout@v6
       with:
         ssh-key: ${{ inputs.ssh-key }}
         fetch-depth: 0
 
     - name: Checkout (read-only)
-      if: ${{ inputs.ssh-key == '' || inputs.dry-run == 'true' || inputs.mode == 'gate' }}
+      if: ${{ inputs.skip-checkout != 'true' && (inputs.ssh-key == '' || inputs.dry-run == 'true' || inputs.mode == 'gate') }}
       uses: actions/checkout@v6
       with:
         fetch-depth: 0
