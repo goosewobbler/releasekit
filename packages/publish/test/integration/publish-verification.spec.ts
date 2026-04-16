@@ -1,4 +1,5 @@
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { execCommand } from '../../src/utils/exec';
@@ -10,7 +11,7 @@ describe('Package Content Verification', () => {
 
   beforeEach(() => {
     // Create temporary test directory structure
-    testDir = path.join(process.cwd(), `test-temp-${Math.random().toString(36).substr(2, 9)}`);
+    testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-publish-test-'));
     pkgDir = path.join(testDir, 'packages', 'test-pkg');
     distDir = path.join(pkgDir, 'dist');
 
