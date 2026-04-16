@@ -102,6 +102,7 @@ const defaultOptions: ReleaseOptions = {
   verbose: false,
   quiet: false,
   projectDir: '/test/project',
+  target: '@test/package',
 };
 
 const versionOutputWithChanges: VersionOutput = {

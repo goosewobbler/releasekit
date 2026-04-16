@@ -53,7 +53,6 @@ async function applyScopeLabelsFromPR(
   options: ReleaseOptions,
 ): Promise<PRLabelsResult> {
   const scopeLabels = ciConfig?.scopeLabels ?? {};
-  const defaultScope = ciConfig?.defaultScope;
 
   const githubContext = getGitHubContext();
   if (!githubContext) {
@@ -106,14 +105,12 @@ async function applyScopeLabelsFromPR(
   }
 
   if (prNumbers.length === 0) {
-    if (defaultScope && Object.keys(scopeLabels).length > 0) {
-      const defaultPattern = scopeLabels[defaultScope];
-      if (defaultPattern) {
-        info(`No merged PRs found — using default scope "${defaultScope}" (${defaultPattern})`);
-        return { target: defaultPattern, scopeLabels: [], labels: allLabels };
-      }
+    if (!options.target) {
+      throw new Error(
+        'No scope specified. Use --target flag to specify packages, or include a scope label in a merged PR.',
+      );
     }
-    info('No merged PRs found for HEAD commit — releasing all packages');
+    info(`No merged PRs found — using target from --target flag: ${options.target}`);
     return { target: options.target, scopeLabels: [], labels: allLabels };
   }
 
@@ -128,12 +125,10 @@ async function applyScopeLabelsFromPR(
   let finalTarget = options.target;
   if (matchedScopePatterns.length > 0) {
     finalTarget = matchedScopePatterns.join(', ');
-  } else if (defaultScope && Object.keys(scopeLabels).length > 0) {
-    const defaultPattern = scopeLabels[defaultScope];
-    if (defaultPattern) {
-      info(`No scope label found — using default scope "${defaultScope}" (${defaultPattern})`);
-      finalTarget = defaultPattern;
-    }
+  } else if (!options.target) {
+    throw new Error(
+      'No scope specified. Use --target flag to specify packages, or include a scope label in a merged PR.',
+    );
   }
 
   return { target: finalTarget, scopeLabels: matchedScopePatterns, labels: allLabels };

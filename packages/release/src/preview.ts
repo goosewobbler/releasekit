@@ -211,13 +211,13 @@ async function applyLabelOverrides(
   }
   labelContext.scopeLabels = matchedScopePatterns;
 
-  // Apply scope filter if any scope labels matched, otherwise use defaultScope if configured
+  // Apply scope filter if any scope labels matched
   if (matchedScopePatterns.length > 0) {
     result.target = matchedScopePatterns.join(', ');
-  } else if (ciConfig?.defaultScope && scopeLabels[ciConfig.defaultScope]) {
-    const defaultPattern = scopeLabels[ciConfig.defaultScope];
-    info(`No scope label found — using default scope "${ciConfig.defaultScope}" (${defaultPattern})`);
-    result.target = defaultPattern;
+  } else if (!options.target) {
+    throw new Error(
+      'No scope specified. Use --target flag to specify packages, or include a scope label in a merged PR.',
+    );
   }
 
   // Detect label conflicts using shared utility
