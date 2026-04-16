@@ -53,15 +53,12 @@ describe('package-manager utilities', () => {
   describe('buildPublishCommand', () => {
     const defaultOptions = { access: 'public', tag: 'latest', provenance: false, noGitChecks: true };
 
-    it('should build pnpm publish command with --filter', () => {
+    it('should build pnpm publish command', () => {
       const result = buildPublishCommand('pnpm', '@test/pkg', '/pkg', defaultOptions);
 
       expect(result.file).toBe('pnpm');
       expect(result.args).toContain('publish');
-      expect(result.args).toEqual(expect.arrayContaining(['--filter', '@test/pkg']));
-      expect(result.args).toEqual(expect.arrayContaining(['--access', 'public']));
-      expect(result.args).toEqual(expect.arrayContaining(['--tag', 'latest']));
-      expect(result.args).toContain('--no-git-checks');
+      expect(result.args).toEqual(['publish', '--access', 'public', '--tag', 'latest', '--no-git-checks']);
     });
 
     it('should build npm publish command', () => {
