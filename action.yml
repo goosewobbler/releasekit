@@ -191,6 +191,7 @@ runs:
       shell: bash
 
     - name: Configure git
+      if: ${{ inputs.skip-checkout != 'true' }}
       run: |
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
         git config --global user.name "github-actions[bot]"
@@ -200,6 +201,12 @@ runs:
       id: run
       shell: bash
       working-directory: ${{ inputs.project-dir || '.' }}
+      run: |
+        echo "Current directory: $(pwd)"
+        echo "Git status:"
+        git status --porcelain || echo "Not a git repository"
+        echo "Running ReleaseKit..."
+        node ${{ github.action_path }}/scripts/run-action.mjs
       env:
         INPUT_MODE: ${{ inputs.mode }}
         INPUT_CONFIG: ${{ inputs.config }}
@@ -233,4 +240,3 @@ runs:
         NPM_TOKEN: ${{ inputs.npm-token }}
         VERBOSE: ${{ inputs.verbose }}
         OLLAMA_API_KEY: ${{ env.OLLAMA_API_KEY }}
-      run: node ${{ github.action_path }}/scripts/run-action.mjs
