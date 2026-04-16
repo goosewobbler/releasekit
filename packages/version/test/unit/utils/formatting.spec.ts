@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { formatCommitMessage, formatTag, formatTagPrefix, formatVersionPrefix } from '../../../src/utils/formatting.js';
+import {
+  buildTagStripPatternFromTemplate,
+  formatCommitMessage,
+  formatTag,
+  formatTagPrefix,
+  formatVersionPrefix,
+} from '../../../src/utils/formatting.js';
 
 vi.mock('../../../src/utils/logging.js', () => ({
   log: vi.fn(),
@@ -258,6 +264,71 @@ describe('formatting', () => {
       formatCommitMessage('chore: release ${' + 'packageName}@${' + 'version}', '1.0.0', 'my-package');
 
       expect(logSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('buildTagStripPatternFromTemplate', () => {
+    it('should generate strip pattern for ${packageName}@v${version} template', () => {
+      const result = buildTagStripPatternFromTemplate('${packageName}@v${version}', '@wdio/native-spy', 'v');
+      expect(result).toBe('wdio-native-spy@v');
+    });
+
+    it('should generate strip pattern for ${packageName}-v${version} template', () => {
+      const result = buildTagStripPatternFromTemplate('${packageName}-v${version}', '@scope/package', 'v');
+      expect(result).toBe('scope-package-v');
+    });
+
+    it('should generate strip pattern for v${version} template', () => {
+      const result = buildTagStripPatternFromTemplate('v${version}', 'any-package', 'v');
+      expect(result).toBe('v');
+    });
+
+    it('should handle unscoped package names', () => {
+      const result = buildTagStripPatternFromTemplate('${packageName}@v${version}', 'my-package', 'v');
+      expect(result).toBe('my-package@v');
+    });
+
+    it('should handle empty package name', () => {
+      const result = buildTagStripPatternFromTemplate('${packageName}@v${version}', '', 'v');
+      expect(result).toBe('@v');
+    });
+
+    it('should return empty string for empty template', () => {
+      const result = buildTagStripPatternFromTemplate('', '@wdio/native-spy', 'v');
+      expect(result).toBe('');
+    });
+
+    it('should escape special regex characters', () => {
+      const result = buildTagStripPatternFromTemplate('${packageName}.*+?^${}()|[]\\', '@wdio/native-spy', 'v');
+      expect(result).toBe('wdio-native-spy\\.\\*\\+\\?\\^\\$\\{\\}\\(\\)\\|\\[\\]\\\\');
+    });
+
+    it('should handle template without version placeholder', () => {
+      const result = buildTagStripPatternFromTemplate('${packageName}@${prefix}', '@wdio/native-spy', 'v');
+      expect(result).toBe('wdio-native-spy@v');
+    });
+
+    it('should handle template with multiple packageName occurrences', () => {
+      const result = buildTagStripPatternFromTemplate(
+        '${packageName}/${packageName}@v${version}',
+        '@wdio/native-spy',
+        'v',
+      );
+      expect(result).toBe('wdio-native-spy/wdio-native-spy@v');
+    });
+
+    it('should handle template with prefix at the end', () => {
+      const result = buildTagStripPatternFromTemplate('${packageName}${version}${prefix}', '@wdio/native-spy', 'v');
+      expect(result).toBe('wdio-native-spy');
+    });
+
+    it('should handle complex template with mixed placeholders', () => {
+      const result = buildTagStripPatternFromTemplate(
+        'release-${packageName}@${prefix}${version}-final',
+        '@wdio/native-spy',
+        'v',
+      );
+      expect(result).toBe('release-wdio-native-spy@v');
     });
   });
 });

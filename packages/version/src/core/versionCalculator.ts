@@ -10,7 +10,7 @@ import semver from 'semver';
 import { getCurrentBranch } from '../git/repository.js';
 import { getCommitsLength, lastMergeBranchName } from '../git/tagsAndBranches.js';
 import type { Config, VersionOptions } from '../types.js';
-import { escapeRegExp } from '../utils/formatting.js';
+import { buildTagStripPatternFromTemplate, escapeRegExp } from '../utils/formatting.js';
 import { log } from '../utils/logging.js';
 import { getVersionFromManifests } from '../utils/manifestHelpers.js';
 import {
@@ -63,12 +63,19 @@ export async function calculateVersion(config: Config, options: VersionOptions):
     const originalPrefix = versionPrefix || '';
     log(`Original prefix: ${originalPrefix}`, 'debug');
 
-    // Build a regex pattern that strips the package + separator prefix from a tag, supporting
-    // both separator styles produced by formatTag:
-    //   • raw-scoped:     "@scope/pkg@v"   (default, no tagTemplate)
-    //   • sanitized-dash: "scope-pkg-v"    (tagTemplate using ${packageName} with dash)
-    // Without this, semver extraction falls back to '0.0.0' for dash-format tags.
+    // Build a regex pattern that strips the package + separator prefix from a tag
+    // Uses dynamic pattern generation from tagTemplate when it includes packageName,
+    // otherwise falls back to hardcoded patterns for backward compatibility
     function buildTagStripPattern(packageName: string | undefined, prefix: string): string {
+      // If a tagTemplate is configured AND it includes packageName, use dynamic pattern generation
+      if (config.tagTemplate && packageName && config.tagTemplate.includes('${packageName}')) {
+        const templatePattern = buildTagStripPatternFromTemplate(config.tagTemplate, packageName, prefix);
+        if (templatePattern) {
+          return templatePattern;
+        }
+      }
+
+      // Fallback to hardcoded patterns for backward compatibility
       if (!packageName) return escapeRegExp(prefix);
       const sanitized = sanitizePackageName(packageName);
       const escapedRaw = escapeRegExp(`${packageName}@${prefix}`);

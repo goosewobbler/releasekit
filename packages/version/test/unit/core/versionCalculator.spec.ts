@@ -492,6 +492,102 @@ describe('Version Calculator', () => {
       expect(versionUtils.bumpVersion).toHaveBeenCalledWith('1.2.3', 'minor', undefined);
       expect(version).toBe('1.3.0');
     });
+
+    it('should correctly strip template-based package prefix from tag', async () => {
+      // Test the new dynamic template-based tag stripping
+      // Template "${packageName}@v${version}" produces tags like "wdio-native-spy@v1.0.0"
+      // The strip pattern should be "wdio-native-spy@v"
+      vi.resetAllMocks();
+
+      // Mock semver.clean to behave like the real library
+      vi.spyOn(semver, 'clean').mockImplementation((version) => {
+        if (typeof version !== 'string') return null;
+        const match = version.match(/^v?(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?)$/);
+        return match ? match[1] : null;
+      });
+      vi.spyOn(semver, 'prerelease').mockReturnValue(null);
+      vi.spyOn(versionUtils, 'getBestVersionSource').mockResolvedValue({
+        source: 'git',
+        version: 'wdio-native-spy@v1.2.3',
+        reason: 'Git tag is newer',
+      });
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.3.0');
+      vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
+        version: '1.2.3',
+        manifestFound: true,
+        manifestPath: '/repo/packages/native-spy/package.json',
+        manifestType: 'package.json',
+      });
+
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        tagTemplate: '${packageName}@v${version}',
+        packageSpecificTags: true,
+      };
+
+      const options: VersionOptions = {
+        latestTag: 'wdio-native-spy@v1.2.3',
+        hasRealTag: true,
+        versionPrefix: 'v',
+        path: '/repo/packages/native-spy',
+        name: '@wdio/native-spy',
+        type: 'minor',
+      };
+
+      const version = await calculateVersion(config as Config, options);
+
+      // Version must be extracted from the tag correctly using the template-based pattern
+      expect(versionUtils.bumpVersion).toHaveBeenCalledWith('1.2.3', 'minor', undefined);
+      expect(version).toBe('1.3.0');
+    });
+
+    it('should fall back to hardcoded patterns when tagTemplate does not include packageName', async () => {
+      // Test that templates without ${packageName} still use the fallback hardcoded patterns
+      // This ensures backward compatibility for configs that have tagTemplate but don't include package names
+      vi.resetAllMocks();
+
+      // Mock semver.clean to behave like the real library
+      vi.spyOn(semver, 'clean').mockImplementation((version) => {
+        if (typeof version !== 'string') return null;
+        const match = version.match(/^v?(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?)$/);
+        return match ? match[1] : null;
+      });
+      vi.spyOn(semver, 'prerelease').mockReturnValue(null);
+      vi.spyOn(versionUtils, 'getBestVersionSource').mockResolvedValue({
+        source: 'git',
+        version: 'scope-pkg-v1.2.3', // Tag in the format that hardcoded patterns expect
+        reason: 'Git tag is newer',
+      });
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.3.0');
+      vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
+        version: '1.2.3',
+        manifestFound: true,
+        manifestPath: '/repo/packages/pkg/package.json',
+        manifestType: 'package.json',
+      });
+
+      // Template without ${packageName} - should use hardcoded patterns
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        tagTemplate: '${prefix}${version}', // No ${packageName}, just prefix + version
+        packageSpecificTags: true,
+      };
+
+      const options: VersionOptions = {
+        latestTag: 'scope-pkg-v1.2.3',
+        hasRealTag: true,
+        versionPrefix: 'v',
+        path: '/repo/packages/pkg',
+        name: '@scope/pkg',
+        type: 'minor',
+      };
+
+      const version = await calculateVersion(config as Config, options);
+
+      // Should still work with hardcoded pattern fallback
+      expect(versionUtils.bumpVersion).toHaveBeenCalledWith('1.2.3', 'minor', undefined);
+      expect(version).toBe('1.3.0');
+    });
   });
 
   describe('Branch pattern versioning', () => {
