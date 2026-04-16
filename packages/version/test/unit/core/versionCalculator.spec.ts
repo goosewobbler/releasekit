@@ -245,14 +245,6 @@ describe('Version Calculator', () => {
 
   describe('Specified version type (explicit bump)', () => {
     it('should return initial version if no latestTag and type provided', async () => {
-      vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValueOnce({
-        version: '0.0.0',
-        manifestFound: true,
-        manifestPath: 'path/to/package.json',
-        manifestType: 'package.json',
-      });
-      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('0.1.0');
-
       const options: VersionOptions = {
         // @ts-expect-error - Testing with null latestTag
         latestTag: null,
