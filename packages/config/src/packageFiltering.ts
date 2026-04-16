@@ -45,7 +45,7 @@ export function filterPackagesByConfig(packages: Package[], configTargets: strin
   });
 }
 
-function filterByDirectoryPattern(packages: Package[], pattern: string, workspaceRoot: string): Package[] {
+export function filterByDirectoryPattern(packages: Package[], pattern: string, workspaceRoot: string): Package[] {
   if (pattern === './' || pattern === '.') {
     return packages.filter((pkg) => pkg.dir === workspaceRoot);
   }
