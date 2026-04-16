@@ -76,5 +76,11 @@
     "ci": {
       "skipPatterns": ["chore: release "]
     }
+  },
+  "ci": {
+    "releaseTrigger": "label",
+    "scopeLabels": {
+      "scope:all": "@releasekit/*"
+    }
   }
 }
