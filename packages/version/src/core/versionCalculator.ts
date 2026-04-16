@@ -126,7 +126,9 @@ export async function calculateVersion(config: Config, options: VersionOptions):
     }
 
     // First release scenario: no previous tag + explicit type provided
-    // Bypass all other logic and apply bump directly (even without commits)
+    // For first release, we call bumpVersion to calculate the next version.
+    // This ensures the release proceeds with the calculated version regardless of
+    // whether it differs from the current version (important for prerelease -> prerelease bumps).
     // Skip if stableOnly is true, as stableOnly will handle graduation
     log(
       `Checking first release scenario: latestTag=${latestTag}, type=${type}, stableOnly=${config.stableOnly}`,
@@ -137,9 +139,9 @@ export async function calculateVersion(config: Config, options: VersionOptions):
       const currentVersion = getCurrentVersionFromSource();
       log(`Current version for first release: ${currentVersion}`, 'debug');
       log(`No previous tag found for ${name || 'project'} - this appears to be a first release`, 'warning');
-      const isPrereleaseBumpType = ['prerelease', 'premajor', 'preminor', 'prepatch'].includes(type);
-      log(`Is prerelease bump type: ${isPrereleaseBumpType}`, 'debug');
-      const prereleaseId = config.isPrerelease || isPrereleaseBumpType ? normalizedPrereleaseId : undefined;
+      // For first release, always use prereleaseId to ensure version changes
+      // (bumping a prerelease without prereleaseId would strip prerelease and return same version)
+      const prereleaseId = normalizedPrereleaseId;
       log(`Prerelease ID: ${prereleaseId}`, 'debug');
       const result = bumpVersion(currentVersion, type, prereleaseId);
       log(`First release version: ${result}`, 'debug');
