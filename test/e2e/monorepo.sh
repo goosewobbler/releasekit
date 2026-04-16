@@ -28,19 +28,17 @@ packages:
   - 'packages/*'
 EOF
   
-  cat > packages/pkg-a/package.json <<EOF
+   cat > packages/pkg-a/package.json <<EOF
 {
   "name": "@test/pkg-a",
-  "version": "0.1.0",
-  "private": true
+  "version": "0.1.0"
 }
 EOF
-  
-  cat > packages/pkg-b/package.json <<EOF
+
+   cat > packages/pkg-b/package.json <<EOF
 {
   "name": "@test/pkg-b",
-  "version": "0.1.0",
-  "private": true
+  "version": "0.1.0"
 }
 EOF
 }
