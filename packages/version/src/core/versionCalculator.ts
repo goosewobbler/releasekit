@@ -141,10 +141,12 @@ export async function calculateVersion(config: Config, options: VersionOptions):
       log(`No previous tag found for ${name || 'project'} - this appears to be a first release`, 'warning');
       const isCurrentPrerelease = semver.prerelease(currentVersion);
       const explicitlyRequestedPrerelease = config.isPrerelease;
-      // Only use prereleaseId if current version is prerelease OR --prerelease flag was passed
-      // This matches the logic in lines 197-213 for consistency
+      const isPrereleaseBumpType = ['prerelease', 'premajor', 'preminor', 'prepatch'].includes(type);
+      // Only use prereleaseId if current version is prerelease, OR --prerelease flag was passed,
+      // OR an explicit prerelease bump type (premajor, preminor, prepatch, prerelease) is specified.
+      // This matches the logic in lines 219-226 for consistency
       const prereleaseId =
-        normalizedPrereleaseId && (isCurrentPrerelease || explicitlyRequestedPrerelease)
+        normalizedPrereleaseId && (isCurrentPrerelease || explicitlyRequestedPrerelease || isPrereleaseBumpType)
           ? normalizedPrereleaseId
           : undefined;
       log(`Prerelease ID: ${prereleaseId}`, 'debug');

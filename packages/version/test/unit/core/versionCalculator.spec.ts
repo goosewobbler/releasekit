@@ -842,6 +842,40 @@ describe('Version Calculator', () => {
       expect(version).toBe('1.0.1');
       expect(versionUtils.bumpVersion).toHaveBeenCalledWith('1.0.0', 'patch', undefined);
     });
+
+    it('should pass prereleaseId to bumpVersion for first release with premajor bump type', async () => {
+      vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValueOnce({
+        version: '1.0.0',
+        manifestFound: true,
+        manifestPath: 'path/to/package.json',
+        manifestType: 'package.json',
+      });
+      vi.spyOn(versionUtils, 'getBestVersionSource').mockResolvedValue({
+        source: 'package',
+        version: '1.0.0',
+        reason: 'No git tag provided',
+      });
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('2.0.0-next.0');
+      vi.spyOn(versionUtils, 'normalizePrereleaseIdentifier').mockReturnValue('next');
+
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        type: 'premajor',
+        prereleaseIdentifier: 'next',
+      };
+
+      const options: VersionOptions = {
+        latestTag: '',
+        versionPrefix: 'v',
+        type: 'premajor',
+        path: '/test/path',
+      };
+
+      const version = await calculateVersion(config as Config, options);
+
+      expect(version).toBe('2.0.0-next.0');
+      expect(versionUtils.bumpVersion).toHaveBeenCalledWith('1.0.0', 'premajor', 'next');
+    });
   });
 
   describe('Error handling', () => {
