@@ -82,7 +82,7 @@ export async function calculateVersion(config: Config, options: VersionOptions):
     let versionSource: VersionSourceResult | undefined;
 
     if (pkgPath) {
-      const packageDir = pkgPath || cwd();
+      const packageDir = pkgPath;
       const manifestResult = getVersionFromManifests(packageDir);
       const packageVersion =
         manifestResult.manifestFound && manifestResult.version ? manifestResult.version : undefined;
@@ -139,9 +139,14 @@ export async function calculateVersion(config: Config, options: VersionOptions):
       const currentVersion = getCurrentVersionFromSource();
       log(`Current version for first release: ${currentVersion}`, 'debug');
       log(`No previous tag found for ${name || 'project'} - this appears to be a first release`, 'warning');
-      // For first release, always use prereleaseId to ensure version changes
-      // (bumping a prerelease without prereleaseId would strip prerelease and return same version)
-      const prereleaseId = normalizedPrereleaseId;
+      const isCurrentPrerelease = semver.prerelease(currentVersion);
+      const explicitlyRequestedPrerelease = config.isPrerelease;
+      // Only use prereleaseId if current version is prerelease OR --prerelease flag was passed
+      // This matches the logic in lines 197-213 for consistency
+      const prereleaseId =
+        normalizedPrereleaseId && (isCurrentPrerelease || explicitlyRequestedPrerelease)
+          ? normalizedPrereleaseId
+          : undefined;
       log(`Prerelease ID: ${prereleaseId}`, 'debug');
       const result = bumpVersion(currentVersion, type, prereleaseId);
       log(`First release version: ${result}`, 'debug');

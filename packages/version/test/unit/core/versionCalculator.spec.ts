@@ -750,6 +750,7 @@ describe('Version Calculator', () => {
         reason: 'No git tag provided',
       });
       vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.0.0-next.2');
+      vi.spyOn(semver, 'prerelease').mockReturnValue(['next', 1]);
 
       const config: Partial<Config> = {
         ...defaultConfig,
@@ -771,7 +772,7 @@ describe('Version Calculator', () => {
       expect(versionUtils.bumpVersion).toHaveBeenCalledWith('1.0.0-next.1', 'patch', 'next');
     });
 
-    it('should pass prereleaseId to bumpVersion for first release even when config has no prereleaseIdentifier', async () => {
+    it('should forward the normalized prerelease identifier to bumpVersion in first-release path', async () => {
       vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValueOnce({
         version: '1.0.0-next.1',
         manifestFound: true,
@@ -785,6 +786,7 @@ describe('Version Calculator', () => {
       });
       vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.0.0-next.2');
       vi.spyOn(versionUtils, 'normalizePrereleaseIdentifier').mockReturnValue('next');
+      vi.spyOn(semver, 'prerelease').mockReturnValue(['next', 1]);
 
       const config: Partial<Config> = {
         ...defaultConfig,
@@ -804,6 +806,41 @@ describe('Version Calculator', () => {
       expect(version).toBe('1.0.0-next.2');
       expect(versionUtils.normalizePrereleaseIdentifier).toHaveBeenCalledWith(undefined, config);
       expect(versionUtils.bumpVersion).toHaveBeenCalledWith('1.0.0-next.1', 'patch', 'next');
+    });
+
+    it('should NOT produce prerelease for first release when current version is stable', async () => {
+      vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValueOnce({
+        version: '1.0.0',
+        manifestFound: true,
+        manifestPath: 'path/to/package.json',
+        manifestType: 'package.json',
+      });
+      vi.spyOn(versionUtils, 'getBestVersionSource').mockResolvedValue({
+        source: 'package',
+        version: '1.0.0',
+        reason: 'No git tag provided',
+      });
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.0.1');
+      vi.spyOn(versionUtils, 'normalizePrereleaseIdentifier').mockReturnValue('next');
+
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        type: 'patch',
+        prereleaseIdentifier: 'next',
+        isPrerelease: false, // No --prerelease flag
+      };
+
+      const options: VersionOptions = {
+        latestTag: '',
+        versionPrefix: 'v',
+        type: 'patch',
+        path: '/test/path',
+      };
+
+      const version = await calculateVersion(config as Config, options);
+
+      expect(version).toBe('1.0.1');
+      expect(versionUtils.bumpVersion).toHaveBeenCalledWith('1.0.0', 'patch', undefined);
     });
   });
 
