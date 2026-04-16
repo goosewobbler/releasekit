@@ -192,10 +192,7 @@ function testReleaseDryRun(dir: string): void {
   execCommand('git config user.name "Test User"', repoDir, 'Configuring git name');
 
   // Create a package.json and config
-  writeFileSync(
-    join(repoDir, 'package.json'),
-    JSON.stringify({ name: 'test-pkg', version: '0.1.0', private: true }, null, 2),
-  );
+  writeFileSync(join(repoDir, 'package.json'), JSON.stringify({ name: 'test-pkg', version: '0.1.0' }, null, 2));
   writeFileSync(
     join(repoDir, 'releasekit.config.json'),
     JSON.stringify({
