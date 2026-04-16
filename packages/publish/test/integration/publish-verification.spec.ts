@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { execCommand } from '../../src/utils/exec';
+import { execCommand } from '../../src/utils/exec.js';
 
 describe('Package Content Verification', () => {
   let testDir: string;
