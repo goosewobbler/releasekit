@@ -124,3 +124,36 @@ export function formatTagPrefix(
 
   return prefix;
 }
+
+/**
+ * Build a regex pattern to strip tag prefixes based on a tag template
+ * This dynamically generates strip patterns from tagTemplate configuration
+ * instead of using hardcoded patterns
+ */
+export function buildTagStripPatternFromTemplate(template: string, packageName: string, prefix: string): string {
+  if (!template) {
+    return '';
+  }
+
+  // Strip @ prefix from package names for tags
+  const sanitizedPackageName = packageName ? sanitizePackageName(packageName) : packageName;
+
+  // Find the part of the template before ${version}
+  // This represents the prefix pattern that needs to be stripped
+  const versionIndex = template.indexOf('${version}');
+  if (versionIndex === -1) {
+    // If no ${version} placeholder, the whole template is the prefix
+    const prefixPattern = template
+      .replace(/\$\{packageName\}/g, sanitizedPackageName || '')
+      .replace(/\$\{prefix\}/g, prefix);
+    return escapeRegExp(prefixPattern);
+  }
+
+  // Extract the prefix part (everything before ${version})
+  const prefixPart = template.substring(0, versionIndex);
+  const prefixPattern = prefixPart
+    .replace(/\$\{packageName\}/g, sanitizedPackageName || '')
+    .replace(/\$\{prefix\}/g, prefix);
+
+  return escapeRegExp(prefixPattern);
+}
