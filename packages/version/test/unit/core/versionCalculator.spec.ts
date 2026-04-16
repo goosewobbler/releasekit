@@ -743,7 +743,7 @@ describe('Version Calculator', () => {
     });
   });
 
-  describe('Package.json fallback when no tags found', () => {
+  describe('First release scenarios', () => {
     beforeEach(() => {
       // Reset mocks before each test
       vi.resetAllMocks();
@@ -820,7 +820,7 @@ describe('Version Calculator', () => {
       vi.clearAllMocks();
     });
 
-    it('should use package.json version when no latestTag exists with explicit bump', async () => {
+    it('should return package.json version directly for first release with explicit bump', async () => {
       // Mock both functions properly
       vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
         version: '1.0.0-beta.1',
@@ -833,7 +833,6 @@ describe('Version Calculator', () => {
         version: '1.0.0-beta.1',
         reason: 'No git tag provided',
       });
-      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('2.0.0');
 
       const options: VersionOptions = {
         latestTag: '',
@@ -844,11 +843,11 @@ describe('Version Calculator', () => {
 
       const version = await calculateVersion(defaultConfig as Config, options);
 
-      expect(version).toBe('2.0.0');
+      expect(version).toBe('1.0.0-beta.1');
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('Using version source: package'), 'info');
     });
 
-    it('should correctly handle major bump on 1.0.0-next.0', async () => {
+    it('should return prerelease version from package.json for first release with major type', async () => {
       // Mock both dependencies properly
       vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
         version: '1.0.0-next.0',
@@ -861,7 +860,6 @@ describe('Version Calculator', () => {
         version: '1.0.0-next.0',
         reason: 'No git tag provided',
       });
-      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('2.0.0');
 
       const config: Partial<Config> = {
         ...defaultConfig,
@@ -875,10 +873,10 @@ describe('Version Calculator', () => {
       };
 
       const version = await calculateVersion(config as Config, options);
-      expect(version).toBe('2.0.0');
+      expect(version).toBe('1.0.0-next.0');
     });
 
-    it('should attempt to use package.json version with conventional commits when no latestTag exists', async () => {
+    it('should return package.json version for first release with conventional commits preset', async () => {
       // Mock both dependencies properly
       vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
         version: '1.0.0',
@@ -891,7 +889,6 @@ describe('Version Calculator', () => {
         version: '1.0.0',
         reason: 'No git tag provided',
       });
-      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.0.1');
 
       const config: Partial<Config> = {
         ...defaultConfig,
@@ -905,7 +902,7 @@ describe('Version Calculator', () => {
       };
 
       const version = await calculateVersion(config as Config, options);
-      expect(version).toBe('1.0.1');
+      expect(version).toBe('1.0.0');
     });
 
     it('should throw error if package.json does not exist', async () => {
@@ -1118,7 +1115,7 @@ describe('Version Calculator', () => {
       expect(version).toBe('1.2.1'); // Will be bumped from 1.2.0 to 1.2.1
     });
 
-    it('should not warn when no tags exist (hasNoTags is true)', async () => {
+    it('should return package.json version for first release when hasNoTags is true', async () => {
       // Mock getBestVersionSource for this test
       vi.spyOn(versionUtils, 'getBestVersionSource').mockResolvedValueOnce({
         source: 'package',
@@ -1138,7 +1135,7 @@ describe('Version Calculator', () => {
       };
 
       const version = await calculateVersion(config as Config, options);
-      expect(version).toBe('1.0.1'); // Will be bumped from 1.0.0 to 1.0.1
+      expect(version).toBe('1.0.0');
     });
 
     it('should not warn when no manifest is found', async () => {
