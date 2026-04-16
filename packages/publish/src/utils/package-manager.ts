@@ -11,8 +11,8 @@ export function detectPackageManager(cwd: string): PackageManager {
 
 export function buildPublishCommand(
   pm: PackageManager,
-  _packageName: string,
-  _packageDir: string,
+  _packageName: string, // Reserved for future use (API stability)
+  _packageDir: string, // Reserved for future use (API stability)
   options: { access: string; tag: string; provenance: boolean; noGitChecks: boolean },
 ): { file: string; args: string[] } {
   let file: string;
