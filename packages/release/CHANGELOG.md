@@ -82,6 +82,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.14.0] - 2026-04-16
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.13.13...releasekit-notes-v0.14.0)
+
+### Added
+- add skip-checkout option to ReleaseKit action (#139)
+
 ## [0.13.13] - 2026-04-16
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.13.12...releasekit-notes-v0.13.13)
