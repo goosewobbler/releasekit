@@ -126,10 +126,8 @@ export async function calculateVersion(config: Config, options: VersionOptions):
     }
 
     // First release scenario: no previous tag + explicit type provided
-    // For first release, we call bumpVersion to calculate the next version.
-    // This ensures the release proceeds with the calculated version regardless of
-    // whether it differs from the current version (important for prerelease -> prerelease bumps).
-    // Skip if stableOnly is true, as stableOnly will handle graduation
+    // Apply the specified bump directly for first release, bypassing other logic
+    // This must run BEFORE stableOnly check so we can apply bump when stable=true
     log(
       `Checking first release scenario: latestTag=${latestTag}, type=${type}, stableOnly=${config.stableOnly}`,
       'debug',
