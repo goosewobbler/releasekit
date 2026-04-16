@@ -39,6 +39,8 @@ export function setLogLevel(level: LogLevel): void {
   currentLevel = level;
   if (level === 'debug') {
     process.env.DEBUG = 'true';
+  } else {
+    delete process.env.DEBUG;
   }
 }
 
