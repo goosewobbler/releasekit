@@ -30,7 +30,7 @@ export function filterPackagesByConfig(packages: Package[], configTargets: strin
     }
   }
 
-  return Array.from(matchedPackages);
+  return Array.from(matchedPackages).filter((pkg) => !pkg.packageJson.private);
 }
 
 function filterByDirectoryPattern(packages: Package[], pattern: string, workspaceRoot: string): Package[] {
