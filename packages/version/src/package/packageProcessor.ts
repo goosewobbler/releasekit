@@ -104,11 +104,13 @@ export class PackageProcessor {
       // For package-specific tags, we may need to request package-specific version history
       // Try to get the latest tag specific to this package first
       let latestTagResult = '';
+      let hasRealTag = false;
       try {
         latestTagResult = await getLatestTagForPackage(name, this.versionPrefix, {
           tagTemplate: this.tagTemplate,
           packageSpecificTags: this.fullConfig.packageSpecificTags,
         });
+        hasRealTag = !!latestTagResult;
       } catch (error) {
         // Log the specific error, but continue with fallback
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -140,6 +142,7 @@ export class PackageProcessor {
             const globalTagResult = await this.getLatestTag();
             if (globalTagResult) {
               latestTagResult = globalTagResult;
+              hasRealTag = true; // Global tag is a real git tag
               log(`Using global tag ${globalTagResult} as fallback for package ${name}`, 'info');
             }
           }
@@ -154,6 +157,7 @@ export class PackageProcessor {
 
       const nextVersion = await calculateVersion(this.fullConfig, {
         latestTag,
+        hasRealTag,
         versionPrefix: formattedPrefix,
         path: pkgPath,
         name,
