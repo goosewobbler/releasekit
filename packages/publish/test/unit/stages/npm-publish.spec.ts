@@ -229,8 +229,9 @@ describe('npm-publish stage', () => {
     const ctx = createContext(dir);
     await runNpmPublishStage(ctx);
 
-    const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
-    expect(args).not.toContain('--provenance');
+    expect(execCommand).toHaveBeenCalledTimes(2); // version check + publish
+    const publishArgs = vi.mocked(execCommand).mock.calls[1]?.[1] as string[]; // publish is second
+    expect(publishArgs).not.toContain('--provenance');
   });
 
   it('should throw on publish failure (fail-fast)', async () => {
