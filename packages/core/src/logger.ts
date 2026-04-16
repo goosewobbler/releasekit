@@ -92,6 +92,13 @@ export function success(message: string): void {
 }
 
 export function debug(message: string): void {
+  // Debug messages are only shown when DEBUG env var is set
+  const showDebug = process.env.DEBUG === 'true' || process.env.DEBUG === '1';
+
+  if (!showDebug) {
+    return;
+  }
+
   log(message, 'debug');
 }
 
