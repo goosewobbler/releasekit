@@ -105,15 +105,8 @@ async function applyScopeLabelsFromPR(
   }
 
   if (prNumbers.length === 0) {
-    if (!options.target) {
-      const scopeLabelsConfigured = Object.keys(scopeLabels).length > 0;
-      throw new Error(
-        scopeLabelsConfigured
-          ? 'No scope specified. Use --target flag to specify packages, or include a scope label in a merged PR.'
-          : 'No scope specified. Use --target flag to specify which packages to release.',
-      );
-    }
-    info(`No merged PRs found — using target from --target flag: ${options.target}`);
+    // Manual release (no PR context) - allow releasing all packages if no target specified
+    info(`No merged PRs found — ${options.target ? `using target: ${options.target}` : 'releasing all packages'}`);
     return { target: options.target, scopeLabels: [], labels: allLabels };
   }
 
