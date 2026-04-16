@@ -30,7 +30,13 @@ export function filterPackagesByConfig(packages: Package[], configTargets: strin
     }
   }
 
-  return Array.from(matchedPackages).filter((pkg) => !pkg.packageJson.private);
+  return Array.from(matchedPackages).filter((pkg) => {
+    if (pkg.packageJson.private) {
+      log(`Package "${pkg.packageJson.name || pkg.dir}" is private and will be excluded from release`, 'warn');
+      return false;
+    }
+    return true;
+  });
 }
 
 function filterByDirectoryPattern(packages: Package[], pattern: string, workspaceRoot: string): Package[] {
