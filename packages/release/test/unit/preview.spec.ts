@@ -696,6 +696,18 @@ describe('runPreview', () => {
       const callArgs = mockRunRelease.mock.calls[0][0];
       expect(callArgs.target).toBe('@test/package');
     });
+
+    it('should throw when no scope label matched and no target provided', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'commit',
+        scopeLabels: {
+          'scope:shared': '@wdio/native-*',
+        },
+      });
+      mockFetchPRLabels.mockResolvedValue(['bug']);
+
+      await expect(runPreview({ projectDir: '/test', dryRun: false })).rejects.toThrow('No scope specified');
+    });
   });
 
   describe('label fetching', () => {
