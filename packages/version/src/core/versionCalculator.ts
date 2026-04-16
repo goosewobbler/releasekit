@@ -82,7 +82,7 @@ export async function calculateVersion(config: Config, options: VersionOptions):
     let versionSource: VersionSourceResult | undefined;
 
     if (pkgPath) {
-      const packageDir = pkgPath || cwd();
+      const packageDir = pkgPath;
       const manifestResult = getVersionFromManifests(packageDir);
       const packageVersion =
         manifestResult.manifestFound && manifestResult.version ? manifestResult.version : undefined;
@@ -126,7 +126,9 @@ export async function calculateVersion(config: Config, options: VersionOptions):
     }
 
     // First release scenario: no previous tag + explicit type provided
-    // Bypass all other logic and apply bump directly (even without commits)
+    // For first release, we call bumpVersion to calculate the next version.
+    // This ensures the release proceeds with the calculated version regardless of
+    // whether it differs from the current version (important for prerelease -> prerelease bumps).
     // Skip if stableOnly is true, as stableOnly will handle graduation
     log(
       `Checking first release scenario: latestTag=${latestTag}, type=${type}, stableOnly=${config.stableOnly}`,
@@ -137,9 +139,18 @@ export async function calculateVersion(config: Config, options: VersionOptions):
       const currentVersion = getCurrentVersionFromSource();
       log(`Current version for first release: ${currentVersion}`, 'debug');
       log(`No previous tag found for ${name || 'project'} - this appears to be a first release`, 'warning');
+      const isCurrentPrerelease = semver.prerelease(currentVersion);
+      const explicitlyRequestedPrerelease = config.isPrerelease;
       const isPrereleaseBumpType = ['prerelease', 'premajor', 'preminor', 'prepatch'].includes(type);
-      log(`Is prerelease bump type: ${isPrereleaseBumpType}`, 'debug');
-      const prereleaseId = config.isPrerelease || isPrereleaseBumpType ? normalizedPrereleaseId : undefined;
+      // Use prereleaseId if:
+      // - current version is a prerelease (intentionally diverges from non-first-release path which checks config.isPrerelease)
+      // - OR --prerelease flag was passed (config.isPrerelease)
+      // - OR an explicit prerelease bump type (premajor, preminor, prepatch, prerelease) is specified
+      // This pattern is similar to lines 204-221 (standard bump types with prerelease) and 228 (non-standard bump types)
+      const prereleaseId =
+        normalizedPrereleaseId && (isCurrentPrerelease || explicitlyRequestedPrerelease || isPrereleaseBumpType)
+          ? normalizedPrereleaseId
+          : undefined;
       log(`Prerelease ID: ${prereleaseId}`, 'debug');
       const result = bumpVersion(currentVersion, type, prereleaseId);
       log(`First release version: ${result}`, 'debug');
