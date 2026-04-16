@@ -142,9 +142,11 @@ export async function calculateVersion(config: Config, options: VersionOptions):
       const isCurrentPrerelease = semver.prerelease(currentVersion);
       const explicitlyRequestedPrerelease = config.isPrerelease;
       const isPrereleaseBumpType = ['prerelease', 'premajor', 'preminor', 'prepatch'].includes(type);
-      // Only use prereleaseId if current version is prerelease, OR --prerelease flag was passed,
-      // OR an explicit prerelease bump type (premajor, preminor, prepatch, prerelease) is specified.
-      // This matches the logic in lines 219-226 for consistency
+      // Use prereleaseId if:
+      // - current version is a prerelease (intentionally diverges from non-first-release path which checks config.isPrerelease)
+      // - OR --prerelease flag was passed (config.isPrerelease)
+      // - OR an explicit prerelease bump type (premajor, preminor, prepatch, prerelease) is specified
+      // This pattern is similar to lines 204-221 (standard bump types with prerelease) and 228 (non-standard bump types)
       const prereleaseId =
         normalizedPrereleaseId && (isCurrentPrerelease || explicitlyRequestedPrerelease || isPrereleaseBumpType)
           ? normalizedPrereleaseId
