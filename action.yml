@@ -35,7 +35,7 @@ inputs:
     required: false
     default: "false"
   skip-checkout:
-    description: Skip repository checkout (assume repo is already checked out)
+    description: Skip repository checkout (assume repo is already checked out). WARNING: Ensure repository has full git history (fetch-depth: 0) for proper version-bumping logic. Shallow clones may cause incorrect version bumps or silent failures.
     required: false
     default: "false"
 
