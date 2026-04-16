@@ -107,7 +107,7 @@ async function applyScopeLabelsFromPR(
   if (prNumbers.length === 0) {
     // Manual release (no PR context) - allow releasing all packages if no target specified
     info(`No merged PRs found — ${options.target ? `using target: ${options.target}` : 'releasing all packages'}`);
-    return { target: options.target || '', scopeLabels: [], labels: allLabels };
+    return { target: options.target, scopeLabels: [], labels: allLabels };
   }
 
   const matchedScopePatterns: string[] = [];
