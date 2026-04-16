@@ -126,35 +126,21 @@ export async function calculateVersion(config: Config, options: VersionOptions):
     }
 
     // First release scenario: no previous tag + explicit type provided
-    // For first release, we call bumpVersion to calculate the next version.
-    // This ensures the release proceeds with the calculated version regardless of
-    // whether it differs from the current version (important for prerelease -> prerelease bumps).
-    // Skip if stableOnly is true, as stableOnly will handle graduation
     log(
       `Checking first release scenario: latestTag=${latestTag}, type=${type}, stableOnly=${config.stableOnly}`,
       'debug',
     );
-    if (hasNoTags && type && !config.stableOnly) {
+    if (hasNoTags && type) {
       log(`First release scenario detected`, 'debug');
       const currentVersion = getCurrentVersionFromSource();
       log(`Current version for first release: ${currentVersion}`, 'debug');
       log(`No previous tag found for ${name || 'project'} - this appears to be a first release`, 'warning');
-      const isCurrentPrerelease = semver.prerelease(currentVersion);
-      const explicitlyRequestedPrerelease = config.isPrerelease;
-      const isPrereleaseBumpType = ['prerelease', 'premajor', 'preminor', 'prepatch'].includes(type);
-      // Use prereleaseId if:
-      // - current version is a prerelease (intentionally diverges from non-first-release path which checks config.isPrerelease)
-      // - OR --prerelease flag was passed (config.isPrerelease)
-      // - OR an explicit prerelease bump type (premajor, preminor, prepatch, prerelease) is specified
-      // This pattern is similar to lines 204-221 (standard bump types with prerelease) and 228 (non-standard bump types)
-      const prereleaseId =
-        normalizedPrereleaseId && (isCurrentPrerelease || explicitlyRequestedPrerelease || isPrereleaseBumpType)
-          ? normalizedPrereleaseId
-          : undefined;
-      log(`Prerelease ID: ${prereleaseId}`, 'debug');
-      const result = bumpVersion(currentVersion, type, prereleaseId);
-      log(`First release version: ${result}`, 'debug');
-      return result;
+      // For first release, return the version directly from package.json - no bumping needed.
+      // This ensures the release proceeds regardless of version changes (prerelease versions
+      // may not actually change when bumped). The version in package.json is already the
+      // intended release version.
+      log(`First release version: ${currentVersion}`, 'debug');
+      return currentVersion;
     }
 
     // Handle stableOnly mode: graduate prerelease → stable base; skip already-stable packages.
