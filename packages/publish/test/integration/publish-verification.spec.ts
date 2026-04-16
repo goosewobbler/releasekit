@@ -54,62 +54,22 @@ describe('Package Content Verification', () => {
 
   it('should include all files specified in package.json files field', async () => {
     // Run npm pack to create tarball from the package directory
-    const packResult = await execCommand('npm', ['pack', '--dry-run'], {
+    const packResult = await execCommand('npm', ['pack', '--dry-run', '--json'], {
       cwd: pkgDir,
       dryRun: false,
     });
 
-    // Parse the output to get list of included files
+    // Parse the JSON output to get list of included files
     const output = packResult.stdout + packResult.stderr;
-    const lines = output.split('\n').filter((line) => line.trim());
+    const jsonMatch = output.match(/\[.*\]/s); // Find JSON array in output
+    expect(jsonMatch).toBeTruthy();
 
-    // Find the tarball contents section
-    const tarballIndex = lines.findIndex((line) => line.includes('Tarball Contents'));
-    expect(tarballIndex).toBeGreaterThan(-1);
+    const packData = JSON.parse(jsonMatch![0]);
+    expect(packData).toHaveLength(1);
+    expect(packData[0].files).toBeDefined();
 
-    // Extract file list from tarball contents
-    const fileLines = lines
-      .slice(tarballIndex + 1)
-      .filter((line) => line.trim() && !line.includes('Tarball Details') && !line.includes('total files'));
-
-    // Parse files from the output format like "npm notice 1.7kB README.md"
-    const includedFiles = fileLines
-      .map((line) => {
-        // Remove "npm notice" prefix and parse the file path
-        const withoutPrefix = line.replace(/^npm notice\s+/, '');
-        const match = withoutPrefix.trim().match(/^\S+\s+(.+)$/);
-        return match ? match[1] : null;
-      })
-      .filter((file): file is string => {
-        // Only include actual file paths, not metadata
-        if (!file) return false;
-
-        // Exclude metadata first
-        if (
-          file.startsWith('@') || // Scoped package names
-          /^\d+\.\d+\.\d+/.test(file) || // Version numbers
-          file.includes('.tgz') || // Tarball names
-          file.startsWith('sha') || // Hashes
-          file.length > 100 || // Long hashes
-          file === 'notice' || // npm notice artifacts
-          file.match(/^[a-f0-9]{40}$/) // SHA hashes
-        ) {
-          return false;
-        }
-
-        // Include known file types and paths
-        if (
-          file.includes('/') ||
-          file === 'package.json' ||
-          file === 'README.md' ||
-          file === 'LICENSE' ||
-          file === 'CHANGELOG.md'
-        ) {
-          return true;
-        }
-
-        return false; // Exclude anything else that doesn't match our criteria
-      });
+    // Extract files from the JSON structure
+    const includedFiles = packData[0].files.map((file: any) => file.path);
 
     // Verify expected files are included
     expect(includedFiles).toContain('README.md');
@@ -136,24 +96,19 @@ describe('Package Content Verification', () => {
 
   it('should respect glob patterns in files field', async () => {
     // Test that glob patterns like "dist/**/*" work correctly
-    const packResult = await execCommand('npm', ['pack', '--dry-run'], {
+    const packResult = await execCommand('npm', ['pack', '--dry-run', '--json'], {
       cwd: pkgDir,
       dryRun: false,
     });
 
     const output = packResult.stdout + packResult.stderr;
-    const includedFiles = output
-      .split('\n')
-      .filter((line) => line.includes('dist/'))
-      .map((line) => {
-        // Remove "npm notice" prefix and parse the file path
-        const withoutPrefix = line.replace(/^npm notice\s+/, '');
-        const match = withoutPrefix.trim().match(/^\S+\s+(.+)$/);
-        return match ? match[1] : null;
-      })
-      .filter((file): file is string => {
-        return Boolean(file?.includes('dist/'));
-      });
+    const jsonMatch = output.match(/\[.*\]/s);
+    expect(jsonMatch).toBeTruthy();
+
+    const packData = JSON.parse(jsonMatch![0]);
+    const includedFiles = packData[0].files
+      .map((file: any) => file.path)
+      .filter((path: string) => path.includes('dist/'));
 
     // Should include files in subdirectories due to **/* glob
     expect(includedFiles).toContain('dist/cjs/index.js');
@@ -164,51 +119,17 @@ describe('Package Content Verification', () => {
     // Remove a required file and verify the pack includes fewer files
     fs.unlinkSync(path.join(pkgDir, 'LICENSE'));
 
-    const packResult = await execCommand('npm', ['pack', '--dry-run'], {
+    const packResult = await execCommand('npm', ['pack', '--dry-run', '--json'], {
       cwd: pkgDir,
       dryRun: false,
     });
 
     const output = packResult.stdout + packResult.stderr;
-    const includedFiles = output
-      .split('\n')
-      .map((line) => {
-        // Remove "npm notice" prefix and parse the file path
-        const withoutPrefix = line.replace(/^npm notice\s+/, '');
-        const match = withoutPrefix.trim().match(/^\S+\s+(.+)$/);
-        return match ? match[1] : null;
-      })
-      .filter((file): file is string => {
-        // Only include actual file paths, not metadata
-        if (!file) return false;
+    const jsonMatch = output.match(/\[.*\]/s);
+    expect(jsonMatch).toBeTruthy();
 
-        // Exclude metadata first
-        if (
-          file.startsWith('@') || // Scoped package names
-          /^\d+\.\d+\.\d+/.test(file) || // Version numbers
-          file.includes('.tgz') || // Tarball names
-          file.startsWith('sha') || // Hashes
-          file.length > 100 || // Long hashes
-          file === 'notice' || // npm notice artifacts
-          file.match(/^[a-f0-9]{40}$/) // SHA hashes
-        ) {
-          return false;
-        }
-
-        // Include known file types and paths
-        if (
-          file.includes('/') ||
-          file === 'package.json' ||
-          file === 'README.md' ||
-          file === 'LICENSE' ||
-          file === 'CHANGELOG.md'
-        ) {
-          return true;
-        }
-
-        return false; // Exclude anything else that doesn't match our criteria
-      })
-      .filter((file) => !file.includes('Tarball Details') && !file.includes('total files'));
+    const packData = JSON.parse(jsonMatch![0]);
+    const includedFiles = packData[0].files.map((file: any) => file.path);
 
     // Should have one fewer file from the files field since LICENSE was removed
     expect(includedFiles).not.toContain('LICENSE');
