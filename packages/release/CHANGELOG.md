@@ -84,6 +84,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.14.2] - 2026-04-16
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.14.1...releasekit-version-v0.14.2)
+
+### Fixed
+- correct YAML structure for ReleaseKit action run step
+
 ## [0.14.1] - 2026-04-16
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.14.0...releasekit-notes-v0.14.1)

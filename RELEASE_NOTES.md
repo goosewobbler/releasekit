@@ -1,43 +1,39 @@
 
 
-## `@releasekit/notes` @ 0.14.1
+## `@releasekit/version` @ 0.14.2
 
 ### General:
-- **release**: allow manual release without target when no PRs are found (#140)
-- **action**: update skip-checkout description formatting in action.yml
+- correct YAML structure for ReleaseKit action run step
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.14.0...releasekit-notes-v0.14.1
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.14.1...releasekit-version-v0.14.2
 
 ---
 
 
-## `@releasekit/publish` @ 0.14.1
+## `@releasekit/notes` @ 0.14.2
 
 ### General:
-- **release**: allow manual release without target when no PRs are found (#140)
-- **action**: update skip-checkout description formatting in action.yml
+- correct YAML structure for ReleaseKit action run step
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.14.0...releasekit-notes-v0.14.1
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.14.1...releasekit-version-v0.14.2
 
 ---
 
 
-## `@releasekit/release` @ 0.14.1
+## `@releasekit/publish` @ 0.14.2
 
 ### General:
-- **release**: allow manual release without target when no PRs are found (#140)
-- **action**: update skip-checkout description formatting in action.yml
+- correct YAML structure for ReleaseKit action run step
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.14.0...releasekit-notes-v0.14.1
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.14.1...releasekit-version-v0.14.2
 
 ---
 
 
-## `@releasekit/version` @ 0.14.1
+## `@releasekit/release` @ 0.14.2
 
 ### General:
-- **release**: allow manual release without target when no PRs are found (#140)
-- **action**: update skip-checkout description formatting in action.yml
+- correct YAML structure for ReleaseKit action run step
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.14.0...releasekit-notes-v0.14.1
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.14.1...releasekit-version-v0.14.2
 
