@@ -54,22 +54,33 @@ describe('Package Content Verification', () => {
 
   it('should include all files specified in package.json files field', async () => {
     // Run npm pack to create tarball from the package directory
-    const packResult = await execCommand('npm', ['pack', '--dry-run', '--json'], {
+    const packResult = await execCommand('npm', ['pack', '--dry-run'], {
       cwd: pkgDir,
       dryRun: false,
     });
 
-    // Parse the JSON output to get list of included files
+    // Parse the output to find files listed after "Tarball Contents"
     const output = packResult.stdout + packResult.stderr;
-    const jsonMatch = output.match(/\[.*\]/s); // Find JSON array in output
-    expect(jsonMatch).toBeTruthy();
+    const lines = output.split('\n');
 
-    const packData = JSON.parse(jsonMatch![0]);
-    expect(packData).toHaveLength(1);
-    expect(packData[0].files).toBeDefined();
+    // Find the start of the file listing
+    const tarballIndex = lines.findIndex((line) => line.includes('Tarball Contents'));
+    expect(tarballIndex).toBeGreaterThan(-1);
 
-    // Extract files from the JSON structure
-    const includedFiles = packData[0].files.map((file: any) => file.path);
+    // Collect all file lines until we hit a non-file line
+    const includedFiles: string[] = [];
+    for (let i = tarballIndex + 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line || line.includes('Tarball Details') || line.includes('total files')) {
+        break;
+      }
+      // Remove "npm notice" prefix and extract filename from format like "11B LICENSE"
+      const withoutPrefix = line.replace(/^npm notice\s+/, '');
+      const match = withoutPrefix.match(/^\S+\s+(.+)$/);
+      if (match) {
+        includedFiles.push(match[1]);
+      }
+    }
 
     // Verify expected files are included
     expect(includedFiles).toContain('README.md');
@@ -96,19 +107,31 @@ describe('Package Content Verification', () => {
 
   it('should respect glob patterns in files field', async () => {
     // Test that glob patterns like "dist/**/*" work correctly
-    const packResult = await execCommand('npm', ['pack', '--dry-run', '--json'], {
+
+    const packResult = await execCommand('npm', ['pack', '--dry-run'], {
       cwd: pkgDir,
       dryRun: false,
     });
 
     const output = packResult.stdout + packResult.stderr;
-    const jsonMatch = output.match(/\[.*\]/s);
-    expect(jsonMatch).toBeTruthy();
+    const lines = output.split('\n');
 
-    const packData = JSON.parse(jsonMatch![0]);
-    const includedFiles = packData[0].files
-      .map((file: any) => file.path)
-      .filter((path: string) => path.includes('dist/'));
+    const tarballIndex = lines.findIndex((line) => line.includes('Tarball Contents'));
+    expect(tarballIndex).toBeGreaterThan(-1);
+
+    const includedFiles: string[] = [];
+    for (let i = tarballIndex + 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line || line.includes('Tarball Details') || line.includes('total files')) {
+        break;
+      }
+      // Remove "npm notice" prefix and extract filename
+      const withoutPrefix = line.replace(/^npm notice\s+/, '');
+      const match = withoutPrefix.match(/^\S+\s+(.+)$/);
+      if (match) {
+        includedFiles.push(match[1]);
+      }
+    }
 
     // Should include files in subdirectories due to **/* glob
     expect(includedFiles).toContain('dist/cjs/index.js');
@@ -119,17 +142,30 @@ describe('Package Content Verification', () => {
     // Remove a required file and verify the pack includes fewer files
     fs.unlinkSync(path.join(pkgDir, 'LICENSE'));
 
-    const packResult = await execCommand('npm', ['pack', '--dry-run', '--json'], {
+    const packResult = await execCommand('npm', ['pack', '--dry-run'], {
       cwd: pkgDir,
       dryRun: false,
     });
 
     const output = packResult.stdout + packResult.stderr;
-    const jsonMatch = output.match(/\[.*\]/s);
-    expect(jsonMatch).toBeTruthy();
+    const lines = output.split('\n');
 
-    const packData = JSON.parse(jsonMatch![0]);
-    const includedFiles = packData[0].files.map((file: any) => file.path);
+    const tarballIndex = lines.findIndex((line) => line.includes('Tarball Contents'));
+    expect(tarballIndex).toBeGreaterThan(-1);
+
+    const includedFiles: string[] = [];
+    for (let i = tarballIndex + 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line || line.includes('Tarball Details') || line.includes('total files')) {
+        break;
+      }
+      // Remove "npm notice" prefix and extract filename
+      const withoutPrefix = line.replace(/^npm notice\s+/, '');
+      const match = withoutPrefix.match(/^\S+\s+(.+)$/);
+      if (match) {
+        includedFiles.push(match[1]);
+      }
+    }
 
     // Should have one fewer file from the files field since LICENSE was removed
     expect(includedFiles).not.toContain('LICENSE');

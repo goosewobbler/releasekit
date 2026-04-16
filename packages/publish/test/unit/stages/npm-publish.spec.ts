@@ -90,15 +90,15 @@ describe('npm-publish stage', () => {
     const ctx = createContext(dir);
     await runNpmPublishStage(ctx);
 
-    expect(execCommand).toHaveBeenCalledTimes(1);
-    const call = vi.mocked(execCommand).mock.calls[0];
-    expect(call?.[0]).toBe('pnpm');
-    const args = call?.[1] as string[];
+    expect(execCommand).toHaveBeenCalledTimes(2); // version check + publish
+    const publishCall = vi.mocked(execCommand).mock.calls[1]; // publish is the second call
+    expect(publishCall?.[0]).toBe('pnpm');
+    const args = publishCall?.[1] as string[];
     expect(args).toContain('publish');
     expect(args).toEqual(expect.arrayContaining(['--access', 'public']));
     expect(args).toEqual(expect.arrayContaining(['--tag', 'latest']));
 
-    const options = call?.[2];
+    const options = publishCall?.[2];
     expect(options?.env?.NPM_CONFIG_USERCONFIG).toBeTruthy();
     expect(options?.env?.NODE_AUTH_TOKEN).toBe('npm_test_token');
 
@@ -137,9 +137,9 @@ describe('npm-publish stage', () => {
     const pnpmCtx = createContext(dir, { packageManager: 'pnpm' });
     await runNpmPublishStage(pnpmCtx);
 
-    expect(execCommand).toHaveBeenCalledTimes(1);
-    const pnpmCall = vi.mocked(execCommand).mock.calls[0];
-    const pnpmOptions = pnpmCall?.[2];
+    expect(execCommand).toHaveBeenCalledTimes(2); // version check + publish
+    const pnpmPublishCall = vi.mocked(execCommand).mock.calls[1]; // publish is second
+    const pnpmOptions = pnpmPublishCall?.[2];
     expect(pnpmOptions?.cwd).toBe(pkgDir); // pnpm now uses package directory
 
     vi.clearAllMocks();
@@ -148,9 +148,9 @@ describe('npm-publish stage', () => {
     const npmCtx = createContext(dir, { packageManager: 'npm' });
     await runNpmPublishStage(npmCtx);
 
-    expect(execCommand).toHaveBeenCalledTimes(1);
-    const npmCall = vi.mocked(execCommand).mock.calls[0];
-    const npmOptions = npmCall?.[2];
+    expect(execCommand).toHaveBeenCalledTimes(2); // version check + publish
+    const npmPublishCall = vi.mocked(execCommand).mock.calls[1]; // publish is second
+    const npmOptions = npmPublishCall?.[2];
     expect(npmOptions?.cwd).toBe(pkgDir); // npm uses package directory
   });
 
@@ -188,8 +188,9 @@ describe('npm-publish stage', () => {
 
     await runNpmPublishStage(ctx);
 
-    const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
-    expect(args).toEqual(expect.arrayContaining(['--tag', 'next']));
+    expect(execCommand).toHaveBeenCalledTimes(2); // version check + publish
+    const publishArgs = vi.mocked(execCommand).mock.calls[1]?.[1] as string[]; // publish is second
+    expect(publishArgs).toEqual(expect.arrayContaining(['--tag', 'next']));
   });
 
   it('should add --provenance when OIDC auth', async () => {
@@ -206,10 +207,11 @@ describe('npm-publish stage', () => {
     const ctx = createContext(dir);
     await runNpmPublishStage(ctx);
 
-    const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
-    expect(args).toContain('--provenance');
+    expect(execCommand).toHaveBeenCalledTimes(2); // version check + publish
+    const publishArgs = vi.mocked(execCommand).mock.calls[1]?.[1] as string[]; // publish is second
+    expect(publishArgs).toContain('--provenance');
 
-    const options = vi.mocked(execCommand).mock.calls[0]?.[2];
+    const options = vi.mocked(execCommand).mock.calls[1]?.[2]; // publish options
     expect(options?.env?.NPM_CONFIG_USERCONFIG).toBeTruthy();
     expect(options?.env?.NODE_AUTH_TOKEN).toBeUndefined();
   });
@@ -227,8 +229,9 @@ describe('npm-publish stage', () => {
     const ctx = createContext(dir);
     await runNpmPublishStage(ctx);
 
-    const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
-    expect(args).not.toContain('--provenance');
+    expect(execCommand).toHaveBeenCalledTimes(2); // version check + publish
+    const publishArgs = vi.mocked(execCommand).mock.calls[1]?.[1] as string[]; // publish is second
+    expect(publishArgs).not.toContain('--provenance');
   });
 
   it('should throw on publish failure (fail-fast)', async () => {

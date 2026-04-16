@@ -21,12 +21,14 @@ export async function runNpmPublishStage(ctx: PipelineContext): Promise<void> {
 
   // Detect auth method
   const authMethod = config.npm.auth === 'auto' ? detectNpmAuth() : config.npm.auth;
+  debug(`NPM auth method: ${authMethod}`);
 
   if (!authMethod && !dryRun) {
     throw createPublishError(PublishErrorCode.NPM_AUTH_ERROR, 'No NPM authentication method detected');
   }
 
   const useProvenance = config.npm.provenance && authMethod === 'oidc';
+  debug(`Using provenance: ${useProvenance}`);
   const npmIsolation = createNpmSubprocessIsolation({
     authMethod,
     registryUrl: config.npm.registry,
@@ -44,9 +46,14 @@ export async function runNpmPublishStage(ctx: PipelineContext): Promise<void> {
 
       // Check if package is private
       const pkgJsonPath = path.resolve(cwd, update.filePath);
+      let pkgJson: any = {};
       try {
         const pkgContent = fs.readFileSync(pkgJsonPath, 'utf-8');
-        const pkgJson = JSON.parse(pkgContent);
+        pkgJson = JSON.parse(pkgContent);
+        debug(`Package.json files field: ${JSON.stringify(pkgJson.files)}`);
+        debug(`Package.json version: ${pkgJson.version}`);
+        debug(`Package.json name: ${pkgJson.name}`);
+
         if (pkgJson.private) {
           result.skipped = true;
           result.success = true;
@@ -55,7 +62,8 @@ export async function runNpmPublishStage(ctx: PipelineContext): Promise<void> {
           debug(`Skipping private package: ${update.packageName}`);
           continue;
         }
-      } catch {
+      } catch (error) {
+        debug(`Failed to read package.json: ${error}`);
         // If we can't read package.json, it might be a Cargo.toml package
         if (update.filePath.endsWith('Cargo.toml')) {
           result.skipped = true;
@@ -98,19 +106,48 @@ export async function runNpmPublishStage(ctx: PipelineContext): Promise<void> {
         noGitChecks: true,
       });
 
+      debug(`Publish command: ${pubFile} ${pubArgs.join(' ')}`);
+      debug(`Working directory: ${pkgDir}`);
+
       try {
-        await execCommand(pubFile, pubArgs, {
+        // Debug: Check if dist directory exists before publishing
+        const distExists = fs.existsSync(path.join(pkgDir, 'dist'));
+        debug(`Publishing ${update.packageName}@${update.newVersion} from ${pkgDir}`);
+        debug(`Dist directory exists: ${distExists}`);
+        if (distExists) {
+          const distContents = fs.readdirSync(path.join(pkgDir, 'dist'));
+          debug(`Dist directory contents: ${distContents.join(', ')}`);
+        }
+
+        // Check package manager version
+        try {
+          const versionResult = await execCommand(ctx.packageManager, ['--version'], {
+            cwd,
+            dryRun: false,
+          });
+          debug(`Package manager version (${ctx.packageManager}): ${versionResult.stdout.trim()}`);
+        } catch (error) {
+          debug(`Failed to get package manager version: ${error}`);
+        }
+
+        const publishResult = await execCommand(pubFile, pubArgs, {
           cwd: pkgDir, // Always publish from the package directory for reliability
           dryRun,
           label: `npm publish ${update.packageName}@${update.newVersion}`,
           env: npmIsolation.env,
         });
+
+        debug(`Publish command completed successfully`);
+        if (publishResult.stdout) debug(`Publish stdout: ${publishResult.stdout}`);
+        if (publishResult.stderr) debug(`Publish stderr: ${publishResult.stderr}`);
+
         result.success = true;
         if (!dryRun) {
           success(`Published ${update.packageName}@${update.newVersion} to npm`);
         }
         ctx.output.npm.push(result);
       } catch (error) {
+        debug(`Publish command failed: ${error}`);
         result.reason = error instanceof Error ? error.message : String(error);
         ctx.output.npm.push(result);
         throw createPublishError(
