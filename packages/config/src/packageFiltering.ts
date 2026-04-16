@@ -12,8 +12,14 @@ import { minimatch } from 'minimatch';
  */
 export function filterPackagesByConfig(packages: Package[], configTargets: string[], workspaceRoot: string): Package[] {
   if (configTargets.length === 0) {
-    log('No config targets specified, returning all packages', 'debug');
-    return packages;
+    log('No config targets specified, returning all non-private packages', 'debug');
+    return packages.filter((pkg) => {
+      if (pkg.packageJson.private) {
+        log(`Package "${pkg.packageJson.name || pkg.dir}" is private and will be excluded from release`, 'warn');
+        return false;
+      }
+      return true;
+    });
   }
 
   const matchedPackages = new Set<Package>();
