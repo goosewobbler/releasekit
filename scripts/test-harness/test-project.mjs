@@ -100,11 +100,10 @@ function createMonorepoStructure(projectDir) {
   }
 
   const releasekitConfig = {
-    packages: [
-      { name: '@test/pkg-a', directory: 'packages/pkg-a' },
-      { name: '@test/pkg-b', directory: 'packages/pkg-b' },
-      { name: '@test/pkg-c', directory: 'packages/pkg-c' },
-    ],
+    version: {
+      preset: 'angular',
+      packages: ['packages/*'],
+    },
   };
 
   fs.writeFileSync(path.join(projectDir, 'releasekit.config.json'), JSON.stringify(releasekitConfig, null, 2));

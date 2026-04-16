@@ -38,8 +38,7 @@ create_package_json() {
   cat > package.json <<EOF
 {
   "name": "$name",
-  "version": "$version",
-  "private": true
+  "version": "$version"
 }
 EOF
 }

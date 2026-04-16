@@ -53,8 +53,8 @@ export async function calculateVersion(config: Config, options: VersionOptions):
 
   const initialVersion = '0.1.0'; // Default initial version
 
-  const hasNoTags = !latestTag || latestTag.trim() === '';
-  log(`Resolved type: ${type}, hasNoTags: ${hasNoTags}`, 'debug');
+  const hasNoTags = options.hasRealTag === false || !latestTag || latestTag.trim() === '';
+  log(`Resolved type: ${type}, hasNoTags: ${hasNoTags}, hasRealTag: ${options.hasRealTag}`, 'debug');
 
   // Normalize prereleaseIdentifier (handles boolean true -> 'next', etc.)
   const normalizedPrereleaseId = normalizePrereleaseIdentifier(prereleaseIdentifier, config);

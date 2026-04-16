@@ -104,7 +104,7 @@ describe('runPreview', () => {
 
   describe('basic functionality', () => {
     it('should run release dry-run and post comment', async () => {
-      await runPreview({ projectDir: '/test', dryRun: false });
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
       expect(mockRunRelease).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -121,7 +121,7 @@ describe('runPreview', () => {
     it('should skip when CI config disables preview', async () => {
       mockLoadCIConfig.mockReturnValue({ prPreview: false });
 
-      await runPreview({ projectDir: '/test', dryRun: false });
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
       expect(mockRunRelease).not.toHaveBeenCalled();
       expect(mockPostOrUpdateComment).not.toHaveBeenCalled();
@@ -130,7 +130,7 @@ describe('runPreview', () => {
     it('should run when CI config enables preview', async () => {
       mockLoadCIConfig.mockReturnValue({ prPreview: true, releaseTrigger: 'commit' });
 
-      await runPreview({ projectDir: '/test', dryRun: false });
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
       expect(mockRunRelease).toHaveBeenCalled();
     });
@@ -138,7 +138,7 @@ describe('runPreview', () => {
     it('should print to stdout in dry-run mode instead of posting', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-      await runPreview({ projectDir: '/test', dryRun: true });
+      await runPreview({ projectDir: '/test', dryRun: true, target: '@test/package' });
 
       expect(consoleSpy).toHaveBeenCalled();
       const output = consoleSpy.mock.calls[0]?.[0] as string;
@@ -151,7 +151,7 @@ describe('runPreview', () => {
     it('should handle no releasable changes gracefully', async () => {
       mockRunRelease.mockResolvedValue(null);
 
-      await runPreview({ projectDir: '/test', dryRun: false });
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
       expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
         expect.anything(),
@@ -175,13 +175,13 @@ describe('runPreview', () => {
 
   describe('options', () => {
     it('should pass config and projectDir options through', async () => {
-      await runPreview({ projectDir: '/test', config: '/custom/config.json', dryRun: false });
+      await runPreview({ projectDir: '/test', config: '/custom/config.json', dryRun: false, target: '@test/package' });
 
       expect(mockLoadCIConfig).toHaveBeenCalledWith({ cwd: '/test', configPath: '/custom/config.json' });
     });
 
     it('should pass pr and repo flags to context resolution', async () => {
-      await runPreview({ projectDir: '/test', dryRun: false, pr: '42', repo: 'org/lib' });
+      await runPreview({ projectDir: '/test', dryRun: false, pr: '42', repo: 'org/lib', target: '@test/package' });
 
       expect(mockResolvePreviewContext).toHaveBeenCalledWith({ pr: '42', repo: 'org/lib' });
     });
@@ -189,7 +189,7 @@ describe('runPreview', () => {
     it('should auto-detect prerelease and pass to runRelease', async () => {
       mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'next' });
 
-      await runPreview({ projectDir: '/test', dryRun: false });
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
       expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: 'next' }));
     });
@@ -197,7 +197,7 @@ describe('runPreview', () => {
     it('should not set prerelease when versions are stable', async () => {
       mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
 
-      await runPreview({ projectDir: '/test', dryRun: false });
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
       expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: undefined }));
     });
@@ -208,7 +208,7 @@ describe('runPreview', () => {
       it('should override auto-detection', async () => {
         mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'next' });
 
-        await runPreview({ projectDir: '/test', dryRun: false, stable: true });
+        await runPreview({ projectDir: '/test', dryRun: false, stable: true, target: '@test/package' });
 
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: undefined }));
       });
@@ -217,7 +217,7 @@ describe('runPreview', () => {
         mockFetchPRLabels.mockResolvedValue(['release:prerelease']);
         mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
 
-        await runPreview({ projectDir: '/test', dryRun: false, stable: true });
+        await runPreview({ projectDir: '/test', dryRun: false, stable: true, target: '@test/package' });
 
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: undefined }));
       });
@@ -227,7 +227,7 @@ describe('runPreview', () => {
       it('should override auto-detection', async () => {
         mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
 
-        await runPreview({ projectDir: '/test', dryRun: false, prerelease: 'beta' });
+        await runPreview({ projectDir: '/test', dryRun: false, prerelease: 'beta', target: '@test/package' });
 
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: 'beta' }));
       });
@@ -235,7 +235,7 @@ describe('runPreview', () => {
       it('should take priority over stable PR label', async () => {
         mockFetchPRLabels.mockResolvedValue(['release:stable']);
 
-        await runPreview({ projectDir: '/test', dryRun: false, prerelease: 'beta' });
+        await runPreview({ projectDir: '/test', dryRun: false, prerelease: 'beta', target: '@test/package' });
 
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ prerelease: 'beta' }));
       });
@@ -243,7 +243,7 @@ describe('runPreview', () => {
 
     describe('--bump', () => {
       it('should be passed through to runRelease', async () => {
-        await runPreview({ projectDir: '/test', dryRun: false, bump: 'patch' });
+        await runPreview({ projectDir: '/test', dryRun: false, bump: 'patch', target: '@test/package' });
 
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'patch' }));
       });
@@ -283,7 +283,7 @@ describe('runPreview', () => {
       it('should force major bump when bump:major label is present', async () => {
         mockFetchPRLabels.mockResolvedValue(['bump:major']);
 
-        await runPreview({ projectDir: '/test', dryRun: false });
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major' }));
         expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
@@ -299,7 +299,7 @@ describe('runPreview', () => {
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
         mockFetchPRLabels.mockResolvedValue(['bump:major', 'bump:minor', 'bump:patch']);
 
-        await runPreview({ projectDir: '/test', dryRun: false });
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major' }));
         expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
@@ -315,7 +315,7 @@ describe('runPreview', () => {
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
         mockFetchPRLabels.mockResolvedValue(['release:skip']);
 
-        await runPreview({ projectDir: '/test', dryRun: false });
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         expect(mockRunRelease).not.toHaveBeenCalled();
         expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
@@ -331,7 +331,7 @@ describe('runPreview', () => {
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'commit' });
         mockFetchPRLabels.mockResolvedValue(['release:skip', 'bump:major']);
 
-        await runPreview({ projectDir: '/test', dryRun: false });
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         expect(mockRunRelease).not.toHaveBeenCalled();
         expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
@@ -347,7 +347,7 @@ describe('runPreview', () => {
         mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
         mockFetchPRLabels.mockResolvedValue(['bump:major', 'release:prerelease']);
 
-        await runPreview({ projectDir: '/test', dryRun: false });
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major', prerelease: true }));
       });
@@ -358,7 +358,7 @@ describe('runPreview', () => {
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
         mockFetchPRLabels.mockResolvedValue([]);
 
-        await runPreview({ projectDir: '/test', dryRun: false });
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         expect(mockRunRelease).not.toHaveBeenCalled();
         expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
@@ -374,7 +374,7 @@ describe('runPreview', () => {
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
         mockFetchPRLabels.mockResolvedValue(['bump:patch']);
 
-        await runPreview({ projectDir: '/test', dryRun: false });
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'patch' }));
       });
@@ -383,7 +383,7 @@ describe('runPreview', () => {
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
         mockFetchPRLabels.mockResolvedValue(['bump:minor']);
 
-        await runPreview({ projectDir: '/test', dryRun: false });
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor' }));
       });
@@ -392,7 +392,7 @@ describe('runPreview', () => {
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
         mockFetchPRLabels.mockResolvedValue(['bump:major']);
 
-        await runPreview({ projectDir: '/test', dryRun: false });
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major' }));
       });
@@ -402,7 +402,7 @@ describe('runPreview', () => {
         mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
         mockFetchPRLabels.mockResolvedValue(['bump:minor', 'release:prerelease']);
 
-        await runPreview({ projectDir: '/test', dryRun: false });
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor', prerelease: true }));
       });
@@ -411,7 +411,7 @@ describe('runPreview', () => {
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
         mockFetchPRLabels.mockResolvedValue(['release:skip', 'bump:minor']);
 
-        await runPreview({ projectDir: '/test', dryRun: false });
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor' }));
       });
@@ -446,7 +446,7 @@ describe('runPreview', () => {
         });
         mockFetchPRLabels.mockResolvedValue(['bump:minor']);
 
-        await runPreview({ projectDir: '/test', dryRun: false });
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor' }));
       });
@@ -459,7 +459,7 @@ describe('runPreview', () => {
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
         mockFetchPRLabels.mockResolvedValue(['bump:patch', 'bump:major']);
 
-        await runPreview({ projectDir: '/test', dryRun: false });
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         expect(mockRunRelease).not.toHaveBeenCalled();
         expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
@@ -475,7 +475,7 @@ describe('runPreview', () => {
         mockFetchPRLabels.mockResolvedValue(['bump:major', 'bump:minor', 'bump:patch']);
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
 
-        await runPreview({ projectDir: '/test', dryRun: false });
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         expect(mockRunRelease).not.toHaveBeenCalled();
         expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
@@ -493,7 +493,7 @@ describe('runPreview', () => {
         mockFetchPRLabels.mockResolvedValue(['release:stable', 'release:prerelease', 'bump:minor']);
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
 
-        await runPreview({ projectDir: '/test', dryRun: false });
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         expect(mockRunRelease).not.toHaveBeenCalled();
         expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
@@ -513,7 +513,7 @@ describe('runPreview', () => {
         mockFetchPRLabels.mockResolvedValue(['release:prerelease']);
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
 
-        await runPreview({ projectDir: '/test', dryRun: false });
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         expect(mockRunRelease).not.toHaveBeenCalled();
         expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
@@ -529,7 +529,7 @@ describe('runPreview', () => {
         mockFetchPRLabels.mockResolvedValue(['release:prerelease', 'bump:minor']);
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
 
-        await runPreview({ projectDir: '/test', dryRun: false });
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor', prerelease: true }));
       });
@@ -541,7 +541,7 @@ describe('runPreview', () => {
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
         mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'beta' });
 
-        await runPreview({ projectDir: '/test', dryRun: false });
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         const callArgs = mockRunRelease.mock.calls[0][0];
         expect(callArgs.bump).toBe('minor');
@@ -553,7 +553,7 @@ describe('runPreview', () => {
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
         mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'beta' });
 
-        await runPreview({ projectDir: '/test', dryRun: false });
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         expect(mockRunRelease).toHaveBeenCalled();
         const callArgs = mockRunRelease.mock.calls[0][0];
@@ -574,7 +574,7 @@ describe('runPreview', () => {
       });
       mockFetchPRLabels.mockResolvedValue(['scope:shared']);
 
-      await runPreview({ projectDir: '/test', dryRun: false });
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
       expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*' }));
       expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
@@ -595,7 +595,7 @@ describe('runPreview', () => {
       });
       mockFetchPRLabels.mockResolvedValue(['scope:shared']);
 
-      await runPreview({ projectDir: '/test', dryRun: false });
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
       expect(mockRunRelease).toHaveBeenCalled();
       expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*' }));
@@ -611,7 +611,7 @@ describe('runPreview', () => {
       });
       mockFetchPRLabels.mockResolvedValue(['scope:shared', 'scope:tauri']);
 
-      await runPreview({ projectDir: '/test', dryRun: false });
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
       expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*, @wdio/tauri-*' }));
     });
@@ -625,7 +625,7 @@ describe('runPreview', () => {
       });
       mockFetchPRLabels.mockResolvedValue(['scope:shared', 'bump:minor']);
 
-      await runPreview({ projectDir: '/test', dryRun: false });
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
       expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*', bump: 'minor' }));
     });
@@ -639,7 +639,7 @@ describe('runPreview', () => {
       });
       mockFetchPRLabels.mockResolvedValue(['scope:shared']);
 
-      await runPreview({ projectDir: '/test', dryRun: false });
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
       expect(mockRunRelease).toHaveBeenCalled();
       expect(mockRunRelease).toHaveBeenCalledWith(
@@ -656,7 +656,7 @@ describe('runPreview', () => {
       });
       mockFetchPRLabels.mockResolvedValue(['scope:shared']);
 
-      await runPreview({ projectDir: '/test', dryRun: false });
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
       expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
         expect.anything(),
@@ -676,12 +676,12 @@ describe('runPreview', () => {
       });
       mockFetchPRLabels.mockResolvedValue(['shared-pkg']);
 
-      await runPreview({ projectDir: '/test', dryRun: false });
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
       expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*' }));
     });
 
-    it('should run all packages when no scope label present', async () => {
+    it('should use target when no scope label present', async () => {
       mockLoadCIConfig.mockReturnValue({
         releaseTrigger: 'commit',
         scopeLabels: {
@@ -690,11 +690,23 @@ describe('runPreview', () => {
       });
       mockFetchPRLabels.mockResolvedValue(['bug']);
 
-      await runPreview({ projectDir: '/test', dryRun: false });
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
       expect(mockRunRelease).toHaveBeenCalled();
       const callArgs = mockRunRelease.mock.calls[0][0];
-      expect(callArgs.target).toBeUndefined();
+      expect(callArgs.target).toBe('@test/package');
+    });
+
+    it('should throw when no scope label matched and no target provided', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'commit',
+        scopeLabels: {
+          'scope:shared': '@wdio/native-*',
+        },
+      });
+      mockFetchPRLabels.mockResolvedValue(['bug']);
+
+      await expect(runPreview({ projectDir: '/test', dryRun: false })).rejects.toThrow('No scope specified');
     });
   });
 
@@ -712,7 +724,7 @@ describe('runPreview', () => {
       mockFetchPRLabels.mockRejectedValue(new Error('API rate limit'));
       mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
 
-      await runPreview({ projectDir: '/test', dryRun: false });
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
       expect(mockRunRelease).toHaveBeenCalled();
       expect(mockPostOrUpdateComment).toHaveBeenCalled();

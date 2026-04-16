@@ -94,6 +94,7 @@ export interface TagProps {
 
 export interface VersionOptions extends VersionConfigBase {
   latestTag: string;
+  hasRealTag?: boolean;
 }
 
 export interface GitProcess {
