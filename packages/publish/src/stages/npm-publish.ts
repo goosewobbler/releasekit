@@ -98,7 +98,19 @@ export async function runNpmPublishStage(ctx: PipelineContext): Promise<void> {
         noGitChecks: true,
       });
 
+      debug(`Publish command: ${pubFile} ${pubArgs.join(' ')}`);
+      debug(`Working directory: ${pkgDir}`);
+
       try {
+        // Debug: Check if dist directory exists before publishing
+        const distExists = fs.existsSync(path.join(pkgDir, 'dist'));
+        debug(`Publishing ${update.packageName}@${update.newVersion} from ${pkgDir}`);
+        debug(`Dist directory exists: ${distExists}`);
+        if (distExists) {
+          const distContents = fs.readdirSync(path.join(pkgDir, 'dist'));
+          debug(`Dist directory contents: ${distContents.join(', ')}`);
+        }
+
         await execCommand(pubFile, pubArgs, {
           cwd: pkgDir, // Always publish from the package directory for reliability
           dryRun,
