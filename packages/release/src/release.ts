@@ -106,8 +106,11 @@ async function applyScopeLabelsFromPR(
 
   if (prNumbers.length === 0) {
     if (!options.target) {
+      const scopeLabelsConfigured = Object.keys(scopeLabels).length > 0;
       throw new Error(
-        'No scope specified. Use --target flag to specify packages, or include a scope label in a merged PR.',
+        scopeLabelsConfigured
+          ? 'No scope specified. Use --target flag to specify packages, or include a scope label in a merged PR.'
+          : 'No scope specified. Use --target flag to specify which packages to release.',
       );
     }
     info(`No merged PRs found — using target from --target flag: ${options.target}`);
@@ -126,8 +129,11 @@ async function applyScopeLabelsFromPR(
   if (matchedScopePatterns.length > 0) {
     finalTarget = matchedScopePatterns.join(', ');
   } else if (!options.target) {
+    const scopeLabelsConfigured = Object.keys(scopeLabels).length > 0;
     throw new Error(
-      'No scope specified. Use --target flag to specify packages, or include a scope label in a merged PR.',
+      scopeLabelsConfigured
+        ? 'No scope specified. Use --target flag to specify packages, or include a scope label in a merged PR.'
+        : 'No scope specified. Use --target flag to specify which packages to release.',
     );
   }
 

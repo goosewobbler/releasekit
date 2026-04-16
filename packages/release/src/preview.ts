@@ -215,8 +215,11 @@ async function applyLabelOverrides(
   if (matchedScopePatterns.length > 0) {
     result.target = matchedScopePatterns.join(', ');
   } else if (!options.target) {
+    const scopeLabelsConfigured = scopeLabels && Object.keys(scopeLabels).length > 0;
     throw new Error(
-      'No scope specified. Use --target flag to specify packages, or include a scope label in a merged PR.',
+      scopeLabelsConfigured
+        ? 'No scope specified. Use --target flag to specify packages, or include a scope label in a merged PR.'
+        : 'No scope specified. Use --target flag to specify which packages to release.',
     );
   }
 
