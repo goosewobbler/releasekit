@@ -11,20 +11,20 @@ export function detectPackageManager(cwd: string): PackageManager {
 
 export function buildPublishCommand(
   pm: PackageManager,
-  packageName: string,
+  _packageName: string,
   _packageDir: string,
   options: { access: string; tag: string; provenance: boolean; noGitChecks: boolean },
 ): { file: string; args: string[] } {
-  const args: string[] = ['publish'];
-
   let file: string;
+  let args: string[];
+
   if (pm === 'pnpm') {
     file = 'pnpm';
-    args.push('--filter', packageName, '--access', options.access, '--tag', options.tag);
+    args = ['publish', '--access', options.access, '--tag', options.tag];
     if (options.noGitChecks) args.push('--no-git-checks');
   } else {
     file = 'npm';
-    args.push('--access', options.access, '--tag', options.tag);
+    args = ['publish', '--access', options.access, '--tag', options.tag];
   }
 
   if (options.provenance) {
