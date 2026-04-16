@@ -818,7 +818,6 @@ describe('runRelease', () => {
           'scope:electron': '@wdio/electron-*',
           'scope:shared': '@wdio/native-*',
         },
-        defaultScope: 'scope:shared',
       });
       mockFindMergedPRsForCommit.mockResolvedValue([123]);
       mockFetchPRLabels.mockResolvedValue(['scope:electron']);
