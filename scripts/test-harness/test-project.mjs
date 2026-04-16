@@ -100,9 +100,9 @@ function createMonorepoStructure(projectDir) {
   }
 
   const releasekitConfig = {
-    packages: ['packages/*'],
     version: {
       preset: 'angular',
+      packages: ['packages/*'],
     },
   };
 
