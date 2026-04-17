@@ -91,6 +91,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.16.1] - 2026-04-17
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.16.0...releasekit-notes-v0.16.1)
+
+### Added
+- **publish**: add support for publishing with uncommitted changes (#146)
+
 ## [0.16.0] - 2026-04-17
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.15.3...releasekit-notes-v0.16.0)
