@@ -1,39 +1,39 @@
 
 
-## `@releasekit/notes` @ 0.15.2
+## `@releasekit/notes` @ 0.15.3
 
 ### General:
-- **action**: add support for fetching and syncing remote changes with optional skip-checkout (#143)
+- **action**: disable Git hooks during sync process (#144)
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.15.1...releasekit-notes-v0.15.2
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.15.2...releasekit-notes-v0.15.3
 
 ---
 
 
-## `@releasekit/publish` @ 0.15.2
+## `@releasekit/publish` @ 0.15.3
 
 ### General:
-- **action**: add support for fetching and syncing remote changes with optional skip-checkout (#143)
+- **action**: disable Git hooks during sync process (#144)
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.15.1...releasekit-notes-v0.15.2
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.15.2...releasekit-notes-v0.15.3
 
 ---
 
 
-## `@releasekit/release` @ 0.15.2
+## `@releasekit/release` @ 0.15.3
 
 ### General:
-- **action**: add support for fetching and syncing remote changes with optional skip-checkout (#143)
+- **action**: disable Git hooks during sync process (#144)
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.15.1...releasekit-notes-v0.15.2
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.15.2...releasekit-notes-v0.15.3
 
 ---
 
 
-## `@releasekit/version` @ 0.15.2
+## `@releasekit/version` @ 0.15.3
 
 ### General:
-- **action**: add support for fetching and syncing remote changes with optional skip-checkout (#143)
+- **action**: disable Git hooks during sync process (#144)
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.15.1...releasekit-notes-v0.15.2
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.15.2...releasekit-notes-v0.15.3
 

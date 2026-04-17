@@ -89,6 +89,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.15.3] - 2026-04-17
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.15.2...releasekit-notes-v0.15.3)
+
+### Fixed
+- **action**: disable Git hooks during sync process (#144)
+
 ## [0.15.2] - 2026-04-17
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.15.1...releasekit-notes-v0.15.2)
