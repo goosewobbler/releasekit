@@ -90,6 +90,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.16.0] - 2026-04-17
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.15.3...releasekit-notes-v0.16.0)
+
+### Added
+- update bump option to include 'prerelease' type (#145)
+
 ## [0.15.3] - 2026-04-17
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.15.2...releasekit-notes-v0.15.3)
