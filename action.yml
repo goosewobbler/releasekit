@@ -201,10 +201,10 @@ runs:
         git fetch origin
         if [ -n "$(git status --porcelain)" ]; then
           git stash push -u -m "temp stash for releasekit"
-          git rebase "origin/$CURRENT_BRANCH" || { git rebase --abort 2>/dev/null || true; git reset --hard "origin/$CURRENT_BRANCH"; }
+          git rebase "origin/$CURRENT_BRANCH" || { git rebase --abort 2>/dev/null || true; echo "Warning: rebase failed; falling back to git reset --hard. Local commits ahead of origin will be discarded."; git reset --hard "origin/$CURRENT_BRANCH"; }
           git stash pop
         else
-          git rebase "origin/$CURRENT_BRANCH" || { git rebase --abort 2>/dev/null || true; git reset --hard "origin/$CURRENT_BRANCH"; }
+          git rebase "origin/$CURRENT_BRANCH" || { git rebase --abort 2>/dev/null || true; echo "Warning: rebase failed; falling back to git reset --hard. Local commits ahead of origin will be discarded."; git reset --hard "origin/$CURRENT_BRANCH"; }
         fi
       shell: bash
       working-directory: ${{ inputs.project-dir || '.' }}
