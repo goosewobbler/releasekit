@@ -7,6 +7,16 @@ import { hasCargoAuth } from '../utils/auth.js';
 import { extractPathDeps, parseCargoToml } from '../utils/cargo.js';
 import { execCommand, execCommandSafe } from '../utils/exec.js';
 
+// Check if git working directory has uncommitted changes
+async function isGitWorkingDirDirty(cwd: string): Promise<boolean> {
+  try {
+    const result = await execCommandSafe('git', ['status', '--porcelain'], { cwd, dryRun: false });
+    return result.exitCode === 0 && result.stdout.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+
 /** Error strategy: FAIL-FAST. First publish failure aborts the stage. */
 export async function runCargoPublishStage(ctx: PipelineContext): Promise<void> {
   const { input, config, cliOptions, cwd } = ctx;
@@ -34,6 +44,9 @@ export async function runCargoPublishStage(ctx: PipelineContext): Promise<void> 
 
   // Determine publish order
   const ordered = orderCrates(crates, config.cargo.publishOrder);
+
+  // Check if working directory is dirty (repository-level property, not crate-specific)
+  const isDirty = await isGitWorkingDirDirty(cwd);
 
   for (const crate of ordered) {
     const result: PublishResult = {
@@ -65,6 +78,9 @@ export async function runCargoPublishStage(ctx: PipelineContext): Promise<void> 
     const publishArgs = ['publish', '--manifest-path', crate.manifestPath];
     if (config.cargo.noVerify) {
       publishArgs.push('--no-verify');
+    }
+    if (isDirty) {
+      publishArgs.push('--allow-dirty');
     }
 
     try {
