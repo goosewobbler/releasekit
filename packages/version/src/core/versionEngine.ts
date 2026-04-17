@@ -109,7 +109,7 @@ export class VersionEngine {
         // Parse Cargo.toml
         const cargoData = parseCargoToml(fullCargoPath);
 
-        if (cargoData.package?.name && cargoData.package?.version) {
+        if (cargoData.package?.name && typeof cargoData.package?.version === 'string') {
           // Check if this is a valid workspace package (not in target/ or other build dirs)
           const relativePath = path.relative(workspaceRoot, packageDir);
           const pathParts = relativePath.split(path.sep);
