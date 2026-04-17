@@ -153,6 +153,54 @@ describe('cargo-publish stage', () => {
     expect(publishCalls[0]?.[1]).toContain('--no-verify');
   });
 
+  it('should pass --allow-dirty when git working directory is dirty', async () => {
+    const { execCommand, execCommandSafe } = await import('../../../src/utils/exec.js');
+    const dir = createTmpDir();
+    const crateDir = path.join(dir, 'crates', 'my-crate');
+    fs.mkdirSync(crateDir, { recursive: true });
+    fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "my-crate"\nversion = "0.5.0"\n');
+
+    // Mock git status to return dirty working directory
+    vi.mocked(execCommandSafe).mockImplementation(async (cmd, args) => {
+      if (cmd === 'git' && args?.[0] === 'status' && args?.[1] === '--porcelain') {
+        return { stdout: 'M some-file.txt', stderr: '', exitCode: 0 };
+      }
+      return { stdout: '', stderr: '', exitCode: 1 }; // not published
+    });
+
+    const ctx = createContext(dir);
+    await runCargoPublishStage(ctx);
+
+    const publishCalls = vi
+      .mocked(execCommand)
+      .mock.calls.filter((c) => c[0] === 'cargo' && (c[1] as string[])[0] === 'publish');
+    expect(publishCalls[0]?.[1]).toContain('--allow-dirty');
+  });
+
+  it('should not pass --allow-dirty when git working directory is clean', async () => {
+    const { execCommand, execCommandSafe } = await import('../../../src/utils/exec.js');
+    const dir = createTmpDir();
+    const crateDir = path.join(dir, 'crates', 'my-crate');
+    fs.mkdirSync(crateDir, { recursive: true });
+    fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "my-crate"\nversion = "0.5.0"\n');
+
+    // Mock git status to return clean working directory
+    vi.mocked(execCommandSafe).mockImplementation(async (cmd, args) => {
+      if (cmd === 'git' && args?.[0] === 'status' && args?.[1] === '--porcelain') {
+        return { stdout: '', stderr: '', exitCode: 0 };
+      }
+      return { stdout: '', stderr: '', exitCode: 1 }; // not published
+    });
+
+    const ctx = createContext(dir);
+    await runCargoPublishStage(ctx);
+
+    const publishCalls = vi
+      .mocked(execCommand)
+      .mock.calls.filter((c) => c[0] === 'cargo' && (c[1] as string[])[0] === 'publish');
+    expect(publishCalls[0]?.[1]).not.toContain('--allow-dirty');
+  });
+
   it('should skip packages without Cargo.toml', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const dir = createTmpDir();
