@@ -92,20 +92,23 @@ export function buildGateArgs(input) {
   return args;
 }
 
-export function writeGateOutputs(stdout) {
-  const parsed = parseReleaseOutput(stdout);
+export function writeGateOutputs(stdout, verbose = false) {
+  const parsed = parseReleaseOutput(stdout, verbose);
   setOutput('should-release', parsed?.shouldRelease ? 'true' : 'false');
   setOutput('bump', parsed?.bump ?? '');
   setOutput('gate-scope', parsed?.scope ?? '');
   setOutput('gate-target', parsed?.target ?? '');
 }
 
-export function parseReleaseOutput(stdout) {
+export function parseReleaseOutput(stdout, verbose = false) {
   const trimmed = stdout.trim();
   if (!trimmed) return undefined;
   try {
     return JSON.parse(trimmed);
-  } catch {
+  } catch (err) {
+    if (verbose) {
+      console.error(`[run-action] Failed to parse JSON output: ${err.message}`);
+    }
     return undefined;
   }
 }
@@ -117,7 +120,11 @@ function setOutput(name, value) {
   const text = value === undefined ? '' : String(value);
   const delimiter = `releasekit_${randomBytes(8).toString('hex')}`;
   const block = `${name}<<${delimiter}\n${text}\n${delimiter}\n`;
-  fs.appendFileSync(outputPath, block);
+  try {
+    fs.appendFileSync(outputPath, block);
+  } catch (err) {
+    console.error(`[run-action] Failed to write output '${name}': ${err.message}`);
+  }
 }
 
 function setFailure(errorMessage) {
@@ -127,7 +134,7 @@ function setFailure(errorMessage) {
 }
 
 export function parseInputs(env = process.env) {
-  return {
+  const input = {
     mode: normalizeString(env.INPUT_MODE) ?? 'preview',
     config: normalizeString(env.INPUT_CONFIG),
     projectDir: normalizeString(env.INPUT_PROJECT_DIR) ?? '.',
@@ -158,6 +165,13 @@ export function parseInputs(env = process.env) {
     previewDryRun: env.INPUT_PREVIEW_DRY_RUN,
     previewTarget: normalizeString(env.INPUT_PREVIEW_TARGET),
   };
+
+  const validModes = ['release', 'preview', 'gate'];
+  if (!validModes.includes(input.mode)) {
+    throw new Error(`Invalid mode: ${input.mode}. Must be one of: ${validModes.join(', ')}`);
+  }
+
+  return input;
 }
 
 export function runAction(input, options = {}) {
@@ -185,6 +199,24 @@ export function runAction(input, options = {}) {
     resolvedProjectDir = path.resolve(process.cwd(), projectDir);
   }
 
+  // Validate project directory exists and is a directory
+  try {
+    const stats = fs.statSync(resolvedProjectDir);
+    if (!stats.isDirectory()) {
+      throw new Error(`Project directory is not a directory: ${resolvedProjectDir}`);
+    }
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      throw new Error(`Project directory does not exist: ${resolvedProjectDir}`);
+    }
+    throw err;
+  }
+
+  if (normalizeBoolean(input.verbose)) {
+    console.log(`[run-action] Resolved project directory: ${resolvedProjectDir}`);
+    console.log(`[run-action] CLI path: ${cliPath}`);
+  }
+
   const actionNodeModules = path.join(actionDir, 'node_modules');
   const actionPnpmStore = path.join(actionDir, 'node_modules', '.pnpm');
 
@@ -204,11 +236,19 @@ export function runAction(input, options = {}) {
               try {
                 fs.accessSync(pkgNodeModules);
                 paths.push(pkgNodeModules);
-              } catch {}
+              } catch {
+                if (normalizeBoolean(input.verbose)) {
+                  console.warn(`[run-action] Skipping invalid node_modules path: ${pkgNodeModules}`);
+                }
+              }
             }
           }
         }
-      } catch {}
+      } catch {
+        if (normalizeBoolean(input.verbose)) {
+          console.warn(`[run-action] Skipping invalid node path base: ${base}`);
+        }
+      }
     }
     return paths;
   }
@@ -224,6 +264,10 @@ export function runAction(input, options = {}) {
     })
     .join(':');
 
+  if (normalizeBoolean(input.verbose)) {
+    console.log(`[run-action] NODE_PATH: ${nodePaths}`);
+  }
+
   const spawnEnv = {
     ...process.env,
     NODE_PATH: nodePaths,
@@ -233,11 +277,16 @@ export function runAction(input, options = {}) {
     delete spawnEnv[k];
   }
 
-  const result = spawnSync('node', [cliPath, ...args], {
-    encoding: 'utf-8',
-    env: spawnEnv,
-    cwd: resolvedProjectDir,
-  });
+  let result;
+  try {
+    result = spawnSync('node', [cliPath, ...args], {
+      encoding: 'utf-8',
+      env: spawnEnv,
+      cwd: resolvedProjectDir,
+    });
+  } catch (err) {
+    throw new Error(`Failed to spawn ReleaseKit CLI: ${err.message}`);
+  }
 
   return { mode, args, ...result };
 }
@@ -269,7 +318,11 @@ function writePreviewOutputs(input, stdout) {
 export function writeSummary(markdown) {
   const summaryPath = process.env.GITHUB_STEP_SUMMARY;
   if (!summaryPath) return;
-  fs.appendFileSync(summaryPath, markdown);
+  try {
+    fs.appendFileSync(summaryPath, markdown);
+  } catch (err) {
+    console.error(`[run-action] Failed to write summary: ${err.message}`);
+  }
 }
 
 export function buildReleaseSummary(input, parsed, success) {
@@ -390,15 +443,17 @@ function main() {
   const input = parseInputs();
   const result = runAction(input);
   const success = result.status === 0;
+  const verbose = normalizeBoolean(input.verbose);
+
   // parsed is used for release/preview output; gateParsed is parsed separately for gate output
-  const parsed = normalizeBoolean(input.json) ? parseReleaseOutput(result.stdout ?? '') : undefined;
+  const parsed = normalizeBoolean(input.json) ? parseReleaseOutput(result.stdout ?? '', verbose) : undefined;
 
   // Write summary BEFORE setFailure (which calls process.exit)
   if (normalizeBoolean(input.summary, true)) {
     if (result.mode === 'release') {
       writeSummary(buildReleaseSummary(input, parsed, success));
     } else if (result.mode === 'gate') {
-      const gateParsed = parseReleaseOutput(result.stdout ?? '');
+      const gateParsed = parseReleaseOutput(result.stdout ?? '', verbose);
       writeSummary(buildGateSummary(input, gateParsed, success));
     }
   }
@@ -407,7 +462,7 @@ function main() {
   if (!success) {
     writeCoreOutputs(result.mode, false);
     if (result.mode === 'gate') {
-      writeGateOutputs(result.stdout ?? '');
+      writeGateOutputs(result.stdout ?? '', verbose);
     }
     process.stderr.write(result.stderr ?? '');
     process.stdout.write(result.stdout ?? '');
