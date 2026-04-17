@@ -198,14 +198,16 @@ runs:
           echo "Error: repository is in detached HEAD state; cannot sync remote branch."
           exit 1
         fi
+        git config core.hooksPath /dev/null
         git fetch origin
         if [ -n "$(git status --porcelain)" ]; then
           git stash push -u -m "temp stash for releasekit"
           git rebase "origin/$CURRENT_BRANCH" || { git rebase --abort 2>/dev/null || true; echo "Warning: rebase failed; falling back to git reset --hard. Local commits ahead of origin will be discarded."; git reset --hard "origin/$CURRENT_BRANCH"; }
-          git stash pop
+          git stash pop || { echo "Stash pop failed, resetting to clean working tree. Stashed changes remain available."; git reset --hard; exit 1; }
         else
           git rebase "origin/$CURRENT_BRANCH" || { git rebase --abort 2>/dev/null || true; echo "Warning: rebase failed; falling back to git reset --hard. Local commits ahead of origin will be discarded."; git reset --hard "origin/$CURRENT_BRANCH"; }
         fi
+        git config --unset core.hooksPath || true
       shell: bash
       working-directory: ${{ inputs.project-dir || '.' }}
 
