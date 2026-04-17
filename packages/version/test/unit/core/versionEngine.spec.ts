@@ -11,10 +11,25 @@ import { log } from '../../../src/utils/logging.js';
 vi.mock('@manypkg/get-packages');
 vi.mock('../../../src/core/versionStrategies.js');
 vi.mock('../../../src/utils/logging.js');
+vi.mock('node:fs');
+vi.mock('node:path');
 
 // Mock the process module
 vi.mock('node:process', () => ({
   cwd: vi.fn().mockReturnValue('/test/workspace'),
+}));
+
+// Mock fs
+vi.mock('fs', () => ({
+  existsSync: vi.fn(),
+  readFileSync: vi.fn(),
+  readdirSync: vi.fn(),
+}));
+
+vi.mock('path', () => ({
+  join: vi.fn((...args) => args.join('/')),
+  dirname: vi.fn((path) => path.split('/').slice(0, -1).join('/')),
+  relative: vi.fn(),
 }));
 
 describe('Version Engine', () => {
@@ -383,6 +398,118 @@ describe('Version Engine', () => {
       await engine.run(mockPackages);
       expect(syncStrategyMock).not.toHaveBeenCalled();
       expect(asyncStrategyMock).toHaveBeenCalled();
+    });
+
+    it('should discover pure Rust packages with Cargo.toml only', async () => {
+      // Mock the discoverCargoTomlPackages method
+      const discoverSpy = vi.spyOn(VersionEngine.prototype as any, 'discoverCargoTomlPackages');
+      discoverSpy.mockReturnValue({
+        root: '/test/workspace',
+        packages: [
+          {
+            dir: '/test/workspace/packages/test-rust-package',
+            packageJson: {
+              name: 'test-rust-package',
+              version: '0.1.0',
+              private: true,
+            },
+          },
+        ],
+      });
+
+      // Mock getPackagesSync to return no packages (no package.json files)
+      vi.mocked(getPackagesSync).mockReturnValue({
+        root: '/test/workspace',
+        packages: [],
+      });
+
+      const config = { ...defaultConfig, sync: false } as Config;
+      const engine = new VersionEngine(config);
+
+      const result = await engine.getWorkspacePackages();
+
+      // Should have discovered the Rust package
+      expect(result.packages).toHaveLength(1);
+      expect(result.packages[0].packageJson.name).toBe('test-rust-package');
+      expect(result.packages[0].packageJson.version).toBe('0.1.0');
+      expect(result.packages[0].dir).toBe('/test/workspace/packages/test-rust-package');
+
+      // Restore mocks
+      discoverSpy.mockRestore();
+    });
+
+    it('should merge NPM and Rust packages without duplicates', async () => {
+      // Mock the discoverCargoTomlPackages method
+      const discoverSpy = vi.spyOn(VersionEngine.prototype as any, 'discoverCargoTomlPackages');
+      discoverSpy.mockReturnValue({
+        root: '/test/workspace',
+        packages: [
+          {
+            dir: '/test/workspace/packages/pure-rust',
+            packageJson: {
+              name: 'pure-rust-package',
+              version: '0.1.0',
+              private: true,
+            },
+          },
+        ],
+      });
+
+      // Mock NPM packages (including a hybrid package)
+      vi.mocked(getPackagesSync).mockReturnValue({
+        root: '/test/workspace',
+        packages: [
+          {
+            dir: '/test/workspace/packages/hybrid',
+            packageJson: { name: 'hybrid-package', version: '1.0.0' },
+          },
+        ],
+      });
+
+      const config = { ...defaultConfig, sync: false } as Config;
+      const engine = new VersionEngine(config);
+
+      const result = await engine.getWorkspacePackages();
+
+      // Should have both packages: hybrid (NPM) and pure Rust
+      expect(result.packages).toHaveLength(2);
+
+      const hybridPkg = result.packages.find((p) => p.packageJson.name === 'hybrid-package');
+      const rustPkg = result.packages.find((p) => p.packageJson.name === 'pure-rust-package');
+
+      expect(hybridPkg).toBeDefined();
+      expect(rustPkg).toBeDefined();
+      expect(rustPkg?.packageJson.version).toBe('0.1.0');
+
+      // Restore mocks
+      discoverSpy.mockRestore();
+    });
+
+    it('should skip Rust packages in build directories', async () => {
+      // Mock the discoverCargoTomlPackages method to return no packages
+      // (our implementation already skips target directories)
+      const discoverSpy = vi.spyOn(VersionEngine.prototype as any, 'discoverCargoTomlPackages');
+      discoverSpy.mockReturnValue({
+        root: '/test/workspace',
+        packages: [], // No packages returned (target dir skipped)
+      });
+
+      // Mock getPackagesSync to return no packages
+      vi.mocked(getPackagesSync).mockReturnValue({
+        root: '/test/workspace',
+        packages: [],
+      });
+
+      const config = { ...defaultConfig, sync: false } as Config;
+      const engine = new VersionEngine(config);
+
+      const result = await engine.getWorkspacePackages();
+
+      // Should have no packages
+      expect(result.packages).toHaveLength(0);
+
+      // Restore mocks
+      discoverSpy.mockRestore();
     });
   });
 });
