@@ -198,6 +198,7 @@ runs:
           echo "Error: repository is in detached HEAD state; cannot sync remote branch."
           exit 1
         fi
+        git config core.hooksPath /dev/null
         git fetch origin
         if [ -n "$(git status --porcelain)" ]; then
           git stash push -u -m "temp stash for releasekit"
