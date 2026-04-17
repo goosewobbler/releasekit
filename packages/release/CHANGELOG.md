@@ -92,6 +92,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.17.0] - 2026-04-17
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.16.1...releasekit-notes-v0.17.0)
+
+### Added
+- **version**: improve support for pure Rust packages (#148)
+
 ## [0.16.1] - 2026-04-17
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.16.0...releasekit-notes-v0.16.1)
