@@ -288,6 +288,10 @@ export function runAction(input, options = {}) {
     throw new Error(`Failed to spawn ReleaseKit CLI: ${err.message}`);
   }
 
+  if (result.error) {
+    throw new Error(`Spawn error: ${result.error.message}`);
+  }
+
   return { mode, args, ...result };
 }
 
