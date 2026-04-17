@@ -68,7 +68,7 @@ export async function execCommand(file: string, args: string[], options: ExecOpt
     );
 
     // Handle timeout
-    if (options.timeout) {
+    if (options.timeout !== undefined) {
       const timer = setTimeout(() => {
         child.kill('SIGTERM');
         reject(
