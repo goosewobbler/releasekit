@@ -85,6 +85,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.14.3] - 2026-04-17
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.14.2...releasekit-version-v0.14.3)
+
+### Added
+- enhance debugging output for ReleaseKit failures
+
 ## [0.14.2] - 2026-04-16
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.14.1...releasekit-version-v0.14.2)
