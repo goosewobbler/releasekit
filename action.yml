@@ -190,8 +190,26 @@ runs:
       working-directory: ${{ github.action_path }}
       shell: bash
 
+    - name: Fetch and sync remote (skip-checkout)
+      if: ${{ inputs.skip-checkout == 'true' }}
+      run: |
+        CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+        if [ "$CURRENT_BRANCH" = "HEAD" ]; then
+          echo "Error: repository is in detached HEAD state; cannot sync remote branch."
+          exit 1
+        fi
+        git fetch origin
+        if [ -n "$(git status --porcelain)" ]; then
+          git stash push -u -m "temp stash for releasekit"
+          git rebase "origin/$CURRENT_BRANCH" || { git rebase --abort 2>/dev/null || true; echo "Warning: rebase failed; falling back to git reset --hard. Local commits ahead of origin will be discarded."; git reset --hard "origin/$CURRENT_BRANCH"; }
+          git stash pop
+        else
+          git rebase "origin/$CURRENT_BRANCH" || { git rebase --abort 2>/dev/null || true; echo "Warning: rebase failed; falling back to git reset --hard. Local commits ahead of origin will be discarded."; git reset --hard "origin/$CURRENT_BRANCH"; }
+        fi
+      shell: bash
+      working-directory: ${{ inputs.project-dir || '.' }}
+
     - name: Configure git
-      if: ${{ inputs.skip-checkout != 'true' }}
       run: |
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
         git config --global user.name "github-actions[bot]"
@@ -224,7 +242,7 @@ runs:
           echo "Recent commits:"
           git log --oneline -5 2>/dev/null || echo "Could not get git log"
           echo "Package.json exists:"
-          ls -la packages/native-spy/package.json || echo "package.json not found"
+          ls -la package.json || echo "package.json not found"
           echo "Node version:"
           node --version
           echo "PNPM version:"
