@@ -88,6 +88,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.15.2] - 2026-04-17
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.15.1...releasekit-notes-v0.15.2)
+
+### Added
+- **action**: add support for fetching and syncing remote changes with optional skip-checkout (#143)
+
 ## [0.15.1] - 2026-04-17
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.15.0...releasekit-notes-v0.15.1)
