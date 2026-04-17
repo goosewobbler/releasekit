@@ -6,6 +6,7 @@ export interface ExecOptions {
   env?: Record<string, string | undefined>;
   dryRun?: boolean;
   label?: string;
+  timeout?: number; // timeout in milliseconds
 }
 
 export interface ExecResult {
@@ -39,7 +40,7 @@ export async function execCommand(file: string, args: string[], options: ExecOpt
   debug(`Executing: ${displayCommand}`);
 
   return new Promise((resolve, reject) => {
-    execFile(
+    const child = execFile(
       file,
       args,
       {
@@ -65,6 +66,23 @@ export async function execCommand(file: string, args: string[], options: ExecOpt
         }
       },
     );
+
+    // Handle timeout
+    if (options.timeout) {
+      const timer = setTimeout(() => {
+        child.kill('SIGTERM');
+        reject(
+          Object.assign(new Error(`Command timed out after ${options.timeout}ms`), {
+            stdout: '',
+            stderr: '',
+            exitCode: 1,
+          }),
+        );
+      }, options.timeout);
+
+      child.on('exit', () => clearTimeout(timer));
+      child.on('error', () => clearTimeout(timer));
+    }
   });
 }
 

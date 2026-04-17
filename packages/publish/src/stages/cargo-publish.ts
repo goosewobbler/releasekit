@@ -88,6 +88,7 @@ export async function runCargoPublishStage(ctx: PipelineContext): Promise<void> 
         cwd,
         dryRun,
         label: `cargo publish ${crate.name}@${crate.version}`,
+        timeout: 30 * 60 * 1000, // 30 minutes timeout
       });
       result.success = true;
       if (!dryRun) {
