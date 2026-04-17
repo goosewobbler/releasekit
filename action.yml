@@ -193,13 +193,18 @@ runs:
     - name: Fetch and sync remote (skip-checkout)
       if: ${{ inputs.skip-checkout == 'true' }}
       run: |
+        CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+        if [ "$CURRENT_BRANCH" = "HEAD" ]; then
+          echo "Error: repository is in detached HEAD state; cannot sync remote branch."
+          exit 1
+        fi
         git fetch origin
         if [ -n "$(git status --porcelain)" ]; then
           git stash push -m "temp stash for releasekit"
-          git rebase "origin/$(git rev-parse --abbrev-ref HEAD)" || git reset --hard "origin/$(git rev-parse --abbrev-ref HEAD)"
+          git rebase "origin/$CURRENT_BRANCH" || (git rebase --abort 2>/dev/null || true) && git reset --hard "origin/$CURRENT_BRANCH"
           git stash pop
         else
-          git rebase "origin/$(git rev-parse --abbrev-ref HEAD)" || git reset --hard "origin/$(git rev-parse --abbrev-ref HEAD)"
+          git rebase "origin/$CURRENT_BRANCH" || (git rebase --abort 2>/dev/null || true) && git reset --hard "origin/$CURRENT_BRANCH"
         fi
       shell: bash
       working-directory: ${{ inputs.project-dir || '.' }}
