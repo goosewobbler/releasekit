@@ -216,11 +216,14 @@ export async function calculateVersion(config: Config, options: VersionOptions):
       }
 
       log(`Non-standard or standard without prerelease condition`, 'debug');
-      // For non-standard bump types (prerelease, premajor, preminor, prepatch), always use prereleaseIdentifier
+      // For non-standard bump types (premajor, preminor, prepatch), always use prereleaseIdentifier
+      // For --bump prerelease, use prereleaseIdentifier only when creating from stable (not incrementing)
       // For standard bump types, only use if explicitly requested via --prerelease flag
-      const isPrereleaseBumpType = ['prerelease', 'premajor', 'preminor', 'prepatch'].includes(specifiedType);
-      log(`Is prerelease bump type: ${isPrereleaseBumpType}`, 'debug');
-      const prereleaseId = config.isPrerelease || isPrereleaseBumpType ? normalizedPrereleaseId : undefined;
+      const isPrereleaseBumpType = ['premajor', 'preminor', 'prepatch'].includes(specifiedType);
+      const isCreatingPrerelease = specifiedType === 'prerelease' && !semver.prerelease(currentVersion);
+      log(`Is prerelease bump type: ${isPrereleaseBumpType}, is creating prerelease: ${isCreatingPrerelease}`, 'debug');
+      const prereleaseId =
+        config.isPrerelease || isPrereleaseBumpType || isCreatingPrerelease ? normalizedPrereleaseId : undefined;
       log(`Prerelease ID: ${prereleaseId}`, 'debug');
       const result = bumpVersion(currentVersion, specifiedType, prereleaseId);
       log(`Specified type version: ${result}`, 'debug');
