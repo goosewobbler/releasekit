@@ -219,14 +219,27 @@ export function createSyncStrategy(config: Config): StrategyFunction {
           continue;
         }
 
-        updatePackageVersion(packageJsonPath, nextVersion, dryRun);
-        files.push(packageJsonPath);
-        updatedPackages.push(pkg.packageJson.name);
-        processedPaths.add(packageJsonPath);
+        // Skip pure Rust packages that don't have a package.json
+        if (!fs.existsSync(packageJsonPath)) {
+          log(
+            `Skipping package.json update for ${pkg.packageJson.name} - no package.json found (Rust-only package)`,
+            'debug',
+          );
+        } else {
+          updatePackageVersion(packageJsonPath, nextVersion, dryRun);
+          files.push(packageJsonPath);
+          updatedPackages.push(pkg.packageJson.name);
+          processedPaths.add(packageJsonPath);
+        }
 
         // Handle Cargo.toml files for this package
         const pkgCargoFiles = updateCargoFiles(pkg.dir, nextVersion, config.cargo, dryRun);
         files.push(...pkgCargoFiles);
+
+        // Track pure-Rust packages by name when their Cargo.toml was updated
+        if (!fs.existsSync(packageJsonPath) && pkgCargoFiles.length > 0) {
+          updatedPackages.push(pkg.packageJson.name);
+        }
       }
 
       // Log updated packages
@@ -567,10 +580,17 @@ export function createSingleStrategy(config: Config): StrategyFunction {
 
       // Update package.json
       const packageJsonPath = path.join(pkgPath, 'package.json');
-      updatePackageVersion(packageJsonPath, nextVersion, dryRun);
 
       // Track all files that need to be committed
-      const filesToCommit: string[] = [packageJsonPath];
+      const filesToCommit: string[] = [];
+
+      // Only update package.json if it exists (skip for pure Rust packages)
+      if (fs.existsSync(packageJsonPath)) {
+        updatePackageVersion(packageJsonPath, nextVersion, dryRun);
+        filesToCommit.push(packageJsonPath);
+      } else {
+        log(`Skipping package.json update for ${packageName} - no package.json found (Rust-only package)`, 'debug');
+      }
 
       // Handle Cargo.toml files for this package
       const cargoFiles = updateCargoFiles(pkgPath, nextVersion, config.cargo, dryRun);
