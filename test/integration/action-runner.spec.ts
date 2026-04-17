@@ -71,6 +71,52 @@ describe('action runner', () => {
     expect(args).not.toContain('--quiet');
   });
 
+  it('should build release args with prerelease bump', () => {
+    const args = buildReleaseArgs({
+      config: undefined,
+      projectDir: '.',
+      bump: 'prerelease',
+      prerelease: undefined,
+      sync: 'false',
+      branch: 'main',
+      npmAuth: 'auto',
+      skipNotes: 'false',
+      skipPublish: 'false',
+      skipGit: 'false',
+      skipGithubRelease: 'false',
+      skipVerification: 'false',
+      dryRun: 'true',
+      json: 'true',
+      verbose: 'false',
+      quiet: 'false',
+    });
+
+    expect(args).toEqual(
+      expect.arrayContaining([
+        'release',
+        '--project-dir',
+        '.',
+        '--bump',
+        'prerelease',
+        '--branch',
+        'main',
+        '--npm-auth',
+        'auto',
+        '--dry-run',
+        '--json',
+      ]),
+    );
+    expect(args).not.toContain('--prerelease');
+    expect(args).not.toContain('--sync');
+    expect(args).not.toContain('--skip-notes');
+    expect(args).not.toContain('--skip-publish');
+    expect(args).not.toContain('--skip-git');
+    expect(args).not.toContain('--skip-github-release');
+    expect(args).not.toContain('--skip-verification');
+    expect(args).not.toContain('--verbose');
+    expect(args).not.toContain('--quiet');
+  });
+
   it('should build preview args and honor dry-run fallback', () => {
     const args = buildPreviewArgs({
       config: 'releasekit.config.json',

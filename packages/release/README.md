@@ -60,7 +60,7 @@ If no releasable changes are found after step 1, the command exits with code 0 a
 |------|-------------|---------|
 | `-c, --config <path>` | Path to config file | `releasekit.config.json` |
 | `-d, --dry-run` | Preview all steps without side effects | `false` |
-| `-b, --bump <type>` | Force bump type: `patch`, `minor`, `major` | auto |
+| `-b, --bump <type>` | Force bump type: `patch`, `minor`, `major`, `prerelease` | auto |
 | `-p, --prerelease [id]` | Create prerelease version | — |
 | `-s, --sync` | Synchronized versioning across all packages | `false` |
 | `-t, --target <packages>` | Target specific packages (comma-separated) | all |
@@ -165,7 +165,11 @@ releasekit release --sync
 ### Prerelease workflow
 
 ```bash
+# Create new prerelease from stable version
 releasekit release --prerelease beta
+
+# Increment existing prerelease version
+releasekit release --bump prerelease
 ```
 
 ### Gate mode in CI

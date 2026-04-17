@@ -8,7 +8,7 @@ export function createReleaseCommand(): Command {
     .description('Run the full release pipeline')
     .option('-c, --config <path>', 'Path to config file')
     .option('-d, --dry-run', 'Preview all steps without side effects', false)
-    .option('-b, --bump <type>', 'Force bump type (patch|minor|major)')
+    .option('-b, --bump <type>', 'Force bump type (patch|minor|major|prerelease)')
     .option('-p, --prerelease [identifier]', 'Create prerelease version')
     .option('--stable', 'Graduate prerelease packages to stable without bumping', false)
     .option('-s, --sync', 'Use synchronized versioning across all packages', false)

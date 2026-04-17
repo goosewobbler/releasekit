@@ -40,7 +40,7 @@ inputs:
     default: "false"
 
   bump:
-    description: Force bump type (patch|minor|major)
+    description: Force bump type (patch|minor|major|prerelease)
     required: false
   prerelease:
     description: Create prerelease version (optional identifier)

@@ -11,7 +11,7 @@ export function createVersionCommand(): Command {
     .description('Version a package or packages based on configuration')
     .option('-c, --config <path>', 'Path to config file (defaults to releasekit.config.json in current directory)')
     .option('-d, --dry-run', 'Dry run (no changes made)', false)
-    .option('-b, --bump <type>', 'Specify bump type (patch|minor|major)')
+    .option('-b, --bump <type>', 'Specify bump type (patch|minor|major|prerelease)')
     .option('-p, --prerelease [identifier]', 'Create prerelease version')
     .option('--stable', 'Graduate prerelease packages to stable without bumping', false)
     .option('-s, --sync', 'Use synchronized versioning across all packages')
