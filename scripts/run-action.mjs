@@ -221,7 +221,6 @@ export function runAction(input, options = {}) {
   const actionPnpmStore = path.join(actionDir, 'node_modules', '.pnpm');
 
   const userNodeModules = path.join(resolvedProjectDir, 'node_modules');
-  const userPnpmStore = path.join(resolvedProjectDir, 'node_modules', '.pnpm');
 
   function collectNodePaths(baseDirs) {
     const paths = [];
@@ -253,7 +252,7 @@ export function runAction(input, options = {}) {
     return paths;
   }
 
-  const nodePaths = collectNodePaths([actionNodeModules, actionPnpmStore, userNodeModules, userPnpmStore])
+  const nodePaths = collectNodePaths([actionNodeModules, actionPnpmStore, userNodeModules])
     .filter((p) => {
       try {
         fs.accessSync(p);
