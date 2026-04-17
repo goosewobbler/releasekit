@@ -11,25 +11,10 @@ import { log } from '../../../src/utils/logging.js';
 vi.mock('@manypkg/get-packages');
 vi.mock('../../../src/core/versionStrategies.js');
 vi.mock('../../../src/utils/logging.js');
-vi.mock('node:fs');
-vi.mock('node:path');
 
 // Mock the process module
 vi.mock('node:process', () => ({
   cwd: vi.fn().mockReturnValue('/test/workspace'),
-}));
-
-// Mock fs
-vi.mock('fs', () => ({
-  existsSync: vi.fn(),
-  readFileSync: vi.fn(),
-  readdirSync: vi.fn(),
-}));
-
-vi.mock('path', () => ({
-  join: vi.fn((...args) => args.join('/')),
-  dirname: vi.fn((path) => path.split('/').slice(0, -1).join('/')),
-  relative: vi.fn(),
 }));
 
 describe('Version Engine', () => {
@@ -41,13 +26,17 @@ describe('Version Engine', () => {
   // Mock packages
   const mockPackages = {
     root: '/test/workspace',
+    rootDir: '/test/workspace',
+    tool: 'pnpm' as any,
     packages: [
       {
         dir: '/test/workspace/packages/a',
+        relativeDir: 'packages/a',
         packageJson: { name: 'package-a', version: '1.0.0' },
       },
       {
         dir: '/test/workspace/packages/b',
+        relativeDir: 'packages/b',
         packageJson: { name: 'package-b', version: '1.0.0' },
       },
     ],
@@ -258,25 +247,27 @@ describe('Version Engine', () => {
     });
 
     it('should handle missing root property by setting it to cwd', async () => {
+      // Mock packages WITHOUT root - the merge function will use npmPackages.root as fallback
       const mockPackagesWithoutRoot = {
         packages: [
           {
             dir: '/test/workspace/packages/a',
+            relativeDir: 'packages/a',
             packageJson: { name: 'package-a', version: '1.0.0' },
           },
         ],
-      } as Packages;
+        rootDir: '/test/workspace',
+        tool: 'pnpm' as any,
+      };
 
-      vi.mocked(getPackagesSync, { partial: true }).mockReturnValue(mockPackagesWithoutRoot);
+      vi.mocked(getPackagesSync, { partial: true }).mockReturnValue(mockPackagesWithoutRoot as any);
 
       const engine = new VersionEngine(defaultConfig as Config);
       const result = await engine.getWorkspacePackages();
 
       expect(result.root).toBe('/test/workspace');
-      expect(log).toHaveBeenCalledWith(
-        'Root path is undefined in packages result, setting to current working directory',
-        'warning',
-      );
+      // The new implementation logs discovery info, not the missing root warning
+      expect(log).toHaveBeenCalledWith('Discovered 1 NPM packages and 0 Rust packages (1 total)', 'info');
     });
 
     it('should throw error when getPackagesSync fails', async () => {
