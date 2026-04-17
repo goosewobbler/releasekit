@@ -76,6 +76,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.15.1] - 2026-04-17
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.15.0...releasekit-notes-v0.15.1)
+
+### Fixed
+- **action**: exclude userPnpmStore from NODE_PATH to prevent E2BIG errors (#142)
+
 ## [0.15.0] - 2026-04-17
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.14.3...releasekit-notes-v0.15.0)
