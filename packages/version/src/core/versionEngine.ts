@@ -107,8 +107,7 @@ export class VersionEngine {
         }
 
         // Parse Cargo.toml
-        const cargoContent = fs.readFileSync(fullCargoPath, 'utf-8');
-        const cargoData = parseCargoToml(cargoContent);
+        const cargoData = parseCargoToml(fullCargoPath);
 
         if (cargoData.package?.name && cargoData.package?.version) {
           // Check if this is a valid workspace package (not in target/ or other build dirs)
@@ -194,6 +193,14 @@ export class VersionEngine {
       // 3. Merge package lists with proper deduplication
       const mergedPackages = this.mergePackageLists(npmPackages, rustPackages);
 
+      // Log discovery results (pre-filter)
+      const rustCount = rustPackages.packages.length;
+      const npmCount = npmPackages.packages.length;
+      log(
+        `Discovered ${npmCount} NPM packages and ${rustCount} Rust packages (${mergedPackages.packages.length} total)`,
+        'info',
+      );
+
       // Ensure the root property is set
       if (!mergedPackages.root) {
         log('Root path is undefined in packages result, setting to current working directory', 'warning');
@@ -225,13 +232,6 @@ export class VersionEngine {
 
       // Cache the result for subsequent calls
       this.workspaceCache = mergedPackages;
-
-      const rustCount = rustPackages.packages.length;
-      const npmCount = npmPackages.packages.length;
-      log(
-        `Discovered ${npmCount} NPM packages and ${rustCount} Rust packages (${mergedPackages.packages.length} total)`,
-        'info',
-      );
 
       return mergedPackages;
     } catch (error) {
