@@ -253,7 +253,8 @@ export function runAction(input, options = {}) {
     return paths;
   }
 
-  const nodePaths = collectNodePaths([actionNodeModules, actionPnpmStore, userNodeModules, userPnpmStore])
+  // Exclude userPnpmStore to avoid E2BIG errors when NODE_PATH becomes too long
+  const nodePaths = collectNodePaths([actionNodeModules, actionPnpmStore, userNodeModules])
     .filter((p) => {
       try {
         fs.accessSync(p);
