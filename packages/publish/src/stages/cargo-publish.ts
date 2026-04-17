@@ -45,6 +45,9 @@ export async function runCargoPublishStage(ctx: PipelineContext): Promise<void> 
   // Determine publish order
   const ordered = orderCrates(crates, config.cargo.publishOrder);
 
+  // Check if working directory is dirty (repository-level property, not crate-specific)
+  const isDirty = await isGitWorkingDirDirty(cwd);
+
   for (const crate of ordered) {
     const result: PublishResult = {
       packageName: crate.name,
@@ -76,7 +79,7 @@ export async function runCargoPublishStage(ctx: PipelineContext): Promise<void> 
     if (config.cargo.noVerify) {
       publishArgs.push('--no-verify');
     }
-    if (await isGitWorkingDirDirty(cwd)) {
+    if (isDirty) {
       publishArgs.push('--allow-dirty');
     }
 
