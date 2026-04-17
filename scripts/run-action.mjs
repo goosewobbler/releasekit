@@ -123,7 +123,7 @@ function setOutput(name, value) {
   try {
     fs.appendFileSync(outputPath, block);
   } catch (err) {
-    console.error(`[run-action] Failed to write output '${name}': ${err.message}`);
+    throw new Error(`Failed to write output '${name}': ${err.message}`);
   }
 }
 
@@ -297,7 +297,7 @@ function writeCoreOutputs(mode, success) {
 }
 
 function writeReleaseOutputs(input, stdout) {
-  const parsed = normalizeBoolean(input.json) ? parseReleaseOutput(stdout) : undefined;
+  const parsed = normalizeBoolean(input.json) ? parseReleaseOutput(stdout, normalizeBoolean(input.verbose)) : undefined;
   const hasChanges = !!parsed?.versionOutput?.updates?.length;
   setOutput('has-changes', hasChanges ? 'true' : 'false');
   setOutput('release-output', parsed ? JSON.stringify(parsed) : '');
@@ -321,7 +321,7 @@ export function writeSummary(markdown) {
   try {
     fs.appendFileSync(summaryPath, markdown);
   } catch (err) {
-    console.error(`[run-action] Failed to write summary: ${err.message}`);
+    throw new Error(`Failed to write summary: ${err.message}`);
   }
 }
 
@@ -475,7 +475,7 @@ function main() {
   if (result.mode === 'release') {
     writeReleaseOutputs(input, result.stdout ?? '');
   } else if (result.mode === 'gate') {
-    writeGateOutputs(result.stdout ?? '');
+    writeGateOutputs(result.stdout ?? '', verbose);
   } else {
     writePreviewOutputs(input, result.stdout ?? '');
   }
