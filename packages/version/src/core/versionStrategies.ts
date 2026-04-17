@@ -235,6 +235,11 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         // Handle Cargo.toml files for this package
         const pkgCargoFiles = updateCargoFiles(pkg.dir, nextVersion, config.cargo, dryRun);
         files.push(...pkgCargoFiles);
+
+        // Track pure-Rust packages by name when their Cargo.toml was updated
+        if (!fs.existsSync(packageJsonPath) && pkgCargoFiles.length > 0) {
+          updatedPackages.push(pkg.packageJson.name);
+        }
       }
 
       // Log updated packages
