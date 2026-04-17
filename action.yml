@@ -200,7 +200,7 @@ runs:
         fi
         git fetch origin
         if [ -n "$(git status --porcelain)" ]; then
-          git stash push -m "temp stash for releasekit"
+          git stash push -u -m "temp stash for releasekit"
           git rebase "origin/$CURRENT_BRANCH" || { git rebase --abort 2>/dev/null || true; git reset --hard "origin/$CURRENT_BRANCH"; }
           git stash pop
         else
