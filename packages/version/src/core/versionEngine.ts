@@ -112,7 +112,8 @@ export class VersionEngine {
         if (cargoData.package?.name && cargoData.package?.version) {
           // Check if this is a valid workspace package (not in target/ or other build dirs)
           const relativePath = path.relative(workspaceRoot, packageDir);
-          if (!relativePath.includes('target') && !relativePath.includes('node_modules')) {
+          const pathParts = relativePath.split(path.sep);
+          if (!pathParts.includes('target') && !pathParts.includes('node_modules')) {
             rustPackages.push({
               packageJson: {
                 name: cargoData.package.name,
