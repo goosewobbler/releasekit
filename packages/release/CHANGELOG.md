@@ -86,6 +86,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.15.0] - 2026-04-17
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.14.3...releasekit-notes-v0.15.0)
+
+### Added
+- enhance error handling and verbose output in action script (#141)
+
 ## [0.14.3] - 2026-04-17
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.14.2...releasekit-version-v0.14.3)

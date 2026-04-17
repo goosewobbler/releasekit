@@ -1,6 +1,6 @@
 {
   "name": "@releasekit/notes",
-  "version": "0.14.3",
+  "version": "0.15.0",
   "description": "Release notes and changelog generation with LLM-powered enhancement and flexible templating",
   "type": "module",
   "module": "./dist/index.js",

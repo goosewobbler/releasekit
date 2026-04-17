@@ -1,39 +1,39 @@
 
 
-## `@releasekit/version` @ 0.14.3
+## `@releasekit/notes` @ 0.15.0
 
 ### General:
-- enhance debugging output for ReleaseKit failures
+- enhance error handling and verbose output in action script (#141)
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.14.2...releasekit-version-v0.14.3
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.14.3...releasekit-notes-v0.15.0
 
 ---
 
 
-## `@releasekit/notes` @ 0.14.3
+## `@releasekit/publish` @ 0.15.0
 
 ### General:
-- enhance debugging output for ReleaseKit failures
+- enhance error handling and verbose output in action script (#141)
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.14.2...releasekit-version-v0.14.3
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.14.3...releasekit-notes-v0.15.0
 
 ---
 
 
-## `@releasekit/publish` @ 0.14.3
+## `@releasekit/release` @ 0.15.0
 
 ### General:
-- enhance debugging output for ReleaseKit failures
+- enhance error handling and verbose output in action script (#141)
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.14.2...releasekit-version-v0.14.3
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.14.3...releasekit-notes-v0.15.0
 
 ---
 
 
-## `@releasekit/release` @ 0.14.3
+## `@releasekit/version` @ 0.15.0
 
 ### General:
-- enhance debugging output for ReleaseKit failures
+- enhance error handling and verbose output in action script (#141)
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.14.2...releasekit-version-v0.14.3
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.14.3...releasekit-notes-v0.15.0
 
