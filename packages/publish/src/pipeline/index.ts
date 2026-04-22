@@ -116,14 +116,24 @@ export async function runPipeline(
             ctx.output.verification.push(...singleCtx.output.verification);
           }
 
-          if (!options.skipGit && update.tag) {
+          // Compute publish success for this package before pushing its tag
+          singleCtx.output.publishSucceeded =
+            singleCtx.output.npm.every((r) => r.success) && singleCtx.output.cargo.every((r) => r.success);
+
+          // Push tag after publish/verify (or if skipping publish, still push because commit is ready).
+          // Gate on same condition as batch mode: push if we're skipping publish OR publish succeeded.
+          if (!options.skipGit && update.tag && (options.skipPublish || singleCtx.output.publishSucceeded)) {
             await pushPackageTag(update.tag, ctx);
           }
         }
       }
 
       // Stages throw on first failure (fail-fast), so reaching here means all packages succeeded.
-      ctx.output.publishSucceeded = ctx.output.npm.every((r) => r.success) && ctx.output.cargo.every((r) => r.success);
+      // Only relevant for batch mode; per-package mode sets publishSucceeded per-loop but doesn't accumulate.
+      if (!perPackageMode) {
+        ctx.output.publishSucceeded =
+          ctx.output.npm.every((r) => r.success) && ctx.output.cargo.every((r) => r.success);
+      }
     }
 
     // Stage 6: Verification (batch mode only — per-package mode verified inline above)
