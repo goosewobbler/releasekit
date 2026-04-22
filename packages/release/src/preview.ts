@@ -215,12 +215,23 @@ async function applyLabelOverrides(
   if (matchedScopePatterns.length > 0) {
     result.target = matchedScopePatterns.join(', ');
   } else if (!options.target) {
-    const scopeLabelsConfigured = scopeLabels && Object.keys(scopeLabels).length > 0;
-    throw new Error(
-      scopeLabelsConfigured
-        ? 'No scope specified. Use --target flag to specify packages, or include a scope label in a merged PR.'
-        : 'No scope specified. Use --target flag to specify which packages to release.',
-    );
+    // Only require a scope target when a release is actually going to happen.
+    // In label mode with no bump/stable label, release is skipped — no scope needed.
+    const willRelease =
+      trigger !== 'label' ||
+      prLabels.includes(labels.patch) ||
+      prLabels.includes(labels.minor) ||
+      prLabels.includes(labels.major) ||
+      prLabels.includes(labels.stable);
+
+    if (willRelease) {
+      const scopeLabelsConfigured = Object.keys(scopeLabels).length > 0;
+      throw new Error(
+        scopeLabelsConfigured
+          ? 'No scope specified. Use --target flag to specify packages, or include a scope label in a merged PR.'
+          : 'No scope specified. Use --target flag to specify which packages to release.',
+      );
+    }
   }
 
   // Detect label conflicts using shared utility

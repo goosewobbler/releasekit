@@ -193,6 +193,40 @@ describe('Gate', () => {
 
     expect(result.shouldRelease).toBe(true);
     expect(result.bump).toBeUndefined();
+    expect(result.stable).toBe(true);
+  });
+
+  it('should return stable: false when only bump:patch label', async () => {
+    mockFindMergedPRsForCommit.mockResolvedValue([123]);
+    mockFetchPRLabels.mockResolvedValue(['bump:patch']);
+
+    const result = await runGate();
+
+    expect(result.shouldRelease).toBe(true);
+    expect(result.bump).toBe('patch');
+    expect(result.stable).toBe(false);
+  });
+
+  it('should return stable: true when bump:patch and release:stable labels present (stable takes precedence over bump)', async () => {
+    mockFindMergedPRsForCommit.mockResolvedValue([123]);
+    mockFetchPRLabels.mockResolvedValue(['bump:patch', 'release:stable']);
+
+    const result = await runGate();
+
+    expect(result.shouldRelease).toBe(true);
+    // release:stable causes detectBumpFromLabels to return undefined (auto-detect from commits)
+    expect(result.bump).toBeUndefined();
+    expect(result.stable).toBe(true);
+  });
+
+  it('should return stable: false when release:stable and release:prerelease conflict', async () => {
+    mockFindMergedPRsForCommit.mockResolvedValue([123]);
+    mockFetchPRLabels.mockResolvedValue(['release:stable', 'release:prerelease']);
+
+    const result = await runGate();
+
+    expect(result.blocked).toBe(true);
+    expect(result.stable).toBe(false);
   });
 
   it('should resolve scope via --scope flag', async () => {

@@ -9,6 +9,7 @@ export interface GateOutput {
   bump?: string;
   scope?: string;
   target?: string;
+  stable?: boolean;
   labels: string[];
   prNumbers: number[];
   blocked?: boolean;
@@ -97,6 +98,7 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
     if (conflict.bumpConflict) {
       return {
         shouldRelease: false,
+        stable: false,
         labels: allLabels,
         prNumbers,
         blocked: true,
@@ -106,6 +108,7 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
     if (conflict.prereleaseConflict) {
       return {
         shouldRelease: false,
+        stable: false,
         labels: allLabels,
         prNumbers,
         blocked: true,
@@ -134,6 +137,8 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
   let shouldRelease = false;
   let reason: string | undefined;
 
+  let isStable = false;
+
   if (releaseTrigger === 'label') {
     // Label mode: release only if configured bump labels or release:stable are present
     const hasBumpLabel = allLabels.some(
@@ -144,6 +149,7 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
 
     if (hasBumpLabel || hasStableLabel) {
       shouldRelease = true;
+      isStable = hasStableLabel && !hasPrereleaseLabel;
       reason = hasStableLabel ? `${labelConfig.stable} label found` : `bump label found: ${bump}`;
     } else if (hasPrereleaseLabel) {
       // Prerelease alone doesn't trigger release - needs bump label
@@ -198,6 +204,7 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
     bump,
     scope: resolvedScope,
     target: resolvedTarget,
+    stable: isStable,
     labels: allLabels,
     prNumbers,
     reason,

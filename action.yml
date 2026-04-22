@@ -141,6 +141,9 @@ outputs:
   gate-target:
     description: Resolved target packages (gate mode)
     value: ${{ steps.run.outputs.gate-target }}
+  gate-stable:
+    description: Whether the release should be a stable graduation (gate mode, release:stable label)
+    value: ${{ steps.run.outputs.gate-stable }}
   has-changes:
     description: "Whether a release has changes (release mode, requires json: true)"
     value: ${{ steps.run.outputs.has-changes }}

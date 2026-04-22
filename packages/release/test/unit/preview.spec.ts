@@ -697,7 +697,7 @@ describe('runPreview', () => {
       expect(callArgs.target).toBe('@test/package');
     });
 
-    it('should throw when no scope label matched and no target provided', async () => {
+    it('should throw when no scope label matched and no target provided (commit mode)', async () => {
       mockLoadCIConfig.mockReturnValue({
         releaseTrigger: 'commit',
         scopeLabels: {
@@ -705,6 +705,39 @@ describe('runPreview', () => {
         },
       });
       mockFetchPRLabels.mockResolvedValue(['bug']);
+
+      await expect(runPreview({ projectDir: '/test', dryRun: false })).rejects.toThrow('No scope specified');
+    });
+
+    it('should not throw in label mode with no labels when scopeLabels configured (no release will happen)', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'label',
+        scopeLabels: {
+          'scope:shared': '@wdio/native-*',
+          'scope:electron': '@wdio/electron-*',
+        },
+      });
+      mockFetchPRLabels.mockResolvedValue([]);
+
+      await expect(runPreview({ projectDir: '/test', dryRun: false })).resolves.toBeUndefined();
+      expect(mockRunRelease).not.toHaveBeenCalled();
+      expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+        expect.anything(),
+        'owner',
+        'repo',
+        1,
+        expect.stringContaining('No bump label detected'),
+      );
+    });
+
+    it('should throw in label mode when bump label present but no scope label and no target', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseTrigger: 'label',
+        scopeLabels: {
+          'scope:shared': '@wdio/native-*',
+        },
+      });
+      mockFetchPRLabels.mockResolvedValue(['bump:patch']);
 
       await expect(runPreview({ projectDir: '/test', dryRun: false })).rejects.toThrow('No scope specified');
     });

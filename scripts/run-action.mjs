@@ -98,6 +98,7 @@ export function writeGateOutputs(stdout, verbose = false) {
   setOutput('bump', parsed?.bump ?? '');
   setOutput('gate-scope', parsed?.scope ?? '');
   setOutput('gate-target', parsed?.target ?? '');
+  setOutput('gate-stable', parsed?.stable ? 'true' : 'false');
 }
 
 export function parseReleaseOutput(stdout, verbose = false) {
