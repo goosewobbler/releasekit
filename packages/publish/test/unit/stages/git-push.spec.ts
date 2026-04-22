@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDefaultConfig } from '../../../src/config.js';
 import { PublishError } from '../../../src/errors/index.js';
-import { runGitPushStage } from '../../../src/stages/git-push.js';
+import { pushPackageTag, runGitPushStage } from '../../../src/stages/git-push.js';
 import type { PipelineContext } from '../../../src/types.js';
 
 vi.mock('../../../src/utils/exec.js', () => ({
@@ -296,5 +296,99 @@ describe('git-push stage', () => {
 
     await expect(runGitPushStage(ctx)).resolves.not.toThrow();
     expect(ctx.output.git.pushed).toBe(true);
+  });
+});
+
+describe('pushPackageTag', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    const { detectGitPushMethod } = await import('../../../src/utils/auth.js');
+    vi.mocked(execCommand).mockImplementation(async (_file, args) => {
+      if (Array.isArray(args) && args[0] === 'rev-parse') {
+        return { stdout: 'main\n', stderr: '', exitCode: 0 };
+      }
+      return { stdout: '', stderr: '', exitCode: 0 };
+    });
+    vi.mocked(detectGitPushMethod).mockResolvedValue('https');
+  });
+
+  it('should push the specific tag ref and then the branch', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    const ctx = createContext();
+
+    await pushPackageTag('pkg-a@v1.0.0', ctx);
+
+    const calls = vi.mocked(execCommand).mock.calls;
+    // tag push comes first, then branch detection (deferred), then branch push
+    expect(calls[0]?.[1]).toEqual(['push', 'origin', 'refs/tags/pkg-a@v1.0.0']);
+    expect(calls[1]?.[1]).toEqual(['rev-parse', '--abbrev-ref', 'HEAD']);
+    expect(calls[2]?.[1]).toEqual(['push', 'origin', 'main']);
+    expect(ctx.output.git.tags).toContain('pkg-a@v1.0.0');
+    expect(ctx.output.git.pushed).toBe(true);
+  });
+
+  it('should skip branch push when not committed', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    const ctx = createContext({
+      output: {
+        dryRun: false,
+        git: { committed: false, tags: [], pushed: false },
+        npm: [],
+        cargo: [],
+        verification: [],
+        githubReleases: [],
+      },
+    });
+
+    await pushPackageTag('pkg-a@v1.0.0', ctx);
+
+    const calls = vi.mocked(execCommand).mock.calls;
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[1]).toEqual(['push', 'origin', 'refs/tags/pkg-a@v1.0.0']);
+    expect(ctx.output.git.pushed).toBe(true);
+  });
+
+  it('should accumulate pushed tags on ctx.output.git.tags', async () => {
+    const ctx = createContext({
+      output: {
+        dryRun: false,
+        git: { committed: false, tags: [], pushed: false },
+        npm: [],
+        cargo: [],
+        verification: [],
+        githubReleases: [],
+      },
+    });
+
+    await pushPackageTag('pkg-a@v1.0.0', ctx);
+    await pushPackageTag('pkg-b@v1.0.0', ctx);
+
+    expect(ctx.output.git.tags).toEqual(['pkg-a@v1.0.0', 'pkg-b@v1.0.0']);
+  });
+
+  it('should be a no-op when config.git.push is false', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    const config = getDefaultConfig();
+    config.git.push = false;
+    const ctx = createContext({ config });
+
+    await pushPackageTag('pkg-a@v1.0.0', ctx);
+
+    expect(execCommand).not.toHaveBeenCalled();
+    expect(ctx.output.git.pushed).toBe(false);
+  });
+
+  it('should throw on detached HEAD when committed is true', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    vi.mocked(execCommand).mockImplementation(async (_file, args) => {
+      if (Array.isArray(args) && args[0] === 'rev-parse') {
+        return { stdout: 'HEAD\n', stderr: '', exitCode: 0 };
+      }
+      return { stdout: '', stderr: '', exitCode: 0 };
+    });
+
+    const ctx = createContext();
+    await expect(pushPackageTag('pkg-a@v1.0.0', ctx)).rejects.toThrow(/detached HEAD/);
   });
 });

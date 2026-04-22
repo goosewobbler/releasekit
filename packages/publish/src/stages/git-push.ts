@@ -21,6 +21,76 @@ function toGithubAuthedUrl(remoteUrl: string, token: string): string | undefined
   }
 }
 
+/**
+ * Push a single package tag and (idempotently) the branch after a package publishes.
+ * Safe to call once per package — branch push is a no-op when already up-to-date.
+ * Error strategy: THROWS.
+ */
+export async function pushPackageTag(tag: string, ctx: PipelineContext): Promise<void> {
+  const { config, cliOptions, cwd, output } = ctx;
+  const dryRun = cliOptions.dryRun;
+
+  if (!config.git.push) return;
+
+  const { remote } = config.git;
+
+  let pushMethod = config.git.pushMethod;
+  if (pushMethod === 'auto') {
+    try {
+      pushMethod = await detectGitPushMethod(remote, cwd);
+    } catch {
+      pushMethod = 'https';
+    }
+  }
+
+  const httpsToken = config.git.httpsTokenEnv ? process.env[config.git.httpsTokenEnv] : undefined;
+
+  try {
+    let pushRemote: string = remote;
+    if (pushMethod === 'https' && httpsToken) {
+      const remoteUrlResult = await execCommand('git', ['remote', 'get-url', remote], { cwd, dryRun: false });
+      const authed = toGithubAuthedUrl(remoteUrlResult.stdout.trim(), httpsToken);
+      if (authed) pushRemote = authed;
+    }
+
+    // Push the specific tag ref (carries the underlying commit with it)
+    await execCommand('git', ['push', pushRemote, `refs/tags/${tag}`], {
+      cwd,
+      dryRun,
+      label: `git push ${remote} refs/tags/${tag}`,
+    });
+    output.git.tags.push(tag);
+
+    // Push the branch (idempotent — no-op if remote is already up-to-date)
+    if (output.git.committed) {
+      let branch = config.git.branch;
+      if (!branch) {
+        const revResult = await execCommand('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd, dryRun: false });
+        branch = revResult.stdout.trim();
+        if (branch === 'HEAD') {
+          throw createPublishError(
+            PublishErrorCode.GIT_PUSH_ERROR,
+            'Cannot push: repository is in a detached HEAD state. Set git.branch in your config or pass --branch <name>.',
+          );
+        }
+      }
+      await execCommand('git', ['push', pushRemote, branch], {
+        cwd,
+        dryRun,
+        label: `git push ${remote} ${branch}`,
+      });
+    }
+
+    output.git.pushed = true;
+  } catch (error) {
+    if (error instanceof PublishError) throw error;
+    throw createPublishError(
+      PublishErrorCode.GIT_PUSH_ERROR,
+      `${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
 /** Error strategy: THROWS. Push after publish. */
 export async function runGitPushStage(ctx: PipelineContext): Promise<void> {
   const { config, cliOptions, cwd, output } = ctx;
