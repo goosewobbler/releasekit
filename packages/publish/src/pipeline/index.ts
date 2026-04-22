@@ -123,9 +123,8 @@ export async function runPipeline(
           singleCtx.output.publishSucceeded =
             singleCtx.output.npm.every((r) => r.success) && singleCtx.output.cargo.every((r) => r.success);
 
-          // Push tag after publish/verify (or if skipping publish, still push because commit is ready).
-          // Gate on same condition as batch mode: push if we're skipping publish OR publish succeeded.
-          if (!options.skipGit && update.tag && (options.skipPublish || singleCtx.output.publishSucceeded)) {
+          // Push tag after publish/verify — only push if publish succeeded (commit is ready regardless).
+          if (!options.skipGit && update.tag && singleCtx.output.publishSucceeded) {
             await pushPackageTag(update.tag, ctx, pushSetup || undefined);
           }
         }
