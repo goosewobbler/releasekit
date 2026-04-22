@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process';
 import { Octokit } from '@octokit/rest';
 import { MARKER } from './preview-format.js';
 
@@ -26,6 +27,45 @@ export async function findMergedPRsForCommit(
   } catch {
     return [];
   }
+}
+
+/**
+ * Find all merged PRs since the last release tag.
+ * Uses git to enumerate merge commits in the window `<lastTag>..HEAD`, then looks up each
+ * commit's associated PR via the GitHub API. Falls back to the last 50 merge commits when
+ * no release tags exist. Returns a deduped list of PR numbers.
+ */
+export async function findMergedPRsSinceLastRelease(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  projectDir: string,
+): Promise<number[]> {
+  let range: string;
+  try {
+    const lastTag = execSync('git describe --tags --abbrev=0', { cwd: projectDir, encoding: 'utf8' }).trim();
+    range = `${lastTag}..HEAD`;
+  } catch {
+    range = '-50';
+  }
+
+  let mergeShas: string[];
+  try {
+    const output = execSync(`git log --merges --format="%H" ${range}`, {
+      cwd: projectDir,
+      encoding: 'utf8',
+    }).trim();
+    mergeShas = output ? output.split('\n').filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+
+  const seen = new Set<number>();
+  for (const sha of mergeShas) {
+    const prs = await findMergedPRsForCommit(octokit, owner, repo, sha);
+    for (const n of prs) seen.add(n);
+  }
+  return [...seen];
 }
 
 /**

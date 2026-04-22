@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockLoadReleaseKitConfig = vi.fn();
 const mockCreateOctokit = vi.fn();
-const mockFindMergedPRsForCommit = vi.fn();
+const mockFindMergedPRsSinceLastRelease = vi.fn();
 const mockFetchPRLabels = vi.fn();
 
 vi.mock('@releasekit/config', () => ({
@@ -25,7 +25,7 @@ vi.mock('node:child_process', () => ({
 
 vi.mock('../../src/preview-github.js', () => ({
   createOctokit: (...args: unknown[]) => mockCreateOctokit(...args),
-  findMergedPRsForCommit: (...args: unknown[]) => mockFindMergedPRsForCommit(...args),
+  findMergedPRsSinceLastRelease: (...args: unknown[]) => mockFindMergedPRsSinceLastRelease(...args),
   fetchPRLabels: (...args: unknown[]) => mockFetchPRLabels(...args),
 }));
 
@@ -85,7 +85,7 @@ describe('Gate', () => {
   }
 
   it('should return shouldRelease: true when bump:minor label present (label trigger mode)', async () => {
-    mockFindMergedPRsForCommit.mockResolvedValue([123]);
+    mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
     mockFetchPRLabels.mockResolvedValue(['bump:minor']);
 
     const result = await runGate();
@@ -108,7 +108,7 @@ describe('Gate', () => {
         },
       },
     });
-    mockFindMergedPRsForCommit.mockResolvedValue([123]);
+    mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
     mockFetchPRLabels.mockResolvedValue(['feat: something']);
 
     const result = await runGate();
@@ -117,7 +117,7 @@ describe('Gate', () => {
   });
 
   it('should return shouldRelease: false when no bump/release labels present (label trigger mode)', async () => {
-    mockFindMergedPRsForCommit.mockResolvedValue([123]);
+    mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
     mockFetchPRLabels.mockResolvedValue(['enhancement']);
 
     const result = await runGate();
@@ -138,7 +138,7 @@ describe('Gate', () => {
         },
       },
     });
-    mockFindMergedPRsForCommit.mockResolvedValue([123]);
+    mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
     mockFetchPRLabels.mockResolvedValue(['release:skip']);
 
     const result = await runGate();
@@ -148,7 +148,7 @@ describe('Gate', () => {
   });
 
   it('should return blocked: true when bump:major + bump:minor conflict', async () => {
-    mockFindMergedPRsForCommit.mockResolvedValue([123]);
+    mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
     mockFetchPRLabels.mockResolvedValue(['bump:major', 'bump:minor']);
 
     const result = await runGate();
@@ -158,7 +158,7 @@ describe('Gate', () => {
   });
 
   it('should return blocked: true when release:prerelease + release:stable conflict', async () => {
-    mockFindMergedPRsForCommit.mockResolvedValue([123]);
+    mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
     mockFetchPRLabels.mockResolvedValue(['release:prerelease', 'release:stable']);
 
     const result = await runGate();
@@ -168,7 +168,7 @@ describe('Gate', () => {
   });
 
   it('should resolve bump from bump:major label', async () => {
-    mockFindMergedPRsForCommit.mockResolvedValue([123]);
+    mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
     mockFetchPRLabels.mockResolvedValue(['bump:major']);
 
     const result = await runGate();
@@ -177,7 +177,7 @@ describe('Gate', () => {
   });
 
   it('should resolve bump from bump:patch label', async () => {
-    mockFindMergedPRsForCommit.mockResolvedValue([123]);
+    mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
     mockFetchPRLabels.mockResolvedValue(['bump:patch']);
 
     const result = await runGate();
@@ -186,7 +186,7 @@ describe('Gate', () => {
   });
 
   it('should return bump undefined when only release:stable label', async () => {
-    mockFindMergedPRsForCommit.mockResolvedValue([123]);
+    mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
     mockFetchPRLabels.mockResolvedValue(['release:stable']);
 
     const result = await runGate();
@@ -197,7 +197,7 @@ describe('Gate', () => {
   });
 
   it('should return stable: false when only bump:patch label', async () => {
-    mockFindMergedPRsForCommit.mockResolvedValue([123]);
+    mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
     mockFetchPRLabels.mockResolvedValue(['bump:patch']);
 
     const result = await runGate();
@@ -208,7 +208,7 @@ describe('Gate', () => {
   });
 
   it('should return stable: true when bump:patch and release:stable labels present (stable takes precedence over bump)', async () => {
-    mockFindMergedPRsForCommit.mockResolvedValue([123]);
+    mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
     mockFetchPRLabels.mockResolvedValue(['bump:patch', 'release:stable']);
 
     const result = await runGate();
@@ -220,7 +220,7 @@ describe('Gate', () => {
   });
 
   it('should return stable: false when release:stable and release:prerelease conflict', async () => {
-    mockFindMergedPRsForCommit.mockResolvedValue([123]);
+    mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
     mockFetchPRLabels.mockResolvedValue(['release:stable', 'release:prerelease']);
 
     const result = await runGate();
@@ -244,7 +244,7 @@ describe('Gate', () => {
         },
       },
     });
-    mockFindMergedPRsForCommit.mockResolvedValue([123]);
+    mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
     mockFetchPRLabels.mockResolvedValue(['bump:minor']);
 
     const result = await runGate({ scope: 'electron' });
@@ -267,7 +267,7 @@ describe('Gate', () => {
         },
       },
     });
-    mockFindMergedPRsForCommit.mockResolvedValue([123]);
+    mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
     mockFetchPRLabels.mockResolvedValue(['bump:minor', 'scope:electron']);
 
     const result = await runGate();
@@ -294,7 +294,7 @@ describe('Gate', () => {
         },
       },
     });
-    mockFindMergedPRsForCommit.mockResolvedValue([123]);
+    mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
     mockFetchPRLabels.mockResolvedValue(['bump:minor']);
 
     const result = await runGate();
@@ -339,7 +339,7 @@ describe('Gate', () => {
   });
 
   it('should populate prNumbers from merged PRs', async () => {
-    mockFindMergedPRsForCommit.mockResolvedValue([123, 456]);
+    mockFindMergedPRsSinceLastRelease.mockResolvedValue([123, 456]);
     mockFetchPRLabels.mockResolvedValue(['bump:minor']);
 
     const result = await runGate();
@@ -348,7 +348,7 @@ describe('Gate', () => {
   });
 
   it('should aggregate labels across multiple merged PRs', async () => {
-    mockFindMergedPRsForCommit.mockResolvedValue([123, 456]);
+    mockFindMergedPRsSinceLastRelease.mockResolvedValue([123, 456]);
     mockFetchPRLabels.mockResolvedValueOnce(['bump:minor', 'scope:electron']).mockResolvedValueOnce(['enhancement']);
 
     const result = await runGate();
