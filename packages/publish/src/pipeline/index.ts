@@ -84,7 +84,7 @@ export async function runPipeline(
         if (options.registry === 'all' || options.registry === 'cargo') {
           await runCargoPublishStage(ctx);
         }
-      } else {
+      } else if (!options.skipPublish) {
         // Per-package mode: for each update, publish → verify → push its tag.
         // Uses a single-update context so existing stage logic is fully reused.
         // Prepare push setup once to avoid redundant method detection and branch resolution per package.
