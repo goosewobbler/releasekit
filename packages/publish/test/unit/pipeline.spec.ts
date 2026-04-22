@@ -23,6 +23,12 @@ vi.mock('../../src/stages/verify.js', () => ({
 vi.mock('../../src/stages/git-push.js', () => ({
   runGitPushStage: vi.fn().mockResolvedValue(undefined),
   pushPackageTag: vi.fn().mockResolvedValue(undefined),
+  preparePushSetup: vi.fn().mockResolvedValue({
+    pushRemote: 'origin',
+    remote: 'origin',
+    branch: 'main',
+    dryRun: false,
+  }),
 }));
 vi.mock('../../src/stages/github-release.js', () => ({
   runGithubReleaseStage: vi.fn().mockResolvedValue(undefined),
@@ -317,8 +323,9 @@ describe('pipeline', () => {
       await runPipeline(perPackageInput, getDefaultConfig(), defaultOptions);
 
       expect(pushPackageTag).toHaveBeenCalledTimes(2);
-      expect(pushPackageTag).toHaveBeenCalledWith('pkg-a@v1.1.0', expect.anything());
-      expect(pushPackageTag).toHaveBeenCalledWith('pkg-b@v2.0.0', expect.anything());
+      const calls = vi.mocked(pushPackageTag).mock.calls;
+      expect(calls[0]?.[0]).toBe('pkg-a@v1.1.0');
+      expect(calls[1]?.[0]).toBe('pkg-b@v2.0.0');
       expect(runGitPushStage).not.toHaveBeenCalled();
     });
 
@@ -371,7 +378,8 @@ describe('pipeline', () => {
       await runPipeline(mixedInput, getDefaultConfig(), defaultOptions);
 
       expect(pushPackageTag).toHaveBeenCalledTimes(1);
-      expect(pushPackageTag).toHaveBeenCalledWith('pkg-a@v1.1.0', expect.anything());
+      const callsA = vi.mocked(pushPackageTag).mock.calls;
+      expect(callsA[0]?.[0]).toBe('pkg-a@v1.1.0');
     });
 
     it('should stop at the failing package and leave subsequent tags unpushed', async () => {
@@ -399,7 +407,8 @@ describe('pipeline', () => {
 
       // Only pkg-a's tag should have been pushed
       expect(pushPackageTag).toHaveBeenCalledTimes(1);
-      expect(pushPackageTag).toHaveBeenCalledWith('pkg-a@v1.1.0', expect.anything());
+      const callsB = vi.mocked(pushPackageTag).mock.calls;
+      expect(callsB[0]?.[0]).toBe('pkg-a@v1.1.0');
     });
 
     it('should use batch mode when no updates have a tag (sync mode with shared tag)', async () => {

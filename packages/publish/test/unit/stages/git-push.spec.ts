@@ -320,9 +320,9 @@ describe('pushPackageTag', () => {
     await pushPackageTag('pkg-a@v1.0.0', ctx);
 
     const calls = vi.mocked(execCommand).mock.calls;
-    // tag push comes first, then branch detection (deferred), then branch push
-    expect(calls[0]?.[1]).toEqual(['push', 'origin', 'refs/tags/pkg-a@v1.0.0']);
-    expect(calls[1]?.[1]).toEqual(['rev-parse', '--abbrev-ref', 'HEAD']);
+    // branch detection happens in preparePushSetup, then tag push, then branch push
+    expect(calls[0]?.[1]).toEqual(['rev-parse', '--abbrev-ref', 'HEAD']);
+    expect(calls[1]?.[1]).toEqual(['push', 'origin', 'refs/tags/pkg-a@v1.0.0']);
     expect(calls[2]?.[1]).toEqual(['push', 'origin', 'main']);
     expect(ctx.output.git.tags).toContain('pkg-a@v1.0.0');
     expect(ctx.output.git.pushed).toBe(true);

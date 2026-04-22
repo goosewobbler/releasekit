@@ -2,7 +2,7 @@ import type { VersionOutput } from '@releasekit/core';
 import { BasePublishError, PipelineError } from '../errors/index.js';
 import { runCargoPublishStage } from '../stages/cargo-publish.js';
 import { runGitCommitStage } from '../stages/git-commit.js';
-import { pushPackageTag, runGitPushStage } from '../stages/git-push.js';
+import { preparePushSetup, pushPackageTag, runGitPushStage } from '../stages/git-push.js';
 import { runGithubReleaseStage } from '../stages/github-release.js';
 import { runNpmPublishStage } from '../stages/npm-publish.js';
 import { runPrepareStage } from '../stages/prepare.js';
@@ -87,6 +87,9 @@ export async function runPipeline(
       } else {
         // Per-package mode: for each update, publish → verify → push its tag.
         // Uses a single-update context so existing stage logic is fully reused.
+        // Prepare push setup once to avoid redundant method detection and branch resolution per package.
+        const pushSetup = !options.skipGit ? await preparePushSetup(ctx) : null;
+
         for (const update of input.updates) {
           const singleCtx: PipelineContext = {
             ...ctx,
@@ -123,7 +126,7 @@ export async function runPipeline(
           // Push tag after publish/verify (or if skipping publish, still push because commit is ready).
           // Gate on same condition as batch mode: push if we're skipping publish OR publish succeeded.
           if (!options.skipGit && update.tag && (options.skipPublish || singleCtx.output.publishSucceeded)) {
-            await pushPackageTag(update.tag, ctx);
+            await pushPackageTag(update.tag, ctx, pushSetup || undefined);
           }
         }
       }
