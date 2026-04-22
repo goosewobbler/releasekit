@@ -164,6 +164,37 @@ get_updated_version() {
   echo "$json" | jq -r --arg pkg "$pkg" '.versionOutput.updates[]? | select(.packageName == $pkg) | .newVersion'
 }
 
+get_update_tag() {
+  local pkg="$1"
+  local json="$2"
+  echo "$json" | jq -r --arg pkg "$pkg" '.versionOutput.updates[]? | select(.packageName == $pkg) | .tag // empty'
+}
+
+assert_update_has_tag() {
+  local pkg="$1"
+  local expected_tag="$2"
+  local json="$3"
+  local actual_tag
+  actual_tag=$(get_update_tag "$pkg" "$json")
+  if [[ "$actual_tag" != "$expected_tag" ]]; then
+    echo "FAIL: Expected update tag for '$pkg' to be '$expected_tag', got '${actual_tag:-<absent>}'"
+    exit 1
+  fi
+  echo "PASS: Update for '$pkg' has tag '$actual_tag'"
+}
+
+assert_update_has_no_tag() {
+  local pkg="$1"
+  local json="$2"
+  local actual_tag
+  actual_tag=$(get_update_tag "$pkg" "$json")
+  if [[ -n "$actual_tag" ]]; then
+    echo "FAIL: Expected update for '$pkg' to have no tag, but got '$actual_tag'"
+    exit 1
+  fi
+  echo "PASS: Update for '$pkg' has no tag (batch push mode)"
+}
+
 assert_tag_contains() {
   local pattern="$1"
   local json="$2"

@@ -90,6 +90,9 @@ assert_not_updated "@test/runtime-service" "$output"
 version=$(get_updated_version "@test/platform-service" "$output")
 assert_version "2.0.1" "$version"
 
+# In async/independent mode each update must carry its own tag (per-package push mode)
+assert_update_has_tag "@test/platform-service" "$(get_update_tag "@test/platform-service" "$output")" "$output"
+
 cleanup_repo
 REPO_DIR=""
 
@@ -115,6 +118,10 @@ service_version=$(get_updated_version "@test/platform-service" "$output")
 bridge_version=$(get_updated_version "@test/platform-bridge" "$output")
 assert_version "2.1.0" "$service_version"
 assert_version "2.1.0" "$bridge_version"
+
+# Both updated packages must carry individual tags
+assert_update_has_tag "@test/platform-service" "$(get_update_tag "@test/platform-service" "$output")" "$output"
+assert_update_has_tag "@test/platform-bridge" "$(get_update_tag "@test/platform-bridge" "$output")" "$output"
 
 echo "PASS: Both platform packages bump from 2.x baseline, runtime-service is unaffected"
 
