@@ -7,7 +7,7 @@ import {
 } from '../../src/preview-github.js';
 
 vi.mock('node:child_process', () => ({
-  execSync: vi.fn(),
+  execFileSync: vi.fn(),
 }));
 
 function createMockOctokit(comments: { id: number; body: string }[] = []) {
@@ -56,10 +56,10 @@ describe('findMergedPRsSinceLastRelease', () => {
   }
 
   it('should return PR numbers from merge commits since last tag', async () => {
-    const { execSync } = await import('node:child_process');
-    vi.mocked(execSync)
+    const { execFileSync } = await import('node:child_process');
+    vi.mocked(execFileSync)
       .mockReturnValueOnce('v1.0.0\n') // git describe
-      .mockReturnValueOnce('abc123\ndef456\n'); // git log merges
+      .mockReturnValueOnce('abc123\ndef456\n'); // git log
 
     const octokit = createPRLookupOctokit({ abc123: [10], def456: [20] });
     const result = await findMergedPRsSinceLastRelease(octokit, 'owner', 'repo', '/project');
@@ -69,8 +69,8 @@ describe('findMergedPRsSinceLastRelease', () => {
   });
 
   it('should deduplicate PR numbers across merge commits', async () => {
-    const { execSync } = await import('node:child_process');
-    vi.mocked(execSync).mockReturnValueOnce('v1.0.0\n').mockReturnValueOnce('abc123\ndef456\n');
+    const { execFileSync } = await import('node:child_process');
+    vi.mocked(execFileSync).mockReturnValueOnce('v1.0.0\n').mockReturnValueOnce('abc123\ndef456\n');
 
     const octokit = createPRLookupOctokit({ abc123: [10], def456: [10] });
     const result = await findMergedPRsSinceLastRelease(octokit, 'owner', 'repo', '/project');
@@ -79,8 +79,8 @@ describe('findMergedPRsSinceLastRelease', () => {
   });
 
   it('should fall back to last 50 merge commits when no tags exist', async () => {
-    const { execSync } = await import('node:child_process');
-    vi.mocked(execSync)
+    const { execFileSync } = await import('node:child_process');
+    vi.mocked(execFileSync)
       .mockImplementationOnce(() => {
         throw new Error('no tags');
       }) // git describe fails
@@ -90,13 +90,13 @@ describe('findMergedPRsSinceLastRelease', () => {
     const result = await findMergedPRsSinceLastRelease(octokit, 'owner', 'repo', '/project');
 
     expect(result).toEqual([99]);
-    const calls = vi.mocked(execSync).mock.calls;
-    expect(calls[1][0]).toContain('-50');
+    const calls = vi.mocked(execFileSync).mock.calls;
+    expect(calls[1][1]).toContain('-50');
   });
 
   it('should return empty array when no merge commits in range', async () => {
-    const { execSync } = await import('node:child_process');
-    vi.mocked(execSync).mockReturnValueOnce('v1.0.0\n').mockReturnValueOnce('');
+    const { execFileSync } = await import('node:child_process');
+    vi.mocked(execFileSync).mockReturnValueOnce('v1.0.0\n').mockReturnValueOnce('');
 
     const octokit = createPRLookupOctokit({});
     const result = await findMergedPRsSinceLastRelease(octokit, 'owner', 'repo', '/project');
@@ -105,8 +105,8 @@ describe('findMergedPRsSinceLastRelease', () => {
   });
 
   it('should return empty array when git log throws', async () => {
-    const { execSync } = await import('node:child_process');
-    vi.mocked(execSync)
+    const { execFileSync } = await import('node:child_process');
+    vi.mocked(execFileSync)
       .mockReturnValueOnce('v1.0.0\n')
       .mockImplementationOnce(() => {
         throw new Error('git error');
