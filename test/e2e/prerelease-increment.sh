@@ -10,8 +10,6 @@ trap cleanup_repo EXIT
 
 echo "=== E2E: Prerelease Increment Tests ==="
 
-cd "$SCRIPT_DIR"
-
 # Test: Increment existing prerelease version
 echo ""
 echo "--- Test: Increment existing prerelease version ---"
@@ -27,12 +25,12 @@ git tag "v1.0.0-next.6"
 git_commit "feat: add new feature"
 
 set +e
-output=$(run_cli_json releasekit-version --dry-run --json --bump prerelease)
+output=$(run_cli_json releasekit release --dry-run --json --bump prerelease --project-dir "$REPO_DIR")
 exit_code=$?
 set -e
 
 assert_exit_code 0 "$exit_code"
-version=$(echo "$output" | jq -r '.updates[0].newVersion')
+version=$(get_version_from_json "$output")
 
 # Prerelease version should be incremented to 1.0.0-next.7
 assert_version "1.0.0-next.7" "$version"

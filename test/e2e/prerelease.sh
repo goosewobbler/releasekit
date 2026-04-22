@@ -22,19 +22,21 @@ git_commit "chore: initial commit"
 git_commit "feat: add feature"
 
 set +e
-output=$(run_cli_json releasekit-version --dry-run --json --prerelease)
+output=$(run_cli_json releasekit release --dry-run --json --prerelease --project-dir "$REPO_DIR")
 exit_code=$?
 set -e
 
 assert_exit_code 0 "$exit_code"
-version=$(echo "$output" | jq -r '.updates[0].newVersion')
+version=$(get_version_from_json "$output")
 
-# Prerelease version should be 0.2.0-next.0
 if [[ "$version" != *"next"* ]]; then
   echo "FAIL: Expected prerelease version with 'next' identifier, got $version"
   exit 1
 fi
 echo "PASS: Prerelease version contains 'next' identifier: $version"
+
+cleanup_repo
+REPO_DIR=""
 
 # Test 2: Prerelease with custom identifier (beta)
 echo ""
@@ -46,14 +48,13 @@ git_commit "chore: initial commit"
 git_commit "feat: add feature"
 
 set +e
-output=$(run_cli_json releasekit-version --dry-run --json --prerelease=beta)
+output=$(run_cli_json releasekit release --dry-run --json --prerelease=beta --project-dir "$REPO_DIR")
 exit_code=$?
 set -e
 
 assert_exit_code 0 "$exit_code"
-version=$(echo "$output" | jq -r '.updates[0].newVersion')
+version=$(get_version_from_json "$output")
 
-# Prerelease version should be 0.2.0-beta.0
 if [[ "$version" != *"beta"* ]]; then
   echo "FAIL: Expected prerelease version with 'beta' identifier, got $version"
   exit 1

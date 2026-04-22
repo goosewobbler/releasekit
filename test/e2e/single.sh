@@ -22,10 +22,10 @@ git_commit "chore: initial commit"
 git_commit "fix: resolve bug"
 
 set +e
-output=$(run_cli_json releasekit-version --dry-run --json)
+output=$(run_cli_json releasekit release --dry-run --json --project-dir "$REPO_DIR")
 set -e
-version=$(echo "$output" | jq -r '.updates[0].newVersion' 2>/dev/null || echo "parse_error")
-if [[ "$version" == "parse_error" ]]; then
+version=$(get_version_from_json "$output")
+if [[ -z "$version" ]]; then
   echo "FAIL: Could not parse JSON output"
   echo "Output: $output"
   exit 1
@@ -42,10 +42,10 @@ git_commit "chore: initial commit"
 git_commit "feat: add awesome feature"
 
 set +e
-output=$(run_cli_json releasekit-version --dry-run --json)
+output=$(run_cli_json releasekit release --dry-run --json --project-dir "$REPO_DIR")
 set -e
-version=$(echo "$output" | jq -r '.updates[0].newVersion' 2>/dev/null || echo "parse_error")
-if [[ "$version" == "parse_error" ]]; then
+version=$(get_version_from_json "$output")
+if [[ -z "$version" ]]; then
   echo "FAIL: Could not parse JSON output"
   echo "Output: $output"
   exit 1
@@ -62,10 +62,10 @@ git_commit "chore: initial commit"
 git_commit "feat!: breaking API change"
 
 set +e
-output=$(run_cli_json releasekit-version --dry-run --json)
+output=$(run_cli_json releasekit release --dry-run --json --project-dir "$REPO_DIR")
 set -e
-version=$(echo "$output" | jq -r '.updates[0].newVersion' 2>/dev/null || echo "parse_error")
-if [[ "$version" == "parse_error" ]]; then
+version=$(get_version_from_json "$output")
+if [[ -z "$version" ]]; then
   echo "FAIL: Could not parse JSON output"
   echo "Output: $output"
   exit 1

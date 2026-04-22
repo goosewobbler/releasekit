@@ -1,0 +1,22 @@
+{
+  "version": {
+    "preset": "angular",
+    "sync": false,
+    "packageSpecificTags": true,
+    "tagTemplate": "${packageName}@v${version}",
+    "prereleaseIdentifier": "next",
+    "mismatchStrategy": "prefer-package",
+    "packages": ["packages/*"]
+  },
+  "ci": {
+    "releaseTrigger": "label",
+    "scopeLabels": {
+      "scope:shared": "@test/native-*",
+      "scope:utils": "@test/native-utils",
+      "scope:types": "@test/native-types",
+      "scope:spy": "@test/native-spy",
+      "scope:electron": "@test/electron-*",
+      "scope:tauri": "@test/tauri-*"
+    }
+  }
+}

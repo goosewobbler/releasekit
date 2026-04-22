@@ -36,16 +36,14 @@ EOF
 cat > packages/pkg-a/package.json <<EOF
 {
   "name": "@test/pkg-a",
-  "version": "0.1.0",
-  "private": true
+  "version": "0.1.0"
 }
 EOF
 
 cat > packages/pkg-b/package.json <<EOF
 {
   "name": "@test/pkg-b",
-  "version": "0.1.0",
-  "private": true
+  "version": "0.1.0"
 }
 EOF
 
@@ -54,15 +52,15 @@ git_commit "chore: initial commit"
 git_commit "feat: add awesome feature"
 
 set +e
-output=$(run_cli_json releasekit-version --dry-run --json)
+output=$(run_cli_json releasekit release --dry-run --json --project-dir "$REPO_DIR")
 set -e
 
 # Verify version
-version=$(echo "$output" | jq -r '.updates[0].newVersion')
+version=$(echo "$output" | jq -r '.versionOutput.updates[0].newVersion')
 assert_version "0.2.0" "$version"
 
 # Verify changelog is generated
-changelog_count=$(echo "$output" | jq '.changelogs | length')
+changelog_count=$(echo "$output" | jq '.versionOutput.changelogs | length')
 if [[ "$changelog_count" == "0" ]]; then
   echo "FAIL: Expected changelog to be generated, but changelogs array is empty"
   echo "Output: $output"
@@ -71,7 +69,7 @@ fi
 echo "PASS: Changelog generated"
 
 # Verify changelog contains the feature
-changelog_entry=$(echo "$output" | jq -r '.changelogs[0].entries[0].description')
+changelog_entry=$(echo "$output" | jq -r '.versionOutput.changelogs[0].entries[0].description')
 if [[ "$changelog_entry" != *"awesome feature"* ]]; then
   echo "FAIL: Expected changelog to contain 'awesome feature', got: $changelog_entry"
   exit 1

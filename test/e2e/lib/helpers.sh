@@ -125,3 +125,65 @@ assert_contains() {
   fi
   echo "PASS: Output contains '$needle'"
 }
+
+assert_updated() {
+  local pkg="$1"
+  local json="$2"
+  local count
+  count=$(echo "$json" | jq --arg pkg "$pkg" '[.versionOutput.updates[]? | select(.packageName == $pkg)] | length')
+  if [[ "$count" == "0" ]]; then
+    echo "FAIL: Expected '$pkg' to be in updates, but it was not"
+    echo "Updates: $(echo "$json" | jq '.versionOutput.updates')"
+    exit 1
+  fi
+  echo "PASS: '$pkg' is in updates"
+}
+
+assert_not_updated() {
+  local pkg="$1"
+  local json="$2"
+  local count
+  count=$(echo "$json" | jq --arg pkg "$pkg" '[.versionOutput.updates[]? | select(.packageName == $pkg)] | length')
+  if [[ "$count" != "0" ]]; then
+    echo "FAIL: Expected '$pkg' NOT to be in updates, but it was"
+    echo "Updates: $(echo "$json" | jq '.versionOutput.updates')"
+    exit 1
+  fi
+  echo "PASS: '$pkg' not in updates"
+}
+
+get_updated_version() {
+  local pkg="$1"
+  local json="$2"
+  echo "$json" | jq -r --arg pkg "$pkg" '.versionOutput.updates[]? | select(.packageName == $pkg) | .newVersion'
+}
+
+assert_tag_contains() {
+  local pattern="$1"
+  local json="$2"
+  local found
+  found=$(echo "$json" | jq -r --arg pat "$pattern" '.versionOutput.tags[]? | select(test($pat))' | head -1)
+  if [[ -z "$found" ]]; then
+    echo "FAIL: Expected tags to match pattern '$pattern'"
+    echo "Tags: $(echo "$json" | jq '.versionOutput.tags')"
+    exit 1
+  fi
+  echo "PASS: Tags contain '$found' (matched '$pattern')"
+}
+
+assert_tag_not_contains() {
+  local pattern="$1"
+  local json="$2"
+  local found
+  found=$(echo "$json" | jq -r --arg pat "$pattern" '.versionOutput.tags[]? | select(test($pat))' | head -1)
+  if [[ -n "$found" ]]; then
+    echo "FAIL: Expected tags NOT to match pattern '$pattern', but found '$found'"
+    exit 1
+  fi
+  echo "PASS: Tags do not contain pattern '$pattern'"
+}
+
+get_version_from_json() {
+  local json="$1"
+  echo "$json" | jq -r '.versionOutput.updates[0].newVersion // empty'
+}
