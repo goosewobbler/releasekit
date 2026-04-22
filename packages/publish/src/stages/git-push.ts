@@ -88,43 +88,33 @@ export async function pushPackageTag(tag: string, ctx: PipelineContext, setup?: 
 
   if (!config.git.push) return;
 
-  const { remote } = config.git;
-
-  try {
-    // Use precomputed setup if provided (per-package mode), otherwise compute on-demand (fallback)
-    const { pushRemote, branch } =
-      setup ||
-      (await (async () => {
-        const s = await preparePushSetup(ctx);
-        if (!s) throw createPublishError(PublishErrorCode.GIT_PUSH_ERROR, 'Git push disabled');
-        return s;
+  const resolvedSetup =
+    setup ||
+    ((await preparePushSetup(ctx)) ??
+      (() => {
+        throw createPublishError(PublishErrorCode.GIT_PUSH_ERROR, 'Git push disabled');
       })());
 
-    // Push the specific tag ref (carries the underlying commit with it)
-    await execCommand('git', ['push', pushRemote, `refs/tags/${tag}`], {
+  const { pushRemote, branch } = resolvedSetup;
+
+  // Push the specific tag ref (carries the underlying commit with it)
+  await execCommand('git', ['push', pushRemote, `refs/tags/${tag}`], {
+    cwd,
+    dryRun,
+    label: `git push ${pushRemote} refs/tags/${tag}`,
+  });
+  output.git.tags.push(tag);
+
+  // Push the branch (idempotent — no-op if remote is already up-to-date)
+  if (output.git.committed && branch) {
+    await execCommand('git', ['push', pushRemote, branch], {
       cwd,
       dryRun,
-      label: `git push ${remote} refs/tags/${tag}`,
+      label: `git push ${pushRemote} ${branch}`,
     });
-    output.git.tags.push(tag);
-
-    // Push the branch (idempotent — no-op if remote is already up-to-date)
-    if (output.git.committed && branch) {
-      await execCommand('git', ['push', pushRemote, branch], {
-        cwd,
-        dryRun,
-        label: `git push ${remote} ${branch}`,
-      });
-    }
-
-    output.git.pushed = true;
-  } catch (error) {
-    if (error instanceof PublishError) throw error;
-    throw createPublishError(
-      PublishErrorCode.GIT_PUSH_ERROR,
-      `${error instanceof Error ? error.message : String(error)}`,
-    );
   }
+
+  output.git.pushed = true;
 }
 
 /** Error strategy: THROWS. Push after publish. */
