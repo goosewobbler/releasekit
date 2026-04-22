@@ -22,6 +22,7 @@ function toGithubAuthedUrl(remoteUrl: string, token: string): string | undefined
 }
 
 export interface PushSetup {
+  remote: string;
   pushRemote: string;
   branch?: string;
 }
@@ -70,7 +71,7 @@ export async function preparePushSetup(ctx: PipelineContext): Promise<PushSetup 
     }
   }
 
-  return { pushRemote, branch };
+  return { remote, pushRemote, branch };
 }
 
 /**
@@ -92,13 +93,13 @@ export async function pushPackageTag(tag: string, ctx: PipelineContext, setup?: 
         throw createPublishError(PublishErrorCode.GIT_PUSH_ERROR, 'Git push disabled');
       })());
 
-  const { pushRemote, branch } = resolvedSetup;
+  const { remote, pushRemote, branch } = resolvedSetup;
 
   // Push the specific tag ref (carries the underlying commit with it)
   await execCommand('git', ['push', pushRemote, `refs/tags/${tag}`], {
     cwd,
     dryRun,
-    label: `git push ${pushRemote} refs/tags/${tag}`,
+    label: `git push ${remote} refs/tags/${tag}`,
   });
   output.git.tags.push(tag);
 
@@ -107,7 +108,7 @@ export async function pushPackageTag(tag: string, ctx: PipelineContext, setup?: 
     await execCommand('git', ['push', pushRemote, branch], {
       cwd,
       dryRun,
-      label: `git push ${pushRemote} ${branch}`,
+      label: `git push ${remote} ${branch}`,
     });
   }
 
