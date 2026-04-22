@@ -130,7 +130,10 @@ assert_updated() {
   local pkg="$1"
   local json="$2"
   local count
-  count=$(echo "$json" | jq --arg pkg "$pkg" '[.versionOutput.updates[]? | select(.packageName == $pkg)] | length')
+  count=$(echo "$json" | jq --arg pkg "$pkg" '[.versionOutput.updates[]? | select(.packageName == $pkg)] | length') || {
+    echo "FAIL: Failed to parse JSON for '$pkg' updates check"
+    exit 1
+  }
   if [[ "$count" == "0" ]]; then
     echo "FAIL: Expected '$pkg' to be in updates, but it was not"
     echo "Updates: $(echo "$json" | jq '.versionOutput.updates')"
@@ -143,7 +146,10 @@ assert_not_updated() {
   local pkg="$1"
   local json="$2"
   local count
-  count=$(echo "$json" | jq --arg pkg "$pkg" '[.versionOutput.updates[]? | select(.packageName == $pkg)] | length')
+  count=$(echo "$json" | jq --arg pkg "$pkg" '[.versionOutput.updates[]? | select(.packageName == $pkg)] | length') || {
+    echo "FAIL: Failed to parse JSON for '$pkg' updates check"
+    exit 1
+  }
   if [[ "$count" != "0" ]]; then
     echo "FAIL: Expected '$pkg' NOT to be in updates, but it was"
     echo "Updates: $(echo "$json" | jq '.versionOutput.updates')"

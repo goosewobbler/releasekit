@@ -115,6 +115,9 @@ if [[ "$pre_version" != *"next"* ]]; then
 fi
 echo "PASS: Prepatch produced prerelease version: $pre_version"
 
+echo "feat" > packages/tauri-service/feat.txt
+git_commit "feat: add tauri capability"
+
 # Now verify that a package already at prerelease can be graduated
 # tauri-service is at 3.0.0-next.0, --stable should produce 3.0.0
 set +e

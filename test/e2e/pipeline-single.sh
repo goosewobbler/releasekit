@@ -28,7 +28,7 @@ assert_exit_code 0 "$exit_code"
 version=$(get_version_from_json "$output")
 assert_version "0.2.0" "$version"
 
-notes_generated=$(echo "$output" | jq -r '.notesGenerated // false')
+notes_generated=$(echo "$output" | jq -r '.notesGenerated')
 if [[ "$notes_generated" != "true" ]]; then
   echo "FAIL: Expected notesGenerated=true in pipeline output, got: $notes_generated"
   exit 1
