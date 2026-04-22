@@ -31,8 +31,8 @@ export async function findMergedPRsForCommit(
 
 /**
  * Find all merged PRs since the last release tag.
- * Uses git to enumerate merge commits in the window `<lastTag>..HEAD`, then looks up each
- * commit's associated PR via the GitHub API. Falls back to the last 50 merge commits when
+ * Uses git to enumerate commits in the window `<lastTag>..HEAD`, then looks up each
+ * commit's associated PR via the GitHub API. Falls back to the last 50 commits when
  * no release tags exist. Returns a deduped list of PR numbers.
  */
 export async function findMergedPRsSinceLastRelease(
