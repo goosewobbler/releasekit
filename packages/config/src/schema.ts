@@ -269,6 +269,20 @@ export const CILabelsConfigSchema = z.object({
   patch: z.string().default('bump:patch'),
 });
 
+export const StandingPrConfigSchema = z.object({
+  /** Branch name for the release PR. Default: 'release/next' */
+  branch: z.string().default('release/next'),
+  /** Title template for the release PR. Variables: ${count}, ${version}. Must start with 'chore: release' to match default skip pattern on squash merge. */
+  /* biome-ignore lint/suspicious/noTemplateCurlyInString: default template value */
+  title: z.string().default('chore: release ${count} package(s)'),
+  /** Labels to apply to the standing release PR */
+  labels: z.array(z.string()).default(['release']),
+  /** Whether to auto-delete the release branch after PR merge. Default: true */
+  deleteBranchOnMerge: z.boolean().default(true),
+  /** Merge method for the release PR. Squash (default) ensures the merge commit matches the skip pattern automatically. */
+  mergeMethod: z.enum(['squash', 'merge', 'rebase']).default('squash'),
+});
+
 export const CIConfigSchema = z.object({
   releaseStrategy: z.enum(['manual', 'direct', 'standing-pr', 'scheduled']).default('direct'),
   releaseTrigger: z.enum(['commit', 'label']).default('label'),
@@ -295,6 +309,8 @@ export const CIConfigSchema = z.object({
    * When a PR has a label matching a key, only packages matching the corresponding pattern will be released.
    */
   scopeLabels: z.record(z.string(), z.string()).optional(),
+  /** Configuration for the standing release PR feature. */
+  standingPr: StandingPrConfigSchema.optional(),
 });
 
 export const ReleaseCIConfigSchema = z.object({
@@ -330,6 +346,7 @@ export const ReleaseKitConfigSchema = z.object({
 
 export type CIConfig = z.infer<typeof CIConfigSchema>;
 export type CILabelsConfig = z.infer<typeof CILabelsConfigSchema>;
+export type StandingPrConfig = z.infer<typeof StandingPrConfigSchema>;
 export type GitConfig = z.infer<typeof GitConfigSchema>;
 export type MonorepoConfig = z.infer<typeof MonorepoConfigSchema>;
 export type VersionConfig = z.infer<typeof VersionConfigSchema>;

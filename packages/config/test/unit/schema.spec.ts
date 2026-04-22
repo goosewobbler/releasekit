@@ -545,6 +545,47 @@ describe('CIConfigSchema', () => {
     expect(result.labels.minor).toBe('bump:minor');
     expect(result.labels.patch).toBe('bump:patch');
   });
+
+  it('standingPr is undefined when omitted', () => {
+    const result = CIConfigSchema.parse({});
+    expect(result.standingPr).toBeUndefined();
+  });
+
+  it('standingPr applies defaults when provided as empty object', () => {
+    const result = CIConfigSchema.parse({ standingPr: {} });
+    expect(result.standingPr?.branch).toBe('release/next');
+    expect(result.standingPr?.title).toBe('chore: release ${count} package(s)');
+    expect(result.standingPr?.labels).toEqual(['release']);
+    expect(result.standingPr?.deleteBranchOnMerge).toBe(true);
+    expect(result.standingPr?.mergeMethod).toBe('squash');
+  });
+
+  it('standingPr respects explicit overrides', () => {
+    const result = CIConfigSchema.parse({
+      standingPr: {
+        branch: 'release/staging',
+        title: 'chore: release ${count} pkg(s)',
+        labels: ['auto-release'],
+        deleteBranchOnMerge: false,
+        mergeMethod: 'merge',
+      },
+    });
+    expect(result.standingPr?.branch).toBe('release/staging');
+    expect(result.standingPr?.title).toBe('chore: release ${count} pkg(s)');
+    expect(result.standingPr?.labels).toEqual(['auto-release']);
+    expect(result.standingPr?.deleteBranchOnMerge).toBe(false);
+    expect(result.standingPr?.mergeMethod).toBe('merge');
+  });
+
+  it('standingPr rejects invalid mergeMethod', () => {
+    expect(() => CIConfigSchema.parse({ standingPr: { mergeMethod: 'invalid' } })).toThrow();
+  });
+
+  it('standingPr accepts all valid mergeMethod values', () => {
+    for (const method of ['squash', 'merge', 'rebase'] as const) {
+      expect(CIConfigSchema.parse({ standingPr: { mergeMethod: method } }).standingPr?.mergeMethod).toBe(method);
+    }
+  });
 });
 
 describe('ReleaseConfigSchema', () => {
