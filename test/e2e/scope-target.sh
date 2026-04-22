@@ -158,7 +158,10 @@ assert_version "1.0.1" "$version"
 
 # The update record must carry its tag so the publish pipeline knows to push per-package
 tag=$(get_update_tag "@test/core-spy" "$output")
-assert_update_has_tag "@test/core-spy" "$tag" "$output"
+if [[ -z "$tag" ]]; then
+  echo "FAIL: Expected @test/core-spy to have a tag, got none"
+  exit 1
+fi
 if [[ "$tag" != *"test-core-spy@v"* ]]; then
   echo "FAIL: Expected update tag to match 'test-core-spy@v*', got '$tag'"
   exit 1
