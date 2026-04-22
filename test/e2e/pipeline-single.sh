@@ -1,9 +1,5 @@
 #!/bin/bash
-# E2E tests for full pipeline: version → notes → publish
-
-# NOTE: This test verifies the changelog output is generated
-# The sync strategy has a bug where changelogs are empty.
-# See: https://github.com/releasekit/releasekit/issues/...
+# E2E tests for full release pipeline via unified releasekit release CLI
 
 set -euo pipefail
 
@@ -14,42 +10,52 @@ trap cleanup_repo EXIT
 
 echo "=== E2E: Pipeline Single Package Tests ==="
 
-cd "$SCRIPT_DIR"
-
-# Test: Full pipeline with feat commit
+# Test: Full pipeline with feat commit via unified CLI
 echo ""
-echo "--- Test: Full pipeline (version → notes → publish) ---"
+echo "--- Test: releasekit release --dry-run (version + notes in one step) ---"
 create_git_repo
 create_package_json "test-pipeline-single" "0.1.0"
 create_releasekit_config '{"version":{"preset":"conventionalcommits","packages":["./"]}}'
 git_commit "chore: initial commit"
 git_commit "feat: add awesome feature"
 
-# Step 1: Version
 set +e
-version_output=$(run_cli_json releasekit-version --dry-run --json)
-version_exit=$?
+output=$(run_cli_json releasekit release --dry-run --json --project-dir "$REPO_DIR")
+exit_code=$?
 set -e
 
-assert_exit_code 0 "$version_exit"
-version=$(echo "$version_output" | jq -r '.updates[0].newVersion')
+assert_exit_code 0 "$exit_code"
+version=$(get_version_from_json "$output")
 assert_version "0.2.0" "$version"
 
-# Step 2: Notes - read from stdin
-# Note: changelogs array is currently empty due to sync strategy bug
-# We still verify the CLI doesn't crash
-notes_output=$(echo "$version_output" | run_cli releasekit-notes generate 2>&1)
-notes_exit=$?
+notes_generated=$(echo "$output" | jq -r '.notesGenerated')
+if [[ "$notes_generated" != "true" ]]; then
+  echo "FAIL: Expected notesGenerated=true in pipeline output, got: $notes_generated"
+  exit 1
+fi
+echo "PASS: Pipeline ran version and notes in a single step"
 
-assert_exit_code 0 "$notes_exit"
-echo "PASS: Notes CLI executed successfully"
+cleanup_repo
+REPO_DIR=""
 
-# Step 3: Publish (dry-run)
-publish_output=$(echo "$version_output" | run_cli releasekit-publish --dry-run 2>&1)
-publish_exit=$?
+# Test: Fix commit goes through pipeline correctly
+echo ""
+echo "--- Test: fix commit pipeline produces patch bump ---"
+create_git_repo
+create_package_json "test-pipeline-fix" "1.0.0"
+create_releasekit_config '{"version":{"preset":"conventionalcommits","packages":["./"]}}'
+git_commit "chore: initial commit"
+git_commit "fix: correct output formatting"
 
-assert_exit_code 0 "$publish_exit"
-echo "PASS: Publish CLI executed successfully"
+set +e
+output=$(run_cli_json releasekit release --dry-run --json --project-dir "$REPO_DIR")
+exit_code=$?
+set -e
+
+assert_exit_code 0 "$exit_code"
+version=$(get_version_from_json "$output")
+assert_version "1.0.1" "$version"
+echo "PASS: Fix commit pipeline produces patch bump"
 
 echo ""
 echo "=== All pipeline single tests passed ==="

@@ -25,7 +25,7 @@ git_commit "chore: update README"
 git_commit "chore: cleanup"
 
 set +e
-output=$(run_cli_json releasekit-version --dry-run --json)
+output=$(run_cli_json releasekit release --dry-run --json --project-dir "$REPO_DIR")
 exit_code=$?
 set -e
 

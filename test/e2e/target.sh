@@ -62,15 +62,15 @@ git_commit "fix(pkg-b): fix bug in pkg-b"
 
 # Target only pkg-b
 set +e
-output=$(run_cli_json releasekit-version --dry-run --json --target @test/pkg-b)
+output=$(run_cli_json releasekit release --dry-run --json --target @test/pkg-b --project-dir "$REPO_DIR")
 exit_code=$?
 set -e
 
 assert_exit_code 0 "$exit_code"
 
 # Verify only pkg-b is in the output (pkg-a should not be present)
-pkg_a_count=$(echo "$output" | jq '[.updates[] | select(.packageName == "@test/pkg-a")] | length')
-pkg_b_count=$(echo "$output" | jq '[.updates[] | select(.packageName == "@test/pkg-b")] | length')
+pkg_a_count=$(echo "$output" | jq '[.versionOutput.updates[]? | select(.packageName == "@test/pkg-a")] | length')
+pkg_b_count=$(echo "$output" | jq '[.versionOutput.updates[]? | select(.packageName == "@test/pkg-b")] | length')
 
 if [[ "$pkg_a_count" != "0" ]]; then
   echo "FAIL: pkg-a should not be in output when targeting pkg-b"

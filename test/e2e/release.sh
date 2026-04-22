@@ -32,7 +32,10 @@ version=$(echo "$release_output" | jq -r '.versionOutput.updates[0].newVersion')
 assert_version "0.2.0" "$version"
 
 notes_generated=$(echo "$release_output" | jq -r '.notesGenerated')
-assert_contains "$notes_generated" "true"
+if [[ "$notes_generated" != "true" ]]; then
+  echo "FAIL: Expected notesGenerated=true in release output, got: $notes_generated"
+  exit 1
+fi
 
 echo "PASS: Release CLI dry-run succeeded"
 
