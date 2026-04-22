@@ -32,7 +32,7 @@ jobs:
           cp releasekit.schema.json _site/schema.json
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
 
       - name: Deploy to GitHub Pages
         id: deployment
