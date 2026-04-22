@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { Octokit } from '@octokit/rest';
 import { MARKER } from './preview-format.js';
 
@@ -43,7 +43,10 @@ export async function findMergedPRsSinceLastRelease(
 ): Promise<number[]> {
   let range: string;
   try {
-    const lastTag = execSync('git describe --tags --abbrev=0', { cwd: projectDir, encoding: 'utf8' }).trim();
+    const lastTag = execFileSync('git', ['describe', '--tags', '--abbrev=0'], {
+      cwd: projectDir,
+      encoding: 'utf8',
+    }).trim();
     range = `${lastTag}..HEAD`;
   } catch {
     range = '-50';
@@ -51,7 +54,7 @@ export async function findMergedPRsSinceLastRelease(
 
   let mergeShas: string[];
   try {
-    const output = execSync(`git log --merges --format="%H" ${range}`, {
+    const output = execFileSync('git', ['log', '--merges', '--format=%H', range], {
       cwd: projectDir,
       encoding: 'utf8',
     }).trim();
