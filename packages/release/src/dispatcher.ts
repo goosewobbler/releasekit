@@ -9,6 +9,7 @@ import { Command } from 'commander';
 import { createInitCommand } from './init-command.js';
 import { createPreviewCommand } from './preview-command.js';
 import { createReleaseCommand } from './release-command.js';
+import { createStandingPRCommand } from './standing-pr-command.js';
 
 export function createDispatcherProgram(): Command {
   const program = new Command()
@@ -17,6 +18,7 @@ export function createDispatcherProgram(): Command {
     .version(readPackageVersion(import.meta.url));
   program.addCommand(createPreviewCommand(), { isDefault: true });
   program.addCommand(createReleaseCommand());
+  program.addCommand(createStandingPRCommand());
   program.addCommand(createInitCommand());
   program.addCommand(createVersionCommand());
   program.addCommand(createNotesCommand());

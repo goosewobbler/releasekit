@@ -7,7 +7,7 @@ import { resolvePreviewContext } from './preview-context.js';
 import { detectPrerelease } from './preview-detect.js';
 import type { LabelContext } from './preview-format.js';
 import { formatPreviewComment } from './preview-format.js';
-import { createOctokit, fetchPRLabels, postOrUpdateComment } from './preview-github.js';
+import { createOctokit, fetchPRLabels, findStandingPR, postOrUpdateComment } from './preview-github.js';
 import { runRelease } from './release.js';
 
 export interface PreviewOptions {
@@ -53,6 +53,17 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
 
   const strategy = ciConfig?.releaseStrategy ?? 'direct';
 
+  // For standing-pr strategy, discover the current standing PR number for the preview comment
+  let standingPrNumber: number | undefined;
+  if (strategy === 'standing-pr' && context && octokit) {
+    try {
+      const standingPr = await findStandingPR(octokit, context.owner, context.repo, ciConfig);
+      standingPrNumber = standingPr?.number;
+    } catch {
+      // Non-fatal: preview still renders without the PR number
+    }
+  }
+
   // Run version analysis unless release is skipped or in label mode with no bump label
   let result = null;
   if (!labelContext.skip && !labelContext.noBumpLabel) {
@@ -88,7 +99,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   }
 
   // Format the comment
-  const commentBody = formatPreviewComment(result, { strategy, labelContext });
+  const commentBody = formatPreviewComment(result, { strategy, standingPrNumber, labelContext });
 
   if (!context || !octokit) {
     // Dry-run mode or GitHub context unavailable — print to stdout
