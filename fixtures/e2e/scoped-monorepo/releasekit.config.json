@@ -11,12 +11,12 @@
   "ci": {
     "releaseTrigger": "label",
     "scopeLabels": {
-      "scope:shared": "@test/native-*",
-      "scope:utils": "@test/native-utils",
-      "scope:types": "@test/native-types",
-      "scope:spy": "@test/native-spy",
-      "scope:electron": "@test/electron-*",
-      "scope:tauri": "@test/tauri-*"
+      "scope:shared": "@test/core-*",
+      "scope:utils": "@test/core-utils",
+      "scope:types": "@test/core-types",
+      "scope:spy": "@test/core-spy",
+      "scope:platform": "@test/platform-*",
+      "scope:runtime": "@test/runtime-*"
     }
   }
 }

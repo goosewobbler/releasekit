@@ -1,6 +1,5 @@
 #!/bin/bash
 # E2E tests for angular preset commit type handling
-# The wdio-desktop-mobile project uses angular preset
 
 set -euo pipefail
 

@@ -13,11 +13,11 @@ echo "=== E2E: Stable Graduation Tests ==="
 setup_prerelease_repo() {
   create_git_repo
 
-  mkdir -p packages/{native-spy,electron-service,tauri-service}
+  mkdir -p packages/{core-spy,platform-service,runtime-service}
 
   cat > package.json <<'EOF'
 {
-  "name": "wdio-style-fixture",
+  "name": "scoped-monorepo-fixture",
   "version": "0.0.0",
   "private": true
 }
@@ -28,23 +28,23 @@ packages:
   - 'packages/*'
 EOF
 
-  cat > packages/native-spy/package.json <<'EOF'
+  cat > packages/core-spy/package.json <<'EOF'
 {
-  "name": "@test/native-spy",
+  "name": "@test/core-spy",
   "version": "1.0.0"
 }
 EOF
 
-  cat > packages/electron-service/package.json <<'EOF'
+  cat > packages/platform-service/package.json <<'EOF'
 {
-  "name": "@test/electron-service",
+  "name": "@test/platform-service",
   "version": "2.0.0"
 }
 EOF
 
-  cat > packages/tauri-service/package.json <<'EOF'
+  cat > packages/runtime-service/package.json <<'EOF'
 {
-  "name": "@test/tauri-service",
+  "name": "@test/runtime-service",
   "version": "3.0.0-next.0"
 }
 EOF
@@ -65,29 +65,29 @@ EOF
 
   git_commit "chore: initial commit"
   # sanitizePackageName strips @ prefix and replaces / with -
-  git tag "test-native-spy@v1.0.0"
-  git tag "test-electron-service@v2.0.0"
-  git tag "test-tauri-service@v3.0.0-next.0"
+  git tag "test-core-spy@v1.0.0"
+  git tag "test-platform-service@v2.0.0"
+  git tag "test-runtime-service@v3.0.0-next.0"
 }
 
 # Test 1: --stable graduates prerelease package to stable
 echo ""
 echo "--- Test: --stable graduates 3.0.0-next.0 to 3.0.0 ---"
 setup_prerelease_repo
-echo "feat" > packages/tauri-service/feat.txt
-git_commit "feat: add tauri capability"
+echo "feat" > packages/runtime-service/feat.txt
+git_commit "feat: add runtime capability"
 
 set +e
-output=$(run_cli_json releasekit release --dry-run --json --stable --target '@test/tauri-service' --project-dir "$REPO_DIR")
+output=$(run_cli_json releasekit release --dry-run --json --stable --target '@test/runtime-service' --project-dir "$REPO_DIR")
 exit_code=$?
 set -e
 
 assert_exit_code 0 "$exit_code"
-assert_updated "@test/tauri-service" "$output"
-assert_not_updated "@test/native-spy" "$output"
-assert_not_updated "@test/electron-service" "$output"
+assert_updated "@test/runtime-service" "$output"
+assert_not_updated "@test/core-spy" "$output"
+assert_not_updated "@test/platform-service" "$output"
 
-version=$(get_updated_version "@test/tauri-service" "$output")
+version=$(get_updated_version "@test/runtime-service" "$output")
 assert_version "3.0.0" "$version"
 
 cleanup_repo
@@ -99,34 +99,34 @@ echo "--- Test: prepatch creates prerelease, --stable graduates it ---"
 setup_prerelease_repo
 
 # Simulate a package going from stable to prerelease
-echo "fix" > packages/native-spy/fix.txt
+echo "fix" > packages/core-spy/fix.txt
 git_commit "fix: fix spy mock reset"
 
 set +e
-pre_output=$(run_cli_json releasekit release --dry-run --json --bump prepatch --target '@test/native-spy' --project-dir "$REPO_DIR")
+pre_output=$(run_cli_json releasekit release --dry-run --json --bump prepatch --target '@test/core-spy' --project-dir "$REPO_DIR")
 pre_exit=$?
 set -e
 
 assert_exit_code 0 "$pre_exit"
-pre_version=$(get_updated_version "@test/native-spy" "$pre_output")
+pre_version=$(get_updated_version "@test/core-spy" "$pre_output")
 if [[ "$pre_version" != *"next"* ]]; then
   echo "FAIL: Expected prerelease version with 'next', got $pre_version"
   exit 1
 fi
 echo "PASS: Prepatch produced prerelease version: $pre_version"
 
-echo "feat" > packages/tauri-service/feat.txt
-git_commit "feat: add tauri capability"
+echo "feat" > packages/runtime-service/feat.txt
+git_commit "feat: add runtime capability"
 
 # Now verify that a package already at prerelease can be graduated
-# tauri-service is at 3.0.0-next.0, --stable should produce 3.0.0
+# runtime-service is at 3.0.0-next.0, --stable should produce 3.0.0
 set +e
-stable_output=$(run_cli_json releasekit release --dry-run --json --stable --target '@test/tauri-service' --project-dir "$REPO_DIR")
+stable_output=$(run_cli_json releasekit release --dry-run --json --stable --target '@test/runtime-service' --project-dir "$REPO_DIR")
 stable_exit=$?
 set -e
 
 assert_exit_code 0 "$stable_exit"
-stable_version=$(get_updated_version "@test/tauri-service" "$stable_output")
+stable_version=$(get_updated_version "@test/runtime-service" "$stable_output")
 assert_version "3.0.0" "$stable_version"
 
 echo ""

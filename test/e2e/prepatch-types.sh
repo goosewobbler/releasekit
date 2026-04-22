@@ -13,10 +13,10 @@ echo "=== E2E: Pre-Bump Type Tests ==="
 
 setup_single_package_repo() {
   create_git_repo
-  mkdir -p packages/native-spy
+  mkdir -p packages/core-spy
   cat > package.json <<'EOF'
 {
-  "name": "wdio-style-fixture",
+  "name": "scoped-monorepo-fixture",
   "version": "0.0.0",
   "private": true
 }
@@ -25,9 +25,9 @@ EOF
 packages:
   - 'packages/*'
 EOF
-  cat > packages/native-spy/package.json <<'EOF'
+  cat > packages/core-spy/package.json <<'EOF'
 {
-  "name": "@test/native-spy",
+  "name": "@test/core-spy",
   "version": "1.0.0"
 }
 EOF
@@ -45,7 +45,7 @@ EOF
 EOF
   git_commit "chore: initial commit"
   # sanitizePackageName strips @ prefix and replaces / with -
-  git tag "test-native-spy@v1.0.0"
+  git tag "test-core-spy@v1.0.0"
 }
 
 # Test 1: --bump prepatch → 1.0.1-next.0 (patch prerelease using config identifier)
@@ -55,12 +55,12 @@ setup_single_package_repo
 git_commit "fix: resolve edge case"
 
 set +e
-output=$(run_cli_json releasekit release --dry-run --json --bump prepatch --target '@test/native-spy' --project-dir "$REPO_DIR")
+output=$(run_cli_json releasekit release --dry-run --json --bump prepatch --target '@test/core-spy' --project-dir "$REPO_DIR")
 exit_code=$?
 set -e
 
 assert_exit_code 0 "$exit_code"
-version=$(get_updated_version "@test/native-spy" "$output")
+version=$(get_updated_version "@test/core-spy" "$output")
 assert_version "1.0.1-next.0" "$version"
 
 cleanup_repo
@@ -73,12 +73,12 @@ setup_single_package_repo
 git_commit "feat: add new spy capability"
 
 set +e
-output=$(run_cli_json releasekit release --dry-run --json --bump preminor --target '@test/native-spy' --project-dir "$REPO_DIR")
+output=$(run_cli_json releasekit release --dry-run --json --bump preminor --target '@test/core-spy' --project-dir "$REPO_DIR")
 exit_code=$?
 set -e
 
 assert_exit_code 0 "$exit_code"
-version=$(get_updated_version "@test/native-spy" "$output")
+version=$(get_updated_version "@test/core-spy" "$output")
 assert_version "1.1.0-next.0" "$version"
 
 cleanup_repo
@@ -91,12 +91,12 @@ setup_single_package_repo
 git_commit "feat!: redesign spy API"
 
 set +e
-output=$(run_cli_json releasekit release --dry-run --json --bump premajor --target '@test/native-spy' --project-dir "$REPO_DIR")
+output=$(run_cli_json releasekit release --dry-run --json --bump premajor --target '@test/core-spy' --project-dir "$REPO_DIR")
 exit_code=$?
 set -e
 
 assert_exit_code 0 "$exit_code"
-version=$(get_updated_version "@test/native-spy" "$output")
+version=$(get_updated_version "@test/core-spy" "$output")
 assert_version "2.0.0-next.0" "$version"
 
 echo ""
