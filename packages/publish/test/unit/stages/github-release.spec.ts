@@ -13,6 +13,7 @@ vi.mock('../../../src/utils/exec.js', () => ({
   execCommand: vi
     .fn()
     .mockResolvedValue({ stdout: 'https://github.com/owner/repo/releases/tag/v1.0.0', stderr: '', exitCode: 0 }),
+  execCommandSafe: vi.fn().mockResolvedValue({ stdout: '', stderr: 'not found', exitCode: 1 }),
 }));
 
 function createContext(overrides?: Partial<PipelineContext>): PipelineContext {
@@ -48,12 +49,14 @@ function createContext(overrides?: Partial<PipelineContext>): PipelineContext {
 describe('github-release stage', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-    const { execCommand } = await import('../../../src/utils/exec.js');
+    const { execCommand, execCommandSafe } = await import('../../../src/utils/exec.js');
     vi.mocked(execCommand).mockResolvedValue({
       stdout: 'https://github.com/owner/repo/releases/tag/v1.0.0',
       stderr: '',
       exitCode: 0,
     });
+    // Default: release does not exist (gh release view returns non-zero)
+    vi.mocked(execCommandSafe).mockResolvedValue({ stdout: '', stderr: 'not found', exitCode: 1 });
     // Default: no RELEASE_NOTES.md on disk
     vi.mocked(fs.readFileSync).mockImplementation(() => {
       throw new Error('ENOENT');
@@ -505,5 +508,35 @@ describe('github-release stage', () => {
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
     const titleIndex = args.indexOf('--title');
     expect(args[titleIndex + 1]).toBe('my-package: v1.0.0');
+  });
+
+  describe('GitHub release pre-existence check', () => {
+    it('should skip release creation when release already exists', async () => {
+      const { execCommand, execCommandSafe } = await import('../../../src/utils/exec.js');
+      const ctx = createContext();
+
+      // gh release view returns 0 (release exists)
+      vi.mocked(execCommandSafe).mockResolvedValue({ stdout: 'v1.0.0 release', stderr: '', exitCode: 0 });
+
+      await runGithubReleaseStage(ctx);
+
+      // Should not call gh release create
+      expect(execCommand).not.toHaveBeenCalled();
+      expect(ctx.output.githubReleases).toHaveLength(1);
+      expect(ctx.output.githubReleases[0]?.success).toBe(true);
+    });
+
+    it('should create release when it does not exist', async () => {
+      const { execCommand, execCommandSafe } = await import('../../../src/utils/exec.js');
+      const ctx = createContext();
+
+      // gh release view returns non-zero (release does not exist)
+      vi.mocked(execCommandSafe).mockResolvedValue({ stdout: '', stderr: 'release not found', exitCode: 1 });
+
+      await runGithubReleaseStage(ctx);
+
+      expect(execCommand).toHaveBeenCalledTimes(1);
+      expect(ctx.output.githubReleases[0]?.success).toBe(true);
+    });
   });
 });

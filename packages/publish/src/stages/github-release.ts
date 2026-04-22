@@ -1,7 +1,7 @@
 import type { VersionPackageChangelog } from '@releasekit/core';
 import { debug, info, sanitizePackageName, success, warn } from '@releasekit/core';
 import type { GitHubReleaseResult, PipelineContext } from '../types.js';
-import { execCommand } from '../utils/exec.js';
+import { execCommand, execCommandSafe } from '../utils/exec.js';
 import { isPrerelease } from '../utils/semver.js';
 
 type BodySource = 'auto' | 'releaseNotes' | 'changelog' | 'generated' | 'none';
@@ -233,6 +233,17 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
       ghArgs.push('--notes', body);
     } else if (useGithubNotes) {
       ghArgs.push('--generate-notes');
+    }
+
+    // Check if GitHub release already exists before creating
+    if (!dryRun) {
+      const viewResult = await execCommandSafe('gh', ['release', 'view', tag], { dryRun: false });
+      if (viewResult.exitCode === 0) {
+        info(`GitHub release for ${tag} already exists, skipping`);
+        result.success = true;
+        ctx.output.githubReleases.push(result);
+        continue;
+      }
     }
 
     try {
