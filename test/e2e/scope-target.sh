@@ -156,5 +156,17 @@ assert_tag_not_contains "test-platform-service@v" "$output"
 version=$(get_updated_version "@test/core-spy" "$output")
 assert_version "1.0.1" "$version"
 
+# The update record must carry its tag so the publish pipeline knows to push per-package
+tag=$(get_update_tag "@test/core-spy" "$output")
+if [[ -z "$tag" ]]; then
+  echo "FAIL: Expected @test/core-spy to have a tag, got none"
+  exit 1
+fi
+if [[ "$tag" != *"test-core-spy@v"* ]]; then
+  echo "FAIL: Expected update tag to match 'test-core-spy@v*', got '$tag'"
+  exit 1
+fi
+echo "PASS: update.tag '$tag' matches packageSpecificTags format"
+
 echo ""
 echo "=== All scope target tests passed ==="

@@ -65,5 +65,9 @@ version_b=$(echo "$output" | jq -r '.versionOutput.updates[1].newVersion')
 assert_version "0.2.0" "$version_a"
 assert_version "0.2.0" "$version_b"
 
+# Sync mode with a shared tag: updates must NOT carry individual tags (batch push mode)
+assert_update_has_no_tag "@test/pkg-a" "$output"
+assert_update_has_no_tag "@test/pkg-b" "$output"
+
 echo ""
 echo "=== All monorepo tests passed ==="

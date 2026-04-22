@@ -54,4 +54,6 @@ export interface VersionPackageUpdate {
   packageName: string;
   newVersion: string;
   filePath: string;
+  /** Per-package git tag. Set only when each package has its own tag (async mode or sync+packageSpecificTags). Absent in sync mode with a single shared tag. */
+  tag?: string;
 }

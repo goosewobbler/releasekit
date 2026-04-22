@@ -22,6 +22,13 @@ vi.mock('../../src/stages/verify.js', () => ({
 }));
 vi.mock('../../src/stages/git-push.js', () => ({
   runGitPushStage: vi.fn().mockResolvedValue(undefined),
+  pushPackageTag: vi.fn().mockResolvedValue(undefined),
+  preparePushSetup: vi.fn().mockResolvedValue({
+    pushRemote: 'origin',
+    remote: 'origin',
+    branch: 'main',
+    dryRun: false,
+  }),
 }));
 vi.mock('../../src/stages/github-release.js', () => ({
   runGithubReleaseStage: vi.fn().mockResolvedValue(undefined),
@@ -284,5 +291,159 @@ describe('pipeline', () => {
     await expect(runPipeline(minimalInput, getDefaultConfig(), defaultOptions)).rejects.toThrow();
 
     expect(runGitPushStage).not.toHaveBeenCalled();
+  });
+
+  describe('per-package mode (updates with tag field)', () => {
+    const perPackageInput: VersionOutput = {
+      dryRun: false,
+      updates: [
+        { packageName: 'pkg-a', newVersion: '1.1.0', filePath: 'packages/a/package.json', tag: 'pkg-a@v1.1.0' },
+        { packageName: 'pkg-b', newVersion: '2.0.0', filePath: 'packages/b/package.json', tag: 'pkg-b@v2.0.0' },
+      ],
+      changelogs: [],
+      tags: ['pkg-a@v1.1.0', 'pkg-b@v2.0.0'],
+    };
+
+    it('should call pushPackageTag once per update instead of runGitPushStage', async () => {
+      const { runGitPushStage, pushPackageTag } = await import('../../src/stages/git-push.js');
+      const { runNpmPublishStage } = await import('../../src/stages/npm-publish.js');
+
+      vi.mocked(runNpmPublishStage).mockImplementation(async (ctx) => {
+        for (const update of ctx.input.updates) {
+          ctx.output.npm.push({
+            packageName: update.packageName,
+            version: update.newVersion,
+            registry: 'npm',
+            success: true,
+            skipped: false,
+          });
+        }
+      });
+
+      await runPipeline(perPackageInput, getDefaultConfig(), defaultOptions);
+
+      expect(pushPackageTag).toHaveBeenCalledTimes(2);
+      const calls = vi.mocked(pushPackageTag).mock.calls;
+      expect(calls[0]?.[0]).toBe('pkg-a@v1.1.0');
+      expect(calls[1]?.[0]).toBe('pkg-b@v2.0.0');
+      expect(runGitPushStage).not.toHaveBeenCalled();
+    });
+
+    it('should call npm-publish once per update with only that update in ctx.input', async () => {
+      const { runNpmPublishStage } = await import('../../src/stages/npm-publish.js');
+
+      const seenUpdates: string[][] = [];
+      vi.mocked(runNpmPublishStage).mockImplementation(async (ctx) => {
+        seenUpdates.push(ctx.input.updates.map((u) => u.packageName));
+        for (const update of ctx.input.updates) {
+          ctx.output.npm.push({
+            packageName: update.packageName,
+            version: update.newVersion,
+            registry: 'npm',
+            success: true,
+            skipped: false,
+          });
+        }
+      });
+
+      await runPipeline(perPackageInput, getDefaultConfig(), defaultOptions);
+
+      expect(seenUpdates).toEqual([['pkg-a'], ['pkg-b']]);
+    });
+
+    it('should not call pushPackageTag for updates without a tag', async () => {
+      const { pushPackageTag } = await import('../../src/stages/git-push.js');
+      const { runNpmPublishStage } = await import('../../src/stages/npm-publish.js');
+
+      const mixedInput: VersionOutput = {
+        ...perPackageInput,
+        updates: [
+          { packageName: 'root', newVersion: '1.1.0', filePath: 'package.json' }, // no tag (root pkg in sync+pkgSpecificTags)
+          { packageName: 'pkg-a', newVersion: '1.1.0', filePath: 'packages/a/package.json', tag: 'pkg-a@v1.1.0' },
+        ],
+      };
+
+      vi.mocked(runNpmPublishStage).mockImplementation(async (ctx) => {
+        for (const update of ctx.input.updates) {
+          ctx.output.npm.push({
+            packageName: update.packageName,
+            version: update.newVersion,
+            registry: 'npm',
+            success: true,
+            skipped: false,
+          });
+        }
+      });
+
+      await runPipeline(mixedInput, getDefaultConfig(), defaultOptions);
+
+      expect(pushPackageTag).toHaveBeenCalledTimes(1);
+      const callsA = vi.mocked(pushPackageTag).mock.calls;
+      expect(callsA[0]?.[0]).toBe('pkg-a@v1.1.0');
+    });
+
+    it('should stop at the failing package and leave subsequent tags unpushed', async () => {
+      const { pushPackageTag } = await import('../../src/stages/git-push.js');
+      const { runNpmPublishStage } = await import('../../src/stages/npm-publish.js');
+
+      let callCount = 0;
+      vi.mocked(runNpmPublishStage).mockImplementation(async (ctx) => {
+        callCount++;
+        if (callCount === 2) {
+          throw new Error('pkg-b publish failed');
+        }
+        for (const update of ctx.input.updates) {
+          ctx.output.npm.push({
+            packageName: update.packageName,
+            version: update.newVersion,
+            registry: 'npm',
+            success: true,
+            skipped: false,
+          });
+        }
+      });
+
+      await expect(runPipeline(perPackageInput, getDefaultConfig(), defaultOptions)).rejects.toThrow();
+
+      // Only pkg-a's tag should have been pushed
+      expect(pushPackageTag).toHaveBeenCalledTimes(1);
+      const callsB = vi.mocked(pushPackageTag).mock.calls;
+      expect(callsB[0]?.[0]).toBe('pkg-a@v1.1.0');
+    });
+
+    it('should use batch mode when no updates have a tag (sync mode with shared tag)', async () => {
+      const { runGitPushStage, pushPackageTag } = await import('../../src/stages/git-push.js');
+      const { runNpmPublishStage } = await import('../../src/stages/npm-publish.js');
+
+      vi.mocked(runGitPushStage).mockImplementation(async (ctx) => {
+        ctx.output.git.pushed = true;
+      });
+      vi.mocked(runNpmPublishStage).mockImplementation(async (ctx) => {
+        for (const update of ctx.input.updates) {
+          ctx.output.npm.push({
+            packageName: update.packageName,
+            version: update.newVersion,
+            registry: 'npm',
+            success: true,
+            skipped: false,
+          });
+        }
+      });
+
+      const syncInput: VersionOutput = {
+        dryRun: false,
+        updates: [
+          { packageName: 'pkg-a', newVersion: '1.1.0', filePath: 'packages/a/package.json' },
+          { packageName: 'pkg-b', newVersion: '1.1.0', filePath: 'packages/b/package.json' },
+        ],
+        changelogs: [],
+        tags: ['v1.1.0'],
+      };
+
+      await runPipeline(syncInput, getDefaultConfig(), defaultOptions);
+
+      expect(pushPackageTag).not.toHaveBeenCalled();
+      expect(runGitPushStage).toHaveBeenCalledTimes(1);
+    });
   });
 });

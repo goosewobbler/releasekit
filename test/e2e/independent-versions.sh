@@ -90,6 +90,14 @@ assert_not_updated "@test/runtime-service" "$output"
 version=$(get_updated_version "@test/platform-service" "$output")
 assert_version "2.0.1" "$version"
 
+# In async/independent mode each update must carry its own tag (per-package push mode)
+tag=$(get_update_tag "@test/platform-service" "$output")
+if [[ -z "$tag" ]]; then
+  echo "FAIL: Expected @test/platform-service to have a tag, got none"
+  exit 1
+fi
+echo "PASS: @test/platform-service has tag '$tag'"
+
 cleanup_repo
 REPO_DIR=""
 
@@ -115,6 +123,21 @@ service_version=$(get_updated_version "@test/platform-service" "$output")
 bridge_version=$(get_updated_version "@test/platform-bridge" "$output")
 assert_version "2.1.0" "$service_version"
 assert_version "2.1.0" "$bridge_version"
+
+# Both updated packages must carry individual tags
+service_tag=$(get_update_tag "@test/platform-service" "$output")
+if [[ -z "$service_tag" ]]; then
+  echo "FAIL: Expected @test/platform-service to have a tag, got none"
+  exit 1
+fi
+echo "PASS: @test/platform-service has tag '$service_tag'"
+
+bridge_tag=$(get_update_tag "@test/platform-bridge" "$output")
+if [[ -z "$bridge_tag" ]]; then
+  echo "FAIL: Expected @test/platform-bridge to have a tag, got none"
+  exit 1
+fi
+echo "PASS: @test/platform-bridge has tag '$bridge_tag'"
 
 echo "PASS: Both platform packages bump from 2.x baseline, runtime-service is unaffected"
 

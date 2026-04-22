@@ -340,6 +340,7 @@ describe('Package Processor', () => {
 
       // Should track the tag via JSON output (git ops now handled by publish)
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
+      expect(jsonOutput.setPackageUpdateTag).toHaveBeenCalledWith('package-a', 'v1.1.0');
 
       // Should return the updated package info
       expect(result.updatedPackages).toEqual([
@@ -398,6 +399,7 @@ describe('Package Processor', () => {
 
       // Tags are tracked via JSON output, not created directly
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
+      expect(jsonOutput.setPackageUpdateTag).toHaveBeenCalledWith('package-a', 'v1.1.0');
       expect(jsonOutput.setCommitMessage).toHaveBeenCalled();
     });
 
