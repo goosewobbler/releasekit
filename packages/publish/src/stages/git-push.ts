@@ -23,9 +23,7 @@ function toGithubAuthedUrl(remoteUrl: string, token: string): string | undefined
 
 export interface PushSetup {
   pushRemote: string;
-  remote: string;
   branch?: string;
-  dryRun: boolean;
 }
 
 /**
@@ -33,12 +31,11 @@ export interface PushSetup {
  * Reuse this for all per-package pushes.
  */
 export async function preparePushSetup(ctx: PipelineContext): Promise<PushSetup | null> {
-  const { config, cliOptions, cwd, output } = ctx;
+  const { config, cwd, output } = ctx;
 
   if (!config.git.push) return null;
 
   const { remote } = config.git;
-  const dryRun = cliOptions.dryRun;
 
   let pushMethod = config.git.pushMethod;
   if (pushMethod === 'auto') {
@@ -73,7 +70,7 @@ export async function preparePushSetup(ctx: PipelineContext): Promise<PushSetup 
     }
   }
 
-  return { pushRemote, remote, branch, dryRun };
+  return { pushRemote, branch };
 }
 
 /**
