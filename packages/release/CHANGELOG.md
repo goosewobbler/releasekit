@@ -93,6 +93,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.17.1] - 2026-04-22
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.17.0...releasekit-notes-v0.17.1)
+
+### Added
+- add stable graduation output and logic for release stability (#152)
+
+### Changed
+- **deps-dev**: bump the development-dependencies group across 1 directory with 4 updates (#150)
+- **deps**: bump actions/upload-pages-artifact from 4 to 5 (#149)
+- **deps**: bump pnpm/action-setup from 5 to 6 (#122)
+
+### Fixed
+- **release**: update PR fetching logic to find merged PRs since last release (#154)
+
 ## [0.17.0] - 2026-04-17
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.16.1...releasekit-notes-v0.17.0)
