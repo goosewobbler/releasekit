@@ -53,7 +53,30 @@ EOF
 }
 EOF
 
-  cp "$RELEASEKIT_ROOT/fixtures/e2e/scoped-monorepo/releasekit.config.json" .
+  cat > releasekit.config.json <<'EOF'
+{
+  "version": {
+    "preset": "angular",
+    "sync": false,
+    "packageSpecificTags": true,
+    "tagTemplate": "${packageName}@v${version}",
+    "prereleaseIdentifier": "next",
+    "mismatchStrategy": "prefer-package",
+    "packages": ["packages/*"]
+  },
+  "ci": {
+    "releaseTrigger": "label",
+    "scopeLabels": {
+      "scope:shared": "@test/core-*",
+      "scope:utils": "@test/core-utils",
+      "scope:types": "@test/core-types",
+      "scope:spy": "@test/core-spy",
+      "scope:platform": "@test/platform-*",
+      "scope:runtime": "@test/runtime-*"
+    }
+  }
+}
+EOF
 
   git_commit "chore: initial commit"
   # sanitizePackageName strips @ prefix and replaces / with -
