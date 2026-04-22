@@ -136,6 +136,9 @@ export async function runPipeline(
       if (!perPackageMode) {
         ctx.output.publishSucceeded =
           ctx.output.npm.every((r) => r.success) && ctx.output.cargo.every((r) => r.success);
+      } else {
+        // In per-package mode every singleCtx succeeded (stages throw on failure), so the overall run succeeded.
+        ctx.output.publishSucceeded = true;
       }
     }
 
