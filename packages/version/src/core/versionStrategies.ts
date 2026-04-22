@@ -16,7 +16,7 @@ import { updatePackageVersion } from '../package/packageManagement.js';
 import { PackageProcessor } from '../package/packageProcessor.js';
 import type { Config } from '../types.js';
 import { formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
-import { addChangelogData, addTag, setCommitMessage } from '../utils/jsonOutput.js';
+import { addChangelogData, addTag, setCommitMessage, setPackageUpdateTag } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { calculateVersion } from './versionCalculator.js';
 import type { PackagesWithRoot } from './versionEngine.js';
@@ -396,6 +396,15 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       for (const tag of nextTags) {
         addTag(tag);
       }
+      // Link per-package tags back to their update records so the publish pipeline
+      // can push each tag immediately after that package publishes.
+      if (config.packageSpecificTags && workspaceNames.length > 0) {
+        for (let i = 0; i < workspaceNames.length; i++) {
+          const pkgName = workspaceNames[i];
+          const pkgTag = nextTags[i];
+          if (pkgName && pkgTag) setPackageUpdateTag(pkgName, pkgTag);
+        }
+      }
       setCommitMessage(formattedCommitMessage);
 
       if (!dryRun) {
@@ -603,6 +612,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
       const commitMsg = formatCommitMessage(commitMessage, nextVersion, packageName);
 
       addTag(tagName);
+      setPackageUpdateTag(packageName, tagName);
       setCommitMessage(commitMsg);
 
       if (!dryRun) {

@@ -9,7 +9,13 @@ import { getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { verifyTag } from '../git/tagVerification.js';
 import type { Config, VersionConfigBase } from '../types.js';
 import { formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
-import { addChangelogData, addTag, setCommitMessage, setSharedEntries } from '../utils/jsonOutput.js';
+import {
+  addChangelogData,
+  addTag,
+  setCommitMessage,
+  setPackageUpdateTag,
+  setSharedEntries,
+} from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { getVersionFromManifests } from '../utils/manifestHelpers.js';
 import { updatePackageVersion } from './packageManagement.js';
@@ -344,6 +350,7 @@ export class PackageProcessor {
       );
       // Track tag for JSON output (git ops now handled by publish)
       addTag(packageTag);
+      setPackageUpdateTag(name, packageTag);
       tags.push(packageTag);
 
       if (this.dryRun) {

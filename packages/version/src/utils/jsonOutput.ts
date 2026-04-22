@@ -89,6 +89,16 @@ export function addPackageUpdate(packageName: string, newVersion: string, filePa
 }
 
 /**
+ * Set the git tag associated with a specific package update.
+ * Called after the tag name is computed, to link it back to the update record.
+ */
+export function setPackageUpdateTag(packageName: string, tag: string): void {
+  if (!_jsonOutputMode) return;
+  const update = _jsonData.updates.find((u) => u.packageName === packageName);
+  if (update) update.tag = tag;
+}
+
+/**
  * Add changelog data for a package to the JSON output
  */
 export function addChangelogData(data: VersionPackageChangelog): void {

@@ -200,6 +200,8 @@ describe('Version Strategies', () => {
       // Check tag and commit message tracked for JSON output (git ops now handled by publish)
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
       expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a, package-b v1.1.0');
+      // Sync mode with shared tag: setPackageUpdateTag must NOT be called (batch push mode)
+      expect(jsonOutput.setPackageUpdateTag).not.toHaveBeenCalled();
     });
 
     it('should use mainPackage for version calculation when specified', async () => {
@@ -463,6 +465,8 @@ describe('Version Strategies', () => {
         expect(jsonOutput.addTag).toHaveBeenCalledWith('package-a-v1.1.0');
         expect(jsonOutput.addTag).toHaveBeenCalledWith('package-b-v1.1.0');
         expect(jsonOutput.addTag).toHaveBeenCalledTimes(2);
+        expect(jsonOutput.setPackageUpdateTag).toHaveBeenCalledWith('package-a', 'package-a-v1.1.0');
+        expect(jsonOutput.setPackageUpdateTag).toHaveBeenCalledWith('package-b', 'package-b-v1.1.0');
       });
 
       it('should emit one changelog entry per workspace package when packageSpecificTags is true', async () => {
@@ -576,6 +580,7 @@ describe('Version Strategies', () => {
 
       // Check tag and commit message tracked for JSON output (git ops now handled by publish)
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
+      expect(jsonOutput.setPackageUpdateTag).toHaveBeenCalledWith('package-a', 'v1.1.0');
       expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a v1.1.0');
     });
 

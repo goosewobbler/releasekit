@@ -11,6 +11,7 @@ import {
   printJsonOutput,
   recordPendingWrite,
   setCommitMessage,
+  setPackageUpdateTag,
 } from '../../../src/utils/jsonOutput.js';
 
 vi.mock('node:fs');
@@ -245,6 +246,56 @@ describe('JSON Output Utilities', () => {
 
       expect(() => flushPendingWrites()).toThrow('permission denied');
       expect(getPendingWriteCount()).toBe(0);
+    });
+  });
+
+  describe('setPackageUpdateTag', () => {
+    it('should set the tag on a matching update', () => {
+      enableJsonOutput();
+      addPackageUpdate('my-package', '1.1.0', '/path/to/package.json');
+
+      setPackageUpdateTag('my-package', 'my-package@v1.1.0');
+
+      const data = getJsonData();
+      expect(data.updates[0]?.tag).toBe('my-package@v1.1.0');
+    });
+
+    it('should be a no-op for an unknown package name', () => {
+      enableJsonOutput();
+      addPackageUpdate('my-package', '1.1.0', '/path/to/package.json');
+
+      setPackageUpdateTag('other-package', 'other-package@v1.1.0');
+
+      const data = getJsonData();
+      expect(data.updates[0]?.tag).toBeUndefined();
+    });
+
+    it('should only set tag on the first matching update when duplicates exist', () => {
+      enableJsonOutput();
+      addPackageUpdate('my-package', '1.1.0', '/path/to/package.json');
+      addPackageUpdate('my-package', '1.1.0', '/path/to/Cargo.toml');
+
+      setPackageUpdateTag('my-package', 'my-package@v1.1.0');
+
+      const data = getJsonData();
+      expect(data.updates[0]?.tag).toBe('my-package@v1.1.0');
+      expect(data.updates[1]?.tag).toBeUndefined();
+    });
+
+    it('should be a no-op when JSON output mode is disabled', async () => {
+      vi.resetModules();
+      const fresh = await import('../../../src/utils/jsonOutput.js');
+      fresh.enableJsonOutput();
+      fresh.addPackageUpdate('pkg', '1.0.0', '/pkg.json');
+
+      // Reset mode to simulate disabled state
+      const freshDisabled = await (async () => {
+        vi.resetModules();
+        return import('../../../src/utils/jsonOutput.js');
+      })();
+
+      freshDisabled.setPackageUpdateTag('pkg', 'pkg@v1.0.0');
+      expect(freshDisabled.getJsonData().updates).toEqual([]);
     });
   });
 
