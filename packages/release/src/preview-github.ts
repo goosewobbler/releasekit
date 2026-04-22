@@ -54,10 +54,7 @@ export async function findMergedPRsSinceLastRelease(
 
   let mergeShas: string[];
   try {
-    const output = execFileSync('git', ['log', '--merges', '--format=%H', range], {
-      cwd: projectDir,
-      encoding: 'utf8',
-    }).trim();
+    const output = execFileSync('git', ['log', '--format=%H', range], { cwd: projectDir, encoding: 'utf8' }).trim();
     mergeShas = output ? output.split('\n').filter(Boolean) : [];
   } catch {
     return [];
