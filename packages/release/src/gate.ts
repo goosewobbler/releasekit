@@ -1,7 +1,7 @@
 import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import { info } from '@releasekit/core';
 import { DEFAULT_LABELS, detectLabelConflicts } from './label-utils.js';
-import { createOctokit, fetchPRLabels, findMergedPRsForCommit } from './preview-github.js';
+import { createOctokit, fetchPRLabels, findMergedPRsSinceLastRelease } from './preview-github.js';
 import { getGitHubContext, getHeadCommitMessage, resolveScopeToTarget } from './release.js';
 
 export interface GateOutput {
@@ -64,17 +64,24 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
     };
   }
 
-  // Find merged PRs
+  // Find merged PRs since the last release tag (not just the triggering SHA) so that
+  // a labelled PR isn't silently dropped when a subsequent push (e.g. dependabot) cancels
+  // the original CI run and fires the gate with a different head_sha.
   const octokit = createOctokit(token);
-  const prNumbers = await findMergedPRsForCommit(octokit, githubContext.owner, githubContext.repo, githubContext.sha);
+  const prNumbers = await findMergedPRsSinceLastRelease(
+    octokit,
+    githubContext.owner,
+    githubContext.repo,
+    options.projectDir,
+  );
 
   if (prNumbers.length === 0) {
-    info('No merged PRs found for commit');
+    info('No merged PRs found since last release');
     return {
       shouldRelease: false,
       labels: [],
       prNumbers: [],
-      reason: 'No merged PRs found for this commit',
+      reason: 'No merged PRs found since last release',
     };
   }
 
