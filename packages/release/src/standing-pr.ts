@@ -621,7 +621,7 @@ export async function runStandingPRMerge(
     const reqErr = err as { status?: number; response?: { data?: { message?: string } } };
     if (reqErr.status === 405) {
       const reason = reqErr.response?.data?.message ?? 'unknown reason';
-      throw new Error(`Cannot merge standing PR #${pr.number}: branch protection blocked the merge (${reason})`);
+      throw new Error(`Cannot merge standing PR #${pr.number}: GitHub rejected the merge (${reason})`);
     }
     throw err;
   }
