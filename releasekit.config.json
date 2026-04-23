@@ -78,9 +78,14 @@
     }
   },
   "ci": {
+    "releaseStrategy": "standing-pr",
     "releaseTrigger": "label",
     "scopeLabels": {
       "scope:all": "@releasekit/*"
+    },
+    "standingPr": {
+      "branch": "release/next",
+      "mergeMethod": "squash"
     }
   }
 }
