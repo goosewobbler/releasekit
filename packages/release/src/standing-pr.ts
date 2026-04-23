@@ -432,55 +432,16 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   return { action, prNumber, prUrl, versionOutput };
 }
 
-export async function runStandingPRPublish(options: StandingPROptions): Promise<ReleaseOutput | null> {
+async function publishFromManifest(
+  prNumber: number,
+  options: StandingPROptions,
+  octokit: OctokitInstance,
+  owner: string,
+  repo: string,
+  releaseBranch: string,
+  deleteBranchOnMerge: boolean,
+): Promise<ReleaseOutput> {
   const cwd = options.projectDir;
-
-  // Guard: verify this is triggered by the release PR being merged
-  const eventPath = process.env.GITHUB_EVENT_PATH;
-  if (!eventPath) {
-    error('GITHUB_EVENT_PATH not set — standing-pr publish must run in GitHub Actions');
-    return null;
-  }
-
-  let event: { pull_request?: { head?: { ref?: string }; number?: number; merged?: boolean } };
-  try {
-    event = JSON.parse(fs.readFileSync(eventPath, 'utf-8'));
-  } catch (err) {
-    error(`Failed to read GitHub event: ${err instanceof Error ? err.message : String(err)}`);
-    return null;
-  }
-
-  const releaseKitConfig = loadReleaseKitConfig({ cwd, configPath: options.config });
-  const standingPrConfig = releaseKitConfig.ci?.standingPr;
-  const releaseBranch = standingPrConfig?.branch ?? 'release/next';
-
-  const headRef = event.pull_request?.head?.ref;
-  const merged = event.pull_request?.merged;
-  const prNumber = event.pull_request?.number;
-
-  if (!headRef || headRef !== releaseBranch) {
-    info(`Skipping: merged PR head ref '${headRef}' does not match release branch '${releaseBranch}'`);
-    return null;
-  }
-
-  if (!merged) {
-    info('Skipping: PR was not merged');
-    return null;
-  }
-
-  if (!prNumber) {
-    error('Could not determine PR number from GitHub event');
-    return null;
-  }
-
-  const githubContext = getGitHubContext();
-  if (!githubContext) {
-    error('No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available');
-    return null;
-  }
-
-  const octokit = createOctokit(githubContext.token);
-  const { owner, repo } = githubContext;
 
   // Find and parse manifest from the merged PR
   const manifestComment = await findManifestComment(octokit, owner, repo, prNumber);
@@ -539,7 +500,7 @@ export async function runStandingPRPublish(options: StandingPROptions): Promise<
   success('Publish complete');
 
   // Cleanup: delete release branch if configured
-  if (standingPrConfig?.deleteBranchOnMerge !== false) {
+  if (deleteBranchOnMerge) {
     try {
       execSync(`git push origin --delete "${releaseBranch}"`, { encoding: 'utf-8', cwd, stdio: 'pipe' });
       info(`Deleted release branch '${releaseBranch}'`);
@@ -559,4 +520,116 @@ export async function runStandingPRPublish(options: StandingPROptions): Promise<
     releaseNotes: manifest.releaseNotes,
     publishOutput,
   };
+}
+
+export async function runStandingPRPublish(options: StandingPROptions): Promise<ReleaseOutput | null> {
+  const cwd = options.projectDir;
+
+  // Guard: verify this is triggered by the release PR being merged
+  const eventPath = process.env.GITHUB_EVENT_PATH;
+  if (!eventPath) {
+    error('GITHUB_EVENT_PATH not set — standing-pr publish must run in GitHub Actions');
+    return null;
+  }
+
+  let event: { pull_request?: { head?: { ref?: string }; number?: number; merged?: boolean } };
+  try {
+    event = JSON.parse(fs.readFileSync(eventPath, 'utf-8'));
+  } catch (err) {
+    error(`Failed to read GitHub event: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+
+  const releaseKitConfig = loadReleaseKitConfig({ cwd, configPath: options.config });
+  const standingPrConfig = releaseKitConfig.ci?.standingPr;
+  const releaseBranch = standingPrConfig?.branch ?? 'release/next';
+  const deleteBranchOnMerge = standingPrConfig?.deleteBranchOnMerge !== false;
+
+  const headRef = event.pull_request?.head?.ref;
+  const merged = event.pull_request?.merged;
+  const prNumber = event.pull_request?.number;
+
+  if (!headRef || headRef !== releaseBranch) {
+    info(`Skipping: merged PR head ref '${headRef}' does not match release branch '${releaseBranch}'`);
+    return null;
+  }
+
+  if (!merged) {
+    info('Skipping: PR was not merged');
+    return null;
+  }
+
+  if (!prNumber) {
+    error('Could not determine PR number from GitHub event');
+    return null;
+  }
+
+  const githubContext = getGitHubContext();
+  if (!githubContext) {
+    error('No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available');
+    return null;
+  }
+
+  const octokit = createOctokit(githubContext.token);
+  return publishFromManifest(
+    prNumber,
+    options,
+    octokit,
+    githubContext.owner,
+    githubContext.repo,
+    releaseBranch,
+    deleteBranchOnMerge,
+  );
+}
+
+export async function runStandingPRMerge(
+  options: StandingPROptions,
+  flags: { publish: boolean },
+): Promise<ReleaseOutput | null> {
+  const cwd = options.projectDir;
+
+  const releaseKitConfig = loadReleaseKitConfig({ cwd, configPath: options.config });
+  const standingPrConfig = releaseKitConfig.ci?.standingPr;
+  const branch = standingPrConfig?.branch ?? 'release/next';
+  const mergeMethod = (standingPrConfig?.mergeMethod ?? 'merge') as 'merge' | 'squash' | 'rebase';
+  const deleteBranchOnMerge = standingPrConfig?.deleteBranchOnMerge !== false;
+
+  const githubContext = getGitHubContext();
+  if (!githubContext) {
+    error('No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available');
+    return null;
+  }
+
+  const octokit = createOctokit(githubContext.token);
+  const { owner, repo } = githubContext;
+
+  const pr = await findStandingPR(octokit, owner, repo, branch);
+  if (!pr) {
+    info(`No open standing PR found for branch '${branch}'`);
+    return null;
+  }
+
+  info(`Merging standing PR #${pr.number} via ${mergeMethod}...`);
+  try {
+    await octokit.rest.pulls.merge({
+      owner,
+      repo,
+      pull_number: pr.number,
+      merge_method: mergeMethod,
+    });
+  } catch (err) {
+    const reqErr = err as { status?: number; response?: { data?: { message?: string } } };
+    if (reqErr.status === 405) {
+      const reason = reqErr.response?.data?.message ?? 'unknown reason';
+      throw new Error(`Cannot merge standing PR #${pr.number}: branch protection blocked the merge (${reason})`);
+    }
+    throw err;
+  }
+  success(`Standing PR #${pr.number} merged`);
+
+  if (!flags.publish) {
+    return null;
+  }
+
+  return publishFromManifest(pr.number, options, octokit, owner, repo, branch, deleteBranchOnMerge);
 }

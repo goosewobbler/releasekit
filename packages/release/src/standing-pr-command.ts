@@ -1,7 +1,7 @@
 import { EXIT_CODES } from '@releasekit/core';
 import { Command } from 'commander';
 import type { StandingPROptions } from './standing-pr.js';
-import { runStandingPRPublish, runStandingPRUpdate } from './standing-pr.js';
+import { runStandingPRMerge, runStandingPRPublish, runStandingPRUpdate } from './standing-pr.js';
 
 export function createStandingPRCommand(): Command {
   const cmd = new Command('standing-pr').description(
@@ -58,6 +58,32 @@ export function createStandingPRCommand(): Command {
 
     try {
       const result = await runStandingPRPublish(options);
+      if (opts.json && result) {
+        console.log(JSON.stringify(result, null, 2));
+      }
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : String(err));
+      process.exit(EXIT_CODES.GENERAL_ERROR);
+    }
+  });
+
+  sharedOptions(
+    cmd
+      .command('merge')
+      .description('Merge the open standing release PR, optionally publishing immediately')
+      .option('--publish', 'Publish packages immediately after merging', false),
+  ).action(async (opts) => {
+    const options: StandingPROptions = {
+      config: opts.config,
+      projectDir: opts.projectDir,
+      npmAuth: opts.npmAuth,
+      json: opts.json,
+      verbose: opts.verbose,
+      quiet: opts.quiet,
+    };
+
+    try {
+      const result = await runStandingPRMerge(options, { publish: opts.publish });
       if (opts.json && result) {
         console.log(JSON.stringify(result, null, 2));
       }
