@@ -48,12 +48,7 @@
     "typescript": "catalog:"
   },
   "lint-staged": {
-    "**/*.ts": [
-      "biome check --write",
-      "eslint --fix --cache"
-    ],
-    "**/*.{md,json}": [
-      "biome format --write"
-    ]
+    "**/*.ts": ["biome check --write", "eslint --fix --cache"],
+    "**/*.{md,json}": ["biome format --write"]
   }
 }
