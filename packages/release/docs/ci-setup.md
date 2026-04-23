@@ -188,6 +188,79 @@ A ready-to-use template is available at [`templates/workflows/release-preview.ym
 
 ---
 
+## Standing Release PR
+
+Accumulate release changes in a persistent "standing" PR that auto-updates as commits land on `main`. Maintainers review and merge the PR when ready to release.
+
+**Benefits:**
+- Changes accumulate in a single PR — easier code review for release notes and version decisions
+- Merge controls timing — release when business/product goals align
+- Integrates with `release:stable` / `release:prerelease` labels — same label workflow as direct releases
+
+**Configuration:**
+
+```json
+{
+  "ci": {
+    "releaseStrategy": "standing-pr",
+    "releaseTrigger": "label",
+    "standingPr": {
+      "branch": "release/next",
+      "title": "chore: release ${count} package(s)",
+      "labels": ["release"],
+      "deleteBranchOnMerge": true
+    }
+  }
+}
+```
+
+**Workflow:**
+
+```yaml
+# .github/workflows/release.yml
+name: Release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, labeled, unlabeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: npm ci
+
+      - run: npx releasekit release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+**How it works:**
+
+1. **Updates → PR:** On every push to `main`, the action detects version changes and updates the standing PR with new versions and changelogs
+2. **Merge to Release:** Maintainers merge the standing PR when ready (e.g. when feature set is complete)
+3. **Release tags:** On merge, the action publishes packages and pushes tags to mark the release
+
+Use `release:stable` and `release:prerelease` labels on **the standing PR itself** to control release type during merge.
+
+---
+
 ## npm OIDC Trusted Publishing (Recommended)
 
 With OIDC, no `NPM_TOKEN` secret is required. The workflow exchanges a GitHub-issued OIDC token for a short-lived npm token at publish time.
