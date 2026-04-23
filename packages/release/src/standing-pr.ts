@@ -4,6 +4,7 @@ import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput } from '@releasekit/core';
 import { error, info, success, warn } from '@releasekit/core';
 import { createOctokit } from './preview-github.js';
+import { postStandingPRStatusSafe } from './standing-pr-status.js';
 import { runNotesStep, runPublishStep, runVersionStep } from './steps.js';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
 
@@ -354,6 +355,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     return { action: 'noop', versionOutput };
   }
 
+  const releaseBranchSha = getHeadSha(cwd);
   const octokit = createOctokit(githubContext.token);
   const { owner, repo } = githubContext;
 
@@ -428,6 +430,8 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   await findOrCreateManifestComment(octokit, owner, repo, prNumber, manifest);
   success(`Manifest written to PR #${prNumber}`);
+
+  await postStandingPRStatusSafe(octokit, owner, repo, releaseBranchSha, 'success', 'Ready to merge');
 
   return { action, prNumber, prUrl, versionOutput };
 }
