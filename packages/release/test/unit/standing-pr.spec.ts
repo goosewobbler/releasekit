@@ -91,9 +91,6 @@ function createMockOctokit(overrides: Record<string, unknown> = {}) {
       },
       ...overrides,
     },
-<<<<<<< feat/standing-pr-command
-    mocks: { createComment, updateComment, pullsList, pullsCreate, pullsUpdate, pullsMerge, issuesSetLabels, paginate },
-=======
     mocks: {
       createComment,
       updateComment,
@@ -185,7 +182,7 @@ describe('runStandingPRUpdate', () => {
     vi.mocked(loadConfig).mockReturnValue(defaultConfig as ReturnType<typeof loadConfig>);
 
     const { execSync } = await import('node:child_process');
-    vi.mocked(execSync).mockReturnValue('abc123\n' as unknown as Buffer);
+    vi.mocked(execSync).mockReturnValue('abc123\n');
   });
 
   afterEach(() => {
@@ -194,7 +191,7 @@ describe('runStandingPRUpdate', () => {
 
   it('should return noop when HEAD commit matches skip pattern', async () => {
     const { execSync } = await import('node:child_process');
-    vi.mocked(execSync).mockReturnValueOnce('chore: release @scope/core v1.2.3' as unknown as Buffer);
+    vi.mocked(execSync).mockReturnValueOnce('chore: release @scope/core v1.2.3');
 
     const result = await runStandingPRUpdate({
       projectDir: '/test',
@@ -412,7 +409,7 @@ describe('runStandingPRPublish', () => {
     } as ReturnType<typeof loadConfig>);
 
     const { execSync } = await import('node:child_process');
-    vi.mocked(execSync).mockReturnValue('abc123\n' as unknown as Buffer);
+    vi.mocked(execSync).mockReturnValue('abc123\n');
   });
 
   afterEach(() => {
@@ -436,8 +433,8 @@ describe('runStandingPRPublish', () => {
     const { readFileSync } = await import('node:fs');
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({
-        pull_request: { head: { ref: 'feature/something' }, number: 5, merged: true },
-      }) as unknown as Buffer,
+        pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
+      }),
     );
 
     const result = await runStandingPRPublish({
@@ -455,7 +452,7 @@ describe('runStandingPRPublish', () => {
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({
         pull_request: { head: { ref: 'release/next' }, number: 5, merged: false },
-      }) as unknown as Buffer,
+      }),
     );
 
     const result = await runStandingPRPublish({
@@ -473,7 +470,7 @@ describe('runStandingPRPublish', () => {
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({
         pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
-      }) as unknown as Buffer,
+      }),
     );
 
     const { createOctokit } = await import('../../src/preview-github.js');
@@ -491,7 +488,7 @@ describe('runStandingPRPublish', () => {
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({
         pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
-      }) as unknown as Buffer,
+      }),
     );
 
     const { createOctokit } = await import('../../src/preview-github.js');
@@ -530,7 +527,7 @@ describe('runStandingPRPublish', () => {
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({
         pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
-      }) as unknown as Buffer,
+      }),
     );
 
     const { createOctokit } = await import('../../src/preview-github.js');
@@ -570,7 +567,7 @@ describe('runStandingPRPublish', () => {
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({
         pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
-      }) as unknown as Buffer,
+      }),
     );
 
     const { createOctokit } = await import('../../src/preview-github.js');
@@ -606,7 +603,7 @@ describe('runStandingPRPublish', () => {
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({
         pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
-      }) as unknown as Buffer,
+      }),
     );
 
     const result = await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
@@ -619,7 +616,7 @@ describe('runStandingPRPublish', () => {
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({
         pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
-      }) as unknown as Buffer,
+      }),
     );
 
     const { createOctokit } = await import('../../src/preview-github.js');
@@ -655,7 +652,7 @@ describe('runStandingPRMerge', () => {
     } as ReturnType<typeof loadConfig>);
 
     const { execSync } = await import('node:child_process');
-    vi.mocked(execSync).mockReturnValue('abc123\n' as unknown as Buffer);
+    vi.mocked(execSync).mockReturnValue('abc123\n');
   });
 
   afterEach(() => {
