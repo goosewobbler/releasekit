@@ -297,7 +297,6 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   info('Running version analysis (dry run)...');
   const dryRunOptions = buildBaseReleaseOptions(options, true);
   const versionOutputDry = await runVersionStep(dryRunOptions);
-  versionOutputDry.dryRun = false;
 
   const githubContext = getGitHubContext();
 
@@ -339,7 +338,6 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   info('Writing version bumps...');
   const writeOptions = buildBaseReleaseOptions(options, false);
   const versionOutput = await runVersionStep(writeOptions);
-  versionOutput.dryRun = false;
 
   info('Generating release notes...');
   const notesOptions = { ...writeOptions, skipNotes: false };
@@ -499,10 +497,17 @@ export async function runStandingPRPublish(options: StandingPROptions): Promise<
     );
   }
 
-  // Warn if manifest may be stale
+  // Warn if manifest base is no longer an ancestor of current HEAD (history may be rewritten)
   const currentSha = getHeadSha(cwd);
-  if (manifest.baseSha !== currentSha) {
-    warn(`Manifest baseSha (${manifest.baseSha}) differs from current HEAD (${currentSha}) — proceeding anyway`);
+  try {
+    execSync(`git merge-base --is-ancestor "${manifest.baseSha}" "${currentSha}"`, {
+      cwd,
+      stdio: 'pipe',
+    });
+  } catch {
+    warn(
+      `Manifest baseSha (${manifest.baseSha}) is not an ancestor of current HEAD (${currentSha}) — history may have been rewritten`,
+    );
   }
 
   info(`Publishing from manifest: ${manifest.versionOutput.updates.length} package(s)`);
@@ -538,9 +543,13 @@ export async function runStandingPRPublish(options: StandingPROptions): Promise<
     try {
       execSync(`git push origin --delete "${releaseBranch}"`, { encoding: 'utf-8', cwd, stdio: 'pipe' });
       info(`Deleted release branch '${releaseBranch}'`);
-    } catch {
-      // Branch may already be deleted (GitHub auto-delete or manual) — not an error
-      info(`Release branch '${releaseBranch}' already deleted`);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      if (errorMsg.includes('not found') || errorMsg.includes('does not exist')) {
+        info(`Release branch '${releaseBranch}' already deleted`);
+      } else {
+        warn(`Failed to delete release branch '${releaseBranch}': ${errorMsg}`);
+      }
     }
   }
 
