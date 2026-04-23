@@ -279,6 +279,8 @@ export const StandingPrConfigSchema = z.object({
   labels: z.array(z.string()).default(['release']),
   /** Whether to auto-delete the release branch after PR merge. Default: true */
   deleteBranchOnMerge: z.boolean().default(true),
+  /** Allow teams to edit the release notes section in the PR body before publishing. Default: false */
+  editableNotes: z.boolean().default(false),
 });
 
 export const CIConfigSchema = z.object({

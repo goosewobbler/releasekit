@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { StandingPRManifest } from '../../src/standing-pr.js';
-import { parseManifest, runStandingPRPublish, runStandingPRUpdate, serializeManifest } from '../../src/standing-pr.js';
+import {
+  extractEditableSection,
+  parseEditedNotes,
+  parseManifest,
+  publishFromManifest,
+  runStandingPRPublish,
+  runStandingPRUpdate,
+  serializeManifest,
+} from '../../src/standing-pr.js';
 
 vi.mock('node:child_process', () => ({
   execSync: vi.fn().mockReturnValue(''),
@@ -51,6 +59,7 @@ function createMockOctokit(overrides: Record<string, unknown> = {}) {
     .fn()
     .mockResolvedValue({ data: { number: 42, html_url: 'https://github.com/owner/repo/pull/42' } });
   const pullsUpdate = vi.fn().mockResolvedValue({});
+  const pullsGet = vi.fn().mockResolvedValue({ data: { body: '' } });
   const issuesSetLabels = vi.fn().mockResolvedValue({});
 
   const paginate = {
@@ -75,11 +84,12 @@ function createMockOctokit(overrides: Record<string, unknown> = {}) {
           list: pullsList,
           create: pullsCreate,
           update: pullsUpdate,
+          get: pullsGet,
         },
       },
       ...overrides,
     },
-    mocks: { createComment, updateComment, pullsList, pullsCreate, pullsUpdate, issuesSetLabels, paginate },
+    mocks: { createComment, updateComment, pullsList, pullsCreate, pullsUpdate, pullsGet, issuesSetLabels, paginate },
   };
 }
 
@@ -563,5 +573,483 @@ describe('runStandingPRPublish', () => {
     await expect(
       runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }),
     ).rejects.toThrow(/invalid or incompatible/);
+  });
+});
+
+// ─── Editable notes helpers ───────────────────────────────────────────────────
+
+describe('extractEditableSection', () => {
+  const START = '<!-- releasekit-editable-start -->';
+  const END = '<!-- releasekit-editable-end -->';
+
+  it('returns the trimmed content between editable markers', () => {
+    const body = `some text\n\n${START}\n### Release Notes\n\n#### pkg — 1.0.0\n\n- note\n${END}\n---`;
+    expect(extractEditableSection(body)).toBe('### Release Notes\n\n#### pkg — 1.0.0\n\n- note');
+  });
+
+  it('returns null when start marker is absent', () => {
+    expect(extractEditableSection(`### Release Notes\n\n${END}`)).toBeNull();
+  });
+
+  it('returns null when end marker is absent', () => {
+    expect(extractEditableSection(`${START}\n### Release Notes`)).toBeNull();
+  });
+
+  it('returns null when both markers are absent', () => {
+    expect(extractEditableSection('### Release Notes\n\n- note')).toBeNull();
+  });
+
+  it('returns null when end marker precedes start marker', () => {
+    expect(extractEditableSection(`${END}\n${START}`)).toBeNull();
+  });
+});
+
+describe('parseEditedNotes', () => {
+  it('parses multiple packages from a section', () => {
+    const section = [
+      '### Release Notes',
+      '',
+      '#### @scope/core — 1.2.3',
+      '',
+      '- added feature',
+      '',
+      '#### @scope/cli — 2.0.0',
+      '',
+      '- fixed bug',
+    ].join('\n');
+
+    const result = parseEditedNotes(section);
+    expect(result['@scope/core']).toBe('- added feature');
+    expect(result['@scope/cli']).toBe('- fixed bug');
+  });
+
+  it('returns empty object for a section with no package headings', () => {
+    expect(parseEditedNotes('### Release Notes\n\nsome text')).toEqual({});
+  });
+
+  it('returns empty object for an empty string', () => {
+    expect(parseEditedNotes('')).toEqual({});
+  });
+
+  it('round-trips the content produced by renderPrBody editable markers', () => {
+    const versionOutput = createMockVersionOutput([
+      { packageName: '@scope/core', newVersion: '1.2.3' },
+      { packageName: '@scope/cli', newVersion: '2.0.0' },
+    ]);
+    const releaseNotes = {
+      '@scope/core': '- added feature',
+      '@scope/cli': '- fixed bug',
+    };
+
+    // Manually reconstruct what renderNotesSection/renderPrBody produces
+    const section = [
+      '### Release Notes',
+      '',
+      '#### @scope/core — 1.2.3',
+      '',
+      '- added feature',
+      '',
+      '#### @scope/cli — 2.0.0',
+      '',
+      '- fixed bug',
+    ].join('\n');
+
+    const parsed = parseEditedNotes(section);
+    expect(parsed).toEqual(releaseNotes);
+    // Suppress unused variable warning
+    void versionOutput;
+  });
+});
+
+// ─── editableNotes in runStandingPRUpdate ─────────────────────────────────────
+
+describe('runStandingPRUpdate — editableNotes', () => {
+  const originalEnv = { ...process.env };
+
+  const editableConfig = {
+    ci: {
+      standingPr: {
+        branch: 'release/next',
+        labels: ['release'],
+        deleteBranchOnMerge: true,
+        title: 'chore: release ${count} package(s)',
+        editableNotes: true,
+      },
+      releaseStrategy: 'standing-pr',
+      releaseTrigger: 'label',
+      prPreview: true,
+      autoRelease: false,
+      skipPatterns: ['chore: release '],
+      minChanges: 1,
+      labels: {
+        stable: 'release:stable',
+        prerelease: 'release:prerelease',
+        skip: 'release:skip',
+        major: 'bump:major',
+        minor: 'bump:minor',
+        patch: 'bump:patch',
+      },
+    },
+    git: { branch: 'main', remote: 'origin', pushMethod: 'auto' },
+    release: { ci: { skipPatterns: ['chore: release '] } },
+  };
+
+  beforeEach(async () => {
+    vi.resetAllMocks();
+    process.env.GITHUB_REPOSITORY = 'owner/repo';
+    process.env.GITHUB_TOKEN = 'test-token';
+
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValue(editableConfig as ReturnType<typeof loadConfig>);
+
+    const { execSync } = await import('node:child_process');
+    vi.mocked(execSync).mockReturnValue('abc123\n' as unknown as Buffer);
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it('stores notesHash in manifest when editableNotes is enabled and notes exist', async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({
+      packageNotes: {},
+      releaseNotes: { '@scope/core': '- added feature' },
+      files: [],
+    });
+
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [] });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    // The manifest comment should have been created; verify notesHash is present
+    const createCommentCall = mocks.createComment.mock.calls.find(
+      (c: unknown[]) =>
+        typeof c[0] === 'object' &&
+        c[0] !== null &&
+        'body' in (c[0] as Record<string, unknown>) &&
+        typeof (c[0] as Record<string, unknown>).body === 'string' &&
+        ((c[0] as Record<string, unknown>).body as string).includes('<!-- releasekit-manifest -->'),
+    );
+    expect(createCommentCall).toBeDefined();
+
+    const commentBody = (createCommentCall![0] as Record<string, unknown>).body as string;
+    const parsedManifest = parseManifest(commentBody);
+    expect(parsedManifest.notesHash).toBeDefined();
+    expect(typeof parsedManifest.notesHash).toBe('string');
+  });
+
+  it('includes editable markers in PR body when editableNotes is enabled', async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({
+      packageNotes: {},
+      releaseNotes: { '@scope/core': '- added feature' },
+      files: [],
+    });
+
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [] });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(mocks.pullsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.stringContaining('<!-- releasekit-editable-start -->'),
+      }),
+    );
+    expect(mocks.pullsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.stringContaining('<!-- releasekit-editable-end -->'),
+      }),
+    );
+  });
+
+  it('preserves user edits when existing section hash does not match stored notesHash', async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({
+      packageNotes: {},
+      releaseNotes: { '@scope/core': '- added feature' },
+      files: [],
+    });
+
+    // Manifest stored with a hash that does NOT match the current PR body section
+    const manifestWithDifferentHash: StandingPRManifest = {
+      ...baseManifest,
+      notesHash: 'aaaaaaaaaaaaaaaa', // intentionally wrong hash
+    };
+
+    const userEditedBody = [
+      '## Release',
+      '',
+      '<!-- releasekit-editable-start -->',
+      '### Release Notes',
+      '',
+      '#### @scope/core — 1.2.3',
+      '',
+      '- user-edited content here',
+      '<!-- releasekit-editable-end -->',
+      '---',
+    ].join('\n');
+
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
+    mocks.pullsGet.mockResolvedValue({ data: { body: userEditedBody } });
+    mocks.paginate.iterator.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { data: [{ id: 77, body: serializeManifest(manifestWithDifferentHash) }] };
+      },
+    });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    // PR body should contain the user's edited content
+    expect(mocks.pullsUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.stringContaining('user-edited content here'),
+      }),
+    );
+  });
+
+  it('regenerates notes when existing section hash matches stored notesHash (user has not edited)', async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({
+      packageNotes: {},
+      releaseNotes: { '@scope/core': '- added feature' },
+      files: [],
+    });
+
+    // Build a body with markers + the exact freshly-generated section, so the hash matches
+    const freshSection = '### Release Notes\n\n#### @scope/core — 1.2.3\n\n- added feature';
+    const { createHash } = await import('node:crypto');
+    const freshHash = createHash('sha256').update(freshSection).digest('hex').slice(0, 16);
+
+    const manifestWithMatchingHash: StandingPRManifest = {
+      ...baseManifest,
+      notesHash: freshHash,
+    };
+
+    const unedited = [
+      '## Release',
+      '',
+      '<!-- releasekit-editable-start -->',
+      freshSection,
+      '<!-- releasekit-editable-end -->',
+      '---',
+    ].join('\n');
+
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
+    mocks.pullsGet.mockResolvedValue({ data: { body: unedited } });
+    mocks.paginate.iterator.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { data: [{ id: 77, body: serializeManifest(manifestWithMatchingHash) }] };
+      },
+    });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    // PR body should contain the freshly generated content (markers present, no user override)
+    expect(mocks.pullsUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.stringContaining('<!-- releasekit-editable-start -->'),
+      }),
+    );
+    expect(mocks.pullsUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.stringContaining('- added feature'),
+      }),
+    );
+  });
+});
+
+// ─── publishFromManifest ──────────────────────────────────────────────────────
+
+describe('publishFromManifest', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(async () => {
+    vi.resetAllMocks();
+    process.env.GITHUB_REPOSITORY = 'owner/repo';
+    process.env.GITHUB_TOKEN = 'test-token';
+
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValue({
+      ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true, editableNotes: false } },
+      git: { branch: 'main' },
+    } as ReturnType<typeof loadConfig>);
+
+    const { execSync } = await import('node:child_process');
+    vi.mocked(execSync).mockReturnValue('abc123\n' as unknown as Buffer);
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it('returns null when no GitHub context is available', async () => {
+    delete process.env.GITHUB_REPOSITORY;
+    delete process.env.GITHUB_TOKEN;
+
+    const result = await publishFromManifest(42, {
+      projectDir: '/test',
+      verbose: false,
+      quiet: false,
+      json: false,
+    });
+
+    expect(result).toBeNull();
+  });
+
+  it('throws when manifest comment is missing from PR', async () => {
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { octokit } = createMockOctokit();
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await expect(
+      publishFromManifest(42, { projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/manifest not found/);
+  });
+
+  it('publishes using manifest notes when editableNotes is disabled', async () => {
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    const manifestBody = serializeManifest(baseManifest);
+    mocks.paginate.iterator.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { data: [{ id: 1, body: manifestBody }] };
+      },
+    });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    const { runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+      ReturnType<typeof runPublishStep>
+    >);
+
+    const result = await publishFromManifest(42, {
+      projectDir: '/test',
+      verbose: false,
+      quiet: false,
+      json: false,
+    });
+
+    expect(result).not.toBeNull();
+    expect(vi.mocked(runPublishStep)).toHaveBeenCalledWith(
+      expect.objectContaining({ updates: baseManifest.versionOutput.updates }),
+      expect.objectContaining({ skipGitCommit: true }),
+      baseManifest.releaseNotes,
+      baseManifest.notesFiles,
+    );
+  });
+
+  it('uses edited notes from PR body when editableNotes is enabled', async () => {
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValue({
+      ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true, editableNotes: true } },
+      git: { branch: 'main' },
+    } as ReturnType<typeof loadConfig>);
+
+    const editedBody = [
+      '<!-- releasekit-editable-start -->',
+      '### Release Notes',
+      '',
+      '#### @scope/core — 1.2.3',
+      '',
+      '- hand-crafted release note',
+      '<!-- releasekit-editable-end -->',
+    ].join('\n');
+
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    const manifestBody = serializeManifest(baseManifest);
+    mocks.paginate.iterator.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { data: [{ id: 1, body: manifestBody }] };
+      },
+    });
+    mocks.pullsGet.mockResolvedValue({ data: { body: editedBody } });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    const { runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+      ReturnType<typeof runPublishStep>
+    >);
+
+    await publishFromManifest(42, { projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(vi.mocked(runPublishStep)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ '@scope/core': '- hand-crafted release note' }),
+      expect.anything(),
+    );
+  });
+
+  it('falls back to manifest notes for packages missing from edited section', async () => {
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValue({
+      ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true, editableNotes: true } },
+      git: { branch: 'main' },
+    } as ReturnType<typeof loadConfig>);
+
+    // editedBody has no package headings at all
+    const editedBody = [
+      '<!-- releasekit-editable-start -->',
+      '### Release Notes',
+      '',
+      'Some text without package headings.',
+      '<!-- releasekit-editable-end -->',
+    ].join('\n');
+
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    const manifestBody = serializeManifest(baseManifest);
+    mocks.paginate.iterator.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { data: [{ id: 1, body: manifestBody }] };
+      },
+    });
+    mocks.pullsGet.mockResolvedValue({ data: { body: editedBody } });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    const { runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+      ReturnType<typeof runPublishStep>
+    >);
+
+    await publishFromManifest(42, { projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    // Should still use original manifest notes since edited section has no pkg headings
+    expect(vi.mocked(runPublishStep)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ '@scope/core': baseManifest.releaseNotes['@scope/core'] }),
+      expect.anything(),
+    );
   });
 });

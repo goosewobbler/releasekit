@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput } from '@releasekit/core';
@@ -9,6 +10,8 @@ import type { ReleaseOptions, ReleaseOutput } from './types.js';
 
 const MANIFEST_MARKER = '<!-- releasekit-manifest -->';
 const MANIFEST_SCHEMA_VERSION = 1;
+const EDITABLE_START = '<!-- releasekit-editable-start -->';
+const EDITABLE_END = '<!-- releasekit-editable-end -->';
 
 export interface StandingPROptions {
   config?: string;
@@ -33,6 +36,7 @@ export interface StandingPRManifest {
   notesFiles: string[];
   createdAt: string;
   baseSha: string;
+  notesHash?: string;
 }
 
 function getGitHubContext(): { owner: string; repo: string; token: string } | null {
@@ -110,7 +114,62 @@ function commitAndForcePush(branch: string, cwd: string): void {
   execSync(`git push --force-with-lease origin "${branch}"`, { encoding: 'utf-8', cwd, stdio: 'pipe' });
 }
 
-function renderPrBody(versionOutput: VersionOutput, releaseNotes: Record<string, string>): string {
+// Renders the release notes section content (without editable markers).
+// Used both for writing to PR bodies and for computing notesHash.
+function renderNotesSection(versionOutput: VersionOutput, releaseNotes: Record<string, string>): string {
+  const lines: string[] = ['### Release Notes', ''];
+  for (const [pkg, notes] of Object.entries(releaseNotes)) {
+    const update = versionOutput.updates.find((u) => u.packageName === pkg);
+    if (update) {
+      lines.push(`#### ${pkg} — ${update.newVersion}`, '');
+    } else {
+      lines.push(`#### ${pkg}`, '');
+    }
+    lines.push(notes.trim(), '');
+  }
+  if (lines[lines.length - 1] === '') lines.pop();
+  return lines.join('\n');
+}
+
+function computeNotesHash(section: string): string {
+  return createHash('sha256').update(section).digest('hex').slice(0, 16);
+}
+
+// Extracts the content between editable markers from a PR body, or null if markers are absent.
+export function extractEditableSection(body: string): string | null {
+  const start = body.indexOf(EDITABLE_START);
+  const end = body.indexOf(EDITABLE_END);
+  if (start === -1 || end === -1 || end < start) return null;
+  return body.slice(start + EDITABLE_START.length, end).trim();
+}
+
+// Parses an editable section back into per-package notes.
+// Splits on "#### <pkg> — <version>" headings; falls back gracefully for unrecognised lines.
+export function parseEditedNotes(section: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  const parts = section.split(/(?=^#### )/m);
+  for (const part of parts) {
+    const firstNewline = part.indexOf('\n');
+    if (firstNewline === -1) continue;
+    const heading = part.slice(0, firstNewline).trim();
+    // Match "#### <pkg> — <version>" (em dash U+2014)
+    const headingMatch = heading.match(/^#### (.+?) — .+$/);
+    if (!headingMatch?.[1]) continue;
+    const pkg = headingMatch[1].trim();
+    const content = part.slice(firstNewline).trim();
+    if (pkg) {
+      result[pkg] = content;
+    }
+  }
+  return result;
+}
+
+function renderPrBody(
+  versionOutput: VersionOutput,
+  releaseNotes: Record<string, string>,
+  editableNotes = false,
+  overrideSection?: string,
+): string {
   const lines: string[] = [
     '## Release',
     '',
@@ -127,15 +186,12 @@ function renderPrBody(versionOutput: VersionOutput, releaseNotes: Record<string,
 
   const hasNotes = Object.keys(releaseNotes).length > 0;
   if (hasNotes) {
-    lines.push('', '### Release Notes', '');
-    for (const [pkg, notes] of Object.entries(releaseNotes)) {
-      const update = versionOutput.updates.find((u) => u.packageName === pkg);
-      if (update) {
-        lines.push(`#### ${pkg} — ${update.newVersion}`, '');
-      } else {
-        lines.push(`#### ${pkg}`, '');
-      }
-      lines.push(notes.trim(), '');
+    const sectionContent = overrideSection ?? renderNotesSection(versionOutput, releaseNotes);
+    lines.push('');
+    if (editableNotes) {
+      lines.push(EDITABLE_START, sectionContent, EDITABLE_END);
+    } else {
+      lines.push(sectionContent, '');
     }
   }
 
@@ -357,7 +413,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const octokit = createOctokit(githubContext.token);
   const { owner, repo } = githubContext;
 
-  // Build PR title
+  // Build PR title and labels
   const count = versionOutput.updates.length;
   const firstUpdate = versionOutput.updates[0];
   /* biome-ignore lint/suspicious/noTemplateCurlyInString: template string uses config variable */
@@ -366,10 +422,47 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     .replace(/\$\{count\}/g, String(count))
     .replace(/\$\{version\}/g, firstUpdate?.newVersion ?? '');
 
-  const body = renderPrBody(versionOutput, notesResult.releaseNotes ?? {});
   const labels = standingPrConfig?.labels ?? ['release'];
+  const editableNotesEnabled = standingPrConfig?.editableNotes ?? false;
+  const hasNotes = Object.keys(notesResult.releaseNotes ?? {}).length > 0;
+
+  // Pre-compute fresh notes section and its hash for edit-detection tracking
+  const freshSection =
+    editableNotesEnabled && hasNotes ? renderNotesSection(versionOutput, notesResult.releaseNotes ?? {}) : undefined;
+  const notesHash = freshSection ? computeNotesHash(freshSection) : undefined;
 
   const existing = await findStandingPR(octokit, owner, repo, branch);
+
+  // When editableNotes is enabled and a PR exists, check whether the user has manually
+  // edited the notes section. If the current section hash differs from the stored hash,
+  // preserve the user's edits rather than overwriting them.
+  let overrideSection: string | undefined;
+  if (editableNotesEnabled && existing && freshSection) {
+    const existingManifestComment = await findManifestComment(octokit, owner, repo, existing.number);
+    if (existingManifestComment) {
+      try {
+        const existingManifest = parseManifest(existingManifestComment.body);
+        if (existingManifest.notesHash) {
+          const { data: prData } = await octokit.rest.pulls.get({
+            owner,
+            repo,
+            pull_number: existing.number,
+          });
+          if (prData.body) {
+            const currentSection = extractEditableSection(prData.body);
+            if (currentSection && computeNotesHash(currentSection) !== existingManifest.notesHash) {
+              warn('User has edited the release notes section — preserving edits');
+              overrideSection = currentSection;
+            }
+          }
+        }
+      } catch {
+        // Can't parse manifest — proceed with fresh generation
+      }
+    }
+  }
+
+  const body = renderPrBody(versionOutput, notesResult.releaseNotes ?? {}, editableNotesEnabled, overrideSection);
 
   let prNumber: number;
   let prUrl: string;
@@ -424,6 +517,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     notesFiles: notesResult.files,
     createdAt: new Date().toISOString(),
     baseSha,
+    notesHash,
   };
 
   await findOrCreateManifestComment(octokit, owner, repo, prNumber, manifest);
@@ -432,46 +526,10 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   return { action, prNumber, prUrl, versionOutput };
 }
 
-export async function runStandingPRPublish(options: StandingPROptions): Promise<ReleaseOutput | null> {
+// Core publish logic: finds manifest on the given PR, optionally extracts user-edited
+// notes from the PR body, then runs the publish step and cleans up the release branch.
+export async function publishFromManifest(prNumber: number, options: StandingPROptions): Promise<ReleaseOutput | null> {
   const cwd = options.projectDir;
-
-  // Guard: verify this is triggered by the release PR being merged
-  const eventPath = process.env.GITHUB_EVENT_PATH;
-  if (!eventPath) {
-    error('GITHUB_EVENT_PATH not set — standing-pr publish must run in GitHub Actions');
-    return null;
-  }
-
-  let event: { pull_request?: { head?: { ref?: string }; number?: number; merged?: boolean } };
-  try {
-    event = JSON.parse(fs.readFileSync(eventPath, 'utf-8'));
-  } catch (err) {
-    error(`Failed to read GitHub event: ${err instanceof Error ? err.message : String(err)}`);
-    return null;
-  }
-
-  const releaseKitConfig = loadReleaseKitConfig({ cwd, configPath: options.config });
-  const standingPrConfig = releaseKitConfig.ci?.standingPr;
-  const releaseBranch = standingPrConfig?.branch ?? 'release/next';
-
-  const headRef = event.pull_request?.head?.ref;
-  const merged = event.pull_request?.merged;
-  const prNumber = event.pull_request?.number;
-
-  if (!headRef || headRef !== releaseBranch) {
-    info(`Skipping: merged PR head ref '${headRef}' does not match release branch '${releaseBranch}'`);
-    return null;
-  }
-
-  if (!merged) {
-    info('Skipping: PR was not merged');
-    return null;
-  }
-
-  if (!prNumber) {
-    error('Could not determine PR number from GitHub event');
-    return null;
-  }
 
   const githubContext = getGitHubContext();
   if (!githubContext) {
@@ -482,7 +540,11 @@ export async function runStandingPRPublish(options: StandingPROptions): Promise<
   const octokit = createOctokit(githubContext.token);
   const { owner, repo } = githubContext;
 
-  // Find and parse manifest from the merged PR
+  const releaseKitConfig = loadReleaseKitConfig({ cwd, configPath: options.config });
+  const standingPrConfig = releaseKitConfig.ci?.standingPr;
+  const releaseBranch = standingPrConfig?.branch ?? 'release/next';
+
+  // Find and parse manifest from the PR
   const manifestComment = await findManifestComment(octokit, owner, repo, prNumber);
   if (!manifestComment) {
     throw new Error(`Release manifest not found on PR #${prNumber}. Re-run 'standing-pr update' to regenerate.`);
@@ -508,6 +570,28 @@ export async function runStandingPRPublish(options: StandingPROptions): Promise<
     warn(
       `Manifest baseSha (${manifest.baseSha}) is not an ancestor of current HEAD (${currentSha}) — history may have been rewritten`,
     );
+  }
+
+  // If editableNotes is enabled, extract any user edits from the PR body and merge them
+  // into the manifest's releaseNotes, falling back to manifest notes for missing packages.
+  if (standingPrConfig?.editableNotes) {
+    const { data: prData } = await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber });
+    if (prData.body) {
+      const editableSection = extractEditableSection(prData.body);
+      if (editableSection) {
+        const editedNotes = parseEditedNotes(editableSection);
+        const mergedNotes: Record<string, string> = { ...manifest.releaseNotes };
+        for (const [pkg, notes] of Object.entries(editedNotes)) {
+          mergedNotes[pkg] = notes;
+        }
+        for (const pkg of Object.keys(manifest.releaseNotes)) {
+          if (!(pkg in editedNotes)) {
+            warn(`Package '${pkg}' heading not found in edited release notes — using original notes`);
+          }
+        }
+        manifest = { ...manifest, releaseNotes: mergedNotes };
+      }
+    }
   }
 
   info(`Publishing from manifest: ${manifest.versionOutput.updates.length} package(s)`);
@@ -559,4 +643,48 @@ export async function runStandingPRPublish(options: StandingPROptions): Promise<
     releaseNotes: manifest.releaseNotes,
     publishOutput,
   };
+}
+
+export async function runStandingPRPublish(options: StandingPROptions): Promise<ReleaseOutput | null> {
+  const cwd = options.projectDir;
+
+  // Guard: verify this is triggered by the release PR being merged
+  const eventPath = process.env.GITHUB_EVENT_PATH;
+  if (!eventPath) {
+    error('GITHUB_EVENT_PATH not set — standing-pr publish must run in GitHub Actions');
+    return null;
+  }
+
+  let event: { pull_request?: { head?: { ref?: string }; number?: number; merged?: boolean } };
+  try {
+    event = JSON.parse(fs.readFileSync(eventPath, 'utf-8'));
+  } catch (err) {
+    error(`Failed to read GitHub event: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+
+  const releaseKitConfig = loadReleaseKitConfig({ cwd, configPath: options.config });
+  const standingPrConfig = releaseKitConfig.ci?.standingPr;
+  const releaseBranch = standingPrConfig?.branch ?? 'release/next';
+
+  const headRef = event.pull_request?.head?.ref;
+  const merged = event.pull_request?.merged;
+  const prNumber = event.pull_request?.number;
+
+  if (!headRef || headRef !== releaseBranch) {
+    info(`Skipping: merged PR head ref '${headRef}' does not match release branch '${releaseBranch}'`);
+    return null;
+  }
+
+  if (!merged) {
+    info('Skipping: PR was not merged');
+    return null;
+  }
+
+  if (!prNumber) {
+    error('Could not determine PR number from GitHub event');
+    return null;
+  }
+
+  return publishFromManifest(prNumber, options);
 }
