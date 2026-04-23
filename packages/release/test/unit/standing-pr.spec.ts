@@ -52,6 +52,7 @@ function createMockOctokit(overrides: Record<string, unknown> = {}) {
     .mockResolvedValue({ data: { number: 42, html_url: 'https://github.com/owner/repo/pull/42' } });
   const pullsUpdate = vi.fn().mockResolvedValue({});
   const issuesSetLabels = vi.fn().mockResolvedValue({});
+  const createCommitStatus = vi.fn().mockResolvedValue({});
 
   const paginate = {
     iterator: vi.fn().mockReturnValue({
@@ -76,10 +77,22 @@ function createMockOctokit(overrides: Record<string, unknown> = {}) {
           create: pullsCreate,
           update: pullsUpdate,
         },
+        repos: {
+          createCommitStatus,
+        },
       },
       ...overrides,
     },
-    mocks: { createComment, updateComment, pullsList, pullsCreate, pullsUpdate, issuesSetLabels, paginate },
+    mocks: {
+      createComment,
+      updateComment,
+      pullsList,
+      pullsCreate,
+      pullsUpdate,
+      issuesSetLabels,
+      paginate,
+      createCommitStatus,
+    },
   };
 }
 
@@ -319,6 +332,53 @@ describe('runStandingPRUpdate', () => {
     expect(result.action).toBe('noop');
     expect(result.versionOutput).toBeDefined();
     expect(result.versionOutput?.updates).toHaveLength(1);
+  });
+
+  it('should post success status check after successful update', async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [] });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(mocks.createCommitStatus).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner: 'owner',
+        repo: 'repo',
+        sha: 'abc123',
+        state: 'success',
+        description: 'Ready to merge',
+        context: 'releasekit/standing-pr',
+      }),
+    );
+  });
+
+  it('should not fail the update when status post throws', async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [] });
+    mocks.createCommitStatus.mockRejectedValue(new Error('GitHub API error'));
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    const result = await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(result.action).toBe('created');
+    expect(result.prNumber).toBe(42);
   });
 });
 
