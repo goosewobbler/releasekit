@@ -433,7 +433,7 @@ describe('runStandingPRPublish', () => {
     const { readFileSync } = await import('node:fs');
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({
-        pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
+        pull_request: { head: { ref: 'feature/something-else' }, number: 42, merged: true },
       }),
     );
 
