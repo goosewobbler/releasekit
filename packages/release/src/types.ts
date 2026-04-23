@@ -14,6 +14,7 @@ export interface ReleaseOptions {
   skipNotes: boolean;
   skipPublish: boolean;
   skipGit: boolean;
+  skipGitCommit?: boolean;
   skipGithubRelease: boolean;
   skipVerification: boolean;
   json: boolean;

@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { Octokit } from '@octokit/rest';
+import type { CIConfig } from '@releasekit/config';
 import { MARKER } from './preview-format.js';
 
 export function createOctokit(token: string): Octokit {
@@ -110,6 +111,31 @@ export async function fetchPRLabels(
     issue_number: prNumber,
   });
   return (data.labels ?? []).map((label) => (typeof label === 'string' ? label : (label.name ?? '')));
+}
+
+/**
+ * Find the open standing release PR for the configured branch.
+ */
+export async function findStandingPR(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  ciConfig: CIConfig | undefined,
+): Promise<{ number: number; url: string } | null> {
+  const branch = ciConfig?.standingPr?.branch ?? 'release/next';
+  try {
+    const { data: prs } = await octokit.rest.pulls.list({
+      owner,
+      repo,
+      head: `${owner}:${branch}`,
+      state: 'open',
+      per_page: 1,
+    });
+    const pr = prs[0];
+    return pr ? { number: pr.number, url: pr.html_url } : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

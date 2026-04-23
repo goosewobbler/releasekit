@@ -79,6 +79,32 @@ export function buildPreviewArgs(input) {
   return args;
 }
 
+export function buildStandingPRUpdateArgs(input) {
+  const args = ['standing-pr', 'update'];
+
+  args.push('--json');
+  pushOptionalArg(args, '--config', input.config);
+  pushOptionalArg(args, '--project-dir', input.projectDir);
+  pushOptionalArg(args, '--npm-auth', input.npmAuth);
+  pushBooleanFlag(args, '--verbose', input.verbose);
+  pushBooleanFlag(args, '--quiet', input.quiet);
+
+  return args;
+}
+
+export function buildStandingPRPublishArgs(input) {
+  const args = ['standing-pr', 'publish'];
+
+  args.push('--json');
+  pushOptionalArg(args, '--config', input.config);
+  pushOptionalArg(args, '--project-dir', input.projectDir);
+  pushOptionalArg(args, '--npm-auth', input.npmAuth);
+  pushBooleanFlag(args, '--verbose', input.verbose);
+  pushBooleanFlag(args, '--quiet', input.quiet);
+
+  return args;
+}
+
 export function buildGateArgs(input) {
   const args = ['gate'];
 
@@ -167,7 +193,7 @@ export function parseInputs(env = process.env) {
     previewTarget: normalizeString(env.INPUT_PREVIEW_TARGET),
   };
 
-  const validModes = ['release', 'preview', 'gate'];
+  const validModes = ['release', 'preview', 'gate', 'standing-pr-update', 'standing-pr-publish'];
   if (!validModes.includes(input.mode)) {
     throw new Error(`Invalid mode: ${input.mode}. Must be one of: ${validModes.join(', ')}`);
   }
@@ -177,8 +203,9 @@ export function parseInputs(env = process.env) {
 
 export function runAction(input, options = {}) {
   const mode = input.mode;
-  if (mode !== 'release' && mode !== 'preview' && mode !== 'gate') {
-    throw new Error(`Invalid mode: ${mode}. Expected "release", "preview", or "gate".`);
+  const validModes = ['release', 'preview', 'gate', 'standing-pr-update', 'standing-pr-publish'];
+  if (!validModes.includes(mode)) {
+    throw new Error(`Invalid mode: ${mode}. Expected one of: ${validModes.join(', ')}.`);
   }
 
   const cliPath =
@@ -186,7 +213,15 @@ export function runAction(input, options = {}) {
     path.resolve(fileURLToPath(import.meta.url), '..', '..', 'packages', 'release', 'dist', 'cli.js');
 
   const args =
-    mode === 'release' ? buildReleaseArgs(input) : mode === 'gate' ? buildGateArgs(input) : buildPreviewArgs(input);
+    mode === 'release'
+      ? buildReleaseArgs(input)
+      : mode === 'gate'
+        ? buildGateArgs(input)
+        : mode === 'standing-pr-update'
+          ? buildStandingPRUpdateArgs(input)
+          : mode === 'standing-pr-publish'
+            ? buildStandingPRPublishArgs(input)
+            : buildPreviewArgs(input);
 
   const projectDir = input.projectDir || '.';
   const actionDir = fileURLToPath(import.meta.url).replace(/[/\\]scripts[/\\]run-action.mjs$/, '');
@@ -317,6 +352,13 @@ function writePreviewOutputs(input, stdout) {
   const dryRun = normalizeBoolean(input.previewDryRun) || normalizeBoolean(input.dryRun);
   setOutput('preview-posted', dryRun ? 'false' : 'true');
   setOutput('preview-markdown', dryRun ? stdout : '');
+}
+
+export function writeStandingPROutputs(stdout, verbose = false) {
+  const parsed = parseReleaseOutput(stdout, verbose);
+  setOutput('standing-pr-action', parsed?.action ?? '');
+  setOutput('standing-pr-number', parsed?.prNumber !== undefined ? String(parsed.prNumber) : '');
+  setOutput('standing-pr-url', parsed?.prUrl ?? '');
 }
 
 export function writeSummary(markdown) {
@@ -467,10 +509,11 @@ function main() {
     writeCoreOutputs(result.mode, false);
     if (result.mode === 'gate') {
       writeGateOutputs(result.stdout ?? '', verbose);
+    } else if (result.mode === 'standing-pr-update' || result.mode === 'standing-pr-publish') {
+      writeStandingPROutputs(result.stdout ?? '', verbose);
     }
     process.stderr.write(result.stderr ?? '');
     process.stdout.write(result.stdout ?? '');
-    // Let setFailure handle exit - gate errors (CLI exit 1) should fail the step
     setFailure(`ReleaseKit ${result.mode} failed with exit code ${result.status ?? 1}`);
   }
 
@@ -480,6 +523,8 @@ function main() {
     writeReleaseOutputs(input, result.stdout ?? '');
   } else if (result.mode === 'gate') {
     writeGateOutputs(result.stdout ?? '', verbose);
+  } else if (result.mode === 'standing-pr-update' || result.mode === 'standing-pr-publish') {
+    writeStandingPROutputs(result.stdout ?? '', verbose);
   } else {
     writePreviewOutputs(input, result.stdout ?? '');
   }

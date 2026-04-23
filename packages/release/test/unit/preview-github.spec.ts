@@ -3,6 +3,7 @@ import {
   fetchPRLabels,
   findMergedPRsSinceLastRelease,
   findPreviewComment,
+  findStandingPR,
   postOrUpdateComment,
 } from '../../src/preview-github.js';
 
@@ -207,5 +208,55 @@ describe('fetchPRLabels', () => {
 
     const labels = await fetchPRLabels(octokit, 'owner', 'repo', 1);
     expect(labels).toEqual([]);
+  });
+});
+
+describe('findStandingPR', () => {
+  function createPullsOctokit(prs: { number: number; html_url: string }[]) {
+    return {
+      rest: {
+        pulls: {
+          list: vi.fn().mockResolvedValue({ data: prs }),
+        },
+      },
+    } as unknown as Parameters<typeof findStandingPR>[0];
+  }
+
+  it('should return the PR number and URL when found', async () => {
+    const octokit = createPullsOctokit([{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }]);
+    const result = await findStandingPR(octokit, 'owner', 'repo', undefined);
+    expect(result).toEqual({ number: 42, url: 'https://github.com/owner/repo/pull/42' });
+  });
+
+  it('should return null when no open standing PR found', async () => {
+    const octokit = createPullsOctokit([]);
+    const result = await findStandingPR(octokit, 'owner', 'repo', undefined);
+    expect(result).toBeNull();
+  });
+
+  it('should use the configured branch from ciConfig', async () => {
+    const listFn = vi.fn().mockResolvedValue({ data: [] });
+    const octokit = { rest: { pulls: { list: listFn } } } as unknown as Parameters<typeof findStandingPR>[0];
+    await findStandingPR(octokit, 'owner', 'repo', { standingPr: { branch: 'release/staging' } } as Parameters<
+      typeof findStandingPR
+    >[3]);
+    expect(listFn).toHaveBeenCalledWith(expect.objectContaining({ head: 'owner:release/staging' }));
+  });
+
+  it('should default to release/next when ciConfig has no standingPr', async () => {
+    const listFn = vi.fn().mockResolvedValue({ data: [] });
+    const octokit = { rest: { pulls: { list: listFn } } } as unknown as Parameters<typeof findStandingPR>[0];
+    await findStandingPR(octokit, 'owner', 'repo', undefined);
+    expect(listFn).toHaveBeenCalledWith(expect.objectContaining({ head: 'owner:release/next' }));
+  });
+
+  it('should return null when API throws', async () => {
+    const octokit = {
+      rest: {
+        pulls: { list: vi.fn().mockRejectedValue(new Error('API error')) },
+      },
+    } as unknown as Parameters<typeof findStandingPR>[0];
+    const result = await findStandingPR(octokit, 'owner', 'repo', undefined);
+    expect(result).toBeNull();
   });
 });

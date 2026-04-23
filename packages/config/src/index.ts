@@ -38,6 +38,7 @@ export {
   type ReleaseNotesConfig,
   type ScopeConfig,
   type ScopeRules,
+  type StandingPrConfig,
   type TemplateConfig,
   type VerifyConfig,
   type VerifyRegistryConfig,

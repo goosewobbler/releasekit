@@ -665,6 +665,34 @@
               "description": "Label to force a patch bump"
             }
           }
+        },
+        "standingPr": {
+          "type": "object",
+          "description": "Configuration for the standing release PR feature (ci.releaseStrategy: 'standing-pr').",
+          "additionalProperties": false,
+          "properties": {
+            "branch": {
+              "type": "string",
+              "default": "release/next",
+              "description": "Branch name for the standing release PR."
+            },
+            "title": {
+              "type": "string",
+              "default": "chore: release ${count} package(s)",
+              "description": "PR title template. Variables: ${count} (package count), ${version} (for single-package repos). Must start with 'chore: release' to match the default skip pattern on squash merge."
+            },
+            "labels": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": ["release"],
+              "description": "Labels to apply to the standing release PR."
+            },
+            "deleteBranchOnMerge": {
+              "type": "boolean",
+              "default": true,
+              "description": "Whether to auto-delete the release branch after the PR is merged."
+            }
+          }
         }
       }
     },

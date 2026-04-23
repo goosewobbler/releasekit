@@ -5,6 +5,7 @@ import type { PipelineContext } from '../../../src/types.js';
 
 vi.mock('../../../src/utils/exec.js', () => ({
   execCommand: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 }),
+  execCommandSafe: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 1 }),
 }));
 
 function createContext(overrides?: Partial<PipelineContext>): PipelineContext {
@@ -46,8 +47,10 @@ function createContext(overrides?: Partial<PipelineContext>): PipelineContext {
 describe('git-commit stage', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-    const { execCommand } = await import('../../../src/utils/exec.js');
+    const { execCommand, execCommandSafe } = await import('../../../src/utils/exec.js');
     vi.mocked(execCommand).mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
+    // Default: tag does not exist (exit code 1 = not found)
+    vi.mocked(execCommandSafe).mockResolvedValue({ stdout: '', stderr: '', exitCode: 1 });
   });
 
   it('should run git add, commit, and tag', async () => {
@@ -139,5 +142,87 @@ describe('git-commit stage', () => {
     const calls = vi.mocked(execCommand).mock.calls;
     const commitCall = calls[1];
     expect(commitCall?.[1]).toContain('--no-verify');
+  });
+
+  describe('tag pre-existence check', () => {
+    it('should skip tag creation when tag already exists at same commit', async () => {
+      const { execCommand, execCommandSafe } = await import('../../../src/utils/exec.js');
+      const ctx = createContext();
+
+      // Tag exists (exitCode 0), points to same SHA as HEAD
+      vi.mocked(execCommandSafe)
+        .mockResolvedValueOnce({ stdout: 'abc123\n', stderr: '', exitCode: 0 }) // rev-parse verify
+        .mockResolvedValueOnce({ stdout: 'abc123\n', stderr: '', exitCode: 0 }) // rev-parse tag^{}
+        .mockResolvedValueOnce({ stdout: 'abc123\n', stderr: '', exitCode: 0 }); // rev-parse HEAD
+
+      await runGitCommitStage(ctx);
+
+      // Should not call git tag
+      const tagCalls = vi.mocked(execCommand).mock.calls.filter((c) => c[1]?.includes('tag'));
+      expect(tagCalls).toHaveLength(0);
+      // But tag should still be tracked in output
+      expect(ctx.output.git.tags).toContain('foo@v1.0.0');
+    });
+
+    it('should throw when tag exists at a different commit', async () => {
+      const { execCommandSafe } = await import('../../../src/utils/exec.js');
+      const ctx = createContext();
+
+      vi.mocked(execCommandSafe)
+        .mockResolvedValueOnce({ stdout: 'oldsha\n', stderr: '', exitCode: 0 }) // rev-parse verify
+        .mockResolvedValueOnce({ stdout: 'oldsha\n', stderr: '', exitCode: 0 }) // rev-parse tag^{}
+        .mockResolvedValueOnce({ stdout: 'newsha\n', stderr: '', exitCode: 0 }); // rev-parse HEAD
+
+      await expect(runGitCommitStage(ctx)).rejects.toThrow(/already exists at a different commit/);
+    });
+
+    it('should create tag when it does not exist', async () => {
+      const { execCommand, execCommandSafe } = await import('../../../src/utils/exec.js');
+      const ctx = createContext();
+
+      // Tag does not exist (exitCode 1)
+      vi.mocked(execCommandSafe).mockResolvedValue({ stdout: '', stderr: '', exitCode: 1 });
+
+      await runGitCommitStage(ctx);
+
+      const tagCalls = vi.mocked(execCommand).mock.calls.filter((c) => c[1]?.includes('tag'));
+      expect(tagCalls).toHaveLength(1);
+      expect(ctx.output.git.tags).toContain('foo@v1.0.0');
+    });
+  });
+
+  describe('skipGitCommit', () => {
+    it('should skip git add and commit when skipGitCommit is true', async () => {
+      const { execCommand, execCommandSafe } = await import('../../../src/utils/exec.js');
+      const ctx = createContext({
+        cliOptions: {
+          registry: 'all',
+          npmAuth: 'auto',
+          dryRun: false,
+          skipGit: false,
+          skipGitCommit: true,
+          skipPublish: false,
+          skipGithubRelease: false,
+          skipVerification: false,
+          json: false,
+          verbose: false,
+        },
+      });
+
+      vi.mocked(execCommandSafe).mockResolvedValue({ stdout: '', stderr: '', exitCode: 1 }); // tag doesn't exist
+
+      await runGitCommitStage(ctx);
+
+      const calls = vi.mocked(execCommand).mock.calls;
+      const addCalls = calls.filter((c) => c[1]?.includes('add'));
+      const commitCalls = calls.filter((c) => c[1]?.includes('commit'));
+      const tagCalls = calls.filter((c) => c[1]?.includes('tag'));
+
+      expect(addCalls).toHaveLength(0);
+      expect(commitCalls).toHaveLength(0);
+      expect(tagCalls).toHaveLength(1); // tags still created
+      expect(ctx.output.git.committed).toBe(false);
+      expect(ctx.output.git.tags).toContain('foo@v1.0.0');
+    });
   });
 });

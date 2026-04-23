@@ -1,11 +1,10 @@
 import { execSync } from 'node:child_process';
 import type { CIConfig, ReleaseConfig } from '@releasekit/config';
 import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
-import type { VersionOutput } from '@releasekit/core';
 import { error, info, setJsonMode, setLogLevel, setQuietMode, success, warn } from '@releasekit/core';
-import type { ReleaseType } from 'semver';
 import { DEFAULT_LABELS, detectLabelConflicts } from './label-utils.js';
 import { createOctokit, fetchPRLabels, findMergedPRsForCommit } from './preview-github.js';
+import { runNotesStep, runPublishStep, runVersionStep } from './steps.js';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
 
 export function resolveScopeToTarget(scopeName: string, scopeLabels: Record<string, string>): string {
@@ -281,93 +280,4 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   }
 
   return { versionOutput, notesGenerated, packageNotes, releaseNotes, publishOutput };
-}
-
-async function runVersionStep(options: ReleaseOptions): Promise<VersionOutput> {
-  const { loadConfig, VersionEngine, enableJsonOutput, getJsonData } = await import('@releasekit/version');
-
-  enableJsonOutput(options.dryRun);
-
-  const config = loadConfig({ cwd: options.projectDir, configPath: options.config });
-
-  const targets: string[] = options.target ? options.target.split(',').map((t) => t.trim()) : [];
-
-  const runOptions = {
-    bump: options.bump as ReleaseType | undefined,
-    prerelease: options.prerelease,
-    stable: options.stable,
-    dryRun: options.dryRun,
-    sync: options.sync,
-    targets,
-  };
-
-  const engine = new VersionEngine(config, runOptions);
-  const pkgsResult = await engine.getWorkspacePackages();
-  const resolvedCount = pkgsResult.packages.length;
-
-  if (resolvedCount === 0) {
-    throw new Error('No packages found in workspace');
-  }
-
-  const effectiveSync = options.sync || config.sync;
-  if (effectiveSync) {
-    engine.setStrategy('sync');
-    await engine.run(pkgsResult);
-  } else if (resolvedCount === 1) {
-    engine.setStrategy('single');
-    await engine.run(pkgsResult);
-  } else {
-    engine.setStrategy('async');
-    await engine.run(pkgsResult, targets);
-  }
-
-  return getJsonData() as VersionOutput;
-}
-
-interface NotesStepResult {
-  packageNotes: Record<string, string>;
-  releaseNotes?: Record<string, string>;
-  files: string[];
-}
-
-async function runNotesStep(versionOutput: VersionOutput, options: ReleaseOptions): Promise<NotesStepResult> {
-  const { versionOutputToChangelogInput, runPipeline, loadConfig } = await import('@releasekit/notes');
-
-  const config = loadConfig(options.projectDir, options.config);
-
-  const input = versionOutputToChangelogInput(versionOutput);
-  const result = await runPipeline(input, config, options.dryRun);
-
-  return { packageNotes: result.packageNotes, releaseNotes: result.releaseNotes, files: result.files };
-}
-
-async function runPublishStep(
-  versionOutput: VersionOutput,
-  options: ReleaseOptions,
-  releaseNotes?: Record<string, string>,
-  additionalFiles?: string[],
-) {
-  const { runPipeline, loadConfig } = await import('@releasekit/publish');
-
-  const config = loadConfig({ configPath: options.config });
-
-  if (options.branch) {
-    config.git.branch = options.branch;
-  }
-
-  const publishOptions = {
-    dryRun: options.dryRun,
-    registry: 'all' as const,
-    npmAuth: options.npmAuth ?? 'auto',
-    skipGit: options.skipGit,
-    skipPublish: false,
-    skipGithubRelease: options.skipGithubRelease,
-    skipVerification: options.skipVerification,
-    json: options.json,
-    verbose: options.verbose,
-    releaseNotes,
-    additionalFiles,
-  };
-
-  return runPipeline(versionOutput, config, publishOptions);
 }

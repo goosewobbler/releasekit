@@ -8,7 +8,7 @@ branding:
 
 inputs:
   mode:
-    description: Action mode (release, preview, or gate)
+    description: Action mode (release, preview, gate, standing-pr-update, or standing-pr-publish)
     required: false
     default: preview
   config:
@@ -129,6 +129,15 @@ outputs:
   mode:
     description: Executed mode
     value: ${{ steps.run.outputs.mode }}
+  standing-pr-action:
+    description: Standing PR action taken (created, updated, closed, or noop)
+    value: ${{ steps.run.outputs.standing-pr-action }}
+  standing-pr-number:
+    description: Standing PR number
+    value: ${{ steps.run.outputs.standing-pr-number }}
+  standing-pr-url:
+    description: Standing PR URL
+    value: ${{ steps.run.outputs.standing-pr-url }}
   should-release:
     description: Whether a release should proceed (gate mode)
     value: ${{ steps.run.outputs.should-release }}
