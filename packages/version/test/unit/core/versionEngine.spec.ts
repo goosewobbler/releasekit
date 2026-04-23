@@ -1,5 +1,5 @@
 import { cwd as mockCwd } from 'node:process';
-import { getPackagesSync, type Packages } from '@manypkg/get-packages';
+import { getPackagesSync } from '@manypkg/get-packages';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { VersionEngine } from '../../../src/core/versionEngine.js';
 import * as strategyModule from '../../../src/core/versionStrategies.js';

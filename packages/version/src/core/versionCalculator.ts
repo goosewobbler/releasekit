@@ -68,6 +68,7 @@ export async function calculateVersion(config: Config, options: VersionOptions):
     // otherwise falls back to hardcoded patterns for backward compatibility
     function buildTagStripPattern(packageName: string | undefined, prefix: string): string {
       // If a tagTemplate is configured AND it includes packageName, use dynamic pattern generation
+      /* biome-ignore lint/suspicious/noTemplateCurlyInString: searching for literal template placeholder */
       if (config.tagTemplate && packageName && config.tagTemplate.includes('${packageName}')) {
         const templatePattern = buildTagStripPatternFromTemplate(config.tagTemplate, packageName, prefix);
         if (templatePattern) {

@@ -140,6 +140,7 @@ export function buildTagStripPatternFromTemplate(template: string, packageName: 
 
   // Find the part of the template before ${version}
   // This represents the prefix pattern that needs to be stripped
+  /* biome-ignore lint/suspicious/noTemplateCurlyInString: searching for literal template placeholder */
   const versionIndex = template.indexOf('${version}');
   if (versionIndex === -1) {
     // If no ${version} placeholder, the whole template is the prefix
