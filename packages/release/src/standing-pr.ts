@@ -460,12 +460,7 @@ export async function runStandingPRPublish(options: StandingPROptions): Promise<
   const merged = event.pull_request?.merged;
   const prNumber = event.pull_request?.number;
 
-  if (!headRef || !headRef.startsWith(releaseBranch.split('/')[0] ?? 'release')) {
-    info(`Skipping: merged PR head ref '${headRef}' does not match release branch '${releaseBranch}'`);
-    return null;
-  }
-
-  if (headRef !== releaseBranch) {
+  if (!headRef || headRef !== releaseBranch) {
     info(`Skipping: merged PR head ref '${headRef}' does not match release branch '${releaseBranch}'`);
     return null;
   }
