@@ -60,7 +60,11 @@ function getHeadCommitSubject(cwd: string): string | null {
 }
 
 function getHeadSha(cwd: string): string {
-  return execSync('git rev-parse HEAD', { encoding: 'utf-8', cwd }).trim();
+  try {
+    return execSync('git rev-parse HEAD', { encoding: 'utf-8', cwd }).trim();
+  } catch (err) {
+    throw new Error(`Failed to get HEAD SHA: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 function resetReleaseBranch(branch: string, base: string, cwd: string): void {
@@ -141,25 +145,33 @@ function renderPrBody(versionOutput: VersionOutput, releaseNotes: Record<string,
 
 export function serializeManifest(m: StandingPRManifest): string {
   const json = JSON.stringify(m);
+  const encoded = Buffer.from(json).toString('base64');
   return [
     MANIFEST_MARKER,
     '<details><summary>Release manifest (do not edit)</summary>',
     '',
-    `<!-- json ${json} -->`,
+    `<!-- base64 ${encoded} -->`,
     '',
     '</details>',
   ].join('\n');
 }
 
 export function parseManifest(commentBody: string): StandingPRManifest {
-  const jsonMatch = commentBody.match(/<!-- json ({.*?}) -->/s);
-  if (!jsonMatch?.[1]) {
+  const b64Match = commentBody.match(/<!-- base64 ([A-Za-z0-9+/=]+) -->/);
+  if (!b64Match?.[1]) {
     throw new Error('Release manifest not found or malformed in PR comment');
+  }
+
+  let json: string;
+  try {
+    json = Buffer.from(b64Match[1], 'base64').toString('utf-8');
+  } catch {
+    throw new Error('Release manifest encoding is invalid');
   }
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(jsonMatch[1]);
+    parsed = JSON.parse(json);
   } catch {
     throw new Error('Release manifest JSON is malformed');
   }

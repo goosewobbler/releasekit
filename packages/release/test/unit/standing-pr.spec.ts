@@ -96,7 +96,7 @@ describe('serializeManifest / parseManifest', () => {
   it('should round-trip a manifest through serialize/parse', () => {
     const serialized = serializeManifest(baseManifest);
     expect(serialized).toContain('<!-- releasekit-manifest -->');
-    expect(serialized).toContain('<!-- json ');
+    expect(serialized).toMatch(/<!-- base64 [A-Za-z0-9+/=]+ -->/);
 
     const parsed = parseManifest(serialized);
     expect(parsed.schemaVersion).toBe(1);
@@ -109,9 +109,9 @@ describe('serializeManifest / parseManifest', () => {
     expect(() => parseManifest('No marker here')).toThrow(/not found or malformed/);
   });
 
-  it('should throw when manifest JSON is malformed', () => {
-    const bad = '<!-- releasekit-manifest -->\n<!-- json {invalid} -->';
-    expect(() => parseManifest(bad)).toThrow(/malformed/);
+  it('should throw when manifest encoding is invalid', () => {
+    const bad = '<!-- releasekit-manifest -->\n<!-- base64 !!!invalid!!! -->';
+    expect(() => parseManifest(bad)).toThrow(/encoding is invalid|malformed/);
   });
 
   it('should throw when schemaVersion is incompatible', () => {
