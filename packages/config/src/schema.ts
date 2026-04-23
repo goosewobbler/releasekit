@@ -279,6 +279,8 @@ export const StandingPrConfigSchema = z.object({
   labels: z.array(z.string()).default(['release']),
   /** Whether to auto-delete the release branch after PR merge. Default: true */
   deleteBranchOnMerge: z.boolean().default(true),
+  /** Merge method to use when merging the standing release PR. Default: 'merge' */
+  mergeMethod: z.enum(['merge', 'squash', 'rebase']).default('merge'),
 });
 
 export const CIConfigSchema = z.object({
