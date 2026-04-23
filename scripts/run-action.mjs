@@ -82,10 +82,10 @@ export function buildPreviewArgs(input) {
 export function buildStandingPRUpdateArgs(input) {
   const args = ['standing-pr', 'update'];
 
+  args.push('--json');
   pushOptionalArg(args, '--config', input.config);
   pushOptionalArg(args, '--project-dir', input.projectDir);
   pushOptionalArg(args, '--npm-auth', input.npmAuth);
-  pushBooleanFlag(args, '--json', input.json);
   pushBooleanFlag(args, '--verbose', input.verbose);
   pushBooleanFlag(args, '--quiet', input.quiet);
 
@@ -95,10 +95,10 @@ export function buildStandingPRUpdateArgs(input) {
 export function buildStandingPRPublishArgs(input) {
   const args = ['standing-pr', 'publish'];
 
+  args.push('--json');
   pushOptionalArg(args, '--config', input.config);
   pushOptionalArg(args, '--project-dir', input.projectDir);
   pushOptionalArg(args, '--npm-auth', input.npmAuth);
-  pushBooleanFlag(args, '--json', input.json);
   pushBooleanFlag(args, '--verbose', input.verbose);
   pushBooleanFlag(args, '--quiet', input.quiet);
 
