@@ -691,12 +691,6 @@
               "type": "boolean",
               "default": true,
               "description": "Whether to auto-delete the release branch after the PR is merged."
-            },
-            "mergeMethod": {
-              "type": "string",
-              "enum": ["squash", "merge", "rebase"],
-              "default": "squash",
-              "description": "Merge method for the release PR. Squash (default) ensures the merge commit matches the default skip pattern automatically."
             }
           }
         }
