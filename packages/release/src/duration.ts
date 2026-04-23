@@ -1,15 +1,22 @@
-const MULTIPLIERS: Record<string, number> = {
-  s: 1_000,
-  m: 60_000,
-  h: 3_600_000,
-  d: 86_400_000,
-};
-
 export function parseDuration(str: string): number | null {
   const match = /^(\d+)(s|m|h|d)$/.exec(str);
   if (!match) return null;
-  const value = parseInt(match[1], 10);
-  return value * MULTIPLIERS[match[2]];
+  const digits = match[1];
+  const unit = match[2];
+  if (!digits || !unit) return null;
+  const value = parseInt(digits, 10);
+  switch (unit) {
+    case 's':
+      return value * 1_000;
+    case 'm':
+      return value * 60_000;
+    case 'h':
+      return value * 3_600_000;
+    case 'd':
+      return value * 86_400_000;
+    default:
+      return null;
+  }
 }
 
 export function formatDuration(ms: number): string {

@@ -476,7 +476,11 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   if (minAge !== undefined) {
     const minAgeMs = parseDuration(minAge);
-    if (minAgeMs !== null && manifest.firstUpdatedAt) {
+    if (minAgeMs === null) {
+      warn(
+        `ci.standingPr.minAge value "${minAge}" is not a valid duration (e.g. "6h", "30m", "1d") — gate is inactive`,
+      );
+    } else if (manifest.firstUpdatedAt) {
       const ageMs = Date.now() - new Date(manifest.firstUpdatedAt).getTime();
       if (ageMs < minAgeMs) {
         statusState = 'pending';
