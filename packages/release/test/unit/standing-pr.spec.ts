@@ -548,6 +548,37 @@ describe('runStandingPRUpdate', () => {
     expect(writtenManifest.firstUpdatedAt).toBe(originalTimestamp);
   });
 
+  it('should use createdAt as firstUpdatedAt fallback when migrating from v1 manifest', async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
+
+    // v1 manifest has no firstUpdatedAt — should fall back to createdAt
+    const v1Manifest = serializeManifest({ ...baseManifest, schemaVersion: 1 });
+    mocks.paginate.iterator.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { data: [{ id: 77, body: v1Manifest }] };
+      },
+    });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const updateCall = mocks.updateComment.mock.calls.find(
+      (c) => typeof c[0]?.body === 'string' && c[0].body.includes('<!-- releasekit-manifest -->'),
+    );
+    expect(updateCall).toBeDefined();
+    const writtenManifest = parseManifest(updateCall?.[0]?.body as string);
+    expect(writtenManifest.firstUpdatedAt).toBe(baseManifest.createdAt);
+  });
+
   it('should not fail update when status check post throws', async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);

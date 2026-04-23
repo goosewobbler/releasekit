@@ -434,6 +434,8 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
       const existingManifest = parseManifest(existingManifestComment.body);
       if (existingManifest.firstUpdatedAt) {
         firstUpdatedAt = existingManifest.firstUpdatedAt;
+      } else {
+        firstUpdatedAt = existingManifest.createdAt;
       }
     } catch {
       // Use current time if the existing manifest can't be parsed
