@@ -692,7 +692,7 @@ describe('runStandingPRMerge', () => {
 
     await expect(
       runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false }),
-    ).rejects.toThrow(/branch protection blocked the merge/);
+    ).rejects.toThrow(/GitHub rejected the merge/);
 
     await expect(
       runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false }),
