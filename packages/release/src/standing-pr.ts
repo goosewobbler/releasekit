@@ -5,7 +5,7 @@ import type { VersionOutput } from '@releasekit/core';
 import { error, info, success, warn } from '@releasekit/core';
 import { formatDuration, parseDuration } from './duration.js';
 import { createOctokit } from './preview-github.js';
-import { postStandingPRStatus } from './standing-pr-status.js';
+import { postStandingPRStatusSafe } from './standing-pr-status.js';
 import { runNotesStep, runPublishStep, runVersionStep } from './steps.js';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
 
@@ -489,11 +489,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   }
 
-  try {
-    await postStandingPRStatus(octokit, owner, repo, releaseBranchSha, statusState, statusDescription);
-  } catch {
-    warn('Failed to post standing PR status check');
-  }
+  await postStandingPRStatusSafe(octokit, owner, repo, releaseBranchSha, statusState, statusDescription);
 
   return { action, prNumber, prUrl, versionOutput };
 }

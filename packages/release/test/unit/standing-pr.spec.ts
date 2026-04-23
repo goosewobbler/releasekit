@@ -420,7 +420,14 @@ describe('runStandingPRUpdate', () => {
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     expect(mocks.createCommitStatus).toHaveBeenCalledWith(
-      expect.objectContaining({ state: 'success', description: 'Ready to merge', context: 'releasekit/standing-pr' }),
+      expect.objectContaining({
+        owner: 'owner',
+        repo: 'repo',
+        sha: 'abc123',
+        state: 'success',
+        description: 'Ready to merge',
+        context: 'releasekit/standing-pr',
+      }),
     );
   });
 
@@ -559,6 +566,7 @@ describe('runStandingPRUpdate', () => {
     const result = await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     expect(result.action).toBe('created');
+    expect(result.prNumber).toBe(42);
   });
 });
 
