@@ -195,7 +195,7 @@ Accumulate release changes in a persistent "standing" PR that auto-updates as co
 **Benefits:**
 - Changes accumulate in a single PR — easier code review for release notes and version decisions
 - Merge controls timing — release when business/product goals align
-- Integrates with `release:stable` / `release:prerelease` labels — same label workflow as direct releases
+- Can coexist with label-triggered direct releases (see below)
 
 **Configuration:**
 
@@ -203,28 +203,33 @@ Accumulate release changes in a persistent "standing" PR that auto-updates as co
 {
   "ci": {
     "releaseStrategy": "standing-pr",
-    "releaseTrigger": "label",
     "standingPr": {
       "branch": "release/next",
       "title": "chore: release ${count} package(s)",
       "labels": ["release"],
-      "deleteBranchOnMerge": true
+      "deleteBranchOnMerge": true,
+      "mergeMethod": "squash"
     }
   }
 }
 ```
 
-**Workflow:**
+**Workflow** (`standing-pr.yml` — separate from your existing release workflow):
 
 ```yaml
-# .github/workflows/release.yml
-name: Release
+# .github/workflows/standing-pr.yml
+name: Standing Release PR
 
 on:
   push:
     branches: [main]
   pull_request:
-    types: [opened, synchronize, labeled, unlabeled]
+    types: [closed]
+    branches: [main]
+
+concurrency:
+  group: standing-release-pr
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -232,12 +237,15 @@ permissions:
   id-token: write
 
 jobs:
-  release:
+  update-release-pr:
+    name: Update Release PR
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          token: ${{ github.token }}
 
       - uses: actions/setup-node@v6
         with:
@@ -246,18 +254,91 @@ jobs:
 
       - run: npm ci
 
-      - run: npx releasekit release
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - run: npx releasekit standing-pr update
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+
+  publish-release:
+    name: Publish Release
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'release/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: npm ci
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - run: npx releasekit standing-pr publish
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 ```
 
 **How it works:**
 
-1. **Updates → PR:** On every push to `main`, the action detects version changes and updates the standing PR with new versions and changelogs
-2. **Merge to Release:** Maintainers merge the standing PR when ready (e.g. when feature set is complete)
-3. **Release tags:** On merge, the action publishes packages and pushes tags to mark the release
+1. **Updates → PR:** On every push to `main`, `standing-pr update` detects version changes and force-resets `release/next` to main, then rewrites the bumps and changelogs. The PR body is kept in sync.
+2. **Merge to Release:** Maintainers merge the standing PR when ready.
+3. **Publish:** The `pull_request.closed` trigger fires, `standing-pr publish` reads the manifest from the merged PR's bot comment and publishes without re-running version analysis.
 
 Use `release:stable` and `release:prerelease` labels on **the standing PR itself** to control release type during merge.
+
+---
+
+## Combining Standing PR with Label-Triggered Direct Releases
+
+The two strategies can run side by side. This lets teams accumulate work in a standing PR by default, while still allowing any PR to trigger an immediate release by applying a label.
+
+**How they coexist:**
+
+- A PR merged **with** a `bump:*` label → `release.yml` fires and publishes immediately. The `standing-pr update` run for the same push sees the resulting release commit (which matches the default skip pattern `chore: release`) and exits as a noop. On the next real commit, `standing-pr update` computes bumps only from commits since the new tag — it starts fresh automatically.
+- A PR merged **without** a label → `release.yml` finds no bump label and exits. `standing-pr update` accumulates the change into the standing PR as normal.
+
+There is no double-publish risk: the standing PR only publishes when *its own branch* (`release/next`) is merged, which only happens when a maintainer explicitly merges it.
+
+**Setup:**
+
+Keep your existing `release.yml` unchanged. Add `standing-pr.yml` alongside it (shown above). In config, set `releaseStrategy: 'standing-pr'` so PR preview comments default to standing-PR messaging; label-triggered releases still work regardless of this setting.
+
+```json
+{
+  "ci": {
+    "releaseStrategy": "standing-pr",
+    "releaseTrigger": "label",
+    "standingPr": {
+      "branch": "release/next",
+      "mergeMethod": "squash"
+    }
+  }
+}
+```
+
+**Decision guide:**
+
+| Situation | Action |
+|-----------|--------|
+| Routine feature — batch with others | Merge PR without a label |
+| Critical fix or time-sensitive feature | Add `bump:patch` (or `minor`/`major`) to the PR |
+| Promote accumulated prereleases to stable | Add `release:stable` to the standing PR and merge it |
 
 ---
 
