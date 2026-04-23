@@ -143,26 +143,33 @@ export function extractEditableSection(body: string): string | null {
   return body.slice(start + EDITABLE_START.length, end).trim();
 }
 
-// Parses an editable section back into per-package notes.
-// Splits on "#### <pkg> — <version>" headings; falls back gracefully for unrecognised lines.
+// Parses an editable section back into per-package notes using a line-by-line accumulator.
+// Package headings are "#### <pkg> — <version>" (em dash U+2014). h4 subheadings within
+// notes (e.g. "#### Breaking Changes") have no em dash and are accumulated as content.
+// [^—]+ is used for the package-name portion to avoid backtracking ambiguity.
 export function parseEditedNotes(section: string): Record<string, string> {
   const result: Record<string, string> = {};
-  // Split only on "#### <pkg> — <version>" lines (em dash U+2014), not on h4 subheadings
-  // within notes body (e.g. "#### Breaking Changes" has no em dash and must not split).
-  const parts = section.split(/(?=^#### .+ — .+$)/m);
-  for (const part of parts) {
-    const firstNewline = part.indexOf('\n');
-    if (firstNewline === -1) continue;
-    const heading = part.slice(0, firstNewline).trim();
-    // Match "#### <pkg> — <version>" (em dash U+2014)
-    const headingMatch = heading.match(/^#### (.+?) — .+$/);
-    if (!headingMatch?.[1]) continue;
-    const pkg = headingMatch[1].trim();
-    const content = part.slice(firstNewline).trim();
-    if (pkg) {
-      result[pkg] = content;
+  let currentPkg: string | null = null;
+  const accum: string[] = [];
+
+  const flush = () => {
+    if (currentPkg !== null) {
+      result[currentPkg] = accum.join('\n').trim();
+      accum.length = 0;
+    }
+  };
+
+  for (const line of section.split('\n')) {
+    const headingMatch = line.match(/^#### ([^—]+) — \S/);
+    if (headingMatch?.[1]) {
+      flush();
+      currentPkg = headingMatch[1].trim();
+    } else if (currentPkg !== null) {
+      accum.push(line);
     }
   }
+  flush();
+
   return result;
 }
 
