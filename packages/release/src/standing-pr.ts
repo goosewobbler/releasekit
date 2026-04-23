@@ -347,7 +347,6 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // Commit and force-push the release branch
   info(`Committing and pushing '${branch}'...`);
   commitAndForcePush(branch, cwd);
-  const releaseBranchSha = getHeadSha(cwd);
 
   success(`Release branch '${branch}' updated`);
 
@@ -356,6 +355,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     return { action: 'noop', versionOutput };
   }
 
+  const releaseBranchSha = getHeadSha(cwd);
   const octokit = createOctokit(githubContext.token);
   const { owner, repo } = githubContext;
 
