@@ -459,7 +459,7 @@ describe('NotesConfigSchema', () => {
 });
 
 describe('CIConfigSchema', () => {
-  it('applies defaults', () => {
+  it('should apply defaults', () => {
     const result = CIConfigSchema.parse({});
     expect(result.releaseStrategy).toBe('direct');
     expect(result.releaseTrigger).toBe('label');
@@ -477,7 +477,7 @@ describe('CIConfigSchema', () => {
     });
   });
 
-  it('accepts valid values', () => {
+  it('should accept valid values', () => {
     const result = CIConfigSchema.parse({
       releaseStrategy: 'direct',
       prPreview: false,
@@ -492,32 +492,32 @@ describe('CIConfigSchema', () => {
     expect(result.minChanges).toBe(3);
   });
 
-  it('accepts all releaseStrategy values', () => {
+  it('should accept all releaseStrategy values', () => {
     for (const strategy of ['manual', 'direct', 'standing-pr', 'scheduled'] as const) {
       expect(CIConfigSchema.parse({ releaseStrategy: strategy }).releaseStrategy).toBe(strategy);
     }
   });
 
-  it('rejects invalid releaseStrategy', () => {
+  it('should reject invalid releaseStrategy', () => {
     expect(() => CIConfigSchema.parse({ releaseStrategy: 'invalid' })).toThrow();
   });
 
-  it('rejects non-positive minChanges', () => {
+  it('should reject non-positive minChanges', () => {
     expect(() => CIConfigSchema.parse({ minChanges: 0 })).toThrow();
     expect(() => CIConfigSchema.parse({ minChanges: -1 })).toThrow();
   });
 
-  it('accepts all releaseTrigger values', () => {
+  it('should accept all releaseTrigger values', () => {
     for (const trigger of ['commit', 'label'] as const) {
       expect(CIConfigSchema.parse({ releaseTrigger: trigger }).releaseTrigger).toBe(trigger);
     }
   });
 
-  it('rejects invalid releaseTrigger', () => {
+  it('should reject invalid releaseTrigger', () => {
     expect(() => CIConfigSchema.parse({ releaseTrigger: 'invalid' })).toThrow();
   });
 
-  it('accepts custom label names', () => {
+  it('should accept custom label names', () => {
     const result = CIConfigSchema.parse({
       labels: {
         stable: 'stable',
@@ -536,7 +536,7 @@ describe('CIConfigSchema', () => {
     expect(result.labels.patch).toBe('fix');
   });
 
-  it('applies label defaults for partial labels config', () => {
+  it('should apply label defaults for partial labels config', () => {
     const result = CIConfigSchema.parse({ labels: { stable: 'custom-stable' } });
     expect(result.labels.stable).toBe('custom-stable');
     expect(result.labels.prerelease).toBe('release:prerelease');
@@ -546,45 +546,32 @@ describe('CIConfigSchema', () => {
     expect(result.labels.patch).toBe('bump:patch');
   });
 
-  it('standingPr is undefined when omitted', () => {
+  it('should return undefined for standingPr when omitted', () => {
     const result = CIConfigSchema.parse({});
     expect(result.standingPr).toBeUndefined();
   });
 
-  it('standingPr applies defaults when provided as empty object', () => {
+  it('should apply standingPr defaults when provided as empty object', () => {
     const result = CIConfigSchema.parse({ standingPr: {} });
     expect(result.standingPr?.branch).toBe('release/next');
     expect(result.standingPr?.title).toBe('chore: release ${count} package(s)');
     expect(result.standingPr?.labels).toEqual(['release']);
     expect(result.standingPr?.deleteBranchOnMerge).toBe(true);
-    expect(result.standingPr?.mergeMethod).toBe('squash');
   });
 
-  it('standingPr respects explicit overrides', () => {
+  it('should respect explicit standingPr overrides', () => {
     const result = CIConfigSchema.parse({
       standingPr: {
         branch: 'release/staging',
         title: 'chore: release ${count} pkg(s)',
         labels: ['auto-release'],
         deleteBranchOnMerge: false,
-        mergeMethod: 'merge',
       },
     });
     expect(result.standingPr?.branch).toBe('release/staging');
     expect(result.standingPr?.title).toBe('chore: release ${count} pkg(s)');
     expect(result.standingPr?.labels).toEqual(['auto-release']);
     expect(result.standingPr?.deleteBranchOnMerge).toBe(false);
-    expect(result.standingPr?.mergeMethod).toBe('merge');
-  });
-
-  it('standingPr rejects invalid mergeMethod', () => {
-    expect(() => CIConfigSchema.parse({ standingPr: { mergeMethod: 'invalid' } })).toThrow();
-  });
-
-  it('standingPr accepts all valid mergeMethod values', () => {
-    for (const method of ['squash', 'merge', 'rebase'] as const) {
-      expect(CIConfigSchema.parse({ standingPr: { mergeMethod: method } }).standingPr?.mergeMethod).toBe(method);
-    }
   });
 });
 

@@ -272,15 +272,13 @@ export const CILabelsConfigSchema = z.object({
 export const StandingPrConfigSchema = z.object({
   /** Branch name for the release PR. Default: 'release/next' */
   branch: z.string().default('release/next'),
-  /** Title template for the release PR. Variables: ${count}, ${version}. Must start with 'chore: release' to match default skip pattern on squash merge. */
+  /** Title template for the release PR. Variables: ${count}, ${version}. Must start with 'chore: release' to match default skip pattern on merge. */
   /* biome-ignore lint/suspicious/noTemplateCurlyInString: default template value */
   title: z.string().default('chore: release ${count} package(s)'),
   /** Labels to apply to the standing release PR */
   labels: z.array(z.string()).default(['release']),
   /** Whether to auto-delete the release branch after PR merge. Default: true */
   deleteBranchOnMerge: z.boolean().default(true),
-  /** Merge method for the release PR. Squash (default) ensures the merge commit matches the skip pattern automatically. */
-  mergeMethod: z.enum(['squash', 'merge', 'rebase']).default('squash'),
 });
 
 export const CIConfigSchema = z.object({
