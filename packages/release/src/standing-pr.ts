@@ -147,7 +147,9 @@ export function extractEditableSection(body: string): string | null {
 // Splits on "#### <pkg> — <version>" headings; falls back gracefully for unrecognised lines.
 export function parseEditedNotes(section: string): Record<string, string> {
   const result: Record<string, string> = {};
-  const parts = section.split(/(?=^#### )/m);
+  // Split only on "#### <pkg> — <version>" lines (em dash U+2014), not on h4 subheadings
+  // within notes body (e.g. "#### Breaking Changes" has no em dash and must not split).
+  const parts = section.split(/(?=^#### .+ — .+$)/m);
   for (const part of parts) {
     const firstNewline = part.indexOf('\n');
     if (firstNewline === -1) continue;
@@ -189,7 +191,7 @@ function renderPrBody(
     const sectionContent = overrideSection ?? renderNotesSection(versionOutput, releaseNotes);
     lines.push('');
     if (editableNotes) {
-      lines.push(EDITABLE_START, sectionContent, EDITABLE_END);
+      lines.push(EDITABLE_START, sectionContent, EDITABLE_END, '');
     } else {
       lines.push(sectionContent, '');
     }

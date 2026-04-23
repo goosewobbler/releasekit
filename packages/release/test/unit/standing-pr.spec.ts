@@ -623,6 +623,26 @@ describe('parseEditedNotes', () => {
     expect(result['@scope/cli']).toBe('- fixed bug');
   });
 
+  it('preserves h4 subheadings within package notes without truncating content', () => {
+    const section = [
+      '### Release Notes',
+      '',
+      '#### @scope/core — 1.2.3',
+      '',
+      '#### Breaking Changes',
+      '- something important',
+      '',
+      '#### New Features',
+      '- another thing',
+    ].join('\n');
+
+    const result = parseEditedNotes(section);
+    expect(result['@scope/core']).toContain('#### Breaking Changes');
+    expect(result['@scope/core']).toContain('- something important');
+    expect(result['@scope/core']).toContain('#### New Features');
+    expect(result['@scope/core']).toContain('- another thing');
+  });
+
   it('returns empty object for a section with no package headings', () => {
     expect(parseEditedNotes('### Release Notes\n\nsome text')).toEqual({});
   });
