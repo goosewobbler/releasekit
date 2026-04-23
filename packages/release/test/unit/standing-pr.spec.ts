@@ -100,11 +100,11 @@ function createMockOctokit(overrides: Record<string, unknown> = {}) {
       pullsList,
       pullsCreate,
       pullsUpdate,
+      pullsMerge,
       issuesSetLabels,
       paginate,
       createCommitStatus,
     },
->>>>>>> main
   };
 }
 
