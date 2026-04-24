@@ -692,6 +692,12 @@
               "default": true,
               "description": "Whether to auto-delete the release branch after the PR is merged."
             },
+            "mergeMethod": {
+              "type": "string",
+              "enum": ["merge", "squash", "rebase"],
+              "default": "merge",
+              "description": "Merge method to use when merging the standing release PR via CLI."
+            },
             "minAge": {
               "type": "string",
               "description": "Minimum age of the standing PR before it can be merged. Duration string, e.g. '6h', '30m', '1d'. Gate enforced via the releasekit/standing-pr commit status check; configure it as a required status check in branch protection to block merges."

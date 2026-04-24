@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { StandingPRManifest } from '../../src/standing-pr.js';
-import { parseManifest, runStandingPRPublish, runStandingPRUpdate, serializeManifest } from '../../src/standing-pr.js';
+import {
+  parseManifest,
+  runStandingPRMerge,
+  runStandingPRPublish,
+  runStandingPRUpdate,
+  serializeManifest,
+} from '../../src/standing-pr.js';
 
 vi.mock('node:child_process', () => ({
   execSync: vi.fn().mockReturnValue(''),
@@ -51,6 +57,7 @@ function createMockOctokit(overrides: Record<string, unknown> = {}) {
     .fn()
     .mockResolvedValue({ data: { number: 42, html_url: 'https://github.com/owner/repo/pull/42' } });
   const pullsUpdate = vi.fn().mockResolvedValue({});
+  const pullsMerge = vi.fn().mockResolvedValue({});
   const issuesSetLabels = vi.fn().mockResolvedValue({});
   const createCommitStatus = vi.fn().mockResolvedValue({});
 
@@ -76,6 +83,7 @@ function createMockOctokit(overrides: Record<string, unknown> = {}) {
           list: pullsList,
           create: pullsCreate,
           update: pullsUpdate,
+          merge: pullsMerge,
         },
         repos: {
           createCommitStatus,
@@ -89,6 +97,7 @@ function createMockOctokit(overrides: Record<string, unknown> = {}) {
       pullsList,
       pullsCreate,
       pullsUpdate,
+      pullsMerge,
       issuesSetLabels,
       paginate,
       createCommitStatus,
@@ -194,7 +203,7 @@ describe('runStandingPRUpdate', () => {
     vi.mocked(loadConfig).mockReturnValue(defaultConfig as ReturnType<typeof loadConfig>);
 
     const { execSync } = await import('node:child_process');
-    vi.mocked(execSync).mockReturnValue('abc123\n' as unknown as Buffer);
+    vi.mocked(execSync).mockReturnValue('abc123\n');
   });
 
   afterEach(() => {
@@ -203,7 +212,7 @@ describe('runStandingPRUpdate', () => {
 
   it('should return noop when HEAD commit matches skip pattern', async () => {
     const { execSync } = await import('node:child_process');
-    vi.mocked(execSync).mockReturnValueOnce('chore: release @scope/core v1.2.3' as unknown as Buffer);
+    vi.mocked(execSync).mockReturnValueOnce('chore: release @scope/core v1.2.3');
 
     const result = await runStandingPRUpdate({
       projectDir: '/test',
@@ -619,7 +628,7 @@ describe('runStandingPRPublish', () => {
     } as ReturnType<typeof loadConfig>);
 
     const { execSync } = await import('node:child_process');
-    vi.mocked(execSync).mockReturnValue('abc123\n' as unknown as Buffer);
+    vi.mocked(execSync).mockReturnValue('abc123\n');
   });
 
   afterEach(() => {
@@ -643,8 +652,8 @@ describe('runStandingPRPublish', () => {
     const { readFileSync } = await import('node:fs');
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({
-        pull_request: { head: { ref: 'feature/something' }, number: 5, merged: true },
-      }) as unknown as Buffer,
+        pull_request: { head: { ref: 'feature/something-else' }, number: 42, merged: true },
+      }),
     );
 
     const result = await runStandingPRPublish({
@@ -662,7 +671,7 @@ describe('runStandingPRPublish', () => {
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({
         pull_request: { head: { ref: 'release/next' }, number: 5, merged: false },
-      }) as unknown as Buffer,
+      }),
     );
 
     const result = await runStandingPRPublish({
@@ -680,7 +689,7 @@ describe('runStandingPRPublish', () => {
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({
         pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
-      }) as unknown as Buffer,
+      }),
     );
 
     const { createOctokit } = await import('../../src/preview-github.js');
@@ -698,7 +707,7 @@ describe('runStandingPRPublish', () => {
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({
         pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
-      }) as unknown as Buffer,
+      }),
     );
 
     const { createOctokit } = await import('../../src/preview-github.js');
@@ -737,7 +746,7 @@ describe('runStandingPRPublish', () => {
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({
         pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
-      }) as unknown as Buffer,
+      }),
     );
 
     const { createOctokit } = await import('../../src/preview-github.js');
@@ -777,7 +786,7 @@ describe('runStandingPRPublish', () => {
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({
         pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
-      }) as unknown as Buffer,
+      }),
     );
 
     const { createOctokit } = await import('../../src/preview-github.js');
@@ -813,7 +822,7 @@ describe('runStandingPRPublish', () => {
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({
         pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
-      }) as unknown as Buffer,
+      }),
     );
 
     const result = await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
@@ -826,7 +835,7 @@ describe('runStandingPRPublish', () => {
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({
         pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
-      }) as unknown as Buffer,
+      }),
     );
 
     const { createOctokit } = await import('../../src/preview-github.js');
@@ -842,5 +851,279 @@ describe('runStandingPRPublish', () => {
     await expect(
       runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }),
     ).rejects.toThrow(/invalid or incompatible/);
+  });
+});
+
+describe('runStandingPRMerge', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(async () => {
+    vi.resetAllMocks();
+    process.env.GITHUB_REPOSITORY = 'owner/repo';
+    process.env.GITHUB_TOKEN = 'test-token';
+
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValue({
+      ci: {
+        standingPr: { branch: 'release/next', mergeMethod: 'merge', deleteBranchOnMerge: true },
+      },
+      git: { branch: 'main' },
+    } as ReturnType<typeof loadConfig>);
+
+    const { execSync } = await import('node:child_process');
+    vi.mocked(execSync).mockReturnValue('abc123\n');
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it('should return null when no GitHub context available', async () => {
+    delete process.env.GITHUB_REPOSITORY;
+    delete process.env.GITHUB_TOKEN;
+
+    const result = await runStandingPRMerge(
+      { projectDir: '/test', verbose: false, quiet: false, json: false },
+      { publish: false },
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it('should return null when no open standing PR found', async () => {
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [] });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    const result = await runStandingPRMerge(
+      { projectDir: '/test', verbose: false, quiet: false, json: false },
+      { publish: false },
+    );
+
+    expect(result).toBeNull();
+    expect(mocks.pullsMerge).not.toHaveBeenCalled();
+  });
+
+  it('should call pulls.merge with mergeMethod from config', async () => {
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValue({
+      ci: {
+        standingPr: { branch: 'release/next', mergeMethod: 'squash', deleteBranchOnMerge: true },
+      },
+      git: { branch: 'main' },
+    } as ReturnType<typeof loadConfig>);
+
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({
+      data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
+    });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false });
+
+    expect(mocks.pullsMerge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner: 'owner',
+        repo: 'repo',
+        pull_number: 42,
+        merge_method: 'squash',
+      }),
+    );
+  });
+
+  it('should default to merge method when config omits mergeMethod', async () => {
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValue({
+      ci: {
+        standingPr: { branch: 'release/next' }, // no mergeMethod
+      },
+      git: { branch: 'main' },
+    } as ReturnType<typeof loadConfig>);
+
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({
+      data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
+    });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false });
+
+    expect(mocks.pullsMerge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        merge_method: 'merge',
+      }),
+    );
+  });
+
+  it('should throw clear error message on 405 response', async () => {
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({
+      data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
+    });
+    mocks.pullsMerge.mockRejectedValue({
+      status: 405,
+      response: { data: { message: 'Required status checks have not passed' } },
+    });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await expect(
+      runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false }),
+    ).rejects.toThrow(/GitHub rejected the merge/);
+
+    await expect(
+      runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false }),
+    ).rejects.toThrow(/Required status checks have not passed/);
+  });
+
+  it('should re-throw non-405 errors unchanged', async () => {
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({
+      data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
+    });
+    const originalError = new Error('Network error');
+    mocks.pullsMerge.mockRejectedValue(originalError);
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await expect(
+      runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false }),
+    ).rejects.toThrow('Network error');
+  });
+
+  it('should return null without publishing when publish flag is false', async () => {
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({
+      data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
+    });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    const result = await runStandingPRMerge(
+      { projectDir: '/test', verbose: false, quiet: false, json: false },
+      { publish: false },
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it('should call publishFromManifest when publish flag is true and manifest exists', async () => {
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({
+      data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
+    });
+    const manifestBody = serializeManifest(baseManifest);
+    (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { data: [{ id: 1, body: manifestBody }] };
+      },
+    });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    const { runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+      ReturnType<typeof runPublishStep>
+    >);
+
+    const result = await runStandingPRMerge(
+      { projectDir: '/test', verbose: false, quiet: false, json: false },
+      { publish: true },
+    );
+
+    expect(result).not.toBeNull();
+    expect(vi.mocked(runPublishStep)).toHaveBeenCalledWith(
+      expect.objectContaining({ updates: baseManifest.versionOutput.updates }),
+      expect.objectContaining({ skipGitCommit: true }),
+      baseManifest.releaseNotes,
+      baseManifest.notesFiles,
+    );
+  });
+
+  it('should delete branch after publish when deleteBranchOnMerge is true', async () => {
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({
+      data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
+    });
+    const manifestBody = serializeManifest(baseManifest);
+    (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { data: [{ id: 1, body: manifestBody }] };
+      },
+    });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    const { runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+      ReturnType<typeof runPublishStep>
+    >);
+
+    const { execSync } = await import('node:child_process');
+
+    await runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: true });
+
+    const deleteCalls = vi
+      .mocked(execSync)
+      .mock.calls.filter((c) => typeof c[0] === 'string' && c[0].includes('--delete'));
+    expect(deleteCalls).toHaveLength(1);
+    expect(deleteCalls[0][0]).toContain('release/next');
+  });
+
+  it('should skip branch deletion when deleteBranchOnMerge is false', async () => {
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValue({
+      ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: false } },
+      git: { branch: 'main' },
+    } as ReturnType<typeof loadConfig>);
+
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({
+      data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
+    });
+    const manifestBody = serializeManifest(baseManifest);
+    (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { data: [{ id: 1, body: manifestBody }] };
+      },
+    });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    const { runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+      ReturnType<typeof runPublishStep>
+    >);
+
+    const { execSync } = await import('node:child_process');
+
+    await runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: true });
+
+    const deleteCalls = vi
+      .mocked(execSync)
+      .mock.calls.filter((c) => typeof c[0] === 'string' && c[0].includes('--delete'));
+    expect(deleteCalls).toHaveLength(0);
+  });
+
+  it('should delete branch even when publish flag is false and deleteBranchOnMerge is true', async () => {
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({
+      data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
+    });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    const { execSync } = await import('node:child_process');
+
+    await runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false });
+
+    const deleteCalls = vi
+      .mocked(execSync)
+      .mock.calls.filter((c) => typeof c[0] === 'string' && c[0].includes('--delete'));
+    expect(deleteCalls).toHaveLength(1);
+    expect(deleteCalls[0][0]).toContain('release/next');
   });
 });

@@ -279,6 +279,8 @@ export const StandingPrConfigSchema = z.object({
   labels: z.array(z.string()).default(['release']),
   /** Whether to auto-delete the release branch after PR merge. Default: true */
   deleteBranchOnMerge: z.boolean().default(true),
+  /** Merge method to use when merging the standing release PR. Default: 'merge' */
+  mergeMethod: z.enum(['merge', 'squash', 'rebase']).default('merge'),
   /** Minimum age of the standing PR before it can be merged. Duration string (e.g. '6h', '30m', '1d'). Gate enforced via the releasekit/standing-pr status check. */
   minAge: z.string().optional(),
   /** Minimum number of packages with releasable changes required to create/maintain the standing PR. Below this threshold, the PR is closed and no new PR is created. */
