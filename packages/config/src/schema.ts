@@ -281,6 +281,8 @@ export const StandingPrConfigSchema = z.object({
   deleteBranchOnMerge: z.boolean().default(true),
   /** Allow teams to edit the release notes section in the PR body before publishing. Default: false */
   editableNotes: z.boolean().default(false),
+  /** Merge method to use when merging the standing release PR. Default: 'merge' */
+  mergeMethod: z.enum(['merge', 'squash', 'rebase']).default('merge'),
 });
 
 export const CIConfigSchema = z.object({

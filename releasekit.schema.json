@@ -696,6 +696,12 @@
               "type": "boolean",
               "default": false,
               "description": "Allow teams to edit the release notes section in the PR body before publishing. When enabled, the notes section is wrapped in editable markers and preserved across updates if manually changed."
+            },
+            "mergeMethod": {
+              "type": "string",
+              "enum": ["merge", "squash", "rebase"],
+              "default": "merge",
+              "description": "Merge method to use when merging the standing release PR via CLI."
             }
           }
         }

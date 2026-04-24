@@ -174,6 +174,20 @@ export function parseEditedNotes(section: string): Record<string, string> {
   return result;
 }
 
+function deleteReleaseBranch(releaseBranch: string, cwd: string): void {
+  try {
+    execSync(`git push origin --delete "${releaseBranch}"`, { encoding: 'utf-8', cwd, stdio: 'pipe' });
+    info(`Deleted release branch '${releaseBranch}'`);
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    if (errorMsg.includes('not found') || errorMsg.includes('does not exist')) {
+      info(`Release branch '${releaseBranch}' already deleted`);
+    } else {
+      warn(`Failed to delete release branch '${releaseBranch}': ${errorMsg}`);
+    }
+  }
+}
+
 function renderPrBody(
   versionOutput: VersionOutput,
   releaseNotes: Record<string, string>,
@@ -556,6 +570,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   const releaseKitConfig = loadReleaseKitConfig({ cwd, configPath: options.config });
   const standingPrConfig = releaseKitConfig.ci?.standingPr;
   const releaseBranch = standingPrConfig?.branch ?? 'release/next';
+  const deleteBranchOnMerge = standingPrConfig?.deleteBranchOnMerge !== false;
 
   // Find and parse manifest from the PR
   const manifestComment = await findManifestComment(octokit, owner, repo, prNumber);
@@ -636,18 +651,8 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   success('Publish complete');
 
   // Cleanup: delete release branch if configured
-  if (standingPrConfig?.deleteBranchOnMerge !== false) {
-    try {
-      execSync(`git push origin --delete "${releaseBranch}"`, { encoding: 'utf-8', cwd, stdio: 'pipe' });
-      info(`Deleted release branch '${releaseBranch}'`);
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      if (errorMsg.includes('not found') || errorMsg.includes('does not exist')) {
-        info(`Release branch '${releaseBranch}' already deleted`);
-      } else {
-        warn(`Failed to delete release branch '${releaseBranch}': ${errorMsg}`);
-      }
-    }
+  if (deleteBranchOnMerge) {
+    deleteReleaseBranch(releaseBranch, cwd);
   }
 
   return {
@@ -700,4 +705,61 @@ export async function runStandingPRPublish(options: StandingPROptions): Promise<
   }
 
   return publishFromManifest(prNumber, options);
+}
+
+export async function runStandingPRMerge(
+  options: StandingPROptions,
+  flags: { publish: boolean },
+): Promise<ReleaseOutput | null> {
+  const cwd = options.projectDir;
+
+  const releaseKitConfig = loadReleaseKitConfig({ cwd, configPath: options.config });
+  const standingPrConfig = releaseKitConfig.ci?.standingPr;
+  const branch = standingPrConfig?.branch ?? 'release/next';
+  const mergeMethod = (standingPrConfig?.mergeMethod ?? 'merge') as 'merge' | 'squash' | 'rebase';
+  const deleteBranchOnMerge = standingPrConfig?.deleteBranchOnMerge !== false;
+
+  const githubContext = getGitHubContext();
+  if (!githubContext) {
+    error('No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available');
+    return null;
+  }
+
+  const octokit = createOctokit(githubContext.token);
+  const { owner, repo } = githubContext;
+
+  const pr = await findStandingPR(octokit, owner, repo, branch);
+  if (!pr) {
+    info(`No open standing PR found for branch '${branch}'`);
+    return null;
+  }
+
+  info(`Merging standing PR #${pr.number} via ${mergeMethod}...`);
+  try {
+    await octokit.rest.pulls.merge({
+      owner,
+      repo,
+      pull_number: pr.number,
+      merge_method: mergeMethod,
+    });
+  } catch (err) {
+    const reqErr = err as { status?: number; response?: { data?: { message?: string } } };
+    if (reqErr.status === 405) {
+      const reason = reqErr.response?.data?.message ?? 'unknown reason';
+      throw new Error(`Cannot merge standing PR #${pr.number}: GitHub rejected the merge (${reason})`);
+    }
+    throw err;
+  }
+  success(`Standing PR #${pr.number} merged`);
+
+  // If not publishing, delete the branch now (otherwise publishFromManifest handles it)
+  if (!flags.publish && deleteBranchOnMerge) {
+    deleteReleaseBranch(branch, cwd);
+  }
+
+  if (!flags.publish) {
+    return null;
+  }
+
+  return publishFromManifest(pr.number, options);
 }

@@ -8,6 +8,7 @@ export {
   extractEditableSection,
   parseEditedNotes,
   publishFromManifest,
+  runStandingPRMerge,
   runStandingPRPublish,
   runStandingPRUpdate,
 } from './standing-pr.js';
