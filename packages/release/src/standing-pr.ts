@@ -4,13 +4,15 @@ import * as fs from 'node:fs';
 import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput } from '@releasekit/core';
 import { error, info, success, warn } from '@releasekit/core';
+import { formatDuration, parseDuration } from './duration.js';
 import { createOctokit } from './preview-github.js';
 import { postStandingPRStatusSafe } from './standing-pr-status.js';
 import { runNotesStep, runPublishStep, runVersionStep } from './steps.js';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
 
 const MANIFEST_MARKER = '<!-- releasekit-manifest -->';
-const MANIFEST_SCHEMA_VERSION = 1;
+const MANIFEST_SCHEMA_VERSION = 2;
+const MANIFEST_SCHEMA_MIN_VERSION = 1;
 const EDITABLE_START = '<!-- releasekit-editable-start -->';
 const EDITABLE_END = '<!-- releasekit-editable-end -->';
 
@@ -31,13 +33,15 @@ export interface StandingPRResult {
 }
 
 export interface StandingPRManifest {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   versionOutput: VersionOutput;
   releaseNotes: Record<string, string>;
   notesFiles: string[];
   createdAt: string;
   baseSha: string;
   notesHash?: string;
+  /** ISO timestamp of when this standing PR was first created. Preserved across updates. Added in schema v2. */
+  firstUpdatedAt?: string;
 }
 
 function getGitHubContext(): { owner: string; repo: string; token: string } | null {
@@ -257,9 +261,9 @@ export function parseManifest(commentBody: string): StandingPRManifest {
   }
 
   const m = parsed as StandingPRManifest;
-  if (m.schemaVersion !== MANIFEST_SCHEMA_VERSION) {
+  if (m.schemaVersion < MANIFEST_SCHEMA_MIN_VERSION || m.schemaVersion > MANIFEST_SCHEMA_VERSION) {
     throw new Error(
-      `Release manifest schema version ${m.schemaVersion} is incompatible (expected ${MANIFEST_SCHEMA_VERSION}). Re-run 'standing-pr update' to regenerate.`,
+      `Release manifest schema version ${m.schemaVersion} is incompatible (expected ${MANIFEST_SCHEMA_MIN_VERSION}–${MANIFEST_SCHEMA_VERSION}). Re-run 'standing-pr update' to regenerate.`,
     );
   }
 
@@ -290,33 +294,6 @@ async function findManifestComment(
   }
 
   return null;
-}
-
-async function findOrCreateManifestComment(
-  octokit: OctokitInstance,
-  owner: string,
-  repo: string,
-  prNumber: number,
-  manifest: StandingPRManifest,
-): Promise<void> {
-  const body = serializeManifest(manifest);
-  const existing = await findManifestComment(octokit, owner, repo, prNumber);
-
-  if (existing) {
-    await octokit.rest.issues.updateComment({
-      owner,
-      repo,
-      comment_id: existing.id,
-      body,
-    });
-  } else {
-    await octokit.rest.issues.createComment({
-      owner,
-      repo,
-      issue_number: prNumber,
-      body,
-    });
-  }
 }
 
 export async function findStandingPR(
@@ -407,6 +384,35 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     return { action: 'noop' };
   }
 
+  // minPackages gate: close existing PR and noop if package count is below threshold
+  const minPackages = standingPrConfig?.minPackages;
+  if (minPackages !== undefined && versionOutputDry.updates.length < minPackages) {
+    info(
+      `Package count (${versionOutputDry.updates.length}) is below minPackages threshold (${minPackages}), skipping`,
+    );
+    if (githubContext) {
+      const octokit = createOctokit(githubContext.token);
+      const existing = await findStandingPR(octokit, githubContext.owner, githubContext.repo, branch);
+      if (existing) {
+        await octokit.rest.issues.createComment({
+          owner: githubContext.owner,
+          repo: githubContext.repo,
+          issue_number: existing.number,
+          body: `Not enough packages with releasable changes (${versionOutputDry.updates.length} of ${minPackages} required). Closing until the threshold is reached.`,
+        });
+        await octokit.rest.pulls.update({
+          owner: githubContext.owner,
+          repo: githubContext.repo,
+          pull_number: existing.number,
+          state: 'closed',
+        });
+        info(`Closed standing PR #${existing.number} (minPackages not met)`);
+        return { action: 'closed', prNumber: existing.number, prUrl: existing.url };
+      }
+    }
+    return { action: 'noop' };
+  }
+
   // Capture baseSha before switching branches
   const baseSha = getHeadSha(cwd);
 
@@ -427,6 +433,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   info(`Committing and pushing '${branch}'...`);
   commitAndForcePush(branch, cwd);
 
+  // Capture the release branch HEAD SHA for the status check (we're still on the release branch)
+  const releaseBranchSha = getHeadSha(cwd);
+
   success(`Release branch '${branch}' updated`);
 
   if (!githubContext) {
@@ -434,7 +443,6 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     return { action: 'noop', versionOutput };
   }
 
-  const releaseBranchSha = getHeadSha(cwd);
   const octokit = createOctokit(githubContext.token);
   const { owner, repo } = githubContext;
 
@@ -534,21 +542,73 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   }
 
+  // Find existing manifest to preserve firstUpdatedAt across updates
+  let firstUpdatedAt = new Date().toISOString();
+  const existingManifestComment = await findManifestComment(octokit, owner, repo, prNumber);
+  if (existingManifestComment) {
+    try {
+      const existingManifest = parseManifest(existingManifestComment.body);
+      if (existingManifest.firstUpdatedAt) {
+        firstUpdatedAt = existingManifest.firstUpdatedAt;
+      } else {
+        firstUpdatedAt = existingManifest.createdAt;
+      }
+    } catch {
+      // Use current time if the existing manifest can't be parsed
+    }
+  }
+
   // Store manifest as a bot comment
   const manifest: StandingPRManifest = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     versionOutput,
     releaseNotes: notesResult.releaseNotes ?? {},
     notesFiles: notesResult.files,
     createdAt: new Date().toISOString(),
     baseSha,
     notesHash,
+    firstUpdatedAt,
   };
 
-  await findOrCreateManifestComment(octokit, owner, repo, prNumber, manifest);
+  const manifestBody = serializeManifest(manifest);
+  if (existingManifestComment) {
+    await octokit.rest.issues.updateComment({
+      owner,
+      repo,
+      comment_id: existingManifestComment.id,
+      body: manifestBody,
+    });
+  } else {
+    await octokit.rest.issues.createComment({
+      owner,
+      repo,
+      issue_number: prNumber,
+      body: manifestBody,
+    });
+  }
   success(`Manifest written to PR #${prNumber}`);
 
-  await postStandingPRStatusSafe(octokit, owner, repo, releaseBranchSha, 'success', 'Ready to merge');
+  // Post commit status check — gates determine pending vs success
+  const minAge = standingPrConfig?.minAge;
+  let statusState: 'success' | 'pending' = 'success';
+  let statusDescription = 'Ready to merge';
+
+  if (minAge !== undefined) {
+    const minAgeMs = parseDuration(minAge);
+    if (minAgeMs === null) {
+      warn(
+        `ci.standingPr.minAge value "${minAge}" is not a valid duration (e.g. "6h", "30m", "1d") — gate is inactive`,
+      );
+    } else if (manifest.firstUpdatedAt) {
+      const ageMs = Date.now() - new Date(manifest.firstUpdatedAt).getTime();
+      if (ageMs < minAgeMs) {
+        statusState = 'pending';
+        statusDescription = `Waiting ${formatDuration(minAgeMs - ageMs)} for minAge`;
+      }
+    }
+  }
+
+  await postStandingPRStatusSafe(octokit, owner, repo, releaseBranchSha, statusState, statusDescription);
 
   return { action, prNumber, prUrl, versionOutput };
 }

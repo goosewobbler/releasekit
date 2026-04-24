@@ -146,6 +146,27 @@ describe('serializeManifest / parseManifest', () => {
     const wrongVersion = serializeManifest({ ...baseManifest, schemaVersion: 99 as unknown as 1 });
     expect(() => parseManifest(wrongVersion)).toThrow(/incompatible/);
   });
+
+  it('should accept a v1 manifest without firstUpdatedAt (backward compat)', () => {
+    // v1 manifests from before schema v2 have no firstUpdatedAt
+    const v1Manifest = { ...baseManifest, schemaVersion: 1 as const };
+    const serialized = serializeManifest(v1Manifest);
+    const parsed = parseManifest(serialized);
+    expect(parsed.schemaVersion).toBe(1);
+    expect(parsed.firstUpdatedAt).toBeUndefined();
+  });
+
+  it('should round-trip a v2 manifest with firstUpdatedAt', () => {
+    const v2Manifest = {
+      ...baseManifest,
+      schemaVersion: 2 as const,
+      firstUpdatedAt: '2024-06-01T12:00:00.000Z',
+    };
+    const serialized = serializeManifest(v2Manifest);
+    const parsed = parseManifest(serialized);
+    expect(parsed.schemaVersion).toBe(2);
+    expect(parsed.firstUpdatedAt).toBe('2024-06-01T12:00:00.000Z');
+  });
 });
 
 describe('runStandingPRUpdate', () => {
@@ -349,7 +370,56 @@ describe('runStandingPRUpdate', () => {
     expect(result.versionOutput?.updates).toHaveLength(1);
   });
 
-  it('should post success status check after successful update', async () => {
+  it('should return noop when package count is below minPackages threshold', async () => {
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValue({
+      ...defaultConfig,
+      ci: { ...defaultConfig.ci, standingPr: { ...defaultConfig.ci.standingPr, minPackages: 3 } },
+    } as ReturnType<typeof loadConfig>);
+
+    const { runVersionStep } = await import('../../src/steps.js');
+    // Only 1 package changed — below threshold of 3
+    const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+    vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [] });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    const result = await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(result.action).toBe('noop');
+    expect(mocks.pullsCreate).not.toHaveBeenCalled();
+  });
+
+  it('should close existing PR when package count is below minPackages threshold', async () => {
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValue({
+      ...defaultConfig,
+      ci: { ...defaultConfig.ci, standingPr: { ...defaultConfig.ci.standingPr, minPackages: 3 } },
+    } as ReturnType<typeof loadConfig>);
+
+    const { runVersionStep } = await import('../../src/steps.js');
+    const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+    vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [{ number: 55, html_url: 'https://github.com/owner/repo/pull/55' }] });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    const result = await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(result.action).toBe('closed');
+    expect(result.prNumber).toBe(55);
+    expect(mocks.pullsUpdate).toHaveBeenCalledWith(expect.objectContaining({ state: 'closed', pull_number: 55 }));
+    expect(mocks.createComment).toHaveBeenCalledWith(
+      expect.objectContaining({ body: expect.stringContaining('1 of 3 required') }),
+    );
+  });
+
+  it('should post success status check when all gates are satisfied', async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
     vi.mocked(runVersionStep)
@@ -376,7 +446,155 @@ describe('runStandingPRUpdate', () => {
     );
   });
 
-  it('should not fail the update when status post throws', async () => {
+  it('should post pending status check when minAge has not elapsed', async () => {
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValue({
+      ...defaultConfig,
+      ci: { ...defaultConfig.ci, standingPr: { ...defaultConfig.ci.standingPr, minAge: '6h' } },
+    } as ReturnType<typeof loadConfig>);
+
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    // Existing PR with a manifest that has a recent firstUpdatedAt (5 minutes ago)
+    mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
+    const recentTimestamp = new Date(Date.now() - 5 * 60_000).toISOString();
+    const existingManifest = serializeManifest({
+      ...baseManifest,
+      schemaVersion: 2,
+      firstUpdatedAt: recentTimestamp,
+    });
+    mocks.paginate.iterator.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { data: [{ id: 77, body: existingManifest }] };
+      },
+    });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(mocks.createCommitStatus).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state: 'pending',
+        context: 'releasekit/standing-pr',
+        description: expect.stringMatching(/Waiting .+ for minAge/),
+      }),
+    );
+  });
+
+  it('should post success status check when minAge has elapsed', async () => {
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValue({
+      ...defaultConfig,
+      ci: { ...defaultConfig.ci, standingPr: { ...defaultConfig.ci.standingPr, minAge: '1h' } },
+    } as ReturnType<typeof loadConfig>);
+
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
+    // firstUpdatedAt is 2 hours ago — minAge of 1h is satisfied
+    const oldTimestamp = new Date(Date.now() - 2 * 3_600_000).toISOString();
+    const existingManifest = serializeManifest({
+      ...baseManifest,
+      schemaVersion: 2,
+      firstUpdatedAt: oldTimestamp,
+    });
+    mocks.paginate.iterator.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { data: [{ id: 77, body: existingManifest }] };
+      },
+    });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(mocks.createCommitStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ state: 'success', description: 'Ready to merge' }),
+    );
+  });
+
+  it('should preserve firstUpdatedAt from existing manifest across updates', async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
+
+    const originalTimestamp = '2024-01-15T08:00:00.000Z';
+    const existingManifest = serializeManifest({
+      ...baseManifest,
+      schemaVersion: 2,
+      firstUpdatedAt: originalTimestamp,
+    });
+    mocks.paginate.iterator.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { data: [{ id: 77, body: existingManifest }] };
+      },
+    });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    // The manifest comment update should contain the original firstUpdatedAt
+    const updateCall = mocks.updateComment.mock.calls.find(
+      (c) => typeof c[0]?.body === 'string' && c[0].body.includes('<!-- releasekit-manifest -->'),
+    );
+    expect(updateCall).toBeDefined();
+    const writtenBody = updateCall?.[0]?.body as string;
+    const writtenManifest = parseManifest(writtenBody);
+    expect(writtenManifest.firstUpdatedAt).toBe(originalTimestamp);
+  });
+
+  it('should use createdAt as firstUpdatedAt fallback when migrating from v1 manifest', async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
+
+    // v1 manifest has no firstUpdatedAt — should fall back to createdAt
+    const v1Manifest = serializeManifest({ ...baseManifest, schemaVersion: 1 });
+    mocks.paginate.iterator.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { data: [{ id: 77, body: v1Manifest }] };
+      },
+    });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const updateCall = mocks.updateComment.mock.calls.find(
+      (c) => typeof c[0]?.body === 'string' && c[0].body.includes('<!-- releasekit-manifest -->'),
+    );
+    expect(updateCall).toBeDefined();
+    const writtenManifest = parseManifest(updateCall?.[0]?.body as string);
+    expect(writtenManifest.firstUpdatedAt).toBe(baseManifest.createdAt);
+  });
+
+  it('should not fail update when status check post throws', async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
     vi.mocked(runVersionStep)
@@ -387,9 +605,10 @@ describe('runStandingPRUpdate', () => {
     const { createOctokit } = await import('../../src/preview-github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({ data: [] });
-    mocks.createCommitStatus.mockRejectedValue(new Error('GitHub API error'));
+    mocks.createCommitStatus.mockRejectedValue(new Error('API rate limit exceeded'));
     vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
 
+    // Should resolve (not throw) even when status check post fails
     const result = await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     expect(result.action).toBe('created');
