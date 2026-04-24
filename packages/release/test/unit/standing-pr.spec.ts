@@ -888,4 +888,23 @@ describe('runStandingPRMerge', () => {
       .mock.calls.filter((c) => typeof c[0] === 'string' && c[0].includes('--delete'));
     expect(deleteCalls).toHaveLength(0);
   });
+
+  it('should delete branch even when publish flag is false and deleteBranchOnMerge is true', async () => {
+    const { createOctokit } = await import('../../src/preview-github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({
+      data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
+    });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    const { execSync } = await import('node:child_process');
+
+    await runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false });
+
+    const deleteCalls = vi
+      .mocked(execSync)
+      .mock.calls.filter((c) => typeof c[0] === 'string' && c[0].includes('--delete'));
+    expect(deleteCalls).toHaveLength(1);
+    expect(deleteCalls[0][0]).toContain('release/next');
+  });
 });

@@ -111,6 +111,20 @@ function commitAndForcePush(branch: string, cwd: string): void {
   execSync(`git push --force-with-lease origin "${branch}"`, { encoding: 'utf-8', cwd, stdio: 'pipe' });
 }
 
+function deleteReleaseBranch(releaseBranch: string, cwd: string): void {
+  try {
+    execSync(`git push origin --delete "${releaseBranch}"`, { encoding: 'utf-8', cwd, stdio: 'pipe' });
+    info(`Deleted release branch '${releaseBranch}'`);
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    if (errorMsg.includes('not found') || errorMsg.includes('does not exist')) {
+      info(`Release branch '${releaseBranch}' already deleted`);
+    } else {
+      warn(`Failed to delete release branch '${releaseBranch}': ${errorMsg}`);
+    }
+  }
+}
+
 function renderPrBody(versionOutput: VersionOutput, releaseNotes: Record<string, string>): string {
   const lines: string[] = [
     '## Release',
@@ -505,17 +519,7 @@ async function publishFromManifest(
 
   // Cleanup: delete release branch if configured
   if (deleteBranchOnMerge) {
-    try {
-      execSync(`git push origin --delete "${releaseBranch}"`, { encoding: 'utf-8', cwd, stdio: 'pipe' });
-      info(`Deleted release branch '${releaseBranch}'`);
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      if (errorMsg.includes('not found') || errorMsg.includes('does not exist')) {
-        info(`Release branch '${releaseBranch}' already deleted`);
-      } else {
-        warn(`Failed to delete release branch '${releaseBranch}': ${errorMsg}`);
-      }
-    }
+    deleteReleaseBranch(releaseBranch, cwd);
   }
 
   return {
@@ -630,6 +634,11 @@ export async function runStandingPRMerge(
     throw err;
   }
   success(`Standing PR #${pr.number} merged`);
+
+  // If not publishing, delete the branch now (otherwise publishFromManifest handles it)
+  if (!flags.publish && deleteBranchOnMerge) {
+    deleteReleaseBranch(branch, cwd);
+  }
 
   if (!flags.publish) {
     return null;
