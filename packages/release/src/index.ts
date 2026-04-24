@@ -4,7 +4,14 @@ export type { PreviewOptions } from './preview.js';
 export { runPreview } from './preview.js';
 export { resolveScopeToTarget, runRelease } from './release.js';
 export type { StandingPRManifest, StandingPROptions, StandingPRResult } from './standing-pr.js';
-export { runStandingPRMerge, runStandingPRPublish, runStandingPRUpdate } from './standing-pr.js';
+export {
+  extractEditableSection,
+  parseEditedNotes,
+  publishFromManifest,
+  runStandingPRMerge,
+  runStandingPRPublish,
+  runStandingPRUpdate,
+} from './standing-pr.js';
 export type { NotesStepResult } from './steps.js';
 export { runNotesStep, runPublishStep, runVersionStep } from './steps.js';
 export type { ReleaseOptions, ReleaseOutput } from './types.js';
