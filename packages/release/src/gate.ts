@@ -1,8 +1,16 @@
+import type { CIConfig, ReleaseKitConfig } from '@releasekit/config';
 import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
-import { info } from '@releasekit/core';
-import { DEFAULT_LABELS, detectLabelConflicts } from './label-utils.js';
-import { createOctokit, fetchPRLabels, findMergedPRsSinceLastRelease } from './preview-github.js';
+import { info, warn } from '@releasekit/core';
+import { DEFAULT_LABELS, type LabelConfig } from './label-utils.js';
+import { evaluatePR, type PREvaluation } from './per-pr-evaluation.js';
+import { createOctokit, fetchPRLabels, findMergedPRsSinceLastRelease, postOrUpdateComment } from './preview-github.js';
 import { getGitHubContext, getHeadCommitMessage, resolveScopeToTarget } from './release.js';
+
+/**
+ * Distinct comment marker for gate-notify comments. Kept separate from the preview marker
+ * (`<!-- releasekit-preview -->`) so the two surfaces don't overwrite each other.
+ */
+const NOTIFY_MARKER = '<!-- releasekit-gate-notify -->';
 
 export interface GateOutput {
   shouldRelease: boolean;
@@ -14,6 +22,11 @@ export interface GateOutput {
   prNumbers: number[];
   blocked?: boolean;
   reason?: string;
+  /**
+   * Per-PR verdicts. The gate evaluates each PR independently — labels are NEVER unioned.
+   * This array reflects every PR found in the window since the last release tag.
+   */
+  evaluations?: PREvaluation[];
 }
 
 export interface GateOptions {
@@ -23,6 +36,12 @@ export interface GateOptions {
   json?: boolean;
   verbose?: boolean;
   quiet?: boolean;
+  /**
+   * When true (default), the gate posts a comment on PRs whose labels indicated release
+   * intent but did not produce a release (e.g. `release:prerelease` without `bump:*`, or
+   * conflicting bump labels). Disable for dry-runs / local scripts.
+   */
+  notify?: boolean;
 }
 
 export async function runGate(options: GateOptions): Promise<GateOutput> {
@@ -81,52 +100,71 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
       shouldRelease: false,
       labels: [],
       prNumbers: [],
+      evaluations: [],
       reason: 'No merged PRs found since last release',
     };
   }
 
-  // Collect per-PR labels for conflict detection
-  // Note: Sequential fetch is intentional - we need per-PR labels to detect conflicts
-  // and GitHub API rate limits are per-request, not batched
-  const allLabels: string[] = [];
-  const perPRLabels: Map<number, string[]> = new Map();
+  const labelConfig = ciConfig?.labels ?? DEFAULT_LABELS;
+
+  // Evaluate each PR independently. Labels are never unioned across PRs — a PR with
+  // insufficient labels stays insufficient and CANNOT contaminate another PR's verdict.
+  const evaluations: PREvaluation[] = [];
   for (const prNumber of prNumbers) {
     const prLabels = await fetchPRLabels(octokit, githubContext.owner, githubContext.repo, prNumber);
-    perPRLabels.set(prNumber, prLabels);
-    allLabels.push(...prLabels);
+    evaluations.push(evaluatePR(prNumber, prLabels, labelConfig, ciConfig));
   }
 
-  info(`Found labels: ${allLabels.join(', ')}`);
+  const trigger = ciConfig?.releaseTrigger ?? 'label';
+  const result = computeGateResult({
+    evaluations,
+    prNumbers,
+    options,
+    ciConfig,
+    releaseKitConfig,
+  });
 
-  // Check for label conflicts per-PR
-  const labelConfig = ciConfig?.labels ?? DEFAULT_LABELS;
-  for (const [prNumber, prLabels] of perPRLabels) {
-    const conflict = detectLabelConflicts(prLabels, labelConfig);
-    if (conflict.bumpConflict) {
-      return {
-        shouldRelease: false,
-        stable: false,
-        labels: allLabels,
-        prNumbers,
-        blocked: true,
-        reason: `PR #${prNumber} has conflicting bump labels: ${conflict.bumpLabelsPresent.join(', ')}`,
-      };
-    }
-    if (conflict.prereleaseConflict) {
-      return {
-        shouldRelease: false,
-        stable: false,
-        labels: allLabels,
-        prNumbers,
-        blocked: true,
-        reason: `PR #${prNumber} has conflicting release labels: release:stable + release:prerelease`,
-      };
-    }
+  // Notify users of PRs whose labels indicated release intent but didn't trigger one.
+  // Idempotent: postOrUpdateComment finds the existing notify-marker comment and updates it.
+  if (options.notify !== false) {
+    await notifyInsufficientLabels(octokit, githubContext.owner, githubContext.repo, evaluations, trigger, labelConfig);
   }
 
-  // Resolve scope from --scope flag
-  let resolvedScope: string | undefined;
-  let resolvedTarget: string | undefined;
+  return result;
+}
+
+interface ComputeGateInput {
+  evaluations: PREvaluation[];
+  prNumbers: number[];
+  options: GateOptions;
+  ciConfig: CIConfig | undefined;
+  releaseKitConfig: ReleaseKitConfig;
+}
+
+function computeGateResult(input: ComputeGateInput): GateOutput {
+  const { evaluations, prNumbers, options, ciConfig, releaseKitConfig } = input;
+
+  // Hard errors short-circuit (label conflict on a single PR)
+  const blocked = evaluations.find((e) => e.blocked);
+  if (blocked) {
+    return {
+      shouldRelease: false,
+      blocked: true,
+      stable: false,
+      labels: blocked.labels,
+      prNumbers,
+      evaluations,
+      reason: blocked.reason,
+    };
+  }
+
+  // prNumbers is in git-log order (newest first), so the first releasable evaluation
+  // is the most recently merged valid PR.
+  const winner = evaluations.find((e) => e.shouldRelease);
+
+  // Resolve scope: --scope CLI flag overrides PR-driven scope.
+  let resolvedScope = winner?.scope;
+  let resolvedTarget = winner?.target;
   if (options.scope) {
     if (!ciConfig?.scopeLabels || Object.keys(ciConfig.scopeLabels).length === 0) {
       throw new Error(`--scope "${options.scope}" provided but ci.scopeLabels is not configured`);
@@ -134,110 +172,115 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
     resolvedTarget = resolveScopeToTarget(options.scope, ciConfig.scopeLabels);
     resolvedScope = options.scope;
     info(`Scope "${options.scope}" resolved to target: ${resolvedTarget}`);
+  } else if (winner?.scope) {
+    info(`Scope from PR #${winner.prNumber} label "scope:${winner.scope}" resolved to target: ${winner.target}`);
   }
 
-  // Detect bump from labels using labelConfig
-  const bump = detectBumpFromLabels(allLabels, labelConfig);
-
-  // Determine shouldRelease based on trigger mode
-  const releaseTrigger = ciConfig?.releaseTrigger ?? 'label';
-  let shouldRelease = false;
-  let reason: string | undefined;
-
-  let isStable = false;
-
-  if (releaseTrigger === 'label') {
-    // Label mode: release only if configured bump labels or release:stable are present
-    const hasBumpLabel = allLabels.some(
-      (l) => l === labelConfig.major || l === labelConfig.minor || l === labelConfig.patch,
-    );
-    const hasStableLabel = allLabels.includes(labelConfig.stable);
-    const hasPrereleaseLabel = allLabels.includes(labelConfig.prerelease);
-
-    if (hasBumpLabel || hasStableLabel) {
-      shouldRelease = true;
-      isStable = hasStableLabel && !hasPrereleaseLabel;
-      reason = hasStableLabel ? `${labelConfig.stable} label found` : `bump label found: ${bump}`;
-    } else if (hasPrereleaseLabel) {
-      // Prerelease alone doesn't trigger release - needs bump label
-      shouldRelease = false;
-      reason = `${labelConfig.prerelease} requires a bump:* label`;
-    } else {
-      shouldRelease = false;
-      reason = `No release labels found (need bump:* or ${labelConfig.stable})`;
-    }
-  } else {
-    // Commit mode: release unless skip label present
-    const hasSkipLabel = allLabels.includes(labelConfig.skip);
-    if (hasSkipLabel) {
-      shouldRelease = false;
-      reason = `${labelConfig.skip} label found`;
-    } else {
-      shouldRelease = true;
-      reason = 'No skip label in commit mode - proceeding with release';
-    }
+  if (!winner) {
+    // Surface the most-recent PR's reason — that's the one the user is most likely
+    // looking at (e.g. a merge that just landed). evaluations[0] is newest by git-log order.
+    const primaryReason = evaluations[0]?.reason ?? 'No PR in window has sufficient labels to trigger a release';
+    info(`No PR in window (${prNumbers.join(', ')}) has sufficient labels to trigger a release`);
+    return {
+      shouldRelease: false,
+      stable: false,
+      labels: evaluations[0]?.labels ?? [],
+      prNumbers,
+      evaluations,
+      reason: primaryReason,
+    };
   }
 
-  // Check skipPatterns - use release.ci.skipPatterns for consistency with release.ts
+  // Skip-pattern check on the HEAD commit message. This is a global guard against the
+  // gate firing on its own release commits (e.g. "chore: release ..."). Applied AFTER the
+  // winner is picked because it depends on the head commit, not on labels.
   const releaseConfig = releaseKitConfig.release;
-  if (shouldRelease && releaseConfig?.ci?.skipPatterns?.length) {
+  if (releaseConfig?.ci?.skipPatterns?.length) {
     const headCommit = getHeadCommitMessage(options.projectDir);
     if (headCommit) {
       const matchedPattern = releaseConfig.ci.skipPatterns.find(
         (p) => headCommit.startsWith(p) || headCommit.includes(p),
       );
       if (matchedPattern) {
-        shouldRelease = false;
-        reason = `Commit matches skip pattern: "${matchedPattern}"`;
+        return {
+          shouldRelease: false,
+          bump: winner.bump,
+          scope: resolvedScope,
+          target: resolvedTarget,
+          stable: winner.stable,
+          labels: winner.labels,
+          prNumbers,
+          evaluations,
+          reason: `Commit matches skip pattern: "${matchedPattern}"`,
+        };
       }
     }
   }
 
-  // Resolve scope from PR labels if not already set via --scope
-  if (!resolvedScope && ciConfig?.scopeLabels) {
-    const scopeLabels = ciConfig.scopeLabels;
-    for (const label of allLabels) {
-      if (scopeLabels[label]) {
-        resolvedScope = label.replace(/^scope:/, '');
-        resolvedTarget = scopeLabels[label];
-        info(`Scope from PR label "${label}" resolved to target: ${resolvedTarget}`);
-        break;
-      }
-    }
-  }
+  info(`Found labels on winning PR #${winner.prNumber}: ${winner.labels.join(', ')}`);
 
   return {
-    shouldRelease,
-    bump,
+    shouldRelease: true,
+    bump: winner.bump,
     scope: resolvedScope,
     target: resolvedTarget,
-    stable: isStable,
-    labels: allLabels,
+    stable: winner.stable,
+    labels: winner.labels,
     prNumbers,
-    reason,
+    evaluations,
+    reason: winner.reason,
   };
 }
 
-function detectBumpFromLabels(labels: string[], labelConfig: typeof DEFAULT_LABELS): string | undefined {
-  const hasPrerelease = labels.includes(labelConfig.prerelease);
-  const hasStable = labels.includes(labelConfig.stable);
+/**
+ * Whether a non-releasing evaluation warrants a comment on the PR.
+ *
+ * - Always notify on hard errors (`blocked`), in any trigger mode.
+ * - In `label` mode, notify when the PR had release intent but no qualifying bump.
+ * - In `commit` mode, don't notify on `release:skip` — that's deliberate, not user error.
+ */
+function shouldNotifyPR(e: PREvaluation, trigger: 'commit' | 'label'): boolean {
+  if (e.shouldRelease) return false;
+  if (e.blocked) return true;
+  if (!e.hasReleaseIntent) return false;
+  return trigger === 'label';
+}
 
-  // Check for release:stable (auto-detect bump from commits)
-  if (hasStable) return undefined;
-
-  // Check for release:prerelease + bump label
-  if (hasPrerelease) {
-    if (labels.includes(labelConfig.major)) return 'premajor';
-    if (labels.includes(labelConfig.minor)) return 'preminor';
-    if (labels.includes(labelConfig.patch)) return 'prepatch';
-    // prerelease alone needs bump label from commits
-    return 'prerelease';
+async function notifyInsufficientLabels(
+  octokit: ReturnType<typeof createOctokit>,
+  owner: string,
+  repo: string,
+  evaluations: PREvaluation[],
+  trigger: 'commit' | 'label',
+  labelConfig: LabelConfig,
+): Promise<void> {
+  for (const e of evaluations) {
+    if (!shouldNotifyPR(e, trigger)) continue;
+    try {
+      const body = buildNotifyBody(e, labelConfig);
+      await postOrUpdateComment(octokit, owner, repo, e.prNumber, body, NOTIFY_MARKER);
+      info(`Posted gate notify comment on PR #${e.prNumber}`);
+    } catch (err) {
+      warn(`Failed to post gate notify comment on PR #${e.prNumber}: ${err instanceof Error ? err.message : err}`);
+    }
   }
+}
 
-  // Check for bump labels alone
-  if (labels.includes(labelConfig.major)) return 'major';
-  if (labels.includes(labelConfig.minor)) return 'minor';
-  if (labels.includes(labelConfig.patch)) return 'patch';
-
-  return undefined;
+function buildNotifyBody(e: PREvaluation, labelConfig: LabelConfig): string {
+  const reason = e.reason ?? 'labels did not meet the release trigger requirements';
+  return [
+    NOTIFY_MARKER,
+    '',
+    '## ⚠️ This PR did not trigger a release',
+    '',
+    `**Reason:** ${reason}`,
+    '',
+    '### To trigger a release',
+    '',
+    `Add a bump label (\`${labelConfig.major}\`, \`${labelConfig.minor}\`, or \`${labelConfig.patch}\`) and re-run the release workflow.`,
+    '',
+    `For prereleases, combine \`${labelConfig.prerelease}\` with a bump label.`,
+    '',
+    '*Posted automatically by [ReleaseKit](https://github.com/goosewobbler/releasekit) gate.*',
+  ].join('\n');
 }

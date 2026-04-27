@@ -71,12 +71,15 @@ export async function findMergedPRsSinceLastRelease(
 
 /**
  * Find an existing release preview comment on the PR by looking for the HTML marker.
+ * Accepts an optional `marker` to find comments produced by other surfaces (e.g. the
+ * gate's notify path uses a distinct marker so it doesn't collide with the preview).
  */
 export async function findPreviewComment(
   octokit: Octokit,
   owner: string,
   repo: string,
   prNumber: number,
+  marker: string = MARKER,
 ): Promise<number | null> {
   const iterator = octokit.paginate.iterator(octokit.rest.issues.listComments, {
     owner,
@@ -87,7 +90,7 @@ export async function findPreviewComment(
 
   for await (const response of iterator) {
     for (const comment of response.data) {
-      if (comment.body?.startsWith(MARKER)) {
+      if (comment.body?.startsWith(marker)) {
         return comment.id;
       }
     }
@@ -139,7 +142,11 @@ export async function findStandingPR(
 }
 
 /**
- * Create or update the release preview comment on a PR.
+ * Create or update a marker-keyed comment on a PR. The body is expected to start with
+ * the marker so subsequent calls find and update the same comment.
+ *
+ * Defaults to the release preview marker for backward compatibility. Pass an alternative
+ * marker (e.g. the gate notify marker) to manage distinct comments on the same PR.
  */
 export async function postOrUpdateComment(
   octokit: Octokit,
@@ -147,8 +154,9 @@ export async function postOrUpdateComment(
   repo: string,
   prNumber: number,
   body: string,
+  marker: string = MARKER,
 ): Promise<void> {
-  const existingId = await findPreviewComment(octokit, owner, repo, prNumber);
+  const existingId = await findPreviewComment(octokit, owner, repo, prNumber, marker);
 
   if (existingId) {
     await octokit.rest.issues.updateComment({

@@ -525,6 +525,29 @@ describe('runPreview', () => {
         );
       });
 
+      it('should surface the gate reason in the banner when release:prerelease + scope but no bump (honest preview)', async () => {
+        // Reproduces the wdio-desktop-mobile #225 scenario: release:prerelease + scope:tauri.
+        // The OLD preview lied — it showed a version bump table because scope was present.
+        // The NEW preview matches the gate's verdict: this PR will NOT trigger a release.
+        mockLoadCIConfig.mockReturnValue({
+          releaseTrigger: 'label',
+          scopeLabels: { 'scope:tauri': '@wdio/tauri-*' },
+        });
+        mockFetchPRLabels.mockResolvedValue(['release:prerelease', 'scope:tauri']);
+
+        await runPreview({ projectDir: '/test', dryRun: false });
+
+        // Critically: runRelease (which would compute the misleading version bump) is NOT called.
+        expect(mockRunRelease).not.toHaveBeenCalled();
+
+        const body = mockPostOrUpdateComment.mock.calls[0][4] as string;
+        expect(body).toContain('No bump label detected');
+        // The gate reason — surfaced via labelContext.gateReason — explains exactly why.
+        expect(body).toContain('release:prerelease');
+        // No version bump table is rendered.
+        expect(body).not.toContain('### Packages');
+      });
+
       it('should use minor bump when prerelease and bump:minor labels present', async () => {
         mockFetchPRLabels.mockResolvedValue(['release:prerelease', 'bump:minor']);
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
@@ -544,7 +567,9 @@ describe('runPreview', () => {
         await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         const callArgs = mockRunRelease.mock.calls[0][0];
-        expect(callArgs.bump).toBe('minor');
+        // Per gate semantics: release:stable causes bump to be auto-detected from commits.
+        // bump label magnitude is not propagated when graduation is the primary intent.
+        expect(callArgs.bump).toBeUndefined();
         expect(callArgs.stable).toBe(true);
       });
 
@@ -586,7 +611,7 @@ describe('runPreview', () => {
       );
     });
 
-    it('should filter packages in label mode without requiring release label', async () => {
+    it('should NOT trigger release for scope-only PR in label mode (matches gate)', async () => {
       mockLoadCIConfig.mockReturnValue({
         releaseTrigger: 'label',
         scopeLabels: {
@@ -597,8 +622,16 @@ describe('runPreview', () => {
 
       await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
-      expect(mockRunRelease).toHaveBeenCalled();
-      expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*' }));
+      // Per-PR evaluation: scope label alone is not a release trigger in label mode —
+      // the gate would block, so the preview must show "won't release" too.
+      expect(mockRunRelease).not.toHaveBeenCalled();
+      expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
+        expect.anything(),
+        'owner',
+        'repo',
+        1,
+        expect.stringContaining('No bump label detected'),
+      );
     });
 
     it('should combine multiple scope labels with OR logic', async () => {
@@ -630,7 +663,10 @@ describe('runPreview', () => {
       expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*', bump: 'minor' }));
     });
 
-    it('should use conventional commits when scope label present but no release label', async () => {
+    it('should NOT release in label mode for scope-only PR — gate requires bump or stable label', async () => {
+      // Aligned with gate semantics: in label trigger mode, scope alone does not trigger
+      // a release. The user must add bump:* or release:stable. Conventional-commits-driven
+      // bumps are only supported in commit trigger mode.
       mockLoadCIConfig.mockReturnValue({
         releaseTrigger: 'label',
         scopeLabels: {
@@ -641,10 +677,7 @@ describe('runPreview', () => {
 
       await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
-      expect(mockRunRelease).toHaveBeenCalled();
-      expect(mockRunRelease).toHaveBeenCalledWith(
-        expect.objectContaining({ target: '@wdio/native-*', bump: undefined }),
-      );
+      expect(mockRunRelease).not.toHaveBeenCalled();
     });
 
     it('should display scope in preview comment banner', async () => {
