@@ -45,15 +45,15 @@
     "access": "public"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.86.0",
+    "@anthropic-ai/sdk": "^0.91.1",
     "@octokit/rest": "^22.0.1",
     "chalk": "catalog:",
     "commander": "catalog:",
     "ejs": "^4.0.1",
     "handlebars": "^4.7.9",
-    "liquidjs": "^10.25.5",
+    "liquidjs": "^10.25.7",
     "minimatch": "catalog:",
-    "openai": "^6.33.0",
+    "openai": "^6.34.0",
     "smol-toml": "catalog:",
     "zod": "catalog:"
   },
