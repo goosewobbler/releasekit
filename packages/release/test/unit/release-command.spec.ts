@@ -4,8 +4,8 @@ vi.mock('@releasekit/core');
 vi.mock('../../src/release.js');
 
 import { EXIT_CODES } from '@releasekit/core';
+import { createReleaseCommand } from '../../src/commands/release-command.js';
 import { runRelease } from '../../src/release.js';
-import { createReleaseCommand } from '../../src/release-command.js';
 import type { ReleaseOptions, ReleaseOutput } from '../../src/types.js';
 
 const mockOutput: ReleaseOutput = {

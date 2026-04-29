@@ -1,6 +1,6 @@
 import { setJsonMode, setLogLevel, setQuietMode } from '@releasekit/core';
 import { Command } from 'commander';
-import { runGate } from './gate.js';
+import { runGate } from '../gate/gate.js';
 
 export function createGateCommand(): Command {
   return new Command('gate')

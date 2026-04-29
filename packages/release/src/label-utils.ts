@@ -26,9 +26,9 @@ export interface LabelConflictResult {
 
 export function detectLabelConflicts(prLabels: string[], labels: LabelConfig = DEFAULT_LABELS): LabelConflictResult {
   const bumpLabelsPresent = [
-    prLabels.includes(labels.major) && 'major',
-    prLabels.includes(labels.minor) && 'minor',
-    prLabels.includes(labels.patch) && 'patch',
+    prLabels.includes(labels.major) && labels.major,
+    prLabels.includes(labels.minor) && labels.minor,
+    prLabels.includes(labels.patch) && labels.patch,
   ].filter(Boolean) as string[];
 
   const bumpConflict = bumpLabelsPresent.length > 1;

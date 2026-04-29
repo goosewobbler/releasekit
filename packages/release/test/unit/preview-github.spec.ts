@@ -5,7 +5,7 @@ import {
   findPreviewComment,
   findStandingPR,
   postOrUpdateComment,
-} from '../../src/preview-github.js';
+} from '../../src/github.js';
 
 vi.mock('node:child_process', () => ({
   execFileSync: vi.fn(),

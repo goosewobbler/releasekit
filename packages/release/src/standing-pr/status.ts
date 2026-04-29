@@ -1,5 +1,5 @@
 import { warn } from '@releasekit/core';
-import type { createOctokit } from './preview-github.js';
+import type { createOctokit } from '../github.js';
 
 type OctokitInstance = ReturnType<typeof createOctokit>;
 

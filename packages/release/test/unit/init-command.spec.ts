@@ -9,7 +9,7 @@ vi.mock('@releasekit/notes', () => ({
 
 import { EXIT_CODES } from '@releasekit/core';
 import { detectMonorepo } from '@releasekit/notes';
-import { createInitCommand } from '../../src/init-command.js';
+import { createInitCommand } from '../../src/commands/init-command.js';
 
 function parseInit(args: string[] = []) {
   return createInitCommand().parseAsync(['node', 'init', ...args]);

@@ -3,14 +3,14 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@releasekit/notes/cli');
 vi.mock('@releasekit/publish/cli');
 vi.mock('@releasekit/version/cli');
-vi.mock('../../src/preview-command.js');
+vi.mock('../../src/commands/preview-command.js');
 
 import { createNotesCommand } from '@releasekit/notes/cli';
 import { createPublishCommand } from '@releasekit/publish/cli';
 import { createVersionCommand } from '@releasekit/version/cli';
 import { Command } from 'commander';
+import { createPreviewCommand } from '../../src/commands/preview-command.js';
 import { createDispatcherProgram } from '../../src/dispatcher.js';
-import { createPreviewCommand } from '../../src/preview-command.js';
 
 vi.mocked(createNotesCommand).mockReturnValue(new Command('notes').description('notes'));
 vi.mocked(createPublishCommand).mockReturnValue(new Command('publish').description('publish'));

@@ -1,9 +1,8 @@
 import type { VersionChangelogEntry, VersionPackageChangelog } from '@releasekit/core';
-import type { ReleaseOutput } from './types.js';
+import { MARKER } from '../github.js';
+import type { ReleaseOutput } from '../types.js';
 
 export type ReleaseStrategy = 'manual' | 'direct' | 'standing-pr' | 'scheduled';
-
-const MARKER = '<!-- releasekit-preview -->';
 const FOOTER = '*Updated automatically by [ReleaseKit](https://github.com/goosewobbler/releasekit)*';
 
 const TYPE_LABELS: Record<string, string> = {
@@ -42,6 +41,12 @@ export interface LabelContext {
     patch: string;
   };
   scopeLabels?: string[];
+  /**
+   * Human-readable reason from the gate's per-PR evaluation when the PR's labels would not
+   * trigger a release (e.g. "release:prerelease requires a bump:* label"). When set, the
+   * preview banner uses this in place of the generic "No bump label detected" message.
+   */
+  gateReason?: string;
 }
 
 export interface FormatOptions {
@@ -132,7 +137,11 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
       const labelExamples = labels
         ? `\`${labels.patch}\`, \`${labels.minor}\`, or \`${labels.major}\``
         : 'a bump label (e.g., `bump:patch`, `bump:minor`, `bump:major`)';
-      lines.push('> No bump label detected.', `> **Note:** Add ${labelExamples} to trigger a release.`, '');
+      lines.push('> No bump label detected.');
+      if (labelContext.gateReason) {
+        lines.push(`> **Reason:** ${labelContext.gateReason}`);
+      }
+      lines.push(`> **Note:** Add ${labelExamples} to trigger a release.`, '');
       return lines;
     }
 
@@ -296,5 +305,3 @@ function formatEntryGroup(
 function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
-
-export { MARKER };

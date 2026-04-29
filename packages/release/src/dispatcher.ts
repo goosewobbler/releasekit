@@ -6,10 +6,10 @@ import { createNotesCommand } from '@releasekit/notes';
 import { createPublishCommand } from '@releasekit/publish';
 import { createVersionCommand } from '@releasekit/version';
 import { Command } from 'commander';
-import { createInitCommand } from './init-command.js';
-import { createPreviewCommand } from './preview-command.js';
-import { createReleaseCommand } from './release-command.js';
-import { createStandingPRCommand } from './standing-pr-command.js';
+import { createInitCommand } from './commands/init-command.js';
+import { createPreviewCommand } from './commands/preview-command.js';
+import { createReleaseCommand } from './commands/release-command.js';
+import { createStandingPRCommand } from './commands/standing-pr-command.js';
 
 export function createDispatcherProgram(): Command {
   const program = new Command()
