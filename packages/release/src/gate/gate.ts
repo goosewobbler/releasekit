@@ -256,16 +256,18 @@ async function notifyInsufficientLabels(
   trigger: 'commit' | 'label',
   labelConfig: LabelConfig,
 ): Promise<void> {
-  for (const e of evaluations) {
-    if (!shouldNotifyPR(e, trigger)) continue;
-    try {
-      const body = buildNotifyBody(e, labelConfig);
-      await postOrUpdateComment(octokit, owner, repo, e.prNumber, body, NOTIFY_MARKER);
-      info(`Posted gate notify comment on PR #${e.prNumber}`);
-    } catch (err) {
-      warn(`Failed to post gate notify comment on PR #${e.prNumber}: ${err instanceof Error ? err.message : err}`);
-    }
-  }
+  await Promise.all(
+    evaluations.map(async (e) => {
+      if (!shouldNotifyPR(e, trigger)) return;
+      try {
+        const body = buildNotifyBody(e, labelConfig);
+        await postOrUpdateComment(octokit, owner, repo, e.prNumber, body, NOTIFY_MARKER);
+        info(`Posted gate notify comment on PR #${e.prNumber}`);
+      } catch (err) {
+        warn(`Failed to post gate notify comment on PR #${e.prNumber}: ${err instanceof Error ? err.message : err}`);
+      }
+    }),
+  );
 }
 
 function buildNotifyBody(e: PREvaluation, labelConfig: LabelConfig): string {
