@@ -111,10 +111,13 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
   // Evaluate each PR independently. Labels are never unioned across PRs — a PR with
   // insufficient labels stays insufficient and CANNOT contaminate another PR's verdict.
   // Fetches are independent so we parallelise them.
-  const labelsList = await Promise.all(
-    prNumbers.map((prNumber) => fetchPRLabels(octokit, githubContext.owner, githubContext.repo, prNumber)),
+  const evaluations = await Promise.all(
+    prNumbers.map((prNumber) =>
+      fetchPRLabels(octokit, githubContext.owner, githubContext.repo, prNumber).then((labels) =>
+        evaluatePR(prNumber, labels, labelConfig, ciConfig),
+      ),
+    ),
   );
-  const evaluations = labelsList.map((prLabels, i) => evaluatePR(prNumbers[i], prLabels, labelConfig, ciConfig));
 
   const trigger = ciConfig?.releaseTrigger ?? 'label';
   const result = computeGateResult({
