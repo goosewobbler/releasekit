@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { Octokit } from '@octokit/rest';
 import type { CIConfig } from '@releasekit/config';
-import { MARKER } from './preview-format.js';
+import { MARKER } from './preview/format.js';
 
 export function createOctokit(token: string): Octokit {
   return new Octokit({ auth: token });

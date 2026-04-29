@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { evaluatePR } from '../../src/gate/evaluate-pr.js';
 import { DEFAULT_LABELS } from '../../src/label-utils.js';
-import { evaluatePR } from '../../src/per-pr-evaluation.js';
 
 const labelMode = { releaseTrigger: 'label' as const };
 const commitMode = { releaseTrigger: 'commit' as const };

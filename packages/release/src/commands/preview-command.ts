@@ -1,6 +1,6 @@
 import { EXIT_CODES } from '@releasekit/core';
 import { Command } from 'commander';
-import { runPreview } from './preview.js';
+import { runPreview } from '../preview/preview.js';
 
 export function createPreviewCommand(): Command {
   return new Command('preview')

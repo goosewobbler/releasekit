@@ -1,10 +1,11 @@
 import type { CIConfig, ReleaseKitConfig } from '@releasekit/config';
 import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import { info, warn } from '@releasekit/core';
-import { DEFAULT_LABELS, type LabelConfig } from './label-utils.js';
-import { evaluatePR, type PREvaluation } from './per-pr-evaluation.js';
-import { createOctokit, fetchPRLabels, findMergedPRsSinceLastRelease, postOrUpdateComment } from './preview-github.js';
-import { getGitHubContext, getHeadCommitMessage, resolveScopeToTarget } from './release.js';
+import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from '../git.js';
+import { createOctokit, fetchPRLabels, findMergedPRsSinceLastRelease, postOrUpdateComment } from '../github.js';
+import { DEFAULT_LABELS, type LabelConfig } from '../label-utils.js';
+import { resolveScopeToTarget } from '../release.js';
+import { evaluatePR, type PREvaluation } from './evaluate-pr.js';
 
 /**
  * Distinct comment marker for gate-notify comments. Kept separate from the preview marker
@@ -63,7 +64,7 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
 
   // Check GitHub context
   const githubContext = getGitHubContext();
-  if (!githubContext) {
+  if (!githubContext?.sha) {
     return {
       shouldRelease: false,
       labels: [],
@@ -73,7 +74,7 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
   }
 
   // Check GitHub token
-  const token = process.env.GITHUB_TOKEN;
+  const token = githubContext.token;
   if (!token) {
     return {
       shouldRelease: false,
@@ -109,11 +110,11 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
 
   // Evaluate each PR independently. Labels are never unioned across PRs — a PR with
   // insufficient labels stays insufficient and CANNOT contaminate another PR's verdict.
-  const evaluations: PREvaluation[] = [];
-  for (const prNumber of prNumbers) {
-    const prLabels = await fetchPRLabels(octokit, githubContext.owner, githubContext.repo, prNumber);
-    evaluations.push(evaluatePR(prNumber, prLabels, labelConfig, ciConfig));
-  }
+  // Fetches are independent so we parallelise them.
+  const labelsList = await Promise.all(
+    prNumbers.map((prNumber) => fetchPRLabels(octokit, githubContext.owner, githubContext.repo, prNumber)),
+  );
+  const evaluations = labelsList.map((prLabels, i) => evaluatePR(prNumbers[i], prLabels, labelConfig, ciConfig));
 
   const trigger = ciConfig?.releaseTrigger ?? 'label';
   const result = computeGateResult({
@@ -198,9 +199,7 @@ function computeGateResult(input: ComputeGateInput): GateOutput {
   if (releaseConfig?.ci?.skipPatterns?.length) {
     const headCommit = getHeadCommitMessage(options.projectDir);
     if (headCommit) {
-      const matchedPattern = releaseConfig.ci.skipPatterns.find(
-        (p) => headCommit.startsWith(p) || headCommit.includes(p),
-      );
+      const matchedPattern = matchesSkipPattern(headCommit, releaseConfig.ci.skipPatterns);
       if (matchedPattern) {
         return {
           shouldRelease: false,
@@ -268,6 +267,16 @@ async function notifyInsufficientLabels(
 
 function buildNotifyBody(e: PREvaluation, labelConfig: LabelConfig): string {
   const reason = e.reason ?? 'labels did not meet the release trigger requirements';
+  const actionLines = e.blocked
+    ? [
+        'Remove the conflicting labels so only one bump label remains (or only one of',
+        `\`${labelConfig.stable}\` / \`${labelConfig.prerelease}\`), then re-run the release workflow.`,
+      ]
+    : [
+        `Add a bump label (\`${labelConfig.major}\`, \`${labelConfig.minor}\`, or \`${labelConfig.patch}\`) and re-run the release workflow.`,
+        '',
+        `For prereleases, combine \`${labelConfig.prerelease}\` with a bump label.`,
+      ];
   return [
     NOTIFY_MARKER,
     '',
@@ -277,9 +286,7 @@ function buildNotifyBody(e: PREvaluation, labelConfig: LabelConfig): string {
     '',
     '### To trigger a release',
     '',
-    `Add a bump label (\`${labelConfig.major}\`, \`${labelConfig.minor}\`, or \`${labelConfig.patch}\`) and re-run the release workflow.`,
-    '',
-    `For prereleases, combine \`${labelConfig.prerelease}\` with a bump label.`,
+    ...actionLines,
     '',
     '*Posted automatically by [ReleaseKit](https://github.com/goosewobbler/releasekit) gate.*',
   ].join('\n');

@@ -24,7 +24,7 @@ vi.mock('node:child_process', () => ({
   execSync: vi.fn().mockReturnValue('feat: some feature\n'),
 }));
 
-vi.mock('../../src/preview-github.js', () => ({
+vi.mock('../../src/github.js', () => ({
   createOctokit: (...args: unknown[]) => mockCreateOctokit(...args),
   findMergedPRsSinceLastRelease: (...args: unknown[]) => mockFindMergedPRsSinceLastRelease(...args),
   fetchPRLabels: (...args: unknown[]) => mockFetchPRLabels(...args),
@@ -38,15 +38,20 @@ vi.mock('../../src/release.js', () => ({
     if (scopeLabels[scopeName]) return scopeLabels[scopeName];
     throw new Error(`Scope "${scopeName}" not found`);
   },
+  runRelease: vi.fn(),
+}));
+
+vi.mock('../../src/git.js', () => ({
   getHeadCommitMessage: vi.fn().mockReturnValue('feat: some feature\n'),
   getGitHubContext: () => {
     const repo = process.env.GITHUB_REPOSITORY;
     const sha = process.env.GITHUB_SHA;
-    if (!repo || !sha) return null;
+    const token = process.env.GITHUB_TOKEN;
+    if (!repo) return null;
     const [owner, repoName] = repo.split('/');
-    return { owner, repo: repoName ?? '', sha };
+    return { owner, repo: repoName ?? '', sha: sha ?? null, token: token ?? null };
   },
-  runRelease: vi.fn(),
+  matchesSkipPattern: (msg: string, patterns: string[]) => patterns.find((p) => msg.startsWith(p) || msg.includes(p)),
 }));
 
 describe('Gate', () => {
@@ -79,7 +84,7 @@ describe('Gate', () => {
   });
 
   async function runGate(opts: Record<string, unknown> = {}) {
-    const { runGate: gateFn } = await import('../../src/gate.js');
+    const { runGate: gateFn } = await import('../../src/gate/gate.js');
     return gateFn({
       projectDir: '/test',
       ...opts,
@@ -279,7 +284,7 @@ describe('Gate', () => {
   });
 
   it('should return shouldRelease: false when HEAD commit matches skipPatterns', async () => {
-    const { getHeadCommitMessage } = await import('../../src/release.js');
+    const { getHeadCommitMessage } = await import('../../src/git.js');
     vi.mocked(getHeadCommitMessage).mockReturnValue('chore: release v1.0.0 [skip ci]\n');
     mockLoadReleaseKitConfig.mockReturnValue({
       ci: {

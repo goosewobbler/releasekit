@@ -1,7 +1,7 @@
 import { EXIT_CODES } from '@releasekit/core';
 import { Command, Option } from 'commander';
-import { runRelease } from './release.js';
-import type { ReleaseOptions } from './types.js';
+import { runRelease } from '../release.js';
+import type { ReleaseOptions } from '../types.js';
 
 export function createReleaseCommand(): Command {
   return new Command('release')

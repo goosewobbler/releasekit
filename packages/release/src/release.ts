@@ -1,9 +1,9 @@
-import { execSync } from 'node:child_process';
 import type { CIConfig, ReleaseConfig } from '@releasekit/config';
 import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import { error, info, setJsonMode, setLogLevel, setQuietMode, success, warn } from '@releasekit/core';
+import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from './git.js';
+import { createOctokit, fetchPRLabels, findMergedPRsForCommit } from './github.js';
 import { DEFAULT_LABELS, detectLabelConflicts } from './label-utils.js';
-import { createOctokit, fetchPRLabels, findMergedPRsForCommit } from './preview-github.js';
 import { runNotesStep, runPublishStep, runVersionStep } from './steps.js';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
 
@@ -13,30 +13,6 @@ export function resolveScopeToTarget(scopeName: string, scopeLabels: Record<stri
   if (scopeLabels[scopeName]) return scopeLabels[scopeName];
   const available = Object.keys(scopeLabels).join(', ');
   throw new Error(`Scope "${scopeName}" not found in ci.scopeLabels. Available: ${available}`);
-}
-
-export function getHeadCommitMessage(cwd?: string): string | null {
-  try {
-    return execSync('git log -1 --pretty=%s', { encoding: 'utf-8', cwd }).trim();
-  } catch {
-    return null;
-  }
-}
-
-export function getGitHubContext(): { owner: string; repo: string; sha: string } | null {
-  const repo = process.env.GITHUB_REPOSITORY;
-  const sha = process.env.GITHUB_SHA;
-
-  if (!repo || !sha) {
-    return null;
-  }
-
-  const [owner, repoName] = repo.split('/');
-  if (!owner || !repoName) {
-    return null;
-  }
-
-  return { owner, repo: repoName, sha };
 }
 
 interface PRLabelsResult {
@@ -54,11 +30,11 @@ async function applyScopeLabelsFromPR(
   const scopeLabels = ciConfig?.scopeLabels ?? {};
 
   const githubContext = getGitHubContext();
-  if (!githubContext) {
+  if (!githubContext?.sha) {
     return { target: options.target, scopeLabels: [], labels: [] };
   }
 
-  const token = process.env.GITHUB_TOKEN;
+  const token = githubContext.token;
   if (!token) {
     warn('No GITHUB_TOKEN available — skipping scope label detection');
     return { target: options.target, scopeLabels: [], labels: [] };
@@ -207,9 +183,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   if (releaseConfig?.ci?.skipPatterns?.length) {
     const headCommit = getHeadCommitMessage(options.projectDir);
     if (headCommit) {
-      const matchedPattern = releaseConfig.ci.skipPatterns.find(
-        (p) => headCommit.startsWith(p) || headCommit.includes(p),
-      );
+      const matchedPattern = matchesSkipPattern(headCommit, releaseConfig.ci.skipPatterns);
       if (matchedPattern) {
         info(`Skipping release: commit message matches skip pattern "${matchedPattern}"`);
         return null;

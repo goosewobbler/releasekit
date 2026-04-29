@@ -1,5 +1,5 @@
 import type { CIConfig } from '@releasekit/config';
-import { detectLabelConflicts, type LabelConfig } from './label-utils.js';
+import { detectLabelConflicts, type LabelConfig } from '../label-utils.js';
 
 /**
  * Per-PR release decision. Captures whether a single PR's labels would trigger a release,

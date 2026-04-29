@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { StandingPRManifest } from '../../src/standing-pr.js';
+import type { StandingPRManifest } from '../../src/standing-pr/standing-pr.js';
 import {
   extractEditableSection,
   parseEditedNotes,
@@ -9,7 +9,7 @@ import {
   runStandingPRPublish,
   runStandingPRUpdate,
   serializeManifest,
-} from '../../src/standing-pr.js';
+} from '../../src/standing-pr/standing-pr.js';
 
 vi.mock('node:child_process', () => ({
   execSync: vi.fn().mockReturnValue(''),
@@ -37,7 +37,7 @@ vi.mock('../../src/steps.js', () => ({
   runPublishStep: vi.fn(),
 }));
 
-vi.mock('../../src/preview-github.js', () => ({
+vi.mock('../../src/github.js', () => ({
   createOctokit: vi.fn(),
 }));
 
@@ -236,7 +236,7 @@ describe('runStandingPRUpdate', () => {
       createMockVersionOutput([]) as unknown as Awaited<ReturnType<typeof runVersionStep>>,
     );
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({ data: [] });
     vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
@@ -257,7 +257,7 @@ describe('runStandingPRUpdate', () => {
       createMockVersionOutput([]) as unknown as Awaited<ReturnType<typeof runVersionStep>>,
     );
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({ data: [{ number: 10, html_url: 'https://github.com/owner/repo/pull/10' }] });
     vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
@@ -282,7 +282,7 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({ data: [] });
     vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
@@ -307,7 +307,7 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
     vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
@@ -333,7 +333,7 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
     // Paginate returns an existing manifest comment so the update path is taken
@@ -382,7 +382,7 @@ describe('runStandingPRUpdate', () => {
     const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
     vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({ data: [] });
     vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
@@ -404,7 +404,7 @@ describe('runStandingPRUpdate', () => {
     const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
     vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({ data: [{ number: 55, html_url: 'https://github.com/owner/repo/pull/55' }] });
     vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
@@ -427,7 +427,7 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({ data: [] });
     vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
@@ -460,7 +460,7 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     // Existing PR with a manifest that has a recent firstUpdatedAt (5 minutes ago)
     mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
@@ -502,7 +502,7 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
     // firstUpdatedAt is 2 hours ago — minAge of 1h is satisfied
@@ -534,7 +534,7 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
 
@@ -571,7 +571,7 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
 
@@ -602,7 +602,7 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({ data: [] });
     mocks.createCommitStatus.mockRejectedValue(new Error('API rate limit exceeded'));
@@ -698,7 +698,7 @@ describe('runStandingPRPublish', () => {
       }),
     );
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { octokit } = createMockOctokit();
     // No manifest comment
     vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
@@ -716,7 +716,7 @@ describe('runStandingPRPublish', () => {
       }),
     );
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { octokit } = createMockOctokit();
     const manifestBody = serializeManifest(baseManifest);
     (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
@@ -755,7 +755,7 @@ describe('runStandingPRPublish', () => {
       }),
     );
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { octokit } = createMockOctokit();
     const manifestBody = serializeManifest(baseManifest);
     (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
@@ -795,7 +795,7 @@ describe('runStandingPRPublish', () => {
       }),
     );
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { octokit } = createMockOctokit();
     const manifestBody = serializeManifest(baseManifest);
     (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
@@ -844,7 +844,7 @@ describe('runStandingPRPublish', () => {
       }),
     );
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { octokit } = createMockOctokit();
     const badManifest = '<!-- releasekit-manifest -->\n<!-- json {broken -->';
     (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
@@ -1026,7 +1026,7 @@ describe('runStandingPRUpdate — editableNotes', () => {
       files: [],
     });
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({ data: [] });
     vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
@@ -1044,7 +1044,7 @@ describe('runStandingPRUpdate — editableNotes', () => {
     );
     expect(createCommentCall).toBeDefined();
 
-    const commentBody = (createCommentCall![0] as Record<string, unknown>).body as string;
+    const commentBody = (createCommentCall?.[0] as Record<string, unknown>).body as string;
     const parsedManifest = parseManifest(commentBody);
     expect(parsedManifest.notesHash).toBeDefined();
     expect(typeof parsedManifest.notesHash).toBe('string');
@@ -1062,7 +1062,7 @@ describe('runStandingPRUpdate — editableNotes', () => {
       files: [],
     });
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({ data: [] });
     vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
@@ -1112,7 +1112,7 @@ describe('runStandingPRUpdate — editableNotes', () => {
       '---',
     ].join('\n');
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
     mocks.pullsGet.mockResolvedValue({ data: { body: userEditedBody } });
@@ -1164,7 +1164,7 @@ describe('runStandingPRUpdate — editableNotes', () => {
       '---',
     ].join('\n');
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
     mocks.pullsGet.mockResolvedValue({ data: { body: unedited } });
@@ -1232,7 +1232,7 @@ describe('publishFromManifest', () => {
   });
 
   it('throws when manifest comment is missing from PR', async () => {
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { octokit } = createMockOctokit();
     vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
 
@@ -1242,7 +1242,7 @@ describe('publishFromManifest', () => {
   });
 
   it('publishes using manifest notes when editableNotes is disabled', async () => {
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     const manifestBody = serializeManifest(baseManifest);
     mocks.paginate.iterator.mockReturnValue({
@@ -1290,7 +1290,7 @@ describe('publishFromManifest', () => {
       '<!-- releasekit-editable-end -->',
     ].join('\n');
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     const manifestBody = serializeManifest(baseManifest);
     mocks.paginate.iterator.mockReturnValue({
@@ -1332,7 +1332,7 @@ describe('publishFromManifest', () => {
       '<!-- releasekit-editable-end -->',
     ].join('\n');
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     const manifestBody = serializeManifest(baseManifest);
     mocks.paginate.iterator.mockReturnValue({
@@ -1397,7 +1397,7 @@ describe('runStandingPRMerge', () => {
   });
 
   it('should return null when no open standing PR found', async () => {
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({ data: [] });
     vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
@@ -1420,7 +1420,7 @@ describe('runStandingPRMerge', () => {
       git: { branch: 'main' },
     } as ReturnType<typeof loadConfig>);
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({
       data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
@@ -1448,7 +1448,7 @@ describe('runStandingPRMerge', () => {
       git: { branch: 'main' },
     } as ReturnType<typeof loadConfig>);
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({
       data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
@@ -1465,7 +1465,7 @@ describe('runStandingPRMerge', () => {
   });
 
   it('should throw clear error message on 405 response', async () => {
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({
       data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
@@ -1486,7 +1486,7 @@ describe('runStandingPRMerge', () => {
   });
 
   it('should re-throw non-405 errors unchanged', async () => {
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({
       data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
@@ -1501,7 +1501,7 @@ describe('runStandingPRMerge', () => {
   });
 
   it('should return null without publishing when publish flag is false', async () => {
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({
       data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
@@ -1517,7 +1517,7 @@ describe('runStandingPRMerge', () => {
   });
 
   it('should call publishFromManifest when publish flag is true and manifest exists', async () => {
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({
       data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
@@ -1550,7 +1550,7 @@ describe('runStandingPRMerge', () => {
   });
 
   it('should delete branch after publish when deleteBranchOnMerge is true', async () => {
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({
       data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
@@ -1586,7 +1586,7 @@ describe('runStandingPRMerge', () => {
       git: { branch: 'main' },
     } as ReturnType<typeof loadConfig>);
 
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({
       data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
@@ -1615,7 +1615,7 @@ describe('runStandingPRMerge', () => {
   });
 
   it('should delete branch even when publish flag is false and deleteBranchOnMerge is true', async () => {
-    const { createOctokit } = await import('../../src/preview-github.js');
+    const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     mocks.pullsList.mockResolvedValue({
       data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],

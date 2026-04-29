@@ -34,7 +34,7 @@ const mockPostOrUpdateComment = vi.fn();
 const mockCreateOctokit = vi.fn();
 const mockFetchPRLabels = vi.fn();
 
-vi.mock('../../src/preview-github.js', () => ({
+vi.mock('../../src/github.js', () => ({
   postOrUpdateComment: (...args: unknown[]) => mockPostOrUpdateComment(...args),
   createOctokit: (...args: unknown[]) => mockCreateOctokit(...args),
   fetchPRLabels: (...args: unknown[]) => mockFetchPRLabels(...args),
@@ -42,13 +42,13 @@ vi.mock('../../src/preview-github.js', () => ({
 
 const mockResolvePreviewContext = vi.fn();
 
-vi.mock('../../src/preview-context.js', () => ({
+vi.mock('../../src/preview/context.js', () => ({
   resolvePreviewContext: (...args: unknown[]) => mockResolvePreviewContext(...args),
 }));
 
 const mockDetectPrerelease = vi.fn();
 
-vi.mock('../../src/preview-detect.js', () => ({
+vi.mock('../../src/preview/detect.js', () => ({
   detectPrerelease: (...args: unknown[]) => mockDetectPrerelease(...args),
 }));
 
@@ -81,7 +81,7 @@ const defaultContext = {
 // --- Tests ---
 
 describe('runPreview', () => {
-  let runPreview: typeof import('../../src/preview.js').runPreview;
+  let runPreview: typeof import('../../src/preview/preview.js').runPreview;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -98,7 +98,7 @@ describe('runPreview', () => {
     mockFetchPRLabels.mockResolvedValue([]);
     mockPostOrUpdateComment.mockResolvedValue(undefined);
 
-    const mod = await import('../../src/preview.js');
+    const mod = await import('../../src/preview/preview.js');
     runPreview = mod.runPreview;
   });
 

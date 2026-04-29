@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { detectPrerelease, parsePrerelease } from '../../src/preview-detect.js';
+import { detectPrerelease, parsePrerelease } from '../../src/preview/detect.js';
 
 vi.mock('node:fs', () => ({
   existsSync: vi.fn(),

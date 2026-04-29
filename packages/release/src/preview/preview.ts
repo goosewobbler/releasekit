@@ -1,15 +1,15 @@
 import type { CIConfig } from '@releasekit/config';
 import { loadCIConfig, loadConfig } from '@releasekit/config';
 import { info, success, warn } from '@releasekit/core';
-import { DEFAULT_LABELS, detectLabelConflicts } from './label-utils.js';
-import { evaluatePR } from './per-pr-evaluation.js';
-import type { PreviewContext } from './preview-context.js';
-import { resolvePreviewContext } from './preview-context.js';
-import { detectPrerelease } from './preview-detect.js';
-import type { LabelContext } from './preview-format.js';
-import { formatPreviewComment } from './preview-format.js';
-import { createOctokit, fetchPRLabels, findStandingPR, postOrUpdateComment } from './preview-github.js';
-import { runRelease } from './release.js';
+import { evaluatePR } from '../gate/evaluate-pr.js';
+import { createOctokit, fetchPRLabels, findStandingPR, postOrUpdateComment } from '../github.js';
+import { DEFAULT_LABELS, detectLabelConflicts } from '../label-utils.js';
+import { runRelease } from '../release.js';
+import type { PreviewContext } from './context.js';
+import { resolvePreviewContext } from './context.js';
+import { detectPrerelease } from './detect.js';
+import type { LabelContext } from './format.js';
+import { formatPreviewComment } from './format.js';
 
 export interface PreviewOptions {
   config?: string;
@@ -157,10 +157,10 @@ function resolvePrerelease(
  *
  * **label mode**:
  * - `major`/`minor`/`patch` labels → required to trigger release, determines bump type
- * - No bump label → no release (noBumpLabel = true), UNLESS scope:* labels are present (then use conventional commits)
+ * - No bump label → no release (noBumpLabel = true)
  * - `stable`/`prerelease` labels → modifier overrides on top
  * - `skip` label → ignored (redundant, no bump label already means no release)
- * - `scope:*` labels → filter packages by configured scope patterns (allows conventional commits bump)
+ * - `scope:*` labels → filter packages by configured scope patterns
  *
  * CLI flags always take highest priority over labels.
  */

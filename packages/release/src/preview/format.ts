@@ -1,5 +1,5 @@
 import type { VersionChangelogEntry, VersionPackageChangelog } from '@releasekit/core';
-import type { ReleaseOutput } from './types.js';
+import type { ReleaseOutput } from '../types.js';
 
 export type ReleaseStrategy = 'manual' | 'direct' | 'standing-pr' | 'scheduled';
 

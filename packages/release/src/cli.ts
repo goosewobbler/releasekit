@@ -3,9 +3,9 @@ import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { readPackageVersion } from '@releasekit/core';
 import { Command } from 'commander';
-import { createGateCommand } from './gate-command.js';
-import { createPreviewCommand } from './preview-command.js';
-import { createReleaseCommand } from './release-command.js';
+import { createGateCommand } from './commands/gate-command.js';
+import { createPreviewCommand } from './commands/preview-command.js';
+import { createReleaseCommand } from './commands/release-command.js';
 
 export function createReleaseProgram(): Command {
   return new Command()

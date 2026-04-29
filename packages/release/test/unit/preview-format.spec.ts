@@ -1,6 +1,6 @@
 import type { VersionOutput } from '@releasekit/core';
 import { describe, expect, it } from 'vitest';
-import { formatPreviewComment } from '../../src/preview-format.js';
+import { formatPreviewComment } from '../../src/preview/format.js';
 import type { ReleaseOutput } from '../../src/types.js';
 
 const versionOutput: VersionOutput = {

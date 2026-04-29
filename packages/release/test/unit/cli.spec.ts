@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../src/release-command.js');
+vi.mock('../../src/commands/release-command.js');
 
 import { Command } from 'commander';
 import { createReleaseProgram } from '../../src/cli.js';
-import { createReleaseCommand } from '../../src/release-command.js';
+import { createReleaseCommand } from '../../src/commands/release-command.js';
 
 vi.mocked(createReleaseCommand).mockReturnValue(new Command('release').description('release'));
 

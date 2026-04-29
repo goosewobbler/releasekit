@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { resolvePreviewContext } from '../../src/preview-context.js';
+import { resolvePreviewContext } from '../../src/preview/context.js';
 
 vi.mock('node:fs', () => ({
   existsSync: vi.fn(),

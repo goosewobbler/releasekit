@@ -18,7 +18,7 @@ vi.mock('node:child_process', () => ({
   execSync: vi.fn().mockReturnValue('feat: some feature\n'),
 }));
 
-vi.mock('../../src/preview-github.js', () => ({
+vi.mock('../../src/github.js', () => ({
   createOctokit: (...args: unknown[]) => mockCreateOctokit(...args),
   findMergedPRsForCommit: (...args: unknown[]) => mockFindMergedPRsForCommit(...args),
   fetchPRLabels: (...args: unknown[]) => mockFetchPRLabels(...args),

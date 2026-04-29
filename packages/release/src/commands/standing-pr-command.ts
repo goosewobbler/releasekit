@@ -1,7 +1,7 @@
 import { EXIT_CODES } from '@releasekit/core';
 import { Command } from 'commander';
-import type { StandingPROptions } from './standing-pr.js';
-import { runStandingPRMerge, runStandingPRPublish, runStandingPRUpdate } from './standing-pr.js';
+import type { StandingPROptions } from '../standing-pr/standing-pr.js';
+import { runStandingPRMerge, runStandingPRPublish, runStandingPRUpdate } from '../standing-pr/standing-pr.js';
 
 export function createStandingPRCommand(): Command {
   const cmd = new Command('standing-pr').description(

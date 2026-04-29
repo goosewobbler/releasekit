@@ -4,11 +4,12 @@ import * as fs from 'node:fs';
 import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput } from '@releasekit/core';
 import { error, info, success, warn } from '@releasekit/core';
-import { formatDuration, parseDuration } from './duration.js';
-import { createOctokit } from './preview-github.js';
-import { postStandingPRStatusSafe } from './standing-pr-status.js';
-import { runNotesStep, runPublishStep, runVersionStep } from './steps.js';
-import type { ReleaseOptions, ReleaseOutput } from './types.js';
+import { formatDuration, parseDuration } from '../duration.js';
+import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from '../git.js';
+import { createOctokit } from '../github.js';
+import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
+import type { ReleaseOptions, ReleaseOutput } from '../types.js';
+import { postStandingPRStatusSafe } from './status.js';
 
 const MANIFEST_MARKER = '<!-- releasekit-manifest -->';
 const MANIFEST_SCHEMA_VERSION = 2;
@@ -42,30 +43,6 @@ export interface StandingPRManifest {
   notesHash?: string;
   /** ISO timestamp of when this standing PR was first created. Preserved across updates. Added in schema v2. */
   firstUpdatedAt?: string;
-}
-
-function getGitHubContext(): { owner: string; repo: string; token: string } | null {
-  const repo = process.env.GITHUB_REPOSITORY;
-  const token = process.env.GITHUB_TOKEN;
-
-  if (!repo || !token) return null;
-
-  const [owner, repoName] = repo.split('/');
-  if (!owner || !repoName) return null;
-
-  return { owner, repo: repoName, token };
-}
-
-function shouldSkipFromCommit(headSubject: string, skipPatterns: string[]): boolean {
-  return skipPatterns.some((p) => headSubject.startsWith(p) || headSubject.includes(p));
-}
-
-function getHeadCommitSubject(cwd: string): string | null {
-  try {
-    return execSync('git log -1 --pretty=%s', { encoding: 'utf-8', cwd }).trim();
-  } catch {
-    return null;
-  }
 }
 
 function getHeadSha(cwd: string): string {
@@ -344,8 +321,8 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const skipPatterns = releaseKitConfig.release?.ci?.skipPatterns ?? ['chore: release '];
 
   // Skip-pattern guard
-  const headSubject = getHeadCommitSubject(cwd);
-  if (headSubject && shouldSkipFromCommit(headSubject, skipPatterns)) {
+  const headSubject = getHeadCommitMessage(cwd);
+  if (headSubject && matchesSkipPattern(headSubject, skipPatterns)) {
     info(`Skipping standing PR update: commit matches skip pattern`);
     return { action: 'noop' };
   }
@@ -360,7 +337,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   if (versionOutputDry.updates.length === 0) {
     info('No releasable changes found');
 
-    if (githubContext) {
+    if (githubContext?.token) {
       const octokit = createOctokit(githubContext.token);
       const existing = await findStandingPR(octokit, githubContext.owner, githubContext.repo, branch);
       if (existing) {
@@ -390,7 +367,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     info(
       `Package count (${versionOutputDry.updates.length}) is below minPackages threshold (${minPackages}), skipping`,
     );
-    if (githubContext) {
+    if (githubContext?.token) {
       const octokit = createOctokit(githubContext.token);
       const existing = await findStandingPR(octokit, githubContext.owner, githubContext.repo, branch);
       if (existing) {
@@ -438,7 +415,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   success(`Release branch '${branch}' updated`);
 
-  if (!githubContext) {
+  if (!githubContext?.token) {
     warn('No GitHub context available — skipping PR creation');
     return { action: 'noop', versionOutput };
   }
@@ -619,7 +596,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   const cwd = options.projectDir;
 
   const githubContext = getGitHubContext();
-  if (!githubContext) {
+  if (!githubContext?.token) {
     error('No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available');
     return null;
   }
@@ -780,7 +757,7 @@ export async function runStandingPRMerge(
   const deleteBranchOnMerge = standingPrConfig?.deleteBranchOnMerge !== false;
 
   const githubContext = getGitHubContext();
-  if (!githubContext) {
+  if (!githubContext?.token) {
     error('No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available');
     return null;
   }
