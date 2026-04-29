@@ -1,9 +1,8 @@
 import type { VersionChangelogEntry, VersionPackageChangelog } from '@releasekit/core';
+import { MARKER } from '../github.js';
 import type { ReleaseOutput } from '../types.js';
 
 export type ReleaseStrategy = 'manual' | 'direct' | 'standing-pr' | 'scheduled';
-
-const MARKER = '<!-- releasekit-preview -->';
 const FOOTER = '*Updated automatically by [ReleaseKit](https://github.com/goosewobbler/releasekit)*';
 
 const TYPE_LABELS: Record<string, string> = {
@@ -306,5 +305,3 @@ function formatEntryGroup(
 function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
-
-export { MARKER };

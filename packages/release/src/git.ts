@@ -31,5 +31,5 @@ export function getGitHubContext(): GitHubContext | null {
 }
 
 export function matchesSkipPattern(commitMessage: string, patterns: string[]): string | undefined {
-  return patterns.find((p) => commitMessage.startsWith(p) || commitMessage.includes(p));
+  return patterns.find((p) => commitMessage.includes(p));
 }

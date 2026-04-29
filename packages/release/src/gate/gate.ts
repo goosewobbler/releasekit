@@ -27,7 +27,7 @@ export interface GateOutput {
    * Per-PR verdicts. The gate evaluates each PR independently — labels are NEVER unioned.
    * This array reflects every PR found in the window since the last release tag.
    */
-  evaluations?: PREvaluation[];
+  evaluations: PREvaluation[];
 }
 
 export interface GateOptions {
@@ -62,13 +62,14 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
     );
   }
 
-  // Check GitHub context
+  // Check GitHub context (sha serves as a proxy for "are we in GitHub Actions?")
   const githubContext = getGitHubContext();
   if (!githubContext?.sha) {
     return {
       shouldRelease: false,
       labels: [],
       prNumbers: [],
+      evaluations: [],
       reason: 'No GitHub context available (missing GITHUB_REPOSITORY or GITHUB_SHA)',
     };
   }
@@ -80,6 +81,7 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
       shouldRelease: false,
       labels: [],
       prNumbers: [],
+      evaluations: [],
       reason: 'No GITHUB_TOKEN available',
     };
   }

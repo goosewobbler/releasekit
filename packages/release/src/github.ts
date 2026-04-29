@@ -1,7 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import { Octokit } from '@octokit/rest';
 import type { CIConfig } from '@releasekit/config';
-import { MARKER } from './preview/format.js';
+
+export const MARKER = '<!-- releasekit-preview -->';
 
 export function createOctokit(token: string): Octokit {
   return new Octokit({ auth: token });
@@ -61,9 +62,9 @@ export async function findMergedPRsSinceLastRelease(
     return [];
   }
 
+  const prGroups = await Promise.all(mergeShas.map((sha) => findMergedPRsForCommit(octokit, owner, repo, sha)));
   const seen = new Set<number>();
-  for (const sha of mergeShas) {
-    const prs = await findMergedPRsForCommit(octokit, owner, repo, sha);
+  for (const prs of prGroups) {
     for (const n of prs) seen.add(n);
   }
   return [...seen];
