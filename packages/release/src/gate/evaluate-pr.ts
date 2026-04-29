@@ -56,7 +56,6 @@ export function evaluatePR(
     labelConfig.patch,
     labelConfig.stable,
     labelConfig.prerelease,
-    labelConfig.skip,
   ]);
   const hasScopeLabel = labels.some((l) => Boolean(scopeLabels[l]));
   const hasReleaseIntent = labels.some((l) => releaseLabelNames.has(l)) || hasScopeLabel;

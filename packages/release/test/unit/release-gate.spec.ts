@@ -132,7 +132,7 @@ describe('evaluatePR — commit mode', () => {
     const result = evaluatePR(1, ['release:skip'], DEFAULT_LABELS, commitMode);
     expect(result.shouldRelease).toBe(false);
     expect(result.reason).toContain('release:skip');
-    expect(result.hasReleaseIntent).toBe(true);
+    expect(result.hasReleaseIntent).toBe(false);
   });
 
   it('does NOT block on conflicting bump labels in commit mode (bump:* not authoritative)', () => {

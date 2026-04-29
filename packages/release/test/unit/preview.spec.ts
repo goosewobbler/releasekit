@@ -35,6 +35,7 @@ const mockCreateOctokit = vi.fn();
 const mockFetchPRLabels = vi.fn();
 
 vi.mock('../../src/github.js', () => ({
+  MARKER: '<!-- releasekit-preview -->',
   postOrUpdateComment: (...args: unknown[]) => mockPostOrUpdateComment(...args),
   createOctokit: (...args: unknown[]) => mockCreateOctokit(...args),
   fetchPRLabels: (...args: unknown[]) => mockFetchPRLabels(...args),

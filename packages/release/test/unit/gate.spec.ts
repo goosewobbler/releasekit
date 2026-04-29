@@ -51,7 +51,7 @@ vi.mock('../../src/git.js', () => ({
     const [owner, repoName] = repo.split('/');
     return { owner, repo: repoName ?? '', sha: sha ?? null, token: token ?? null };
   },
-  matchesSkipPattern: (msg: string, patterns: string[]) => patterns.find((p) => msg.startsWith(p) || msg.includes(p)),
+  matchesSkipPattern: (msg: string, patterns: string[]) => patterns.find((p) => msg.includes(p)),
 }));
 
 describe('Gate', () => {
@@ -152,6 +152,16 @@ describe('Gate', () => {
 
     expect(result.shouldRelease).toBe(false);
     expect(result.reason).toContain('release:skip');
+  });
+
+  it('should return shouldRelease: false and not notify when only release:skip label (label trigger mode)', async () => {
+    mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
+    mockFetchPRLabels.mockResolvedValue(['release:skip']);
+
+    const result = await runGate();
+
+    expect(result.shouldRelease).toBe(false);
+    expect(mockPostOrUpdateComment).not.toHaveBeenCalled();
   });
 
   it('should return blocked: true when bump:major + bump:minor conflict', async () => {
@@ -504,6 +514,8 @@ describe('Gate', () => {
       const [, , , prNumber, body] = mockPostOrUpdateComment.mock.calls[0];
       expect(prNumber).toBe(42);
       expect(body).toContain('conflicting');
+      expect(body).toContain('bump:major');
+      expect(body).toContain('bump:minor');
     });
 
     it('does not post notify on commit-mode release:skip (intentional skip, not user error)', async () => {
