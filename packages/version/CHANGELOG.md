@@ -83,6 +83,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.18.0] - 2026-04-29
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.17.1...releasekit-notes-v0.18.0)
+
+### Added
+- **release**: implement per-PR evaluation and notification for release gate (#163)
+- release notes editing in standing PR (#160)
+- **release**: batch accumulation controls for standing PR strategy (#161)
+- add runStandingPRMerge functionality and update command (#157)
+- **release**: add standing PR commit status checks (#158)
+- add standing PR configuration and workflow
+- add standing PR functionality (#156)
+- per-package push in non-sync mode (#155)
+
+### Changed
+- add claude code github workflows (#165)
+- **deps**: bump liquidjs from 10.25.5 to 10.25.7 (#162)
+- update CI setup documentation for standing PR workflow
+
 ## [0.17.1] - 2026-04-22
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.17.0...releasekit-notes-v0.17.1)
