@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { cwd } from 'node:process';
 import { getPackagesSync, type Package, type Packages } from '@manypkg/get-packages';
 import { filterPackagesByConfig, parseCargoToml } from '@releasekit/config';
+import { shouldMatchPackageTargets } from '@releasekit/core';
 import { GitError } from '../errors/gitError.js';
 import { createVersionError, VersionError, VersionErrorCode } from '../errors/versionError.js';
 import type { Config, VersionRunOptions } from '../types.js';
@@ -22,6 +23,7 @@ export class VersionEngine {
   private workspaceCache: PackagesWithRoot | null = null;
   private strategies: Record<StrategyType, StrategyFunction>;
   private currentStrategy: StrategyFunction;
+  private runtimeTargets: string[] = [];
 
   constructor(config: Config, runOptions?: VersionRunOptions) {
     // Validate required configuration
@@ -43,7 +45,7 @@ export class VersionEngine {
         effective.isPrerelease = true;
       }
       if (runOptions.stable) effective.stableOnly = true;
-      if (runOptions.targets?.length) effective.packages = runOptions.targets;
+      if (runOptions.targets?.length) this.runtimeTargets = runOptions.targets;
     }
 
     // Default values for required properties
@@ -227,6 +229,25 @@ export class VersionEngine {
         if (filteredPackages.length === 0) {
           log('Warning: No packages matched the specified patterns in config.packages', 'warning');
         }
+      } else if (this.runtimeTargets.length > 0) {
+        // If no config.packages but runtime targets specified, use targets as primary filter
+        const originalCount = mergedPackages.packages.length;
+        mergedPackages.packages = mergedPackages.packages.filter((pkg) =>
+          shouldMatchPackageTargets(pkg.packageJson.name, this.runtimeTargets),
+        );
+        log(
+          `Filtered ${originalCount} workspace packages to ${mergedPackages.packages.length} based on runtime targets`,
+          'info',
+        );
+      }
+
+      // Apply runtime targets as secondary filter (after config.packages)
+      if (this.runtimeTargets.length > 0 && mergedPackages.packages.length > 0) {
+        const beforeCount = mergedPackages.packages.length;
+        mergedPackages.packages = mergedPackages.packages.filter((pkg) =>
+          shouldMatchPackageTargets(pkg.packageJson.name, this.runtimeTargets),
+        );
+        log(`Runtime targets filter: ${beforeCount} → ${mergedPackages.packages.length} packages`, 'info');
       }
 
       // Cache the result for subsequent calls
