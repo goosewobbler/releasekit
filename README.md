@@ -5,6 +5,16 @@
 Lightweight, composable release tooling for JavaScript and Rust projects. Built on conventional
 commits and designed for CI/CD pipelines.
 
+## Quickstart
+
+```bash
+npm install -g @releasekit/release
+releasekit init
+releasekit release --dry-run
+```
+
+See [Getting Started](./docs/getting-started.md) for prerequisites, config options, and a first real release.
+
 ## Packages
 
 | Package | Version | Description |
@@ -16,14 +26,10 @@ commits and designed for CI/CD pipelines.
 
 ## Features
 
-- **Conventional Commits** — automatically derives the next semver bump from commit history
-- **Monorepo support** — versions packages independently or in sync, with per-package git tags
-- **JavaScript + Rust** — handles `package.json` and `Cargo.toml` side by side
-- **CI/CD first** — JSON output mode for scriptable pipelines; OIDC or token-based npm publishing
-- **PR release previews** — posts a comment on PRs showing what would be released if merged
-- **Config-driven CI automation** — control release triggers (commit vs label) and strategies per repo
-- **Changelog generation** — auto-generated from conventional commits with flexible templating
-- **LLM-enhanced release notes** — optional AI summarisation via Anthropic, OpenAI, or local models
+- **Versioning** — derives semver bumps from Conventional Commits; supports JavaScript (`package.json`), Rust (`Cargo.toml`), and monorepos with per-package tags
+- **Release notes** — generates changelogs from commit history, with optional LLM enhancement (Anthropic, OpenAI, or local models)
+- **Publishing** — pushes to npm (OIDC or token) and crates.io, tags the release, and creates a GitHub Release
+- **CI/CD first** — JSON output for scripting, PR preview comments, and config-driven triggers (commit vs label)
 - **Composable** — use each tool independently or pipe them together
 
 ## Usage
@@ -74,9 +80,9 @@ releasekit-version --json | releasekit-publish
 
 See the package READMEs for full CLI reference.
 
-### GitHub Action (`releasekit/action`)
+### GitHub Action
 
-Use ReleaseKit as a composite GitHub Action with two modes: `release` and `preview`.
+Use ReleaseKit as a composite action with `release` or `preview` modes:
 
 ```yaml
 jobs:
@@ -92,35 +98,15 @@ jobs:
       - uses: goosewobbler/releasekit@v1
         with:
           mode: release
-          json: "true"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-```yaml
-jobs:
-  preview:
-    permissions:
-      contents: read
-      pull-requests: write
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - uses: goosewobbler/releasekit@v1
-        with:
-          mode: preview
-          preview-dry-run: "true"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
-
-See [docs/action.md](./docs/action.md) for full input/output reference and rollout guidance.
+See [docs/action.md](./docs/action.md) for the `preview` mode, full input/output reference, and rollout guidance.
 
 ## Configuration
 
-ReleaseKit uses a single `releasekit.config.json` at the project root. Add `$schema` for editor autocompletion:
+ReleaseKit reads `releasekit.config.json` at the project root. All configuration is optional — sensible defaults apply. A typical config:
 
 ```json
 {
@@ -134,19 +120,7 @@ ReleaseKit uses a single `releasekit.config.json` at the project root. Add `$sch
 }
 ```
 
-All configuration is optional — ReleaseKit uses sensible defaults. The full set of top-level keys:
-
-| Key | Description |
-|-----|-------------|
-| `git` | Remote name, branch, push method |
-| `version` | Tag template, commit presets, monorepo strategy |
-| `notes` | Changelog and release notes output, templates, LLM |
-| `publish` | npm, Cargo, GitHub Releases |
-| `release` | Pipeline steps, CI skip patterns |
-| `ci` | Release triggers, PR labels, preview comments |
-| `monorepo` | Package paths for monorepo projects |
-
-See the per-package docs for full option references.
+See the [package docs](#documentation) for the full option reference.
 
 ## Documentation
 
