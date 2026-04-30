@@ -118,8 +118,6 @@ export class VersionEngine {
               packageJson: {
                 name: cargoData.package.name,
                 version: cargoData.package.version,
-                // Add minimal required fields
-                private: true,
               },
               dir: packageDir,
               relativeDir: relativePath,
