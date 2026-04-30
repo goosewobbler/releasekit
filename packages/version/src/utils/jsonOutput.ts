@@ -99,6 +99,16 @@ export function setPackageUpdateTag(packageName: string, tag: string): void {
 }
 
 /**
+ * Set the skipReleaseDraft flag on a specific package update.
+ * Called after the strategy runs, to propagate the per-package config field.
+ */
+export function setPackageUpdateSkipReleaseDraft(packageName: string, skipReleaseDraft: boolean): void {
+  if (!_jsonOutputMode) return;
+  const update = _jsonData.updates.find((u) => u.packageName === packageName);
+  if (update) update.skipReleaseDraft = skipReleaseDraft;
+}
+
+/**
  * Add changelog data for a package to the JSON output
  */
 export function addChangelogData(data: VersionPackageChangelog): void {

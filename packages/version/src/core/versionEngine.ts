@@ -6,6 +6,7 @@ import { filterPackagesByConfig, parseCargoToml } from '@releasekit/config';
 import { GitError } from '../errors/gitError.js';
 import { createVersionError, VersionError, VersionErrorCode } from '../errors/versionError.js';
 import type { Config, VersionRunOptions } from '../types.js';
+import { setPackageUpdateSkipReleaseDraft } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { createStrategy, createStrategyMap, type StrategyFunction, type StrategyType } from './versionStrategies.js';
 
@@ -253,7 +254,17 @@ export class VersionEngine {
   public async run(packages: PackagesWithRoot, targets: string[] = []): Promise<void> {
     try {
       // Execute the strategy function
-      return this.currentStrategy(packages, targets);
+      await this.currentStrategy(packages, targets);
+
+      // Propagate skipReleaseDraft from each package's manifest into its update record.
+      // This mirrors the setPackageUpdateTag() pattern: the flag is written after the
+      // strategy has already called addPackageUpdate() for the packages it updated.
+      for (const pkg of packages.packages) {
+        const pkgJsonAny = pkg.packageJson as { releasekit?: { skipReleaseDraft?: boolean } } & typeof pkg.packageJson;
+        if (pkgJsonAny.releasekit?.skipReleaseDraft === true) {
+          setPackageUpdateSkipReleaseDraft(pkg.packageJson.name, true);
+        }
+      }
     } catch (error) {
       if (error instanceof VersionError || error instanceof GitError) {
         log(`Version engine failed: ${error.message} (${error.code || 'UNKNOWN'})`, 'error');

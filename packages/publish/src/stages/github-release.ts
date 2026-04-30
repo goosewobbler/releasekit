@@ -184,6 +184,19 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
   const tagsToRelease = config.githubRelease.perPackage ? tags : [firstTag];
 
   for (const tag of tagsToRelease) {
+    // Skip GitHub release draft if the package has skipReleaseDraft: true
+    const resolved = resolveTagPackage(
+      tag,
+      ctx.input.updates.map((u) => u.packageName),
+    );
+    if (resolved) {
+      const update = ctx.input.updates.find((u) => u.packageName === resolved.packageName);
+      if (update?.skipReleaseDraft) {
+        debug(`Skipping GitHub release draft for ${resolved.packageName} (skipReleaseDraft: true)`);
+        continue;
+      }
+    }
+
     // Determine if this is a pre-release
     // Limit tag length and use safer regex to prevent ReDoS
     const MAX_TAG_LENGTH = 1000;

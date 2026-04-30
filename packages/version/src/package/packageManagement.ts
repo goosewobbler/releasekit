@@ -16,6 +16,7 @@ export interface PackageInfo {
   path: string;
   dir: string;
   content: PkgJson;
+  skipReleaseDraft?: boolean;
 }
 
 /**
@@ -99,6 +100,7 @@ Then optionally use the "packages" config to target specific package names:
       path: pkgPath,
       dir: path.dirname(pkgPath),
       content: pkg,
+      skipReleaseDraft: pkg.releasekit?.skipReleaseDraft === true ? true : undefined,
     };
   } catch (error) {
     log(`Error reading package: ${pkgPath}`, 'error');

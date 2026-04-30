@@ -510,6 +510,61 @@ describe('github-release stage', () => {
     expect(args[titleIndex + 1]).toBe('my-package: v1.0.0');
   });
 
+  describe('skipReleaseDraft per-package flag', () => {
+    it('should skip GitHub release creation when package has skipReleaseDraft: true', async () => {
+      const { execCommand } = await import('../../../src/utils/exec.js');
+      const ctx = createContext({
+        input: {
+          dryRun: false,
+          updates: [
+            { packageName: 'pkg-internal', newVersion: '1.0.0', filePath: '/pkg/package.json', skipReleaseDraft: true },
+          ],
+          changelogs: [],
+          tags: ['pkg-internal@v1.0.0'],
+        },
+        output: {
+          dryRun: false,
+          git: { committed: true, tags: ['pkg-internal@v1.0.0'], pushed: true },
+          npm: [],
+          cargo: [],
+          verification: [],
+          githubReleases: [],
+        },
+      });
+
+      await runGithubReleaseStage(ctx);
+
+      expect(execCommand).not.toHaveBeenCalled();
+      expect(ctx.output.githubReleases).toHaveLength(0);
+    });
+
+    it('should create GitHub release when package does not have skipReleaseDraft', async () => {
+      const { execCommand } = await import('../../../src/utils/exec.js');
+      const ctx = createContext({
+        input: {
+          dryRun: false,
+          updates: [{ packageName: 'pkg-public', newVersion: '1.0.0', filePath: '/pkg/package.json' }],
+          changelogs: [],
+          tags: ['pkg-public@v1.0.0'],
+        },
+        output: {
+          dryRun: false,
+          git: { committed: true, tags: ['pkg-public@v1.0.0'], pushed: true },
+          npm: [],
+          cargo: [],
+          verification: [],
+          githubReleases: [],
+        },
+      });
+
+      await runGithubReleaseStage(ctx);
+
+      expect(execCommand).toHaveBeenCalledTimes(1);
+      expect(ctx.output.githubReleases).toHaveLength(1);
+      expect(ctx.output.githubReleases[0]?.success).toBe(true);
+    });
+  });
+
   describe('GitHub release pre-existence check', () => {
     it('should skip release creation when release already exists', async () => {
       const { execCommand, execCommandSafe } = await import('../../../src/utils/exec.js');
