@@ -97,6 +97,13 @@ export const GitHubReleaseConfigSchema = z.object({
    */
   /* biome-ignore lint/suspicious/noTemplateCurlyInString: default template value */
   titleTemplate: z.string().default('${packageName}: ${version}'),
+  /**
+   * Package names to exclude from GitHub release creation. Tags are still created
+   * (so changelog range detection still works on the next release) and npm publish
+   * still runs — only the `gh release create` call is skipped for these packages.
+   * Useful for internal/utility packages that shouldn't appear in the GitHub releases UI.
+   */
+  skipPackages: z.array(z.string()).default([]),
 });
 
 export const VerifyRegistryConfigSchema = z.object({
@@ -146,6 +153,7 @@ export const PublishConfigSchema = z.object({
     body: 'auto',
     /* biome-ignore lint/suspicious/noTemplateCurlyInString: default template value */
     titleTemplate: '${packageName}: ${version}',
+    skipPackages: [],
   }),
   verify: VerifyConfigSchema.default({
     npm: {

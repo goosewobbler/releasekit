@@ -183,7 +183,20 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
   if (!firstTag) return;
   const tagsToRelease = config.githubRelease.perPackage ? tags : [firstTag];
 
+  const skipPackages = config.githubRelease.skipPackages ?? [];
+
   for (const tag of tagsToRelease) {
+    // Skip GitHub release creation when the package is listed in githubRelease.skipPackages.
+    // Tags are still created (needed for changelog range detection on the next release) and
+    // npm publish still runs — only the `gh release create` call is skipped.
+    if (skipPackages.length > 0) {
+      const resolved = resolveTagPackage(tag, skipPackages);
+      if (resolved) {
+        debug(`Skipping GitHub release for ${resolved.packageName} (listed in githubRelease.skipPackages)`);
+        continue;
+      }
+    }
+
     // Determine if this is a pre-release
     // Limit tag length and use safer regex to prevent ReDoS
     const MAX_TAG_LENGTH = 1000;

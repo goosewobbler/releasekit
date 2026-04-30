@@ -25,7 +25,14 @@ const mockConfig: PublishConfig = {
   },
   cargo: { enabled: false, noVerify: false, publishOrder: [], clean: false },
   git: { push: true, pushMethod: 'auto', remote: 'origin', branch: undefined },
-  githubRelease: { enabled: false, draft: true, perPackage: true, prerelease: 'auto', releaseNotes: 'auto' },
+  githubRelease: {
+    enabled: false,
+    draft: true,
+    perPackage: true,
+    prerelease: 'auto',
+    releaseNotes: 'auto',
+    skipPackages: [],
+  },
   verify: {
     npm: { enabled: false, maxAttempts: 5, initialDelay: 15000, backoffMultiplier: 2 },
     cargo: { enabled: false, maxAttempts: 5, initialDelay: 15000, backoffMultiplier: 2 },

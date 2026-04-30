@@ -181,6 +181,24 @@ Set `"perPackage": false` to create a single release for the entire repo.
 
 ---
 
+## Excluding Packages from GitHub Releases
+
+Use `skipPackages` to suppress GitHub Release creation for specific packages while still running the full release process (version bump, commit, tag, npm publish) for them. This is useful for internal or utility packages that shouldn't appear in the GitHub Releases UI.
+
+```json
+{
+  "publish": {
+    "githubRelease": {
+      "skipPackages": ["@my-org/internal-utils", "@my-org/build-tools"]
+    }
+  }
+}
+```
+
+Tags are still created for skipped packages — this is required so that changelog range detection works correctly on the next release.
+
+---
+
 ## Full Configuration Reference
 
 ```json
@@ -192,7 +210,8 @@ Set `"perPackage": false` to create a single release for the entire repo.
       "prerelease": "auto",
       "perPackage": true,
       "body": "auto",
-      "titleTemplate": "${packageName}: ${version}"
+      "titleTemplate": "${packageName}: ${version}",
+      "skipPackages": []
     }
   }
 }
