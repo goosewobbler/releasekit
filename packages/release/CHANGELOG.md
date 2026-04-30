@@ -95,6 +95,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.19.0] - 2026-04-30
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.18.0...releasekit-version-v0.19.0)
+
+### Added
+- add support for targeting all packages in release workflow
+- add githubRelease.skipPackages to suppress GitHub releases (#172)
+
+### Changed
+- **deps-dev**: bump @typescript-eslint/parser from 8.58.2 to 8.59.0 in the development-dependencies group (#164)
+
+### Fixed
+- correct manual release version calculation when using scope-based package targeting (#173)
+- pure rust publishing without a package.json (#171)
+
 ## [0.18.0] - 2026-04-29
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.17.1...releasekit-notes-v0.18.0)
