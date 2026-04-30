@@ -116,20 +116,6 @@ describe('Package Management Module', () => {
       const result = getPackageInfo(mockPackagePath);
       expect(result.version).toBe('0.0.0');
     });
-
-    it('should read skipReleaseDraft from releasekit config when present', () => {
-      const pkgWithSkip = { ...mockPackageContent, releasekit: { skipReleaseDraft: true } };
-      vi.mocked(fs.readFileSync, { partial: true }).mockReturnValue(JSON.stringify(pkgWithSkip));
-
-      const result = getPackageInfo(mockPackagePath);
-      expect(result.skipReleaseDraft).toBe(true);
-    });
-
-    it('should return undefined for skipReleaseDraft when releasekit config is absent', () => {
-      // mockPackageContent has no releasekit field
-      const result = getPackageInfo(mockPackagePath);
-      expect(result.skipReleaseDraft).toBeUndefined();
-    });
   });
 
   describe('updatePackageVersion', () => {

@@ -56,6 +56,4 @@ export interface VersionPackageUpdate {
   filePath: string;
   /** Per-package git tag. Set only when each package has its own tag (async mode or sync+packageSpecificTags). Absent in sync mode with a single shared tag. */
   tag?: string;
-  /** When true, GitHub release draft creation is suppressed for this package while version bump, commit, tag, and npm publish still run. */
-  skipReleaseDraft?: boolean;
 }

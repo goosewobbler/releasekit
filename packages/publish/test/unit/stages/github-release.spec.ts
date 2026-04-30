@@ -510,15 +510,17 @@ describe('github-release stage', () => {
     expect(args[titleIndex + 1]).toBe('my-package: v1.0.0');
   });
 
-  describe('skipReleaseDraft per-package flag', () => {
-    it('should skip GitHub release creation when package has skipReleaseDraft: true', async () => {
+  describe('githubRelease.skipPackages config', () => {
+    it('should skip GitHub release creation for packages listed in skipPackages', async () => {
       const { execCommand } = await import('../../../src/utils/exec.js');
+      const config = getDefaultConfig();
+      config.githubRelease.skipPackages = ['pkg-internal'];
+
       const ctx = createContext({
+        config,
         input: {
           dryRun: false,
-          updates: [
-            { packageName: 'pkg-internal', newVersion: '1.0.0', filePath: '/pkg/package.json', skipReleaseDraft: true },
-          ],
+          updates: [{ packageName: 'pkg-internal', newVersion: '1.0.0', filePath: '/pkg/package.json' }],
           changelogs: [],
           tags: ['pkg-internal@v1.0.0'],
         },
@@ -538,9 +540,13 @@ describe('github-release stage', () => {
       expect(ctx.output.githubReleases).toHaveLength(0);
     });
 
-    it('should create GitHub release when package does not have skipReleaseDraft', async () => {
+    it('should create GitHub release for packages not listed in skipPackages', async () => {
       const { execCommand } = await import('../../../src/utils/exec.js');
+      const config = getDefaultConfig();
+      config.githubRelease.skipPackages = ['pkg-internal'];
+
       const ctx = createContext({
+        config,
         input: {
           dryRun: false,
           updates: [{ packageName: 'pkg-public', newVersion: '1.0.0', filePath: '/pkg/package.json' }],
@@ -562,6 +568,40 @@ describe('github-release stage', () => {
       expect(execCommand).toHaveBeenCalledTimes(1);
       expect(ctx.output.githubReleases).toHaveLength(1);
       expect(ctx.output.githubReleases[0]?.success).toBe(true);
+    });
+
+    it('should skip only the listed packages in a multi-package release', async () => {
+      const { execCommand } = await import('../../../src/utils/exec.js');
+      const config = getDefaultConfig();
+      config.githubRelease.skipPackages = ['pkg-internal'];
+
+      const ctx = createContext({
+        config,
+        input: {
+          dryRun: false,
+          updates: [
+            { packageName: 'pkg-internal', newVersion: '1.0.0', filePath: '/internal/package.json' },
+            { packageName: 'pkg-public', newVersion: '1.0.0', filePath: '/public/package.json' },
+          ],
+          changelogs: [],
+          tags: ['pkg-internal@v1.0.0', 'pkg-public@v1.0.0'],
+        },
+        output: {
+          dryRun: false,
+          git: { committed: true, tags: ['pkg-internal@v1.0.0', 'pkg-public@v1.0.0'], pushed: true },
+          npm: [],
+          cargo: [],
+          verification: [],
+          githubReleases: [],
+        },
+      });
+
+      await runGithubReleaseStage(ctx);
+
+      expect(execCommand).toHaveBeenCalledTimes(1);
+      expect(ctx.output.githubReleases).toHaveLength(1);
+      const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
+      expect(args).toEqual(expect.arrayContaining(['release', 'create', 'pkg-public@v1.0.0']));
     });
   });
 

@@ -37,6 +37,8 @@ export interface GitHubReleaseConfig {
   body: 'auto' | 'releaseNotes' | 'changelog' | 'generated' | 'none';
   /** Template for the release title when a package name is resolved. Variables: ${packageName}, ${version}. */
   titleTemplate: string;
+  /** Package names to exclude from GitHub release creation. Tags and npm publish are unaffected. */
+  skipPackages: string[];
 }
 
 export interface VerifyRegistryConfig {
@@ -167,6 +169,7 @@ export function getDefaultConfig(): PublishConfig {
       body: 'auto',
       /* biome-ignore lint/suspicious/noTemplateCurlyInString: default template value */
       titleTemplate: '${packageName}: ${version}',
+      skipPackages: [],
     },
     verify: {
       npm: {
@@ -223,6 +226,7 @@ export function toPublishConfig(config: BasePublishConfig | undefined): PublishC
       prerelease: config.githubRelease?.prerelease ?? defaults.githubRelease.prerelease,
       body: config.githubRelease?.body ?? defaults.githubRelease.body,
       titleTemplate: config.githubRelease?.titleTemplate ?? defaults.githubRelease.titleTemplate,
+      skipPackages: config.githubRelease?.skipPackages ?? defaults.githubRelease.skipPackages,
     },
     verify: {
       npm: {
