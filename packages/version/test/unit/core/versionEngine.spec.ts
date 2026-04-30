@@ -402,7 +402,6 @@ describe('Version Engine', () => {
             packageJson: {
               name: 'test-rust-package',
               version: '0.1.0',
-              private: true,
             },
           },
         ],
@@ -440,7 +439,6 @@ describe('Version Engine', () => {
             packageJson: {
               name: 'pure-rust-package',
               version: '0.1.0',
-              private: true,
             },
           },
         ],
@@ -501,6 +499,55 @@ describe('Version Engine', () => {
 
       // Restore mocks
       discoverSpy.mockRestore();
+    });
+
+    it('should include a pure Rust package when explicitly named in config.packages', async () => {
+      const discoverSpy = vi.spyOn(VersionEngine.prototype as any, 'discoverCargoTomlPackages');
+      discoverSpy.mockReturnValue({
+        root: '/test/workspace',
+        packages: [
+          {
+            dir: '/test/workspace/crates/my-crate',
+            packageJson: { name: 'my-crate', version: '0.1.0' },
+          },
+        ],
+      });
+
+      vi.mocked(getPackagesSync).mockReturnValue({
+        root: '/test/workspace',
+        packages: [],
+      });
+
+      const config = { ...defaultConfig, packages: ['my-crate'] } as Config;
+      const engine = new VersionEngine(config);
+
+      const result = await engine.getWorkspacePackages();
+
+      expect(result.packages).toHaveLength(1);
+      expect(result.packages[0].packageJson.name).toBe('my-crate');
+
+      discoverSpy.mockRestore();
+    });
+
+    it('should include a private npm package when explicitly named in config.packages', async () => {
+      vi.mocked(getPackagesSync).mockReturnValue({
+        root: '/test/workspace',
+        packages: [
+          {
+            dir: '/test/workspace/packages/private-pkg',
+            relativeDir: 'packages/private-pkg',
+            packageJson: { name: '@test/private-pkg', version: '0.1.0', private: true },
+          },
+        ],
+      });
+
+      const config = { ...defaultConfig, packages: ['@test/private-pkg'] } as Config;
+      const engine = new VersionEngine(config);
+
+      const result = await engine.getWorkspacePackages();
+
+      expect(result.packages).toHaveLength(1);
+      expect(result.packages[0].packageJson.name).toBe('@test/private-pkg');
     });
   });
 });
