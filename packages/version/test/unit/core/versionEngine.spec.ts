@@ -118,11 +118,13 @@ describe('Version Engine', () => {
       expect(config.packages).toEqual([]);
     });
 
-    it('should apply bump, dryRun and targets from runOptions to effective config', () => {
+    it('should apply bump, dryRun and targets from runOptions (targets stored separately, not in config)', () => {
       new VersionEngine(defaultConfig as Config, { bump: 'minor', dryRun: true, targets: ['pkg-a', 'pkg-b'] });
 
+      // Targets are stored separately in runtimeTargets, not in config.packages
+      // so createStrategyMap receives the original config.packages (empty array)
       expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'minor', dryRun: true, packages: ['pkg-a', 'pkg-b'] }),
+        expect.objectContaining({ type: 'minor', dryRun: true, packages: [] }),
       );
     });
 
@@ -321,6 +323,37 @@ describe('Version Engine', () => {
         'Warning: No packages matched the specified patterns in config.packages',
         'warning',
       );
+    });
+
+    it('should apply runtime targets as secondary filter when config.packages is set', async () => {
+      const configWithPackages = { ...defaultConfig, packages: ['package-a', 'package-b'] } as Config;
+      const engine = new VersionEngine(configWithPackages, { targets: ['package-b'] });
+
+      // Mock getPackagesSync to return multiple packages
+      const mockPkgA = {
+        packageJson: { name: 'package-a', version: '1.0.0' },
+        dir: '/workspace/a',
+        relativeDir: 'a',
+      } as Package;
+      const mockPkgB = {
+        packageJson: { name: 'package-b', version: '1.0.0' },
+        dir: '/workspace/b',
+        relativeDir: 'b',
+      } as Package;
+
+      vi.mocked(getPackagesSync, { partial: true }).mockReturnValue({
+        packages: [mockPkgA, mockPkgB],
+        root: '/workspace',
+        tool: 'pnpm' as any,
+        rootDir: '/workspace',
+      });
+
+      const result = await engine.getWorkspacePackages();
+
+      // Should only return package-b (intersection of config.packages AND runtimeTargets)
+      expect(result.packages).toHaveLength(1);
+      expect(result.packages[0].packageJson.name).toBe('package-b');
+      expect(log).toHaveBeenCalledWith('Runtime targets filter: 2 → 1 packages', 'info');
     });
   });
 
