@@ -702,6 +702,34 @@ describe('runRelease', () => {
       expect(result).not.toBeNull();
     });
 
+    it('should skip scope label check for workflow_dispatch event', async () => {
+      // Set GITHUB_EVENT_NAME explicitly to workflow_dispatch before the test
+      const originalEventName = process.env.GITHUB_EVENT_NAME;
+      process.env.GITHUB_EVENT_NAME = 'workflow_dispatch';
+
+      try {
+        mockLoadCIConfig.mockReturnValue({
+          scopeLabels: {
+            'scope:all': '@releasekit/*',
+          },
+        });
+
+        const { runRelease } = await import('../../src/release.js');
+        const result = await runRelease(defaultOptions);
+
+        // workflow_dispatch should not query for merged PRs at all
+        expect(mockFindMergedPRsForCommit).not.toHaveBeenCalled();
+        expect(result).not.toBeNull();
+      } finally {
+        // Restore original value
+        if (originalEventName !== undefined) {
+          process.env.GITHUB_EVENT_NAME = originalEventName;
+        } else {
+          delete process.env.GITHUB_EVENT_NAME;
+        }
+      }
+    });
+
     it('should not block release when no scopeLabels configured and no conflicts', async () => {
       mockLoadCIConfig.mockReturnValue({});
       mockFindMergedPRsForCommit.mockResolvedValue([123]);

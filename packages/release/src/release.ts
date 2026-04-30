@@ -40,6 +40,13 @@ async function applyScopeLabelsFromPR(
     return { target: options.target, scopeLabels: [], labels: [] };
   }
 
+  // Skip scope label check for manual workflow_dispatch events
+  const githubEventName = process.env.GITHUB_EVENT_NAME;
+  if (githubEventName === 'workflow_dispatch') {
+    info('Manual workflow_dispatch release — skipping scope label check');
+    return { target: options.target, scopeLabels: [], labels: [] };
+  }
+
   const octokit = createOctokit(token);
 
   const prNumbers = await findMergedPRsForCommit(octokit, githubContext.owner, githubContext.repo, githubContext.sha);
