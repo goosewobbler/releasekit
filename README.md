@@ -1,9 +1,17 @@
 # ReleaseKit
 
+[![npm](https://img.shields.io/npm/v/@releasekit/release.svg)](https://www.npmjs.com/package/@releasekit/release)
+[![CI](https://github.com/goosewobbler/releasekit/actions/workflows/ci.yml/badge.svg)](https://github.com/goosewobbler/releasekit/actions/workflows/ci.yml)
+[![Node](https://img.shields.io/node/v/@releasekit/release.svg)](https://www.npmjs.com/package/@releasekit/release)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-Lightweight, composable release tooling for JavaScript and Rust projects. Built on conventional
-commits and designed for CI/CD pipelines.
+Versioning, changelogs, and publishing for JavaScript and Rust monorepos — driven by Conventional Commits, designed for CI.
+
+## Why ReleaseKit
+
+- **One config, two ecosystems** — JavaScript and Rust packages release from the same `releasekit.config.json`, including mixed monorepos.
+- **Composable, not opinionated** — three independent CLIs (`version`, `notes`, `publish`) you can pipe together, or a unified `release` command if you want the full pipeline.
+- **CI-native** — JSON output, OIDC publishing, PR preview comments, and label- or commit-driven triggers without bolting on extra tools.
 
 ## Quickstart
 
@@ -11,6 +19,15 @@ commits and designed for CI/CD pipelines.
 npm install -g @releasekit/release
 releasekit init
 releasekit release --dry-run
+```
+
+```text
+Running version analysis...
+Found 2 package update(s)
+  @myorg/core → 1.4.0
+  @myorg/ui   → 1.4.0
+Generating release notes...
+Publishing... (dry-run, no packages published)
 ```
 
 See [Getting Started](./docs/getting-started.md) for prerequisites, config options, and a first real release.
@@ -34,51 +51,14 @@ See [Getting Started](./docs/getting-started.md) for prerequisites, config optio
 
 ## Usage
 
-### Unified release (recommended)
-
 ```bash
-# Preview the full release pipeline
-releasekit --dry-run
-
-# Run a full release: version, changelog, and publish
-releasekit
-
-# Skip changelog generation
-releasekit --skip-notes
-
-# Force a patch bump
-releasekit --bump patch
+releasekit release --dry-run
+releasekit release
+releasekit release --skip-notes
+releasekit release --bump patch
 ```
 
-Individual steps are also available as subcommands:
-
-```bash
-releasekit version --dry-run --json
-releasekit notes --dry-run
-releasekit publish --dry-run
-```
-
-### Composable tools
-
-Each tool can also be used independently or piped together:
-
-```bash
-# Preview changes (dry run)
-releasekit-version --dry-run --json
-
-# Run version once, use output for both notes and publish
-output=$(releasekit-version --json)
-echo "$output" | releasekit-notes
-echo "$output" | releasekit-publish
-
-# Changelog-only (no publishing)
-releasekit-version --json | releasekit-notes
-
-# Publish-only (no changelog)
-releasekit-version --json | releasekit-publish
-```
-
-See the package READMEs for full CLI reference.
+Each step is also a subcommand — `releasekit version`, `releasekit notes`, `releasekit publish` — and the underlying tools (`releasekit-version`, `releasekit-notes`, `releasekit-publish`) can be piped together. See the [package docs](#documentation) for the full CLI reference.
 
 ### GitHub Action
 
@@ -124,39 +104,16 @@ See the [package docs](#documentation) for the full option reference.
 
 ## Documentation
 
-**[Getting Started](./docs/getting-started.md)** — install, first dry run, first release, CI setup
-
-**Reference**
+- [Getting Started](./docs/getting-started.md) — install, first dry run, first release, CI setup
 - [@releasekit/release](./packages/release/README.md) — unified pipeline, CI automation, programmatic API
 - [@releasekit/version](./packages/version/README.md) — versioning strategies, JSON output
 - [@releasekit/notes](./packages/notes/README.md) — changelog, release notes, LLM, templates
 - [@releasekit/publish](./packages/publish/README.md) — npm, crates.io, GitHub Releases
-
-**Guides**
-- [CI setup](./packages/release/docs/ci-setup.md) — GitHub Actions workflows
-- [LLM providers](./packages/notes/docs/llm-providers.md) — AI-enhanced release notes
-- [GitHub Releases](./packages/publish/docs/github-releases.md) — release body options
-
-[Contributing](./CONTRIBUTING.md)
+- [CI setup](./packages/release/docs/ci-setup.md) · [LLM providers](./packages/notes/docs/llm-providers.md) · [GitHub Releases](./packages/publish/docs/github-releases.md)
 
 ## Development
 
-```bash
-# Install dependencies
-pnpm install
-
-# Build all packages
-pnpm build
-
-# Run tests
-pnpm test
-
-# Lint and typecheck
-pnpm lint
-pnpm typecheck
-```
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full development guide.
+`pnpm install && pnpm build && pnpm test` — see [CONTRIBUTING.md](./CONTRIBUTING.md) for the full guide.
 
 ## License
 
