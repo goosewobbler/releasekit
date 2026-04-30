@@ -83,7 +83,7 @@ describe('filterPackagesByConfig', () => {
       expect(log).not.toHaveBeenCalledWith('No config targets specified, returning all non-private packages', 'debug');
     });
 
-    it('should filter packages by name patterns and exclude private matches', () => {
+    it('should include private packages when explicitly matched by a target', () => {
       vi.mocked(matchesPackageTarget).mockImplementation((name, pattern) => {
         if (pattern === '@scope/*') {
           return name.startsWith('@scope/');
@@ -98,13 +98,31 @@ describe('filterPackagesByConfig', () => {
 
       const result = filterPackagesByConfig(packagesWithPrivate, ['@scope/*'], workspaceRoot);
 
-      expect(result).toHaveLength(3);
-      expect(result.map((p) => p.packageJson.name)).toEqual(['@scope/pkg-a', '@scope/pkg-b', '@scope/pkg-c']);
+      // private packages matched by explicit targets are included; npm-publish handles skipping them
+      expect(result).toHaveLength(4);
+      expect(result.map((p) => p.packageJson.name)).toContain('@scope/private-pkg');
+    });
 
-      expect(log).toHaveBeenCalledWith(
-        'Package "@scope/private-pkg" is private and will be excluded from release',
-        'warn',
-      );
+    it('should include a pure Rust package (synthetic private:true) when explicitly targeted', () => {
+      vi.mocked(matchesPackageTarget).mockImplementation((name, pattern) => {
+        return pattern === 'my-crate' && name === 'my-crate';
+      });
+
+      const rustPkg = createMockPackage('my-crate', '/workspace/crates/my-crate', true);
+      const result = filterPackagesByConfig([...mockPackages, rustPkg], ['my-crate'], workspaceRoot);
+
+      expect(result.map((p) => p.packageJson.name)).toContain('my-crate');
+    });
+
+    it('should include a hybrid npm+cargo package with private:true when explicitly targeted', () => {
+      vi.mocked(matchesPackageTarget).mockImplementation((name, pattern) => {
+        return pattern === '@scope/hybrid' && name === '@scope/hybrid';
+      });
+
+      const hybridPkg = createMockPackage('@scope/hybrid', '/workspace/packages/hybrid', true);
+      const result = filterPackagesByConfig([...mockPackages, hybridPkg], ['@scope/hybrid'], workspaceRoot);
+
+      expect(result.map((p) => p.packageJson.name)).toContain('@scope/hybrid');
     });
 
     it('should handle exact directory matches', () => {
