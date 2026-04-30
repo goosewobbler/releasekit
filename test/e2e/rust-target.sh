@@ -74,6 +74,7 @@ assert_not_updated "@test/lib" "$output"
 # Test 2: Hybrid package (package.json private:true + Cargo.toml) is versioned when targeted
 echo ""
 echo "--- Test: Hybrid package (private npm + Cargo.toml) targeted via --target ---"
+cleanup_repo
 create_git_repo
 
 cat > package.json <<EOF
