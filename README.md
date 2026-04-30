@@ -13,8 +13,6 @@ commits and designed for CI/CD pipelines.
 | [@releasekit/version](./packages/version) | [![npm](https://img.shields.io/npm/v/@releasekit/version.svg)](https://www.npmjs.com/package/@releasekit/version) | Semantic versioning based on Git history and conventional commits |
 | [@releasekit/notes](./packages/notes) | [![npm](https://img.shields.io/npm/v/@releasekit/notes.svg)](https://www.npmjs.com/package/@releasekit/notes) | Changelog generation with LLM-powered enhancement and flexible templating |
 | [@releasekit/publish](./packages/publish) | [![npm](https://img.shields.io/npm/v/@releasekit/publish.svg)](https://www.npmjs.com/package/@releasekit/publish) | Publish packages to npm and crates.io with git tagging and GitHub releases |
-| [@releasekit/config](./packages/config) | — | *(internal)* Shared config loading and schema validation |
-| [@releasekit/core](./packages/core) | — | *(internal)* Shared types and utilities |
 
 ## Features
 
