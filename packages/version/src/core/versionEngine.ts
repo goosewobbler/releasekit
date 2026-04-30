@@ -242,7 +242,7 @@ export class VersionEngine {
       }
 
       // Apply runtime targets as secondary filter (after config.packages)
-      if (this.runtimeTargets.length > 0 && this.config.packages && this.config.packages.length > 0) {
+      if (this.runtimeTargets.length > 0 && mergedPackages.packages.length > 0) {
         const beforeCount = mergedPackages.packages.length;
         mergedPackages.packages = mergedPackages.packages.filter((pkg) =>
           shouldMatchPackageTargets(pkg.packageJson.name, this.runtimeTargets),
