@@ -5,8 +5,10 @@ The repository exposes a composite GitHub Action at the repo root (`action.yml`)
 Consumers should pin the major tag:
 
 ```yaml
-uses: goosewobbler/releasekit@v1
+uses: goosewobbler/releasekit@v0
 ```
+
+> **Note:** ReleaseKit is pre-1.0. The floating `v0` tag tracks the latest `0.x` release; a `v1` tag will follow the 1.0 release. For stricter supply-chain hygiene, pin to a specific SHA (`@<commit-sha>`) — see GitHub's [security hardening guide](https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions#using-third-party-actions).
 
 ## Modes
 
@@ -116,7 +118,7 @@ jobs:
           node-version: "22"
           registry-url: https://registry.npmjs.org
       - id: rk
-        uses: goosewobbler/releasekit@v1
+        uses: goosewobbler/releasekit@v0
         with:
           mode: release
           json: "true"
@@ -144,7 +146,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: goosewobbler/releasekit@v1
+      - uses: goosewobbler/releasekit@v0
         with:
           mode: preview
         env:
@@ -162,7 +164,7 @@ jobs:
       pull-requests: write
     steps:
       - id: rk
-        uses: goosewobbler/releasekit@v1
+        uses: goosewobbler/releasekit@v0
         with:
           mode: preview
           preview-dry-run: "true"
