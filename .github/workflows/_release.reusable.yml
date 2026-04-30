@@ -99,6 +99,8 @@ jobs:
             TARGET_FLAGS="--target @releasekit/publish"
           elif [ "$INPUT_PACKAGES" = "release" ]; then
             TARGET_FLAGS="--target @releasekit/release"
+          elif [ "$INPUT_PACKAGES" = "all" ]; then
+            TARGET_FLAGS="--target @releasekit/*"
           fi
 
           # Build bump flags (omit entirely for 'auto' — releasekit detects from commits)
