@@ -1,3 +1,4 @@
+import { LLMError } from '../errors/index.js';
 import type { CompleteResult, LLMMessage } from './messages.js';
 
 export type ValidationResult<T> = { valid: true; value: T } | { valid: false; error: string };
@@ -40,5 +41,5 @@ export async function withCorrectiveRetry<T>(
     }
   }
 
-  throw new Error(`Structured output validation failed after ${maxCorrectiveAttempts + 1} attempts: ${lastError}`);
+  throw new LLMError(`Structured output validation failed after ${maxCorrectiveAttempts + 1} attempts: ${lastError}`);
 }

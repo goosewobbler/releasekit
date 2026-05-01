@@ -16,7 +16,7 @@ export class AnthropicProvider extends BaseLLMProvider {
   readonly name = 'anthropic';
   readonly capabilities: ProviderCapabilities = {
     systemRole: true,
-    structuredOutputs: false,
+    structuredOutputs: true,
     toolUse: true,
   };
 

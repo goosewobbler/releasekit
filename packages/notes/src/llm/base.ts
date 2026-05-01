@@ -22,12 +22,4 @@ export abstract class BaseLLMProvider implements LLMProvider {
   protected getTemperature(options?: CompleteOptions): number {
     return options?.temperature ?? LLM_DEFAULTS.temperature;
   }
-
-  protected collapseSystemMessage(messages: LLMMessage[]): LLMMessage[] {
-    const systemMsg = messages.find((m) => m.role === 'system');
-    if (!systemMsg) return messages;
-    const rest = messages.filter((m) => m.role !== 'system');
-    if (rest.length === 0) return [{ role: 'user', content: systemMsg.content }];
-    return [{ role: 'user', content: `${systemMsg.content}\n\n${rest[0]?.content ?? ''}` }, ...rest.slice(1)];
-  }
 }
