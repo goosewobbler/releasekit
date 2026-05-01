@@ -7,6 +7,9 @@ import { createPublishError, PublishErrorCode } from '../errors/index.js';
 export type { CargoManifest };
 export { parseCargoToml };
 
+export const CRATES_IO_USER_AGENT = 'releasekit/publish (https://github.com/goosewobbler/releasekit)';
+export const CRATES_IO_API_TIMEOUT_MS = 30_000;
+
 export function updateCargoVersion(cargoPath: string, newVersion: string): void {
   try {
     const cargo = parseCargoToml(cargoPath);

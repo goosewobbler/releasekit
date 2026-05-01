@@ -4,15 +4,14 @@ import { debug, success, warn } from '@releasekit/core';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext, PublishResult } from '../types.js';
 import { hasCargoAuth } from '../utils/auth.js';
-import { extractPathDeps, parseCargoToml } from '../utils/cargo.js';
+import { CRATES_IO_API_TIMEOUT_MS, CRATES_IO_USER_AGENT, extractPathDeps, parseCargoToml } from '../utils/cargo.js';
 import { execCommand, execCommandSafe } from '../utils/exec.js';
-
-const CRATES_IO_CHECK_TIMEOUT_MS = 30_000;
 
 async function isCratePublished(name: string, version: string): Promise<boolean> {
   try {
     const response = await fetch(`https://crates.io/api/v1/crates/${name}/${version}`, {
-      signal: AbortSignal.timeout(CRATES_IO_CHECK_TIMEOUT_MS),
+      signal: AbortSignal.timeout(CRATES_IO_API_TIMEOUT_MS),
+      headers: { 'User-Agent': CRATES_IO_USER_AGENT },
     });
     if (response.status === 200) return true;
     if (response.status === 404) return false;

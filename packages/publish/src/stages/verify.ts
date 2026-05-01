@@ -1,5 +1,6 @@
 import { debug, info, success, warn } from '@releasekit/core';
 import type { PipelineContext, VerificationResult } from '../types.js';
+import { CRATES_IO_API_TIMEOUT_MS, CRATES_IO_USER_AGENT } from '../utils/cargo.js';
 import { execCommandSafe } from '../utils/exec.js';
 import { buildViewCommand } from '../utils/package-manager.js';
 import { withRetry } from '../utils/retry.js';
@@ -73,20 +74,39 @@ export async function runVerifyStage(ctx: PipelineContext): Promise<void> {
       }
 
       try {
-        await withRetry(async () => {
-          result.attempts++;
-          const response = await fetch(`https://crates.io/api/v1/crates/${crate.packageName}/${crate.version}`);
+        await withRetry(
+          async () => {
+            result.attempts++;
+            const response = await fetch(`https://crates.io/api/v1/crates/${crate.packageName}/${crate.version}`, {
+              signal: AbortSignal.timeout(CRATES_IO_API_TIMEOUT_MS),
+              headers: { 'User-Agent': CRATES_IO_USER_AGENT },
+            });
 
-          if (!response.ok) {
-            throw new Error(`${crate.packageName}@${crate.version} not yet available on crates.io`);
-          }
+            if (response.status === 403) {
+              throw Object.assign(
+                new Error(
+                  `crates.io API rejected request for ${crate.packageName}@${crate.version} (403 Forbidden) — check User-Agent policy`,
+                ),
+                { fatal: true },
+              );
+            }
 
-          debug(`Verified ${crate.packageName}@${crate.version} on crates.io`);
-        }, config.verify.cargo);
+            if (!response.ok) {
+              throw new Error(`${crate.packageName}@${crate.version} not yet available on crates.io`);
+            }
+
+            debug(`Verified ${crate.packageName}@${crate.version} on crates.io`);
+          },
+          config.verify.cargo,
+          (error) => !(error instanceof Error && (error as any).fatal),
+        );
         result.verified = true;
         success(`Verified ${crate.packageName}@${crate.version} on crates.io`);
-      } catch {
-        warn(`Failed to verify ${crate.packageName}@${crate.version} on crates.io after ${result.attempts} attempts`);
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        warn(
+          `Failed to verify ${crate.packageName}@${crate.version} on crates.io after ${result.attempts} attempts: ${reason}`,
+        );
       }
 
       ctx.output.verification.push(result);
