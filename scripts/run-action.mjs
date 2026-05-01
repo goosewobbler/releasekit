@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -201,7 +201,7 @@ export function parseInputs(env = process.env) {
   return input;
 }
 
-export function runAction(input, options = {}) {
+export async function runAction(input, options = {}) {
   const mode = input.mode;
   const validModes = ['release', 'preview', 'gate', 'standing-pr-update', 'standing-pr-publish'];
   if (!validModes.includes(mode)) {
@@ -312,22 +312,47 @@ export function runAction(input, options = {}) {
     delete spawnEnv[k];
   }
 
-  let result;
-  try {
-    result = spawnSync('node', [cliPath, ...args], {
-      encoding: 'utf-8',
-      env: spawnEnv,
-      cwd: resolvedProjectDir,
+  // Stream child stdout/stderr live to the parent process so progress is visible in
+  // CI logs as it happens, while also collecting both into buffers for downstream
+  // parsing (--json output, summary generation, etc.). Using spawnSync here would
+  // buffer everything until the child exits, which masks where long-running steps
+  // (publish, verify) actually are.
+  return await new Promise((resolve, reject) => {
+    let child;
+    try {
+      child = spawn('node', [cliPath, ...args], {
+        env: spawnEnv,
+        cwd: resolvedProjectDir,
+      });
+    } catch (err) {
+      reject(new Error(`Failed to spawn ReleaseKit CLI: ${err.message}`));
+      return;
+    }
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.setEncoding('utf-8');
+    child.stderr.setEncoding('utf-8');
+
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk;
+      process.stdout.write(chunk);
     });
-  } catch (err) {
-    throw new Error(`Failed to spawn ReleaseKit CLI: ${err.message}`);
-  }
 
-  if (result.error) {
-    throw new Error(`Spawn error: ${result.error.message}`);
-  }
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk;
+      process.stderr.write(chunk);
+    });
 
-  return { mode, args, ...result };
+    child.on('error', (err) => {
+      reject(new Error(`Spawn error: ${err.message}`));
+    });
+
+    child.on('close', (status, signal) => {
+      resolve({ mode, args, status, signal, stdout, stderr });
+    });
+  });
 }
 
 function writeCoreOutputs(mode, success) {
@@ -485,9 +510,9 @@ export function buildGateSummary(_input, parsed, success) {
   return lines.join('\n');
 }
 
-function main() {
+async function main() {
   const input = parseInputs();
-  const result = runAction(input);
+  const result = await runAction(input);
   const success = result.status === 0;
   const verbose = normalizeBoolean(input.verbose);
 
@@ -504,7 +529,8 @@ function main() {
     }
   }
 
-  // Write outputs
+  // Write outputs. Child stdout/stderr were already streamed live during runAction,
+  // so we don't re-emit them here — the buffers in `result` are only used for parsing.
   if (!success) {
     writeCoreOutputs(result.mode, false);
     if (result.mode === 'gate') {
@@ -512,8 +538,6 @@ function main() {
     } else if (result.mode === 'standing-pr-update' || result.mode === 'standing-pr-publish') {
       writeStandingPROutputs(result.stdout ?? '', verbose);
     }
-    process.stderr.write(result.stderr ?? '');
-    process.stdout.write(result.stdout ?? '');
     setFailure(`ReleaseKit ${result.mode} failed with exit code ${result.status ?? 1}`);
   }
 
@@ -528,16 +552,11 @@ function main() {
   } else {
     writePreviewOutputs(input, result.stdout ?? '');
   }
-
-  process.stdout.write(result.stdout ?? '');
-  process.stderr.write(result.stderr ?? '');
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-  try {
-    main();
-  } catch (err) {
+  main().catch((err) => {
     process.stderr.write(`[run-action] uncaught error: ${err instanceof Error ? err.message : String(err)}\n`);
     process.exit(1);
-  }
+  });
 }

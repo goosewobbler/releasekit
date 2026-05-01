@@ -174,13 +174,13 @@ describe('action runner', () => {
     expect(parseReleaseOutput('plain logs')).toBeUndefined();
   });
 
-  it('should run cli with generated args', () => {
+  it('should run cli with generated args', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-action-runner-test-'));
     tempDirs.push(tempDir);
     const cliPath = path.join(tempDir, 'fake-cli.mjs');
     fs.writeFileSync(cliPath, "console.log('ok')\n", 'utf-8');
 
-    const result = runAction(
+    const result = await runAction(
       {
         mode: 'release',
         projectDir: '.',
