@@ -67,11 +67,14 @@ describe('cargo-publish stage', () => {
     const { execCommand, execCommandSafe } = await import('../../../src/utils/exec.js');
     const { hasCargoAuth } = await import('../../../src/utils/auth.js');
     vi.mocked(execCommand).mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
-    vi.mocked(execCommandSafe).mockResolvedValue({ stdout: '', stderr: '', exitCode: 1 }); // not published
+    vi.mocked(execCommandSafe).mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
     vi.mocked(hasCargoAuth).mockReturnValue(true);
+    // crates.io published-check defaults to "not published"
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 404 } as Response));
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     for (const dir of tmpDirs) {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -112,12 +115,8 @@ describe('cargo-publish stage', () => {
   });
 
   it('should skip already-published crates', async () => {
-    const { execCommand, execCommandSafe } = await import('../../../src/utils/exec.js');
-    vi.mocked(execCommandSafe).mockResolvedValue({
-      stdout: 'my-crate = "0.5.0"    # some desc',
-      stderr: '',
-      exitCode: 0,
-    });
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 200 } as Response));
 
     const dir = createTmpDir();
     const crateDir = path.join(dir, 'crates', 'my-crate');

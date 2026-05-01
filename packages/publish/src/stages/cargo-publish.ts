@@ -7,6 +7,25 @@ import { hasCargoAuth } from '../utils/auth.js';
 import { extractPathDeps, parseCargoToml } from '../utils/cargo.js';
 import { execCommand, execCommandSafe } from '../utils/exec.js';
 
+const CRATES_IO_CHECK_TIMEOUT_MS = 30_000;
+
+async function isCratePublished(name: string, version: string): Promise<boolean> {
+  try {
+    const response = await fetch(`https://crates.io/api/v1/crates/${name}/${version}`, {
+      signal: AbortSignal.timeout(CRATES_IO_CHECK_TIMEOUT_MS),
+    });
+    if (response.status === 200) return true;
+    if (response.status === 404) return false;
+    debug(`crates.io published-check returned ${response.status} for ${name}@${version}, will attempt publish`);
+    return false;
+  } catch (error) {
+    debug(
+      `crates.io published-check failed for ${name}@${version} (${error instanceof Error ? error.message : String(error)}), will attempt publish`,
+    );
+    return false;
+  }
+}
+
 // Check if git working directory has uncommitted changes
 async function isGitWorkingDirDirty(cwd: string): Promise<boolean> {
   try {
@@ -57,9 +76,9 @@ export async function runCargoPublishStage(ctx: PipelineContext): Promise<void> 
       skipped: false,
     };
 
-    // Check if already published
-    const searchResult = await execCommandSafe('cargo', ['search', crate.name, '--limit', '1'], { cwd, dryRun: false });
-    if (searchResult.exitCode === 0 && searchResult.stdout.includes(`"${crate.version}"`)) {
+    // Check if already published via the crates.io API (avoids `cargo search`,
+    // which has no timeout and can stall on a fresh registry index sync).
+    if (await isCratePublished(crate.name, crate.version)) {
       result.alreadyPublished = true;
       result.skipped = true;
       result.success = true;
