@@ -87,6 +87,15 @@ export async function execCommand(file: string, args: string[], options: ExecOpt
 }
 
 /**
+ * Combine an exec error's message, stdout, and stderr into a single string for pattern matching.
+ */
+export function getExecErrorOutput(error: unknown): string {
+  if (!error || typeof error !== 'object') return String(error);
+  const e = error as { message?: string; stdout?: string; stderr?: string };
+  return [e.message, e.stdout, e.stderr].filter(Boolean).join('\n');
+}
+
+/**
  * Execute a command and return the result without throwing on non-zero exit.
  * Useful for commands where non-zero exit is an expected outcome (e.g., npm view for unpublished packages).
  */

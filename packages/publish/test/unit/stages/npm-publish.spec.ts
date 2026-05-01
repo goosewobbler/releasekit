@@ -6,10 +6,14 @@ import { getDefaultConfig } from '../../../src/config.js';
 import { runNpmPublishStage } from '../../../src/stages/npm-publish.js';
 import type { PipelineContext } from '../../../src/types.js';
 
-vi.mock('../../../src/utils/exec.js', () => ({
-  execCommand: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 }),
-  execCommandSafe: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 1 }), // not published by default
-}));
+vi.mock('../../../src/utils/exec.js', async () => {
+  const actual = await vi.importActual<typeof import('../../../src/utils/exec.js')>('../../../src/utils/exec.js');
+  return {
+    ...actual,
+    execCommand: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 }),
+    execCommandSafe: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 1 }), // not published by default
+  };
+});
 
 vi.mock('../../../src/utils/auth.js', () => ({
   detectNpmAuth: vi.fn().mockReturnValue('token'),
@@ -232,6 +236,34 @@ describe('npm-publish stage', () => {
     expect(execCommand).toHaveBeenCalledTimes(2); // version check + publish
     const publishArgs = vi.mocked(execCommand).mock.calls[1]?.[1] as string[]; // publish is second
     expect(publishArgs).not.toContain('--provenance');
+  });
+
+  it('should treat EPUBLISHCONFLICT publish errors as already-published', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    // Pre-check (execCommandSafe) says not-published; npm publish then rejects.
+    vi.mocked(execCommand).mockImplementation(async (file, args) => {
+      if ((args as string[])?.includes('publish')) {
+        throw Object.assign(new Error('Command failed: pnpm publish'), {
+          stdout: '',
+          stderr:
+            'npm ERR! code EPUBLISHCONFLICT\nnpm ERR! 403 You cannot publish over the previously published versions: 1.0.0.',
+          exitCode: 1,
+        });
+      }
+      return { stdout: '', stderr: '', exitCode: 0 };
+    });
+
+    const dir = createTmpDir();
+    const pkgDir = path.join(dir, 'packages', 'pkg');
+    fs.mkdirSync(pkgDir, { recursive: true });
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: '@test/pkg', version: '1.0.0' }));
+
+    const ctx = createContext(dir);
+    await expect(runNpmPublishStage(ctx)).resolves.toBeUndefined();
+
+    expect(ctx.output.npm[0]?.alreadyPublished).toBe(true);
+    expect(ctx.output.npm[0]?.success).toBe(true);
+    expect(ctx.output.npm[0]?.skipped).toBe(true);
   });
 
   it('should throw on publish failure (fail-fast)', async () => {

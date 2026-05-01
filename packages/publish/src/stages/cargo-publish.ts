@@ -5,7 +5,9 @@ import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext, PublishResult } from '../types.js';
 import { hasCargoAuth } from '../utils/auth.js';
 import { CRATES_IO_API_TIMEOUT_MS, CRATES_IO_USER_AGENT, extractPathDeps, parseCargoToml } from '../utils/cargo.js';
-import { execCommand, execCommandSafe } from '../utils/exec.js';
+import { execCommand, execCommandSafe, getExecErrorOutput } from '../utils/exec.js';
+
+const ALREADY_PUBLISHED_PATTERN = /already exists on crates\.io index|already uploaded/i;
 
 async function isCratePublished(name: string, version: string): Promise<boolean> {
   try {
@@ -114,6 +116,18 @@ export async function runCargoPublishStage(ctx: PipelineContext): Promise<void> 
       }
       ctx.output.cargo.push(result);
     } catch (error) {
+      // The pre-check API can lag the sparse index, so cargo may reject a publish
+      // that we believed was new. Treat that as already-published rather than a hard
+      // failure — this keeps re-runs of a partially-failed release idempotent.
+      if (ALREADY_PUBLISHED_PATTERN.test(getExecErrorOutput(error))) {
+        result.alreadyPublished = true;
+        result.skipped = true;
+        result.success = true;
+        result.reason = 'Already published on crates.io (detected from publish error)';
+        ctx.output.cargo.push(result);
+        warn(`${crate.name}@${crate.version} is already published on crates.io, skipping`);
+        continue;
+      }
       result.reason = error instanceof Error ? error.message : String(error);
       ctx.output.cargo.push(result);
       throw createPublishError(
