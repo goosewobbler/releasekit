@@ -1,51 +1,39 @@
 
 
-## `@releasekit/version` @ 0.19.2
+## `@releasekit/version` @ 0.19.3
 
-### Changed:
-- **Tooling**: Converted runAction to async and switched to spawn for child process execution
+### Developer:
+- **Infrastructure**: Added User-Agent header to crates.io API requests and improved error handling for more reliable publishing.
 
-### Documentation:
-- Reworked the README for improved clarity and structure
-
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.1...releasekit-version-v0.19.2
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.2...releasekit-version-v0.19.3
 
 ---
 
 
-## `@releasekit/notes` @ 0.19.2
+## `@releasekit/notes` @ 0.19.3
 
-### Changed:
-- **Performance**: Converted runAction to async and now uses spawn for child process execution.
+### Developer:
+- **Infrastructure**: Added a User-Agent header to crates.io API requests and improved error handling for more reliable publishing.
 
-### Documentation:
-- Reworked the README to improve clarity and structure.
-
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.1...releasekit-version-v0.19.2
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.2...releasekit-version-v0.19.3
 
 ---
 
 
-## `@releasekit/publish` @ 0.19.2
+## `@releasekit/publish` @ 0.19.3
 
-### Changed:
-- Converted runAction to async and used spawn for child process execution
+### New:
+- **Security**: Added a User-Agent header to crates.io API requests and improved error handling for better API communication.
 
-### Documentation:
-- Reworked README for clarity and improved user guidance
-
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.1...releasekit-version-v0.19.2
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.2...releasekit-version-v0.19.3
 
 ---
 
 
-## `@releasekit/release` @ 0.19.2
+## `@releasekit/release` @ 0.19.3
 
-### Changed:
-- Converted runAction to async and used spawn for child process execution.
+### New:
+- Added User-Agent header to crates.io API requests with improved error handling.
 
-### Documentation:
-- Reworked README to improve clarity and usability.
-
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.1...releasekit-version-v0.19.2
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.2...releasekit-version-v0.19.3
 

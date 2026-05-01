@@ -98,6 +98,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.19.3] - 2026-05-01
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.2...releasekit-version-v0.19.3)
+
+### Added
+- **publish**: add User-Agent header to crates.io API requests and enhance error handling (#176)
+
 ## [0.19.2] - 2026-05-01
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.1...releasekit-version-v0.19.2)
