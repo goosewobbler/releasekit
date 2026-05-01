@@ -317,17 +317,12 @@ export async function runAction(input, options = {}) {
   // parsing (--json output, summary generation, etc.). Using spawnSync here would
   // buffer everything until the child exits, which masks where long-running steps
   // (publish, verify) actually are.
-  return await new Promise((resolve, reject) => {
-    let child;
-    try {
-      child = spawn('node', [cliPath, ...args], {
-        env: spawnEnv,
-        cwd: resolvedProjectDir,
-      });
-    } catch (err) {
-      reject(new Error(`Failed to spawn ReleaseKit CLI: ${err.message}`));
-      return;
-    }
+  return new Promise((resolve, reject) => {
+    const child = spawn('node', [cliPath, ...args], {
+      env: spawnEnv,
+      cwd: resolvedProjectDir,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
 
     let stdout = '';
     let stderr = '';
