@@ -1,5 +1,6 @@
 import { debug, info, success, warn } from '@releasekit/core';
 import type { PipelineContext, VerificationResult } from '../types.js';
+import { CRATES_IO_API_TIMEOUT_MS, CRATES_IO_USER_AGENT } from '../utils/cargo.js';
 import { execCommandSafe } from '../utils/exec.js';
 import { buildViewCommand } from '../utils/package-manager.js';
 import { withRetry } from '../utils/retry.js';
@@ -77,8 +78,8 @@ export async function runVerifyStage(ctx: PipelineContext): Promise<void> {
           async () => {
             result.attempts++;
             const response = await fetch(`https://crates.io/api/v1/crates/${crate.packageName}/${crate.version}`, {
-              signal: AbortSignal.timeout(30_000),
-              headers: { 'User-Agent': 'releasekit/publish (https://github.com/goosewobbler/releasekit)' },
+              signal: AbortSignal.timeout(CRATES_IO_API_TIMEOUT_MS),
+              headers: { 'User-Agent': CRATES_IO_USER_AGENT },
             });
 
             if (response.status === 403) {
