@@ -196,6 +196,17 @@ describe('action runner', () => {
     expect(result.args).toContain('--dry-run');
   });
 
+  it('should resolve with non-zero status for a failing cli', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-action-runner-test-'));
+    tempDirs.push(tempDir);
+    const cliPath = path.join(tempDir, 'fake-cli.mjs');
+    fs.writeFileSync(cliPath, 'process.exit(1)\n', 'utf-8');
+
+    const result = await runAction({ mode: 'release', projectDir: '.', npmAuth: 'auto' }, { cliPath });
+
+    expect(result.status).toBe(1);
+  });
+
   it('should build gate args with --json and --scope', () => {
     const args = buildGateArgs({
       config: 'releasekit.config.json',

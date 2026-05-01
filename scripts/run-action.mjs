@@ -341,6 +341,8 @@ export async function runAction(input, options = {}) {
     });
 
     child.on('error', (err) => {
+      child.stdout.destroy();
+      child.stderr.destroy();
       reject(new Error(`Spawn error: ${err.message}`));
     });
 
