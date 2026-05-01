@@ -1,10 +1,9 @@
 import type { ChangelogEntry } from '../../core/types.js';
 import type { LLMProvider, ReleaseNotesContext } from '../index.js';
-import { resolvePrompt } from '../prompts.js';
+import type { LLMMessage } from '../messages.js';
+import { resolveSystemPrompt } from '../prompts.js';
 
-const DEFAULT_RELEASE_NOTES_PROMPT = `You are writing release notes for a software project.
-
-Create engaging, user-friendly release notes for the following changes.
+const DEFAULT_SYSTEM_PROMPT = `You are writing release notes for a software project.
 
 Rules:
 - Start with a brief introduction (1-2 sentences)
@@ -14,23 +13,12 @@ Rules:
 - End with a brief conclusion or call to action
 - Use markdown formatting
 
-Version: {{version}}
-{{#if previousVersion}}Previous version: {{previousVersion}}{{/if}}
-Date: {{date}}
+Output only the markdown content.`;
 
-Changes:
-{{entries}}
-
-Release notes (output only the markdown content):`;
-
-export async function generateReleaseNotes(
-  provider: LLMProvider,
-  entries: ChangelogEntry[],
-  context: ReleaseNotesContext,
-): Promise<string> {
-  if (entries.length === 0) {
-    return `## Release ${context.version ?? 'v1.0.0'}\n\nNo notable changes in this release.`;
-  }
+function buildUserPrompt(entries: ChangelogEntry[], context: ReleaseNotesContext): string {
+  const version = context.version ?? 'v1.0.0';
+  const date = context.date ?? new Date().toISOString().split('T')[0] ?? '';
+  const prevLine = context.previousVersion ? `Previous version: ${context.previousVersion}\n` : '';
 
   const entriesText = entries
     .map((e) => {
@@ -42,16 +30,25 @@ export async function generateReleaseNotes(
     })
     .join('\n');
 
-  const defaultPrompt = DEFAULT_RELEASE_NOTES_PROMPT.replace('{{version}}', context.version ?? 'v1.0.0')
-    .replace(
-      '{{#if previousVersion}}Previous version: {{previousVersion}}{{/if}}',
-      context.previousVersion ? `Previous version: ${context.previousVersion}` : '',
-    )
-    .replace('{{date}}', context.date ?? new Date().toISOString().split('T')[0] ?? '')
-    .replace('{{entries}}', entriesText);
+  return `Version: ${version}\n${prevLine}Date: ${date}\n\nChanges:\n${entriesText}`;
+}
 
-  const prompt = resolvePrompt('releaseNotes', defaultPrompt, context.prompts);
-  const response = await provider.complete(prompt);
+export async function generateReleaseNotes(
+  provider: LLMProvider,
+  entries: ChangelogEntry[],
+  context: ReleaseNotesContext,
+): Promise<string> {
+  if (entries.length === 0) {
+    return `## Release ${context.version ?? 'v1.0.0'}\n\nNo notable changes in this release.`;
+  }
 
-  return response.trim();
+  const systemPrompt = resolveSystemPrompt('releaseNotes', DEFAULT_SYSTEM_PROMPT, context.prompts);
+
+  const messages: LLMMessage[] = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: buildUserPrompt(entries, context) },
+  ];
+
+  const result = await provider.complete(messages);
+  return result.content.trim();
 }

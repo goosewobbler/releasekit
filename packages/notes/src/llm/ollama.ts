@@ -2,6 +2,9 @@ import type { CompleteOptions } from '../core/types.js';
 import { LLMError } from '../errors/index.js';
 import { BaseLLMProvider } from './base.js';
 import { LLM_DEFAULTS } from './defaults.js';
+import type { CompleteResult, LLMMessage } from './messages.js';
+import { debugLogMessages } from './messages.js';
+import type { ProviderCapabilities } from './provider.js';
 
 export interface OllamaConfig {
   apiKey?: string;
@@ -16,6 +19,7 @@ interface OllamaChatRequest {
     content: string;
   }>;
   stream?: boolean;
+  format?: Record<string, unknown>;
   options?: {
     num_predict?: number;
     temperature?: number;
@@ -32,6 +36,12 @@ interface OllamaChatResponse {
 
 export class OllamaProvider extends BaseLLMProvider {
   readonly name = 'ollama';
+  readonly capabilities: ProviderCapabilities = {
+    systemRole: true,
+    structuredOutputs: true,
+    toolUse: false,
+  };
+
   private baseURL: string;
   private model: string;
   private apiKey?: string;
@@ -44,16 +54,22 @@ export class OllamaProvider extends BaseLLMProvider {
     this.apiKey = config.apiKey ?? process.env.OLLAMA_API_KEY;
   }
 
-  async complete(prompt: string, options?: CompleteOptions): Promise<string> {
+  async complete(messages: LLMMessage[], options?: CompleteOptions): Promise<CompleteResult> {
+    debugLogMessages(this.name, messages);
+
     const requestBody: OllamaChatRequest = {
       model: this.model,
-      messages: [{ role: 'user', content: prompt }],
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
       stream: false,
       options: {
         num_predict: this.getMaxTokens(options),
         temperature: this.getTemperature(options),
       },
     };
+
+    if (options?.schema) {
+      requestBody.format = options.schema as Record<string, unknown>;
+    }
 
     try {
       const headers: Record<string, string> = {
@@ -89,7 +105,18 @@ export class OllamaProvider extends BaseLLMProvider {
         throw new LLMError('Empty response from Ollama');
       }
 
-      return data.message.content;
+      const content = data.message.content;
+
+      if (options?.schema) {
+        try {
+          const structured = JSON.parse(content);
+          return { content, structured };
+        } catch {
+          return { content };
+        }
+      }
+
+      return { content };
     } catch (error) {
       if (error instanceof LLMError) throw error;
 

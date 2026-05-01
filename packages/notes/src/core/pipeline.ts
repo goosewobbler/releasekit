@@ -177,8 +177,9 @@ async function processWithLLM(context: TemplateContext, llmConfig: LLMConfig): P
     const configOptions = llmConfig.options;
     const provider: LLMProvider = {
       name: rawProvider.name,
-      complete: (prompt, opts) =>
-        withRetry(() => rawProvider.complete(prompt, { ...configOptions, ...opts }), retryOpts),
+      capabilities: rawProvider.capabilities,
+      complete: (messages, opts) =>
+        withRetry(() => rawProvider.complete(messages, { ...configOptions, ...opts }), retryOpts),
     };
 
     const activeTasks = Object.entries(tasks)
@@ -234,7 +235,7 @@ async function processWithLLM(context: TemplateContext, llmConfig: LLMConfig): P
     };
   } catch (error) {
     warn(`LLM processing failed: ${error instanceof Error ? error.message : String(error)}`);
-    warn('Falling back to raw entries');
+    warn('Falling back to non-LLM changelog rendering. Check your LLM config or set RELEASEKIT_DEBUG=1 for details.');
     return context;
   }
 }

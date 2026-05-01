@@ -12,6 +12,7 @@ export interface ChangelogEntry {
   scope?: string;
   originalType?: string;
   breaking?: boolean;
+  leadIn?: string;
 }
 
 export interface PackageChangelog {
@@ -88,7 +89,6 @@ export interface LLMPromptOverrides {
 
 export interface LLMPromptsConfig {
   instructions?: LLMPromptOverrides;
-  templates?: LLMPromptOverrides;
 }
 
 export interface LLMCategory {
@@ -100,8 +100,6 @@ export interface LLMCategory {
 export interface ScopeRules {
   allowed?: string[];
   caseSensitive?: boolean;
-  invalidScopeAction?: 'remove' | 'keep' | 'fallback';
-  fallbackScope?: string;
 }
 
 export interface ScopeConfig {
@@ -118,10 +116,14 @@ export interface Config {
   updateStrategy?: UpdateStrategy;
 }
 
+export type JSONSchema = Record<string, unknown>;
+
 export interface CompleteOptions {
   maxTokens?: number;
   temperature?: number;
   timeout?: number;
+  schema?: JSONSchema;
+  toolName?: string;
 }
 
 export type TemplateEngine = 'handlebars' | 'liquid' | 'ejs';
@@ -154,7 +156,6 @@ export interface LLMConfig {
   scopes?: ScopeConfig;
   prompts?: {
     instructions?: Record<string, string>;
-    templates?: Record<string, string>;
   };
 }
 

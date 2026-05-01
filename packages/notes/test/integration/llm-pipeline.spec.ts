@@ -14,16 +14,23 @@ import { summarizeEntries } from '../../src/llm/tasks/summarize.js';
 // Mock provider factory
 // ---------------------------------------------------------------------------
 
+import type { CompleteResult } from '../../src/llm/messages.js';
+
 function makeMockProvider(response = 'Enhanced description'): LLMProvider & { callCount: number } {
   let callCount = 0;
   return {
     name: 'mock',
+    capabilities: { systemRole: true, structuredOutputs: false, toolUse: false },
     get callCount() {
       return callCount;
     },
-    async complete(): Promise<string> {
+    async complete(): Promise<CompleteResult> {
       callCount++;
-      return response;
+      try {
+        return { content: response, structured: JSON.parse(response) };
+      } catch {
+        return { content: response };
+      }
     },
   };
 }
@@ -89,7 +96,8 @@ describe('LLM tasks: enhance', () => {
   it('should preserve original entry when provider fails', async () => {
     const provider: LLMProvider = {
       name: 'failing',
-      async complete(): Promise<string> {
+      capabilities: { systemRole: true, structuredOutputs: false, toolUse: false },
+      async complete(): Promise<CompleteResult> {
         throw new Error('API down');
       },
     };
@@ -105,12 +113,13 @@ describe('LLM tasks: enhance', () => {
 
     const trackingProvider: LLMProvider = {
       name: 'tracking',
-      async complete(): Promise<string> {
+      capabilities: { systemRole: true, structuredOutputs: false, toolUse: false },
+      async complete(): Promise<CompleteResult> {
         activeCount++;
         maxActive = Math.max(maxActive, activeCount);
         await new Promise((r) => setTimeout(r, 10));
         activeCount--;
-        return 'done';
+        return { content: 'done' };
       },
     };
 
@@ -138,9 +147,15 @@ describe('LLM tasks: summarize', () => {
 });
 
 describe('LLM tasks: categorize', () => {
-  it('should group entries by category from JSON response', async () => {
+  it('should group entries by category from structured JSON response', async () => {
     const entries = sampleInput.packages[0]?.entries;
-    const jsonResponse = JSON.stringify({ Features: [0], Fixes: [1], Maintenance: [2] });
+    const jsonResponse = JSON.stringify({
+      entries: [
+        { category: 'Features', scope: null },
+        { category: 'Fixes', scope: null },
+        { category: 'Maintenance', scope: null },
+      ],
+    });
     const provider = makeMockProvider(jsonResponse);
 
     const result = await categorizeEntries(provider, entries, { packageName: 'my-lib' });
@@ -149,11 +164,9 @@ describe('LLM tasks: categorize', () => {
     expect(result.find((c) => c.category === 'Fixes')?.entries[0]?.description).toBe('Fix null pointer');
   });
 
-  it('should fall back to General on invalid JSON and not throw', async () => {
+  it('should throw on persistent invalid JSON (corrective retry exhausted)', async () => {
     const provider = makeMockProvider('not json');
-    const result = await categorizeEntries(provider, sampleInput.packages[0]?.entries, {});
-    expect(result[0]?.category).toBe('General');
-    expect(result[0]?.entries).toHaveLength(3);
+    await expect(categorizeEntries(provider, sampleInput.packages[0]?.entries, {})).rejects.toThrow();
   });
 });
 

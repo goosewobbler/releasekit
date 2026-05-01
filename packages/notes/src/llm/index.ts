@@ -9,10 +9,11 @@ import type { LLMProvider } from './provider.js';
 
 export { AnthropicProvider } from './anthropic.js';
 export { BaseLLMProvider } from './base.js';
+export type { CompleteResult, LLMMessage } from './messages.js';
 export { OllamaProvider } from './ollama.js';
 export { OpenAIProvider } from './openai.js';
 export { OpenAICompatibleProvider } from './openai-compatible.js';
-export type { LLMProvider } from './provider.js';
+export type { LLMProvider, ProviderCapabilities } from './provider.js';
 export { categorizeEntries } from './tasks/categorize.js';
 export { enhanceEntries, enhanceEntry } from './tasks/enhance.js';
 export { enhanceAndCategorize } from './tasks/enhance-and-categorize.js';
