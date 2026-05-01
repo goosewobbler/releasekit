@@ -4,10 +4,12 @@ import { debug, info, success, warn } from '@releasekit/core';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext, PublishResult } from '../types.js';
 import { detectNpmAuth } from '../utils/auth.js';
-import { execCommand, execCommandSafe } from '../utils/exec.js';
+import { execCommand, execCommandSafe, getExecErrorOutput } from '../utils/exec.js';
 import { createNpmSubprocessIsolation } from '../utils/npm-env.js';
 import { buildPublishCommand, buildViewCommand } from '../utils/package-manager.js';
 import { getDistTag } from '../utils/semver.js';
+
+const ALREADY_PUBLISHED_PATTERN = /EPUBLISHCONFLICT|cannot publish over (?:the )?previously published versions?/i;
 
 /** Error strategy: FAIL-FAST. First publish failure aborts the stage. */
 export async function runNpmPublishStage(ctx: PipelineContext): Promise<void> {
@@ -148,6 +150,18 @@ export async function runNpmPublishStage(ctx: PipelineContext): Promise<void> {
         ctx.output.npm.push(result);
       } catch (error) {
         debug(`Publish command failed: ${error}`);
+        // If `npm view` and `npm publish` disagreed (rare — usually a transient view
+        // failure), treat the conflict as already-published so re-runs of a partially
+        // failed release are idempotent.
+        if (ALREADY_PUBLISHED_PATTERN.test(getExecErrorOutput(error))) {
+          result.alreadyPublished = true;
+          result.skipped = true;
+          result.success = true;
+          result.reason = 'Already published (detected from publish error)';
+          ctx.output.npm.push(result);
+          warn(`${update.packageName}@${update.newVersion} is already published, skipping`);
+          continue;
+        }
         result.reason = error instanceof Error ? error.message : String(error);
         ctx.output.npm.push(result);
         throw createPublishError(

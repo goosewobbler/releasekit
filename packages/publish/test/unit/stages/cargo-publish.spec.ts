@@ -6,10 +6,14 @@ import { getDefaultConfig } from '../../../src/config.js';
 import { runCargoPublishStage } from '../../../src/stages/cargo-publish.js';
 import type { PipelineContext } from '../../../src/types.js';
 
-vi.mock('../../../src/utils/exec.js', () => ({
-  execCommand: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 }),
-  execCommandSafe: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 1 }), // not published
-}));
+vi.mock('../../../src/utils/exec.js', async () => {
+  const actual = await vi.importActual<typeof import('../../../src/utils/exec.js')>('../../../src/utils/exec.js');
+  return {
+    ...actual,
+    execCommand: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 }),
+    execCommandSafe: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 1 }), // not published
+  };
+});
 
 vi.mock('../../../src/utils/auth.js', () => ({
   hasCargoAuth: vi.fn().mockReturnValue(true),
@@ -131,6 +135,55 @@ describe('cargo-publish stage', () => {
       .mock.calls.filter((c) => c[0] === 'cargo' && (c[1] as string[])[0] === 'publish');
     expect(publishCalls).toHaveLength(0);
     expect(ctx.output.cargo[0]?.alreadyPublished).toBe(true);
+  });
+
+  it('should treat "already exists on crates.io index" publish errors as already-published', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    // Pre-check returns 404 (API lag), but cargo publish then rejects.
+    vi.mocked(execCommand).mockImplementation(async (cmd, args) => {
+      if (cmd === 'cargo' && (args as string[])[0] === 'publish') {
+        throw Object.assign(new Error('Command failed: cargo publish ...'), {
+          stdout: '',
+          stderr: 'error: crate my-crate@0.5.0 already exists on crates.io index',
+          exitCode: 101,
+        });
+      }
+      return { stdout: '', stderr: '', exitCode: 0 };
+    });
+
+    const dir = createTmpDir();
+    const crateDir = path.join(dir, 'crates', 'my-crate');
+    fs.mkdirSync(crateDir, { recursive: true });
+    fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "my-crate"\nversion = "0.5.0"\n');
+
+    const ctx = createContext(dir);
+    await expect(runCargoPublishStage(ctx)).resolves.toBeUndefined();
+
+    expect(ctx.output.cargo[0]?.alreadyPublished).toBe(true);
+    expect(ctx.output.cargo[0]?.success).toBe(true);
+    expect(ctx.output.cargo[0]?.skipped).toBe(true);
+  });
+
+  it('should still throw on unrelated cargo publish failures', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    vi.mocked(execCommand).mockImplementation(async (cmd, args) => {
+      if (cmd === 'cargo' && (args as string[])[0] === 'publish') {
+        throw Object.assign(new Error('Command failed: cargo publish ...'), {
+          stdout: '',
+          stderr: 'error: failed to verify package tarball',
+          exitCode: 101,
+        });
+      }
+      return { stdout: '', stderr: '', exitCode: 0 };
+    });
+
+    const dir = createTmpDir();
+    const crateDir = path.join(dir, 'crates', 'my-crate');
+    fs.mkdirSync(crateDir, { recursive: true });
+    fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "my-crate"\nversion = "0.5.0"\n');
+
+    const ctx = createContext(dir);
+    await expect(runCargoPublishStage(ctx)).rejects.toThrow();
   });
 
   it('should pass --no-verify when configured', async () => {
