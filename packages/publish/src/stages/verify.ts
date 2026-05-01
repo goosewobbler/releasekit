@@ -101,8 +101,11 @@ export async function runVerifyStage(ctx: PipelineContext): Promise<void> {
         );
         result.verified = true;
         success(`Verified ${crate.packageName}@${crate.version} on crates.io`);
-      } catch {
-        warn(`Failed to verify ${crate.packageName}@${crate.version} on crates.io after ${result.attempts} attempts`);
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        warn(
+          `Failed to verify ${crate.packageName}@${crate.version} on crates.io after ${result.attempts} attempts: ${reason}`,
+        );
       }
 
       ctx.output.verification.push(result);

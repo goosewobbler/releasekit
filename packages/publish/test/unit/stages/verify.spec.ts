@@ -196,9 +196,10 @@ describe('verify stage', () => {
       expect(ctx.output.verification[0]?.attempts).toBeGreaterThan(1);
     });
 
-    it('should fail fast on 403 without exhausting retries', async () => {
+    it('should fail fast on 403 without exhausting retries and surface the reason', async () => {
       const fetchMock = vi.fn().mockResolvedValue({ status: 403, ok: false } as Response);
       vi.stubGlobal('fetch', fetchMock);
+      const warnSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const ctx = createContext({ output: cargoOutput() });
 
       await runVerifyStage(ctx);
@@ -206,6 +207,10 @@ describe('verify stage', () => {
       expect(ctx.output.verification[0]?.verified).toBe(false);
       // Should stop after the first attempt, not use all maxAttempts (2)
       expect(fetchMock).toHaveBeenCalledTimes(1);
+      // The 403 diagnostic should be surfaced in the warning, not swallowed
+      const warnCalls = warnSpy.mock.calls.map((c) => c.join(' '));
+      expect(warnCalls.some((msg) => msg.includes('403'))).toBe(true);
+      warnSpy.mockRestore();
     });
 
     it('should send User-Agent header in crates.io verification request', async () => {
