@@ -213,8 +213,6 @@ export const LLMCategorySchema = z.object({
 export const ScopeRulesSchema = z.object({
   allowed: z.array(z.string()).optional(),
   caseSensitive: z.boolean().default(false),
-  invalidScopeAction: z.enum(['remove', 'keep', 'fallback']).default('remove'),
-  fallbackScope: z.string().optional(),
 });
 
 export const ScopeConfigSchema = z.object({
@@ -232,7 +230,6 @@ export const LLMPromptOverridesSchema = z.object({
 
 export const LLMPromptsConfigSchema = z.object({
   instructions: LLMPromptOverridesSchema.optional(),
-  templates: LLMPromptOverridesSchema.optional(),
 });
 
 export const LLMConfigSchema = z.object({

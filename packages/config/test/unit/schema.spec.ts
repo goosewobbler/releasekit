@@ -235,26 +235,18 @@ describe('ScopeRulesSchema', () => {
   it('should apply defaults', () => {
     const result = ScopeRulesSchema.parse({});
     expect(result.caseSensitive).toBe(false);
-    expect(result.invalidScopeAction).toBe('remove');
   });
 
-  it('should accept all invalidScopeAction values', () => {
-    for (const action of ['remove', 'keep', 'fallback'] as const) {
-      expect(ScopeRulesSchema.parse({ invalidScopeAction: action }).invalidScopeAction).toBe(action);
-    }
-  });
-
-  it('should accept allowed scopes and fallbackScope', () => {
+  it('should accept allowed scopes', () => {
     const result = ScopeRulesSchema.parse({
       allowed: ['CI', 'Dependencies'],
-      fallbackScope: 'Other',
     });
     expect(result.allowed).toEqual(['CI', 'Dependencies']);
-    expect(result.fallbackScope).toBe('Other');
   });
 
-  it('should reject invalid invalidScopeAction', () => {
-    expect(() => ScopeRulesSchema.parse({ invalidScopeAction: 'invalid' })).toThrow();
+  it('should accept caseSensitive flag', () => {
+    const result = ScopeRulesSchema.parse({ caseSensitive: true });
+    expect(result.caseSensitive).toBe(true);
   });
 });
 
@@ -304,20 +296,11 @@ describe('LLMPromptsConfigSchema', () => {
     expect(result.instructions?.releaseNotes).toBe('Blog style');
   });
 
-  it('should accept templates for task types', () => {
-    const result = LLMPromptsConfigSchema.parse({
-      templates: { categorize: 'Custom prompt: {{entries}}' },
-    });
-    expect(result.templates?.categorize).toBe('Custom prompt: {{entries}}');
-  });
-
-  it('should accept both instructions and templates', () => {
+  it('should accept instructions only (templates removed)', () => {
     const result = LLMPromptsConfigSchema.parse({
       instructions: { enhance: 'Use active voice' },
-      templates: { categorize: 'Custom prompt' },
     });
     expect(result.instructions?.enhance).toBe('Use active voice');
-    expect(result.templates?.categorize).toBe('Custom prompt');
   });
 });
 
@@ -363,7 +346,7 @@ describe('LLMConfigSchema', () => {
       model: 'gpt-4',
       scopes: {
         mode: 'restricted',
-        rules: { allowed: ['CI', 'Dependencies'], invalidScopeAction: 'remove' },
+        rules: { allowed: ['CI', 'Dependencies'] },
       },
     });
     expect(result.scopes?.mode).toBe('restricted');
@@ -376,11 +359,9 @@ describe('LLMConfigSchema', () => {
       model: 'gpt-4',
       prompts: {
         instructions: { categorize: 'Custom instruction' },
-        templates: { releaseNotes: 'Full custom prompt' },
       },
     });
     expect(result.prompts?.instructions?.categorize).toBe('Custom instruction');
-    expect(result.prompts?.templates?.releaseNotes).toBe('Full custom prompt');
   });
 
   it('should accept categories with scopes', () => {
