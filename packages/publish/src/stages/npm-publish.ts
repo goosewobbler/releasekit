@@ -5,12 +5,11 @@ import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext, PublishResult } from '../types.js';
 import { detectNpmAuth } from '../utils/auth.js';
 import { execCommand, execCommandSafe, getExecErrorOutput } from '../utils/exec.js';
-
-const ALREADY_PUBLISHED_PATTERN = /EPUBLISHCONFLICT|cannot publish over (?:the )?previously published versions?/i;
-
 import { createNpmSubprocessIsolation } from '../utils/npm-env.js';
 import { buildPublishCommand, buildViewCommand } from '../utils/package-manager.js';
 import { getDistTag } from '../utils/semver.js';
+
+const ALREADY_PUBLISHED_PATTERN = /EPUBLISHCONFLICT|cannot publish over (?:the )?previously published versions?/i;
 
 /** Error strategy: FAIL-FAST. First publish failure aborts the stage. */
 export async function runNpmPublishStage(ctx: PipelineContext): Promise<void> {
