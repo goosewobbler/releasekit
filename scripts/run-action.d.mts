@@ -39,11 +39,11 @@ export function parseInputs(env?: NodeJS.ProcessEnv | Record<string, string | un
 export function runAction(
   input: ActionInputs,
   options?: RunActionOptions,
-): {
+): Promise<{
   mode: string;
   args: string[];
   status: number | null;
-  stdout?: string;
-  stderr?: string;
-  error?: Error;
-};
+  signal: NodeJS.Signals | null;
+  stdout: string;
+  stderr: string;
+}>;
