@@ -97,6 +97,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.19.2] - 2026-05-01
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.1...releasekit-version-v0.19.2)
+
+### Changed
+- **action**: convert runAction to async and use spawn for child process execution (#175)
+- rework README (#174)
+
 ## [0.19.1] - 2026-05-01
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.0...releasekit-version-v0.19.1)
