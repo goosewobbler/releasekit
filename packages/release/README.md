@@ -187,7 +187,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - id: gate
-        uses: goosewobbler/releasekit@vX
+        uses: goosewobbler/releasekit@v0
         with:
           mode: gate
 
@@ -368,7 +368,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: goosewobbler/releasekit@v1
+      - uses: goosewobbler/releasekit@v0
         with:
           mode: release
           # Fallback target - used when no scope label is found

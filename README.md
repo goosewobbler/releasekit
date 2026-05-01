@@ -1,9 +1,36 @@
 # ReleaseKit
 
+[![npm](https://img.shields.io/npm/v/@releasekit/release.svg)](https://www.npmjs.com/package/@releasekit/release)
+[![CI](https://github.com/goosewobbler/releasekit/actions/workflows/ci.yml/badge.svg)](https://github.com/goosewobbler/releasekit/actions/workflows/ci.yml)
+[![Node](https://img.shields.io/node/v/@releasekit/release.svg)](https://www.npmjs.com/package/@releasekit/release)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-Lightweight, composable release tooling for JavaScript and Rust projects. Built on conventional
-commits and designed for CI/CD pipelines.
+Versioning, changelogs, and publishing for JavaScript and Rust monorepos — driven by Conventional Commits, designed for CI.
+
+## Why ReleaseKit
+
+- **One config, two ecosystems** — JavaScript and Rust packages release from the same `releasekit.config.json`, including mixed monorepos.
+- **Composable, not opinionated** — three independent CLIs (`version`, `notes`, `publish`) you can pipe together, or a unified `release` command if you want the full pipeline.
+- **CI-native** — JSON output, OIDC publishing, PR preview comments, and label- or commit-driven triggers without bolting on extra tools.
+
+## Quickstart
+
+```bash
+npm install -g @releasekit/release
+releasekit init
+releasekit release --dry-run
+```
+
+```text
+Running version analysis...
+Found 2 package update(s)
+  @myorg/core → 1.4.0
+  @myorg/ui   → 1.4.0
+Generating release notes...
+Publishing... (dry-run, no packages published)
+```
+
+See [Getting Started](./docs/getting-started.md) for prerequisites, config options, and a first real release.
 
 ## Packages
 
@@ -13,72 +40,29 @@ commits and designed for CI/CD pipelines.
 | [@releasekit/version](./packages/version) | [![npm](https://img.shields.io/npm/v/@releasekit/version.svg)](https://www.npmjs.com/package/@releasekit/version) | Semantic versioning based on Git history and conventional commits |
 | [@releasekit/notes](./packages/notes) | [![npm](https://img.shields.io/npm/v/@releasekit/notes.svg)](https://www.npmjs.com/package/@releasekit/notes) | Changelog generation with LLM-powered enhancement and flexible templating |
 | [@releasekit/publish](./packages/publish) | [![npm](https://img.shields.io/npm/v/@releasekit/publish.svg)](https://www.npmjs.com/package/@releasekit/publish) | Publish packages to npm and crates.io with git tagging and GitHub releases |
-| [@releasekit/config](./packages/config) | — | *(internal)* Shared config loading and schema validation |
-| [@releasekit/core](./packages/core) | — | *(internal)* Shared types and utilities |
 
 ## Features
 
-- **Conventional Commits** — automatically derives the next semver bump from commit history
-- **Monorepo support** — versions packages independently or in sync, with per-package git tags
-- **JavaScript + Rust** — handles `package.json` and `Cargo.toml` side by side
-- **CI/CD first** — JSON output mode for scriptable pipelines; OIDC or token-based npm publishing
-- **PR release previews** — posts a comment on PRs showing what would be released if merged
-- **Config-driven CI automation** — control release triggers (commit vs label) and strategies per repo
-- **Changelog generation** — auto-generated from conventional commits with flexible templating
-- **LLM-enhanced release notes** — optional AI summarisation via Anthropic, OpenAI, or local models
+- **Versioning** — derives semver bumps from Conventional Commits; supports JavaScript (`package.json`), Rust (`Cargo.toml`), and monorepos with per-package tags
+- **Release notes** — generates changelogs from commit history, with optional LLM enhancement (Anthropic, OpenAI, or local models)
+- **Publishing** — pushes to npm (OIDC or token) and crates.io, tags the release, and creates a GitHub Release
+- **CI/CD first** — JSON output for scripting, PR preview comments, and config-driven triggers (commit vs label)
 - **Composable** — use each tool independently or pipe them together
 
 ## Usage
 
-### Unified release (recommended)
-
 ```bash
-# Preview the full release pipeline
-releasekit --dry-run
-
-# Run a full release: version, changelog, and publish
-releasekit
-
-# Skip changelog generation
-releasekit --skip-notes
-
-# Force a patch bump
-releasekit --bump patch
+releasekit release --dry-run
+releasekit release
+releasekit release --skip-notes
+releasekit release --bump patch
 ```
 
-Individual steps are also available as subcommands:
+Each step is also a subcommand — `releasekit version`, `releasekit notes`, `releasekit publish` — and the underlying tools (`releasekit-version`, `releasekit-notes`, `releasekit-publish`) can be piped together. See the [package docs](#documentation) for the full CLI reference.
 
-```bash
-releasekit version --dry-run --json
-releasekit notes --dry-run
-releasekit publish --dry-run
-```
+### GitHub Action
 
-### Composable tools
-
-Each tool can also be used independently or piped together:
-
-```bash
-# Preview changes (dry run)
-releasekit-version --dry-run --json
-
-# Run version once, use output for both notes and publish
-output=$(releasekit-version --json)
-echo "$output" | releasekit-notes
-echo "$output" | releasekit-publish
-
-# Changelog-only (no publishing)
-releasekit-version --json | releasekit-notes
-
-# Publish-only (no changelog)
-releasekit-version --json | releasekit-publish
-```
-
-See the package READMEs for full CLI reference.
-
-### GitHub Action (`releasekit/action`)
-
-Use ReleaseKit as a composite GitHub Action with two modes: `release` and `preview`.
+Use ReleaseKit as a composite action with `release` or `preview` modes:
 
 ```yaml
 jobs:
@@ -91,38 +75,18 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: goosewobbler/releasekit@v1
+      - uses: goosewobbler/releasekit@v0
         with:
           mode: release
-          json: "true"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-```yaml
-jobs:
-  preview:
-    permissions:
-      contents: read
-      pull-requests: write
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - uses: goosewobbler/releasekit@v1
-        with:
-          mode: preview
-          preview-dry-run: "true"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
-
-See [docs/action.md](./docs/action.md) for full input/output reference and rollout guidance.
+See [docs/action.md](./docs/action.md) for the `preview` mode, full input/output reference, and rollout guidance.
 
 ## Configuration
 
-ReleaseKit uses a single `releasekit.config.json` at the project root. Add `$schema` for editor autocompletion:
+ReleaseKit reads `releasekit.config.json` at the project root. All configuration is optional — sensible defaults apply. A typical config:
 
 ```json
 {
@@ -136,55 +100,20 @@ ReleaseKit uses a single `releasekit.config.json` at the project root. Add `$sch
 }
 ```
 
-All configuration is optional — ReleaseKit uses sensible defaults. The full set of top-level keys:
-
-| Key | Description |
-|-----|-------------|
-| `git` | Remote name, branch, push method |
-| `version` | Tag template, commit presets, monorepo strategy |
-| `notes` | Changelog and release notes output, templates, LLM |
-| `publish` | npm, Cargo, GitHub Releases |
-| `release` | Pipeline steps, CI skip patterns |
-| `ci` | Release triggers, PR labels, preview comments |
-| `monorepo` | Package paths for monorepo projects |
-
-See the per-package docs for full option references.
+See the [package docs](#documentation) for the full option reference.
 
 ## Documentation
 
-**[Getting Started](./docs/getting-started.md)** — install, first dry run, first release, CI setup
-
-**Reference**
+- [Getting Started](./docs/getting-started.md) — install, first dry run, first release, CI setup
 - [@releasekit/release](./packages/release/README.md) — unified pipeline, CI automation, programmatic API
 - [@releasekit/version](./packages/version/README.md) — versioning strategies, JSON output
 - [@releasekit/notes](./packages/notes/README.md) — changelog, release notes, LLM, templates
 - [@releasekit/publish](./packages/publish/README.md) — npm, crates.io, GitHub Releases
-
-**Guides**
-- [CI setup](./packages/release/docs/ci-setup.md) — GitHub Actions workflows
-- [LLM providers](./packages/notes/docs/llm-providers.md) — AI-enhanced release notes
-- [GitHub Releases](./packages/publish/docs/github-releases.md) — release body options
-
-[Contributing](./CONTRIBUTING.md)
+- [CI setup](./packages/release/docs/ci-setup.md) · [LLM providers](./packages/notes/docs/llm-providers.md) · [GitHub Releases](./packages/publish/docs/github-releases.md)
 
 ## Development
 
-```bash
-# Install dependencies
-pnpm install
-
-# Build all packages
-pnpm build
-
-# Run tests
-pnpm test
-
-# Lint and typecheck
-pnpm lint
-pnpm typecheck
-```
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full development guide.
+`pnpm install && pnpm build && pnpm test` — see [CONTRIBUTING.md](./CONTRIBUTING.md) for the full guide.
 
 ## License
 

@@ -43,7 +43,7 @@ export function runAction(
   mode: string;
   args: string[];
   status: number | null;
-  signal?: NodeJS.Signals | null;
+  signal: NodeJS.Signals | null;
   stdout: string;
   stderr: string;
 }>;
