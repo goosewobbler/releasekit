@@ -200,6 +200,42 @@ describe('cargo-publish stage', () => {
     expect(publishCalls[0]?.[1]).not.toContain('--allow-dirty');
   });
 
+  it('should proceed to publish when crates.io published-check returns 403', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 403 } as Response));
+
+    const dir = createTmpDir();
+    const crateDir = path.join(dir, 'crates', 'my-crate');
+    fs.mkdirSync(crateDir, { recursive: true });
+    fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "my-crate"\nversion = "0.5.0"\n');
+
+    const ctx = createContext(dir);
+    await runCargoPublishStage(ctx);
+
+    const publishCalls = vi
+      .mocked(execCommand)
+      .mock.calls.filter((c) => c[0] === 'cargo' && (c[1] as string[])[0] === 'publish');
+    expect(publishCalls).toHaveLength(1);
+    expect(ctx.output.cargo[0]?.alreadyPublished).toBeUndefined();
+  });
+
+  it('should send User-Agent header in crates.io published-check', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ status: 404 } as Response);
+    vi.stubGlobal('fetch', fetchMock);
+
+    const dir = createTmpDir();
+    const crateDir = path.join(dir, 'crates', 'my-crate');
+    fs.mkdirSync(crateDir, { recursive: true });
+    fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "my-crate"\nversion = "0.5.0"\n');
+
+    const ctx = createContext(dir);
+    await runCargoPublishStage(ctx);
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect((init?.headers as Record<string, string>)?.['User-Agent']).toMatch(/releasekit/);
+  });
+
   it('should skip packages without Cargo.toml', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const dir = createTmpDir();

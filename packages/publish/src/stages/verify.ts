@@ -73,16 +73,32 @@ export async function runVerifyStage(ctx: PipelineContext): Promise<void> {
       }
 
       try {
-        await withRetry(async () => {
-          result.attempts++;
-          const response = await fetch(`https://crates.io/api/v1/crates/${crate.packageName}/${crate.version}`);
+        await withRetry(
+          async () => {
+            result.attempts++;
+            const response = await fetch(`https://crates.io/api/v1/crates/${crate.packageName}/${crate.version}`, {
+              signal: AbortSignal.timeout(30_000),
+              headers: { 'User-Agent': 'releasekit/publish (https://github.com/goosewobbler/releasekit)' },
+            });
 
-          if (!response.ok) {
-            throw new Error(`${crate.packageName}@${crate.version} not yet available on crates.io`);
-          }
+            if (response.status === 403) {
+              throw Object.assign(
+                new Error(
+                  `crates.io API rejected request for ${crate.packageName}@${crate.version} (403 Forbidden) — check User-Agent policy`,
+                ),
+                { fatal: true },
+              );
+            }
 
-          debug(`Verified ${crate.packageName}@${crate.version} on crates.io`);
-        }, config.verify.cargo);
+            if (!response.ok) {
+              throw new Error(`${crate.packageName}@${crate.version} not yet available on crates.io`);
+            }
+
+            debug(`Verified ${crate.packageName}@${crate.version} on crates.io`);
+          },
+          config.verify.cargo,
+          (error) => !(error instanceof Error && (error as any).fatal),
+        );
         result.verified = true;
         success(`Verified ${crate.packageName}@${crate.version} on crates.io`);
       } catch {
