@@ -1,6 +1,5 @@
 import { z } from 'zod';
-import type { LLMCategory } from '../core/types.js';
-import type { JSONSchema } from './messages.js';
+import type { JSONSchema, LLMCategory } from '../core/types.js';
 
 // Zod validators (post-decode, source of truth for structure)
 export const EntryOutputSchema = z.object({

@@ -8,8 +8,6 @@ export interface CompleteResult {
   structured?: unknown;
 }
 
-export type JSONSchema = Record<string, unknown>;
-
 export function debugLogMessages(providerName: string, messages: LLMMessage[]): void {
   if (process.env.RELEASEKIT_DEBUG !== '1') return;
   console.error(`[RELEASEKIT_DEBUG] ${providerName} messages (${messages.length}):`);
