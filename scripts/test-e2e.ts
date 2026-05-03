@@ -11,7 +11,7 @@
  * 5. Cleans up
  */
 
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, normalize } from 'node:path';
@@ -177,11 +177,10 @@ function runTests(isolatedDir: string): void {
         RELEASEKIT_ROOT: join(e2eDir, 'node_modules'),
       };
 
-      execSync(['bash', testFile].join(' '), {
+      execFileSync('bash', [testFile], {
         cwd: e2eDir,
         stdio: 'inherit',
         encoding: 'utf-8',
-        shell: process.platform === 'win32' ? 'cmd.exe' : '/bin/sh',
         env,
       });
       log(`✅ ${testFile} completed`);
