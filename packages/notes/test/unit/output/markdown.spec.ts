@@ -102,6 +102,24 @@ describe('formatVersion: leadIn phrases', () => {
     expect(result).toContain('- Fix bug');
     expect(result).not.toContain('**');
   });
+
+  it('should prefix BREAKING before leadIn when both are set', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        categories: [
+          {
+            name: 'Breaking',
+            entries: [{ type: 'changed', description: 'Removed old API', leadIn: 'API removal', breaking: true }],
+          },
+        ],
+      },
+    });
+
+    const result = formatVersion(ctx);
+    expect(result).toContain('- **BREAKING** **API removal**: Removed old API');
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -251,7 +251,7 @@ export const LLMConfigSchema = z.object({
       pullRequests: z.boolean().default(true),
     })
     .default({ pullRequests: true }),
-  categoryOrder: z.array(z.string()).default(['Breaking', 'New', 'Changed', 'Fixed', 'Developer']),
+  categoryOrder: z.array(z.string()).optional(),
 });
 
 export const ReleaseNotesConfigSchema = z.object({

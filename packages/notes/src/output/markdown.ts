@@ -33,7 +33,9 @@ function groupEntriesByType(entries: ChangelogEntry[]): Map<ChangelogEntry['type
 function formatEntry(entry: ChangelogEntry, opts?: { hideScope?: boolean }): string {
   let line: string;
 
-  if (entry.leadIn) {
+  if (entry.leadIn && entry.breaking) {
+    line = `- **BREAKING** **${entry.leadIn}**: ${entry.description}`;
+  } else if (entry.leadIn) {
     line = `- **${entry.leadIn}**: ${entry.description}`;
   } else if (entry.breaking && entry.scope && !opts?.hideScope) {
     line = `- **BREAKING** **${entry.scope}**: ${entry.description}`;
