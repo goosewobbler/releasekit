@@ -74,7 +74,7 @@ describe('fetchPullRequestContext()', () => {
   });
 
   it('populates cache with fetched PR data', async () => {
-    mockGet.mockResolvedValue({ data: { title: 'Add feature', body: 'PR body content' } });
+    mockGet.mockResolvedValue({ data: { title: 'Add feature', body: 'PR body content', pull_request: {} } });
     const cache = new Map<number, PRContext>();
 
     await fetchPullRequestContext('owner', 'repo', [42], 'token', cache);
@@ -93,7 +93,7 @@ describe('fetchPullRequestContext()', () => {
   });
 
   it('handles missing PR body gracefully', async () => {
-    mockGet.mockResolvedValue({ data: { title: 'No body', body: null } });
+    mockGet.mockResolvedValue({ data: { title: 'No body', body: null, pull_request: {} } });
     const cache = new Map<number, PRContext>();
 
     await fetchPullRequestContext('owner', 'repo', [7], 'token', cache);
@@ -111,7 +111,7 @@ describe('fetchPullRequestContext()', () => {
 
   it('sanitises HTML comments from body', async () => {
     mockGet.mockResolvedValue({
-      data: { title: 'Test', body: 'Before<!-- hidden comment -->After' },
+      data: { title: 'Test', body: 'Before<!-- hidden comment -->After', pull_request: {} },
     });
     const cache = new Map<number, PRContext>();
 
@@ -122,7 +122,7 @@ describe('fetchPullRequestContext()', () => {
 
   it('strips images from body', async () => {
     mockGet.mockResolvedValue({
-      data: { title: 'Test', body: 'Text ![screenshot](https://example.com/img.png) more text' },
+      data: { title: 'Test', body: 'Text ![screenshot](https://example.com/img.png) more text', pull_request: {} },
     });
     const cache = new Map<number, PRContext>();
 
@@ -138,6 +138,7 @@ describe('fetchPullRequestContext()', () => {
       data: {
         title: 'Test',
         body: 'Before<details><summary>Click</summary>Hidden</details>After',
+        pull_request: {},
       },
     });
     const cache = new Map<number, PRContext>();
@@ -151,7 +152,7 @@ describe('fetchPullRequestContext()', () => {
 
   it('truncates long bodies to ~2 KB', async () => {
     const longBody = 'a'.repeat(4000);
-    mockGet.mockResolvedValue({ data: { title: 'Long', body: longBody } });
+    mockGet.mockResolvedValue({ data: { title: 'Long', body: longBody, pull_request: {} } });
     const cache = new Map<number, PRContext>();
 
     await fetchPullRequestContext('owner', 'repo', [1], 'token', cache);
@@ -159,8 +160,17 @@ describe('fetchPullRequestContext()', () => {
     expect(cache.get(1)!.body.length).toBeLessThanOrEqual(2100);
   });
 
+  it('skips plain issues (non-PR) without caching them', async () => {
+    mockGet.mockResolvedValue({ data: { title: 'Plain issue', body: 'issue body' } });
+    const cache = new Map<number, PRContext>();
+
+    await fetchPullRequestContext('owner', 'repo', [5], 'token', cache);
+
+    expect(cache.has(5)).toBe(false);
+  });
+
   it('fetches multiple numbers in parallel', async () => {
-    mockGet.mockResolvedValue({ data: { title: 'PR', body: 'body' } });
+    mockGet.mockResolvedValue({ data: { title: 'PR', body: 'body', pull_request: {} } });
     const cache = new Map<number, PRContext>();
 
     await fetchPullRequestContext('owner', 'repo', [1, 2, 3], 'token', cache);

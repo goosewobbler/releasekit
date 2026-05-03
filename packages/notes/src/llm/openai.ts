@@ -1,3 +1,4 @@
+import { debug } from '@releasekit/core';
 import OpenAI from 'openai';
 import type { CompleteOptions } from '../core/types.js';
 import { LLMError } from '../errors/index.js';
@@ -78,7 +79,8 @@ export class OpenAIProvider extends BaseLLMProvider {
         try {
           const structured = JSON.parse(content);
           return { content, structured };
-        } catch {
+        } catch (e) {
+          debug(`OpenAI: failed to parse structured response: ${e instanceof Error ? e.message : String(e)}`);
           return { content };
         }
       }

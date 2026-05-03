@@ -1,11 +1,6 @@
 import { Octokit } from '@octokit/rest';
 import { debug, warn } from '@releasekit/core';
-
-export interface PRContext {
-  number: number;
-  title: string;
-  body: string;
-}
+import type { PRContext } from '../../core/types.js';
 
 const BODY_CAP = 2048;
 
@@ -41,11 +36,12 @@ export async function fetchPullRequestContext(
     needed.map(async (number) => {
       try {
         const { data } = await octokit.rest.issues.get({ owner, repo, issue_number: number });
+        if (!data.pull_request) return;
         const raw = data.body ?? '';
         const body = truncateBody(sanitiseBody(raw));
         cache.set(number, { number, title: data.title, body });
       } catch (error) {
-        debug(`Failed to fetch PR/issue #${number}: ${error instanceof Error ? error.message : String(error)}`);
+        debug(`Failed to fetch PR #${number}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }),
   );
