@@ -3,6 +3,7 @@ import { renderExamplesBlock } from '../examples/parser.js';
 import type { LLMProvider, ReleaseNotesContext } from '../index.js';
 import type { LLMMessage } from '../messages.js';
 import { resolveSystemPrompt } from '../prompts.js';
+import { escAttr, escBody } from './shared.js';
 
 const DEFAULT_SYSTEM_PROMPT = `You are writing release notes for a software project.
 
@@ -15,10 +16,6 @@ Rules:
 - Use markdown formatting
 
 Output only the markdown content.`;
-
-function escAttr(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-}
 
 function buildUserPrompt(entries: ChangelogEntry[], context: ReleaseNotesContext): string {
   const version = context.version ?? 'v1.0.0';
@@ -33,7 +30,10 @@ function buildUserPrompt(entries: ChangelogEntry[], context: ReleaseNotesContext
       if (e.breaking) line += ' **BREAKING**';
       if (e.context?.prs.length) {
         const prBlocks = e.context.prs
-          .map((pr) => `<pr number="${pr.number}" title="${escAttr(pr.title)}">${pr.body ? `\n${pr.body}\n` : ''}</pr>`)
+          .map(
+            (pr) =>
+              `<pr number="${pr.number}" title="${escAttr(pr.title)}">${pr.body ? `\n${escBody(pr.body)}\n` : ''}</pr>`,
+          )
           .join('\n');
         line += `\n${prBlocks}`;
       }

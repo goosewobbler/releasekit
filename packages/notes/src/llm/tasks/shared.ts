@@ -1,6 +1,14 @@
 import type { ChangelogEntry } from '../../core/types.js';
 import type { CategorizedEntries } from '../index.js';
 
+export function escAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+}
+
+export function escBody(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 /**
  * Groups entries by category using the parallel LLM response array.
  * Callers must validate that llmEntries.length === entries.length before calling.
