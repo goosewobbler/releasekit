@@ -133,7 +133,10 @@ function makeValidator(
     const scopeResult = validateEntryScopes(enhancedEntries, context.scopes, context.categories);
     if (!scopeResult.valid) {
       const msg = scopeResult.errors
-        .map((e) => `entry ${e.entryIndex} scope "${e.providedScope}" (valid: ${e.allowedScopes.join(', ')})`)
+        .map(
+          (e) =>
+            `entry ${e.entryIndex} scope "${e.providedScope}" (${e.allowedScopes.length ? `valid: ${e.allowedScopes.join(', ')}` : 'no scopes permitted'})`,
+        )
         .join('; ');
       return { valid: false, error: `Invalid scopes: ${msg}` };
     }
