@@ -47,8 +47,23 @@ describe('parseReleaseBodyToExample()', () => {
     expect(result!.entries[0]!.breaking).toBe(true);
   });
 
-  it('should skip ## headings (treated as version title, not category)', () => {
+  it('should treat ## heading before ### heading as an overridable category', () => {
+    // ## is now a valid category; when followed by ###, the deeper heading wins
     const body = '## v1.0.0\n\n### New\n- Add feature\n';
+    const result = parseReleaseBodyToExample(body, '1.0.0');
+    expect(result!.entries[0]!.category).toBe('New');
+  });
+
+  it('should parse ## headings as categories when used without ### sub-headings', () => {
+    const body = '## New Features\n- Add streaming\n## Bug Fixes\n- Fix crash\n';
+    const result = parseReleaseBodyToExample(body, '2.0.0');
+    expect(result!.entries).toHaveLength(2);
+    expect(result!.entries[0]!.category).toBe('New Features');
+    expect(result!.entries[1]!.category).toBe('Bug Fixes');
+  });
+
+  it('should skip # (h1) headings', () => {
+    const body = '# Release Notes\n\n### New\n- Add feature\n';
     const result = parseReleaseBodyToExample(body, '1.0.0');
     expect(result!.entries[0]!.category).toBe('New');
   });

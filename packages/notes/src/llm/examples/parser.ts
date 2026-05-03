@@ -12,12 +12,12 @@ export function parseReleaseBodyToExample(markdown: string, version: string): Ex
     const line = raw.trim();
     if (!line) continue;
 
-    // ### Heading → new category
-    if (line.startsWith('### ')) {
-      currentCategory = line.slice(4).trim();
+    // ## / ### / #### Heading → new category (h1 skipped as document title)
+    const headingMatch = /^#{2,4} (.+)/.exec(line);
+    if (headingMatch) {
+      currentCategory = headingMatch[1]!.trim();
       continue;
     }
-    // ## Heading → skip (usually the version title)
     if (line.startsWith('#')) continue;
 
     // Bullet entry

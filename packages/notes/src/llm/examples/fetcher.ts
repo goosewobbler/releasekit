@@ -22,7 +22,7 @@ function cacheDir(): string {
 
 function cacheKey(owner: string, repo: string, packageName: string): string {
   const safe = packageName.replace(/[^a-zA-Z0-9-]/g, '_');
-  return path.join(cacheDir(), `${owner}_${repo}_${safe}.json`);
+  return path.join(cacheDir(), owner, repo, `${safe}.json`);
 }
 
 interface CacheEntry {
