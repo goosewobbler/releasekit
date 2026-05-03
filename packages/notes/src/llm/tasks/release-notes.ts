@@ -1,4 +1,5 @@
 import type { ChangelogEntry } from '../../core/types.js';
+import { renderExamplesBlock } from '../examples/parser.js';
 import type { LLMProvider, ReleaseNotesContext } from '../index.js';
 import type { LLMMessage } from '../messages.js';
 import { resolveSystemPrompt } from '../prompts.js';
@@ -42,7 +43,12 @@ export async function generateReleaseNotes(
     return `## Release ${context.version ?? 'v1.0.0'}\n\nNo notable changes in this release.`;
   }
 
-  const systemPrompt = resolveSystemPrompt('releaseNotes', DEFAULT_SYSTEM_PROMPT, context.prompts);
+  const examplesBlock = renderExamplesBlock(context.examples ?? []);
+  const systemPrompt = resolveSystemPrompt(
+    'releaseNotes',
+    examplesBlock ? `${DEFAULT_SYSTEM_PROMPT}${examplesBlock}` : DEFAULT_SYSTEM_PROMPT,
+    context.prompts,
+  );
 
   const messages: LLMMessage[] = [
     { role: 'system', content: systemPrompt },

@@ -2,6 +2,7 @@ import type { ChangelogEntry, LLMCategory } from '../../core/types.js';
 import { extractJsonFromResponse } from '../../utils/json.js';
 import type { ValidationResult } from '../correctiveRetry.js';
 import { withCorrectiveRetry } from '../correctiveRetry.js';
+import { renderExamplesBlock } from '../examples/parser.js';
 import type { CategorizeContext, CategorizedEntries, EnhanceContext, LLMProvider } from '../index.js';
 import type { CompleteResult, LLMMessage } from '../messages.js';
 import { resolveSystemPrompt } from '../prompts.js';
@@ -159,9 +160,11 @@ export async function enhanceAndCategorize(
     return { enhancedEntries: [], categories: [] };
   }
 
+  const basePrompt = buildSystemPrompt(context.categories, context.style);
+  const examplesBlock = renderExamplesBlock(context.examples ?? []);
   const systemPrompt = resolveSystemPrompt(
     'enhanceAndCategorize',
-    buildSystemPrompt(context.categories, context.style),
+    examplesBlock ? `${basePrompt}${examplesBlock}` : basePrompt,
     context.prompts,
   );
 
@@ -175,7 +178,12 @@ export async function enhanceAndCategorize(
 
   return withCorrectiveRetry(
     (messages, isFirstAttempt) =>
-      provider.complete(messages, isFirstAttempt ? { schema, toolName: 'emit_release_notes' } : undefined),
+      provider.complete(
+        messages,
+        isFirstAttempt && provider.capabilities.structuredOutputs
+          ? { schema, toolName: 'emit_release_notes' }
+          : undefined,
+      ),
     validate,
     buildCorrectionMessages,
     initialMessages,

@@ -3,7 +3,8 @@ import * as path from 'node:path';
 import { debug, info, success, warn } from '@releasekit/core';
 import { parseVersionOutput } from '../input/version-output.js';
 import { LLM_DEFAULTS } from '../llm/defaults.js';
-import type { LLMProvider } from '../llm/index.js';
+import { fetchExamples } from '../llm/examples/fetcher.js';
+import type { Example, LLMProvider } from '../llm/index.js';
 import {
   categorizeEntries,
   createProvider,
@@ -27,6 +28,25 @@ import type {
   TemplateContext,
   TemplateEngine,
 } from './types.js';
+
+function parseOwnerRepo(repoUrl: string): { owner: string; repo: string } | null {
+  // SCP-style SSH: git@github.com:owner/repo.git — only github.com
+  const scpMatch = repoUrl.match(/^git@github\.com:([^/]+)\/(.+?)(?:\.git)?$/);
+  if (scpMatch) return { owner: scpMatch[1]!, repo: scpMatch[2]! };
+
+  try {
+    const url = new URL(repoUrl);
+    if (url.hostname !== 'github.com') return null;
+    const parts = url.pathname
+      .replace(/^\//, '')
+      .replace(/\.git$/, '')
+      .split('/');
+    if (parts.length >= 2) return { owner: parts[0]!, repo: parts[1]! };
+  } catch {
+    // invalid URL
+  }
+  return null;
+}
 
 /**
  * For dash-format compound tags (e.g. "scope-pkg-1.2.3" or "scope-pkg-1.2.3-next.1"),
@@ -149,7 +169,11 @@ export function createDocumentContext(contexts: TemplateContext[], repoUrl?: str
   };
 }
 
-async function processWithLLM(context: TemplateContext, llmConfig: LLMConfig): Promise<TemplateContext> {
+async function processWithLLM(
+  context: TemplateContext,
+  llmConfig: LLMConfig,
+  examples: Example[],
+): Promise<TemplateContext> {
   const tasks = llmConfig.tasks ?? {};
   const llmContext = {
     packageName: context.packageName,
@@ -160,6 +184,7 @@ async function processWithLLM(context: TemplateContext, llmConfig: LLMConfig): P
     style: llmConfig.style,
     scopes: llmConfig.scopes,
     prompts: llmConfig.prompts,
+    examples,
   };
 
   const enhanced: EnhancedData = {
@@ -324,7 +349,33 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
   const llmConfig = releaseNotesConfig?.llm;
   if (llmConfig && !process.env.CHANGELOG_NO_LLM) {
     info('Processing with LLM enhancement');
-    contexts = await Promise.all(contexts.map((ctx) => processWithLLM(ctx, llmConfig)));
+
+    const examplesCount = llmConfig.examples ?? 3;
+    const repoUrl = contexts[0]?.repoUrl ?? input.metadata?.repoUrl;
+    const ownerRepo = repoUrl ? parseOwnerRepo(repoUrl) : null;
+    const examplesByPackage = new Map<string, Example[]>();
+
+    if (examplesCount > 0 && ownerRepo) {
+      await Promise.all(
+        contexts.map(async (ctx) => {
+          const examples = await fetchExamples({
+            owner: ownerRepo.owner,
+            repo: ownerRepo.repo,
+            packageName: ctx.packageName,
+            count: examplesCount,
+            isMonorepo: contexts.length > 1,
+          });
+          examplesByPackage.set(ctx.packageName, examples);
+          if (examples.length > 0) {
+            debug(`Loaded ${examples.length} example(s) for ${ctx.packageName}`);
+          }
+        }),
+      );
+    }
+
+    contexts = await Promise.all(
+      contexts.map((ctx) => processWithLLM(ctx, llmConfig, examplesByPackage.get(ctx.packageName) ?? [])),
+    );
   }
 
   const files: string[] = [];
