@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ChangelogEntry } from '../../src/core/types.js';
+import type { ChangelogEntry, CompleteOptions } from '../../src/core/types.js';
 import { LLMError } from '../../src/errors/index.js';
 import type { CompleteResult, LLMMessage } from '../../src/llm/messages.js';
 import type { LLMProvider } from '../../src/llm/provider.js';
@@ -588,5 +588,73 @@ describe('generateReleaseNotes()', () => {
     const provider = makeMockProvider('notes');
     await generateReleaseNotes(provider, sampleEntries, { ...llmContext, date: '2026-01-15' });
     expect(provider.callCount).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// capabilities: schema options gating
+// ---------------------------------------------------------------------------
+
+describe('capabilities: schema options gating', () => {
+  const threeEntryResponse = JSON.stringify({
+    entries: [
+      { description: 'a', category: 'General', scope: null, breaking: null, leadIn: null },
+      { description: 'b', category: 'General', scope: null, breaking: null, leadIn: null },
+      { description: 'c', category: 'General', scope: null, breaking: null, leadIn: null },
+    ],
+  });
+
+  const threeEntryCategorizeResponse = JSON.stringify({
+    entries: [
+      { category: 'General', scope: null },
+      { category: 'General', scope: null },
+      { category: 'General', scope: null },
+    ],
+  });
+
+  function makeCapabilityProvider(
+    structuredOutputs: boolean,
+    response: string,
+    onComplete?: (options: CompleteOptions | undefined) => void,
+  ): LLMProvider {
+    return {
+      name: 'cap-mock',
+      capabilities: { systemRole: true, structuredOutputs, toolUse: false },
+      async complete(_messages: LLMMessage[], options?: CompleteOptions): Promise<CompleteResult> {
+        onComplete?.(options);
+        const structured = JSON.parse(response);
+        return { content: response, structured };
+      },
+    };
+  }
+
+  it('passes schema and toolName to enhanceAndCategorize when structuredOutputs is true', async () => {
+    let captured: CompleteOptions | undefined;
+    const provider = makeCapabilityProvider(true, threeEntryResponse, (o) => (captured = o));
+    await enhanceAndCategorize(provider, sampleEntries, llmContext);
+    expect(captured?.schema).toBeDefined();
+    expect(captured?.toolName).toBe('emit_release_notes');
+  });
+
+  it('omits schema options from enhanceAndCategorize when structuredOutputs is false', async () => {
+    let captured: CompleteOptions | undefined;
+    const provider = makeCapabilityProvider(false, threeEntryResponse, (o) => (captured = o));
+    await enhanceAndCategorize(provider, sampleEntries, llmContext);
+    expect(captured).toBeUndefined();
+  });
+
+  it('passes schema and toolName to categorizeEntries when structuredOutputs is true', async () => {
+    let captured: CompleteOptions | undefined;
+    const provider = makeCapabilityProvider(true, threeEntryCategorizeResponse, (o) => (captured = o));
+    await categorizeEntries(provider, sampleEntries, llmContext);
+    expect(captured?.schema).toBeDefined();
+    expect(captured?.toolName).toBe('categorize_entries');
+  });
+
+  it('omits schema options from categorizeEntries when structuredOutputs is false', async () => {
+    let captured: CompleteOptions | undefined;
+    const provider = makeCapabilityProvider(false, threeEntryCategorizeResponse, (o) => (captured = o));
+    await categorizeEntries(provider, sampleEntries, llmContext);
+    expect(captured).toBeUndefined();
   });
 });
