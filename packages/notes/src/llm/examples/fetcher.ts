@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { RequestError } from '@octokit/request-error';
 import { Octokit } from '@octokit/rest';
 import { debug, warn } from '@releasekit/core';
 import { parseReleaseBodyToExample } from './parser.js';
@@ -76,13 +77,18 @@ export async function fetchExamples(options: FetchExamplesOptions): Promise<Exam
       per_page: Math.min(count * 10, 100),
     });
 
-    const packageScoped = releases.filter(
-      (r) => !r.draft && !r.prerelease && matchesPackageScoped(r.tag_name, packageName),
-    );
+    const nonDraft = releases.filter((r) => !r.draft && !r.prerelease);
+    const packageScoped = nonDraft.filter((r) => matchesPackageScoped(r.tag_name, packageName));
+    // Only fall back to bare-version tags when the batch contains no package-scoped releases
+    // at all — indicating a single-package repo. If other packages have scoped releases,
+    // this package simply hasn't been released yet and bare tags would be misleading.
+    const hasAnyPackageScoped = nonDraft.some((r) => r.tag_name.includes('@'));
     const matching = (
       packageScoped.length > 0
         ? packageScoped
-        : releases.filter((r) => !r.draft && !r.prerelease && matchesBareVersion(r.tag_name))
+        : hasAnyPackageScoped
+          ? []
+          : nonDraft.filter((r) => matchesBareVersion(r.tag_name))
     ).slice(0, count);
 
     if (matching.length === 0) {
@@ -110,7 +116,7 @@ export async function fetchExamples(options: FetchExamplesOptions): Promise<Exam
     debug(`Fetched ${examples.length} examples for ${packageName}`);
     return examples;
   } catch (error) {
-    if (error instanceof Error && (error as Error & { status?: number }).status === 403) {
+    if (error instanceof RequestError && error.status === 403) {
       warn('GitHub API rate limit or auth error — skipping examples fetch');
     } else {
       debug(`Failed to fetch examples: ${error instanceof Error ? error.message : String(error)}`);
