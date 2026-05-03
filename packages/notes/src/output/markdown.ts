@@ -135,7 +135,9 @@ function applyOrder(categories: EnhancedCategory[], order: string[]): EnhancedCa
   return [...categories].sort((a, b) => {
     const ai = order.indexOf(a.name);
     const bi = order.indexOf(b.name);
-    return (ai === -1 ? order.length : ai) - (bi === -1 ? order.length : bi);
+    // Breaking not in order: pin before all explicitly-ordered categories
+    const rank = (name: string, idx: number) => (idx === -1 ? (name === 'Breaking' ? -1 : order.length) : idx);
+    return rank(a.name, ai) - rank(b.name, bi);
   });
 }
 

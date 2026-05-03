@@ -262,6 +262,26 @@ describe('formatVersion: breaking changes section', () => {
     const newPos = result.indexOf('### New');
     expect(breakingPos).toBeLessThan(newPos);
   });
+
+  it('should still render Breaking section first when Breaking is absent from categoryOrder', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        categories: [
+          { name: 'New', entries: [{ type: 'added', description: 'Feature' }] },
+          { name: 'Changed', entries: [{ type: 'changed', description: 'Breaking thing', breaking: true }] },
+        ],
+      },
+    });
+
+    // categoryOrder only lists New and Changed — Breaking is omitted but must still land first
+    const result = formatVersion(ctx, { categoryOrder: ['New', 'Changed'] });
+    const breakingPos = result.indexOf('### Breaking');
+    const newPos = result.indexOf('### New');
+    expect(breakingPos).toBeGreaterThanOrEqual(0);
+    expect(breakingPos).toBeLessThan(newPos);
+  });
 });
 
 // ---------------------------------------------------------------------------
