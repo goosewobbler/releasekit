@@ -50,14 +50,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
         temperature: this.getTemperature(options),
         stream: false as const,
         ...(options?.schema && {
-          response_format: {
-            type: 'json_schema' as const,
-            json_schema: {
-              name: options.toolName ?? 'release_notes',
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              schema: options.schema as any,
-            },
-          },
+          response_format: { type: 'json_object' as const },
         }),
       };
 
