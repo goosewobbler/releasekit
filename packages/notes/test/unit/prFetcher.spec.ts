@@ -10,19 +10,19 @@ vi.mock('@octokit/rest', () => ({ Octokit: vi.fn() }));
 // ---------------------------------------------------------------------------
 
 describe('parseIssueNumbers()', () => {
-  it('parses #-prefixed strings to numbers', () => {
+  it('should parse #-prefixed strings to numbers', () => {
     expect(parseIssueNumbers(['#123', '#456'])).toEqual([123, 456]);
   });
 
-  it('parses bare numeric strings', () => {
+  it('should parse bare numeric strings', () => {
     expect(parseIssueNumbers(['42'])).toEqual([42]);
   });
 
-  it('filters out non-numeric values', () => {
+  it('should filter out non-numeric values', () => {
     expect(parseIssueNumbers(['#abc', '', '#0'])).toEqual([]);
   });
 
-  it('returns empty array for empty input', () => {
+  it('should return empty array for empty input', () => {
     expect(parseIssueNumbers([])).toEqual([]);
   });
 });
@@ -34,19 +34,19 @@ describe('parseIssueNumbers()', () => {
 describe('resolveGitHubToken()', () => {
   afterEach(() => vi.unstubAllEnvs());
 
-  it('returns GITHUB_TOKEN when set', () => {
+  it('should return GITHUB_TOKEN when set', () => {
     vi.stubEnv('GITHUB_TOKEN', 'ghp_test');
     vi.stubEnv('GH_TOKEN', '');
     expect(resolveGitHubToken()).toBe('ghp_test');
   });
 
-  it('falls back to GH_TOKEN when GITHUB_TOKEN is absent', () => {
+  it('should fall back to GH_TOKEN when GITHUB_TOKEN is absent', () => {
     vi.stubEnv('GITHUB_TOKEN', '');
     vi.stubEnv('GH_TOKEN', 'gh_fallback');
     expect(resolveGitHubToken()).toBe('gh_fallback');
   });
 
-  it('returns undefined when neither token is set', () => {
+  it('should return undefined when neither token is set', () => {
     vi.stubEnv('GITHUB_TOKEN', '');
     vi.stubEnv('GH_TOKEN', '');
     expect(resolveGitHubToken()).toBeUndefined();
@@ -73,7 +73,7 @@ describe('fetchPullRequestContext()', () => {
     vi.restoreAllMocks();
   });
 
-  it('populates cache with fetched PR data', async () => {
+  it('should populate cache with fetched PR data', async () => {
     mockGet.mockResolvedValue({ data: { title: 'Add feature', body: 'PR body content', pull_request: {} } });
     const cache = new Map<number, PRContext>();
 
@@ -83,7 +83,7 @@ describe('fetchPullRequestContext()', () => {
     expect(cache.get(42)).toMatchObject({ number: 42, title: 'Add feature', body: 'PR body content' });
   });
 
-  it('skips numbers already in cache', async () => {
+  it('should skip numbers already in cache', async () => {
     const existing: PRContext = { number: 1, title: 'Cached', body: 'cached body' };
     const cache = new Map([[1, existing]]);
 
@@ -92,7 +92,7 @@ describe('fetchPullRequestContext()', () => {
     expect(mockGet).not.toHaveBeenCalled();
   });
 
-  it('handles missing PR body gracefully', async () => {
+  it('should handle missing PR body gracefully', async () => {
     mockGet.mockResolvedValue({ data: { title: 'No body', body: null, pull_request: {} } });
     const cache = new Map<number, PRContext>();
 
@@ -101,7 +101,7 @@ describe('fetchPullRequestContext()', () => {
     expect(cache.get(7)?.body).toBe('');
   });
 
-  it('skips entry on fetch error without throwing', async () => {
+  it('should skip entry on fetch error without throwing', async () => {
     mockGet.mockRejectedValue(new Error('not found'));
     const cache = new Map<number, PRContext>();
 
@@ -109,7 +109,7 @@ describe('fetchPullRequestContext()', () => {
     expect(cache.has(99)).toBe(false);
   });
 
-  it('sanitises HTML comments from body', async () => {
+  it('should sanitise HTML comments from body', async () => {
     mockGet.mockResolvedValue({
       data: { title: 'Test', body: 'Before<!-- hidden comment -->After', pull_request: {} },
     });
@@ -120,7 +120,7 @@ describe('fetchPullRequestContext()', () => {
     expect(cache.get(1)?.body).toBe('BeforeAfter');
   });
 
-  it('strips images from body', async () => {
+  it('should strip images from body', async () => {
     mockGet.mockResolvedValue({
       data: { title: 'Test', body: 'Text ![screenshot](https://example.com/img.png) more text', pull_request: {} },
     });
@@ -133,7 +133,7 @@ describe('fetchPullRequestContext()', () => {
     expect(cache.get(1)?.body).toContain('more text');
   });
 
-  it('strips <details> blocks from body', async () => {
+  it('should strip <details> blocks from body', async () => {
     mockGet.mockResolvedValue({
       data: {
         title: 'Test',
@@ -150,7 +150,7 @@ describe('fetchPullRequestContext()', () => {
     expect(cache.get(1)?.body).toContain('After');
   });
 
-  it('truncates long bodies to ~2 KB', async () => {
+  it('should truncate long bodies to ~2 KB', async () => {
     const longBody = 'a'.repeat(4000);
     mockGet.mockResolvedValue({ data: { title: 'Long', body: longBody, pull_request: {} } });
     const cache = new Map<number, PRContext>();
@@ -160,7 +160,7 @@ describe('fetchPullRequestContext()', () => {
     expect(cache.get(1)!.body.length).toBeLessThanOrEqual(2100);
   });
 
-  it('skips plain issues (non-PR) without caching them', async () => {
+  it('should skip plain issues (non-PR) without caching them', async () => {
     mockGet.mockResolvedValue({ data: { title: 'Plain issue', body: 'issue body' } });
     const cache = new Map<number, PRContext>();
 
@@ -169,7 +169,7 @@ describe('fetchPullRequestContext()', () => {
     expect(cache.has(5)).toBe(false);
   });
 
-  it('fetches multiple numbers in parallel', async () => {
+  it('should fetch multiple numbers in parallel', async () => {
     mockGet.mockResolvedValue({ data: { title: 'PR', body: 'body', pull_request: {} } });
     const cache = new Map<number, PRContext>();
 
