@@ -4,17 +4,22 @@ import type { PRContext } from '../../core/types.js';
 
 const BODY_CAP = 2048;
 
-function sanitiseBody(raw: string): string {
-  // Loop until stable: handles nested/truncated patterns like <!--<!---->
-  let s = raw;
-  let prev: string;
-  do {
-    prev = s;
-    s = s.replace(/<!--[\s\S]*?-->/g, '');
-  } while (s !== prev);
+function stripHtmlComments(input: string): string {
+  let result = '';
+  let i = 0;
+  while (i < input.length) {
+    if (input.startsWith('<!--', i)) {
+      const end = input.indexOf('-->', i + 4);
+      i = end === -1 ? input.length : end + 3;
+    } else {
+      result += input[i++];
+    }
+  }
+  return result;
+}
 
-  return s
-    .replace(/<!--[\s\S]*/g, '') // strip any unclosed comment openers
+function sanitiseBody(raw: string): string {
+  return stripHtmlComments(raw)
     .replace(/<details[\s\S]*?<\/details>/gi, '') // strip <details> blocks
     .replace(/!\[.*?\]\(.*?\)/g, '') // strip images
     .replace(/\n{3,}/g, '\n\n') // collapse blank lines
