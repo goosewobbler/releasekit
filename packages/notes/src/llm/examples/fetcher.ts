@@ -102,7 +102,7 @@ export async function fetchExamples(options: FetchExamplesOptions): Promise<Exam
     debug(`Fetched ${examples.length} examples for ${packageName}`);
     return examples;
   } catch (error) {
-    if (error instanceof Error && (error as NodeJS.ErrnoException).status === 403) {
+    if (error instanceof Error && (error as Error & { status?: number }).status === 403) {
       warn('GitHub API rate limit or auth error — skipping examples fetch');
     } else {
       debug(`Failed to fetch examples: ${error instanceof Error ? error.message : String(error)}`);

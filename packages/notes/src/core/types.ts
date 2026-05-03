@@ -151,6 +151,7 @@ export interface LLMConfig {
     categorize?: boolean;
     releaseNotes?: boolean;
   };
+  examples?: number;
   categories?: Array<{ name: string; description: string; scopes?: string[] }>;
   style?: string;
   scopes?: ScopeConfig;
