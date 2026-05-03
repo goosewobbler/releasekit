@@ -161,6 +161,23 @@ describe('fetchPullRequestContext()', () => {
     expect(cache.get(1)?.body).toContain('After');
   });
 
+  it('should strip nested <details> blocks without leaving stray closing tags', async () => {
+    mockGet.mockResolvedValue({
+      data: {
+        title: 'Test',
+        body: 'Before<details><details>inner</details>outer</details>After',
+        pull_request: {},
+      },
+    });
+    const cache = new Map<number, PRContext>();
+
+    await fetchPullRequestContext('owner', 'repo', [1], 'token', cache);
+
+    expect(cache.get(1)?.body).not.toContain('details');
+    expect(cache.get(1)?.body).not.toContain('outer');
+    expect(cache.get(1)?.body).toBe('BeforeAfter');
+  });
+
   it('should truncate long bodies to ~2 KB', async () => {
     const longBody = 'a'.repeat(4000);
     mockGet.mockResolvedValue({ data: { title: 'Long', body: longBody, pull_request: {} } });

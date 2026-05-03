@@ -21,13 +21,19 @@ function stripHtmlComments(input: string): string {
 function stripDetailsTags(input: string): string {
   let result = '';
   let i = 0;
+  let depth = 0;
   const lower = input.toLowerCase();
   while (i < input.length) {
     if (lower.startsWith('<details', i)) {
-      const end = lower.indexOf('</details>', i + 8);
-      i = end === -1 ? input.length : end + 10;
+      depth++;
+      const tagEnd = lower.indexOf('>', i);
+      i = tagEnd === -1 ? input.length : tagEnd + 1;
+    } else if (lower.startsWith('</details>', i)) {
+      if (depth > 0) depth--;
+      i += 10;
     } else {
-      result += input[i++];
+      if (depth === 0) result += input[i];
+      i++;
     }
   }
   return result;
