@@ -81,7 +81,7 @@ function makeValidator(
 
     // Validate category names when categories are configured
     const categoryNames = context.categories?.map((c) => c.name);
-    if (categoryNames) {
+    if (categoryNames?.length) {
       const invalid = zodResult.data.entries.filter((e) => !categoryNames.includes(e.category)).map((e) => e.category);
       if (invalid.length > 0) {
         const unique = [...new Set(invalid)];
