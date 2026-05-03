@@ -1,5 +1,5 @@
 import { Octokit } from '@octokit/rest';
-import { debug, warn } from '@releasekit/core';
+import { debug } from '@releasekit/core';
 import type { PRContext } from '../../core/types.js';
 
 const BODY_CAP = 2048;
@@ -35,6 +35,8 @@ function truncateBody(body: string): string {
   return `${body.slice(0, cutAt).trimEnd()}\n…`;
 }
 
+const FETCH_CONCURRENCY = 5;
+
 export async function fetchPullRequestContext(
   owner: string,
   repo: string,
@@ -45,19 +47,22 @@ export async function fetchPullRequestContext(
   const octokit = new Octokit({ auth: token });
   const needed = issueNumbers.filter((n) => !cache.has(n));
 
-  await Promise.all(
-    needed.map(async (number) => {
-      try {
-        const { data } = await octokit.rest.issues.get({ owner, repo, issue_number: number });
-        if (!data.pull_request) return;
-        const raw = data.body ?? '';
-        const body = truncateBody(sanitiseBody(raw));
-        cache.set(number, { number, title: data.title, body });
-      } catch (error) {
-        debug(`Failed to fetch PR #${number}: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }),
-  );
+  for (let i = 0; i < needed.length; i += FETCH_CONCURRENCY) {
+    const batch = needed.slice(i, i + FETCH_CONCURRENCY);
+    await Promise.all(
+      batch.map(async (number) => {
+        try {
+          const { data } = await octokit.rest.issues.get({ owner, repo, issue_number: number });
+          if (!data.pull_request) return;
+          const raw = data.body ?? '';
+          const body = truncateBody(sanitiseBody(raw));
+          cache.set(number, { number, title: data.title, body });
+        } catch (error) {
+          debug(`Failed to fetch PR #${number}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }),
+    );
+  }
 }
 
 export function parseIssueNumbers(issueIds: string[]): number[] {
@@ -66,11 +71,4 @@ export function parseIssueNumbers(issueIds: string[]): number[] {
 
 export function resolveGitHubToken(): string | undefined {
   return process.env.GITHUB_TOKEN || process.env.GH_TOKEN || undefined;
-}
-
-export function warnOnce(message: string, warned: Set<string>): void {
-  if (!warned.has(message)) {
-    warned.add(message);
-    warn(message);
-  }
 }

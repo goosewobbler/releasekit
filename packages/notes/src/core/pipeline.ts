@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { debug, info, success, warn } from '@releasekit/core';
 import { parseVersionOutput } from '../input/version-output.js';
-import { fetchPullRequestContext, parseIssueNumbers, resolveGitHubToken, warnOnce } from '../llm/context/prFetcher.js';
+import { fetchPullRequestContext, parseIssueNumbers, resolveGitHubToken } from '../llm/context/prFetcher.js';
 import { LLM_DEFAULTS } from '../llm/defaults.js';
 import { fetchExamples } from '../llm/examples/fetcher.js';
 import type { Example, LLMProvider } from '../llm/index.js';
@@ -380,9 +380,8 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
     const pullRequestsEnabled = llmConfig.context?.pullRequests !== false;
     if (pullRequestsEnabled && ownerRepo) {
       const token = resolveGitHubToken();
-      const warnedMessages = new Set<string>();
       if (!token) {
-        warnOnce('No GitHub token available — skipping PR context fetch (set GITHUB_TOKEN to enable)', warnedMessages);
+        warn('No GitHub token available — skipping PR context fetch (set GITHUB_TOKEN to enable)');
       } else {
         const allIssueNumbers = contexts
           .flatMap((ctx) => ctx.entries.flatMap((e) => parseIssueNumbers(e.issueIds ?? [])))
