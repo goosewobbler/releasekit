@@ -57,10 +57,14 @@ Output a JSON object with an "entries" array. Each element (same order as input)
 - "leadIn": short noun phrase for scanning (e.g. "Streaming API") or null`;
 }
 
+function escAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+}
+
 function renderPRBlocks(entry: ChangelogEntry): string {
   if (!entry.context?.prs.length) return '';
   return entry.context.prs
-    .map((pr) => `<pr number="${pr.number}" title="${pr.title}">${pr.body ? `\n${pr.body}\n` : ''}</pr>`)
+    .map((pr) => `<pr number="${pr.number}" title="${escAttr(pr.title)}">${pr.body ? `\n${pr.body}\n` : ''}</pr>`)
     .join('\n');
 }
 

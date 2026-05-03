@@ -16,6 +16,10 @@ Rules:
 
 Output only the markdown content.`;
 
+function escAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+}
+
 function buildUserPrompt(entries: ChangelogEntry[], context: ReleaseNotesContext): string {
   const version = context.version ?? 'v1.0.0';
   const date = context.date ?? new Date().toISOString().split('T')[0] ?? '';
@@ -29,7 +33,7 @@ function buildUserPrompt(entries: ChangelogEntry[], context: ReleaseNotesContext
       if (e.breaking) line += ' **BREAKING**';
       if (e.context?.prs.length) {
         const prBlocks = e.context.prs
-          .map((pr) => `<pr number="${pr.number}" title="${pr.title}">${pr.body ? `\n${pr.body}\n` : ''}</pr>`)
+          .map((pr) => `<pr number="${pr.number}" title="${escAttr(pr.title)}">${pr.body ? `\n${pr.body}\n` : ''}</pr>`)
           .join('\n');
         line += `\n${prBlocks}`;
       }
