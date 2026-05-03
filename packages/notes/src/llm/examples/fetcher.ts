@@ -73,7 +73,7 @@ export async function fetchExamples(options: FetchExamplesOptions): Promise<Exam
     const { data: releases } = await octokit.rest.repos.listReleases({
       owner,
       repo,
-      per_page: Math.min(count * 5, 30),
+      per_page: Math.min(count * 10, 100),
     });
 
     const packageScoped = releases.filter(
@@ -106,7 +106,7 @@ export async function fetchExamples(options: FetchExamplesOptions): Promise<Exam
       if (example) examples.push(example);
     }
 
-    writeCache(key, latestTag, examples);
+    if (examples.length > 0) writeCache(key, latestTag, examples);
     debug(`Fetched ${examples.length} examples for ${packageName}`);
     return examples;
   } catch (error) {

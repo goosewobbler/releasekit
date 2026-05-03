@@ -30,6 +30,10 @@ import type {
 } from './types.js';
 
 function parseOwnerRepo(repoUrl: string): { owner: string; repo: string } | null {
+  // SCP-style SSH: git@github.com:owner/repo.git
+  const scpMatch = repoUrl.match(/^git@[^:]+:([^/]+)\/(.+?)(?:\.git)?$/);
+  if (scpMatch) return { owner: scpMatch[1]!, repo: scpMatch[2]! };
+
   try {
     const url = new URL(repoUrl);
     const parts = url.pathname
