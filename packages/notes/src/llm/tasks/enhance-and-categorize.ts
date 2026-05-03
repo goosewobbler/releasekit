@@ -109,6 +109,13 @@ function makeValidator(
       }
     }
 
+    if (zodResult.data.entries.length !== entries.length) {
+      return {
+        valid: false,
+        error: `Expected ${entries.length} entries, got ${zodResult.data.entries.length}`,
+      };
+    }
+
     // Build enhanced entries
     const enhancedEntries: ChangelogEntry[] = entries.map((original, i) => {
       const llmEntry = zodResult.data.entries[i];
@@ -129,13 +136,6 @@ function makeValidator(
         .map((e) => `entry ${e.entryIndex} scope "${e.providedScope}" (valid: ${e.allowedScopes.join(', ')})`)
         .join('; ');
       return { valid: false, error: `Invalid scopes: ${msg}` };
-    }
-
-    if (zodResult.data.entries.length !== entries.length) {
-      return {
-        valid: false,
-        error: `Expected ${entries.length} entries, got ${zodResult.data.entries.length}`,
-      };
     }
 
     const categories = groupByCategory(zodResult.data.entries, scopeResult.entries);
