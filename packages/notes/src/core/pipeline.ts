@@ -379,15 +379,15 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
     const prCache = new Map<number, PRContext>();
     const pullRequestsEnabled = llmConfig.context?.pullRequests !== false;
     if (pullRequestsEnabled && ownerRepo) {
-      const token = resolveGitHubToken();
-      if (!token) {
-        warn('No GitHub token available — skipping PR context fetch (set GITHUB_TOKEN to enable)');
-      } else {
-        const allIssueNumbers = [
-          ...new Set(contexts.flatMap((ctx) => ctx.entries.flatMap((e) => parseIssueNumbers(e.issueIds ?? [])))),
-        ];
+      const allIssueNumbers = [
+        ...new Set(contexts.flatMap((ctx) => ctx.entries.flatMap((e) => parseIssueNumbers(e.issueIds ?? [])))),
+      ];
 
-        if (allIssueNumbers.length > 0) {
+      if (allIssueNumbers.length > 0) {
+        const token = resolveGitHubToken();
+        if (!token) {
+          warn('No GitHub token available — skipping PR context fetch (set GITHUB_TOKEN to enable)');
+        } else {
           debug(`Fetching PR context for ${allIssueNumbers.length} issue(s)`);
           await fetchPullRequestContext(ownerRepo.owner, ownerRepo.repo, allIssueNumbers, token, prCache);
           debug(`Loaded PR context for ${prCache.size} issue(s)`);
