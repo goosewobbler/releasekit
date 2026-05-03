@@ -96,6 +96,13 @@ function makeValidator(
       return { valid: false, error: `Schema error: ${zodResult.error.message}` };
     }
 
+    if (zodResult.data.entries.length !== entries.length) {
+      return {
+        valid: false,
+        error: `Expected ${entries.length} entries, got ${zodResult.data.entries.length}`,
+      };
+    }
+
     // Validate category names when categories are configured
     const categoryNames = context.categories?.map((c) => c.name);
     if (categoryNames?.length) {
@@ -107,13 +114,6 @@ function makeValidator(
           error: `Unknown categories: ${unique.join(', ')}. Valid categories: ${categoryNames.join(', ')}`,
         };
       }
-    }
-
-    if (zodResult.data.entries.length !== entries.length) {
-      return {
-        valid: false,
-        error: `Expected ${entries.length} entries, got ${zodResult.data.entries.length}`,
-      };
     }
 
     // Build enhanced entries
