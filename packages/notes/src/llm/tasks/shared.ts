@@ -9,6 +9,15 @@ export function escBody(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+export function renderPRBlocks(entry: ChangelogEntry): string {
+  if (!entry.context?.prs.length) return '';
+  return entry.context.prs
+    .map(
+      (pr) => `<pr number="${pr.number}" title="${escAttr(pr.title)}">${pr.body ? `\n${escBody(pr.body)}\n` : ''}</pr>`,
+    )
+    .join('\n');
+}
+
 /**
  * Groups entries by category using the parallel LLM response array.
  * Callers must validate that llmEntries.length === entries.length before calling.

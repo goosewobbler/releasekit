@@ -3,7 +3,7 @@ import { renderExamplesBlock } from '../examples/parser.js';
 import type { LLMProvider, ReleaseNotesContext } from '../index.js';
 import type { LLMMessage } from '../messages.js';
 import { resolveSystemPrompt } from '../prompts.js';
-import { escAttr, escBody } from './shared.js';
+import { renderPRBlocks } from './shared.js';
 
 const DEFAULT_SYSTEM_PROMPT = `You are writing release notes for a software project.
 
@@ -28,15 +28,8 @@ function buildUserPrompt(entries: ChangelogEntry[], context: ReleaseNotesContext
       if (e.scope) line += ` (${e.scope})`;
       line += `: ${e.description}`;
       if (e.breaking) line += ' **BREAKING**';
-      if (e.context?.prs.length) {
-        const prBlocks = e.context.prs
-          .map(
-            (pr) =>
-              `<pr number="${pr.number}" title="${escAttr(pr.title)}">${pr.body ? `\n${escBody(pr.body)}\n` : ''}</pr>`,
-          )
-          .join('\n');
-        line += `\n${prBlocks}`;
-      }
+      const prBlocks = renderPRBlocks(e);
+      if (prBlocks) line += `\n${prBlocks}`;
       return line;
     })
     .join('\n');

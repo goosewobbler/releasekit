@@ -8,7 +8,7 @@ import type { CompleteResult, LLMMessage } from '../messages.js';
 import { resolveSystemPrompt } from '../prompts.js';
 import { buildEnhanceAndCategorizeSchema, EnhanceAndCategorizeOutputSchema } from '../schemas.js';
 import { validateEntryScopes } from '../scopes.js';
-import { escAttr, escBody, groupByCategory } from './shared.js';
+import { groupByCategory, renderPRBlocks } from './shared.js';
 
 interface CombinedResult {
   enhancedEntries: ChangelogEntry[];
@@ -55,15 +55,6 @@ Output a JSON object with an "entries" array. Each element (same order as input)
 - "scope": subcategory label or null
 - "breaking": true if this is a breaking change, false or null otherwise
 - "leadIn": short noun phrase for scanning (e.g. "Streaming API") or null`;
-}
-
-function renderPRBlocks(entry: ChangelogEntry): string {
-  if (!entry.context?.prs.length) return '';
-  return entry.context.prs
-    .map(
-      (pr) => `<pr number="${pr.number}" title="${escAttr(pr.title)}">${pr.body ? `\n${escBody(pr.body)}\n` : ''}</pr>`,
-    )
-    .join('\n');
 }
 
 function buildUserPrompt(entries: ChangelogEntry[]): string {
