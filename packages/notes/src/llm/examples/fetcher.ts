@@ -78,8 +78,10 @@ export async function fetchExamples(options: FetchExamplesOptions): Promise<Exam
     for (let page = 1; page <= 3; page++) {
       const { data } = await octokit.rest.repos.listReleases({ owner, repo, per_page: 100, page });
       allReleases.push(...data);
-      const scoped = data.filter((r) => !r.draft && !r.prerelease && matchesPackageScoped(r.tag_name, packageName));
-      if (scoped.length >= count || data.length < 100) break;
+      const totalScoped = allReleases.filter(
+        (r) => !r.draft && !r.prerelease && matchesPackageScoped(r.tag_name, packageName),
+      ).length;
+      if (totalScoped >= count || data.length < 100) break;
     }
 
     const nonDraft = allReleases.filter((r) => !r.draft && !r.prerelease);
