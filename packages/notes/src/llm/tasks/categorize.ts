@@ -92,6 +92,13 @@ function makeValidator(
       }
     }
 
+    if (zodResult.data.entries.length !== entries.length) {
+      return {
+        valid: false,
+        error: `Expected ${entries.length} entries, got ${zodResult.data.entries.length}`,
+      };
+    }
+
     // Apply scopes from LLM response
     const withScopes: ChangelogEntry[] = cleanEntries.map((entry, i) => {
       const llmEntry = zodResult.data.entries[i];
@@ -106,13 +113,6 @@ function makeValidator(
         .map((e) => `entry ${e.entryIndex} scope "${e.providedScope}" (valid: ${e.allowedScopes.join(', ')})`)
         .join('; ');
       return { valid: false, error: `Invalid scopes: ${msg}` };
-    }
-
-    if (zodResult.data.entries.length !== entries.length) {
-      return {
-        valid: false,
-        error: `Expected ${entries.length} entries, got ${zodResult.data.entries.length}`,
-      };
     }
 
     return { valid: true, value: groupByCategory(zodResult.data.entries, scopeResult.entries) };
