@@ -362,6 +362,7 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
             repo: ownerRepo.repo,
             packageName: ctx.packageName,
             count: examplesCount,
+            isMonorepo: contexts.length > 1,
           });
           examplesByPackage.set(ctx.packageName, examples);
           if (examples.length > 0) {

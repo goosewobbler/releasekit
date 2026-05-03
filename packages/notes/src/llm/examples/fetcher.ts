@@ -13,6 +13,7 @@ export interface FetchExamplesOptions {
   packageName: string;
   count: number;
   githubToken?: string;
+  isMonorepo?: boolean;
 }
 
 function cacheDir(): string {
@@ -58,7 +59,7 @@ function matchesBareVersion(tagName: string): boolean {
 }
 
 export async function fetchExamples(options: FetchExamplesOptions): Promise<Example[]> {
-  const { owner, repo, packageName, count, githubToken } = options;
+  const { owner, repo, packageName, count, githubToken, isMonorepo } = options;
 
   if (count === 0) return [];
 
@@ -74,19 +75,15 @@ export async function fetchExamples(options: FetchExamplesOptions): Promise<Exam
     const { data: releases } = await octokit.rest.repos.listReleases({
       owner,
       repo,
-      per_page: Math.min(count * 10, 100),
+      per_page: 100,
     });
 
     const nonDraft = releases.filter((r) => !r.draft && !r.prerelease);
     const packageScoped = nonDraft.filter((r) => matchesPackageScoped(r.tag_name, packageName));
-    // Only fall back to bare-version tags when the batch contains no package-scoped releases
-    // at all — indicating a single-package repo. If other packages have scoped releases,
-    // this package simply hasn't been released yet and bare tags would be misleading.
-    const hasAnyPackageScoped = nonDraft.some((r) => r.tag_name.includes('@'));
     const matching = (
       packageScoped.length > 0
         ? packageScoped
-        : hasAnyPackageScoped
+        : isMonorepo
           ? []
           : nonDraft.filter((r) => matchesBareVersion(r.tag_name))
     ).slice(0, count);
