@@ -98,7 +98,7 @@ export async function fetchExamples(options: FetchExamplesOptions): Promise<Exam
     const cached = readCache(key, latestTag);
     if (cached) {
       debug(`Using cached examples for ${packageName} (tag: ${latestTag})`);
-      return cached;
+      return cached.slice(0, count);
     }
 
     const examples: Example[] = [];
