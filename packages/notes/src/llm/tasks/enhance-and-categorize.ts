@@ -123,7 +123,7 @@ function makeValidator(
       return {
         ...original,
         description: llmEntry.description,
-        scope: llmEntry.scope ?? original.scope,
+        scope: llmEntry.scope ?? undefined,
         breaking: llmEntry.breaking ?? original.breaking,
         leadIn: llmEntry.leadIn ?? undefined,
       };

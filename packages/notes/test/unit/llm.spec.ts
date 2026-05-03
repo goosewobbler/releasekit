@@ -403,7 +403,7 @@ describe('enhanceAndCategorize()', () => {
     expect(result.enhancedEntries[2]?.type).toBe('changed');
   });
 
-  it('should preserve original scope when LLM returns null scope', async () => {
+  it('should clear scope when LLM returns null scope', async () => {
     const response = JSON.stringify({
       entries: [
         { description: 'New desc', category: 'New', scope: null, breaking: null, leadIn: null },
@@ -414,8 +414,8 @@ describe('enhanceAndCategorize()', () => {
     const provider = makeMockProvider(response);
     const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
 
-    // First entry had scope 'api' originally; null from LLM preserves original
-    expect(result.enhancedEntries[0]?.scope).toBe('api');
+    // LLM returning null for scope means "no scope" — original scope is not preserved
+    expect(result.enhancedEntries[0]?.scope).toBeUndefined();
   });
 
   it('should populate leadIn when provided by the LLM', async () => {
