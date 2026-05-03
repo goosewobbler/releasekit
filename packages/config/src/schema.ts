@@ -263,6 +263,7 @@ export const ReleaseNotesConfigSchema = z.object({
     .object({
       items: z.array(z.object({ label: z.string(), url: z.string().url() })).optional(),
       fromPRBodyMarker: z.string().optional(),
+      title: z.string().optional(),
     })
     .optional(),
 });

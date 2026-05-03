@@ -289,7 +289,7 @@ describe('formatVersion: categoryOrder', () => {
 // ---------------------------------------------------------------------------
 
 describe('formatVersion: migration links', () => {
-  it('should render explicit link items in a ### Migration section', async () => {
+  it('should render explicit link items under ### Links by default', async () => {
     const { formatVersion } = await import('../../../src/output/markdown.js');
 
     const ctx = makeContext({
@@ -302,8 +302,24 @@ describe('formatVersion: migration links', () => {
       links: { items: [{ label: 'Migration guide', url: 'https://example.com/migrate' }] },
     });
 
-    expect(result).toContain('### Migration');
+    expect(result).toContain('### Links');
     expect(result).toContain('- [Migration guide](https://example.com/migrate)');
+  });
+
+  it('should use custom title when links.title is set', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        categories: [{ name: 'New', entries: [{ type: 'added', description: 'Feature' }] }],
+      },
+    });
+
+    const result = formatVersion(ctx, {
+      links: { title: 'Migration', items: [{ label: 'Guide', url: 'https://example.com/guide' }] },
+    });
+
+    expect(result).toContain('### Migration');
   });
 
   it('should discover links from PR body marker', async () => {
@@ -325,7 +341,7 @@ describe('formatVersion: migration links', () => {
     });
 
     const result = formatVersion(ctx, { links: { fromPRBodyMarker: 'Migration:' } });
-    expect(result).toContain('### Migration');
+    expect(result).toContain('### Links');
     expect(result).toContain('https://example.com/guide');
   });
 
@@ -386,7 +402,7 @@ describe('formatVersion: migration links', () => {
     expect(count).toBe(1);
   });
 
-  it('should not render Migration section when no links found', async () => {
+  it('should not render links section when no links found', async () => {
     const { formatVersion } = await import('../../../src/output/markdown.js');
 
     const ctx = makeContext({
@@ -395,10 +411,10 @@ describe('formatVersion: migration links', () => {
       },
     });
 
-    expect(formatVersion(ctx)).not.toContain('### Migration');
+    expect(formatVersion(ctx)).not.toContain('### Links');
   });
 
-  it('should not render Migration section in non-LLM path', async () => {
+  it('should not render links section in non-LLM path', async () => {
     const { formatVersion } = await import('../../../src/output/markdown.js');
 
     // No enhanced.categories → type-based path
@@ -407,7 +423,7 @@ describe('formatVersion: migration links', () => {
       links: { items: [{ label: 'guide', url: 'https://example.com/guide' }] },
     });
 
-    expect(result).not.toContain('### Migration');
+    expect(result).not.toContain('### Links');
   });
 });
 

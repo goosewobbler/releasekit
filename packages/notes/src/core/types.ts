@@ -183,6 +183,7 @@ export interface ChangelogConfig {
 export interface LinksConfig {
   items?: Array<{ label: string; url: string }>;
   fromPRBodyMarker?: string;
+  title?: string;
 }
 
 export interface ReleaseNotesConfig {

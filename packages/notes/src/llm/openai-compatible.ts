@@ -18,7 +18,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
   readonly name = 'openai-compatible';
   readonly capabilities: ProviderCapabilities = {
     systemRole: true,
-    structuredOutputs: true,
+    structuredOutputs: false,
     toolUse: false,
   };
 

@@ -72,33 +72,31 @@ function formatCategorySection(name: string, entries: ChangelogEntry[]): string[
       lines.push(formatEntry(entry));
     }
   } else {
-    // Render scope groups in order of first appearance, then ungrouped entries
-    const renderedScopes = new Set<string>();
-    const ungrouped: ChangelogEntry[] = [];
+    // Render in a single pass preserving original order.
+    // When a grouped scope is first encountered, expand the full group inline.
     const byScope = new Map<string, ChangelogEntry[]>();
-
     for (const entry of entries) {
       if (entry.scope && groupedScopes.has(entry.scope)) {
         const group = byScope.get(entry.scope) ?? [];
         group.push(entry);
         byScope.set(entry.scope, group);
-      } else {
-        ungrouped.push(entry);
       }
     }
 
+    const renderedScopes = new Set<string>();
     for (const entry of entries) {
-      if (entry.scope && groupedScopes.has(entry.scope) && !renderedScopes.has(entry.scope)) {
-        renderedScopes.add(entry.scope);
-        lines.push(`**${entry.scope}**:`);
-        for (const e of byScope.get(entry.scope) ?? []) {
-          lines.push(formatEntry(e, { hideScope: true }));
+      if (entry.scope && groupedScopes.has(entry.scope)) {
+        if (!renderedScopes.has(entry.scope)) {
+          renderedScopes.add(entry.scope);
+          lines.push(`**${entry.scope}**:`);
+          for (const e of byScope.get(entry.scope) ?? []) {
+            lines.push(formatEntry(e, { hideScope: true }));
+          }
         }
+        // Remaining entries in this group already rendered above — skip
+      } else {
+        lines.push(formatEntry(entry));
       }
-    }
-
-    for (const entry of ungrouped) {
-      lines.push(formatEntry(entry));
     }
   }
 
@@ -231,7 +229,7 @@ export function formatVersion(context: TemplateContext, options?: FormatVersionO
 
     const links = resolveLinks(context.entries, options?.links);
     if (links.length > 0) {
-      lines.push('### Migration');
+      lines.push(`### ${options?.links?.title ?? 'Links'}`);
       for (const link of links) {
         lines.push(`- [${link.label}](${link.url})`);
       }
