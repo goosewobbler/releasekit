@@ -223,15 +223,15 @@ describe('fetchExamples() - release matching', () => {
     expect(result).toHaveLength(2);
   });
 
-  it('should use bare version tags as fallback when only other packages have scoped releases', async () => {
+  it('suppresses bare version fallback when other packages have scoped releases (monorepo)', async () => {
     listReleasesMock.mockResolvedValue({
       data: [makeRelease('@scope/bar@1.0.0'), makeRelease('v2.0.0')],
     });
 
-    // @scope/foo has no package-scoped releases, so bare tag should be used
+    // @scope/foo has no scoped releases, but @scope/bar@* proves this is a monorepo —
+    // bare tags would be misleading, so we return nothing rather than unrelated examples.
     const result = await fetchExamples({ owner: 'o', repo: 'r3', packageName: '@scope/foo', count: 3 });
-    expect(result).toHaveLength(1);
-    expect(result[0]?.version).toBe('2.0.0');
+    expect(result).toHaveLength(0);
   });
 
   it('should respect count limit on package-scoped results', async () => {
