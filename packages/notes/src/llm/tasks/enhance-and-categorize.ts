@@ -178,7 +178,12 @@ export async function enhanceAndCategorize(
 
   return withCorrectiveRetry(
     (messages, isFirstAttempt) =>
-      provider.complete(messages, isFirstAttempt ? { schema, toolName: 'emit_release_notes' } : undefined),
+      provider.complete(
+        messages,
+        isFirstAttempt && provider.capabilities.structuredOutputs
+          ? { schema, toolName: 'emit_release_notes' }
+          : undefined,
+      ),
     validate,
     buildCorrectionMessages,
     initialMessages,

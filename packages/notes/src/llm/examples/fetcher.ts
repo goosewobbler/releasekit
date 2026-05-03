@@ -47,10 +47,13 @@ function writeCache(key: string, latestTag: string, examples: Example[]): void {
   }
 }
 
-function releaseMatchesPackage(tagName: string, packageName: string): boolean {
-  // Matches: packageName@version, @scope/name@version, or bare version tags for single-package repos
+function matchesPackageScoped(tagName: string, packageName: string): boolean {
   const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`^${escaped}@`).test(tagName) || /^v?\d/.test(tagName);
+  return new RegExp(`^${escaped}@`).test(tagName);
+}
+
+function matchesBareVersion(tagName: string): boolean {
+  return /^v?\d/.test(tagName);
 }
 
 export async function fetchExamples(options: FetchExamplesOptions): Promise<Example[]> {
@@ -73,9 +76,14 @@ export async function fetchExamples(options: FetchExamplesOptions): Promise<Exam
       per_page: Math.min(count * 5, 30),
     });
 
-    const matching = releases
-      .filter((r) => !r.draft && !r.prerelease && releaseMatchesPackage(r.tag_name, packageName))
-      .slice(0, count);
+    const packageScoped = releases.filter(
+      (r) => !r.draft && !r.prerelease && matchesPackageScoped(r.tag_name, packageName),
+    );
+    const matching = (
+      packageScoped.length > 0
+        ? packageScoped
+        : releases.filter((r) => !r.draft && !r.prerelease && matchesBareVersion(r.tag_name))
+    ).slice(0, count);
 
     if (matching.length === 0) {
       debug(`No matching releases found for ${packageName}`);

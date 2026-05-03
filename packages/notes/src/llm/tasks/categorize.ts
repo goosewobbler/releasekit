@@ -143,7 +143,12 @@ export async function categorizeEntries(
 
   return withCorrectiveRetry(
     (messages, isFirstAttempt) =>
-      provider.complete(messages, isFirstAttempt ? { schema, toolName: 'categorize_entries' } : undefined),
+      provider.complete(
+        messages,
+        isFirstAttempt && provider.capabilities.structuredOutputs
+          ? { schema, toolName: 'categorize_entries' }
+          : undefined,
+      ),
     validate,
     buildCorrectionMessages,
     initialMessages,
