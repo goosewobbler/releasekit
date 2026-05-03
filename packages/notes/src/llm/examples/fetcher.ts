@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -22,7 +23,8 @@ function cacheDir(): string {
 
 function cacheKey(owner: string, repo: string, packageName: string): string {
   const safe = packageName.replace(/[^a-zA-Z0-9-]/g, '_');
-  return path.join(cacheDir(), owner, repo, `${safe}.json`);
+  const hash = createHash('sha256').update(packageName).digest('hex').slice(0, 8);
+  return path.join(cacheDir(), owner, repo, `${safe}_${hash}.json`);
 }
 
 interface CacheEntry {
@@ -72,13 +74,15 @@ export async function fetchExamples(options: FetchExamplesOptions): Promise<Exam
   const octokit = new Octokit({ auth: token });
 
   try {
-    const { data: releases } = await octokit.rest.repos.listReleases({
-      owner,
-      repo,
-      per_page: 100,
-    });
+    const allReleases: Awaited<ReturnType<typeof octokit.rest.repos.listReleases>>['data'] = [];
+    for (let page = 1; page <= 3; page++) {
+      const { data } = await octokit.rest.repos.listReleases({ owner, repo, per_page: 100, page });
+      allReleases.push(...data);
+      const scoped = data.filter((r) => !r.draft && !r.prerelease && matchesPackageScoped(r.tag_name, packageName));
+      if (scoped.length >= count || data.length < 100) break;
+    }
 
-    const nonDraft = releases.filter((r) => !r.draft && !r.prerelease);
+    const nonDraft = allReleases.filter((r) => !r.draft && !r.prerelease);
     const packageScoped = nonDraft.filter((r) => matchesPackageScoped(r.tag_name, packageName));
     const matching = (
       packageScoped.length > 0

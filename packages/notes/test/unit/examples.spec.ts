@@ -238,7 +238,7 @@ describe('fetchExamples() - release matching', () => {
     expect(result).toHaveLength(2);
   });
 
-  it('suppresses bare version fallback when isMonorepo is true', async () => {
+  it('should suppress bare version fallback when isMonorepo is true', async () => {
     listReleasesMock.mockResolvedValue({
       data: [makeRelease('@scope/bar@1.0.0'), makeRelease('v2.0.0')],
     });
@@ -253,7 +253,7 @@ describe('fetchExamples() - release matching', () => {
     expect(result).toHaveLength(0);
   });
 
-  it('uses bare version fallback when isMonorepo is false', async () => {
+  it('should use bare version fallback when isMonorepo is false', async () => {
     listReleasesMock.mockResolvedValue({
       data: [makeRelease('v2.0.0'), makeRelease('v1.0.0')],
     });
@@ -275,6 +275,29 @@ describe('fetchExamples() - release matching', () => {
 
     const result = await fetchExamples({ owner: 'o', repo: 'r4', packageName: 'my-pkg', count: 2 });
     expect(result).toHaveLength(2);
+  });
+
+  it('should fetch page 2 when page 1 is full but has no package-scoped matches', async () => {
+    const page1 = Array.from({ length: 100 }, (_, i) => makeRelease(`other-pkg@${100 - i}.0.0`));
+    const page2 = [makeRelease('my-pkg@2.0.0'), makeRelease('my-pkg@1.0.0')];
+
+    listReleasesMock.mockResolvedValueOnce({ data: page1 }).mockResolvedValueOnce({ data: page2 });
+
+    const result = await fetchExamples({ owner: 'o', repo: 'r-pg', packageName: 'my-pkg', count: 2 });
+    expect(result).toHaveLength(2);
+    expect(listReleasesMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('should stop after page 1 when count package-scoped matches are already found', async () => {
+    const page1 = Array.from({ length: 100 }, (_, i) =>
+      i < 2 ? makeRelease(`my-pkg@${2 - i}.0.0`) : makeRelease(`other-pkg@${i}.0.0`),
+    );
+
+    listReleasesMock.mockResolvedValue({ data: page1 });
+
+    const result = await fetchExamples({ owner: 'o', repo: 'r-stop', packageName: 'my-pkg', count: 2 });
+    expect(result).toHaveLength(2);
+    expect(listReleasesMock).toHaveBeenCalledTimes(1);
   });
 
   it('should skip draft and prerelease entries', async () => {
