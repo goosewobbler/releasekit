@@ -282,6 +282,107 @@ describe('formatVersion: breaking changes section', () => {
     expect(breakingPos).toBeGreaterThanOrEqual(0);
     expect(breakingPos).toBeLessThan(newPos);
   });
+
+  it('should merge breaking entries into an existing Breaking category returned by the LLM', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        categories: [
+          { name: 'Breaking', entries: [{ type: 'removed', description: 'Already-breaking entry' }] },
+          {
+            name: 'Changed',
+            entries: [
+              { type: 'changed', description: 'Another breaking change', breaking: true },
+              { type: 'changed', description: 'Normal change' },
+            ],
+          },
+        ],
+      },
+    });
+
+    const result = formatVersion(ctx);
+    // Only one Breaking section
+    const firstBreaking = result.indexOf('### Breaking');
+    const secondBreaking = result.indexOf('### Breaking', firstBreaking + 1);
+    expect(firstBreaking).toBeGreaterThanOrEqual(0);
+    expect(secondBreaking).toBe(-1);
+    // Both entries present under it
+    expect(result).toContain('Already-breaking entry');
+    expect(result).toContain('Another breaking change');
+  });
+
+  it('should not render an empty source category after all entries are rerouted', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        categories: [
+          // All entries in this category are breaking — it should vanish after rerouting
+          { name: 'Removed', entries: [{ type: 'removed', description: 'Dropped endpoint', breaking: true }] },
+          { name: 'New', entries: [{ type: 'added', description: 'Feature' }] },
+        ],
+      },
+    });
+
+    const result = formatVersion(ctx);
+    expect(result).toContain('### Breaking');
+    expect(result).not.toContain('### Removed');
+  });
+
+  it('should preserve LLM category order when categoryOrder is absent', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    // Simulate a realistic LLM-returned category list with no categoryOrder configured
+    const ctx = makeContext({
+      enhanced: {
+        categories: [
+          { name: 'New features', entries: [{ type: 'added', description: 'Dark mode' }] },
+          { name: 'Bug fixes', entries: [{ type: 'fixed', description: 'Crash on startup' }] },
+          { name: 'Performance', entries: [{ type: 'changed', description: 'Faster build' }] },
+        ],
+      },
+    });
+
+    const result = formatVersion(ctx);
+    const newPos = result.indexOf('### New features');
+    const fixPos = result.indexOf('### Bug fixes');
+    const perfPos = result.indexOf('### Performance');
+    expect(newPos).toBeLessThan(fixPos);
+    expect(fixPos).toBeLessThan(perfPos);
+  });
+
+  it('should pin synthetic Breaking before all other categories when categoryOrder is absent', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    // Realistic LLM output: no Breaking category returned, breaking flag on one entry
+    const ctx = makeContext({
+      enhanced: {
+        categories: [
+          { name: 'New features', entries: [{ type: 'added', description: 'New API' }] },
+          { name: 'Bug fixes', entries: [{ type: 'fixed', description: 'Fix crash' }] },
+          {
+            name: 'Changed',
+            entries: [
+              { type: 'changed', description: 'Dropped support for Node 16', breaking: true },
+              { type: 'changed', description: 'Updated defaults' },
+            ],
+          },
+        ],
+      },
+    });
+
+    const result = formatVersion(ctx);
+    const breakingPos = result.indexOf('### Breaking');
+    const newPos = result.indexOf('### New features');
+    const fixPos = result.indexOf('### Bug fixes');
+    expect(breakingPos).toBeGreaterThanOrEqual(0);
+    expect(breakingPos).toBeLessThan(newPos);
+    expect(breakingPos).toBeLessThan(fixPos);
+    // Source category still renders (has a non-breaking entry left)
+    expect(result).toContain('### Changed');
+    expect(result).toContain('Updated defaults');
+  });
 });
 
 // ---------------------------------------------------------------------------
