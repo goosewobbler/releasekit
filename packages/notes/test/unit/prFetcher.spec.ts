@@ -120,6 +120,17 @@ describe('fetchPullRequestContext()', () => {
     expect(cache.get(1)?.body).toBe('BeforeAfter');
   });
 
+  it('should handle nested/truncated HTML comment patterns', async () => {
+    mockGet.mockResolvedValue({
+      data: { title: 'Test', body: 'A<!--<!---->B<!--unclosedC', pull_request: {} },
+    });
+    const cache = new Map<number, PRContext>();
+
+    await fetchPullRequestContext('owner', 'repo', [1], 'token', cache);
+
+    expect(cache.get(1)?.body).not.toContain('<!--');
+  });
+
   it('should strip images from body', async () => {
     mockGet.mockResolvedValue({
       data: { title: 'Test', body: 'Text ![screenshot](https://example.com/img.png) more text', pull_request: {} },

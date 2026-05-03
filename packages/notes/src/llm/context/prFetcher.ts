@@ -5,8 +5,16 @@ import type { PRContext } from '../../core/types.js';
 const BODY_CAP = 2048;
 
 function sanitiseBody(raw: string): string {
-  return raw
-    .replace(/<!--[\s\S]*?-->/g, '') // strip HTML comments
+  // Loop until stable: handles nested/truncated patterns like <!--<!---->
+  let s = raw;
+  let prev: string;
+  do {
+    prev = s;
+    s = s.replace(/<!--[\s\S]*?-->/g, '');
+  } while (s !== prev);
+
+  return s
+    .replace(/<!--[\s\S]*/g, '') // strip any unclosed comment openers
     .replace(/<details[\s\S]*?<\/details>/gi, '') // strip <details> blocks
     .replace(/!\[.*?\]\(.*?\)/g, '') // strip images
     .replace(/\n{3,}/g, '\n\n') // collapse blank lines
