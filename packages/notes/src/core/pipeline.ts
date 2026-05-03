@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { debug, info, success, warn } from '@releasekit/core';
 import { parseVersionOutput } from '../input/version-output.js';
+import { fetchPullRequestContext, parseIssueNumbers, resolveGitHubToken, warnOnce } from '../llm/context/prFetcher.js';
 import { LLM_DEFAULTS } from '../llm/defaults.js';
 import { fetchExamples } from '../llm/examples/fetcher.js';
 import type { Example, LLMProvider } from '../llm/index.js';
@@ -25,6 +26,7 @@ import type {
   LLMCategory,
   LLMConfig,
   PackageChangelog,
+  PRContext,
   TemplateContext,
   TemplateEngine,
 } from './types.js';
@@ -371,6 +373,40 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
           }
         }),
       );
+    }
+
+    // Fetch PR context for all entries across all packages
+    const prCache = new Map<number, PRContext>();
+    const pullRequestsEnabled = llmConfig.context?.pullRequests !== false;
+    if (pullRequestsEnabled && ownerRepo) {
+      const token = resolveGitHubToken();
+      const warnedMessages = new Set<string>();
+      if (!token) {
+        warnOnce('No GitHub token available — skipping PR context fetch (set GITHUB_TOKEN to enable)', warnedMessages);
+      } else {
+        const allIssueNumbers = contexts
+          .flatMap((ctx) => ctx.entries.flatMap((e) => parseIssueNumbers(e.issueIds ?? [])))
+          .filter((n, i, arr) => arr.indexOf(n) === i);
+
+        if (allIssueNumbers.length > 0) {
+          debug(`Fetching PR context for ${allIssueNumbers.length} issue(s)`);
+          await fetchPullRequestContext(ownerRepo.owner, ownerRepo.repo, allIssueNumbers, token, prCache);
+          debug(`Loaded PR context for ${prCache.size} issue(s)`);
+        }
+      }
+    }
+
+    // Decorate entries with fetched PR context
+    if (prCache.size > 0) {
+      contexts = contexts.map((ctx) => ({
+        ...ctx,
+        entries: ctx.entries.map((entry) => {
+          const prs = parseIssueNumbers(entry.issueIds ?? [])
+            .map((n) => prCache.get(n))
+            .filter((pr): pr is PRContext => pr !== undefined);
+          return prs.length > 0 ? { ...entry, context: { prs } } : entry;
+        }),
+      }));
     }
 
     contexts = await Promise.all(

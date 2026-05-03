@@ -27,6 +27,12 @@ function buildUserPrompt(entries: ChangelogEntry[], context: ReleaseNotesContext
       if (e.scope) line += ` (${e.scope})`;
       line += `: ${e.description}`;
       if (e.breaking) line += ' **BREAKING**';
+      if (e.context?.prs.length) {
+        const prBlocks = e.context.prs
+          .map((pr) => `<pr number="${pr.number}" title="${pr.title}">${pr.body ? `\n${pr.body}\n` : ''}</pr>`)
+          .join('\n');
+        line += `\n${prBlocks}`;
+      }
       return line;
     })
     .join('\n');

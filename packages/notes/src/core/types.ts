@@ -5,6 +5,12 @@ export type { RetryOptions };
 
 export type ChangelogType = 'added' | 'changed' | 'deprecated' | 'removed' | 'fixed' | 'security';
 
+export interface PRContext {
+  number: number;
+  title: string;
+  body: string;
+}
+
 export interface ChangelogEntry {
   type: ChangelogType;
   description: string;
@@ -13,6 +19,8 @@ export interface ChangelogEntry {
   originalType?: string;
   breaking?: boolean;
   leadIn?: string;
+  /** Populated upstream of LLM tasks; never serialised to disk. */
+  context?: { prs: PRContext[] };
 }
 
 export interface PackageChangelog {

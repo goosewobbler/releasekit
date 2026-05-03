@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildOrderedCategories } from '../../../src/core/pipeline.js';
 import type { ChangelogInput, CompleteOptions, Config } from '../../../src/core/types.js';
+import type { CompleteResult, LLMMessage } from '../../../src/llm/messages.js';
 import type { LLMProvider } from '../../../src/llm/provider.js';
 
 // Mock createProvider so we can inject a capturing provider.
@@ -44,10 +45,17 @@ describe('Pipeline: config.llm.options passthrough', () => {
     const { createProvider } = await import('../../../src/llm/index.js');
     const mockProvider: LLMProvider = {
       name: 'capturing-mock',
-      async complete(_prompt: string, opts?: CompleteOptions): Promise<string> {
+      capabilities: { systemRole: true, structuredOutputs: false, toolUse: false },
+      async complete(_messages: LLMMessage[], opts?: CompleteOptions): Promise<CompleteResult> {
         capturedOpts = opts;
-        // Return valid JSON expected by the categorize task
-        return JSON.stringify({ General: [0, 1, 2] });
+        const content = JSON.stringify({
+          entries: [
+            { category: 'New Features', scope: null },
+            { category: 'Bug Fixes', scope: null },
+            { category: 'Bug Fixes', scope: null },
+          ],
+        });
+        return { content, structured: JSON.parse(content) };
       },
     };
     vi.mocked(createProvider).mockReturnValue(mockProvider);
@@ -87,8 +95,10 @@ describe('Pipeline: config.llm.options passthrough', () => {
 
     await runPipeline(sampleInput, config, false);
 
-    // configOptions is undefined, so spread is a no-op — opts contains only the undefined spread
-    expect(capturedOpts).toEqual({});
+    // configOptions is undefined — config-level opts keys should not appear in captured opts
+    expect(capturedOpts).not.toHaveProperty('maxTokens');
+    expect(capturedOpts).not.toHaveProperty('timeout');
+    expect(capturedOpts).not.toHaveProperty('temperature');
   });
 
   it('should use per-call options when provided, overriding config-level LLM options', async () => {

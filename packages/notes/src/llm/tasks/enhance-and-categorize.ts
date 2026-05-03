@@ -57,9 +57,20 @@ Output a JSON object with an "entries" array. Each element (same order as input)
 - "leadIn": short noun phrase for scanning (e.g. "Streaming API") or null`;
 }
 
+function renderPRBlocks(entry: ChangelogEntry): string {
+  if (!entry.context?.prs.length) return '';
+  return entry.context.prs
+    .map((pr) => `<pr number="${pr.number}" title="${pr.title}">${pr.body ? `\n${pr.body}\n` : ''}</pr>`)
+    .join('\n');
+}
+
 function buildUserPrompt(entries: ChangelogEntry[]): string {
   const entriesText = entries
-    .map((e, i) => `${i}. [${e.type}]${e.scope ? ` (${e.scope})` : ''}: ${e.description}`)
+    .map((e, i) => {
+      const prBlocks = renderPRBlocks(e);
+      const header = `${i}. [${e.type}]${e.scope ? ` (${e.scope})` : ''}: ${e.description}`;
+      return prBlocks ? `${header}\n${prBlocks}` : header;
+    })
     .join('\n');
   return `Entries:\n${entriesText}`;
 }
