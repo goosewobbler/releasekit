@@ -2,6 +2,7 @@ import { loadAuth } from '../core/config.js';
 import type { ChangelogEntry, LLMCategory, LLMConfig, LLMPromptsConfig, ScopeConfig } from '../core/types.js';
 import { LLMError } from '../errors/index.js';
 import { AnthropicProvider } from './anthropic.js';
+import type { Example } from './examples/types.js';
 import { OllamaProvider } from './ollama.js';
 import { OpenAIProvider } from './openai.js';
 import { OpenAICompatibleProvider } from './openai-compatible.js';
@@ -26,9 +27,12 @@ export interface LLMContext {
   previousVersion?: string;
 }
 
+export type { Example } from './examples/types.js';
+
 export interface EnhanceContext extends LLMContext {
   style?: string;
   prompts?: LLMPromptsConfig;
+  examples?: Example[];
 }
 
 export interface SummarizeContext extends LLMContext {
@@ -44,6 +48,7 @@ export interface CategorizeContext extends LLMContext {
 export interface ReleaseNotesContext extends LLMContext {
   date?: string;
   prompts?: LLMPromptsConfig;
+  examples?: Example[];
 }
 
 export interface CategorizedEntries {
