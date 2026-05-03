@@ -18,9 +18,23 @@ function stripHtmlComments(input: string): string {
   return result;
 }
 
+function stripDetailsTags(input: string): string {
+  let result = '';
+  let i = 0;
+  const lower = input.toLowerCase();
+  while (i < input.length) {
+    if (lower.startsWith('<details', i)) {
+      const end = lower.indexOf('</details>', i + 8);
+      i = end === -1 ? input.length : end + 10;
+    } else {
+      result += input[i++];
+    }
+  }
+  return result;
+}
+
 function sanitiseBody(raw: string): string {
-  return stripHtmlComments(raw)
-    .replace(/<details[\s\S]*?<\/details>/gi, '') // strip <details> blocks
+  return stripDetailsTags(stripHtmlComments(raw))
     .replace(/!\[.*?\]\(.*?\)/g, '') // strip images
     .replace(/\n{3,}/g, '\n\n') // collapse blank lines
     .trim();

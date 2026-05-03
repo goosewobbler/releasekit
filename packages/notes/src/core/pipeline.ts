@@ -383,9 +383,9 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
       if (!token) {
         warn('No GitHub token available — skipping PR context fetch (set GITHUB_TOKEN to enable)');
       } else {
-        const allIssueNumbers = contexts
-          .flatMap((ctx) => ctx.entries.flatMap((e) => parseIssueNumbers(e.issueIds ?? [])))
-          .filter((n, i, arr) => arr.indexOf(n) === i);
+        const allIssueNumbers = [
+          ...new Set(contexts.flatMap((ctx) => ctx.entries.flatMap((e) => parseIssueNumbers(e.issueIds ?? [])))),
+        ];
 
         if (allIssueNumbers.length > 0) {
           debug(`Fetching PR context for ${allIssueNumbers.length} issue(s)`);
