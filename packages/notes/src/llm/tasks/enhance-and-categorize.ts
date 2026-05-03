@@ -8,7 +8,7 @@ import type { CompleteResult, LLMMessage } from '../messages.js';
 import { resolveSystemPrompt } from '../prompts.js';
 import { buildEnhanceAndCategorizeSchema, EnhanceAndCategorizeOutputSchema } from '../schemas.js';
 import { validateEntryScopes } from '../scopes.js';
-import { groupByCategory } from './shared.js';
+import { groupByCategory, renderPRBlocks } from './shared.js';
 
 interface CombinedResult {
   enhancedEntries: ChangelogEntry[];
@@ -59,7 +59,11 @@ Output a JSON object with an "entries" array. Each element (same order as input)
 
 function buildUserPrompt(entries: ChangelogEntry[]): string {
   const entriesText = entries
-    .map((e, i) => `${i}. [${e.type}]${e.scope ? ` (${e.scope})` : ''}: ${e.description}`)
+    .map((e, i) => {
+      const prBlocks = renderPRBlocks(e);
+      const header = `${i}. [${e.type}]${e.scope ? ` (${e.scope})` : ''}: ${e.description}`;
+      return prBlocks ? `${header}\n${prBlocks}` : header;
+    })
     .join('\n');
   return `Entries:\n${entriesText}`;
 }

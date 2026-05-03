@@ -246,6 +246,11 @@ export const LLMConfigSchema = z.object({
   scopes: ScopeConfigSchema.optional(),
   prompts: LLMPromptsConfigSchema.optional(),
   examples: z.number().int().min(0).max(5).default(3),
+  context: z
+    .object({
+      pullRequests: z.boolean().default(true),
+    })
+    .default({ pullRequests: true }),
 });
 
 export const ReleaseNotesConfigSchema = z.object({

@@ -22,15 +22,15 @@ describe('parseReleaseBodyToExample()', () => {
 `;
     const result = parseReleaseBodyToExample(body, '2.0.0');
     expect(result).not.toBeNull();
-    expect(result!.version).toBe('2.0.0');
-    expect(result!.entries).toHaveLength(3);
-    expect(result!.entries[0]).toMatchObject({ category: 'New', description: 'Add streaming support' });
-    expect(result!.entries[1]).toMatchObject({
+    expect(result?.version).toBe('2.0.0');
+    expect(result?.entries).toHaveLength(3);
+    expect(result?.entries[0]).toMatchObject({ category: 'New', description: 'Add streaming support' });
+    expect(result?.entries[1]).toMatchObject({
       category: 'New',
       leadIn: 'Deeplink testing',
       description: 'New browser.electron.triggerDeeplink() API',
     });
-    expect(result!.entries[2]).toMatchObject({ category: 'Fixed', description: 'Fix null pointer in parser' });
+    expect(result?.entries[2]).toMatchObject({ category: 'Fixed', description: 'Fix null pointer in parser' });
   });
 
   it('should return null for empty body', () => {
@@ -44,34 +44,34 @@ describe('parseReleaseBodyToExample()', () => {
   it('should detect breaking flag from **BREAKING** marker', () => {
     const body = '### Changed\n- Drop Node 16 support **BREAKING**\n';
     const result = parseReleaseBodyToExample(body, '3.0.0');
-    expect(result!.entries[0]!.breaking).toBe(true);
+    expect(result?.entries[0]?.breaking).toBe(true);
   });
 
   it('should treat ## heading before ### heading as an overridable category', () => {
     // ## is now a valid category; when followed by ###, the deeper heading wins
     const body = '## v1.0.0\n\n### New\n- Add feature\n';
     const result = parseReleaseBodyToExample(body, '1.0.0');
-    expect(result!.entries[0]!.category).toBe('New');
+    expect(result?.entries[0]?.category).toBe('New');
   });
 
   it('should parse ## headings as categories when used without ### sub-headings', () => {
     const body = '## New Features\n- Add streaming\n## Bug Fixes\n- Fix crash\n';
     const result = parseReleaseBodyToExample(body, '2.0.0');
-    expect(result!.entries).toHaveLength(2);
-    expect(result!.entries[0]!.category).toBe('New Features');
-    expect(result!.entries[1]!.category).toBe('Bug Fixes');
+    expect(result?.entries).toHaveLength(2);
+    expect(result?.entries[0]?.category).toBe('New Features');
+    expect(result?.entries[1]?.category).toBe('Bug Fixes');
   });
 
   it('should skip # (h1) headings', () => {
     const body = '# Release Notes\n\n### New\n- Add feature\n';
     const result = parseReleaseBodyToExample(body, '1.0.0');
-    expect(result!.entries[0]!.category).toBe('New');
+    expect(result?.entries[0]?.category).toBe('New');
   });
 
   it('should use General as default category when no heading precedes bullets', () => {
     const body = '- Some entry without heading\n';
     const result = parseReleaseBodyToExample(body, '1.0.0');
-    expect(result!.entries[0]!.category).toBe('General');
+    expect(result?.entries[0]?.category).toBe('General');
   });
 });
 

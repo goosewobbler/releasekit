@@ -1,3 +1,4 @@
+import { debug } from '@releasekit/core';
 import type { CompleteOptions } from '../core/types.js';
 import { LLMError } from '../errors/index.js';
 import { BaseLLMProvider } from './base.js';
@@ -111,7 +112,8 @@ export class OllamaProvider extends BaseLLMProvider {
         try {
           const structured = JSON.parse(content);
           return { content, structured };
-        } catch {
+        } catch (e) {
+          debug(`Ollama: failed to parse structured response: ${e instanceof Error ? e.message : String(e)}`);
           return { content };
         }
       }
