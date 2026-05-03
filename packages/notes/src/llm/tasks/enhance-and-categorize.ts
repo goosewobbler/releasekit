@@ -7,6 +7,7 @@ import type { CompleteResult, LLMMessage } from '../messages.js';
 import { resolveSystemPrompt } from '../prompts.js';
 import { buildEnhanceAndCategorizeSchema, EnhanceAndCategorizeOutputSchema } from '../schemas.js';
 import { validateEntryScopes } from '../scopes.js';
+import { groupByCategory } from './shared.js';
 
 interface CombinedResult {
   enhancedEntries: ChangelogEntry[];
@@ -62,7 +63,7 @@ function buildUserPrompt(entries: ChangelogEntry[]): string {
   return `Entries:\n${entriesText}`;
 }
 
-function buildCorrectionMessages(badContent: string, error: string): LLMMessage[] {
+function buildCorrectionMessages(_badContent: string, error: string): LLMMessage[] {
   return [
     {
       role: 'user',
@@ -130,22 +131,14 @@ function makeValidator(
       return { valid: false, error: `Invalid scopes: ${msg}` };
     }
 
-    // Group into categories
-    const categoryMap = new Map<string, ChangelogEntry[]>();
-    for (let i = 0; i < zodResult.data.entries.length; i++) {
-      const llmEntry = zodResult.data.entries[i];
-      const category = llmEntry?.category ?? 'Unknown';
-      const entry = scopeResult.entries[i];
-      if (!entry || !llmEntry) continue;
-
-      if (!categoryMap.has(category)) categoryMap.set(category, []);
-      categoryMap.get(category)?.push(entry);
+    if (zodResult.data.entries.length !== entries.length) {
+      return {
+        valid: false,
+        error: `Expected ${entries.length} entries, got ${zodResult.data.entries.length}`,
+      };
     }
 
-    const categories: CategorizedEntries[] = [];
-    for (const [category, catEntries] of categoryMap) {
-      categories.push({ category, entries: catEntries });
-    }
+    const categories = groupByCategory(zodResult.data.entries, scopeResult.entries);
 
     return {
       valid: true,

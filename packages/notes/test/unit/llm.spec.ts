@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ChangelogEntry } from '../../src/core/types.js';
+import { LLMError } from '../../src/errors/index.js';
 import type { CompleteResult, LLMMessage } from '../../src/llm/messages.js';
 import type { LLMProvider } from '../../src/llm/provider.js';
 import { categorizeEntries } from '../../src/llm/tasks/categorize.js';
@@ -559,21 +560,14 @@ describe('enhanceAndCategorize()', () => {
     expect(systemMsg?.content).toContain('Focus on user impact.');
   });
 
-  it('should handle partial LLM response (fewer entries than input)', async () => {
-    // Only 1 entry in response for 3 inputs; missing entries fall back to originals
+  it('should throw LLMError when response has fewer entries than input', async () => {
+    // Only 1 entry in response for 3 inputs — count mismatch is a validation error.
     const response = JSON.stringify({
       entries: [{ description: 'Only first', category: 'New', scope: null, breaking: null, leadIn: null }],
     });
 
-    // Because the zod schema requires exactly the right structure but not the
-    // right count, this validates fine; missing entries use original descriptions.
     const provider = makeMockProvider(response);
-    const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
-
-    expect(result.enhancedEntries).toHaveLength(3);
-    expect(result.enhancedEntries[0]?.description).toBe('Only first');
-    expect(result.enhancedEntries[1]?.description).toBe('Fix null pointer in parser');
-    expect(result.enhancedEntries[2]?.description).toBe('Refactor config loading');
+    await expect(enhanceAndCategorize(provider, sampleEntries, llmContext)).rejects.toThrow(LLMError);
   });
 });
 
