@@ -46,13 +46,13 @@ function ensurePeriod(str: string | undefined): string {
 
 function fmtDefault(val: unknown): string {
   if (val === undefined || val === null) return '—';
-  if (typeof val === 'boolean') return String(val);
+  if (typeof val === 'boolean') return `\`${val}\``;
   if (typeof val === 'string') return `\`"${val}"\``;
   if (Array.isArray(val)) {
     if (val.length === 0) return '`[]`';
     return `\`${JSON.stringify(val)}\``;
   }
-  if (typeof val === 'number') return String(val);
+  if (typeof val === 'number') return `\`${val}\``;
   return `\`${JSON.stringify(val)}\``;
 }
 
