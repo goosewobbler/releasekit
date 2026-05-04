@@ -46,6 +46,7 @@ jobs:
         run: node packages/release/dist/cli.js standing-pr update
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
   publish-release:
     name: Publish Release
