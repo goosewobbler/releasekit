@@ -6,7 +6,7 @@ import { resolveSystemPrompt } from '../prompts.js';
 import { renderPRBlocks } from './shared.js';
 
 function buildSystemPrompt(style: string | undefined): string {
-  const styleText = style ? `- ${style}` : '- Use present tense ("Add feature" not "Added feature")';
+  const styleText = style ? `- ${style}` : '- Use past tense ("Added feature" not "Add feature")';
   return `You are improving changelog entries for a software project.
 Given a technical commit message, rewrite it as a clear, user-friendly changelog entry.
 

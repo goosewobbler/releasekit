@@ -18,7 +18,7 @@ interface CombinedResult {
 }
 
 function buildSystemPrompt(categories: LLMCategory[] | undefined, style: string | undefined): string {
-  const styleText = style || 'Use present tense ("Add feature" not "Added feature"). Be concise.';
+  const styleText = style || 'Use past tense ("Added feature" not "Add feature"). Be concise.';
 
   const categorySection = categories
     ? `Categories (use ONLY these exact names):\n${categories
