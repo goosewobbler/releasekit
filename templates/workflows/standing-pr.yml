@@ -56,10 +56,11 @@ jobs:
         run: npx releasekit standing-pr update
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # Required if notes.releaseNotes.llm is configured. Use the env var
-          # name matching your provider (OPENAI_API_KEY, ANTHROPIC_API_KEY, etc).
+          # Uncomment the env var matching your notes.releaseNotes.llm.provider.
           # Without it, LLM enhancement falls back to ungrouped output.
-          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
   publish-release:
     name: Publish Release
