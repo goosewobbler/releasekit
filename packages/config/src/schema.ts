@@ -241,7 +241,7 @@ export const LLMConfigSchema = z.object({
   concurrency: z.number().int().positive().optional(),
   retry: LLMRetryConfigSchema.optional(),
   tasks: LLMTasksConfigSchema.optional(),
-  categories: z.array(LLMCategorySchema).default([
+  categories: z.array(LLMCategorySchema).default(() => [
     { name: 'Breaking', description: 'Breaking changes that require user action to upgrade' },
     { name: 'New', description: 'New features and capabilities' },
     { name: 'Changed', description: 'Changes to existing functionality' },

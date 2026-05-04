@@ -147,12 +147,13 @@ interface LinkItem {
 }
 
 function parseMdLink(text: string): { label: string; url: string } | null {
-  if (text[0] !== '[') return null;
-  const bracketClose = text.indexOf(']', 1);
+  const bracketOpen = text.indexOf('[');
+  if (bracketOpen === -1) return null;
+  const bracketClose = text.indexOf(']', bracketOpen + 1);
   if (bracketClose === -1 || text[bracketClose + 1] !== '(') return null;
   const parenClose = text.indexOf(')', bracketClose + 2);
   if (parenClose === -1) return null;
-  const label = text.slice(1, bracketClose);
+  const label = text.slice(bracketOpen + 1, bracketClose);
   const url = text.slice(bracketClose + 2, parenClose);
   return /^https?:\/\//.test(url) ? { label, url } : null;
 }
