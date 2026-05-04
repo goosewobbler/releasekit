@@ -58,16 +58,16 @@ function fmtDefault(val: unknown): string {
 
 function fmtType(prop: SchemaProperty): string {
   if (prop.enum && prop.type === 'string') {
-    return prop.enum.map((v) => `\`"${v}"\``).join(' \\| ');
+    return prop.enum.map((v) => `\`"${v}"\``).join(' | ');
   }
   if (prop.oneOf) {
     return prop.oneOf
       .map((s) => {
         if (s.type === 'boolean') return 'boolean';
-        if (s.type === 'string' && s.enum) return s.enum.map((v) => `\`"${v}"\``).join(' \\| ');
+        if (s.type === 'string' && s.enum) return s.enum.map((v) => `\`"${v}"\``).join(' | ');
         return s.type ?? 'any';
       })
-      .join(' \\| ');
+      .join(' | ');
   }
   if (prop.type === 'array') {
     const itemType = prop.items?.type ?? 'any';
