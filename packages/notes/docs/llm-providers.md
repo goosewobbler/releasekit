@@ -32,6 +32,8 @@ Alternatively, set the provider's environment variable (`OPENAI_API_KEY`, `ANTHR
 
 ## Provider Setup
 
+Model names change frequently — check your provider's documentation for the current model IDs. As a general guide: **mini/haiku-tier models** are fast and cheap, suitable for most changelog enhancement; **standard/sonnet-tier models** produce higher-quality output and are worth the extra cost for public-facing release notes.
+
 ### OpenAI
 
 ```json
@@ -50,7 +52,7 @@ Alternatively, set the provider's environment variable (`OPENAI_API_KEY`, `ANTHR
 
 Set `OPENAI_API_KEY` or run `releasekit-notes auth openai`.
 
-Recommended models: `gpt-4o-mini` (fast, cheap), `gpt-4o` (higher quality).
+See the [OpenAI models documentation](https://platform.openai.com/docs/models) for current model IDs.
 
 ### Anthropic
 
@@ -70,7 +72,7 @@ Recommended models: `gpt-4o-mini` (fast, cheap), `gpt-4o` (higher quality).
 
 Set `ANTHROPIC_API_KEY` or run `releasekit-notes auth anthropic`.
 
-Recommended models: `claude-haiku-4-5-20251001` (fast), `claude-sonnet-4-5` (balanced). Use the full versioned model ID (e.g. `claude-haiku-4-5-20251001`) to avoid ambiguity — some API versions require it.
+See the [Anthropic models documentation](https://docs.anthropic.com/en/docs/about-claude/models) for current model IDs.
 
 ### Ollama (local)
 
@@ -95,7 +97,7 @@ ollama pull llama3.2
 }
 ```
 
-Ollama defaults to `http://localhost:11434`. Override with `baseURL` if needed.
+Ollama defaults to `http://localhost:11434`. Override with `baseURL` if needed. See the [Ollama model library](https://ollama.com/library) for available models.
 
 ### OpenAI-Compatible Endpoint
 
@@ -107,7 +109,7 @@ For self-hosted or third-party OpenAI-compatible APIs (LM Studio, vLLM, Azure Op
     "releaseNotes": {
       "llm": {
         "provider": "openai-compatible",
-        "model": "mistral-7b-instruct",
+        "model": "your-model-name",
         "baseURL": "http://localhost:1234/v1",
         "tasks": { "enhance": true }
       }
@@ -116,7 +118,7 @@ For self-hosted or third-party OpenAI-compatible APIs (LM Studio, vLLM, Azure Op
 }
 ```
 
-Set `baseURL` to the endpoint's base path. If the endpoint requires authentication, set `apiKey` in the config or store it with `releasekit-notes auth openai-compatible`.
+Set `baseURL` to the endpoint's base path and `model` to the model ID accepted by that endpoint. If authentication is required, set `apiKey` in the config or store it with `releasekit-notes auth openai-compatible`.
 
 ---
 
@@ -258,7 +260,7 @@ LLM options can also be set via CLI flags without a config file:
 ```bash
 releasekit-notes \
   --llm-provider anthropic \
-  --llm-model claude-haiku-4-5-20251001 \
+  --llm-model claude-haiku-4-5 \
   --llm-tasks enhance,release-notes \
   --input version-output.json
 ```
