@@ -135,11 +135,13 @@ Rewrites each changelog entry description to be clearer and more user-facing.
 { "tasks": { "enhance": true } }
 ```
 
-Entry descriptions are processed in parallel (default concurrency: 3). Adjust with `concurrency`:
+Entry descriptions are processed in parallel (default concurrency: `5`). Adjust with `concurrency`:
 
 ```json
-{ "concurrency": 5 }
+{ "concurrency": 3 }
 ```
+
+When `enhance` and `categorize` are both enabled, the pipeline runs a single combined `enhanceAndCategorize` call — see [Combined enhance + categorize](#combined-enhance--categorize). The combined call also generates `leadIn` phrases: short noun phrases (e.g. `"Streaming API"`, `"Deeplink testing"`) for notable entries that render as `**leadIn**: description` in the built-in output. Routine fixes and bumps receive no `leadIn`.
 
 ### `summarize`
 
@@ -157,7 +159,17 @@ Groups entries into user-friendly categories rather than conventional commit typ
 { "tasks": { "categorize": true } }
 ```
 
-Provide category hints for better grouping:
+**Default categories** (used when `categories` is not configured):
+
+| Name | Description |
+|------|-------------|
+| `Breaking` | Breaking changes that require user action to upgrade |
+| `New` | New features and capabilities |
+| `Changed` | Changes to existing functionality |
+| `Fixed` | Bug fixes |
+| `Developer` | Internal changes: CI, tooling, dependencies, refactoring |
+
+Provide a custom list to override the defaults:
 
 ```json
 {
@@ -168,6 +180,12 @@ Provide category hints for better grouping:
     { "name": "Under the Hood", "description": "Internal changes users may not notice" }
   ]
 }
+```
+
+Control the render order of categories with `categoryOrder`. The `Breaking` category is always pinned first even if omitted:
+
+```json
+{ "categoryOrder": ["Breaking", "New", "Fixed", "Changed", "Developer"] }
 ```
 
 ### `releaseNotes`
@@ -182,9 +200,34 @@ You do not need `mode` or `file` configured for this task — the generated text
 
 ---
 
+## Combined enhance + categorize
+
+When both `enhance: true` and `categorize: true` are set, the pipeline makes a **single LLM call** (`enhanceAndCategorize`) that rewrites descriptions, assigns categories, generates `leadIn` phrases, identifies scopes, and flags breaking changes — all in one pass. This is more efficient than two sequential calls and is the recommended configuration when using both tasks.
+
+```json
+{ "tasks": { "enhance": true, "categorize": true } }
+```
+
+To customise the prompt for the combined call, use the `enhanceAndCategorize` key in `prompts.instructions`. The standalone `enhance` key applies only when `categorize` is disabled:
+
+```json
+{
+  "llm": {
+    "prompts": {
+      "instructions": {
+        "enhanceAndCategorize": "Prefer 'New' over 'Changed' for additive changes.",
+        "enhance": "Applied only when categorize is not enabled."
+      }
+    }
+  }
+}
+```
+
+---
+
 ## Prompt Customisation
 
-Override the built-in prompt instructions or templates for any task. Keys are task names.
+Override the built-in prompt instructions for any task. The string is appended to the relevant system prompt. Keys are task names.
 
 ### Custom instructions
 

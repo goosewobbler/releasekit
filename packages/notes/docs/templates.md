@@ -92,10 +92,11 @@ Each entry in `entries` has:
 | Field | Type | Values |
 |-------|------|--------|
 | `type` | `ChangelogType` | `"added"`, `"changed"`, `"deprecated"`, `"removed"`, `"fixed"`, `"security"` |
-| `description` | `string` | Entry description (enhanced by LLM if `tasks.enhance` is on) |
-| `scope` | `string \| undefined` | Conventional commit scope |
+| `description` | `string` | Entry description (rewritten by LLM if `tasks.enhance` is on) |
+| `scope` | `string \| undefined` | Conventional commit scope (may be assigned or validated by LLM) |
 | `breaking` | `boolean \| undefined` | `true` for breaking changes |
 | `issueIds` | `string[] \| undefined` | Referenced issue/PR numbers |
+| `leadIn` | `string \| undefined` | Short scannable phrase for notable entries (e.g. `"Streaming API"`). Set by the LLM during `enhance` or combined `enhanceAndCategorize`. `undefined` for routine entries. |
 
 ### Enhanced data (`enhanced`)
 
@@ -112,7 +113,23 @@ Each `Category` in `enhanced.categories`:
 | Field | Type | Description |
 |-------|------|-------------|
 | `name` | `string` | Category display name |
-| `entries` | `ChangelogEntry[]` | Entries in this category |
+| `entries` | `ChangelogEntry[]` | Entries in this category (same type as `entries`; may have `leadIn`, `scope`, `breaking` populated by the LLM) |
+
+Entries within `enhanced.categories` are the same `ChangelogEntry` objects as in `entries`, with all LLM-assigned fields populated. Custom templates can access `entry.leadIn`, `entry.scope`, and `entry.breaking` directly.
+
+---
+
+### Built-in renderer behaviour
+
+When no custom template is configured, the built-in markdown renderer applies the following transformations to LLM-categorised output. Custom templates receive the raw data and must implement these behaviours themselves if desired.
+
+**Scope grouping:** Within a category, entries sharing the same scope value (two or more) are rendered under a `**scope**:` group header. Entries with a unique scope render with the scope inline (`**scope**: description`). Entries with no scope render as plain bullets.
+
+**Breaking change re-routing:** Any entry with `breaking: true` is moved to a `Breaking` category at render time, regardless of which category the LLM assigned it to. If no `Breaking` category exists, one is created and prepended before all other categories.
+
+**`leadIn` prefix:** Entries with a `leadIn` value render as `**leadIn**: description`. Combined with `breaking: true`, the format is `**BREAKING** **leadIn**: description`.
+
+**Links section:** When `notes.releaseNotes.links` is configured, a links section is appended after all categories. This section is only rendered in the LLM-categorised path.
 
 ---
 
@@ -147,7 +164,13 @@ Each `Category` in `enhanced.categories`:
 ### {{ cat.name }}
 
 {% for entry in cat.entries %}
+{% if entry.leadIn %}
+- **{{ entry.leadIn }}**: {{ entry.description }}
+{% elsif entry.scope %}
+- **{{ entry.scope }}**: {{ entry.description }}
+{% else %}
 - {{ entry.description }}
+{% endif %}
 {% endfor %}
 {% endfor %}
 {% else %}

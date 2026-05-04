@@ -138,6 +138,34 @@ LLM configuration for release notes enhancement. Requires `provider` and `model`
 
 See the full LLM option reference below.
 
+### `notes.releaseNotes.links`
+
+Appends a links section to each release in the built-in markdown renderer. Only rendered when LLM categorisation is active (`tasks.categorize: true`).
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `title` | `string` | Section heading. Default: `"Links"` |
+| `items` | `object[]` | Static links: `{ label: string, url: string }` |
+| `fromPRBodyMarker` | `string` | Scan PR bodies for lines beginning with this marker and extract markdown links or bare URLs |
+
+```json
+{
+  "notes": {
+    "releaseNotes": {
+      "links": {
+        "title": "Migration guide",
+        "items": [
+          { "label": "v2.0 migration", "url": "https://docs.example.com/migrate-v2" }
+        ],
+        "fromPRBodyMarker": "Migration:"
+      }
+    }
+  }
+}
+```
+
+Links discovered via `fromPRBodyMarker` are de-duplicated against explicit `items` by URL (explicit `items` take precedence).
+
 ---
 
 ## `notes.updateStrategy`
@@ -182,7 +210,14 @@ How existing changelog files are updated when new entries are generated.
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `concurrency` | `integer` | `3` | Maximum parallel LLM requests when enhancing entries |
+| `concurrency` | `integer` | `5` | Maximum parallel LLM requests when enhancing entries |
+| `examples` | `integer` | `3` | Past GitHub releases to fetch for few-shot style prompting (`0`–`5`; requires `GITHUB_TOKEN`) |
+
+### Context (`context`)
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `context.pullRequests` | `boolean` | `true` | Fetch linked PR bodies from GitHub for extra LLM context. Requires `GITHUB_TOKEN` or `GH_TOKEN`. |
 
 ### Model options (`options`)
 
@@ -213,7 +248,17 @@ How existing changelog files are updated when new entries are generated.
 
 ### Categories (`categories`)
 
-Provide hints to the `categorize` task for how to group entries.
+Controls how the `categorize` task groups entries. When not set, the following defaults are used:
+
+| Name | Description |
+|------|-------------|
+| `Breaking` | Breaking changes that require user action to upgrade |
+| `New` | New features and capabilities |
+| `Changed` | Changes to existing functionality |
+| `Fixed` | Bug fixes |
+| `Developer` | Internal changes: CI, tooling, dependencies, refactoring |
+
+Override with a custom list:
 
 ```json
 {
@@ -236,9 +281,62 @@ Each category object:
 | `description` | yes | Hint sent to the LLM to guide grouping |
 | `scopes` | no | Commit scopes that always map to this category |
 
+### Category order (`categoryOrder`)
+
+Controls the order in which LLM-categorised sections are rendered. Categories not listed appear after the listed ones. The `Breaking` category is always pinned first even if omitted from this list.
+
+**Type:** `string[]`
+**Default:** none (LLM-returned order is preserved)
+
+```json
+{
+  "llm": {
+    "categoryOrder": ["Breaking", "New", "Fixed", "Changed", "Developer"]
+  }
+}
+```
+
+### Scope validation (`scopes`)
+
+Controls how the LLM assigns scopes to entries. Invalid scopes trigger a corrective retry; after all retries are exhausted the scope is cleared rather than causing a failure.
+
+**`scopes.mode`**
+
+| Value | Behaviour |
+|-------|-----------|
+| `unrestricted` | LLM assigns any scope it chooses (default) |
+| `none` | Scopes are disabled; all assigned scopes are cleared |
+| `restricted` | Only scopes in `rules.allowed` are permitted |
+| `packages` | Scopes must match package names (monorepo only) |
+
+**`scopes.rules`**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `allowed` | `string[]` | — | Allowed scope values when mode is `restricted` |
+| `caseSensitive` | `boolean` | `false` | Whether scope matching is case-sensitive |
+
+```json
+{
+  "llm": {
+    "scopes": {
+      "mode": "restricted",
+      "rules": { "allowed": ["api", "ui", "core"] }
+    }
+  }
+}
+```
+
 ### Style (`style`)
 
-A brief style instruction appended to every LLM prompt.
+A style instruction appended to every LLM prompt.
+
+Default:
+```
+Write in present tense ("Add feature", not "Added feature"). Be concise and user-focused. Lead with the impact, not the implementation detail.
+```
+
+Override to change tone:
 
 ```json
 {
@@ -253,13 +351,23 @@ A brief style instruction appended to every LLM prompt.
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `maxAttempts` | `integer` | `3` | Maximum retries on failure |
-| `initialDelay` | `integer` (ms) | `500` | Delay before first retry |
-| `maxDelay` | `integer` (ms) | `10000` | Maximum delay between retries |
+| `initialDelay` | `integer` (ms) | `1000` | Delay before first retry |
+| `maxDelay` | `integer` (ms) | `30000` | Maximum delay between retries |
 | `backoffFactor` | `number` | `2` | Exponential backoff multiplier |
 
 ### Prompt overrides (`prompts`)
 
-Override the built-in prompt instructions or templates for any task. The key is the task name (`enhance`, `categorize`, `summarize`, `releaseNotes`).
+Override the built-in prompt instructions for any task. The string is appended to the relevant system prompt.
+
+Available keys:
+
+| Key | Applies to |
+|-----|-----------|
+| `enhance` | Standalone `enhance` task (when `categorize` is disabled) |
+| `categorize` | Standalone `categorize` task (when `enhance` is disabled) |
+| `enhanceAndCategorize` | Combined task (when both `enhance` and `categorize` are enabled) |
+| `summarize` | `summarize` task |
+| `releaseNotes` | `releaseNotes` task |
 
 ```json
 {
