@@ -337,6 +337,28 @@ describe('categorizeEntries()', () => {
     expect(result[0]?.category).toBe('General');
     expect(result[0]?.entries).toEqual(sampleEntries);
   });
+
+  it('should use free-form category prompt when categories is an empty array', async () => {
+    let capturedMessages: LLMMessage[] = [];
+    const provider: LLMProvider = {
+      name: 'mock',
+      capabilities: { systemRole: true, structuredOutputs: false, toolUse: false },
+      async complete(messages: LLMMessage[]): Promise<CompleteResult> {
+        capturedMessages = messages;
+        const content = JSON.stringify({ entries: [{ category: 'New Features', scope: null }] });
+        return { content };
+      },
+    };
+
+    await categorizeEntries(provider, [{ type: 'added', description: 'Add feature' }], {
+      ...llmContext,
+      categories: [],
+    });
+
+    const systemMsg = capturedMessages.find((m) => m.role === 'system');
+    expect(systemMsg?.content).not.toContain('use ONLY these exact names');
+    expect(systemMsg?.content).toContain('Group into meaningful categories');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -576,6 +598,30 @@ describe('enhanceAndCategorize()', () => {
     const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
     expect(result.enhancedEntries).toEqual(sampleEntries);
     expect(result.categories[0]?.category).toBe('General');
+  });
+
+  it('should use free-form category prompt when categories is an empty array', async () => {
+    let capturedMessages: LLMMessage[] = [];
+    const provider: LLMProvider = {
+      name: 'mock',
+      capabilities: { systemRole: true, structuredOutputs: false, toolUse: false },
+      async complete(messages: LLMMessage[]): Promise<CompleteResult> {
+        capturedMessages = messages;
+        const content = JSON.stringify({
+          entries: [{ description: 'Added feature', category: 'New', scope: null, breaking: null, leadIn: null }],
+        });
+        return { content };
+      },
+    };
+
+    await enhanceAndCategorize(provider, [{ type: 'added', description: 'Add feature' }], {
+      ...llmContext,
+      categories: [],
+    });
+
+    const systemMsg = capturedMessages.find((m) => m.role === 'system');
+    expect(systemMsg?.content).not.toContain('use ONLY these exact names');
+    expect(systemMsg?.content).toContain('Group into meaningful categories');
   });
 });
 

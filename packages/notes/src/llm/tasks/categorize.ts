@@ -12,17 +12,18 @@ import { getAllowedScopesFromCategories, validateEntryScopes } from '../scopes.j
 import { groupByCategory } from './shared.js';
 
 function buildSystemPrompt(categories: LLMCategory[] | undefined): string {
-  const categorySection = categories
-    ? `Categories (use ONLY these exact names):\n${categories
-        .map((c) => {
-          const scopeInfo = c.scopes?.length ? ` Allowed scopes: ${c.scopes.join(', ')}.` : '';
-          return `- "${c.name}": ${c.description}${scopeInfo}`;
-        })
-        .join('\n')}`
-    : `Categories: Group into meaningful categories (e.g., "Core", "UI", "API", "Performance", "Bug Fixes", "Documentation").`;
+  const categorySection =
+    categories && categories.length > 0
+      ? `Categories (use ONLY these exact names):\n${categories
+          .map((c) => {
+            const scopeInfo = c.scopes?.length ? ` Allowed scopes: ${c.scopes.join(', ')}.` : '';
+            return `- "${c.name}": ${c.description}${scopeInfo}`;
+          })
+          .join('\n')}`
+      : `Categories: Group into meaningful categories (e.g., "Core", "UI", "API", "Performance", "Bug Fixes", "Documentation").`;
 
   let scopeInstruction = '';
-  if (categories) {
+  if (categories && categories.length > 0) {
     const scopeMap = getAllowedScopesFromCategories(categories);
     if (scopeMap.size > 0) {
       const parts: string[] = [];

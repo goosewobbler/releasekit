@@ -20,17 +20,18 @@ interface CombinedResult {
 function buildSystemPrompt(categories: LLMCategory[] | undefined, style: string | undefined): string {
   const styleText = style || 'Use past tense ("Added feature" not "Add feature"). Be concise.';
 
-  const categorySection = categories
-    ? `Categories (use ONLY these exact names):\n${categories
-        .map((c) => {
-          const scopeInfo = c.scopes?.length ? ` Allowed scopes: ${c.scopes.join(', ')}.` : '';
-          return `- "${c.name}": ${c.description}${scopeInfo}`;
-        })
-        .join('\n')}`
-    : `Categories: Group into meaningful categories (e.g., "New", "Fixed", "Changed", "Removed").`;
+  const categorySection =
+    categories && categories.length > 0
+      ? `Categories (use ONLY these exact names):\n${categories
+          .map((c) => {
+            const scopeInfo = c.scopes?.length ? ` Allowed scopes: ${c.scopes.join(', ')}.` : '';
+            return `- "${c.name}": ${c.description}${scopeInfo}`;
+          })
+          .join('\n')}`
+      : `Categories: Group into meaningful categories (e.g., "New", "Fixed", "Changed", "Removed").`;
 
   let scopeInstruction = '';
-  if (categories) {
+  if (categories && categories.length > 0) {
     const withScopes = categories.filter((c) => c.scopes?.length);
     if (withScopes.length > 0) {
       const parts = withScopes.map((c) => `For "${c.name}" entries, use a scope from: ${c.scopes?.join(', ')}.`);
