@@ -402,7 +402,7 @@ Use `release:stable` and `release:prerelease` labels on **the standing PR itself
 ### Lifecycle and edge cases
 
 - **No releasable commits since last release:** the standing PR is closed with an explanatory comment. It reopens automatically when releasable commits land.
-- **Dependabot and other `chore` commits:** trigger the workflow but are not releasable on their own under the angular preset. If other releasable commits already exist since the last release, the dependabot changes are bundled into the existing standing PR. If not, the workflow noops — no PR is created from dependabot alone.
+- **Dependabot and other `chore` commits:** trigger the workflow but are not releasable on their own under the conventional preset. If other releasable commits already exist since the last release, the dependabot changes are bundled into the existing standing PR. If not, the workflow noops — no PR is created from dependabot alone.
 - **Coexistence with label-driven releases:** safe by design. The label-driven path publishes immediately and writes a `chore: release …` commit (with `[skip ci]`) which the standing PR's skip-pattern guard (`release.ci.skipPatterns`, default `["chore: release "]`) recognises and skips. The standing PR resets fresh from `main` on the next non-release commit.
 - **CI concurrency caveat:** if `ci.yml` uses `cancel-in-progress: true` on the `main` branch concurrency group, sequential merges will cancel each other's CI. Any release workflow gated on `workflow_run` completion will then silently skip for the cancelled run. Use a per-SHA group for push events:
 
