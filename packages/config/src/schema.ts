@@ -213,8 +213,6 @@ export const LLMCategorySchema = z.object({
 export const ScopeRulesSchema = z.object({
   allowed: z.array(z.string()).optional(),
   caseSensitive: z.boolean().default(false),
-  invalidScopeAction: z.enum(['remove', 'keep', 'fallback']).default('remove'),
-  fallbackScope: z.string().optional(),
 });
 
 export const ScopeConfigSchema = z.object({
@@ -232,7 +230,6 @@ export const LLMPromptOverridesSchema = z.object({
 
 export const LLMPromptsConfigSchema = z.object({
   instructions: LLMPromptOverridesSchema.optional(),
-  templates: LLMPromptOverridesSchema.optional(),
 });
 
 export const LLMConfigSchema = z.object({
@@ -244,10 +241,27 @@ export const LLMConfigSchema = z.object({
   concurrency: z.number().int().positive().optional(),
   retry: LLMRetryConfigSchema.optional(),
   tasks: LLMTasksConfigSchema.optional(),
-  categories: z.array(LLMCategorySchema).optional(),
-  style: z.string().optional(),
+  categories: z.array(LLMCategorySchema).default(() => [
+    { name: 'Breaking', description: 'Breaking changes that require user action to upgrade' },
+    { name: 'New', description: 'New features and capabilities' },
+    { name: 'Changed', description: 'Changes to existing functionality' },
+    { name: 'Fixed', description: 'Bug fixes' },
+    { name: 'Developer', description: 'Internal changes: CI, tooling, dependencies, refactoring' },
+  ]),
+  style: z
+    .string()
+    .default(
+      'Write in past tense ("Added feature", not "Add feature"). Be concise and user-focused. Lead with the impact, not the implementation detail.',
+    ),
   scopes: ScopeConfigSchema.optional(),
   prompts: LLMPromptsConfigSchema.optional(),
+  examples: z.number().int().min(0).max(5).default(3),
+  context: z
+    .object({
+      pullRequests: z.boolean().default(true),
+    })
+    .default({ pullRequests: true }),
+  categoryOrder: z.array(z.string()).optional(),
 });
 
 export const ReleaseNotesConfigSchema = z.object({
@@ -255,6 +269,13 @@ export const ReleaseNotesConfigSchema = z.object({
   file: z.string().optional(),
   templates: TemplateConfigSchema.optional(),
   llm: LLMConfigSchema.optional(),
+  links: z
+    .object({
+      items: z.array(z.object({ label: z.string(), url: z.string().url() })).optional(),
+      fromPRBodyMarker: z.string().optional(),
+      title: z.string().optional(),
+    })
+    .optional(),
 });
 
 export const NotesInputConfigSchema = z.object({

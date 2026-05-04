@@ -2,8 +2,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { debug, info, success, warn } from '@releasekit/core';
 import { parseVersionOutput } from '../input/version-output.js';
+import { fetchPullRequestContext, parseIssueNumbers, resolveGitHubToken } from '../llm/context/prFetcher.js';
 import { LLM_DEFAULTS } from '../llm/defaults.js';
-import type { LLMProvider } from '../llm/index.js';
+import { fetchExamples } from '../llm/examples/fetcher.js';
+import type { Example, LLMProvider } from '../llm/index.js';
 import {
   categorizeEntries,
   createProvider,
@@ -24,9 +26,29 @@ import type {
   LLMCategory,
   LLMConfig,
   PackageChangelog,
+  PRContext,
   TemplateContext,
   TemplateEngine,
 } from './types.js';
+
+function parseOwnerRepo(repoUrl: string): { owner: string; repo: string } | null {
+  // SCP-style SSH: git@github.com:owner/repo.git — only github.com
+  const scpMatch = repoUrl.match(/^git@github\.com:([^/]+)\/(.+?)(?:\.git)?$/);
+  if (scpMatch) return { owner: scpMatch[1]!, repo: scpMatch[2]! };
+
+  try {
+    const url = new URL(repoUrl);
+    if (url.hostname !== 'github.com') return null;
+    const parts = url.pathname
+      .replace(/^\//, '')
+      .replace(/\.git$/, '')
+      .split('/');
+    if (parts.length >= 2) return { owner: parts[0]!, repo: parts[1]! };
+  } catch {
+    // invalid URL
+  }
+  return null;
+}
 
 /**
  * For dash-format compound tags (e.g. "scope-pkg-1.2.3" or "scope-pkg-1.2.3-next.1"),
@@ -149,7 +171,11 @@ export function createDocumentContext(contexts: TemplateContext[], repoUrl?: str
   };
 }
 
-async function processWithLLM(context: TemplateContext, llmConfig: LLMConfig): Promise<TemplateContext> {
+async function processWithLLM(
+  context: TemplateContext,
+  llmConfig: LLMConfig,
+  examples: Example[],
+): Promise<TemplateContext> {
   const tasks = llmConfig.tasks ?? {};
   const llmContext = {
     packageName: context.packageName,
@@ -160,6 +186,7 @@ async function processWithLLM(context: TemplateContext, llmConfig: LLMConfig): P
     style: llmConfig.style,
     scopes: llmConfig.scopes,
     prompts: llmConfig.prompts,
+    examples,
   };
 
   const enhanced: EnhancedData = {
@@ -177,8 +204,9 @@ async function processWithLLM(context: TemplateContext, llmConfig: LLMConfig): P
     const configOptions = llmConfig.options;
     const provider: LLMProvider = {
       name: rawProvider.name,
-      complete: (prompt, opts) =>
-        withRetry(() => rawProvider.complete(prompt, { ...configOptions, ...opts }), retryOpts),
+      capabilities: rawProvider.capabilities,
+      complete: (messages, opts) =>
+        withRetry(() => rawProvider.complete(messages, { ...configOptions, ...opts }), retryOpts),
     };
 
     const activeTasks = Object.entries(tasks)
@@ -234,7 +262,7 @@ async function processWithLLM(context: TemplateContext, llmConfig: LLMConfig): P
     };
   } catch (error) {
     warn(`LLM processing failed: ${error instanceof Error ? error.message : String(error)}`);
-    warn('Falling back to raw entries');
+    warn('Falling back to non-LLM changelog rendering. Check your LLM config or set RELEASEKIT_DEBUG=1 for details.');
     return context;
   }
 }
@@ -323,13 +351,74 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
   const llmConfig = releaseNotesConfig?.llm;
   if (llmConfig && !process.env.CHANGELOG_NO_LLM) {
     info('Processing with LLM enhancement');
-    contexts = await Promise.all(contexts.map((ctx) => processWithLLM(ctx, llmConfig)));
+
+    const examplesCount = llmConfig.examples ?? 3;
+    const repoUrl = contexts[0]?.repoUrl ?? input.metadata?.repoUrl;
+    const ownerRepo = repoUrl ? parseOwnerRepo(repoUrl) : null;
+    const examplesByPackage = new Map<string, Example[]>();
+
+    if (examplesCount > 0 && ownerRepo) {
+      await Promise.all(
+        contexts.map(async (ctx) => {
+          const examples = await fetchExamples({
+            owner: ownerRepo.owner,
+            repo: ownerRepo.repo,
+            packageName: ctx.packageName,
+            count: examplesCount,
+            isMonorepo: contexts.length > 1,
+          });
+          examplesByPackage.set(ctx.packageName, examples);
+          if (examples.length > 0) {
+            debug(`Loaded ${examples.length} example(s) for ${ctx.packageName}`);
+          }
+        }),
+      );
+    }
+
+    // Fetch PR context for all entries across all packages
+    const prCache = new Map<number, PRContext | null>();
+    const pullRequestsEnabled = llmConfig.context?.pullRequests !== false;
+    if (pullRequestsEnabled && ownerRepo) {
+      const allIssueNumbers = [
+        ...new Set(contexts.flatMap((ctx) => ctx.entries.flatMap((e) => parseIssueNumbers(e.issueIds ?? [])))),
+      ];
+
+      if (allIssueNumbers.length > 0) {
+        const token = resolveGitHubToken();
+        if (!token) {
+          warn('No GitHub token available — skipping PR context fetch (set GITHUB_TOKEN to enable)');
+        } else {
+          debug(`Fetching PR context for ${allIssueNumbers.length} issue(s)`);
+          await fetchPullRequestContext(ownerRepo.owner, ownerRepo.repo, allIssueNumbers, token, prCache);
+          debug(`Loaded PR context for ${prCache.size} issue(s)`);
+        }
+      }
+    }
+
+    // Decorate entries with fetched PR context
+    if (prCache.size > 0) {
+      contexts = contexts.map((ctx) => ({
+        ...ctx,
+        entries: ctx.entries.map((entry) => {
+          const prs = parseIssueNumbers(entry.issueIds ?? [])
+            .map((n) => prCache.get(n))
+            .filter((pr): pr is PRContext => pr != null);
+          return prs.length > 0 ? { ...entry, context: { prs } } : entry;
+        }),
+      }));
+    }
+
+    contexts = await Promise.all(
+      contexts.map((ctx) => processWithLLM(ctx, llmConfig, examplesByPackage.get(ctx.packageName) ?? [])),
+    );
   }
 
   const files: string[] = [];
 
   const fmtOpts: FormatVersionOptions = {
     includePackageName: contexts.length > 1 || contexts.some((c) => c.packageName.includes('/')),
+    categoryOrder: llmConfig?.categoryOrder,
+    links: releaseNotesConfig?.links,
   };
 
   if (changelogConfig !== false && changelogConfig.mode) {

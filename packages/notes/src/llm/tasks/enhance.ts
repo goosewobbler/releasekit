@@ -1,9 +1,13 @@
 import type { ChangelogEntry } from '../../core/types.js';
 import { LLM_DEFAULTS } from '../defaults.js';
 import type { EnhanceContext, LLMProvider } from '../index.js';
-import { resolvePrompt } from '../prompts.js';
+import type { LLMMessage } from '../messages.js';
+import { resolveSystemPrompt } from '../prompts.js';
+import { renderPRBlocks } from './shared.js';
 
-const DEFAULT_ENHANCE_PROMPT = `You are improving changelog entries for a software project.
+function buildSystemPrompt(style: string | undefined): string {
+  const styleText = style ? `- ${style}` : '- Use past tense ("Added feature" not "Add feature")';
+  return `You are improving changelog entries for a software project.
 Given a technical commit message, rewrite it as a clear, user-friendly changelog entry.
 
 Rules:
@@ -11,30 +15,34 @@ Rules:
 - Focus on user impact, not implementation details
 - Don't use technical jargon unless necessary
 - Preserve the scope if mentioned (e.g., "core:", "api:")
-{{style}}
+${styleText}
 
-Original entry:
-Type: {{type}}
-{{#if scope}}Scope: {{scope}}{{/if}}
-Description: {{description}}
+Output only the rewritten description, nothing else.`;
+}
 
-Rewritten description (only output the new description, nothing else):`;
+function buildUserPrompt(entry: ChangelogEntry): string {
+  const lines = [`Type: ${entry.type}`];
+  if (entry.scope) lines.push(`Scope: ${entry.scope}`);
+  lines.push(`Description: ${entry.description}`);
+  const prBlocks = renderPRBlocks(entry);
+  if (prBlocks) lines.push(prBlocks);
+  return lines.join('\n');
+}
 
 export async function enhanceEntry(
   provider: LLMProvider,
   entry: ChangelogEntry,
   context: EnhanceContext,
 ): Promise<string> {
-  const styleText = context.style ? `- ${context.style}` : '- Use present tense ("Add feature" not "Added feature")';
-  const defaultPrompt = DEFAULT_ENHANCE_PROMPT.replace('{{style}}', styleText)
-    .replace('{{type}}', entry.type)
-    .replace('{{#if scope}}Scope: {{scope}}{{/if}}', entry.scope ? `Scope: ${entry.scope}` : '')
-    .replace('{{description}}', entry.description);
+  const systemPrompt = resolveSystemPrompt('enhance', buildSystemPrompt(context.style), context.prompts);
 
-  const prompt = resolvePrompt('enhance', defaultPrompt, context.prompts);
-  const response = await provider.complete(prompt);
+  const messages: LLMMessage[] = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: buildUserPrompt(entry) },
+  ];
 
-  return response.trim();
+  const result = await provider.complete(messages);
+  return result.content.trim();
 }
 
 export async function enhanceEntries(

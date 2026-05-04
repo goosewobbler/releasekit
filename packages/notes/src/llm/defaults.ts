@@ -1,6 +1,8 @@
 export const LLM_DEFAULTS = {
   timeout: 60_000,
+  // 16k tokens accommodates large changelogs without hitting most model ceilings.
   maxTokens: 16_384,
+  // 0.7 balances coherence (low temp) with natural-sounding variation (high temp).
   temperature: 0.7,
   concurrency: 5,
   retry: {

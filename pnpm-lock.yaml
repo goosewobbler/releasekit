@@ -166,6 +166,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.86.0
         version: 0.86.0(zod@4.3.6)
+      '@octokit/request-error':
+        specifier: ^7.1.0
+        version: 7.1.0
       '@octokit/rest':
         specifier: ^22.0.1
         version: 22.0.1

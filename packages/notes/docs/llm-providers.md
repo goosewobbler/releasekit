@@ -32,6 +32,8 @@ Alternatively, set the provider's environment variable (`OPENAI_API_KEY`, `ANTHR
 
 ## Provider Setup
 
+Model names change frequently — check your provider's documentation for the current model IDs. As a general guide: **mini/haiku-tier models** are fast and cheap, suitable for most changelog enhancement; **standard/sonnet-tier models** produce higher-quality output and are worth the extra cost for public-facing release notes.
+
 ### OpenAI
 
 ```json
@@ -50,7 +52,7 @@ Alternatively, set the provider's environment variable (`OPENAI_API_KEY`, `ANTHR
 
 Set `OPENAI_API_KEY` or run `releasekit-notes auth openai`.
 
-Recommended models: `gpt-4o-mini` (fast, cheap), `gpt-4o` (higher quality).
+See the [OpenAI models documentation](https://platform.openai.com/docs/models) for current model IDs.
 
 ### Anthropic
 
@@ -70,7 +72,7 @@ Recommended models: `gpt-4o-mini` (fast, cheap), `gpt-4o` (higher quality).
 
 Set `ANTHROPIC_API_KEY` or run `releasekit-notes auth anthropic`.
 
-Recommended models: `claude-haiku-4-5` (fast), `claude-sonnet-4-5` (balanced).
+See the [Anthropic models documentation](https://docs.anthropic.com/en/docs/about-claude/models) for current model IDs.
 
 ### Ollama (local)
 
@@ -95,7 +97,7 @@ ollama pull llama3.2
 }
 ```
 
-Ollama defaults to `http://localhost:11434`. Override with `baseURL` if needed.
+Ollama defaults to `http://localhost:11434`. Override with `baseURL` if needed. See the [Ollama model library](https://ollama.com/library) for available models.
 
 ### OpenAI-Compatible Endpoint
 
@@ -107,7 +109,7 @@ For self-hosted or third-party OpenAI-compatible APIs (LM Studio, vLLM, Azure Op
     "releaseNotes": {
       "llm": {
         "provider": "openai-compatible",
-        "model": "mistral-7b-instruct",
+        "model": "your-model-name",
         "baseURL": "http://localhost:1234/v1",
         "tasks": { "enhance": true }
       }
@@ -116,7 +118,7 @@ For self-hosted or third-party OpenAI-compatible APIs (LM Studio, vLLM, Azure Op
 }
 ```
 
-Set `baseURL` to the endpoint's base path. If the endpoint requires authentication, set `apiKey` in the config or store it with `releasekit-notes auth openai-compatible`.
+Set `baseURL` to the endpoint's base path and `model` to the model ID accepted by that endpoint. If authentication is required, set `apiKey` in the config or store it with `releasekit-notes auth openai-compatible`.
 
 ---
 
@@ -129,17 +131,19 @@ Tasks are configured under `llm.tasks`. Multiple tasks can be enabled simultaneo
 Rewrites each changelog entry description to be clearer and more user-facing.
 
 **Input:** `"fix: npe in auth middleware when token is null"`
-**Output:** `"Fixed a crash that could occur during authentication when no token was present"`
+**Output:** `"Fix crash during authentication when no token is provided"`
 
 ```json
 { "tasks": { "enhance": true } }
 ```
 
-Entry descriptions are processed in parallel (default concurrency: 3). Adjust with `concurrency`:
+Entry descriptions are processed in parallel (default concurrency: `5`). Adjust with `concurrency`:
 
 ```json
-{ "concurrency": 5 }
+{ "concurrency": 3 }
 ```
+
+When `enhance` and `categorize` are both enabled, the pipeline runs a single combined `enhanceAndCategorize` call — see [Combined enhance + categorize](#combined-enhance--categorize). The combined call also generates `leadIn` phrases, scope assignments, and breaking flags. These drive scope grouping, breaking change re-routing, and `**leadIn**: description` formatting in the built-in renderer — none of which are available when running `enhance` alone. Routine fixes and bumps receive no `leadIn`.
 
 ### `summarize`
 
@@ -157,7 +161,17 @@ Groups entries into user-friendly categories rather than conventional commit typ
 { "tasks": { "categorize": true } }
 ```
 
-Provide category hints for better grouping:
+**Default categories** (used when `categories` is not configured):
+
+| Name | Description |
+|------|-------------|
+| `Breaking` | Breaking changes that require user action to upgrade |
+| `New` | New features and capabilities |
+| `Changed` | Changes to existing functionality |
+| `Fixed` | Bug fixes |
+| `Developer` | Internal changes: CI, tooling, dependencies, refactoring |
+
+Provide a custom list to override the defaults:
 
 ```json
 {
@@ -170,6 +184,12 @@ Provide category hints for better grouping:
 }
 ```
 
+Control the render order of categories with `categoryOrder`. The `Breaking` category is always pinned first even if omitted:
+
+```json
+{ "categoryOrder": ["Breaking", "New", "Fixed", "Changed", "Developer"] }
+```
+
 ### `releaseNotes`
 
 Generates complete prose release notes for the version — suitable for a GitHub release body. Available in the pipeline result as `releaseNotes` and used automatically when `publish.githubRelease.body` is set to `"releaseNotes"`.
@@ -180,15 +200,40 @@ Generates complete prose release notes for the version — suitable for a GitHub
 
 You do not need `mode` or `file` configured for this task — the generated text is passed through the pipeline even without file output.
 
+### Links section
+
+When LLM categorisation is active, you can configure the built-in renderer to append a links section (migration guides, changelogs, etc.) to each release. This is configured on `notes.releaseNotes.links`, not inside `llm`. See [notes.releaseNotes.links](./configuration.md#notesreleasenoteslinks) in the configuration reference.
+
+---
+
+## Combined enhance + categorize
+
+When both `enhance: true` and `categorize: true` are set, the pipeline makes a **single LLM call** (`enhanceAndCategorize`) that rewrites descriptions, assigns categories, generates `leadIn` phrases, identifies scopes, and flags breaking changes — all in one pass. This is more efficient than two sequential calls and is the recommended configuration when using both tasks.
+
+```json
+{ "tasks": { "enhance": true, "categorize": true } }
+```
+
+To customise the prompt for the combined call, use the `enhanceAndCategorize` key in `prompts.instructions`. The standalone `enhance` key applies only when `categorize` is disabled:
+
+```json
+{
+  "llm": {
+    "prompts": {
+      "instructions": {
+        "enhanceAndCategorize": "Prefer 'New' over 'Changed' for additive changes.",
+        "enhance": "Applied only when categorize is not enabled."
+      }
+    }
+  }
+}
+```
+
 ---
 
 ## Prompt Customisation
 
-Override the built-in prompt instructions or templates for any task. Keys are task names.
-
-### Custom instructions
-
-Append extra instructions to the built-in prompt:
+`prompts.instructions` appends extra text to the built-in system prompt for a task. The structured output contract is preserved, so this is safe to use with all tasks.
 
 ```json
 {
@@ -196,6 +241,7 @@ Append extra instructions to the built-in prompt:
     "prompts": {
       "instructions": {
         "enhance": "Write in a friendly tone for non-technical users. Keep entries under 15 words.",
+        "enhanceAndCategorize": "Prefer 'New' over 'Changed' for purely additive changes.",
         "releaseNotes": "Start with a one-sentence headline, then group changes by theme."
       }
     }
@@ -203,21 +249,7 @@ Append extra instructions to the built-in prompt:
 }
 ```
 
-### Full prompt template override
-
-Replace the entire prompt for a task. The string is sent to the LLM verbatim — no placeholder substitution is applied.
-
-```json
-{
-  "llm": {
-    "prompts": {
-      "templates": {
-        "enhance": "You are a technical writer. Rewrite the changelog entry below as a single, concise sentence in plain English. Return only the rewritten text, nothing else."
-      }
-    }
-  }
-}
-```
+If you need fully custom output formatting, use the [templates system](./templates.md) instead — it operates on the pipeline result after all LLM tasks have run.
 
 ---
 
@@ -232,6 +264,8 @@ releasekit-notes \
   --llm-tasks enhance,release-notes \
   --input version-output.json
 ```
+
+> **Task name format:** CLI flags use kebab-case (`release-notes`), while the config file uses camelCase (`releaseNotes`). The mapping is: `enhance` → `enhance`, `categorize` → `categorize`, `summarize` → `summarize`, `releaseNotes` → `release-notes`.
 
 Use `--no-llm` to disable LLM processing even when it is configured:
 

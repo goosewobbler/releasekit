@@ -3,6 +3,9 @@ import type { CompleteOptions } from '../core/types.js';
 import { LLMError } from '../errors/index.js';
 import { BaseLLMProvider } from './base.js';
 import { LLM_DEFAULTS } from './defaults.js';
+import type { CompleteResult, LLMMessage } from './messages.js';
+import { debugLogMessages } from './messages.js';
+import type { ProviderCapabilities } from './provider.js';
 
 export interface OpenAICompatibleConfig {
   apiKey?: string;
@@ -12,6 +15,12 @@ export interface OpenAICompatibleConfig {
 
 export class OpenAICompatibleProvider extends BaseLLMProvider {
   readonly name = 'openai-compatible';
+  readonly capabilities: ProviderCapabilities = {
+    systemRole: true,
+    structuredOutputs: false,
+    toolUse: false,
+  };
+
   private client: OpenAI;
   private model: string;
 
@@ -28,14 +37,21 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
     this.model = config.model ?? LLM_DEFAULTS.models['openai-compatible'];
   }
 
-  async complete(prompt: string, options?: CompleteOptions): Promise<string> {
+  async complete(messages: LLMMessage[], options?: CompleteOptions): Promise<CompleteResult> {
+    debugLogMessages(this.name, messages);
+
     try {
-      const response = await this.client.chat.completions.create({
+      const openaiMessages = messages.map((m) => ({ role: m.role, content: m.content }));
+
+      const requestParams = {
         model: this.model,
-        messages: [{ role: 'user', content: prompt }],
+        messages: openaiMessages,
         max_tokens: this.getMaxTokens(options),
         temperature: this.getTemperature(options),
-      });
+        stream: false as const,
+      };
+
+      const response = await this.client.chat.completions.create(requestParams);
 
       const content = response.choices[0]?.message?.content;
 
@@ -43,7 +59,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
         throw new LLMError('Empty response from LLM');
       }
 
-      return content;
+      return { content };
     } catch (error) {
       if (error instanceof LLMError) throw error;
 

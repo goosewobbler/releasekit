@@ -1,4 +1,16 @@
-import type { ChangelogEntry, LLMCategory, ScopeConfig, ScopeRules } from '../core/types.js';
+import type { ChangelogEntry, LLMCategory, ScopeConfig } from '../core/types.js';
+
+export interface ScopeError {
+  entryIndex: number;
+  providedScope: string;
+  allowedScopes: string[];
+}
+
+export interface ScopeValidationResult {
+  valid: boolean;
+  entries: ChangelogEntry[];
+  errors: ScopeError[];
+}
 
 /**
  * Extract allowed scopes from explicit category `scopes` arrays.
@@ -44,45 +56,50 @@ export function resolveAllowedScopes(
 }
 
 /**
- * Validate a single scope against the allowed list.
+ * Check whether a single scope value is valid against the allowed list.
+ * Returns the scope if valid, undefined if invalid.
  */
 export function validateScope(
   scope: string | undefined,
   allowedScopes: string[] | null,
-  rules?: ScopeRules,
+  caseSensitive = false,
 ): string | undefined {
   if (!scope || allowedScopes === null) return scope;
   if (allowedScopes.length === 0) return undefined;
 
-  const caseSensitive = rules?.caseSensitive ?? false;
   const normalise = (s: string) => (caseSensitive ? s : s.toLowerCase());
   const isAllowed = allowedScopes.some((a) => normalise(a) === normalise(scope));
-
-  if (isAllowed) return scope;
-
-  switch (rules?.invalidScopeAction ?? 'remove') {
-    case 'keep':
-      return scope;
-    case 'fallback':
-      return rules?.fallbackScope;
-    default:
-      return undefined;
-  }
+  return isAllowed ? scope : undefined;
 }
 
 /**
- * Post-process entries after LLM returns, applying scope validation.
+ * Validate scopes on all entries. Returns cleaned entries (invalid scopes set
+ * to undefined) plus structured errors for each violation. Callers can use the
+ * errors to build corrective-retry messages rather than silently dropping scopes.
  */
 export function validateEntryScopes(
   entries: ChangelogEntry[],
   scopeConfig: ScopeConfig | undefined,
   categories?: LLMCategory[],
-): ChangelogEntry[] {
+): ScopeValidationResult {
   const allowedScopes = resolveAllowedScopes(scopeConfig, categories);
-  if (allowedScopes === null) return entries;
+  if (allowedScopes === null) return { valid: true, entries, errors: [] };
 
-  return entries.map((entry) => ({
-    ...entry,
-    scope: validateScope(entry.scope, allowedScopes, scopeConfig?.rules),
-  }));
+  const caseSensitive = scopeConfig?.rules?.caseSensitive ?? false;
+  const errors: ScopeError[] = [];
+
+  const validatedEntries = entries.map((entry, index) => {
+    const cleaned = validateScope(entry.scope, allowedScopes, caseSensitive);
+    if (entry.scope && cleaned === undefined) {
+      errors.push({
+        entryIndex: index,
+        providedScope: entry.scope,
+        allowedScopes,
+      });
+      return { ...entry, scope: undefined };
+    }
+    return entry.scope !== cleaned ? { ...entry, scope: cleaned } : entry;
+  });
+
+  return { valid: errors.length === 0, entries: validatedEntries, errors };
 }

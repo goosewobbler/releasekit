@@ -44,7 +44,7 @@ Pass a directory containing named template files. Each file renders a different 
 templates/
 ├── document.liquid    # Outer document wrapper (receives DocumentContext)
 ├── version.liquid     # One version block (receives TemplateContext)
-└── entry.liquid       # One changelog entry (receives ChangelogEntry)
+└── entry.liquid       # One changelog entry (receives ChangelogEntry fields directly)
 ```
 
 ```bash
@@ -52,6 +52,8 @@ releasekit-notes --template ./templates/
 ```
 
 All three files are optional — omit any you don't need to customise, and the built-in for that level is used.
+
+The `entry.liquid` template receives the `ChangelogEntry` fields directly as top-level variables: `type`, `description`, `scope`, `breaking`, `issueIds`, `leadIn`.
 
 ---
 
@@ -92,10 +94,11 @@ Each entry in `entries` has:
 | Field | Type | Values |
 |-------|------|--------|
 | `type` | `ChangelogType` | `"added"`, `"changed"`, `"deprecated"`, `"removed"`, `"fixed"`, `"security"` |
-| `description` | `string` | Entry description (enhanced by LLM if `tasks.enhance` is on) |
-| `scope` | `string \| undefined` | Conventional commit scope |
+| `description` | `string` | Entry description (rewritten by LLM if `tasks.enhance` is on) |
+| `scope` | `string \| undefined` | Conventional commit scope (may be assigned or validated by LLM) |
 | `breaking` | `boolean \| undefined` | `true` for breaking changes |
 | `issueIds` | `string[] \| undefined` | Referenced issue/PR numbers |
+| `leadIn` | `string \| undefined` | Short scannable phrase for notable entries (e.g. `"Streaming API"`). Set by the LLM during `enhance` or combined `enhanceAndCategorize`. `undefined` for routine entries. |
 
 ### Enhanced data (`enhanced`)
 
@@ -103,7 +106,8 @@ Present when any LLM task ran successfully:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `enhanced.summary` | `string \| undefined` | One-paragraph release summary (`summarize` task) |
+| `enhanced.entries` | `ChangelogEntry[]` | Entries with rewritten `description` fields (`enhance` task) |
+| `enhanced.summary` | `string \| undefined` | 2–3 sentence release summary (`summarize` task) |
 | `enhanced.categories` | `Category[] \| undefined` | Grouped entries (`categorize` task) |
 | `enhanced.releaseNotes` | `string \| undefined` | Full prose release notes (`releaseNotes` task) |
 
@@ -112,7 +116,21 @@ Each `Category` in `enhanced.categories`:
 | Field | Type | Description |
 |-------|------|-------------|
 | `name` | `string` | Category display name |
-| `entries` | `ChangelogEntry[]` | Entries in this category |
+| `entries` | `ChangelogEntry[]` | Entries in this category (same type as `entries`; may have `leadIn`, `scope`, `breaking` populated by the LLM) |
+
+Entries within `enhanced.categories` are the same `ChangelogEntry` objects as in `entries`, with all LLM-assigned fields populated. Custom templates can access `entry.leadIn`, `entry.scope`, and `entry.breaking` directly.
+
+### Built-in renderer behaviour
+
+When no custom template is configured, the built-in markdown renderer applies the following transformations to LLM-categorised output. Custom templates receive the raw data and must implement these behaviours themselves if desired.
+
+**Scope grouping:** Within a category, entries sharing the same scope value (two or more) are rendered under a `**scope**:` group header. Entries with a unique scope render with the scope inline (`**scope**: description`). Entries with no scope render as plain bullets.
+
+**Breaking change re-routing:** Any entry with `breaking: true` is moved to a `Breaking` category at render time, regardless of which category the LLM assigned it to. If no `Breaking` category exists, one is created and prepended before all other categories.
+
+**`leadIn` prefix:** Entries with a `leadIn` value render as `**leadIn**: description`. Combined with `breaking: true`, the format is `**BREAKING** **leadIn**: description`.
+
+**Links section:** When `notes.releaseNotes.links` is configured, a links section is appended after all categories. This section is only rendered in the LLM-categorised path.
 
 ---
 
@@ -147,7 +165,17 @@ Each `Category` in `enhanced.categories`:
 ### {{ cat.name }}
 
 {% for entry in cat.entries %}
+{% if entry.breaking and entry.leadIn %}
+- **BREAKING** **{{ entry.leadIn }}**: {{ entry.description }}
+{% elsif entry.breaking %}
+- **BREAKING** {{ entry.description }}
+{% elsif entry.leadIn %}
+- **{{ entry.leadIn }}**: {{ entry.description }}
+{% elsif entry.scope %}
+- **{{ entry.scope }}**: {{ entry.description }}
+{% else %}
 - {{ entry.description }}
+{% endif %}
 {% endfor %}
 {% endfor %}
 {% else %}

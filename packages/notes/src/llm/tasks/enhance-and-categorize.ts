@@ -1,53 +1,45 @@
 import { warn } from '@releasekit/core';
 import type { ChangelogEntry, LLMCategory } from '../../core/types.js';
+import { LLMError } from '../../errors/index.js';
 import { extractJsonFromResponse } from '../../utils/json.js';
-import { withRetry } from '../../utils/retry.js';
-import { LLM_DEFAULTS } from '../defaults.js';
+import type { ValidationResult } from '../correctiveRetry.js';
+import { withCorrectiveRetry } from '../correctiveRetry.js';
+import { renderExamplesBlock } from '../examples/parser.js';
 import type { CategorizeContext, CategorizedEntries, EnhanceContext, LLMProvider } from '../index.js';
-import { resolvePrompt } from '../prompts.js';
-import { getAllowedScopesFromCategories, validateEntryScopes } from '../scopes.js';
+import type { CompleteResult, LLMMessage } from '../messages.js';
+import { resolveSystemPrompt } from '../prompts.js';
+import { buildEnhanceAndCategorizeSchema, EnhanceAndCategorizeOutputSchema } from '../schemas.js';
+import { validateEntryScopes } from '../scopes.js';
+import { groupByCategory, renderPRBlocks } from './shared.js';
 
 interface CombinedResult {
   enhancedEntries: ChangelogEntry[];
   categories: CategorizedEntries[];
 }
 
-function buildPrompt(
-  entries: ChangelogEntry[],
-  categories: LLMCategory[] | undefined,
-  style: string | undefined,
-): string {
-  const entriesText = entries
-    .map((e, i) => `${i}. [${e.type}]${e.scope ? ` (${e.scope})` : ''}: ${e.description}`)
-    .join('\n');
+function buildSystemPrompt(categories: LLMCategory[] | undefined, style: string | undefined): string {
+  const styleText = style || 'Use past tense ("Added feature" not "Add feature"). Be concise.';
 
-  const styleText = style || 'Use present tense ("Add feature" not "Added feature"). Be concise.';
-
-  const categorySection = categories
-    ? `Categories (use ONLY these):\n${categories
-        .map((c) => {
-          const scopeInfo = c.scopes?.length ? ` Allowed scopes: ${c.scopes.join(', ')}.` : '';
-          return `- "${c.name}": ${c.description}${scopeInfo}`;
-        })
-        .join('\n')}`
-    : `Categories: Group into meaningful categories (e.g., "New", "Fixed", "Changed", "Removed").`;
+  const categorySection =
+    categories && categories.length > 0
+      ? `Categories (use ONLY these exact names):\n${categories
+          .map((c) => {
+            const scopeInfo = c.scopes?.length ? ` Allowed scopes: ${c.scopes.join(', ')}.` : '';
+            return `- "${c.name}": ${c.description}${scopeInfo}`;
+          })
+          .join('\n')}`
+      : `Categories: Group into meaningful categories (e.g., "New", "Fixed", "Changed", "Removed").`;
 
   let scopeInstruction = '';
-  if (categories) {
-    const scopeMap = getAllowedScopesFromCategories(categories);
-    if (scopeMap.size > 0) {
-      const parts: string[] = [];
-      for (const [catName, scopes] of scopeMap) {
-        parts.push(`For "${catName}" entries, assign a scope from: ${scopes.join(', ')}.`);
-      }
+  if (categories && categories.length > 0) {
+    const withScopes = categories.filter((c) => c.scopes?.length);
+    if (withScopes.length > 0) {
+      const parts = withScopes.map((c) => `For "${c.name}" entries, use a scope from: ${c.scopes?.join(', ')}.`);
       scopeInstruction = `\n${parts.join('\n')}\nOnly use scopes from these predefined lists. Set scope to null if no scope applies.`;
     }
   }
 
-  return `You are generating release notes for a software project. Given the following changelog entries, do two things:
-
-1. **Rewrite** each entry as a clear, user-friendly description
-2. **Categorize** each entry into the appropriate category
+  return `You are generating release notes for a software project. Given changelog entries, rewrite each as a clear user-friendly description and categorize it.
 
 Style guidelines:
 - ${styleText}
@@ -56,13 +48,114 @@ Style guidelines:
 
 ${categorySection}${scopeInstruction}
 
-Entries:
-${entriesText}
+leadIn guidelines:
+- Set leadIn ONLY when an entry introduces a named API, feature, or concept worth scanning for (e.g. "Deeplink testing", "browser.electron.triggerDeeplink()")
+- Leave leadIn null for routine fixes, dependency bumps, small tweaks, and refactors
 
-Output a JSON object with:
-- "entries": array of objects, one per input entry (same order), each with: { "description": "rewritten text", "category": "CategoryName", "scope": "optional subcategory label or null" }
+Output a JSON object with an "entries" array. Each element (same order as input) must have:
+- "description": rewritten user-friendly text
+- "category": category name (from the list above)
+- "scope": subcategory label or null
+- "breaking": true if this is a breaking change, false or null otherwise
+- "leadIn": short noun phrase for scanning (e.g. "Streaming API") or null`;
+}
 
-Output only valid JSON, nothing else:`;
+function buildUserPrompt(entries: ChangelogEntry[]): string {
+  const entriesText = entries
+    .map((e, i) => {
+      const prBlocks = renderPRBlocks(e);
+      const header = `${i}. [${e.type}]${e.scope ? ` (${e.scope})` : ''}: ${e.description}`;
+      return prBlocks ? `${header}\n${prBlocks}` : header;
+    })
+    .join('\n');
+  return `Entries:\n${entriesText}`;
+}
+
+function buildCorrectionMessages(_badContent: string, error: string): LLMMessage[] {
+  return [
+    {
+      role: 'user',
+      content: `Your previous response had an error: ${error}
+
+Please fix the issue and output only valid JSON matching the required schema.`,
+    },
+  ];
+}
+
+function makeValidator(
+  entries: ChangelogEntry[],
+  context: EnhanceContext & CategorizeContext,
+): (result: CompleteResult) => ValidationResult<CombinedResult> {
+  return (result) => {
+    // Parse JSON (structured output or text fallback)
+    let parsed: unknown;
+    try {
+      parsed =
+        typeof result.structured !== 'undefined'
+          ? result.structured
+          : JSON.parse(extractJsonFromResponse(result.content));
+    } catch (e) {
+      return { valid: false, error: `Invalid JSON: ${e instanceof Error ? e.message : String(e)}` };
+    }
+
+    // Validate structure
+    const zodResult = EnhanceAndCategorizeOutputSchema.safeParse(parsed);
+    if (!zodResult.success) {
+      return { valid: false, error: `Schema error: ${zodResult.error.message}` };
+    }
+
+    if (zodResult.data.entries.length !== entries.length) {
+      return {
+        valid: false,
+        error: `Expected ${entries.length} entries, got ${zodResult.data.entries.length}`,
+      };
+    }
+
+    // Validate category names when categories are configured
+    const categoryNames = context.categories?.map((c) => c.name);
+    if (categoryNames?.length) {
+      const invalid = zodResult.data.entries.filter((e) => !categoryNames.includes(e.category)).map((e) => e.category);
+      if (invalid.length > 0) {
+        const unique = [...new Set(invalid)];
+        return {
+          valid: false,
+          error: `Unknown categories: ${unique.join(', ')}. Valid categories: ${categoryNames.join(', ')}`,
+        };
+      }
+    }
+
+    // Build enhanced entries
+    const enhancedEntries: ChangelogEntry[] = entries.map((original, i) => {
+      const llmEntry = zodResult.data.entries[i];
+      if (!llmEntry) return original;
+      return {
+        ...original,
+        description: llmEntry.description,
+        scope: llmEntry.scope ?? undefined,
+        breaking: llmEntry.breaking ?? original.breaking,
+        leadIn: llmEntry.leadIn ?? undefined,
+      };
+    });
+
+    // Validate scopes
+    const scopeResult = validateEntryScopes(enhancedEntries, context.scopes, context.categories);
+    if (!scopeResult.valid) {
+      const msg = scopeResult.errors
+        .map(
+          (e) =>
+            `entry ${e.entryIndex} scope "${e.providedScope}" (${e.allowedScopes.length ? `valid: ${e.allowedScopes.join(', ')}` : 'no scopes permitted'})`,
+        )
+        .join('; ');
+      return { valid: false, error: `Invalid scopes: ${msg}` };
+    }
+
+    const categories = groupByCategory(zodResult.data.entries, scopeResult.entries);
+
+    return {
+      valid: true,
+      value: { enhancedEntries: scopeResult.entries, categories },
+    };
+  };
 }
 
 export async function enhanceAndCategorize(
@@ -74,64 +167,42 @@ export async function enhanceAndCategorize(
     return { enhancedEntries: [], categories: [] };
   }
 
-  const retryOpts = LLM_DEFAULTS.retry;
+  const basePrompt = buildSystemPrompt(context.categories, context.style);
+  const examplesBlock = renderExamplesBlock(context.examples ?? []);
+  const systemPrompt = resolveSystemPrompt(
+    'enhanceAndCategorize',
+    examplesBlock ? `${basePrompt}${examplesBlock}` : basePrompt,
+    context.prompts,
+  );
+
+  const initialMessages: LLMMessage[] = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: buildUserPrompt(entries) },
+  ];
+
+  const schema = buildEnhanceAndCategorizeSchema(context.categories ?? []);
+  const validate = makeValidator(entries, context);
 
   try {
-    return await withRetry(async () => {
-      const defaultPrompt = buildPrompt(entries, context.categories, context.style);
-      const prompt = resolvePrompt('enhanceAndCategorize', defaultPrompt, context.prompts);
-      const response = await provider.complete(prompt);
-
-      const parsed = JSON.parse(extractJsonFromResponse(response));
-
-      if (!Array.isArray(parsed.entries)) {
-        throw new Error('Response missing "entries" array');
-      }
-
-      // Build enhanced entries
-      const enhancedEntries: ChangelogEntry[] = entries.map((original, i) => {
-        const result = parsed.entries[i];
-        if (!result) return original;
-
-        return {
-          ...original,
-          description: result.description || original.description,
-          scope: result.scope || original.scope,
-        };
-      });
-
-      // Post-process: validate scopes against config
-      const validatedEntries = validateEntryScopes(enhancedEntries, context.scopes, context.categories);
-
-      // Group into categories
-      const categoryMap = new Map<string, ChangelogEntry[]>();
-
-      for (let i = 0; i < parsed.entries.length; i++) {
-        const result = parsed.entries[i];
-        const category = result?.category || 'General';
-        const entry = validatedEntries[i];
-        if (!entry) continue;
-
-        if (!categoryMap.has(category)) {
-          categoryMap.set(category, []);
-        }
-        categoryMap.get(category)?.push(entry);
-      }
-
-      const categories: CategorizedEntries[] = [];
-      for (const [category, catEntries] of categoryMap) {
-        categories.push({ category, entries: catEntries });
-      }
-
-      return { enhancedEntries: validatedEntries, categories };
-    }, retryOpts);
-  } catch (error) {
-    warn(
-      `Combined enhance+categorize failed after ${retryOpts.maxAttempts} attempts: ${error instanceof Error ? error.message : String(error)}`,
+    return await withCorrectiveRetry(
+      (messages, isFirstAttempt) =>
+        provider.complete(
+          messages,
+          isFirstAttempt && provider.capabilities.structuredOutputs
+            ? { schema, toolName: 'emit_release_notes' }
+            : undefined,
+        ),
+      validate,
+      buildCorrectionMessages,
+      initialMessages,
     );
-    return {
-      enhancedEntries: entries,
-      categories: [{ category: 'General', entries }],
-    };
+  } catch (error) {
+    if (error instanceof LLMError) {
+      warn(`enhanceAndCategorize failed after all attempts: ${error.message}. Returning entries ungrouped.`);
+      // Strip LLM-assigned fields — scopes/leadIns were never validated in this path.
+      const stripped = entries.map((e) => ({ ...e, scope: undefined, leadIn: undefined }));
+      return { enhancedEntries: stripped, categories: [{ category: 'General', entries: stripped }] };
+    }
+    throw error;
   }
 }

@@ -70,3 +70,519 @@ describe('writeMarkdown: dry run', () => {
     expect(header).toMatch(/Release notes/i);
   });
 });
+
+// ---------------------------------------------------------------------------
+// formatVersion — leadIn rendering
+// ---------------------------------------------------------------------------
+
+describe('formatVersion: leadIn phrases', () => {
+  it('should render bold leadIn prefix when present', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        categories: [{ name: 'New', entries: [{ type: 'added', description: 'New API', leadIn: 'deeplink' }] }],
+      },
+    });
+
+    const result = formatVersion(ctx);
+    expect(result).toContain('- **deeplink**: New API');
+  });
+
+  it('should fall back to plain description when leadIn is absent', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        categories: [{ name: 'Fixed', entries: [{ type: 'fixed', description: 'Fix bug' }] }],
+      },
+    });
+
+    const result = formatVersion(ctx);
+    expect(result).toContain('- Fix bug');
+    expect(result).not.toContain('**');
+  });
+
+  it('should prefix BREAKING before leadIn when both are set', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        categories: [
+          {
+            name: 'Breaking',
+            entries: [{ type: 'changed', description: 'Removed old API', leadIn: 'API removal', breaking: true }],
+          },
+        ],
+      },
+    });
+
+    const result = formatVersion(ctx);
+    expect(result).toContain('- **BREAKING** **API removal**: Removed old API');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatVersion — scope grouping
+// ---------------------------------------------------------------------------
+
+describe('formatVersion: scope grouping', () => {
+  it('should group multiple entries with the same scope under a bold scope header', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        categories: [
+          {
+            name: 'New',
+            entries: [
+              { type: 'added', description: 'Feature A', scope: 'api' },
+              { type: 'added', description: 'Feature B', scope: 'api' },
+            ],
+          },
+        ],
+      },
+    });
+
+    const result = formatVersion(ctx);
+    expect(result).toContain('**api**:');
+    // Individual entries should NOT repeat the scope prefix
+    expect(result).not.toContain('**api**: Feature A');
+    expect(result).toContain('- Feature A');
+    expect(result).toContain('- Feature B');
+  });
+
+  it('should not create a scope group header for a single entry with that scope', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        categories: [
+          {
+            name: 'Fixed',
+            entries: [
+              { type: 'fixed', description: 'Fix A', scope: 'core' },
+              { type: 'fixed', description: 'Fix B', scope: 'ui' },
+            ],
+          },
+        ],
+      },
+    });
+
+    const result = formatVersion(ctx);
+    // Group headers appear on their own line (not prefixed with '-')
+    expect(result).not.toMatch(/^\*\*core\*\*:/m);
+    expect(result).not.toMatch(/^\*\*ui\*\*:/m);
+    // Scope still appears inline in the entry
+    expect(result).toContain('**core**: Fix A');
+    expect(result).toContain('**ui**: Fix B');
+  });
+
+  it('should render ungrouped entries after scoped groups', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        categories: [
+          {
+            name: 'New',
+            entries: [
+              { type: 'added', description: 'Scoped 1', scope: 'api' },
+              { type: 'added', description: 'Scoped 2', scope: 'api' },
+              { type: 'added', description: 'No scope' },
+            ],
+          },
+        ],
+      },
+    });
+
+    const result = formatVersion(ctx);
+    const apiPos = result.indexOf('**api**:');
+    const noScopePos = result.indexOf('- No scope');
+    expect(apiPos).toBeLessThan(noScopePos);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatVersion — breaking changes re-routing
+// ---------------------------------------------------------------------------
+
+describe('formatVersion: breaking changes section', () => {
+  it('should route breaking entries into the Breaking category', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        categories: [
+          {
+            name: 'Changed',
+            entries: [
+              { type: 'changed', description: 'Breaking change', breaking: true },
+              { type: 'changed', description: 'Normal change' },
+            ],
+          },
+        ],
+      },
+    });
+
+    const result = formatVersion(ctx);
+    const breakingPos = result.indexOf('### Breaking');
+    const changedPos = result.indexOf('### Changed');
+    expect(breakingPos).toBeGreaterThanOrEqual(0);
+    expect(breakingPos).toBeLessThan(changedPos);
+    expect(result).toContain('- **BREAKING** Breaking change');
+  });
+
+  it('should not render a Breaking section when no entries have breaking: true', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        categories: [{ name: 'New', entries: [{ type: 'added', description: 'Feature' }] }],
+      },
+    });
+
+    expect(formatVersion(ctx)).not.toContain('### Breaking');
+  });
+
+  it('should render Breaking section first when categoryOrder includes Breaking', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        categories: [
+          { name: 'New', entries: [{ type: 'added', description: 'Feature' }] },
+          { name: 'Changed', entries: [{ type: 'changed', description: 'Breaking thing', breaking: true }] },
+        ],
+      },
+    });
+
+    const result = formatVersion(ctx, { categoryOrder: ['Breaking', 'New', 'Changed'] });
+    const breakingPos = result.indexOf('### Breaking');
+    const newPos = result.indexOf('### New');
+    expect(breakingPos).toBeLessThan(newPos);
+  });
+
+  it('should still render Breaking section first when Breaking is absent from categoryOrder', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        categories: [
+          { name: 'New', entries: [{ type: 'added', description: 'Feature' }] },
+          { name: 'Changed', entries: [{ type: 'changed', description: 'Breaking thing', breaking: true }] },
+        ],
+      },
+    });
+
+    // categoryOrder only lists New and Changed — Breaking is omitted but must still land first
+    const result = formatVersion(ctx, { categoryOrder: ['New', 'Changed'] });
+    const breakingPos = result.indexOf('### Breaking');
+    const newPos = result.indexOf('### New');
+    expect(breakingPos).toBeGreaterThanOrEqual(0);
+    expect(breakingPos).toBeLessThan(newPos);
+  });
+
+  it('should merge breaking entries into an existing Breaking category returned by the LLM', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        categories: [
+          { name: 'Breaking', entries: [{ type: 'removed', description: 'Already-breaking entry' }] },
+          {
+            name: 'Changed',
+            entries: [
+              { type: 'changed', description: 'Another breaking change', breaking: true },
+              { type: 'changed', description: 'Normal change' },
+            ],
+          },
+        ],
+      },
+    });
+
+    const result = formatVersion(ctx);
+    // Only one Breaking section
+    const firstBreaking = result.indexOf('### Breaking');
+    const secondBreaking = result.indexOf('### Breaking', firstBreaking + 1);
+    expect(firstBreaking).toBeGreaterThanOrEqual(0);
+    expect(secondBreaking).toBe(-1);
+    // Both entries present under it
+    expect(result).toContain('Already-breaking entry');
+    expect(result).toContain('Another breaking change');
+  });
+
+  it('should not render an empty source category after all entries are rerouted', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        categories: [
+          // All entries in this category are breaking — it should vanish after rerouting
+          { name: 'Removed', entries: [{ type: 'removed', description: 'Dropped endpoint', breaking: true }] },
+          { name: 'New', entries: [{ type: 'added', description: 'Feature' }] },
+        ],
+      },
+    });
+
+    const result = formatVersion(ctx);
+    expect(result).toContain('### Breaking');
+    expect(result).not.toContain('### Removed');
+  });
+
+  it('should preserve LLM category order when categoryOrder is absent', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    // Simulate a realistic LLM-returned category list with no categoryOrder configured
+    const ctx = makeContext({
+      enhanced: {
+        categories: [
+          { name: 'New features', entries: [{ type: 'added', description: 'Dark mode' }] },
+          { name: 'Bug fixes', entries: [{ type: 'fixed', description: 'Crash on startup' }] },
+          { name: 'Performance', entries: [{ type: 'changed', description: 'Faster build' }] },
+        ],
+      },
+    });
+
+    const result = formatVersion(ctx);
+    const newPos = result.indexOf('### New features');
+    const fixPos = result.indexOf('### Bug fixes');
+    const perfPos = result.indexOf('### Performance');
+    expect(newPos).toBeLessThan(fixPos);
+    expect(fixPos).toBeLessThan(perfPos);
+  });
+
+  it('should pin synthetic Breaking before all other categories when categoryOrder is absent', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    // Realistic LLM output: no Breaking category returned, breaking flag on one entry
+    const ctx = makeContext({
+      enhanced: {
+        categories: [
+          { name: 'New features', entries: [{ type: 'added', description: 'New API' }] },
+          { name: 'Bug fixes', entries: [{ type: 'fixed', description: 'Fix crash' }] },
+          {
+            name: 'Changed',
+            entries: [
+              { type: 'changed', description: 'Dropped support for Node 16', breaking: true },
+              { type: 'changed', description: 'Updated defaults' },
+            ],
+          },
+        ],
+      },
+    });
+
+    const result = formatVersion(ctx);
+    const breakingPos = result.indexOf('### Breaking');
+    const newPos = result.indexOf('### New features');
+    const fixPos = result.indexOf('### Bug fixes');
+    expect(breakingPos).toBeGreaterThanOrEqual(0);
+    expect(breakingPos).toBeLessThan(newPos);
+    expect(breakingPos).toBeLessThan(fixPos);
+    // Source category still renders (has a non-breaking entry left)
+    expect(result).toContain('### Changed');
+    expect(result).toContain('Updated defaults');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatVersion — categoryOrder
+// ---------------------------------------------------------------------------
+
+describe('formatVersion: categoryOrder', () => {
+  it('should sort categories according to provided order', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        categories: [
+          { name: 'Fixed', entries: [{ type: 'fixed', description: 'Fix' }] },
+          { name: 'New', entries: [{ type: 'added', description: 'Feature' }] },
+        ],
+      },
+    });
+
+    const result = formatVersion(ctx, { categoryOrder: ['New', 'Fixed'] });
+    expect(result.indexOf('### New')).toBeLessThan(result.indexOf('### Fixed'));
+  });
+
+  it('should append categories not in categoryOrder at the end', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        categories: [
+          { name: 'Unknown', entries: [{ type: 'changed', description: 'Unknown change' }] },
+          { name: 'New', entries: [{ type: 'added', description: 'Feature' }] },
+        ],
+      },
+    });
+
+    const result = formatVersion(ctx, { categoryOrder: ['New'] });
+    expect(result.indexOf('### New')).toBeLessThan(result.indexOf('### Unknown'));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatVersion — migration links
+// ---------------------------------------------------------------------------
+
+describe('formatVersion: migration links', () => {
+  it('should render explicit link items under ### Links by default', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        categories: [{ name: 'New', entries: [{ type: 'added', description: 'Feature' }] }],
+      },
+    });
+
+    const result = formatVersion(ctx, {
+      links: { items: [{ label: 'Migration guide', url: 'https://example.com/migrate' }] },
+    });
+
+    expect(result).toContain('### Links');
+    expect(result).toContain('- [Migration guide](https://example.com/migrate)');
+  });
+
+  it('should use custom title when links.title is set', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        categories: [{ name: 'New', entries: [{ type: 'added', description: 'Feature' }] }],
+      },
+    });
+
+    const result = formatVersion(ctx, {
+      links: { title: 'Migration', items: [{ label: 'Guide', url: 'https://example.com/guide' }] },
+    });
+
+    expect(result).toContain('### Migration');
+  });
+
+  it('should discover links from PR body marker', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      entries: [
+        {
+          type: 'changed' as const,
+          description: 'Breaking change',
+          context: {
+            prs: [{ number: 1, title: 'PR', body: 'Migration: https://example.com/guide' }],
+          },
+        },
+      ],
+      enhanced: {
+        categories: [{ name: 'Changed', entries: [{ type: 'changed', description: 'Breaking change' }] }],
+      },
+    });
+
+    const result = formatVersion(ctx, { links: { fromPRBodyMarker: 'Migration:' } });
+    expect(result).toContain('### Links');
+    expect(result).toContain('https://example.com/guide');
+  });
+
+  it('should discover markdown links from PR body marker', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      entries: [
+        {
+          type: 'changed' as const,
+          description: 'Change',
+          context: {
+            prs: [
+              {
+                number: 2,
+                title: 'PR',
+                body: 'Migration: [Full guide](https://example.com/full-guide)',
+              },
+            ],
+          },
+        },
+      ],
+      enhanced: {
+        categories: [{ name: 'Changed', entries: [{ type: 'changed', description: 'Change' }] }],
+      },
+    });
+
+    const result = formatVersion(ctx, { links: { fromPRBodyMarker: 'Migration:' } });
+    expect(result).toContain('- [Full guide](https://example.com/full-guide)');
+  });
+
+  it('should deduplicate links by URL', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      entries: [
+        {
+          type: 'changed' as const,
+          description: 'Change',
+          context: {
+            prs: [{ number: 3, title: 'PR', body: 'Migration: https://example.com/guide' }],
+          },
+        },
+      ],
+      enhanced: {
+        categories: [{ name: 'Changed', entries: [{ type: 'changed', description: 'Change' }] }],
+      },
+    });
+
+    const result = formatVersion(ctx, {
+      links: {
+        items: [{ label: 'guide', url: 'https://example.com/guide' }],
+        fromPRBodyMarker: 'Migration:',
+      },
+    });
+
+    const count = (result.match(/https:\/\/example\.com\/guide/g) ?? []).length;
+    expect(count).toBe(1);
+  });
+
+  it('should not render links section when no links found', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      enhanced: {
+        categories: [{ name: 'New', entries: [{ type: 'added', description: 'Feature' }] }],
+      },
+    });
+
+    expect(formatVersion(ctx)).not.toContain('### Links');
+  });
+
+  it('should not render links section in non-LLM path', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    // No enhanced.categories → type-based path
+    const ctx = makeContext();
+    const result = formatVersion(ctx, {
+      links: { items: [{ label: 'guide', url: 'https://example.com/guide' }] },
+    });
+
+    expect(result).not.toContain('### Links');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatVersion — non-LLM path unchanged
+// ---------------------------------------------------------------------------
+
+describe('formatVersion: non-LLM path', () => {
+  it('should use type-based grouping when no enhanced categories', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const ctx = makeContext({
+      entries: [
+        { type: 'added', description: 'Feature' },
+        { type: 'fixed', description: 'Bug fix' },
+      ],
+    });
+
+    const result = formatVersion(ctx);
+    expect(result).toContain('### Added');
+    expect(result).toContain('### Fixed');
+  });
+});

@@ -139,24 +139,12 @@ describe('validateScope()', () => {
   });
 
   it('should be case-sensitive when configured', () => {
-    expect(validateScope('ci', ['CI'], { caseSensitive: true })).toBeUndefined();
-    expect(validateScope('CI', ['CI'], { caseSensitive: true })).toBe('CI');
+    expect(validateScope('ci', ['CI'], true)).toBeUndefined();
+    expect(validateScope('CI', ['CI'], true)).toBe('CI');
   });
 
-  it('should remove invalid scopes by default', () => {
+  it('should return undefined for invalid scopes (no fallback behavior)', () => {
     expect(validateScope('Invalid', ['CI', 'Dependencies'])).toBeUndefined();
-  });
-
-  it('should keep invalid scopes when invalidScopeAction is keep', () => {
-    expect(validateScope('Invalid', ['CI'], { invalidScopeAction: 'keep' })).toBe('Invalid');
-  });
-
-  it('should return fallback scope when invalidScopeAction is fallback', () => {
-    expect(validateScope('Invalid', ['CI'], { invalidScopeAction: 'fallback', fallbackScope: 'Other' })).toBe('Other');
-  });
-
-  it('should return undefined for fallback without fallbackScope set', () => {
-    expect(validateScope('Invalid', ['CI'], { invalidScopeAction: 'fallback' })).toBeUndefined();
   });
 });
 
@@ -171,34 +159,53 @@ describe('validateEntryScopes()', () => {
     { type: 'changed', description: 'No scope' },
   ];
 
-  it('should return entries unchanged when scopeConfig is undefined', () => {
+  it('should return valid result when scopeConfig is undefined', () => {
     const result = validateEntryScopes(entries, undefined);
-    expect(result).toBe(entries);
+    expect(result.valid).toBe(true);
+    expect(result.entries).toBe(entries);
+    expect(result.errors).toHaveLength(0);
   });
 
-  it('should return entries unchanged for unrestricted mode', () => {
+  it('should return valid result for unrestricted mode', () => {
     const result = validateEntryScopes(entries, { mode: 'unrestricted' });
-    expect(result).toBe(entries);
+    expect(result.valid).toBe(true);
+    expect(result.entries).toBe(entries);
+    expect(result.errors).toHaveLength(0);
   });
 
-  it('should remove all scopes for none mode', () => {
+  it('should return invalid result with all scopes stripped for none mode', () => {
     const result = validateEntryScopes(entries, { mode: 'none' });
-    expect(result[0]?.scope).toBeUndefined();
-    expect(result[1]?.scope).toBeUndefined();
-    expect(result[2]?.scope).toBeUndefined();
+    expect(result.valid).toBe(false);
+    expect(result.entries[0]?.scope).toBeUndefined();
+    expect(result.entries[1]?.scope).toBeUndefined();
+    expect(result.entries[2]?.scope).toBeUndefined();
   });
 
-  it('should validate scopes against allowed list for restricted mode', () => {
+  it('should validate scopes and return errors for invalid ones', () => {
     const categories: LLMCategory[] = [{ name: 'Developer', description: 'Internal', scopes: ['CI', 'Dependencies'] }];
     const result = validateEntryScopes(entries, { mode: 'restricted' }, categories);
-    expect(result[0]?.scope).toBe('CI');
-    expect(result[1]?.scope).toBeUndefined(); // InvalidScope not in allowed list
-    expect(result[2]?.scope).toBeUndefined(); // no scope
+    expect(result.valid).toBe(false);
+    expect(result.entries[0]?.scope).toBe('CI'); // valid
+    expect(result.entries[1]?.scope).toBeUndefined(); // InvalidScope stripped
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]?.providedScope).toBe('InvalidScope');
+    expect(result.errors[0]?.entryIndex).toBe(1);
+  });
+
+  it('should return valid result when all scopes are valid', () => {
+    const validEntries: ChangelogEntry[] = [
+      { type: 'added', description: 'Update CI', scope: 'CI' },
+      { type: 'changed', description: 'No scope' },
+    ];
+    const categories: LLMCategory[] = [{ name: 'Developer', description: 'Internal', scopes: ['CI', 'Dependencies'] }];
+    const result = validateEntryScopes(validEntries, { mode: 'restricted' }, categories);
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
   });
 
   it('should not mutate original entries', () => {
     const result = validateEntryScopes(entries, { mode: 'none' });
     expect(entries[0]?.scope).toBe('CI'); // original unchanged
-    expect(result[0]?.scope).toBeUndefined(); // new copy changed
+    expect(result.entries[0]?.scope).toBeUndefined(); // new copy changed
   });
 });
