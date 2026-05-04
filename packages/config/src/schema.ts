@@ -241,8 +241,18 @@ export const LLMConfigSchema = z.object({
   concurrency: z.number().int().positive().optional(),
   retry: LLMRetryConfigSchema.optional(),
   tasks: LLMTasksConfigSchema.optional(),
-  categories: z.array(LLMCategorySchema).optional(),
-  style: z.string().optional(),
+  categories: z.array(LLMCategorySchema).default([
+    { name: 'Breaking', description: 'Breaking changes that require user action to upgrade' },
+    { name: 'New', description: 'New features and capabilities' },
+    { name: 'Changed', description: 'Changes to existing functionality' },
+    { name: 'Fixed', description: 'Bug fixes' },
+    { name: 'Developer', description: 'Internal changes: CI, tooling, dependencies, refactoring' },
+  ]),
+  style: z
+    .string()
+    .default(
+      'Write in present tense ("Add feature", not "Added feature"). Be concise and user-focused. Lead with the impact, not the implementation detail.',
+    ),
   scopes: ScopeConfigSchema.optional(),
   prompts: LLMPromptsConfigSchema.optional(),
   examples: z.number().int().min(0).max(5).default(3),
