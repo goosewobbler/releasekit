@@ -6,6 +6,7 @@ import { Command } from 'commander';
 import { createGateCommand } from './commands/gate-command.js';
 import { createPreviewCommand } from './commands/preview-command.js';
 import { createReleaseCommand } from './commands/release-command.js';
+import { createStandingPRCommand } from './commands/standing-pr-command.js';
 
 export function createReleaseProgram(): Command {
   return new Command()
@@ -14,7 +15,8 @@ export function createReleaseProgram(): Command {
     .version(readPackageVersion(import.meta.url))
     .addCommand(createPreviewCommand(), { isDefault: true })
     .addCommand(createReleaseCommand())
-    .addCommand(createGateCommand());
+    .addCommand(createGateCommand())
+    .addCommand(createStandingPRCommand());
 }
 
 const isMain = (() => {
