@@ -26,6 +26,45 @@ Add an `llm` block under `notes.releaseNotes` in `releasekit.config.json`:
 
 ---
 
+## What the LLM changes
+
+Without LLM, the built-in renderer groups entries by their conventional commit type:
+
+```markdown
+## [2.0.0] - 2026-01-15
+
+### Changed
+- rename connect() to initialize() across public API
+
+### Added
+- add triggerDeeplink() for deep link testing
+- add mock IPC handler support
+
+### Fixed
+- null pointer in renderer process memory management
+```
+
+With `enhance + categorize` enabled, the same commits produce:
+
+```markdown
+## [2.0.0] - 2026-01-15
+
+### Breaking
+- **BREAKING** **API rename**: Rename connect() to initialize()
+
+### New
+**ipc**:
+- **Deeplink testing**: Add deep link support via triggerDeeplink()
+- Add mock IPC support
+
+### Fixed
+- Resolve memory leak in renderer process
+```
+
+The LLM rewrites descriptions, groups by user intent instead of commit type, generates scannable `leadIn` phrases for notable entries, and routes breaking changes to a dedicated section.
+
+---
+
 ## Tasks
 
 Four tasks are available. Any combination can be enabled simultaneously.
@@ -37,7 +76,9 @@ Four tasks are available. Any combination can be enabled simultaneously.
 | `summarize` | Generates a 2–3 sentence release summary | `enhanced.summary` in template context |
 | `releaseNotes` | Writes full prose markdown release notes | `enhanced.releaseNotes` / pipeline result |
 
-> **Efficiency tip:** When both `enhance` and `categorize` are enabled, the pipeline makes a **single combined LLM call** (`enhanceAndCategorize`) instead of two sequential calls. This is faster, cheaper, and also produces `leadIn` phrases and scope assignments in one pass. This is the recommended configuration when using both tasks.
+**Recommended starting point:** Enable `enhance` and `categorize` together. This is the most impactful combination — rewriting and grouping both happen in a single LLM call, and it also unlocks `leadIn` phrases, scope grouping, and breaking change re-routing in the built-in renderer. Add `summarize` or `releaseNotes` when you want prose output for GitHub releases.
+
+> **Efficiency tip:** When both `enhance` and `categorize` are enabled, the pipeline makes a **single combined LLM call** (`enhanceAndCategorize`) instead of two sequential calls. This combined path also produces `leadIn` phrases and scope assignments, which are not available when running `enhance` alone.
 
 ---
 
@@ -46,7 +87,7 @@ Four tasks are available. Any combination can be enabled simultaneously.
 Rewrites each changelog entry description to be clear, concise, and user-focused.
 
 **Input:** `"fix: npe in auth middleware when token is null"`
-**Output:** `"Fix crash during authentication when no token was provided"`
+**Output:** `"Fix crash during authentication when no token is provided"`
 
 Entries are processed in parallel. Control the batch size with `concurrency` (default: `5`):
 
@@ -54,7 +95,7 @@ Entries are processed in parallel. Control the batch size with `concurrency` (de
 { "concurrency": 3 }
 ```
 
-When combined with `categorize`, the enhance pass also returns `leadIn` phrases, scope labels, and breaking flags in the same call (see [Combined enhance + categorize](#combined-enhance--categorize)).
+> **Note:** `leadIn` phrases, scope assignments, and breaking flags are only generated when `enhance` is combined with `categorize` (the combined `enhanceAndCategorize` path). Running `enhance` alone rewrites descriptions only — see [Combined enhance + categorize](#combined-enhance--categorize).
 
 ---
 
@@ -74,22 +115,20 @@ When `categories` is not configured, the following defaults are used:
 | `Fixed` | Bug fixes |
 | `Developer` | Internal changes: CI, tooling, dependencies, refactoring |
 
-The LLM is constrained to these exact names via structured output and corrective retry. If categorisation fails after all retries, all entries are placed in a single `"General"` fallback category.
+The LLM is constrained to these exact names. If the model returns an invalid category, the pipeline sends a follow-up message pointing out the error and asking it to revise — this is called a corrective retry. If all retries are exhausted, all entries are placed in a single `"General"` fallback category.
 
 ### Custom categories
 
-Override the defaults by providing your own category list:
+Override the defaults by providing your own category list (shown as `notes.releaseNotes.llm` fragment):
 
 ```json
 {
-  "llm": {
-    "tasks": { "categorize": true },
-    "categories": [
-      { "name": "Features", "description": "New user-facing functionality" },
-      { "name": "Bug Fixes", "description": "Corrections to existing behaviour" },
-      { "name": "Under the Hood", "description": "Internal changes users may not notice" }
-    ]
-  }
+  "tasks": { "categorize": true },
+  "categories": [
+    { "name": "Features", "description": "New user-facing functionality" },
+    { "name": "Bug Fixes", "description": "Corrections to existing behaviour" },
+    { "name": "Under the Hood", "description": "Internal changes users may not notice" }
+  ]
 }
 ```
 
@@ -381,16 +420,18 @@ chore: migrate bundler from webpack to esbuild 0.20
         "provider": "anthropic",
         "model": "claude-haiku-4-5",
         "tasks": { "enhance": true, "categorize": true },
-        "categoryOrder": ["Breaking", "New", "Fixed", "Changed", "Developer"],
-        "links": {
-          "fromPRBodyMarker": "Migration:",
-          "items": [{ "label": "v2.0 migration guide", "url": "https://docs.example.com/migrate-v2" }]
-        }
+        "categoryOrder": ["Breaking", "New", "Fixed", "Changed", "Developer"]
+      },
+      "links": {
+        "fromPRBodyMarker": "Migration:",
+        "items": [{ "label": "v2.0 migration guide", "url": "https://docs.example.com/migrate-v2" }]
       }
     }
   }
 }
 ```
+
+Note that `links` is a property of `releaseNotes`, not `llm`.
 
 ### Rendered output
 

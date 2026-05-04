@@ -70,7 +70,7 @@ Recommended models: `gpt-4o-mini` (fast, cheap), `gpt-4o` (higher quality).
 
 Set `ANTHROPIC_API_KEY` or run `releasekit-notes auth anthropic`.
 
-Recommended models: `claude-haiku-4-5` (fast), `claude-sonnet-4-5` (balanced).
+Recommended models: `claude-haiku-4-5-20251001` (fast), `claude-sonnet-4-5` (balanced). Use the full versioned model ID (e.g. `claude-haiku-4-5-20251001`) to avoid ambiguity — some API versions require it.
 
 ### Ollama (local)
 
@@ -129,7 +129,7 @@ Tasks are configured under `llm.tasks`. Multiple tasks can be enabled simultaneo
 Rewrites each changelog entry description to be clearer and more user-facing.
 
 **Input:** `"fix: npe in auth middleware when token is null"`
-**Output:** `"Fixed a crash that could occur during authentication when no token was present"`
+**Output:** `"Fix crash during authentication when no token is provided"`
 
 ```json
 { "tasks": { "enhance": true } }
@@ -141,7 +141,7 @@ Entry descriptions are processed in parallel (default concurrency: `5`). Adjust 
 { "concurrency": 3 }
 ```
 
-When `enhance` and `categorize` are both enabled, the pipeline runs a single combined `enhanceAndCategorize` call — see [Combined enhance + categorize](#combined-enhance--categorize). The combined call also generates `leadIn` phrases: short noun phrases (e.g. `"Streaming API"`, `"Deeplink testing"`) for notable entries that render as `**leadIn**: description` in the built-in output. Routine fixes and bumps receive no `leadIn`.
+When `enhance` and `categorize` are both enabled, the pipeline runs a single combined `enhanceAndCategorize` call — see [Combined enhance + categorize](#combined-enhance--categorize). The combined call also generates `leadIn` phrases, scope assignments, and breaking flags. These drive scope grouping, breaking change re-routing, and `**leadIn**: description` formatting in the built-in renderer — none of which are available when running `enhance` alone. Routine fixes and bumps receive no `leadIn`.
 
 ### `summarize`
 
@@ -198,6 +198,10 @@ Generates complete prose release notes for the version — suitable for a GitHub
 
 You do not need `mode` or `file` configured for this task — the generated text is passed through the pipeline even without file output.
 
+### Links section
+
+When LLM categorisation is active, you can configure the built-in renderer to append a links section (migration guides, changelogs, etc.) to each release. This is configured on `notes.releaseNotes.links`, not inside `llm`. See [notes.releaseNotes.links](./configuration.md#notesreleasenoteslinks) in the configuration reference.
+
 ---
 
 ## Combined enhance + categorize
@@ -227,11 +231,11 @@ To customise the prompt for the combined call, use the `enhanceAndCategorize` ke
 
 ## Prompt Customisation
 
-Override the built-in prompt instructions for any task. The string is appended to the relevant system prompt. Keys are task names.
+Two override mechanisms are available, with an important difference in safety:
 
-### Custom instructions
+### `prompts.instructions` — append to the built-in prompt
 
-Append extra instructions to the built-in prompt:
+Appends extra text to the built-in system prompt. The structured output contract is preserved, so this is safe to use with all tasks including `enhance`, `categorize`, and `enhanceAndCategorize`.
 
 ```json
 {
@@ -246,16 +250,16 @@ Append extra instructions to the built-in prompt:
 }
 ```
 
-### Full prompt template override
+### `prompts.templates` — replace the entire prompt
 
-Replace the entire prompt for a task. The string is sent to the LLM verbatim — no placeholder substitution is applied.
+Replaces the entire system prompt for a task verbatim. Use with caution: overriding `enhance`, `categorize`, or `enhanceAndCategorize` removes the structured JSON output contract. Unless your replacement prompt reproduces the exact output schema the pipeline expects, it will cause JSON parsing failures and fall back to the `"General"` category or raw descriptions. This option is safest for `summarize` and `releaseNotes`, which produce freeform text.
 
 ```json
 {
   "llm": {
     "prompts": {
       "templates": {
-        "enhance": "You are a technical writer. Rewrite the changelog entry below as a single, concise sentence in plain English. Return only the rewritten text, nothing else."
+        "releaseNotes": "You are a technical writer. Summarise these changes for a GitHub release body. Use plain markdown, no frontmatter."
       }
     }
   }
@@ -271,10 +275,12 @@ LLM options can also be set via CLI flags without a config file:
 ```bash
 releasekit-notes \
   --llm-provider anthropic \
-  --llm-model claude-haiku-4-5 \
+  --llm-model claude-haiku-4-5-20251001 \
   --llm-tasks enhance,release-notes \
   --input version-output.json
 ```
+
+> **Task name format:** CLI flags use kebab-case (`release-notes`), while the config file uses camelCase (`releaseNotes`). The mapping is: `enhance` → `enhance`, `categorize` → `categorize`, `summarize` → `summarize`, `releaseNotes` → `release-notes`.
 
 Use `--no-llm` to disable LLM processing even when it is configured:
 

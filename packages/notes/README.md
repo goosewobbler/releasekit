@@ -140,7 +140,7 @@ LLM configuration lives under `notes.releaseNotes.llm`:
 |------|-------------|
 | `enhance` | Rewrites each changelog entry description to be clearer |
 | `summarize` | Generates a one-paragraph summary of the release |
-| `categorize` | Groups entries into user-friendly categories (Features, Fixes, …) |
+| `categorize` | Groups entries into semantic categories (default set: Breaking, New, Changed, Fixed, Developer) |
 | `releaseNotes` | Generates full prose release notes (use as GitHub release body) |
 
 ## Templates
@@ -239,6 +239,7 @@ const result = await runPipeline(input, config, false);
 - [LLM providers](./docs/llm-providers.md) — provider setup, auth, tasks, prompt customisation
 
 **Guides**
+- [LLM-enhanced release notes](./docs/llm-release-notes.md) — full guide to LLM tasks, categories, output rendering
 - [Templates](./docs/templates.md) — custom template authoring and context reference
 - [Monorepo](./docs/monorepo.md) — per-package and root output modes
 

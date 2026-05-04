@@ -44,7 +44,7 @@ Pass a directory containing named template files. Each file renders a different 
 templates/
 ├── document.liquid    # Outer document wrapper (receives DocumentContext)
 ├── version.liquid     # One version block (receives TemplateContext)
-└── entry.liquid       # One changelog entry (receives ChangelogEntry)
+└── entry.liquid       # One changelog entry (receives ChangelogEntry fields directly)
 ```
 
 ```bash
@@ -52,6 +52,8 @@ releasekit-notes --template ./templates/
 ```
 
 All three files are optional — omit any you don't need to customise, and the built-in for that level is used.
+
+The `entry.liquid` template receives the `ChangelogEntry` fields directly as top-level variables: `type`, `description`, `scope`, `breaking`, `issueIds`, `leadIn`.
 
 ---
 
@@ -104,7 +106,8 @@ Present when any LLM task ran successfully:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `enhanced.summary` | `string \| undefined` | One-paragraph release summary (`summarize` task) |
+| `enhanced.entries` | `ChangelogEntry[]` | Entries with rewritten `description` fields (`enhance` task) |
+| `enhanced.summary` | `string \| undefined` | 2–3 sentence release summary (`summarize` task) |
 | `enhanced.categories` | `Category[] \| undefined` | Grouped entries (`categorize` task) |
 | `enhanced.releaseNotes` | `string \| undefined` | Full prose release notes (`releaseNotes` task) |
 
@@ -116,8 +119,6 @@ Each `Category` in `enhanced.categories`:
 | `entries` | `ChangelogEntry[]` | Entries in this category (same type as `entries`; may have `leadIn`, `scope`, `breaking` populated by the LLM) |
 
 Entries within `enhanced.categories` are the same `ChangelogEntry` objects as in `entries`, with all LLM-assigned fields populated. Custom templates can access `entry.leadIn`, `entry.scope`, and `entry.breaking` directly.
-
----
 
 ### Built-in renderer behaviour
 
@@ -164,7 +165,11 @@ When no custom template is configured, the built-in markdown renderer applies th
 ### {{ cat.name }}
 
 {% for entry in cat.entries %}
-{% if entry.leadIn %}
+{% if entry.breaking and entry.leadIn %}
+- **BREAKING** **{{ entry.leadIn }}**: {{ entry.description }}
+{% elsif entry.breaking %}
+- **BREAKING** {{ entry.description }}
+{% elsif entry.leadIn %}
 - **{{ entry.leadIn }}**: {{ entry.description }}
 {% elsif entry.scope %}
 - **{{ entry.scope }}**: {{ entry.description }}

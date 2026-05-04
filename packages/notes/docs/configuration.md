@@ -136,7 +136,7 @@ LLM configuration for release notes enhancement. Requires `provider` and `model`
 }
 ```
 
-See the full LLM option reference below.
+See the [full LLM option reference](#llm-options-notesreleasenotesllm) below.
 
 ### `notes.releaseNotes.links`
 
@@ -221,18 +221,22 @@ How existing changelog files are updated when new entries are generated.
 
 ### Model options (`options`)
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `timeout` | `integer` (ms) | Request timeout |
-| `maxTokens` | `integer` | Maximum tokens to generate |
-| `temperature` | `number` | Sampling temperature (0–2) |
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `timeout` | `integer` (ms) | `60000` | Request timeout |
+| `maxTokens` | `integer` | `16384` | Maximum tokens to generate |
+| `temperature` | `number` | `0.7` | Sampling temperature (0–2) |
 
 ```json
 {
-  "llm": {
-    "provider": "openai",
-    "model": "gpt-4o",
-    "options": { "temperature": 0.3, "maxTokens": 1000 }
+  "notes": {
+    "releaseNotes": {
+      "llm": {
+        "provider": "openai",
+        "model": "gpt-4o",
+        "options": { "temperature": 0.3, "maxTokens": 1000 }
+      }
+    }
   }
 }
 ```
@@ -243,7 +247,7 @@ How existing changelog files are updated when new entries are generated.
 |------|------|-------------|
 | `enhance` | `boolean` | Rewrite each entry description to be clearer and more user-facing |
 | `summarize` | `boolean` | Generate a one-paragraph summary of the release |
-| `categorize` | `boolean` | Group entries into user-friendly categories (Features, Fixes, …) |
+| `categorize` | `boolean` | Group entries into semantic categories (default set: Breaking, New, Changed, Fixed, Developer) |
 | `releaseNotes` | `boolean` | Generate full prose release notes suitable for a GitHub release body |
 
 ### Categories (`categories`)
@@ -357,7 +361,9 @@ Override to change tone:
 
 ### Prompt overrides (`prompts`)
 
-Override the built-in prompt instructions for any task. The string is appended to the relevant system prompt.
+Two override mechanisms are available:
+
+**`prompts.instructions`** — appends extra instructions to the built-in prompt. The built-in structured output contract is preserved, so this is safe to use with all tasks.
 
 Available keys:
 
@@ -371,14 +377,37 @@ Available keys:
 
 ```json
 {
-  "llm": {
-    "prompts": {
-      "instructions": {
-        "enhance": "Rewrite the description from a developer's perspective, keeping it technical."
+  "notes": {
+    "releaseNotes": {
+      "llm": {
+        "prompts": {
+          "instructions": {
+            "enhance": "Write from the perspective of an end user, not a developer.",
+            "releaseNotes": "Start with a one-sentence executive summary."
+          }
+        }
       }
     }
   }
 }
 ```
 
-See the [LLM providers guide](./llm-providers.md) for examples.
+**`prompts.templates`** — replaces the entire prompt for a task verbatim. Use with care: overriding `enhance`, `categorize`, or `enhanceAndCategorize` removes the structured output contract, which will cause JSON parsing failures unless your replacement prompt reproduces the exact output schema expected by the pipeline.
+
+```json
+{
+  "notes": {
+    "releaseNotes": {
+      "llm": {
+        "prompts": {
+          "templates": {
+            "releaseNotes": "You are a technical writer. Summarise these changes for a GitHub release body. Use plain markdown, no frontmatter."
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+See the [LLM providers guide](./llm-providers.md) for more examples.
