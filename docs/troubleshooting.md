@@ -36,10 +36,11 @@ Each section below covers a specific failure mode. Search for the exact message 
 
 | Strategy | Behaviour |
 |----------|-----------|
-| `error` (default) | Abort with a non-zero exit code |
-| `tag` | Trust the git tag; ignore `package.json` |
-| `package` | Trust `package.json`; ignore the tag |
-| `warn` | Log a warning and continue using the tag |
+| `warn` (default) | Log a warning and continue using the git tag |
+| `error` | Abort with a non-zero exit code |
+| `prefer-git` | Silently trust the git tag; ignore `package.json` |
+| `prefer-package` | Silently trust `package.json`; ignore the tag |
+| `ignore` | Suppress the warning and continue |
 
 Set the appropriate strategy in `releasekit.config.json` under `version.mismatchStrategy`. If you want to resync permanently, align `package.json` and the tag manually, then re-run.
 

@@ -21,7 +21,7 @@ Git configuration.
 |-----|------|---------|-------------|
 | `remote` | string | `"origin"` | Git remote name |
 | `branch` | string | `"main"` | Default branch name |
-| `pushMethod` | `"auto"` \\| `"ssh"` \\| `"https"` | `"auto"` | Method for pushing to remote |
+| `pushMethod` | `"auto"` \| `"ssh"` \| `"https"` | `"auto"` | Method for pushing to remote |
 | `push` | boolean | — | Whether to push changes to remote |
 | `httpsTokenEnv` | string | — | Environment variable name containing a GitHub token for HTTPS pushes |
 | `skipHooks` | boolean | — | Skip Git hooks when committing |
@@ -34,7 +34,7 @@ Monorepo configuration.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `mode` | `"root"` \\| `"packages"` \\| `"both"` | — | Changelog aggregation mode |
+| `mode` | `"root"` \| `"packages"` \| `"both"` | — | Changelog aggregation mode |
 | `rootPath` | string | — | Path to root changelog |
 | `packagesPath` | string | — | Path to packages directory |
 | `mainPackage` | string | — | Main package name for versioning |
@@ -53,12 +53,12 @@ Versioning configuration.
 | `sync` | boolean | true | Sync versions across packages |
 | `packages` | `string[]` | `[]` | Packages to include in versioning |
 | `mainPackage` | string | — | Package to use for version determination |
-| `updateInternalDependencies` | `"major"` \\| `"minor"` \\| `"patch"` \\| `"no-internal-update"` | `"minor"` | How to bump internal dependencies |
+| `updateInternalDependencies` | `"major"` \| `"minor"` \| `"patch"` \| `"no-internal-update"` | `"minor"` | How to bump internal dependencies |
 | `skip` | `string[]` | — | Packages to exclude from versioning |
 | `commitMessage` | string | — | Template for release commit messages |
-| `versionStrategy` | `"branchPattern"` \\| `"commitMessage"` | `"commitMessage"` | Strategy for determining version bumps |
-| `defaultReleaseType` | `"major"` \\| `"minor"` \\| `"patch"` \\| `"prerelease"` | — | Default release type when no pattern matches |
-| `mismatchStrategy` | `"error"` \\| `"warn"` \\| `"ignore"` \\| `"prefer-package"` \\| `"prefer-git"` | `"warn"` | How to handle version mismatches |
+| `versionStrategy` | `"branchPattern"` \| `"commitMessage"` | `"commitMessage"` | Strategy for determining version bumps |
+| `defaultReleaseType` | `"major"` \| `"minor"` \| `"patch"` \| `"prerelease"` | — | Default release type when no pattern matches |
+| `mismatchStrategy` | `"error"` \| `"warn"` \| `"ignore"` \| `"prefer-package"` \| `"prefer-git"` | `"warn"` | How to handle version mismatches |
 | `versionPrefix` | string | `""` | Prefix for version tags |
 | `prereleaseIdentifier` | string | — | Identifier for prerelease versions (e.g., 'alpha', 'beta') |
 | `baseBranch` | string | — | Base branch for versioning |
@@ -71,7 +71,7 @@ Array of objects with the following properties:
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `pattern` | string | — |  |
-| `releaseType` | `"major"` \\| `"minor"` \\| `"patch"` \\| `"prerelease"` | — |  |
+| `releaseType` | `"major"` \| `"minor"` \| `"patch"` \| `"prerelease"` | — |  |
 
 ### `version.cargo`
 
@@ -96,7 +96,7 @@ Git publishing options.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `push` | boolean | true | Push tags and commits to remote |
-| `pushMethod` | `"auto"` \\| `"ssh"` \\| `"https"` | — | Push method override |
+| `pushMethod` | `"auto"` \| `"ssh"` \| `"https"` | — | Push method override |
 | `remote` | string | — | Remote name override |
 | `branch` | string | — | Branch name override |
 | `httpsTokenEnv` | string | — | Environment variable name containing a GitHub token for HTTPS pushes |
@@ -109,9 +109,9 @@ NPM publishing configuration.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `enabled` | boolean | true | Enable NPM publishing |
-| `auth` | `"auto"` \\| `"oidc"` \\| `"token"` | `"auto"` | Authentication method |
+| `auth` | `"auto"` \| `"oidc"` \| `"token"` | `"auto"` | Authentication method |
 | `provenance` | boolean | true | Enable npm provenance attestation |
-| `access` | `"public"` \\| `"restricted"` | `"public"` | Package access level |
+| `access` | `"public"` \| `"restricted"` | `"public"` | Package access level |
 | `registry` | string | `"https://registry.npmjs.org"` | NPM registry URL |
 | `copyFiles` | `string[]` | `["LICENSE"]` | Files to copy to package before publishing |
 | `tag` | string | `"latest"` | NPM dist tag |
@@ -136,8 +136,8 @@ GitHub Release configuration.
 | `enabled` | boolean | true | Enable GitHub releases |
 | `draft` | boolean | true | Create as draft release |
 | `perPackage` | boolean | true | Create separate release per package |
-| `prerelease` | boolean \\| `"auto"` | `"auto"` | Mark as prerelease |
-| `body` | `"auto"` \\| `"releaseNotes"` \\| `"changelog"` \\| `"generated"` \\| `"none"` | `"auto"` | Source for GitHub release body. 'auto': use release notes if enabled, else changelog, else GitHub auto. 'releaseNotes': use LLM-generated release notes. 'changelog': use changelog entries. 'generated': GitHub auto-generated. 'none': no body. |
+| `prerelease` | boolean \| `"auto"` | `"auto"` | Mark as prerelease |
+| `body` | `"auto"` \| `"releaseNotes"` \| `"changelog"` \| `"generated"` \| `"none"` | `"auto"` | Source for GitHub release body. 'auto': use release notes if enabled, else changelog, else GitHub auto. 'releaseNotes': use LLM-generated release notes. 'changelog': use changelog entries. 'generated': GitHub auto-generated. 'none': no body. |
 | `titleTemplate` | string | `"${packageName}: ${version}"` | Template for the GitHub release title when a package name is resolved. Available variables: ${packageName} (original scoped name, e.g. '@scope/pkg'), ${version} (e.g. 'v1.0.0'). Version-only tags always use the tag string directly. |
 
 ### `publish.verify`
@@ -172,7 +172,7 @@ Changelog and release notes configuration.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `updateStrategy` | `"prepend"` \\| `"regenerate"` | — | How to update existing changelog files. 'prepend' adds new entries to the top; 'regenerate' rewrites the file from scratch. |
+| `updateStrategy` | `"prepend"` \| `"regenerate"` | — | How to update existing changelog files. 'prepend' adds new entries to the top; 'regenerate' rewrites the file from scratch. |
 
 ### `notes.changelog`
 
@@ -180,7 +180,7 @@ Set to `false` to disable.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `mode` | `"root"` \\| `"packages"` \\| `"both"` | — | Where to write changelog files. root: repo root only. packages: per-package (monorepos). both: repo root and per-package. When omitted entirely (no changelog config), defaults to root. |
+| `mode` | `"root"` \| `"packages"` \| `"both"` | — | Where to write changelog files. root: repo root only. packages: per-package (monorepos). both: repo root and per-package. When omitted entirely (no changelog config), defaults to root. |
 | `file` | string | — | Changelog file name override (default: CHANGELOG.md) |
 
 **`notes.changelog.templates`** — Template configuration for changelog.
@@ -188,7 +188,7 @@ Set to `false` to disable.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `path` | string | — | Path to custom template |
-| `engine` | `"handlebars"` \\| `"liquid"` \\| `"ejs"` | — | Template engine |
+| `engine` | `"handlebars"` \| `"liquid"` \| `"ejs"` | — | Template engine |
 
 ### `notes.releaseNotes`
 
@@ -196,7 +196,7 @@ Set to `false` to disable.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `mode` | `"root"` \\| `"packages"` \\| `"both"` | — | Where to write release notes file. Omit to skip file output (LLM still runs if configured). |
+| `mode` | `"root"` \| `"packages"` \| `"both"` | — | Where to write release notes file. Omit to skip file output (LLM still runs if configured). |
 | `file` | string | — | Release notes file name override (default: RELEASE_NOTES.md) |
 
 **`notes.releaseNotes.templates`** — Template configuration for release notes.
@@ -204,7 +204,7 @@ Set to `false` to disable.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `path` | string | — | Path to custom template |
-| `engine` | `"handlebars"` \\| `"liquid"` \\| `"ejs"` | — | Template engine |
+| `engine` | `"handlebars"` \| `"liquid"` \| `"ejs"` | — | Template engine |
 
 ### `notes.releaseNotes.llm`
 
@@ -255,7 +255,7 @@ Scope validation configuration.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `mode` | `"restricted"` \\| `"packages"` \\| `"none"` \\| `"unrestricted"` | `"unrestricted"` |  |
+| `mode` | `"restricted"` \| `"packages"` \| `"none"` \| `"unrestricted"` | `"unrestricted"` |  |
 
 **`notes.releaseNotes.llm.scopes.rules`**
 
@@ -263,7 +263,7 @@ Scope validation configuration.
 |-----|------|---------|-------------|
 | `allowed` | `string[]` | — |  |
 | `caseSensitive` | boolean | false |  |
-| `invalidScopeAction` | `"remove"` \\| `"keep"` \\| `"fallback"` | `"remove"` |  |
+| `invalidScopeAction` | `"remove"` \| `"keep"` \| `"fallback"` | `"remove"` |  |
 | `fallbackScope` | string | — |  |
 
 #### `notes.releaseNotes.llm.retry`
@@ -295,8 +295,8 @@ CI automation configuration for release triggers, PR previews, and label managem
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `releaseStrategy` | `"manual"` \\| `"direct"` \\| `"standing-pr"` \\| `"scheduled"` | `"direct"` | How releases are delivered. 'direct': release on merge to main. 'manual': releases triggered manually (e.g. workflow_dispatch). 'standing-pr': changes accumulate in a release PR. 'scheduled': releases triggered on a schedule. |
-| `releaseTrigger` | `"commit"` \\| `"label"` | `"label"` | What triggers a release. 'label': a PR bump label (bump:patch/minor/major) is required. 'commit': conventional commits drive the bump automatically; every merge can trigger a release. |
+| `releaseStrategy` | `"manual"` \| `"direct"` \| `"standing-pr"` \| `"scheduled"` | `"direct"` | How releases are delivered. 'direct': release on merge to main. 'manual': releases triggered manually (e.g. workflow_dispatch). 'standing-pr': changes accumulate in a release PR. 'scheduled': releases triggered on a schedule. |
+| `releaseTrigger` | `"commit"` \| `"label"` | `"label"` | What triggers a release. 'label': a PR bump label (bump:patch/minor/major) is required. 'commit': conventional commits drive the bump automatically; every merge can trigger a release. |
 | `prPreview` | boolean | true | Enable PR preview comments showing what would be released if the PR is merged. Set to false to disable. |
 | `autoRelease` | boolean | false | Automatically trigger a release when CI conditions are met, without manual intervention. |
 | `skipPatterns` | `string[]` | `["chore: release "]` | Commit message prefixes that suppress a release. The default matches the release commit template to prevent release loops. |
@@ -326,7 +326,7 @@ Configuration for the standing release PR feature (ci.releaseStrategy: 'standing
 | `labels` | `string[]` | `["release"]` | Labels to apply to the standing release PR. |
 | `deleteBranchOnMerge` | boolean | true | Whether to auto-delete the release branch after the PR is merged. |
 | `editableNotes` | boolean | false | Allow teams to edit the release notes section in the PR body before publishing. When enabled, the notes section is wrapped in editable markers and preserved across updates if manually changed. |
-| `mergeMethod` | `"merge"` \\| `"squash"` \\| `"rebase"` | `"merge"` | Merge method to use when merging the standing release PR via CLI. |
+| `mergeMethod` | `"merge"` \| `"squash"` \| `"rebase"` | `"merge"` | Merge method to use when merging the standing release PR via CLI. |
 | `minAge` | string | — | Minimum age of the standing PR before it can be merged. Duration string, e.g. '6h', '30m', '1d'. Gate enforced via the releasekit/standing-pr commit status check; configure it as a required status check in branch protection to block merges. |
 | `minPackages` | integer | — | Minimum number of packages with releasable changes required to create or maintain the standing PR. Below this threshold the PR is closed and no new PR is opened. |
 
