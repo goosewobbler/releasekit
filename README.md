@@ -15,8 +15,21 @@ Versioning, changelogs, and publishing for JavaScript and Rust monorepos — dri
 
 ## Quickstart
 
+**npm:**
+
 ```bash
 npm install -g @releasekit/release
+```
+
+**pnpm:**
+
+```bash
+pnpm add -g @releasekit/release
+```
+
+**Then:**
+
+```bash
 releasekit init
 releasekit release --dry-run
 ```
@@ -104,12 +117,25 @@ See the [package docs](#documentation) for the full option reference.
 
 ## Documentation
 
+**Guides**
 - [Getting Started](./docs/getting-started.md) — install, first dry run, first release, CI setup
+- [Architecture](./docs/architecture.md) — pipeline design, mental model, release strategies
+- [CI setup](./packages/release/docs/ci-setup.md) — GitHub Actions workflows, OIDC, PR preview, prerelease
+- [Rust / Cargo](./docs/rust.md) — Rust crate versioning and crates.io publishing
+- [Migration](./docs/migration.md) — from semantic-release or changesets
+
+**Reference**
+- [Configuration](./docs/configuration.md) — full config reference (all `releasekit.config.json` options)
+- [GitHub Action](./docs/action.md) — `goosewobbler/releasekit` action inputs, outputs, and rollout
 - [@releasekit/release](./packages/release/README.md) — unified pipeline, CI automation, programmatic API
 - [@releasekit/version](./packages/version/README.md) — versioning strategies, JSON output
 - [@releasekit/notes](./packages/notes/README.md) — changelog, release notes, LLM, templates
 - [@releasekit/publish](./packages/publish/README.md) — npm, crates.io, GitHub Releases
-- [CI setup](./packages/release/docs/ci-setup.md) · [LLM providers](./packages/notes/docs/llm-providers.md) · [GitHub Releases](./packages/publish/docs/github-releases.md)
+
+**Help**
+- [Troubleshooting](./docs/troubleshooting.md) — symptom-indexed error guide
+- [LLM providers](./packages/notes/docs/llm-providers.md) — OpenAI, Anthropic, Ollama setup
+- [GitHub Releases](./packages/publish/docs/github-releases.md) — release body options
 
 ## Development
 

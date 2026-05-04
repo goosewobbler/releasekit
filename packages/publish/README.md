@@ -19,9 +19,15 @@
 
 ## Installation
 
+**npm:**
+
 ```bash
 npm install -g @releasekit/publish
-# or
+```
+
+**pnpm:**
+
+```bash
 pnpm add -g @releasekit/publish
 ```
 

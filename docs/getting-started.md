@@ -14,9 +14,15 @@ This guide walks through installing ReleaseKit, verifying your setup with a dry 
 
 Install the unified CLI:
 
+**npm:**
+
 ```bash
 npm install -g @releasekit/release
-# or
+```
+
+**pnpm:**
+
+```bash
 pnpm add -g @releasekit/release
 ```
 
@@ -165,17 +171,24 @@ jobs:
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
-      - run: npm ci
-      - run: npx releasekit release
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec releasekit release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+> **Using npm?** Replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
 
 ---
 
 ## Next steps
 
+- **[Architecture](./architecture.md)** — pipeline design, mental model, and how everything fits together
 - **[CI setup guide](../packages/release/docs/ci-setup.md)** — complete workflow recipes
+- **[Configuration reference](./configuration.md)** — all `releasekit.config.json` options
+- **[Troubleshooting](./troubleshooting.md)** — symptom-indexed error guide
 - **[@releasekit/notes — LLM providers](../packages/notes/docs/llm-providers.md)** — add AI-enhanced release notes
 - **[@releasekit/notes — configuration](../packages/notes/docs/configuration.md)** — changelog and release notes options
 - **[@releasekit/publish — GitHub Releases](../packages/publish/docs/github-releases.md)** — release body options
+- **[Rust / Cargo guide](./rust.md)** — Rust crate versioning and crates.io publishing
+- **[Migration guide](./migration.md)** — from semantic-release or changesets
