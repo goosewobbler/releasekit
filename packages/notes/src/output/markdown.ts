@@ -147,15 +147,24 @@ interface LinkItem {
 }
 
 function parseMdLink(text: string): { label: string; url: string } | null {
-  const bracketOpen = text.indexOf('[');
-  if (bracketOpen === -1) return null;
-  const bracketClose = text.indexOf(']', bracketOpen + 1);
-  if (bracketClose === -1 || text[bracketClose + 1] !== '(') return null;
-  const parenClose = text.indexOf(')', bracketClose + 2);
-  if (parenClose === -1) return null;
-  const label = text.slice(bracketOpen + 1, bracketClose);
-  const url = text.slice(bracketClose + 2, parenClose);
-  return /^https?:\/\//.test(url) ? { label, url } : null;
+  let search = 0;
+  while (search < text.length) {
+    const bracketOpen = text.indexOf('[', search);
+    if (bracketOpen === -1) return null;
+    const bracketClose = text.indexOf(']', bracketOpen + 1);
+    if (bracketClose === -1) return null;
+    if (text[bracketClose + 1] !== '(') {
+      search = bracketClose + 1;
+      continue;
+    }
+    const parenClose = text.indexOf(')', bracketClose + 2);
+    if (parenClose === -1) return null;
+    const label = text.slice(bracketOpen + 1, bracketClose);
+    const url = text.slice(bracketClose + 2, parenClose);
+    if (/^https?:\/\//.test(url)) return { label, url };
+    search = parenClose + 1;
+  }
+  return null;
 }
 
 function extractLinksFromPRBodies(entries: ChangelogEntry[], marker: string): LinkItem[] {
