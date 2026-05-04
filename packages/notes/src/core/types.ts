@@ -163,6 +163,7 @@ export interface LLMConfig {
     pullRequests?: boolean;
   };
   examples?: number;
+  categoryOrder?: string[];
   categories?: Array<{ name: string; description: string; scopes?: string[] }>;
   style?: string;
   scopes?: ScopeConfig;
@@ -179,9 +180,16 @@ export interface ChangelogConfig {
   templates?: TemplateConfig;
 }
 
+export interface LinksConfig {
+  items?: Array<{ label: string; url: string }>;
+  fromPRBodyMarker?: string;
+  title?: string;
+}
+
 export interface ReleaseNotesConfig {
   mode?: LocationMode;
   file?: string;
   templates?: TemplateConfig;
   llm?: LLMConfig;
+  links?: LinksConfig;
 }

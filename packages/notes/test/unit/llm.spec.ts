@@ -330,9 +330,12 @@ describe('categorizeEntries()', () => {
     expect(fixedCategory?.entries[0]?.scope).toBeUndefined();
   });
 
-  it('should throw when corrective retry is exhausted on persistent invalid JSON', async () => {
+  it('should return General fallback when corrective retry is exhausted on persistent invalid JSON', async () => {
     const provider = makeMockProvider('not valid json at all');
-    await expect(categorizeEntries(provider, sampleEntries, llmContext)).rejects.toThrow();
+    const result = await categorizeEntries(provider, sampleEntries, llmContext);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.category).toBe('General');
+    expect(result[0]?.entries).toEqual(sampleEntries);
   });
 });
 
@@ -478,9 +481,12 @@ describe('enhanceAndCategorize()', () => {
     expect(result.categories).toHaveLength(3);
   });
 
-  it('should throw when all corrective retry attempts fail', async () => {
+  it('should return General fallback when all corrective retry attempts fail', async () => {
     const provider = makeMockProvider('always invalid json');
-    await expect(enhanceAndCategorize(provider, sampleEntries, llmContext)).rejects.toThrow();
+    const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
+    expect(result.enhancedEntries).toEqual(sampleEntries);
+    expect(result.categories).toHaveLength(1);
+    expect(result.categories[0]?.category).toBe('General');
     expect(provider.callCount).toBe(3); // 1 initial + 2 corrective
   });
 
@@ -560,14 +566,16 @@ describe('enhanceAndCategorize()', () => {
     expect(systemMsg?.content).toContain('Focus on user impact.');
   });
 
-  it('should throw LLMError when response has fewer entries than input', async () => {
-    // Only 1 entry in response for 3 inputs — count mismatch is a validation error.
+  it('should return General fallback when response has fewer entries than input', async () => {
+    // Only 1 entry in response for 3 inputs — count mismatch exhausts corrective retries → fallback.
     const response = JSON.stringify({
       entries: [{ description: 'Only first', category: 'New', scope: null, breaking: null, leadIn: null }],
     });
 
     const provider = makeMockProvider(response);
-    await expect(enhanceAndCategorize(provider, sampleEntries, llmContext)).rejects.toThrow(LLMError);
+    const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
+    expect(result.enhancedEntries).toEqual(sampleEntries);
+    expect(result.categories[0]?.category).toBe('General');
   });
 });
 

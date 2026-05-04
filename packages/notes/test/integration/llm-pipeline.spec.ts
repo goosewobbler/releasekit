@@ -164,9 +164,11 @@ describe('LLM tasks: categorize', () => {
     expect(result.find((c) => c.category === 'Fixes')?.entries[0]?.description).toBe('Fix null pointer');
   });
 
-  it('should throw on persistent invalid JSON (corrective retry exhausted)', async () => {
+  it('should return General fallback on persistent invalid JSON (corrective retry exhausted)', async () => {
     const provider = makeMockProvider('not json');
-    await expect(categorizeEntries(provider, sampleInput.packages[0]?.entries, {})).rejects.toThrow();
+    const result = await categorizeEntries(provider, sampleInput.packages[0]?.entries ?? [], {});
+    expect(result).toHaveLength(1);
+    expect(result[0]?.category).toBe('General');
   });
 });
 

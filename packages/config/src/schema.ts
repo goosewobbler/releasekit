@@ -251,6 +251,7 @@ export const LLMConfigSchema = z.object({
       pullRequests: z.boolean().default(true),
     })
     .default({ pullRequests: true }),
+  categoryOrder: z.array(z.string()).optional(),
 });
 
 export const ReleaseNotesConfigSchema = z.object({
@@ -258,6 +259,13 @@ export const ReleaseNotesConfigSchema = z.object({
   file: z.string().optional(),
   templates: TemplateConfigSchema.optional(),
   llm: LLMConfigSchema.optional(),
+  links: z
+    .object({
+      items: z.array(z.object({ label: z.string(), url: z.string().url() })).optional(),
+      fromPRBodyMarker: z.string().optional(),
+      title: z.string().optional(),
+    })
+    .optional(),
 });
 
 export const NotesInputConfigSchema = z.object({

@@ -1,4 +1,6 @@
+import { warn } from '@releasekit/core';
 import type { ChangelogEntry, LLMCategory } from '../../core/types.js';
+import { LLMError } from '../../errors/index.js';
 import { extractJsonFromResponse } from '../../utils/json.js';
 import type { ValidationResult } from '../correctiveRetry.js';
 import { withCorrectiveRetry } from '../correctiveRetry.js';
@@ -141,16 +143,24 @@ export async function categorizeEntries(
   const schema = buildCategorizeSchema(context.categories ?? []);
   const validate = makeValidator(entries, context);
 
-  return withCorrectiveRetry(
-    (messages, isFirstAttempt) =>
-      provider.complete(
-        messages,
-        isFirstAttempt && provider.capabilities.structuredOutputs
-          ? { schema, toolName: 'categorize_entries' }
-          : undefined,
-      ),
-    validate,
-    buildCorrectionMessages,
-    initialMessages,
-  );
+  try {
+    return await withCorrectiveRetry(
+      (messages, isFirstAttempt) =>
+        provider.complete(
+          messages,
+          isFirstAttempt && provider.capabilities.structuredOutputs
+            ? { schema, toolName: 'categorize_entries' }
+            : undefined,
+        ),
+      validate,
+      buildCorrectionMessages,
+      initialMessages,
+    );
+  } catch (error) {
+    if (error instanceof LLMError) {
+      warn(`categorizeEntries failed after all attempts: ${error.message}. Returning entries under General.`);
+      return [{ category: 'General', entries }];
+    }
+    throw error;
+  }
 }
