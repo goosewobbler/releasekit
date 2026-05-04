@@ -377,6 +377,37 @@ jobs:
 
 With this setup, releasekit will use the specified packages as fallback. When a PR has a scope label, it will be used instead to filter to just those packages.
 
+#### Standing PR Configuration
+
+When `releaseStrategy: "standing-pr"`, the `ci.standingPr` block tunes the bot-maintained release PR. All keys are optional.
+
+| Key | Default | Purpose |
+|---|---|---|
+| `branch` | `release/next` | Bot-maintained release branch name. Force-reset to `main` on every update. |
+| `title` | `chore: release ${count} package(s)` | PR title template. Variables: `${count}`, `${version}`. Must start with a string matching `release.ci.skipPatterns` (default `chore: release `). |
+| `labels` | `["release"]` | Labels applied to the PR. Avoid overlap with `bump:*` / `release:*` to prevent the label-driven release flow from firing on merge. |
+| `deleteBranchOnMerge` | `true` | Delete the release branch after publish completes. |
+| `mergeMethod` | `merge` | `merge` \| `squash` \| `rebase`. |
+| `editableNotes` | `false` | Wrap the release notes in editable markers; user edits are preserved across updates and flow through to publish. |
+| `minAge` | (unset) | Duration string (`6h`, `30m`, `1d`). Until elapsed, `releasekit/standing-pr` status check reports `pending`. |
+| `minPackages` | (unset) | Minimum distinct packages with releasable changes before a standing PR is created. Below threshold, an existing PR is closed. |
+
+```json
+{
+  "ci": {
+    "releaseStrategy": "standing-pr",
+    "standingPr": {
+      "branch": "release/next",
+      "mergeMethod": "squash",
+      "editableNotes": true,
+      "minAge": "6h"
+    }
+  }
+}
+```
+
+See [CI setup — Standing Release PR](./docs/ci-setup.md#standing-release-pr) for prerequisites (required GitHub repo setting, secrets), the workflow YAML, lifecycle behaviour, and troubleshooting.
+
 ### PR Preview
 
 The `releasekit preview` command posts a comment on pull requests showing what would be released. It reads PR labels from GitHub and adapts its messaging based on `releaseStrategy` and `releaseTrigger`.
