@@ -119,8 +119,8 @@ export async function fetchExamples(options: FetchExamplesOptions): Promise<Exam
     debug(`Fetched ${examples.length} examples for ${packageName}`);
     return examples;
   } catch (error) {
-    if (error instanceof RequestError && error.status === 403) {
-      warn('GitHub API rate limit or auth error — skipping examples fetch');
+    if (error instanceof RequestError && (error.status === 401 || error.status === 403)) {
+      warn(`GitHub API auth error (${error.status}) — skipping examples fetch; check GITHUB_TOKEN permissions`);
     } else {
       debug(`Failed to fetch examples: ${error instanceof Error ? error.message : String(error)}`);
     }

@@ -3,6 +3,7 @@ import { LLM_DEFAULTS } from '../defaults.js';
 import type { EnhanceContext, LLMProvider } from '../index.js';
 import type { LLMMessage } from '../messages.js';
 import { resolveSystemPrompt } from '../prompts.js';
+import { renderPRBlocks } from './shared.js';
 
 function buildSystemPrompt(style: string | undefined): string {
   const styleText = style ? `- ${style}` : '- Use present tense ("Add feature" not "Added feature")';
@@ -23,6 +24,8 @@ function buildUserPrompt(entry: ChangelogEntry): string {
   const lines = [`Type: ${entry.type}`];
   if (entry.scope) lines.push(`Scope: ${entry.scope}`);
   lines.push(`Description: ${entry.description}`);
+  const prBlocks = renderPRBlocks(entry);
+  if (prBlocks) lines.push(prBlocks);
   return lines.join('\n');
 }
 
