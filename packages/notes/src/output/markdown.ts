@@ -74,8 +74,9 @@ function formatCategorySection(name: string, entries: ChangelogEntry[]): string[
       lines.push(formatEntry(entry));
     }
   } else {
-    // Render in a single pass preserving original order.
-    // When a grouped scope is first encountered, expand the full group inline.
+    // Scope groups are expanded at the position of their first member.
+    // Ungrouped entries that fall between two members of the same group
+    // will appear after that group, not at their literal original position.
     const byScope = new Map<string, ChangelogEntry[]>();
     for (const entry of entries) {
       if (entry.scope && groupedScopes.has(entry.scope)) {

@@ -75,7 +75,7 @@ describe('fetchPullRequestContext()', () => {
 
   it('should populate cache with fetched PR data', async () => {
     mockGet.mockResolvedValue({ data: { title: 'Add feature', body: 'PR body content', pull_request: {} } });
-    const cache = new Map<number, PRContext>();
+    const cache = new Map<number, PRContext | null>();
 
     await fetchPullRequestContext('owner', 'repo', [42], 'token', cache);
 
@@ -94,7 +94,7 @@ describe('fetchPullRequestContext()', () => {
 
   it('should handle missing PR body gracefully', async () => {
     mockGet.mockResolvedValue({ data: { title: 'No body', body: null, pull_request: {} } });
-    const cache = new Map<number, PRContext>();
+    const cache = new Map<number, PRContext | null>();
 
     await fetchPullRequestContext('owner', 'repo', [7], 'token', cache);
 
@@ -103,7 +103,7 @@ describe('fetchPullRequestContext()', () => {
 
   it('should skip entry on fetch error without throwing', async () => {
     mockGet.mockRejectedValue(new Error('not found'));
-    const cache = new Map<number, PRContext>();
+    const cache = new Map<number, PRContext | null>();
 
     await expect(fetchPullRequestContext('owner', 'repo', [99], 'token', cache)).resolves.not.toThrow();
     expect(cache.has(99)).toBe(false);
@@ -113,7 +113,7 @@ describe('fetchPullRequestContext()', () => {
     mockGet.mockResolvedValue({
       data: { title: 'Test', body: 'Before<!-- hidden comment -->After', pull_request: {} },
     });
-    const cache = new Map<number, PRContext>();
+    const cache = new Map<number, PRContext | null>();
 
     await fetchPullRequestContext('owner', 'repo', [1], 'token', cache);
 
@@ -124,7 +124,7 @@ describe('fetchPullRequestContext()', () => {
     mockGet.mockResolvedValue({
       data: { title: 'Test', body: 'A<!--<!---->B<!--unclosedC', pull_request: {} },
     });
-    const cache = new Map<number, PRContext>();
+    const cache = new Map<number, PRContext | null>();
 
     await fetchPullRequestContext('owner', 'repo', [1], 'token', cache);
 
@@ -135,7 +135,7 @@ describe('fetchPullRequestContext()', () => {
     mockGet.mockResolvedValue({
       data: { title: 'Test', body: 'Text ![screenshot](https://example.com/img.png) more text', pull_request: {} },
     });
-    const cache = new Map<number, PRContext>();
+    const cache = new Map<number, PRContext | null>();
 
     await fetchPullRequestContext('owner', 'repo', [1], 'token', cache);
 
@@ -152,7 +152,7 @@ describe('fetchPullRequestContext()', () => {
         pull_request: {},
       },
     });
-    const cache = new Map<number, PRContext>();
+    const cache = new Map<number, PRContext | null>();
 
     await fetchPullRequestContext('owner', 'repo', [1], 'token', cache);
 
@@ -169,7 +169,7 @@ describe('fetchPullRequestContext()', () => {
         pull_request: {},
       },
     });
-    const cache = new Map<number, PRContext>();
+    const cache = new Map<number, PRContext | null>();
 
     await fetchPullRequestContext('owner', 'repo', [1], 'token', cache);
 
@@ -181,25 +181,26 @@ describe('fetchPullRequestContext()', () => {
   it('should truncate long bodies to ~2 KB', async () => {
     const longBody = 'a'.repeat(4000);
     mockGet.mockResolvedValue({ data: { title: 'Long', body: longBody, pull_request: {} } });
-    const cache = new Map<number, PRContext>();
+    const cache = new Map<number, PRContext | null>();
 
     await fetchPullRequestContext('owner', 'repo', [1], 'token', cache);
 
     expect(cache.get(1)!.body.length).toBeLessThanOrEqual(2100);
   });
 
-  it('should skip plain issues (non-PR) without caching them', async () => {
+  it('should cache plain issues (non-PR) as null to prevent re-fetching', async () => {
     mockGet.mockResolvedValue({ data: { title: 'Plain issue', body: 'issue body' } });
-    const cache = new Map<number, PRContext>();
+    const cache = new Map<number, PRContext | null>();
 
     await fetchPullRequestContext('owner', 'repo', [5], 'token', cache);
 
-    expect(cache.has(5)).toBe(false);
+    expect(cache.has(5)).toBe(true);
+    expect(cache.get(5)).toBeNull();
   });
 
   it('should fetch multiple numbers in parallel', async () => {
     mockGet.mockResolvedValue({ data: { title: 'PR', body: 'body', pull_request: {} } });
-    const cache = new Map<number, PRContext>();
+    const cache = new Map<number, PRContext | null>();
 
     await fetchPullRequestContext('owner', 'repo', [1, 2, 3], 'token', cache);
 

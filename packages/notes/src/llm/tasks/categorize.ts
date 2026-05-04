@@ -160,7 +160,8 @@ export async function categorizeEntries(
   } catch (error) {
     if (error instanceof LLMError) {
       warn(`categorizeEntries failed after all attempts: ${error.message}. Returning entries under General.`);
-      return [{ category: 'General', entries }];
+      // Strip LLM-assigned scopes — they were never validated in this path.
+      return [{ category: 'General', entries: entries.map((e) => ({ ...e, scope: undefined })) }];
     }
     throw error;
   }

@@ -31,23 +31,27 @@ function cacheKey(owner: string, repo: string, packageName: string): string {
 
 interface CacheEntry {
   latestTag: string;
+  count: number;
   examples: Example[];
 }
 
-function readCache(key: string, latestTag: string): Example[] | null {
+function readCache(key: string, latestTag: string, count: number): Example[] | null {
   try {
     const raw = fs.readFileSync(key, 'utf-8');
     const entry: CacheEntry = JSON.parse(raw);
-    return entry.latestTag === latestTag ? entry.examples : null;
+    // Invalidate if the tag changed or the cached count is smaller than requested
+    // (the user may have increased `examples` config since the last run).
+    if (entry.latestTag !== latestTag || entry.count < count) return null;
+    return entry.examples;
   } catch {
     return null;
   }
 }
 
-function writeCache(key: string, latestTag: string, examples: Example[]): void {
+function writeCache(key: string, latestTag: string, count: number, examples: Example[]): void {
   try {
     fs.mkdirSync(path.dirname(key), { recursive: true });
-    fs.writeFileSync(key, JSON.stringify({ latestTag, examples }), 'utf-8');
+    fs.writeFileSync(key, JSON.stringify({ latestTag, count, examples }), 'utf-8');
   } catch {
     // cache write failure is non-fatal
   }
@@ -103,7 +107,7 @@ export async function fetchExamples(options: FetchExamplesOptions): Promise<Exam
 
     const latestTag = matching[0]!.tag_name;
     const key = cacheKey(owner, repo, packageName);
-    const cached = readCache(key, latestTag);
+    const cached = readCache(key, latestTag, count);
     if (cached) {
       debug(`Using cached examples for ${packageName} (tag: ${latestTag})`);
       return cached.slice(0, count);
@@ -117,7 +121,7 @@ export async function fetchExamples(options: FetchExamplesOptions): Promise<Exam
       if (example) examples.push(example);
     }
 
-    if (examples.length > 0) writeCache(key, latestTag, examples);
+    if (examples.length > 0) writeCache(key, latestTag, count, examples);
     debug(`Fetched ${examples.length} examples for ${packageName}`);
     return examples;
   } catch (error) {

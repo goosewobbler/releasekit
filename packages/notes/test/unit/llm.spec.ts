@@ -335,7 +335,9 @@ describe('categorizeEntries()', () => {
     const result = await categorizeEntries(provider, sampleEntries, llmContext);
     expect(result).toHaveLength(1);
     expect(result[0]?.category).toBe('General');
-    expect(result[0]?.entries).toEqual(sampleEntries);
+    // Scopes are stripped in the fallback path — they were never LLM-validated.
+    expect(result[0]?.entries[0]?.scope).toBeUndefined();
+    expect(result[0]?.entries[0]?.description).toBe('Add streaming support');
   });
 
   it('should use free-form category prompt when categories is an empty array', async () => {
@@ -506,7 +508,9 @@ describe('enhanceAndCategorize()', () => {
   it('should return General fallback when all corrective retry attempts fail', async () => {
     const provider = makeMockProvider('always invalid json');
     const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
-    expect(result.enhancedEntries).toEqual(sampleEntries);
+    // Scopes and leadIns are stripped in the fallback path — they were never LLM-validated.
+    expect(result.enhancedEntries[0]?.description).toBe('Add streaming support');
+    expect(result.enhancedEntries[0]?.scope).toBeUndefined();
     expect(result.categories).toHaveLength(1);
     expect(result.categories[0]?.category).toBe('General');
     expect(provider.callCount).toBe(3); // 1 initial + 2 corrective
@@ -596,7 +600,9 @@ describe('enhanceAndCategorize()', () => {
 
     const provider = makeMockProvider(response);
     const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
-    expect(result.enhancedEntries).toEqual(sampleEntries);
+    // Scopes and leadIns are stripped in the fallback path — they were never LLM-validated.
+    expect(result.enhancedEntries[0]?.description).toBe('Add streaming support');
+    expect(result.enhancedEntries[0]?.scope).toBeUndefined();
     expect(result.categories[0]?.category).toBe('General');
   });
 

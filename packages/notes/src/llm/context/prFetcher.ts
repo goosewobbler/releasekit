@@ -63,7 +63,7 @@ export async function fetchPullRequestContext(
   repo: string,
   issueNumbers: number[],
   token: string,
-  cache: Map<number, PRContext>,
+  cache: Map<number, PRContext | null>,
 ): Promise<void> {
   const octokit = new Octokit({ auth: token });
   const needed = issueNumbers.filter((n) => !cache.has(n));
@@ -74,7 +74,10 @@ export async function fetchPullRequestContext(
       batch.map(async (number) => {
         try {
           const { data } = await octokit.rest.issues.get({ owner, repo, issue_number: number });
-          if (!data.pull_request) return;
+          if (!data.pull_request) {
+            cache.set(number, null); // cache as "not a PR" to avoid re-fetching
+            return;
+          }
           const raw = data.body ?? '';
           const body = truncateBody(sanitiseBody(raw));
           cache.set(number, { number, title: data.title, body });

@@ -376,7 +376,7 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
     }
 
     // Fetch PR context for all entries across all packages
-    const prCache = new Map<number, PRContext>();
+    const prCache = new Map<number, PRContext | null>();
     const pullRequestsEnabled = llmConfig.context?.pullRequests !== false;
     if (pullRequestsEnabled && ownerRepo) {
       const allIssueNumbers = [
@@ -402,7 +402,7 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
         entries: ctx.entries.map((entry) => {
           const prs = parseIssueNumbers(entry.issueIds ?? [])
             .map((n) => prCache.get(n))
-            .filter((pr): pr is PRContext => pr !== undefined);
+            .filter((pr): pr is PRContext => pr != null);
           return prs.length > 0 ? { ...entry, context: { prs } } : entry;
         }),
       }));

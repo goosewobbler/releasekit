@@ -199,7 +199,9 @@ export async function enhanceAndCategorize(
   } catch (error) {
     if (error instanceof LLMError) {
       warn(`enhanceAndCategorize failed after all attempts: ${error.message}. Returning entries ungrouped.`);
-      return { enhancedEntries: entries, categories: [{ category: 'General', entries }] };
+      // Strip LLM-assigned fields — scopes/leadIns were never validated in this path.
+      const stripped = entries.map((e) => ({ ...e, scope: undefined, leadIn: undefined }));
+      return { enhancedEntries: stripped, categories: [{ category: 'General', entries: stripped }] };
     }
     throw error;
   }
