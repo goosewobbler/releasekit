@@ -45,7 +45,8 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
+      # Using npm? Replace the line above with: npm ci
 
       - name: Configure git
         run: |
@@ -53,7 +54,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Update standing release PR
-        run: npx releasekit standing-pr update
+        run: pnpm exec releasekit standing-pr update
         env:
           GITHUB_TOKEN: ${{ github.token }}
           # Uncomment the env var matching your notes.releaseNotes.llm.provider.
@@ -80,7 +81,8 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
+      # Using npm? Replace the line above with: npm ci
 
       - name: Configure git
         run: |
@@ -88,7 +90,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Publish from release PR
-        run: npx releasekit standing-pr publish
+        run: pnpm exec releasekit standing-pr publish
         env:
           GITHUB_TOKEN: ${{ github.token }}
           # With OIDC trusted publishing (recommended) NODE_AUTH_TOKEN is
