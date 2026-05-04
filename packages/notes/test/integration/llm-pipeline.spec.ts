@@ -14,7 +14,7 @@ import { summarizeEntries } from '../../src/llm/tasks/summarize.js';
 // Mock provider factory
 // ---------------------------------------------------------------------------
 
-import type { CompleteResult } from '../../src/llm/messages.js';
+import type { CompleteResult, LLMMessage } from '../../src/llm/messages.js';
 
 function makeMockProvider(response = 'Enhanced description'): LLMProvider & { callCount: number } {
   let callCount = 0;
@@ -169,6 +169,64 @@ describe('LLM tasks: categorize', () => {
     const result = await categorizeEntries(provider, sampleInput.packages[0]?.entries ?? [], {});
     expect(result).toHaveLength(1);
     expect(result[0]?.category).toBe('General');
+  });
+
+  it('should succeed on corrective retry when first response is invalid JSON', async () => {
+    const entries = sampleInput.packages[0]?.entries ?? [];
+    const validResponse = JSON.stringify({
+      entries: [
+        { category: 'Features', scope: null },
+        { category: 'Fixes', scope: null },
+        { category: 'Maintenance', scope: null },
+      ],
+    });
+
+    let callCount = 0;
+    const capturedMessages: LLMMessage[][] = [];
+    const provider: LLMProvider = {
+      name: 'mock',
+      capabilities: { systemRole: true, structuredOutputs: false, toolUse: false },
+      async complete(messages): Promise<CompleteResult> {
+        capturedMessages.push([...messages]);
+        callCount++;
+        return { content: callCount === 1 ? 'not valid json' : validResponse };
+      },
+    };
+
+    const result = await categorizeEntries(provider, entries, { packageName: 'my-lib' });
+
+    expect(callCount).toBe(2);
+    expect(result.find((c) => c.category === 'Features')?.entries[0]?.description).toBe('Add streaming support');
+    // Second call must include the assistant's bad output and a correction user message
+    const secondMessages = capturedMessages[1] ?? [];
+    expect(secondMessages.some((m) => m.role === 'assistant')).toBe(true);
+    expect(secondMessages.some((m) => m.role === 'user' && m.content.includes('error'))).toBe(true);
+  });
+
+  it('should categorize entries when provider has structuredOutputs:false (plain-text JSON path)', async () => {
+    const entries = sampleInput.packages[0]?.entries ?? [];
+    const jsonResponse = JSON.stringify({
+      entries: [
+        { category: 'Features', scope: null },
+        { category: 'Fixes', scope: null },
+        { category: 'Maintenance', scope: null },
+      ],
+    });
+
+    const provider: LLMProvider = {
+      name: 'openai-compatible',
+      capabilities: { systemRole: true, structuredOutputs: false, toolUse: false },
+      async complete(_messages, options): Promise<CompleteResult> {
+        // With structuredOutputs:false, no schema should be passed to complete()
+        expect(options).toBeUndefined();
+        return { content: jsonResponse };
+      },
+    };
+
+    const result = await categorizeEntries(provider, entries, { packageName: 'my-lib' });
+
+    expect(result.find((c) => c.category === 'Features')?.entries[0]?.description).toBe('Add streaming support');
+    expect(result.find((c) => c.category === 'Fixes')?.entries[0]?.description).toBe('Fix null pointer');
   });
 });
 

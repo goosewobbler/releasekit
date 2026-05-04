@@ -17,6 +17,8 @@ export interface FetchExamplesOptions {
   isMonorepo?: boolean;
 }
 
+// Parsed release body text is cached in /tmp keyed by the latest release tag.
+// Cache is invalidated automatically when a new release is published (tag changes).
 function cacheDir(): string {
   return path.join(os.tmpdir(), 'releasekit', 'examples');
 }
