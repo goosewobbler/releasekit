@@ -50,9 +50,6 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
         max_tokens: this.getMaxTokens(options),
         temperature: this.getTemperature(options),
         stream: false as const,
-        ...(options?.schema && {
-          response_format: { type: 'json_object' as const },
-        }),
       };
 
       const response = await this.client.chat.completions.create(requestParams);

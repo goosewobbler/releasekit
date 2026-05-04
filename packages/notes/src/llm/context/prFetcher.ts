@@ -1,5 +1,6 @@
+import { RequestError } from '@octokit/request-error';
 import { Octokit } from '@octokit/rest';
-import { debug } from '@releasekit/core';
+import { debug, warn } from '@releasekit/core';
 import type { PRContext } from '../../core/types.js';
 
 const BODY_CAP = 2048;
@@ -78,7 +79,11 @@ export async function fetchPullRequestContext(
           const body = truncateBody(sanitiseBody(raw));
           cache.set(number, { number, title: data.title, body });
         } catch (error) {
-          debug(`Failed to fetch PR #${number}: ${error instanceof Error ? error.message : String(error)}`);
+          if (error instanceof RequestError && (error.status === 401 || error.status === 403)) {
+            warn(`GitHub API auth error fetching PR #${number} (${error.status}): check GITHUB_TOKEN permissions`);
+          } else {
+            debug(`Failed to fetch PR #${number}: ${error instanceof Error ? error.message : String(error)}`);
+          }
         }
       }),
     );
