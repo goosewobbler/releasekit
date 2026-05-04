@@ -69,7 +69,7 @@ Set the appropriate strategy in `releasekit.config.json` under `version.mismatch
 
 ## Notes stage
 
-### OLLAMA_API_KEY is not set. Returning entries ungrouped.
+### LLM API key is not set. Returning entries ungrouped.
 
 **Symptom:** The notes stage logs `OLLAMA_API_KEY is not set. Returning entries ungrouped.` (or the equivalent for `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`). Release notes are generated but LLM categorisation and enhancement are skipped.
 
