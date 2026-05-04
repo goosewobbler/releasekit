@@ -251,7 +251,7 @@ export const LLMConfigSchema = z.object({
   style: z
     .string()
     .default(
-      'Write in present tense ("Add feature", not "Added feature"). Be concise and user-focused. Lead with the impact, not the implementation detail.',
+      'Write in past tense ("Added feature", not "Add feature"). Be concise and user-focused. Lead with the impact, not the implementation detail.',
     ),
   scopes: ScopeConfigSchema.optional(),
   prompts: LLMPromptsConfigSchema.optional(),

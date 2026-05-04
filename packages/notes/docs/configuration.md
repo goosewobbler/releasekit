@@ -337,7 +337,7 @@ A style instruction appended to every LLM prompt.
 
 Default:
 ```
-Write in present tense ("Add feature", not "Added feature"). Be concise and user-focused. Lead with the impact, not the implementation detail.
+Write in past tense ("Added feature", not "Add feature"). Be concise and user-focused. Lead with the impact, not the implementation detail.
 ```
 
 Override to change tone:
