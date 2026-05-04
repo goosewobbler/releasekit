@@ -27,6 +27,8 @@ npm install -g @releasekit/release
 pnpm add -g @releasekit/release
 ```
 
+**Then:**
+
 ```bash
 releasekit init
 releasekit release --dry-run
