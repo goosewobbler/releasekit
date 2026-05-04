@@ -146,6 +146,27 @@ interface LinkItem {
   url: string;
 }
 
+function parseMdLink(text: string): { label: string; url: string } | null {
+  let search = 0;
+  while (search < text.length) {
+    const bracketOpen = text.indexOf('[', search);
+    if (bracketOpen === -1) return null;
+    const bracketClose = text.indexOf(']', bracketOpen + 1);
+    if (bracketClose === -1) return null;
+    if (text[bracketClose + 1] !== '(') {
+      search = bracketClose + 1;
+      continue;
+    }
+    const parenClose = text.indexOf(')', bracketClose + 2);
+    if (parenClose === -1) return null;
+    const label = text.slice(bracketOpen + 1, bracketClose);
+    const url = text.slice(bracketClose + 2, parenClose);
+    if (/^https?:\/\//.test(url)) return { label, url };
+    search = parenClose + 1;
+  }
+  return null;
+}
+
 function extractLinksFromPRBodies(entries: ChangelogEntry[], marker: string): LinkItem[] {
   const seen = new Set<string>();
   const links: LinkItem[] = [];
@@ -155,11 +176,11 @@ function extractLinksFromPRBodies(entries: ChangelogEntry[], marker: string): Li
         const trimmed = line.trim();
         if (!trimmed.startsWith(marker)) continue;
         const rest = trimmed.slice(marker.length).trim();
-        const mdMatch = rest.match(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/);
-        if (mdMatch) {
-          if (!seen.has(mdMatch[2]!)) {
-            seen.add(mdMatch[2]!);
-            links.push({ label: mdMatch[1]!, url: mdMatch[2]! });
+        const mdLink = parseMdLink(rest);
+        if (mdLink) {
+          if (!seen.has(mdLink.url)) {
+            seen.add(mdLink.url);
+            links.push(mdLink);
           }
         } else if (/^https?:\/\//.test(rest)) {
           const url = rest.split(/\s/)[0]!;
