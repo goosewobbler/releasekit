@@ -418,7 +418,7 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
   const fmtOpts: FormatVersionOptions = {
     includePackageName: contexts.length > 1 || contexts.some((c) => c.packageName.includes('/')),
     categoryOrder: llmConfig?.categoryOrder,
-    links: releaseNotesConfig !== false ? releaseNotesConfig?.links : undefined,
+    links: releaseNotesConfig?.links,
   };
 
   if (changelogConfig !== false && changelogConfig.mode) {
