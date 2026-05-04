@@ -16,9 +16,15 @@ Semantic versioning based on Git history and conventional commits.
 
 ## Installation
 
+**npm:**
+
 ```bash
 npm install -g @releasekit/version
-# or
+```
+
+**pnpm:**
+
+```bash
 pnpm add -g @releasekit/version
 ```
 

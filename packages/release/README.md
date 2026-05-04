@@ -18,9 +18,15 @@
 
 ## Installation
 
+**npm:**
+
 ```bash
 npm install -g @releasekit/release
-# or
+```
+
+**pnpm:**
+
+```bash
 pnpm add -g @releasekit/release
 ```
 
@@ -148,7 +154,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-node@v6
-      - run: npm install -g @releasekit/release
+      - run: pnpm add -g @releasekit/release
       - run: releasekit release
 ```
 
@@ -444,10 +450,10 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Release preview
-        run: npx releasekit preview
+        run: pnpm exec releasekit preview
         env:
           GITHUB_TOKEN: ${{ github.token }}
 ```

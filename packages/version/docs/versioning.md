@@ -471,7 +471,8 @@ Use the `--prerelease` flag with an identifier to create a prerelease version:
 
 ```bash
 # Create a beta prerelease
-npx releasekit-version --bump minor --prerelease beta
+pnpm exec releasekit-version --bump minor --prerelease beta
+# or: npx releasekit-version --bump minor --prerelease beta
 # Result: 1.0.0 -> 1.1.0-beta.0
 ```
 
@@ -489,7 +490,8 @@ When using standard bump types (`major`, `minor`, `patch`) with the `--bump` fla
 
 ```bash
 # Starting from version 1.0.0-beta.1
-npx releasekit-version --bump major
+pnpm exec releasekit-version --bump major
+# or: npx releasekit-version --bump major
 # Result: 1.0.0-beta.1 -> 2.0.0 (not 2.0.0-beta.0)
 ```
 

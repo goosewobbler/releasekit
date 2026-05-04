@@ -41,14 +41,16 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
-      - run: npx releasekit release
+      - run: pnpm exec releasekit release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # For OIDC trusted publishing (recommended) — no NPM_TOKEN needed.
           # For token-based publishing: NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 ```
+
+> **Using npm?** Replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
 
 ---
 
@@ -115,12 +117,14 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
-      - run: npx releasekit release
+      - run: pnpm exec releasekit release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+> **Using npm?** Replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
 
 Configure the trigger in `releasekit.config.json`:
 
@@ -164,7 +168,8 @@ When a PR is merged with a `scope:*` label, the gate resolves the glob and relea
 The CLI accepts `--scope <name>` to apply the same resolution from the command line:
 
 ```bash
-npx releasekit release --scope core
+pnpm exec releasekit release --scope core
+# or: npx releasekit release --scope core
 ```
 
 `--scope` and `--target` are mutually exclusive. Use `--target @myorg/foo,@myorg/bar` when you want explicit package names without going through the label map.
@@ -204,12 +209,14 @@ jobs:
         with:
           node-version: '20'
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
-      - run: npx releasekit preview
+      - run: pnpm exec releasekit preview
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+> **Using npm?** Replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
 
 A ready-to-use template is available at [`templates/workflows/release-preview.yml`](../../../templates/workflows/release-preview.yml).
 
@@ -333,19 +340,21 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - run: npx releasekit standing-pr update
+      - run: pnpm exec releasekit standing-pr update
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # Required if notes.releaseNotes.llm is configured. Use the env var
-          # name matching your provider (OPENAI_API_KEY, ANTHROPIC_API_KEY, etc).
-          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          # Uncomment the env var matching your notes.releaseNotes.llm.provider.
+          # Without it, LLM enhancement falls back to ungrouped output.
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
   publish-release:
     name: Publish Release
@@ -365,20 +374,22 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - run: npx releasekit standing-pr publish
+      - run: pnpm exec releasekit standing-pr publish
         env:
           GITHUB_TOKEN: ${{ github.token }}
           # With OIDC trusted publishing (recommended) NODE_AUTH_TOKEN is
           # unnecessary. With token-based npm auth, uncomment the next line:
           # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 ```
+
+> **Using npm?** Replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
 
 ### How it works
 
@@ -477,7 +488,7 @@ steps:
       node-version: '20'
       registry-url: 'https://registry.npmjs.org'
 
-  - run: npx releasekit release
+  - run: pnpm exec releasekit release
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # No NPM_TOKEN needed with OIDC
@@ -520,12 +531,14 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
-      - run: npx releasekit release --prerelease ${{ inputs.prerelease }}
+      - run: pnpm exec releasekit release --prerelease ${{ inputs.prerelease }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+> **Using npm?** Replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
 
 ---
 
@@ -534,13 +547,15 @@ jobs:
 Release only specific packages:
 
 ```bash
-npx releasekit release --target @myorg/core,@myorg/cli
+pnpm exec releasekit release --target @myorg/core,@myorg/cli
+# or: npx releasekit release --target @myorg/core,@myorg/cli
 ```
 
 Or version all packages together:
 
 ```bash
-npx releasekit release --sync
+pnpm exec releasekit release --sync
+# or: npx releasekit release --sync
 ```
 
 ---
@@ -550,7 +565,7 @@ npx releasekit release --sync
 Useful for verifying pipeline setup before enabling real releases:
 
 ```yaml
-- run: npx releasekit release --dry-run --json
+- run: pnpm exec releasekit release --dry-run --json
 ```
 
 `--dry-run` prints what would happen without modifying any files, creating tags, or publishing packages. `--json` emits structured output for inspection.

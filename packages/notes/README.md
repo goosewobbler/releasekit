@@ -19,9 +19,15 @@ Generates CHANGELOG.md and release notes from `@releasekit/version` output, with
 
 ## Installation
 
+**npm:**
+
 ```bash
 npm install -g @releasekit/notes
-# or
+```
+
+**pnpm:**
+
+```bash
 pnpm add -g @releasekit/notes
 ```
 
