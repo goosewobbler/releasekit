@@ -41,4 +41,4 @@ jobs:
             Flag any bugs, security concerns, or logic errors. Note any style issues only
             if they are significant. Be concise.
           use_sticky_comment: true
-          claude_args: '--allowedTools "Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git status:*),Bash(gh:*),Bash(cat:*),Bash(find:*),Bash(ls:*)"'
+          claude_args: '--allowedTools "Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git status:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(cat:*),Bash(find:*),Bash(ls:*)"'
