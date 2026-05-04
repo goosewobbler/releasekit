@@ -80,7 +80,7 @@ function fmtType(prop: SchemaProperty): string {
 }
 
 function escapePipes(str: string): string {
-  return str.replace(/\|/g, '\\|');
+  return str.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
 }
 
 function propsTable(properties: Record<string, SchemaProperty>): string {
