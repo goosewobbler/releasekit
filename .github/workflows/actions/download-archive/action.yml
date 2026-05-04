@@ -28,7 +28,7 @@ runs:
 
     - name: Try restore from cache
       id: cache-restore
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v5
       with:
         path: .artifacts/${{ inputs.name }}.zip
         key: ${{ steps.cache-key.outputs.key }}
