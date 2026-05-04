@@ -32,6 +32,7 @@
     "typecheck": "turbo run typecheck",
     "clean": "turbo run clean && rm -rf node_modules",
     "clean:cache": "turbo daemon stop && rm -rf .turbo .eslintcache",
+    "docs:config": "tsx scripts/generate-config-docs.ts",
     "prepare": "husky"
   },
   "devDependencies": {
