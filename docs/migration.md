@@ -58,8 +58,9 @@ first-class monorepo model without installing additional packages.
    - npm provenance is on by default.
    - OIDC is the default npm auth method in CI; no `NPM_TOKEN` secret is required when you
      use trusted publishing. See [CI setup](../packages/release/docs/ci-setup.md) for details.
-   - The commit preset defaults to `angular`. Set `version.preset` if you were using a
-     different preset in `@semantic-release/commit-analyzer`.
+   - The commit preset defaults to `conventional`. If you were using `angular` in
+     `@semantic-release/commit-analyzer`, set `"version": { "preset": "angular" }` to
+     preserve your existing changelog groupings.
 
 4. **Replace the workflow step.** Remove the semantic-release step from your GitHub Actions
    workflow and add `releasekit release` in its place. A minimal replacement:
