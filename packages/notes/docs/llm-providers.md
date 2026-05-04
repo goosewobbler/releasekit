@@ -231,11 +231,7 @@ To customise the prompt for the combined call, use the `enhanceAndCategorize` ke
 
 ## Prompt Customisation
 
-Two override mechanisms are available, with an important difference in safety:
-
-### `prompts.instructions` — append to the built-in prompt
-
-Appends extra text to the built-in system prompt. The structured output contract is preserved, so this is safe to use with all tasks including `enhance`, `categorize`, and `enhanceAndCategorize`.
+`prompts.instructions` appends extra text to the built-in system prompt for a task. The structured output contract is preserved, so this is safe to use with all tasks.
 
 ```json
 {
@@ -243,6 +239,7 @@ Appends extra text to the built-in system prompt. The structured output contract
     "prompts": {
       "instructions": {
         "enhance": "Write in a friendly tone for non-technical users. Keep entries under 15 words.",
+        "enhanceAndCategorize": "Prefer 'New' over 'Changed' for purely additive changes.",
         "releaseNotes": "Start with a one-sentence headline, then group changes by theme."
       }
     }
@@ -250,21 +247,7 @@ Appends extra text to the built-in system prompt. The structured output contract
 }
 ```
 
-### `prompts.templates` — replace the entire prompt
-
-Replaces the entire system prompt for a task verbatim. Use with caution: overriding `enhance`, `categorize`, or `enhanceAndCategorize` removes the structured JSON output contract. Unless your replacement prompt reproduces the exact output schema the pipeline expects, it will cause JSON parsing failures and fall back to the `"General"` category or raw descriptions. This option is safest for `summarize` and `releaseNotes`, which produce freeform text.
-
-```json
-{
-  "llm": {
-    "prompts": {
-      "templates": {
-        "releaseNotes": "You are a technical writer. Summarise these changes for a GitHub release body. Use plain markdown, no frontmatter."
-      }
-    }
-  }
-}
-```
+If you need fully custom output formatting, use the [templates system](./templates.md) instead — it operates on the pipeline result after all LLM tasks have run.
 
 ---
 

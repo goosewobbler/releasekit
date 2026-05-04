@@ -361,9 +361,7 @@ Override to change tone:
 
 ### Prompt overrides (`prompts`)
 
-Two override mechanisms are available:
-
-**`prompts.instructions`** — appends extra instructions to the built-in prompt. The built-in structured output contract is preserved, so this is safe to use with all tasks.
+`prompts.instructions` appends extra text to the built-in system prompt for a task. The structured output contract is preserved, so this is safe to use with all tasks.
 
 Available keys:
 
@@ -384,24 +382,6 @@ Available keys:
           "instructions": {
             "enhance": "Write from the perspective of an end user, not a developer.",
             "releaseNotes": "Start with a one-sentence executive summary."
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-**`prompts.templates`** — replaces the entire prompt for a task verbatim. Use with care: overriding `enhance`, `categorize`, or `enhanceAndCategorize` removes the structured output contract, which will cause JSON parsing failures unless your replacement prompt reproduces the exact output schema expected by the pipeline.
-
-```json
-{
-  "notes": {
-    "releaseNotes": {
-      "llm": {
-        "prompts": {
-          "templates": {
-            "releaseNotes": "You are a technical writer. Summarise these changes for a GitHub release body. Use plain markdown, no frontmatter."
           }
         }
       }
