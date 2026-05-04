@@ -28,6 +28,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/head', github.event.issue.number) || github.sha }}
 
       - name: Run Claude Code Review
         uses: anthropics/claude-code-action@fefa07e9c665b7320f08c3b525980457f22f58aa # v1
