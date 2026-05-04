@@ -226,7 +226,7 @@ follows Keep a Changelog conventions.
 
 **"Tags now have a prefix I did not have before."**
 Set `version.versionPrefix: ""` to strip the `v` prefix, or `"v"` to make it explicit. Use
-`version.tagTemplate` for a fully custom format (e.g. `${packageName}/v${version}` for
+`version.tagTemplate` for a fully custom format (e.g. `${packageName}/${prefix}${version}` for
 monorepos).
 
 **"I lost my changeset / semantic-release history."**
