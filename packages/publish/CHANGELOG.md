@@ -88,6 +88,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.20.0] - 2026-05-04
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.3...releasekit-version-v0.20.0)
+
+### New
+- **Idempotent publish**: Added idempotent publish behavior to prevent duplicate publications
+
+### Fixed
+- **Security**: Fixed shell injection vulnerability in e2e test runner by using execFileSync
+
+### Changed
+- **LLM provider interfaces**: Updated LLM provider interfaces and improved message handling for better reliability
+
 ## [0.19.3] - 2026-05-01
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.2...releasekit-version-v0.19.3)
