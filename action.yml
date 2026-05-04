@@ -177,14 +177,14 @@ runs:
   steps:
     - name: Checkout (SSH)
       if: ${{ inputs.skip-checkout != 'true' && inputs.ssh-key != '' && inputs.dry-run != 'true' && inputs.mode != 'gate' }}
-      uses: actions/checkout@v6
+      uses: actions/checkout@v6.0.2
       with:
         ssh-key: ${{ inputs.ssh-key }}
         fetch-depth: 0
 
     - name: Checkout (read-only)
       if: ${{ inputs.skip-checkout != 'true' && (inputs.ssh-key == '' || inputs.dry-run == 'true' || inputs.mode == 'gate') }}
-      uses: actions/checkout@v6
+      uses: actions/checkout@v6.0.2
       with:
         fetch-depth: 0
 
