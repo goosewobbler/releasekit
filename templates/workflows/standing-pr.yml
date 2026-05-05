@@ -63,6 +63,60 @@ jobs:
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
+  immediate-release:
+    # Bypass the standing PR queue and release directly. Triggered when a feeder PR
+    # carrying `release:immediate` (configurable via `ci.labels.immediate`) merges to main.
+    # Honours companion bump:* / scope:* / channel:* labels normally.
+    # The final reconcile step keeps the standing PR fresh — released packages drop out
+    # of the queue with no staleness window.
+    name: Immediate Release (bypass standing PR)
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.labels.*.name, 'release:immediate')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: pnpm install --frozen-lockfile
+      # Using npm? Replace the line above with: npm ci
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Direct release (bypassing standing PR)
+        run: pnpm exec releasekit release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          # NODE_AUTH_TOKEN unnecessary with OIDC trusted publishing. With token-based
+          # npm auth, uncomment the next line:
+          # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # Provider key for LLM-enhanced release notes (uncomment your provider):
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+
+      - name: Reconcile standing PR
+        # The release above tagged new versions. Re-run standing PR update so the queued
+        # release reflects the post-immediate state (released packages drop out of the
+        # queue, anything still queued stays). Zero-staleness reconciliation.
+        run: pnpm exec releasekit standing-pr update
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+
   publish-release:
     name: Publish Release
     if: >

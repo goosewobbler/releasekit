@@ -169,7 +169,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
 
   // Only apply scope labels in non-dry-run (release) mode
   // In dry-run/preview mode, preview.ts already handles scope labels via applyLabelOverrides
-  // However, we still call applyScopeLabelsFromPR to detect label conflicts (e.g., release:stable + release:prerelease)
+  // However, we still call applyScopeLabelsFromPR to detect label conflicts (e.g., channel:stable + channel:prerelease)
   const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
   if (scopeResult.blocked) {
     info('Release blocked due to conflicting PR labels');

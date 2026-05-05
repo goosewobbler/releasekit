@@ -255,22 +255,23 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       let revisionRange = 'HEAD';
 
       try {
-        if (latestTag) {
+        const baseForRange = config.baseRef ?? latestTag;
+        if (baseForRange) {
           try {
-            execSync('git', ['rev-parse', '--verify', latestTag], {
+            execSync('git', ['rev-parse', '--verify', baseForRange], {
               cwd: mainPkgPath,
               stdio: 'ignore',
             });
-            revisionRange = `${latestTag}..HEAD`;
+            revisionRange = `${baseForRange}..HEAD`;
           } catch {
-            if (config.strictReachable) {
+            if (!config.baseRef && config.strictReachable) {
               throw new Error(
-                `Cannot generate changelog: tag '${latestTag}' is not reachable from the current commit. ` +
+                `Cannot generate changelog: tag '${baseForRange}' is not reachable from the current commit. ` +
                   `When strictReachable is enabled, all tags must be reachable. ` +
                   `To allow fallback to all commits, set strictReachable to false.`,
               );
             }
-            log(`Tag ${latestTag} doesn't exist, using all commits for changelog`, 'debug');
+            log(`Ref ${baseForRange} doesn't exist, using all commits for changelog`, 'debug');
             revisionRange = 'HEAD';
           }
         }
@@ -500,32 +501,25 @@ export function createSingleStrategy(config: Config): StrategyFunction {
       let revisionRange = 'HEAD';
 
       try {
-        // Extract entries from commits between the latest tag and HEAD
-
-        // Check if the tag actually exists in the repository
-        if (latestTag) {
+        const baseForRange = config.baseRef ?? latestTag;
+        if (baseForRange) {
           try {
-            execSync('git', ['rev-parse', '--verify', latestTag], {
+            execSync('git', ['rev-parse', '--verify', baseForRange], {
               cwd: pkgPath,
               stdio: 'ignore',
             });
-            // Tag exists, get commits since that tag
-            revisionRange = `${latestTag}..HEAD`;
+            revisionRange = `${baseForRange}..HEAD`;
           } catch {
-            if (config.strictReachable) {
+            if (!config.baseRef && config.strictReachable) {
               throw new Error(
-                `Cannot generate changelog: tag '${latestTag}' is not reachable from the current commit. ` +
+                `Cannot generate changelog: tag '${baseForRange}' is not reachable from the current commit. ` +
                   `When strictReachable is enabled, all tags must be reachable. ` +
                   `To allow fallback to all commits, set strictReachable to false.`,
               );
             }
-            // Tag doesn't exist, get all commits
-            log(`Tag ${latestTag} doesn't exist, using all commits for changelog`, 'debug');
+            log(`Ref ${baseForRange} doesn't exist, using all commits for changelog`, 'debug');
             revisionRange = 'HEAD';
           }
-        } else {
-          // No tag provided, get all commits
-          revisionRange = 'HEAD';
         }
 
         changelogEntries = extractChangelogEntriesFromCommits(pkgPath, revisionRange);

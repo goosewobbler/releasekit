@@ -185,21 +185,21 @@ describe('fetchPRLabels', () => {
   it('should return label names from PR', async () => {
     const { octokit, mocks } = createMockOctokit();
     mocks.getIssue.mockResolvedValue({
-      data: { labels: [{ name: 'release:stable' }, { name: 'bug' }] },
+      data: { labels: [{ name: 'channel:stable' }, { name: 'bug' }] },
     });
 
     const labels = await fetchPRLabels(octokit, 'owner', 'repo', 1);
-    expect(labels).toEqual(['release:stable', 'bug']);
+    expect(labels).toEqual(['channel:stable', 'bug']);
   });
 
   it('should handle string labels', async () => {
     const { octokit, mocks } = createMockOctokit();
     mocks.getIssue.mockResolvedValue({
-      data: { labels: ['release:stable', 'enhancement'] },
+      data: { labels: ['channel:stable', 'enhancement'] },
     });
 
     const labels = await fetchPRLabels(octokit, 'owner', 'repo', 1);
-    expect(labels).toEqual(['release:stable', 'enhancement']);
+    expect(labels).toEqual(['channel:stable', 'enhancement']);
   });
 
   it('should return empty array when no labels', async () => {

@@ -2,15 +2,17 @@ export interface LabelConfig {
   stable: string;
   prerelease: string;
   skip: string;
+  immediate: string;
   major: string;
   minor: string;
   patch: string;
 }
 
 export const DEFAULT_LABELS: LabelConfig = {
-  stable: 'release:stable',
-  prerelease: 'release:prerelease',
+  stable: 'channel:stable',
+  prerelease: 'channel:prerelease',
   skip: 'release:skip',
+  immediate: 'release:immediate',
   major: 'bump:major',
   minor: 'bump:minor',
   patch: 'bump:patch',

@@ -19,6 +19,12 @@ export interface VersionRunOptions {
   sync?: boolean;
   /** Limit release to these package name patterns (comma-split targets from CLI). */
   targets?: string[];
+  /**
+   * When set, use this commit SHA as the start of the revision range instead of the last release
+   * tag. Scopes both the bump-type calculation and the changelog to commits after this ref.
+   * Useful for preview mode where only a PR's own commits should be analysed.
+   */
+  baseRef?: string;
 }
 
 export interface GitInfo {
@@ -58,6 +64,9 @@ export interface Config extends VersionConfigBase {
   latestTag?: string;
   isPrerelease?: boolean;
   stableOnly?: boolean;
+  /** Runtime override: when set, use this commit SHA as the start of the revision range
+   *  for both bump calculation and changelog extraction. See VersionRunOptions.baseRef. */
+  baseRef?: string;
   mismatchStrategy?: 'error' | 'warn' | 'ignore' | 'prefer-package' | 'prefer-git';
   strictReachable?: boolean;
   cargo?: {

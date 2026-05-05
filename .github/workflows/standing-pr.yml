@@ -51,6 +51,43 @@ jobs:
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
+  immediate-release:
+    name: Immediate Release (bypass standing PR)
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.labels.*.name, 'release:immediate')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Setup workspace
+        uses: ./.github/workflows/actions/setup-workspace
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Direct release (bypassing standing PR)
+        run: node packages/release/dist/cli.js release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+
+      - name: Reconcile standing PR
+        run: node packages/release/dist/cli.js standing-pr update
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+
   publish-release:
     name: Publish Release
     if: >

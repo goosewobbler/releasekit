@@ -23,6 +23,7 @@ export async function runVersionStep(options: ReleaseOptions): Promise<VersionOu
     dryRun: options.dryRun,
     sync: options.sync,
     targets,
+    baseRef: options.baseRef,
   };
 
   const engine = new VersionEngine(config, runOptions);

@@ -449,9 +449,10 @@ describe('CIConfigSchema', () => {
     expect(result.skipPatterns).toEqual(['chore: release ']);
     expect(result.minChanges).toBe(1);
     expect(result.labels).toEqual({
-      stable: 'release:stable',
-      prerelease: 'release:prerelease',
+      stable: 'channel:stable',
+      prerelease: 'channel:prerelease',
       skip: 'release:skip',
+      immediate: 'release:immediate',
       major: 'bump:major',
       minor: 'bump:minor',
       patch: 'bump:patch',
@@ -520,7 +521,7 @@ describe('CIConfigSchema', () => {
   it('should apply label defaults for partial labels config', () => {
     const result = CIConfigSchema.parse({ labels: { stable: 'custom-stable' } });
     expect(result.labels.stable).toBe('custom-stable');
-    expect(result.labels.prerelease).toBe('release:prerelease');
+    expect(result.labels.prerelease).toBe('channel:prerelease');
     expect(result.labels.skip).toBe('release:skip');
     expect(result.labels.major).toBe('bump:major');
     expect(result.labels.minor).toBe('bump:minor');

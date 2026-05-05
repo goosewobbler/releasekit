@@ -182,30 +182,25 @@ export class PackageProcessor {
       let revisionRange = 'HEAD';
 
       try {
-        // Extract entries from commits between the latest tag and HEAD
-        // If latestTag is empty or doesn't exist, we'll extract from HEAD
-
-        // Check if the tag actually exists in the repository using the new verification utility
-        if (latestTag) {
-          const verification = verifyTag(latestTag, pkgPath);
+        // Extract entries from commits between the base ref (or latest tag) and HEAD.
+        // baseRef takes precedence — it's a PR base SHA supplied in advisory standing-pr mode
+        // so the changelog is scoped to only this PR's commits, not all commits since last tag.
+        const baseForRange = this.fullConfig.baseRef ?? latestTag;
+        if (baseForRange) {
+          const verification = verifyTag(baseForRange, pkgPath);
           if (verification.exists && verification.reachable) {
-            // Tag exists and is reachable, get commits since that tag
-            revisionRange = `${latestTag}..HEAD`;
+            revisionRange = `${baseForRange}..HEAD`;
           } else {
-            // Tag doesn't exist or is unreachable
-            if (this.config.strictReachable) {
+            if (!this.fullConfig.baseRef && this.config.strictReachable) {
               throw new Error(
-                `Cannot generate changelog: tag '${latestTag}' is not reachable from the current commit. ` +
-                  `When strictReachable is enabled, all tags must be reachable. ` +
+                `Cannot generate changelog: ref '${baseForRange}' is not reachable from the current commit. ` +
+                  `When strictReachable is enabled, all refs must be reachable. ` +
                   `To allow fallback to all commits, set strictReachable to false.`,
               );
             }
-            log(`Tag ${latestTag} is unreachable (${verification.error}), using all commits for changelog`, 'debug');
+            log(`Ref ${baseForRange} is unreachable (${verification.error}), using all commits for changelog`, 'debug');
             revisionRange = 'HEAD';
           }
-        } else {
-          // No tag provided, get all commits
-          revisionRange = 'HEAD';
         }
 
         changelogEntries = extractChangelogEntriesFromCommits(pkgPath, revisionRange);

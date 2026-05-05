@@ -1,12 +1,13 @@
 import { execSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+
 import * as fs from 'node:fs';
-import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
+import { type CIConfig, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput } from '@releasekit/core';
 import { error, info, success, warn } from '@releasekit/core';
 import { formatDuration, parseDuration } from '../duration.js';
 import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from '../git.js';
 import { createOctokit } from '../github.js';
+import { DEFAULT_LABELS } from '../label-utils.js';
 import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { postStandingPRStatusSafe } from './status.js';
@@ -14,8 +15,6 @@ import { postStandingPRStatusSafe } from './status.js';
 const MANIFEST_MARKER = '<!-- releasekit-manifest -->';
 const MANIFEST_SCHEMA_VERSION = 2;
 const MANIFEST_SCHEMA_MIN_VERSION = 1;
-const EDITABLE_START = '<!-- releasekit-editable-start -->';
-const EDITABLE_END = '<!-- releasekit-editable-end -->';
 
 export interface StandingPROptions {
   config?: string;
@@ -40,7 +39,6 @@ export interface StandingPRManifest {
   notesFiles: string[];
   createdAt: string;
   baseSha: string;
-  notesHash?: string;
   /** ISO timestamp of when this standing PR was first created. Preserved across updates. Added in schema v2. */
   firstUpdatedAt?: string;
 }
@@ -97,62 +95,80 @@ function commitAndForcePush(branch: string, cwd: string): void {
 }
 
 // Renders the release notes section content (without editable markers).
-// Used both for writing to PR bodies and for computing notesHash.
-function renderNotesSection(versionOutput: VersionOutput, releaseNotes: Record<string, string>): string {
-  const lines: string[] = ['### Release Notes', ''];
-  for (const [pkg, notes] of Object.entries(releaseNotes)) {
-    const update = versionOutput.updates.find((u) => u.packageName === pkg);
-    if (update) {
-      lines.push(`#### ${pkg} — ${update.newVersion}`, '');
-    } else {
-      lines.push(`#### ${pkg}`, '');
-    }
-    lines.push(notes.trim(), '');
+const CHANGELOG_TYPE_LABELS: Record<string, string> = {
+  feat: 'Added',
+  fix: 'Fixed',
+  added: 'Added',
+  changed: 'Changed',
+  fixed: 'Fixed',
+  perf: 'Performance',
+  refactor: 'Refactored',
+  security: 'Security',
+  docs: 'Documentation',
+  chore: 'Chores',
+  test: 'Tests',
+  build: 'Build',
+  ci: 'CI',
+  revert: 'Reverts',
+  style: 'Styles',
+};
+
+function renderChangelogEntries(entries: VersionOutput['changelogs'][number]['entries']): string[] {
+  const grouped = new Map<string, typeof entries>();
+  for (const entry of entries) {
+    if (!grouped.has(entry.type)) grouped.set(entry.type, []);
+    grouped.get(entry.type)!.push(entry);
   }
+  const lines: string[] = [];
+  const renderedTypes = new Set<string>();
+  for (const type of Object.keys(CHANGELOG_TYPE_LABELS)) {
+    const group = grouped.get(type);
+    if (group?.length) {
+      lines.push(`**${CHANGELOG_TYPE_LABELS[type]}**`, '');
+      for (const e of group) {
+        lines.push(
+          `- ${e.description}${e.scope ? ` (\`${e.scope}\`)` : ''}${e.issueIds?.length ? ` ${e.issueIds.join(', ')}` : ''}`,
+        );
+      }
+      lines.push('');
+      renderedTypes.add(type);
+    }
+  }
+  for (const [type, group] of grouped) {
+    if (!renderedTypes.has(type) && group?.length) {
+      const label = type.charAt(0).toUpperCase() + type.slice(1);
+      lines.push(`**${label}**`, '');
+      for (const e of group) {
+        lines.push(
+          `- ${e.description}${e.scope ? ` (\`${e.scope}\`)` : ''}${e.issueIds?.length ? ` ${e.issueIds.join(', ')}` : ''}`,
+        );
+      }
+      lines.push('');
+    }
+  }
+  return lines;
+}
+
+function renderChangelogSection(versionOutput: VersionOutput): string {
+  const hasShared = (versionOutput.sharedEntries?.length ?? 0) > 0;
+  const hasPackageEntries = versionOutput.changelogs.some((cl) => cl.entries.length > 0);
+  if (!hasShared && !hasPackageEntries) return '';
+
+  const lines: string[] = ['### Changelog', ''];
+
+  if (hasShared) {
+    lines.push('#### Project-wide changes', '');
+    lines.push(...renderChangelogEntries(versionOutput.sharedEntries!));
+  }
+
+  for (const cl of versionOutput.changelogs) {
+    if (cl.entries.length === 0) continue;
+    lines.push(`#### ${cl.packageName} — ${cl.previousVersion ?? 'N/A'} → ${cl.version}`, '');
+    lines.push(...renderChangelogEntries(cl.entries));
+  }
+
   if (lines[lines.length - 1] === '') lines.pop();
   return lines.join('\n');
-}
-
-function computeNotesHash(section: string): string {
-  return createHash('sha256').update(section).digest('hex').slice(0, 16);
-}
-
-// Extracts the content between editable markers from a PR body, or null if markers are absent.
-export function extractEditableSection(body: string): string | null {
-  const start = body.indexOf(EDITABLE_START);
-  const end = body.indexOf(EDITABLE_END);
-  if (start === -1 || end === -1 || end < start) return null;
-  return body.slice(start + EDITABLE_START.length, end).trim();
-}
-
-// Parses an editable section back into per-package notes using a line-by-line accumulator.
-// Package headings are "#### <pkg> — <version>" (em dash U+2014). h4 subheadings within
-// notes (e.g. "#### Breaking Changes") have no em dash and are accumulated as content.
-// [^—]+ is used for the package-name portion to avoid backtracking ambiguity.
-export function parseEditedNotes(section: string): Record<string, string> {
-  const result: Record<string, string> = {};
-  let currentPkg: string | null = null;
-  const accum: string[] = [];
-
-  const flush = () => {
-    if (currentPkg !== null) {
-      result[currentPkg] = accum.join('\n').trim();
-      accum.length = 0;
-    }
-  };
-
-  for (const line of section.split('\n')) {
-    const headingMatch = line.match(/^#### ([^—]+) — \S/);
-    if (headingMatch?.[1]) {
-      flush();
-      currentPkg = headingMatch[1].trim();
-    } else if (currentPkg !== null) {
-      accum.push(line);
-    }
-  }
-  flush();
-
-  return result;
 }
 
 function deleteReleaseBranch(releaseBranch: string, cwd: string): void {
@@ -169,12 +185,7 @@ function deleteReleaseBranch(releaseBranch: string, cwd: string): void {
   }
 }
 
-function renderPrBody(
-  versionOutput: VersionOutput,
-  releaseNotes: Record<string, string>,
-  editableNotes = false,
-  overrideSection?: string,
-): string {
+function renderPrBody(versionOutput: VersionOutput): string {
   const lines: string[] = [
     '## Release',
     '',
@@ -189,17 +200,8 @@ function renderPrBody(
     lines.push(`| \`${update.packageName}\` | ${update.newVersion} |`);
   }
 
-  const hasNotes = Object.keys(releaseNotes).length > 0;
-  if (hasNotes) {
-    const sectionContent = overrideSection ?? renderNotesSection(versionOutput, releaseNotes);
-    lines.push('');
-    if (editableNotes) {
-      lines.push(EDITABLE_START, sectionContent, EDITABLE_END, '');
-    } else {
-      lines.push(sectionContent, '');
-    }
-  }
-
+  const changelog = renderChangelogSection(versionOutput);
+  if (changelog) lines.push('', changelog, '');
   lines.push('---', '> Merge this PR to publish. The release will be triggered automatically.');
   return lines.join('\n');
 }
@@ -249,7 +251,7 @@ export function parseManifest(commentBody: string): StandingPRManifest {
 
 type OctokitInstance = ReturnType<typeof createOctokit>;
 
-async function findManifestComment(
+export async function findManifestComment(
   octokit: OctokitInstance,
   owner: string,
   repo: string,
@@ -278,7 +280,7 @@ export async function findStandingPR(
   owner: string,
   repo: string,
   branch: string,
-): Promise<{ number: number; url: string } | null> {
+): Promise<{ number: number; url: string; labels: string[] } | null> {
   const { data: prs } = await octokit.rest.pulls.list({
     owner,
     repo,
@@ -288,14 +290,155 @@ export async function findStandingPR(
   });
 
   const pr = prs[0];
-  return pr ? { number: pr.number, url: pr.html_url } : null;
+  if (!pr) return null;
+  const labels = (pr.labels ?? []).map((l) => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean);
+  return { number: pr.number, url: pr.html_url, labels };
 }
 
-function buildBaseReleaseOptions(options: StandingPROptions, dryRun: boolean): ReleaseOptions {
+/**
+ * Read-only snapshot of the current standing PR, used by the preview command to render
+ * a "true release preview" comment (queued packages + minAge gate state).
+ *
+ * Returns null when no standing PR exists or its manifest comment is missing/malformed.
+ */
+export interface StandingPRSnapshot {
+  number: number;
+  url: string;
+  manifest: StandingPRManifest;
+  /** ISO timestamp of when the standing PR was first opened. */
+  openedAt: string;
+  /** 'success' = ready to merge; 'pending' = label conflict or minAge not yet elapsed. */
+  gateState: 'success' | 'pending';
+  /** Human-readable reason when gateState === 'pending' (conflict description or minAge wait). */
+  gateReason?: string;
+}
+
+export async function fetchStandingPRSnapshot(
+  octokit: OctokitInstance,
+  owner: string,
+  repo: string,
+  ciConfig: CIConfig | undefined,
+): Promise<StandingPRSnapshot | null> {
+  const branch = ciConfig?.standingPr?.branch ?? 'release/next';
+  const pr = await findStandingPR(octokit, owner, repo, branch);
+  if (!pr) return null;
+
+  const comment = await findManifestComment(octokit, owner, repo, pr.number);
+  if (!comment) return null;
+
+  let manifest: StandingPRManifest;
+  try {
+    manifest = parseManifest(comment.body);
+  } catch {
+    return null;
+  }
+
+  // firstUpdatedAt is only present on schema-v2 manifests. For schema-v1, createdAt is the
+  // latest-update timestamp (not the PR-open timestamp), so the displayed age will be ~0 until
+  // the next standing-pr update rewrites the manifest to schema v2.
+  const openedAt = manifest.firstUpdatedAt ?? manifest.createdAt;
+  const minAge = ciConfig?.standingPr?.minAge;
+  let gateState: 'success' | 'pending' = 'success';
+  let gateReason: string | undefined;
+
+  // Label conflicts take priority over minAge — they must be resolved before merging.
+  const overrides = resolveStandingPrLabelOverrides(pr.labels, ciConfig);
+  if (overrides.conflicts.length > 0) {
+    gateState = 'pending';
+    gateReason = overrides.conflicts.join('; ');
+  } else if (minAge !== undefined && manifest.firstUpdatedAt) {
+    const minAgeMs = parseDuration(minAge);
+    if (minAgeMs !== null) {
+      const ageMs = Date.now() - new Date(manifest.firstUpdatedAt).getTime();
+      if (ageMs < minAgeMs) {
+        gateState = 'pending';
+        gateReason = `Waiting ${formatDuration(minAgeMs - ageMs)} for minAge`;
+      }
+    }
+  }
+
+  return { number: pr.number, url: pr.url, manifest, openedAt, gateState, gateReason };
+}
+
+/**
+ * Overrides resolved from labels on the standing PR itself. The standing PR is the canonical
+ * surface for adjusting bump magnitude, scope, and channel — feeder PR labels are advisory.
+ */
+interface StandingPrOverrides {
+  bump?: 'major' | 'minor' | 'patch';
+  target?: string;
+  stable?: boolean;
+  prerelease?: boolean;
+  /** Human-readable conflict descriptions (used for the pending status check). Empty when no conflict. */
+  conflicts: string[];
+}
+
+function resolveStandingPrLabelOverrides(prLabels: string[], ciConfig: CIConfig | undefined): StandingPrOverrides {
+  // Return a fresh object rather than a shared constant — callers may mutate `conflicts`.
+  if (!prLabels || prLabels.length === 0) return { conflicts: [] };
+  const labels = ciConfig?.labels ?? DEFAULT_LABELS;
+  const scopeLabels = ciConfig?.scopeLabels ?? {};
+  const conflicts: string[] = [];
+
+  // Bump
+  let bump: 'major' | 'minor' | 'patch' | undefined;
+  const bumpsPresent = [
+    prLabels.includes(labels.major) ? labels.major : undefined,
+    prLabels.includes(labels.minor) ? labels.minor : undefined,
+    prLabels.includes(labels.patch) ? labels.patch : undefined,
+  ].filter(Boolean) as string[];
+  if (bumpsPresent.length > 1) {
+    conflicts.push(`Conflicting bump labels on standing PR (${bumpsPresent.join(', ')}) — remove all but one`);
+  } else if (prLabels.includes(labels.major)) bump = 'major';
+  else if (prLabels.includes(labels.minor)) bump = 'minor';
+  else if (prLabels.includes(labels.patch)) bump = 'patch';
+
+  // Channel modifiers
+  const hasStable = prLabels.includes(labels.stable);
+  const hasPrerelease = prLabels.includes(labels.prerelease);
+  let stable: boolean | undefined;
+  let prerelease: boolean | undefined;
+  if (hasStable && hasPrerelease) {
+    conflicts.push(`Conflicting channel labels on standing PR (${labels.stable} and ${labels.prerelease})`);
+  } else {
+    if (hasStable) stable = true;
+    if (hasPrerelease) prerelease = true;
+  }
+
+  // Scope: first matching configured scope label wins
+  let target: string | undefined;
+  for (const [labelName, pattern] of Object.entries(scopeLabels)) {
+    if (prLabels.includes(labelName)) {
+      target = pattern;
+      break;
+    }
+  }
+
+  return { bump, target, stable, prerelease, conflicts };
+}
+
+interface BuildOptionsExtras {
+  /** Per-package vs synced versioning. Inherited from version.sync config (default true). */
+  sync?: boolean;
+  bump?: 'major' | 'minor' | 'patch';
+  target?: string;
+  stable?: boolean;
+  prerelease?: boolean;
+}
+
+function buildBaseReleaseOptions(
+  options: StandingPROptions,
+  dryRun: boolean,
+  extras?: BuildOptionsExtras,
+): ReleaseOptions {
   return {
     config: options.config,
     dryRun,
-    sync: false,
+    sync: extras?.sync ?? false,
+    bump: extras?.bump,
+    target: extras?.target,
+    stable: extras?.stable,
+    prerelease: extras?.prerelease ? true : undefined,
     skipNotes: true,
     skipPublish: true,
     skipGit: true,
@@ -327,35 +470,67 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     return { action: 'noop' };
   }
 
+  const githubContext = getGitHubContext();
+
+  // Look up the existing standing PR up front (one API call, reused throughout). Its labels
+  // are the canonical override surface — `bump:*` / `scope:*` / channel labels applied to
+  // the standing PR drive the next update.
+  let existingStandingPr: { number: number; url: string; labels: string[] } | null = null;
+  if (githubContext?.token) {
+    try {
+      const lookupOctokit = createOctokit(githubContext.token);
+      existingStandingPr = await findStandingPR(lookupOctokit, githubContext.owner, githubContext.repo, branch);
+    } catch (err) {
+      warn(`Could not look up standing PR for label overrides: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  const overrides = resolveStandingPrLabelOverrides(existingStandingPr?.labels ?? [], ciConfig);
+  if (overrides.bump) info(`Standing PR label override: bump=${overrides.bump}`);
+  if (overrides.target) info(`Standing PR label override: target=${overrides.target}`);
+  if (overrides.stable) info(`Standing PR label override: channel:stable`);
+  if (overrides.prerelease) info(`Standing PR label override: channel:prerelease`);
+  for (const conflict of overrides.conflicts) warn(conflict);
+
+  // Use the version.sync setting from config; fall back to false (per-package versioning)
+  // when not set so existing repos without an explicit value are unaffected.
+  const sync = releaseKitConfig.version?.sync ?? false;
+  // When labels conflict, drop the override (fall back to commit-driven) but keep the
+  // conflict descriptions for the final status check.
+  const buildExtras: BuildOptionsExtras = overrides.conflicts.length
+    ? { sync, target: overrides.target }
+    : {
+        sync,
+        bump: overrides.bump,
+        target: overrides.target,
+        stable: overrides.stable,
+        prerelease: overrides.prerelease,
+      };
+
   // Dry-run version analysis to compute bumps without writing
   info('Running version analysis (dry run)...');
-  const dryRunOptions = buildBaseReleaseOptions(options, true);
+  const dryRunOptions = buildBaseReleaseOptions(options, true, buildExtras);
   const versionOutputDry = await runVersionStep(dryRunOptions);
-
-  const githubContext = getGitHubContext();
 
   if (versionOutputDry.updates.length === 0) {
     info('No releasable changes found');
 
-    if (githubContext?.token) {
+    if (githubContext?.token && existingStandingPr) {
       const octokit = createOctokit(githubContext.token);
-      const existing = await findStandingPR(octokit, githubContext.owner, githubContext.repo, branch);
-      if (existing) {
-        await octokit.rest.issues.createComment({
-          owner: githubContext.owner,
-          repo: githubContext.repo,
-          issue_number: existing.number,
-          body: 'No releasable changes found. Closing this PR as the release queue is empty.',
-        });
-        await octokit.rest.pulls.update({
-          owner: githubContext.owner,
-          repo: githubContext.repo,
-          pull_number: existing.number,
-          state: 'closed',
-        });
-        info(`Closed standing PR #${existing.number}`);
-        return { action: 'closed', prNumber: existing.number, prUrl: existing.url };
-      }
+      await octokit.rest.issues.createComment({
+        owner: githubContext.owner,
+        repo: githubContext.repo,
+        issue_number: existingStandingPr.number,
+        body: 'No releasable changes found. Closing this PR as the release queue is empty.',
+      });
+      await octokit.rest.pulls.update({
+        owner: githubContext.owner,
+        repo: githubContext.repo,
+        pull_number: existingStandingPr.number,
+        state: 'closed',
+      });
+      info(`Closed standing PR #${existingStandingPr.number}`);
+      return { action: 'closed', prNumber: existingStandingPr.number, prUrl: existingStandingPr.url };
     }
 
     return { action: 'noop' };
@@ -367,25 +542,22 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     info(
       `Package count (${versionOutputDry.updates.length}) is below minPackages threshold (${minPackages}), skipping`,
     );
-    if (githubContext?.token) {
+    if (githubContext?.token && existingStandingPr) {
       const octokit = createOctokit(githubContext.token);
-      const existing = await findStandingPR(octokit, githubContext.owner, githubContext.repo, branch);
-      if (existing) {
-        await octokit.rest.issues.createComment({
-          owner: githubContext.owner,
-          repo: githubContext.repo,
-          issue_number: existing.number,
-          body: `Not enough packages with releasable changes (${versionOutputDry.updates.length} of ${minPackages} required). Closing until the threshold is reached.`,
-        });
-        await octokit.rest.pulls.update({
-          owner: githubContext.owner,
-          repo: githubContext.repo,
-          pull_number: existing.number,
-          state: 'closed',
-        });
-        info(`Closed standing PR #${existing.number} (minPackages not met)`);
-        return { action: 'closed', prNumber: existing.number, prUrl: existing.url };
-      }
+      await octokit.rest.issues.createComment({
+        owner: githubContext.owner,
+        repo: githubContext.repo,
+        issue_number: existingStandingPr.number,
+        body: `Not enough packages with releasable changes (${versionOutputDry.updates.length} of ${minPackages} required). Closing until the threshold is reached.`,
+      });
+      await octokit.rest.pulls.update({
+        owner: githubContext.owner,
+        repo: githubContext.repo,
+        pull_number: existingStandingPr.number,
+        state: 'closed',
+      });
+      info(`Closed standing PR #${existingStandingPr.number} (minPackages not met)`);
+      return { action: 'closed', prNumber: existingStandingPr.number, prUrl: existingStandingPr.url };
     }
     return { action: 'noop' };
   }
@@ -399,7 +571,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   // Materialize changes on release branch
   info('Writing version bumps...');
-  const writeOptions = buildBaseReleaseOptions(options, false);
+  const writeOptions = buildBaseReleaseOptions(options, false, buildExtras);
   const versionOutput = await runVersionStep(writeOptions);
 
   info('Generating release notes...');
@@ -433,46 +605,12 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     .replace(/\$\{version\}/g, firstUpdate?.newVersion ?? '');
 
   const labels = standingPrConfig?.labels ?? ['release'];
-  const editableNotesEnabled = standingPrConfig?.editableNotes ?? false;
-  const hasNotes = Object.keys(notesResult.releaseNotes ?? {}).length > 0;
 
-  // Pre-compute fresh notes section and its hash for edit-detection tracking
-  const freshSection =
-    editableNotesEnabled && hasNotes ? renderNotesSection(versionOutput, notesResult.releaseNotes ?? {}) : undefined;
-  const notesHash = freshSection ? computeNotesHash(freshSection) : undefined;
+  // Reuse the standing PR fetched at the top of this function — same source of truth as the
+  // label override resolution; saves an extra API call.
+  const existing = existingStandingPr;
 
-  const existing = await findStandingPR(octokit, owner, repo, branch);
-
-  // When editableNotes is enabled and a PR exists, check whether the user has manually
-  // edited the notes section. If the current section hash differs from the stored hash,
-  // preserve the user's edits rather than overwriting them.
-  let overrideSection: string | undefined;
-  if (editableNotesEnabled && existing && freshSection) {
-    const existingManifestComment = await findManifestComment(octokit, owner, repo, existing.number);
-    if (existingManifestComment) {
-      try {
-        const existingManifest = parseManifest(existingManifestComment.body);
-        if (existingManifest.notesHash) {
-          const { data: prData } = await octokit.rest.pulls.get({
-            owner,
-            repo,
-            pull_number: existing.number,
-          });
-          if (prData.body) {
-            const currentSection = extractEditableSection(prData.body);
-            if (currentSection && computeNotesHash(currentSection) !== existingManifest.notesHash) {
-              warn('User has edited the release notes section — preserving edits');
-              overrideSection = currentSection;
-            }
-          }
-        }
-      } catch {
-        // Can't parse manifest — proceed with fresh generation
-      }
-    }
-  }
-
-  const body = renderPrBody(versionOutput, notesResult.releaseNotes ?? {}, editableNotesEnabled, overrideSection);
+  const body = renderPrBody(versionOutput);
 
   let prNumber: number;
   let prUrl: string;
@@ -505,17 +643,36 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     info(`Created standing PR #${prNumber}`);
   }
 
-  // Apply labels
+  // Apply labels — preserve any maintainer-added labels (e.g. bump:major, scope:foo) by
+  // taking the union of currently-applied labels and the configured set. Without this,
+  // every update would wipe maintainer overrides.
   if (labels.length > 0) {
+    // Ensure each configured label exists in the repo with a description. createLabel
+    // throws 422 if the label already exists — that's expected and ignored.
+    for (const label of labels) {
+      try {
+        await octokit.rest.issues.createLabel({
+          owner,
+          repo,
+          name: label,
+          color: 'ededed',
+          description: 'ReleaseKit: marks this PR for automated release',
+        });
+      } catch {
+        // Label already exists — no action needed.
+      }
+    }
     try {
+      const currentLabels = existingStandingPr?.labels ?? [];
+      const mergedLabels = [...new Set([...currentLabels, ...labels])];
       await octokit.rest.issues.setLabels({
         owner,
         repo,
         issue_number: prNumber,
-        labels,
+        labels: mergedLabels,
       });
     } catch {
-      warn('Failed to apply labels to standing PR (labels may not exist in the repository)');
+      warn('Failed to apply labels to standing PR');
     }
   }
 
@@ -543,7 +700,6 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     notesFiles: notesResult.files,
     createdAt: new Date().toISOString(),
     baseSha,
-    notesHash,
     firstUpdatedAt,
   };
 
@@ -570,7 +726,13 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   let statusState: 'success' | 'pending' = 'success';
   let statusDescription = 'Ready to merge';
 
-  if (minAge !== undefined) {
+  // Standing-PR label conflicts surface here as a pending check so the team notices.
+  if (overrides.conflicts.length > 0) {
+    statusState = 'pending';
+    statusDescription = overrides.conflicts.join('; ').slice(0, 140);
+  }
+
+  if (minAge !== undefined && overrides.conflicts.length === 0) {
     const minAgeMs = parseDuration(minAge);
     if (minAgeMs === null) {
       warn(
@@ -639,26 +801,6 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
 
   // If editableNotes is enabled, extract any user edits from the PR body and merge them
   // into the manifest's releaseNotes, falling back to manifest notes for missing packages.
-  if (standingPrConfig?.editableNotes) {
-    const { data: prData } = await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber });
-    if (prData.body) {
-      const editableSection = extractEditableSection(prData.body);
-      if (editableSection) {
-        const editedNotes = parseEditedNotes(editableSection);
-        const mergedNotes: Record<string, string> = { ...manifest.releaseNotes };
-        for (const [pkg, notes] of Object.entries(editedNotes)) {
-          mergedNotes[pkg] = notes;
-        }
-        for (const pkg of Object.keys(manifest.releaseNotes)) {
-          if (!(pkg in editedNotes)) {
-            warn(`Package '${pkg}' heading not found in edited release notes — using original notes`);
-          }
-        }
-        manifest = { ...manifest, releaseNotes: mergedNotes };
-      }
-    }
-  }
-
   info(`Publishing from manifest: ${manifest.versionOutput.updates.length} package(s)`);
 
   const publishOptions: ReleaseOptions = {

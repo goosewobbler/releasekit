@@ -24,7 +24,7 @@ Future features to enable fully automated release workflows (e.g. commits to mai
 - Strategy-aware messaging: intro and no-changes messages adapt to configured `releaseStrategy`
 - Auto-detects prerelease versions from package.json files; defaults to prerelease preview
 - `--prerelease [identifier]` and `--stable` CLI flags for manual override
-- PR label `release:stable` support in workflow templates for graduation from prerelease
+- PR label `channel:stable` support in workflow templates for graduation from prerelease
 - Posts/updates a single PR comment via `@octokit/rest` using HTML marker (`<!-- releasekit-preview -->`)
 - Falls back to stdout when GitHub context unavailable
 - `--dry-run` flag prints comment markdown to stdout without posting
@@ -34,7 +34,7 @@ Future features to enable fully automated release workflows (e.g. commits to mai
 ### Push-Triggered Release Workflow (Feature 1)
 - `.github/workflows/release.yml` implements automated releases on main push
 - Uses `workflow_run` trigger to run after CI passes
-- Detects release labels on merged PRs (`bump:patch`, `bump:minor`, `bump:major`, `release:prerelease`, `release:stable`)
+- Detects release labels on merged PRs (`bump:patch`, `bump:minor`, `bump:major`, `channel:prerelease`, `channel:stable`)
 - Automatically determines bump type from label
 - Calls `_release.reusable.yml` reusable workflow for actual release
 - Manual trigger also available via `workflow_dispatch`

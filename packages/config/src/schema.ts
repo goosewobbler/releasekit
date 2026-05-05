@@ -290,9 +290,11 @@ export const NotesConfigSchema = z.object({
 });
 
 export const CILabelsConfigSchema = z.object({
-  stable: z.string().default('release:stable'),
-  prerelease: z.string().default('release:prerelease'),
+  stable: z.string().default('channel:stable'),
+  prerelease: z.string().default('channel:prerelease'),
   skip: z.string().default('release:skip'),
+  /** Bypass the standing PR for one merge — triggers a direct release. Standing-pr mode only. */
+  immediate: z.string().default('release:immediate'),
   major: z.string().default('bump:major'),
   minor: z.string().default('bump:minor'),
   patch: z.string().default('bump:patch'),
@@ -308,8 +310,6 @@ export const StandingPrConfigSchema = z.object({
   labels: z.array(z.string()).default(['release']),
   /** Whether to auto-delete the release branch after PR merge. Default: true */
   deleteBranchOnMerge: z.boolean().default(true),
-  /** Allow teams to edit the release notes section in the PR body before publishing. Default: false */
-  editableNotes: z.boolean().default(false),
   /** Merge method to use when merging the standing release PR. Default: 'merge' */
   mergeMethod: z.enum(['merge', 'squash', 'rebase']).default('merge'),
   /** Minimum age of the standing PR before it can be merged. Duration string (e.g. '6h', '30m', '1d'). Gate enforced via the releasekit/standing-pr status check. */
@@ -332,9 +332,10 @@ export const CIConfigSchema = z.object({
   skipPatterns: z.array(z.string()).default(['chore: release ']),
   minChanges: z.number().int().positive().default(1),
   labels: CILabelsConfigSchema.default({
-    stable: 'release:stable',
-    prerelease: 'release:prerelease',
+    stable: 'channel:stable',
+    prerelease: 'channel:prerelease',
     skip: 'release:skip',
+    immediate: 'release:immediate',
     major: 'bump:major',
     minor: 'bump:minor',
     patch: 'bump:patch',

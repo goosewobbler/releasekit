@@ -107,7 +107,7 @@ How the bump type is determined. Configure under `ci.releaseTrigger`.
 
 **`label`** (default) — A PR label (`bump:patch`, `bump:minor`, or `bump:major`) must be present for a release to fire. The label controls the bump type. PRs without a release label are silently skipped, giving reviewers direct control over when and at what level a release ships.
 
-Both modes support `bump:major` as an override and `release:stable`/`release:prerelease` as channel modifiers.
+Both modes support `bump:major` as an override and `channel:stable`/`channel:prerelease` as channel modifiers.
 
 | | Commit trigger | Label trigger |
 |---|---|---|
@@ -115,6 +115,8 @@ Both modes support `bump:major` as an override and `release:stable`/`release:pre
 | Reviewer controls bump type | no | yes |
 | Skip a release | add `release:skip` label | omit bump label |
 | Override to major | add `bump:major` label | add `bump:major` label |
+
+> **In standing-pr strategy, label semantics differ.** Feeder PR labels (`bump:*`, `scope:*`, `channel:*`) are advisory — they're rendered in the preview but don't drive behavior on merge. The standing PR itself is the canonical override surface: add `bump:major` etc. to the standing PR to drive the next release. To bypass the queue and ship a single PR directly, label it `release:immediate`. See [CI setup → Label semantics in standing-pr mode](../packages/release/docs/ci-setup.md#label-semantics-in-standing-pr-mode).
 
 ---
 

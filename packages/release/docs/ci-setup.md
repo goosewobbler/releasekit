@@ -65,8 +65,8 @@ Only release when a PR is merged with a release label. Conventional commits dete
 | `bump:patch` | Bump patch version |
 | `bump:minor` | Bump minor version |
 | `bump:major` | Bump major version |
-| `release:stable` | Graduate a prerelease to stable |
-| `release:prerelease` | Create a prerelease (requires bump:* label) |
+| `channel:stable` | Graduate a prerelease to stable |
+| `channel:prerelease` | Create a prerelease (requires bump:* label) |
 | `release:skip` | Suppress release on this PR |
 
 #### Label combinations
@@ -79,17 +79,17 @@ Only release when a PR is merged with a release label. Conventional commits dete
 | `bump:patch` | `1.0.0-next.6` | `1.0.1` — graduates prerelease to stable patch |
 | `bump:minor` | `1.0.0-next.6` | `1.1.0` — graduates prerelease to stable minor |
 | `bump:major` | `1.0.0-next.6` | `2.0.0` — graduates prerelease to stable major |
-| `release:prerelease` + `bump:patch` | `1.0.0` | `1.0.1-next.0` |
-| `release:prerelease` + `bump:minor` | `1.0.0` | `1.1.0-next.0` |
-| `release:prerelease` + `bump:major` | `1.0.0` | `2.0.0-next.0` |
-| `release:prerelease` + `bump:patch` | `1.0.0-next.6` | `1.0.0-next.7` — increments prerelease counter |
-| `release:prerelease` + `bump:minor` | `1.0.0-next.6` | `1.0.0-next.7` — increments prerelease counter |
-| `release:prerelease` + `bump:major` | `1.0.0-next.6` | `1.0.0-next.7` — increments prerelease counter |
-| `release:prerelease` alone | any | No release — add a `bump:*` label |
-| `release:stable` alone | `1.0.0-next.6` | `1.0.0` |
-| `release:stable` alone | `1.0.0` | No release — already at stable version |
-| `release:stable` + any `bump:*` | `1.0.0-next.6` | `1.0.0` — bump label is ignored during stable promotion |
-| `release:stable` + `bump:minor` | `1.0.0` | `1.1.0` — bump applies to already-stable packages |
+| `channel:prerelease` + `bump:patch` | `1.0.0` | `1.0.1-next.0` |
+| `channel:prerelease` + `bump:minor` | `1.0.0` | `1.1.0-next.0` |
+| `channel:prerelease` + `bump:major` | `1.0.0` | `2.0.0-next.0` |
+| `channel:prerelease` + `bump:patch` | `1.0.0-next.6` | `1.0.0-next.7` — increments prerelease counter |
+| `channel:prerelease` + `bump:minor` | `1.0.0-next.6` | `1.0.0-next.7` — increments prerelease counter |
+| `channel:prerelease` + `bump:major` | `1.0.0-next.6` | `1.0.0-next.7` — increments prerelease counter |
+| `channel:prerelease` alone | any | No release — add a `bump:*` label |
+| `channel:stable` alone | `1.0.0-next.6` | `1.0.0` |
+| `channel:stable` alone | `1.0.0` | No release — already at stable version |
+| `channel:stable` + any `bump:*` | `1.0.0-next.6` | `1.0.0` — bump label is ignored during stable promotion |
+| `channel:stable` + `bump:minor` | `1.0.0` | `1.1.0` — bump applies to already-stable packages |
 
 ```yaml
 # .github/workflows/release.yml
@@ -397,7 +397,7 @@ jobs:
 2. **Merge → publish:** Maintainers merge the standing PR when ready. The `pull_request.closed` trigger fires `standing-pr publish`, which reads the release manifest from the bot's PR comment and publishes the packages — no second version analysis is run, so the publish reflects exactly what was reviewed.
 3. **Recurring re-evaluation:** The hourly `schedule` trigger re-runs `update`, which is essentially free when nothing has changed but advances the `minAge` countdown so the status check transitions from `pending` to `success` as time passes.
 
-Use `release:stable` and `release:prerelease` labels on **the standing PR itself** to control release type during merge.
+Use `channel:stable` and `channel:prerelease` labels on **the standing PR itself** to control release type during merge.
 
 ### Lifecycle and edge cases
 
@@ -415,6 +415,48 @@ Use `release:stable` and `release:prerelease` labels on **the standing PR itself
   Each main-branch SHA gets its own group (so nothing is cancelled), while PR runs still cancel on new pushes.
 - **Status check `releasekit/standing-pr`:** posted on the release branch HEAD after each update. States: `success` (ready to merge), `pending` (one or more gates not yet satisfied — typically `minAge`). Configure as a required check in branch protection on the standing PR's base branch if you want gates enforced at merge time.
 
+### Label semantics in standing-pr mode
+
+Labels behave differently in standing-pr mode than in direct mode. There are two surfaces.
+
+**1. Feeder PRs (PRs being merged into `main`)** — labels are **advisory**.
+
+`bump:*`, `scope:*`, `channel:stable`, and `channel:prerelease` on a feeder PR are shown in the preview comment so reviewers know they were noticed, but they do **not** drive behavior on merge. Bumps for the standing PR come from conventional commits across the union of queued changes; scope is global (the standing PR aggregates everything).
+
+**2. The standing PR itself** — labels are the **canonical override surface**.
+
+A maintainer can edit labels directly on the standing PR (via the GitHub UI or `gh pr edit <n> --add-label bump:major`). The next `standing-pr update` reads those labels and applies them as overrides:
+
+| Label on standing PR | Effect |
+|---|---|
+| `bump:patch` / `bump:minor` / `bump:major` | Forces that bump magnitude, overriding what conventional commits would otherwise produce. |
+| `scope:foo` (per `ci.scopeLabels`) | Limits the release to scoped packages on the next update. |
+| `channel:stable` | Graduates a prerelease to stable. |
+| `channel:prerelease` | Switches the standing PR to prerelease versioning. |
+
+Conflicts (e.g. both `bump:patch` and `bump:major`) surface as a `pending` `releasekit/standing-pr` status check on the release branch and a workflow warning. The override is dropped (falls back to commit-driven) until the conflict is resolved by removing one of the labels.
+
+The `standing-pr update` workflow **preserves maintainer-added labels across runs** — labels you add stick until you remove them.
+
+**Why this design**: labels live in one canonical place. There's no question about which feeder PR's bump label "wins" when multiple PRs disagree — there is only the standing PR. Provenance is GitHub's own audit log (`gh pr view <n> --json events`).
+
+#### Bypassing the standing PR for one merge
+
+To ship a single PR directly without queueing it, label it **`release:immediate`** (configurable via `ci.labels.immediate`). Companion labels work normally:
+
+| Label combination on the feeder PR | Result |
+|---|---|
+| `release:immediate` alone | Direct release; bump magnitude from conventional commits in the PR. |
+| `release:immediate` + `bump:minor` | Direct release at minor magnitude. |
+| `release:immediate` + `scope:foo` | Direct release of only the scoped packages. |
+| `release:immediate` + `channel:prerelease` | Direct prerelease. |
+
+The `immediate-release` job in `standing-pr.yml` handles this:
+1. Runs `releasekit release` (versioning + notes + publish).
+2. Runs `releasekit standing-pr update` to reconcile the standing PR — released packages drop out of the queue, anything still queued stays.
+
+Result: the standing PR is up-to-date by the time the workflow exits — no staleness window.
+
 ### Troubleshooting
 
 | Symptom | Cause / fix |
@@ -424,46 +466,31 @@ Use `release:stable` and `release:prerelease` labels on **the standing PR itself
 | `error: too many arguments for 'preview'` | Pre-fix releasekit where `standing-pr` was missing from `cli.ts`. Upgrade `@releasekit/release`. |
 | Standing PR never appears despite merges | Check, in order: (1) the GitHub repo setting; (2) the head commit doesn't match `release.ci.skipPatterns`; (3) there are releasable conventional commits (`feat:`, `fix:`) since the last tag; (4) the `update-release-pr` job logs — they print the dry-run version output. |
 | Standing PR keeps closing immediately | `minPackages` is set higher than the current change count. Either lower the threshold or wait for more package changes to accumulate. |
+| Standing PR ignores my `bump:*` label on a feeder PR | By design — feeder labels are advisory in standing-pr mode. Add the label to the standing PR itself, or use `release:immediate` to bypass the queue. |
+| Standing PR shows `pending` status `Conflicting bump labels…` | Two conflicting labels on the standing PR (e.g. `bump:patch` + `bump:major`). Remove one and re-run `standing-pr update`. |
 | Force-push to `release/next` fails | Branch is protected. Remove protection on the release branch, or grant the bot bypass. |
 | `minAge` never advances | The hourly `schedule` trigger isn't running. Confirm the workflow has a `schedule:` block and that the repo isn't paused (GitHub disables `schedule` on inactive repos after 60 days). |
 
 ---
 
-## Combining Standing PR with Label-Triggered Direct Releases
+## Combining queued and immediate releases
 
-The two strategies can run side by side. This lets teams accumulate work in a standing PR by default, while still allowing any PR to trigger an immediate release by applying a label.
+Standing-pr mode handles both batched and one-off releases through a single workflow file (`standing-pr.yml`). There is no separate `release.yml` to wire up.
 
-**How they coexist:**
+**How it works:**
 
-- A PR merged **with** a `bump:*` label → `release.yml` fires and publishes immediately. The `standing-pr update` run for the same push sees the resulting release commit (which matches the default skip pattern `chore: release`) and exits as a noop. On the next real commit, `standing-pr update` computes bumps only from commits since the new tag — it starts fresh automatically.
-- A PR merged **without** a label → `release.yml` finds no bump label and exits. `standing-pr update` accumulates the change into the standing PR as normal.
-
-There is no double-publish risk: the standing PR only publishes when *its own branch* (`release/next`) is merged, which only happens when a maintainer explicitly merges it.
-
-**Setup:**
-
-Keep your existing `release.yml` unchanged. Add `standing-pr.yml` alongside it (shown above). In config, set `releaseStrategy: 'standing-pr'` so PR preview comments default to standing-PR messaging; label-triggered releases still work regardless of this setting.
-
-```json
-{
-  "ci": {
-    "releaseStrategy": "standing-pr",
-    "releaseTrigger": "label",
-    "standingPr": {
-      "branch": "release/next",
-      "mergeMethod": "squash"
-    }
-  }
-}
-```
+- A PR merged **without** `release:immediate` → `standing-pr update` accumulates the change into the standing PR. Any `bump:*` / `scope:*` / `channel:*` labels on the feeder PR are advisory only (see [Label semantics](#label-semantics-in-standing-pr-mode) above).
+- A PR merged **with** `release:immediate` → the `immediate-release` job in `standing-pr.yml` runs `releasekit release` directly (honouring companion `bump:*` / `scope:*` / `channel:*` labels), then chains `standing-pr update` to reconcile the standing PR.
+- The standing PR itself only publishes when its own branch (`release/next`) is merged by a maintainer — there's no double-publish risk.
 
 **Decision guide:**
 
 | Situation | Action |
 |-----------|--------|
-| Routine feature — batch with others | Merge PR without a label |
-| Critical fix or time-sensitive feature | Add `bump:patch` (or `minor`/`major`) to the PR |
-| Promote accumulated prereleases to stable | Add `release:stable` to the standing PR and merge it |
+| Routine feature — batch with others | Merge PR without a label. Bumps come from conventional commits. |
+| Critical fix that needs to ship now | Add `release:immediate` (optionally `+ bump:patch`) to the PR. |
+| Adjust the standing PR's bump magnitude | Add `bump:major` (etc.) to the standing PR itself; the next update applies it. |
+| Promote accumulated prereleases to stable | Add `channel:stable` to the standing PR and merge it. |
 
 ---
 

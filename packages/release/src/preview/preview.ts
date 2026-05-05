@@ -1,15 +1,18 @@
+import * as fs from 'node:fs';
 import type { CIConfig } from '@releasekit/config';
 import { loadCIConfig, loadConfig } from '@releasekit/config';
 import { info, success, warn } from '@releasekit/core';
 import { evaluatePR } from '../gate/evaluate-pr.js';
-import { createOctokit, fetchPRLabels, findStandingPR, postOrUpdateComment } from '../github.js';
+import { createOctokit, fetchPRLabels, postOrUpdateComment } from '../github.js';
 import { DEFAULT_LABELS, detectLabelConflicts } from '../label-utils.js';
 import { runRelease } from '../release.js';
+import { fetchStandingPRSnapshot, type StandingPRSnapshot } from '../standing-pr/standing-pr.js';
 import type { PreviewContext } from './context.js';
 import { resolvePreviewContext } from './context.js';
 import { detectPrerelease } from './detect.js';
 import type { LabelContext } from './format.js';
 import { formatPreviewComment } from './format.js';
+import { type MergedRow, mergeForPreview } from './merge.js';
 
 export interface PreviewOptions {
   config?: string;
@@ -54,14 +57,32 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
 
   const strategy = ciConfig?.releaseStrategy ?? 'direct';
 
-  // For standing-pr strategy, discover the current standing PR number for the preview comment
-  let standingPrNumber: number | undefined;
-  if (strategy === 'standing-pr' && context && octokit) {
+  // For standing-pr strategy, fetch a read-only snapshot of the current standing PR (link,
+  // queued packages, minAge gate state) so the preview can render a true release preview.
+  // When `release:immediate` is set, skip the fetch — the preview reflects a direct release,
+  // not a queued-state outcome.
+  let standingPrSnapshot: StandingPRSnapshot | undefined;
+  if (strategy === 'standing-pr' && !labelContext.immediate && context && octokit) {
     try {
-      const standingPr = await findStandingPR(octokit, context.owner, context.repo, ciConfig);
-      standingPrNumber = standingPr?.number;
+      standingPrSnapshot = (await fetchStandingPRSnapshot(octokit, context.owner, context.repo, ciConfig)) ?? undefined;
     } catch {
-      // Non-fatal: preview still renders without the PR number
+      // Non-fatal: preview still renders without the snapshot
+    }
+  }
+
+  // In advisory standing-pr mode, scope the version analysis to only this PR's commits by
+  // using the PR's base SHA as the revision range start. Extracted from the GitHub Actions
+  // event payload (pull_request.base.sha) — non-fatal if unavailable.
+  let prBaseSha: string | undefined;
+  if (labelContext.advisoryInStandingPr) {
+    const eventPath = process.env.GITHUB_EVENT_PATH;
+    if (eventPath && fs.existsSync(eventPath)) {
+      try {
+        const event = JSON.parse(fs.readFileSync(eventPath, 'utf-8'));
+        prBaseSha = event.pull_request?.base?.sha as string | undefined;
+      } catch {
+        // Non-fatal: fall back to full commit history
+      }
     }
   }
 
@@ -94,13 +115,34 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
       quiet: true,
       projectDir: effectiveOptions.projectDir,
       target: effectiveOptions.target,
+      baseRef: prBaseSha,
     });
   } else {
     info('No release label detected — skipping version analysis');
   }
 
+  // Compute the merge prediction when we have both a standing PR snapshot and a current-PR result.
+  let mergedRows: MergedRow[] | undefined;
+  if (standingPrSnapshot && result) {
+    // Scope the current-PR changelogs to packages the standing PR already tracks. Without this,
+    // packages this PR touches but the standing PR skips/excludes would appear as new-from-pr rows
+    // — a misleading prediction since the standing PR may not release those packages.
+    const standingScope = new Set([
+      ...standingPrSnapshot.manifest.versionOutput.updates.map((u) => u.packageName),
+      ...standingPrSnapshot.manifest.versionOutput.changelogs.map((cl) => cl.packageName),
+    ]);
+    const currentForMerge = result.versionOutput.changelogs.filter((cl) => standingScope.has(cl.packageName));
+    mergedRows = mergeForPreview(standingPrSnapshot.manifest.versionOutput.changelogs, currentForMerge);
+  }
+
   // Format the comment
-  const commentBody = formatPreviewComment(result, { strategy, standingPrNumber, labelContext });
+  const commentBody = formatPreviewComment(result, {
+    strategy,
+    standingPrNumber: standingPrSnapshot?.number,
+    standingPrSnapshot,
+    mergedRows,
+    labelContext,
+  });
 
   if (!context || !octokit) {
     // Dry-run mode or GitHub context unavailable — print to stdout
@@ -202,6 +244,13 @@ async function applyLabelOverrides(
     };
   }
 
+  const inStandingPr = (ciConfig?.releaseStrategy ?? 'direct') === 'standing-pr';
+  const hasImmediate = inStandingPr && prLabels.includes(labels.immediate);
+  // In standing-pr mode without `release:immediate`, all bump/scope/channel labels are advisory:
+  // they're rendered in the banner but do not drive runRelease. Bumps come from conventional
+  // commits in the standing PR; overrides happen by editing labels on the standing PR itself.
+  const advisoryInStandingPr = inStandingPr && !hasImmediate;
+
   const result = { ...options };
   const labelContext: LabelContext = {
     trigger,
@@ -211,21 +260,33 @@ async function applyLabelOverrides(
     prereleaseConflict: false,
     labels,
     scopeLabels: [],
+    advisoryInStandingPr,
+    immediate: hasImmediate,
   };
 
   // Scope labels — multi-scope is supported in preview (gate picks one; preview shows all).
+  // Track label names (for the banner) and patterns (for runRelease target) separately so the
+  // advisory banner shows e.g. `scope:docs` rather than the configured glob `packages/docs/**`.
+  const matchedScopeLabelNames: string[] = [];
   const matchedScopePatterns: string[] = [];
   for (const [labelName, packagePattern] of Object.entries(scopeLabels)) {
     if (prLabels.includes(labelName)) {
-      info(`PR label "${labelName}" detected — limiting release to packages matching "${packagePattern}"`);
+      if (advisoryInStandingPr) {
+        info(`PR label "${labelName}" seen — advisory in standing-pr mode, no scope filter applied`);
+      } else {
+        info(`PR label "${labelName}" detected — limiting release to packages matching "${packagePattern}"`);
+      }
+      matchedScopeLabelNames.push(labelName);
       matchedScopePatterns.push(packagePattern);
     }
   }
-  labelContext.scopeLabels = matchedScopePatterns;
+  labelContext.scopeLabels = matchedScopeLabelNames;
 
-  if (matchedScopePatterns.length > 0) {
+  // Only propagate scope to the runRelease target when it would actually drive a release.
+  // In advisory-standing-pr mode, the labels are recorded for display only.
+  if (!advisoryInStandingPr && matchedScopePatterns.length > 0) {
     result.target = matchedScopePatterns.join(', ');
-  } else if (!options.target) {
+  } else if (!advisoryInStandingPr && !hasImmediate && !options.target && matchedScopePatterns.length === 0) {
     // Only require a scope target when a release is actually going to happen.
     // In label mode with no qualifying labels, release is skipped — no scope needed.
     const willRelease =
@@ -243,6 +304,18 @@ async function applyLabelOverrides(
           : 'No scope specified. Use --target flag to specify which packages to release.',
       );
     }
+  }
+
+  // In advisory-standing-pr mode, record any bump/channel labels for the banner only —
+  // do not propagate to `result`. Version analysis still runs (commit-driven) so the
+  // preview can show this PR's contribution to the standing PR via the merge table.
+  if (advisoryInStandingPr) {
+    if (prLabels.includes(labels.major)) labelContext.bumpLabel = 'major';
+    else if (prLabels.includes(labels.minor)) labelContext.bumpLabel = 'minor';
+    else if (prLabels.includes(labels.patch)) labelContext.bumpLabel = 'patch';
+    if (prLabels.includes(labels.stable)) labelContext.stable = true;
+    if (prLabels.includes(labels.prerelease)) labelContext.prerelease = true;
+    return { options: result, labelContext };
   }
 
   if (trigger === 'label') {

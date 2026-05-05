@@ -1,6 +1,9 @@
 import type { VersionChangelogEntry, VersionPackageChangelog } from '@releasekit/core';
+import { formatDuration } from '../duration.js';
 import { MARKER } from '../github.js';
+import type { StandingPRSnapshot } from '../standing-pr/standing-pr.js';
 import type { ReleaseOutput } from '../types.js';
+import type { MergedRow } from './merge.js';
 
 export type ReleaseStrategy = 'manual' | 'direct' | 'standing-pr' | 'scheduled';
 const FOOTER = '*Updated automatically by [ReleaseKit](https://github.com/goosewobbler/releasekit)*';
@@ -36,6 +39,7 @@ export interface LabelContext {
     stable: string;
     prerelease: string;
     skip: string;
+    immediate: string;
     major: string;
     minor: string;
     patch: string;
@@ -43,15 +47,23 @@ export interface LabelContext {
   scopeLabels?: string[];
   /**
    * Human-readable reason from the gate's per-PR evaluation when the PR's labels would not
-   * trigger a release (e.g. "release:prerelease requires a bump:* label"). When set, the
+   * trigger a release (e.g. "channel:prerelease requires a bump:* label"). When set, the
    * preview banner uses this in place of the generic "No bump label detected" message.
    */
   gateReason?: string;
+  /** Standing-pr mode without `release:immediate` — bump/scope/channel labels are advisory only. */
+  advisoryInStandingPr?: boolean;
+  /** `release:immediate` is on the PR — preview should reflect a direct release, no standing-PR snapshot. */
+  immediate?: boolean;
 }
 
 export interface FormatOptions {
   strategy?: ReleaseStrategy;
   standingPrNumber?: number;
+  /** Snapshot of the current standing PR (link, manifest, gate state). Rendered when strategy === 'standing-pr'. */
+  standingPrSnapshot?: StandingPRSnapshot;
+  /** Per-package merge rows combining standing PR + this PR's contribution. Populated only when both exist. */
+  mergedRows?: MergedRow[];
   labelContext?: LabelContext;
 }
 
@@ -90,6 +102,31 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
 
   const lines: string[] = [];
 
+  // `release:immediate` short-circuits all other label semantics — the PR is going to release
+  // directly, so the standard banners ("labeled for X", "no bump label", scope) would only confuse.
+  if (labelContext.immediate) {
+    const immediateLabel = labelContext.labels?.immediate ?? 'release:immediate';
+    lines.push(`> **\`${immediateLabel}\`** — bypassing the standing PR for a direct release.`, '');
+    return lines;
+  }
+
+  // In standing-pr mode without the immediate label, all bump/scope/channel labels are advisory.
+  // Show what was seen, point at the override surface (the standing PR) and the bypass label.
+  if (labelContext.advisoryInStandingPr) {
+    const seen: string[] = [];
+    if (labelContext.bumpLabel) seen.push(`\`bump:${labelContext.bumpLabel}\``);
+    if (labelContext.scopeLabels?.length) seen.push(...labelContext.scopeLabels.map((s) => `\`${s}\``));
+    if (labelContext.stable) seen.push(`\`${labelContext.labels?.stable ?? 'channel:stable'}\``);
+    if (labelContext.prerelease) seen.push(`\`${labelContext.labels?.prerelease ?? 'channel:prerelease'}\``);
+    const seenStr = seen.length ? ` (saw: ${seen.join(', ')})` : '';
+    const immediateLabel = labelContext.labels?.immediate ?? 'release:immediate';
+    lines.push(
+      `> **Note:** Labels on this PR are advisory in standing-pr mode${seenStr}. Bumps come from conventional commits in the standing PR; override by editing labels on the standing PR itself. Add \`${immediateLabel}\` to bypass the standing PR and release this PR directly.`,
+      '',
+    );
+    return lines;
+  }
+
   // Add scope label info if present
   if (labelContext.scopeLabels && labelContext.scopeLabels.length > 0) {
     lines.push(`> **Scope:** ${labelContext.scopeLabels.join(', ')}`, '');
@@ -109,8 +146,8 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
   // Show prereleaseConflict error regardless of trigger mode
   if (labelContext.prereleaseConflict) {
     const labels = labelContext.labels;
-    const stableLabel = labels?.stable ?? 'release:stable';
-    const prereleaseLabel = labels?.prerelease ?? 'release:prerelease';
+    const stableLabel = labels?.stable ?? 'channel:stable';
+    const prereleaseLabel = labels?.prerelease ?? 'channel:prerelease';
     lines.push(
       '> **Error:** Conflicting release type labels detected.',
       `> **Note:** Please use only one of \`${stableLabel}\` or \`${prereleaseLabel}\` at a time.`,
@@ -164,7 +201,7 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
       return lines;
     }
     if (labelContext.prerelease) {
-      // release:prerelease modifier set, bump driven by conventional commits
+      // channel:prerelease modifier set, bump driven by conventional commits
       lines.push('> This PR is labeled for a **prerelease** release (bump from conventional commits).', '');
       return lines;
     }
@@ -176,17 +213,33 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
 export function formatPreviewComment(result: ReleaseOutput | null, options?: FormatOptions): string {
   const strategy = options?.strategy ?? 'direct';
   const labelContext = options?.labelContext;
+  // In standing-pr mode, the snapshot/merge are suppressed when `release:immediate` is set —
+  // the preview is showing a direct-release outcome, not a queued-state outcome.
+  const showStandingPrContext = strategy === 'standing-pr' && !labelContext?.immediate;
+  const standingPrSnapshot = showStandingPrContext ? options?.standingPrSnapshot : undefined;
+  const mergedRows = showStandingPrContext ? options?.mergedRows : undefined;
   const lines: string[] = [MARKER, ''];
+
+  // Standing PR snapshot lives OUTSIDE the collapsible details so reviewers always see what's
+  // currently queued for release without having to expand the per-PR analysis.
+  if (standingPrSnapshot) {
+    lines.push(...renderStandingPRSnapshot(standingPrSnapshot));
+  }
 
   // Insert label-driven banner (outside the details block)
   const banner = getLabelBanner(labelContext);
 
   if (!result) {
-    // No changes or noBumpLabel — simple collapsed comment
-    lines.push('<details>', '<summary><b>Release Preview</b> — no release</summary>', '');
+    const summary = standingPrSnapshot
+      ? '<summary><b>Release Preview</b> — this PR contributes no changes</summary>'
+      : '<summary><b>Release Preview</b> — no release</summary>';
+    lines.push('<details>', summary, '');
     lines.push(...banner);
     if (!labelContext?.noBumpLabel) {
       lines.push(`> **Note:** No releasable changes detected. ${getNoChangesMessage(strategy)}`);
+    }
+    if (standingPrSnapshot) {
+      lines.push(...renderQueuedTable(standingPrSnapshot));
     }
     lines.push('', '---', FOOTER, '</details>');
     return lines.join('\n');
@@ -201,21 +254,21 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
 
   lines.push('<details>', `<summary><b>Release Preview</b> — ${pkgSummary}</summary>`, '');
   lines.push(...banner);
-  lines.push(getIntroMessage(strategy, options?.standingPrNumber), '');
-
-  // Package updates table
-  lines.push('### Packages', '');
-  lines.push('| Package | Version |', '|---------|---------|');
-  for (const update of versionOutput.updates) {
-    lines.push(`| \`${update.packageName}\` | ${update.newVersion} |`);
-  }
-  lines.push('');
+  const effectiveStrategy = labelContext?.immediate ? 'direct' : strategy;
+  lines.push(getIntroMessage(effectiveStrategy, options?.standingPrNumber), '');
 
   // Changelog section
   const sharedEntries = versionOutput.sharedEntries?.length ? versionOutput.sharedEntries : undefined;
   const hasPackageChangelogs = versionOutput.changelogs.some((cl) => cl.entries.length > 0);
 
-  if (sharedEntries || hasPackageChangelogs) {
+  // Packages bumped via sync versioning have no individual changelog entries but are still in
+  // updates — collect them so they remain visible even though they don't drive the changelog.
+  const packagesWithChangelog = new Set(
+    versionOutput.changelogs.filter((cl) => cl.entries.length > 0).map((cl) => cl.packageName),
+  );
+  const syncBumpedOnly = versionOutput.updates.filter((u) => !packagesWithChangelog.has(u.packageName));
+
+  if (sharedEntries || hasPackageChangelogs || syncBumpedOnly.length > 0) {
     lines.push('### Changelog', '');
 
     // Project-wide entries (CI, infra, shared-package commits) rendered once
@@ -231,19 +284,105 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
         lines.push(...formatPackageChangelog(changelog));
       }
     }
+
+    // List sync-bumped packages that have no individual commits so they aren't invisible
+    if (syncBumpedOnly.length > 0) {
+      if (hasPackageChangelogs || sharedEntries) lines.push('**Also bumped** (sync versioning)', '');
+      else lines.push('**Bumped** (sync versioning — no individual changes)', '');
+      for (const u of syncBumpedOnly) lines.push(`- \`${u.packageName}\` → ${u.newVersion}`);
+      lines.push('');
+    }
   }
 
-  // Tags
-  if (versionOutput.tags.length > 0) {
-    lines.push('### Tags', '');
-    for (const tag of versionOutput.tags) {
-      lines.push(`- \`${tag}\``);
-    }
-    lines.push('');
+  if (mergedRows && mergedRows.length > 0) {
+    lines.push(...renderMergeTable(mergedRows));
   }
 
   lines.push('---', FOOTER, '</details>');
   return lines.join('\n');
+}
+
+function renderStandingPRSnapshot(snapshot: StandingPRSnapshot): string[] {
+  const pkgCount = snapshot.manifest.versionOutput.changelogs.filter(
+    (cl) => cl.entries.length > 0 || cl.version !== cl.previousVersion,
+  ).length;
+  const gateBadge = snapshot.gateState === 'pending' ? `⏳ ${snapshot.gateReason ?? 'pending'}` : '✅ ready to merge';
+  const ageMs = Math.max(0, Date.now() - new Date(snapshot.openedAt).getTime());
+  const ageStr = formatDuration(ageMs);
+  const pkgWord = pkgCount === 1 ? 'package' : 'packages';
+  return [
+    `**Standing release PR:** [#${snapshot.number}](${snapshot.url}) · ${pkgCount} ${pkgWord} queued · open ${ageStr} · ${gateBadge}`,
+    '',
+  ];
+}
+
+function renderQueuedTable(snapshot: StandingPRSnapshot): string[] {
+  const changelogs = snapshot.manifest.versionOutput.changelogs.filter(
+    (cl) => cl.entries.length > 0 || cl.version !== cl.previousVersion,
+  );
+  if (changelogs.length === 0) return [];
+  const lines: string[] = [
+    '',
+    '### Currently queued for release',
+    '',
+    '| Package | Current | Next |',
+    '|---------|---------|------|',
+  ];
+  for (const cl of changelogs) {
+    lines.push(`| \`${cl.packageName}\` | ${cl.previousVersion ?? '—'} | ${cl.version} |`);
+  }
+  lines.push('');
+  return lines;
+}
+
+function renderMergeTable(rows: MergedRow[]): string[] {
+  // Only rows the current PR participates in ('unchanged' or 'escalated') determine whether the
+  // short-circuit message renders. 'standing-only' rows are pre-existing queued content
+  // unrelated to this PR — including them would suppress the message in any real scenario.
+  const prParticipatingRows = rows.filter((r) => r.status !== 'standing-only');
+  const allUnchanged = prParticipatingRows.length > 0 && prParticipatingRows.every((r) => r.status === 'unchanged');
+  // When length === 0 the current PR's packages are entirely outside the standing PR's scope —
+  // they are NOT yet in the queue and won't be released until the standing PR rebuilds after merge.
+  // This needs a different message from allUnchanged (where they ARE already in the queue).
+  const outsideScope = prParticipatingRows.length === 0;
+
+  if (allUnchanged || outsideScope) {
+    const prose = outsideScope
+      ? "> This PR's packages are outside the standing PR's current scope — they will be picked up when the standing PR rebuilds after merge."
+      : "> No version escalation — this PR's changes will be included in the queued release without affecting the projected versions.";
+    const lines: string[] = ['### After merge — predicted release', '', prose, ''];
+    // Show all rows so reviewers can see what's already queued.
+    if (rows.length > 0) {
+      lines.push(
+        '| Package | Standing PR | This PR | After merge |',
+        '|---------|-------------|---------|-------------|',
+      );
+      for (const row of rows) {
+        lines.push(`| \`${row.packageName}\` | ${row.standing ?? '—'} | ${row.current ?? '—'} | ${row.afterMerge} |`);
+      }
+      lines.push('');
+    }
+    return lines;
+  }
+
+  const lines: string[] = [
+    '### After merge — predicted release',
+    '',
+    '> Approximate. The standing PR rebuilds against `main` at merge time; if other commits land first, the prediction may shift.',
+    '',
+    '| Package | Standing PR | This PR | After merge |',
+    '|---------|-------------|---------|-------------|',
+  ];
+  for (const row of rows) {
+    const standing = row.standing ?? '—';
+    const current = row.current ?? '—';
+    let afterCell = row.afterMerge;
+    if (row.status === 'escalated' && row.standing) afterCell += ` ⚠ escalated from ${row.standing}`;
+    if (row.status === 'new-from-pr') afterCell += ' (new)';
+    lines.push(`| \`${row.packageName}\` | ${standing} | ${current} | ${afterCell} |`);
+  }
+  lines.push('');
+  return lines;
 }
 
 function renderEntries(entries: VersionChangelogEntry[]): string[] {

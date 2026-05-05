@@ -152,7 +152,7 @@ export async function calculateVersion(config: Config, options: VersionOptions):
     }
 
     // Handle stableOnly mode: graduate prerelease → stable base; skip already-stable packages.
-    // This is triggered by `release:stable` without a bump label.
+    // This is triggered by `channel:stable` without a bump label.
     log(`Checking stableOnly mode: ${config.stableOnly}`, 'debug');
     if (config.stableOnly) {
       log(`StableOnly mode activated`, 'debug');
@@ -287,6 +287,9 @@ export async function calculateVersion(config: Config, options: VersionOptions):
       log(`Creating bumper with preset: ${preset}`, 'debug');
       const bumper = new Bumper();
       bumper.loadPreset(preset);
+      if (config.baseRef) {
+        bumper.commits({ from: config.baseRef });
+      }
       const recommendedBump = await bumper.bump();
       const releaseTypeFromCommits =
         recommendedBump && 'releaseType' in recommendedBump ? (recommendedBump.releaseType as ReleaseType) : undefined;
