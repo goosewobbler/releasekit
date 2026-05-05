@@ -140,7 +140,10 @@ jobs:
   reconcile-standing-pr:
     name: Reconcile standing PR (after immediate release)
     needs: immediate-release
-    if: needs.immediate-release.result == 'success'
+    # Skip when nothing actually released — under sync mode (the current config), action_tag is
+    # set whenever any package releases. If you switch back to async, this gate becomes too
+    # narrow (it only fires when @releasekit/release itself is bumped) and should be revisited.
+    if: needs.immediate-release.result == 'success' && needs.immediate-release.outputs.action_tag != ''
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -164,6 +167,9 @@ jobs:
         run: node packages/release/dist/cli.js standing-pr update
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # Uncomment the env var matching your notes.releaseNotes.llm.provider.
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
   publish-release:
