@@ -39,7 +39,7 @@ export interface GateOptions {
   quiet?: boolean;
   /**
    * When true (default), the gate posts a comment on PRs whose labels indicated release
-   * intent but did not produce a release (e.g. `release:prerelease` without `bump:*`, or
+   * intent but did not produce a release (e.g. `channel:prerelease` without `bump:*`, or
    * conflicting bump labels). Disable for dry-runs / local scripts.
    */
   notify?: boolean;

@@ -30,8 +30,8 @@ export interface PREvaluation {
  * Evaluate a single PR's labels against the gate's release rules.
  *
  * In `label` trigger mode:
- *  - `bump:*` or `release:stable` ⇒ release
- *  - `release:prerelease` alone ⇒ NO release (requires `bump:*`)
+ *  - `bump:*` or `channel:stable` ⇒ release
+ *  - `channel:prerelease` alone ⇒ NO release (requires `bump:*`)
  *  - No release labels ⇒ no release
  *  - Conflicting labels on the same PR ⇒ blocked
  *

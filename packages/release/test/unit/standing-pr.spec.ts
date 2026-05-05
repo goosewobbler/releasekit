@@ -188,8 +188,8 @@ describe('runStandingPRUpdate', () => {
       skipPatterns: ['chore: release '],
       minChanges: 1,
       labels: {
-        stable: 'release:stable',
-        prerelease: 'release:prerelease',
+        stable: 'channel:stable',
+        prerelease: 'channel:prerelease',
         skip: 'release:skip',
         major: 'bump:major',
         minor: 'bump:minor',
@@ -614,6 +614,83 @@ describe('runStandingPRUpdate', () => {
     expect(result.action).toBe('created');
     expect(result.prNumber).toBe(42);
   });
+
+  describe('standing-PR labels as overrides', () => {
+    async function setupWithStandingPRLabels(labelNames: string[]) {
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+      vi.mocked(runVersionStep)
+        .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+        .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+      const { createOctokit } = await import('../../src/github.js');
+      const { mocks, octokit } = createMockOctokit();
+      mocks.pullsList.mockResolvedValue({
+        data: [
+          {
+            number: 99,
+            html_url: 'https://github.com/owner/repo/pull/99',
+            labels: labelNames.map((name) => ({ name })),
+          },
+        ],
+      });
+      vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+      return { mocks, octokit, runVersionStepMock: vi.mocked(runVersionStep) };
+    }
+
+    it('passes bump:major from standing PR labels into version step', async () => {
+      const { runVersionStepMock } = await setupWithStandingPRLabels(['release', 'bump:major']);
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      // First call (dry run) and second call (write) should both carry bump: 'major'
+      expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ bump: 'major' });
+      expect(runVersionStepMock.mock.calls[1]?.[0]).toMatchObject({ bump: 'major' });
+    });
+
+    it('passes channel:prerelease from standing PR labels as prerelease override', async () => {
+      const { runVersionStepMock } = await setupWithStandingPRLabels(['release', 'channel:prerelease']);
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ prerelease: true });
+    });
+
+    it('drops conflicting bump labels and posts pending status check', async () => {
+      const { mocks, runVersionStepMock } = await setupWithStandingPRLabels(['release', 'bump:patch', 'bump:major']);
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      // Conflict → bump override dropped, version analysis runs commit-driven
+      expect(runVersionStepMock.mock.calls[0]?.[0]).not.toHaveProperty('bump', 'major');
+      expect(runVersionStepMock.mock.calls[0]?.[0]?.bump).toBeUndefined();
+      // Final status check is pending with conflict description
+      const lastStatus = mocks.createCommitStatus.mock.calls.at(-1)?.[0];
+      expect(lastStatus?.state).toBe('pending');
+      expect(lastStatus?.description).toMatch(/Conflicting bump labels/);
+    });
+
+    it('preserves maintainer-added labels in setLabels (union with configured labels)', async () => {
+      const { mocks } = await setupWithStandingPRLabels(['release', 'bump:major']);
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const lastSetLabels = mocks.issuesSetLabels.mock.calls.at(-1)?.[0];
+      // Should contain BOTH the configured 'release' and the maintainer-added 'bump:major'
+      expect(lastSetLabels?.labels).toContain('release');
+      expect(lastSetLabels?.labels).toContain('bump:major');
+    });
+
+    it('inherits sync from version config (defaults true) instead of forcing false', async () => {
+      const { runVersionStepMock } = await setupWithStandingPRLabels([]);
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ sync: true });
+    });
+  });
 });
 
 describe('runStandingPRPublish', () => {
@@ -986,8 +1063,8 @@ describe('runStandingPRUpdate — editableNotes', () => {
       skipPatterns: ['chore: release '],
       minChanges: 1,
       labels: {
-        stable: 'release:stable',
-        prerelease: 'release:prerelease',
+        stable: 'channel:stable',
+        prerelease: 'channel:prerelease',
         skip: 'release:skip',
         major: 'bump:major',
         minor: 'bump:minor',

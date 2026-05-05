@@ -39,6 +39,7 @@ export interface LabelContext {
     stable: string;
     prerelease: string;
     skip: string;
+    immediate: string;
     major: string;
     minor: string;
     patch: string;
@@ -46,10 +47,14 @@ export interface LabelContext {
   scopeLabels?: string[];
   /**
    * Human-readable reason from the gate's per-PR evaluation when the PR's labels would not
-   * trigger a release (e.g. "release:prerelease requires a bump:* label"). When set, the
+   * trigger a release (e.g. "channel:prerelease requires a bump:* label"). When set, the
    * preview banner uses this in place of the generic "No bump label detected" message.
    */
   gateReason?: string;
+  /** Standing-pr mode without `release:immediate` — bump/scope/channel labels are advisory only. */
+  advisoryInStandingPr?: boolean;
+  /** `release:immediate` is on the PR — preview should reflect a direct release, no standing-PR snapshot. */
+  immediate?: boolean;
 }
 
 export interface FormatOptions {
@@ -97,6 +102,31 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
 
   const lines: string[] = [];
 
+  // `release:immediate` short-circuits all other label semantics — the PR is going to release
+  // directly, so the standard banners ("labeled for X", "no bump label", scope) would only confuse.
+  if (labelContext.immediate) {
+    const immediateLabel = labelContext.labels?.immediate ?? 'release:immediate';
+    lines.push(`> **\`${immediateLabel}\`** — bypassing the standing PR for a direct release.`, '');
+    return lines;
+  }
+
+  // In standing-pr mode without the immediate label, all bump/scope/channel labels are advisory.
+  // Show what was seen, point at the override surface (the standing PR) and the bypass label.
+  if (labelContext.advisoryInStandingPr) {
+    const seen: string[] = [];
+    if (labelContext.bumpLabel) seen.push(`\`bump:${labelContext.bumpLabel}\``);
+    if (labelContext.scopeLabels?.length) seen.push(...labelContext.scopeLabels.map((s) => `\`${s}\``));
+    if (labelContext.stable) seen.push(`\`${labelContext.labels?.stable ?? 'channel:stable'}\``);
+    if (labelContext.prerelease) seen.push(`\`${labelContext.labels?.prerelease ?? 'channel:prerelease'}\``);
+    const seenStr = seen.length ? ` (saw: ${seen.join(', ')})` : '';
+    const immediateLabel = labelContext.labels?.immediate ?? 'release:immediate';
+    lines.push(
+      `> **Note:** Labels on this PR are advisory in standing-pr mode${seenStr}. Bumps come from conventional commits in the standing PR; override by editing labels on the standing PR itself. Add \`${immediateLabel}\` to bypass the standing PR and release this PR directly.`,
+      '',
+    );
+    return lines;
+  }
+
   // Add scope label info if present
   if (labelContext.scopeLabels && labelContext.scopeLabels.length > 0) {
     lines.push(`> **Scope:** ${labelContext.scopeLabels.join(', ')}`, '');
@@ -116,8 +146,8 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
   // Show prereleaseConflict error regardless of trigger mode
   if (labelContext.prereleaseConflict) {
     const labels = labelContext.labels;
-    const stableLabel = labels?.stable ?? 'release:stable';
-    const prereleaseLabel = labels?.prerelease ?? 'release:prerelease';
+    const stableLabel = labels?.stable ?? 'channel:stable';
+    const prereleaseLabel = labels?.prerelease ?? 'channel:prerelease';
     lines.push(
       '> **Error:** Conflicting release type labels detected.',
       `> **Note:** Please use only one of \`${stableLabel}\` or \`${prereleaseLabel}\` at a time.`,
@@ -171,7 +201,7 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
       return lines;
     }
     if (labelContext.prerelease) {
-      // release:prerelease modifier set, bump driven by conventional commits
+      // channel:prerelease modifier set, bump driven by conventional commits
       lines.push('> This PR is labeled for a **prerelease** release (bump from conventional commits).', '');
       return lines;
     }
@@ -183,8 +213,11 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
 export function formatPreviewComment(result: ReleaseOutput | null, options?: FormatOptions): string {
   const strategy = options?.strategy ?? 'direct';
   const labelContext = options?.labelContext;
-  const standingPrSnapshot = strategy === 'standing-pr' ? options?.standingPrSnapshot : undefined;
-  const mergedRows = strategy === 'standing-pr' ? options?.mergedRows : undefined;
+  // In standing-pr mode, the snapshot/merge are suppressed when `release:immediate` is set —
+  // the preview is showing a direct-release outcome, not a queued-state outcome.
+  const showStandingPrContext = strategy === 'standing-pr' && !labelContext?.immediate;
+  const standingPrSnapshot = showStandingPrContext ? options?.standingPrSnapshot : undefined;
+  const mergedRows = showStandingPrContext ? options?.mergedRows : undefined;
   const lines: string[] = [MARKER, ''];
 
   // Standing PR snapshot lives OUTSIDE the collapsible details so reviewers always see what's

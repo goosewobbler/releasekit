@@ -444,6 +444,95 @@ describe('formatPreviewComment', () => {
       const result = formatPreviewComment(null, { strategy: 'standing-pr', standingPrSnapshot: snapshot });
       expect(result).not.toContain('### Currently queued for release');
     });
+
+    it('renders the immediate banner when labelContext.immediate is set', () => {
+      const result = formatPreviewComment(releaseOutput, {
+        strategy: 'standing-pr',
+        labelContext: {
+          trigger: 'commit',
+          skip: false,
+          noBumpLabel: false,
+          immediate: true,
+          labels: {
+            stable: 'channel:stable',
+            prerelease: 'channel:prerelease',
+            skip: 'release:skip',
+            immediate: 'release:immediate',
+            major: 'bump:major',
+            minor: 'bump:minor',
+            patch: 'bump:patch',
+          },
+        },
+      });
+      expect(result).toContain('`release:immediate`');
+      expect(result).toContain('bypassing the standing PR for a direct release');
+    });
+
+    it('suppresses the standing-PR snapshot when immediate label is set', () => {
+      const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
+      const result = formatPreviewComment(releaseOutput, {
+        strategy: 'standing-pr',
+        standingPrSnapshot: snapshot,
+        labelContext: {
+          trigger: 'commit',
+          skip: false,
+          noBumpLabel: false,
+          immediate: true,
+        },
+      });
+      expect(result).not.toContain('**Standing release PR:**');
+      expect(result).not.toContain('### After merge');
+    });
+
+    it('renders the advisory banner in standing-pr mode without immediate', () => {
+      const result = formatPreviewComment(null, {
+        strategy: 'standing-pr',
+        labelContext: {
+          trigger: 'label',
+          skip: false,
+          noBumpLabel: false,
+          advisoryInStandingPr: true,
+          bumpLabel: 'patch',
+          scopeLabels: ['scope:all'],
+          labels: {
+            stable: 'channel:stable',
+            prerelease: 'channel:prerelease',
+            skip: 'release:skip',
+            immediate: 'release:immediate',
+            major: 'bump:major',
+            minor: 'bump:minor',
+            patch: 'bump:patch',
+          },
+        },
+      });
+      expect(result).toContain('Labels on this PR are advisory in standing-pr mode');
+      expect(result).toContain('saw: `bump:patch`, `scope:all`');
+      expect(result).toContain('`release:immediate`');
+      expect(result).toContain('override by editing labels on the standing PR itself');
+    });
+
+    it('advisory banner suppresses the regular trigger-mode banners', () => {
+      // With advisoryInStandingPr, the "no bump label detected" banner should NOT render.
+      const result = formatPreviewComment(null, {
+        strategy: 'standing-pr',
+        labelContext: {
+          trigger: 'label',
+          skip: false,
+          noBumpLabel: false,
+          advisoryInStandingPr: true,
+          labels: {
+            stable: 'channel:stable',
+            prerelease: 'channel:prerelease',
+            skip: 'release:skip',
+            immediate: 'release:immediate',
+            major: 'bump:major',
+            minor: 'bump:minor',
+            patch: 'bump:patch',
+          },
+        },
+      });
+      expect(result).not.toContain('No bump label detected');
+    });
   });
 
   // --- Label context banners ---

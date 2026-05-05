@@ -67,8 +67,8 @@ describe('Gate', () => {
           major: 'bump:major',
           minor: 'bump:minor',
           patch: 'bump:patch',
-          stable: 'release:stable',
-          prerelease: 'release:prerelease',
+          stable: 'channel:stable',
+          prerelease: 'channel:prerelease',
           skip: 'release:skip',
         },
       },
@@ -174,9 +174,9 @@ describe('Gate', () => {
     expect(result.shouldRelease).toBe(false);
   });
 
-  it('should return blocked: true when release:prerelease + release:stable conflict', async () => {
+  it('should return blocked: true when channel:prerelease + channel:stable conflict', async () => {
     mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
-    mockFetchPRLabels.mockResolvedValue(['release:prerelease', 'release:stable']);
+    mockFetchPRLabels.mockResolvedValue(['channel:prerelease', 'channel:stable']);
 
     const result = await runGate();
 
@@ -202,9 +202,9 @@ describe('Gate', () => {
     expect(result.bump).toBe('patch');
   });
 
-  it('should return bump undefined when only release:stable label', async () => {
+  it('should return bump undefined when only channel:stable label', async () => {
     mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
-    mockFetchPRLabels.mockResolvedValue(['release:stable']);
+    mockFetchPRLabels.mockResolvedValue(['channel:stable']);
 
     const result = await runGate();
 
@@ -224,21 +224,21 @@ describe('Gate', () => {
     expect(result.stable).toBe(false);
   });
 
-  it('should return stable: true when bump:patch and release:stable labels present (stable takes precedence over bump)', async () => {
+  it('should return stable: true when bump:patch and channel:stable labels present (stable takes precedence over bump)', async () => {
     mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
-    mockFetchPRLabels.mockResolvedValue(['bump:patch', 'release:stable']);
+    mockFetchPRLabels.mockResolvedValue(['bump:patch', 'channel:stable']);
 
     const result = await runGate();
 
     expect(result.shouldRelease).toBe(true);
-    // release:stable causes detectBumpFromLabels to return undefined (auto-detect from commits)
+    // channel:stable causes detectBumpFromLabels to return undefined (auto-detect from commits)
     expect(result.bump).toBeUndefined();
     expect(result.stable).toBe(true);
   });
 
-  it('should return stable: false when release:stable and release:prerelease conflict', async () => {
+  it('should return stable: false when channel:stable and channel:prerelease conflict', async () => {
     mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
-    mockFetchPRLabels.mockResolvedValue(['release:stable', 'release:prerelease']);
+    mockFetchPRLabels.mockResolvedValue(['channel:stable', 'channel:prerelease']);
 
     const result = await runGate();
 
@@ -372,8 +372,8 @@ describe('Gate', () => {
           major: 'bump:major',
           minor: 'bump:minor',
           patch: 'bump:patch',
-          stable: 'release:stable',
-          prerelease: 'release:prerelease',
+          stable: 'channel:stable',
+          prerelease: 'channel:prerelease',
           skip: 'release:skip',
         },
         scopeLabels: {
@@ -396,7 +396,7 @@ describe('Gate', () => {
   });
 
   describe('per-PR evaluation — wdio-desktop-mobile #225 + #224 regression', () => {
-    // PR #225 merged with `release:prerelease` + `scope:tauri` (no bump:*) — gate must block.
+    // PR #225 merged with `channel:prerelease` + `scope:tauri` (no bump:*) — gate must block.
     // PR #224 merged later with `bump:minor` + `scope:utils` — gate must release #224 alone.
     // Before this fix: gate unioned the labels and produced `preminor` for `@wdio/native-utils`.
     // After: per-PR evaluation, #225's labels are ignored, #224 wins cleanly with `minor`.
@@ -407,8 +407,8 @@ describe('Gate', () => {
           major: 'bump:major',
           minor: 'bump:minor',
           patch: 'bump:patch',
-          stable: 'release:stable',
-          prerelease: 'release:prerelease',
+          stable: 'channel:stable',
+          prerelease: 'channel:prerelease',
           skip: 'release:skip',
         },
         scopeLabels: {
@@ -424,7 +424,7 @@ describe('Gate', () => {
       mockFindMergedPRsSinceLastRelease.mockResolvedValue([224, 225]);
       mockFetchPRLabels
         .mockResolvedValueOnce(['bump:minor', 'scope:utils']) // #224
-        .mockResolvedValueOnce(['release:prerelease', 'scope:tauri']); // #225
+        .mockResolvedValueOnce(['channel:prerelease', 'scope:tauri']); // #225
 
       const result = await runGate({ notify: false });
 
@@ -434,7 +434,7 @@ describe('Gate', () => {
       expect(result.target).toBe('@wdio/native-utils');
       expect(result.scope).toBe('utils');
       // #225's prerelease label must not contaminate the verdict.
-      expect(result.labels).not.toContain('release:prerelease');
+      expect(result.labels).not.toContain('channel:prerelease');
       expect(result.labels).not.toContain('scope:tauri');
     });
 
@@ -443,7 +443,7 @@ describe('Gate', () => {
       mockFindMergedPRsSinceLastRelease.mockResolvedValue([224, 225]);
       mockFetchPRLabels
         .mockResolvedValueOnce(['bump:minor', 'scope:utils'])
-        .mockResolvedValueOnce(['release:prerelease', 'scope:tauri']);
+        .mockResolvedValueOnce(['channel:prerelease', 'scope:tauri']);
 
       const result = await runGate({ notify: false });
 
@@ -452,7 +452,7 @@ describe('Gate', () => {
       const skipped = result.evaluations?.find((e) => e.prNumber === 225);
       expect(winning?.shouldRelease).toBe(true);
       expect(skipped?.shouldRelease).toBe(false);
-      expect(skipped?.reason).toContain('release:prerelease');
+      expect(skipped?.reason).toContain('channel:prerelease');
       expect(skipped?.hasReleaseIntent).toBe(true);
     });
 
@@ -461,7 +461,7 @@ describe('Gate', () => {
       mockFindMergedPRsSinceLastRelease.mockResolvedValue([224, 225]);
       mockFetchPRLabels
         .mockResolvedValueOnce(['bump:minor', 'scope:utils'])
-        .mockResolvedValueOnce(['release:prerelease', 'scope:tauri']);
+        .mockResolvedValueOnce(['channel:prerelease', 'scope:tauri']);
 
       await runGate(); // notify defaults to true
 
@@ -473,7 +473,7 @@ describe('Gate', () => {
       expect(repo).toBe('repo');
       expect(prNumber).toBe(225);
       expect(body).toContain('did not trigger a release');
-      expect(body).toContain('release:prerelease');
+      expect(body).toContain('channel:prerelease');
       expect(marker).toBe('<!-- releasekit-gate-notify -->');
     });
 
@@ -482,7 +482,7 @@ describe('Gate', () => {
       mockFindMergedPRsSinceLastRelease.mockResolvedValue([224, 225]);
       mockFetchPRLabels
         .mockResolvedValueOnce(['bump:minor', 'scope:utils'])
-        .mockResolvedValueOnce(['release:prerelease', 'scope:tauri']);
+        .mockResolvedValueOnce(['channel:prerelease', 'scope:tauri']);
 
       await runGate({ notify: false });
 
@@ -526,8 +526,8 @@ describe('Gate', () => {
             major: 'bump:major',
             minor: 'bump:minor',
             patch: 'bump:patch',
-            stable: 'release:stable',
-            prerelease: 'release:prerelease',
+            stable: 'channel:stable',
+            prerelease: 'channel:prerelease',
             skip: 'release:skip',
           },
         },

@@ -6,14 +6,14 @@ const labelMode = { releaseTrigger: 'label' as const };
 const commitMode = { releaseTrigger: 'commit' as const };
 
 describe('evaluatePR — label mode', () => {
-  it('returns shouldRelease=false with reason when only release:prerelease is present', () => {
-    const result = evaluatePR(225, ['release:prerelease', 'scope:tauri'], DEFAULT_LABELS, {
+  it('returns shouldRelease=false with reason when only channel:prerelease is present', () => {
+    const result = evaluatePR(225, ['channel:prerelease', 'scope:tauri'], DEFAULT_LABELS, {
       ...labelMode,
       scopeLabels: { 'scope:tauri': '@wdio/tauri-*' },
     });
     expect(result.shouldRelease).toBe(false);
     expect(result.blocked).toBeUndefined();
-    expect(result.reason).toContain('release:prerelease');
+    expect(result.reason).toContain('channel:prerelease');
     expect(result.reason).toContain('bump');
     expect(result.hasReleaseIntent).toBe(true);
   });
@@ -37,25 +37,25 @@ describe('evaluatePR — label mode', () => {
     expect(result.bump).toBe('major');
   });
 
-  it('returns shouldRelease=true with bump=preminor for bump:minor + release:prerelease', () => {
-    const result = evaluatePR(1, ['bump:minor', 'release:prerelease'], DEFAULT_LABELS, labelMode);
+  it('returns shouldRelease=true with bump=preminor for bump:minor + channel:prerelease', () => {
+    const result = evaluatePR(1, ['bump:minor', 'channel:prerelease'], DEFAULT_LABELS, labelMode);
     expect(result.shouldRelease).toBe(true);
     expect(result.bump).toBe('preminor');
     expect(result.stable).toBe(false);
   });
 
-  it('returns shouldRelease=true with bump=premajor for bump:major + release:prerelease', () => {
-    const result = evaluatePR(1, ['bump:major', 'release:prerelease'], DEFAULT_LABELS, labelMode);
+  it('returns shouldRelease=true with bump=premajor for bump:major + channel:prerelease', () => {
+    const result = evaluatePR(1, ['bump:major', 'channel:prerelease'], DEFAULT_LABELS, labelMode);
     expect(result.bump).toBe('premajor');
   });
 
-  it('returns shouldRelease=true with bump=prepatch for bump:patch + release:prerelease', () => {
-    const result = evaluatePR(1, ['bump:patch', 'release:prerelease'], DEFAULT_LABELS, labelMode);
+  it('returns shouldRelease=true with bump=prepatch for bump:patch + channel:prerelease', () => {
+    const result = evaluatePR(1, ['bump:patch', 'channel:prerelease'], DEFAULT_LABELS, labelMode);
     expect(result.bump).toBe('prepatch');
   });
 
-  it('returns shouldRelease=true with stable=true and bump=undefined for release:stable alone', () => {
-    const result = evaluatePR(1, ['release:stable'], DEFAULT_LABELS, labelMode);
+  it('returns shouldRelease=true with stable=true and bump=undefined for channel:stable alone', () => {
+    const result = evaluatePR(1, ['channel:stable'], DEFAULT_LABELS, labelMode);
     expect(result.shouldRelease).toBe(true);
     expect(result.stable).toBe(true);
     // Stable graduation auto-detects magnitude from commits — bump intentionally undefined.
@@ -70,12 +70,12 @@ describe('evaluatePR — label mode', () => {
     expect(result.reason).toContain('minor');
   });
 
-  it('returns blocked=true for release:stable + release:prerelease on the same PR', () => {
-    const result = evaluatePR(1, ['release:stable', 'release:prerelease'], DEFAULT_LABELS, labelMode);
+  it('returns blocked=true for channel:stable + channel:prerelease on the same PR', () => {
+    const result = evaluatePR(1, ['channel:stable', 'channel:prerelease'], DEFAULT_LABELS, labelMode);
     expect(result.blocked).toBe(true);
     expect(result.shouldRelease).toBe(false);
-    expect(result.reason).toContain('release:stable');
-    expect(result.reason).toContain('release:prerelease');
+    expect(result.reason).toContain('channel:stable');
+    expect(result.reason).toContain('channel:prerelease');
   });
 
   it('returns shouldRelease=false (not releasable) for scope-only PR — scope label is not a trigger', () => {
@@ -86,7 +86,7 @@ describe('evaluatePR — label mode', () => {
     expect(result.shouldRelease).toBe(false);
     // Scope label still counts as release intent — user gets a notify comment.
     expect(result.hasReleaseIntent).toBe(true);
-    expect(result.reason).toMatch(/no release labels|need bump|release:stable/i);
+    expect(result.reason).toMatch(/no release labels|need bump|channel:stable/i);
   });
 
   it('returns hasReleaseIntent=false when no release-related labels present', () => {
@@ -141,8 +141,8 @@ describe('evaluatePR — commit mode', () => {
     expect(result.shouldRelease).toBe(true);
   });
 
-  it('blocks on release:stable + release:prerelease conflict in commit mode', () => {
-    const result = evaluatePR(1, ['release:stable', 'release:prerelease'], DEFAULT_LABELS, commitMode);
+  it('blocks on channel:stable + channel:prerelease conflict in commit mode', () => {
+    const result = evaluatePR(1, ['channel:stable', 'channel:prerelease'], DEFAULT_LABELS, commitMode);
     expect(result.blocked).toBe(true);
   });
 });

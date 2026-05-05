@@ -222,7 +222,7 @@ describe('runPreview', () => {
       });
 
       it('should take priority over prerelease PR label', async () => {
-        mockFetchPRLabels.mockResolvedValue(['release:prerelease']);
+        mockFetchPRLabels.mockResolvedValue(['channel:prerelease']);
         mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
 
         await runPreview({ projectDir: '/test', dryRun: false, stable: true, target: '@test/package' });
@@ -241,7 +241,7 @@ describe('runPreview', () => {
       });
 
       it('should take priority over stable PR label', async () => {
-        mockFetchPRLabels.mockResolvedValue(['release:stable']);
+        mockFetchPRLabels.mockResolvedValue(['channel:stable']);
 
         await runPreview({ projectDir: '/test', dryRun: false, prerelease: 'beta', target: '@test/package' });
 
@@ -353,7 +353,7 @@ describe('runPreview', () => {
 
       it('should compose major and prerelease labels', async () => {
         mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
-        mockFetchPRLabels.mockResolvedValue(['bump:major', 'release:prerelease']);
+        mockFetchPRLabels.mockResolvedValue(['bump:major', 'channel:prerelease']);
 
         await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
@@ -408,7 +408,7 @@ describe('runPreview', () => {
       it('should compose bump label and prerelease label', async () => {
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
         mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
-        mockFetchPRLabels.mockResolvedValue(['bump:minor', 'release:prerelease']);
+        mockFetchPRLabels.mockResolvedValue(['bump:minor', 'channel:prerelease']);
 
         await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
@@ -497,8 +497,8 @@ describe('runPreview', () => {
     });
 
     describe('stable/prerelease conflicts', () => {
-      it('should block release when release:stable and release:prerelease both present', async () => {
-        mockFetchPRLabels.mockResolvedValue(['release:stable', 'release:prerelease', 'bump:minor']);
+      it('should block release when channel:stable and channel:prerelease both present', async () => {
+        mockFetchPRLabels.mockResolvedValue(['channel:stable', 'channel:prerelease', 'bump:minor']);
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
 
         await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
@@ -517,8 +517,8 @@ describe('runPreview', () => {
 
   describe('stable/prerelease defaults', () => {
     describe('prerelease label', () => {
-      it('should not trigger release when release:prerelease label is present alone', async () => {
-        mockFetchPRLabels.mockResolvedValue(['release:prerelease']);
+      it('should not trigger release when channel:prerelease label is present alone', async () => {
+        mockFetchPRLabels.mockResolvedValue(['channel:prerelease']);
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
 
         await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
@@ -533,15 +533,15 @@ describe('runPreview', () => {
         );
       });
 
-      it('should surface the gate reason in the banner when release:prerelease + scope but no bump (honest preview)', async () => {
-        // Reproduces the wdio-desktop-mobile #225 scenario: release:prerelease + scope:tauri.
+      it('should surface the gate reason in the banner when channel:prerelease + scope but no bump (honest preview)', async () => {
+        // Reproduces the wdio-desktop-mobile #225 scenario: channel:prerelease + scope:tauri.
         // The OLD preview lied — it showed a version bump table because scope was present.
         // The NEW preview matches the gate's verdict: this PR will NOT trigger a release.
         mockLoadCIConfig.mockReturnValue({
           releaseTrigger: 'label',
           scopeLabels: { 'scope:tauri': '@wdio/tauri-*' },
         });
-        mockFetchPRLabels.mockResolvedValue(['release:prerelease', 'scope:tauri']);
+        mockFetchPRLabels.mockResolvedValue(['channel:prerelease', 'scope:tauri']);
 
         await runPreview({ projectDir: '/test', dryRun: false });
 
@@ -551,13 +551,13 @@ describe('runPreview', () => {
         const body = mockPostOrUpdateComment.mock.calls[0][4] as string;
         expect(body).toContain('No bump label detected');
         // The gate reason — surfaced via labelContext.gateReason — explains exactly why.
-        expect(body).toContain('release:prerelease');
+        expect(body).toContain('channel:prerelease');
         // No version bump table is rendered.
         expect(body).not.toContain('### Packages');
       });
 
       it('should use minor bump when prerelease and bump:minor labels present', async () => {
-        mockFetchPRLabels.mockResolvedValue(['release:prerelease', 'bump:minor']);
+        mockFetchPRLabels.mockResolvedValue(['channel:prerelease', 'bump:minor']);
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
 
         await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
@@ -568,21 +568,21 @@ describe('runPreview', () => {
 
     describe('stable label', () => {
       it('should graduate prerelease to stable when stable label is present', async () => {
-        mockFetchPRLabels.mockResolvedValue(['release:stable', 'bump:minor']);
+        mockFetchPRLabels.mockResolvedValue(['channel:stable', 'bump:minor']);
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
         mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'beta' });
 
         await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         const callArgs = mockRunRelease.mock.calls[0][0];
-        // Per gate semantics: release:stable causes bump to be auto-detected from commits.
+        // Per gate semantics: channel:stable causes bump to be auto-detected from commits.
         // bump label magnitude is not propagated when graduation is the primary intent.
         expect(callArgs.bump).toBeUndefined();
         expect(callArgs.stable).toBe(true);
       });
 
       it('should run release analysis but not set bump when stable label present without bump label', async () => {
-        mockFetchPRLabels.mockResolvedValue(['release:stable']);
+        mockFetchPRLabels.mockResolvedValue(['channel:stable']);
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
         mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'beta' });
 
@@ -673,7 +673,7 @@ describe('runPreview', () => {
 
     it('should NOT release in label mode for scope-only PR — gate requires bump or stable label', async () => {
       // Aligned with gate semantics: in label trigger mode, scope alone does not trigger
-      // a release. The user must add bump:* or release:stable. Conventional-commits-driven
+      // a release. The user must add bump:* or channel:stable. Conventional-commits-driven
       // bumps are only supported in commit trigger mode.
       mockLoadCIConfig.mockReturnValue({
         releaseTrigger: 'label',
@@ -890,6 +890,86 @@ describe('runPreview', () => {
       await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
       expect(mockFetchStandingPRSnapshot).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('label semantics in standing-pr mode', () => {
+    function ciWithLabels(extras: Record<string, unknown> = {}) {
+      return {
+        releaseStrategy: 'standing-pr',
+        releaseTrigger: 'label',
+        labels: {
+          stable: 'channel:stable',
+          prerelease: 'channel:prerelease',
+          skip: 'release:skip',
+          immediate: 'release:immediate',
+          major: 'bump:major',
+          minor: 'bump:minor',
+          patch: 'bump:patch',
+        },
+        ...extras,
+      };
+    }
+
+    it('does NOT propagate bump label to runRelease in standing-pr advisory mode', async () => {
+      mockLoadCIConfig.mockReturnValue(ciWithLabels());
+      mockFetchPRLabels.mockResolvedValue(['bump:patch']);
+
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
+
+      // runRelease should be called WITHOUT bump derived from the label
+      expect(mockRunRelease).toHaveBeenCalled();
+      const callArg = mockRunRelease.mock.calls[0]?.[0] as { bump?: string };
+      expect(callArg?.bump).toBeUndefined();
+    });
+
+    it('does NOT throw "No scope specified" in standing-pr advisory mode', async () => {
+      mockLoadCIConfig.mockReturnValue(ciWithLabels({ scopeLabels: { 'scope:foo': '@scope/foo' } }));
+      mockFetchPRLabels.mockResolvedValue(['bump:patch']); // no scope label, no --target
+      // Without the advisory bypass this would throw "No scope specified"
+      await runPreview({ projectDir: '/test', dryRun: false });
+      expect(mockPostOrUpdateComment).toHaveBeenCalled();
+    });
+
+    it('propagates bump label to runRelease when release:immediate is also set', async () => {
+      mockLoadCIConfig.mockReturnValue(ciWithLabels());
+      mockFetchPRLabels.mockResolvedValue(['release:immediate', 'bump:minor']);
+
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
+
+      const callArg = mockRunRelease.mock.calls[0]?.[0] as { bump?: string };
+      expect(callArg?.bump).toBe('minor');
+    });
+
+    it('skips standing-PR snapshot fetch when release:immediate is set', async () => {
+      mockLoadCIConfig.mockReturnValue(ciWithLabels());
+      mockFetchPRLabels.mockResolvedValue(['release:immediate', 'bump:patch']);
+
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
+
+      expect(mockFetchStandingPRSnapshot).not.toHaveBeenCalled();
+    });
+
+    it('still propagates bump label in direct strategy mode (no change)', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseStrategy: 'direct',
+        releaseTrigger: 'label',
+        labels: {
+          stable: 'channel:stable',
+          prerelease: 'channel:prerelease',
+          skip: 'release:skip',
+          immediate: 'release:immediate',
+          major: 'bump:major',
+          minor: 'bump:minor',
+          patch: 'bump:patch',
+        },
+      });
+      mockFetchPRLabels.mockResolvedValue(['bump:major']);
+
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
+
+      const callArg = mockRunRelease.mock.calls[0]?.[0] as { bump?: string };
+      expect(callArg?.bump).toBe('major');
     });
   });
 });

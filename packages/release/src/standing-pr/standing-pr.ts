@@ -278,7 +278,7 @@ export async function findStandingPR(
   owner: string,
   repo: string,
   branch: string,
-): Promise<{ number: number; url: string } | null> {
+): Promise<{ number: number; url: string; labels: string[] } | null> {
   const { data: prs } = await octokit.rest.pulls.list({
     owner,
     repo,
@@ -288,7 +288,9 @@ export async function findStandingPR(
   });
 
   const pr = prs[0];
-  return pr ? { number: pr.number, url: pr.html_url } : null;
+  if (!pr) return null;
+  const labels = (pr.labels ?? []).map((l) => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean);
+  return { number: pr.number, url: pr.html_url, labels };
 }
 
 /**
@@ -347,11 +349,94 @@ export async function fetchStandingPRSnapshot(
   return { number: pr.number, url: pr.url, manifest, openedAt, gateState, gateReason };
 }
 
-function buildBaseReleaseOptions(options: StandingPROptions, dryRun: boolean): ReleaseOptions {
+/**
+ * Overrides resolved from labels on the standing PR itself. The standing PR is the canonical
+ * surface for adjusting bump magnitude, scope, and channel — feeder PR labels are advisory.
+ */
+interface StandingPrOverrides {
+  bump?: 'major' | 'minor' | 'patch';
+  target?: string;
+  stable?: boolean;
+  prerelease?: boolean;
+  /** Human-readable conflict descriptions (used for the pending status check). Empty when no conflict. */
+  conflicts: string[];
+}
+
+const NO_OVERRIDES: StandingPrOverrides = { conflicts: [] };
+
+function resolveStandingPrLabelOverrides(prLabels: string[], ciConfig: CIConfig | undefined): StandingPrOverrides {
+  if (!prLabels || prLabels.length === 0) return NO_OVERRIDES;
+  const labels = ciConfig?.labels ?? {
+    stable: 'channel:stable',
+    prerelease: 'channel:prerelease',
+    skip: 'release:skip',
+    immediate: 'release:immediate',
+    major: 'bump:major',
+    minor: 'bump:minor',
+    patch: 'bump:patch',
+  };
+  const scopeLabels = ciConfig?.scopeLabels ?? {};
+  const conflicts: string[] = [];
+
+  // Bump
+  let bump: 'major' | 'minor' | 'patch' | undefined;
+  const bumpsPresent = [
+    prLabels.includes(labels.major) ? labels.major : undefined,
+    prLabels.includes(labels.minor) ? labels.minor : undefined,
+    prLabels.includes(labels.patch) ? labels.patch : undefined,
+  ].filter(Boolean) as string[];
+  if (bumpsPresent.length > 1) {
+    conflicts.push(`Conflicting bump labels on standing PR (${bumpsPresent.join(', ')}) — remove all but one`);
+  } else if (prLabels.includes(labels.major)) bump = 'major';
+  else if (prLabels.includes(labels.minor)) bump = 'minor';
+  else if (prLabels.includes(labels.patch)) bump = 'patch';
+
+  // Channel modifiers
+  const hasStable = prLabels.includes(labels.stable);
+  const hasPrerelease = prLabels.includes(labels.prerelease);
+  let stable: boolean | undefined;
+  let prerelease: boolean | undefined;
+  if (hasStable && hasPrerelease) {
+    conflicts.push(`Conflicting channel labels on standing PR (${labels.stable} and ${labels.prerelease})`);
+  } else {
+    if (hasStable) stable = true;
+    if (hasPrerelease) prerelease = true;
+  }
+
+  // Scope: first matching configured scope label wins
+  let target: string | undefined;
+  for (const [labelName, pattern] of Object.entries(scopeLabels)) {
+    if (prLabels.includes(labelName)) {
+      target = pattern;
+      break;
+    }
+  }
+
+  return { bump, target, stable, prerelease, conflicts };
+}
+
+interface BuildOptionsExtras {
+  /** Per-package vs synced versioning. Inherited from version.sync config (default true). */
+  sync?: boolean;
+  bump?: 'major' | 'minor' | 'patch';
+  target?: string;
+  stable?: boolean;
+  prerelease?: boolean;
+}
+
+function buildBaseReleaseOptions(
+  options: StandingPROptions,
+  dryRun: boolean,
+  extras?: BuildOptionsExtras,
+): ReleaseOptions {
   return {
     config: options.config,
     dryRun,
-    sync: false,
+    sync: extras?.sync ?? true,
+    bump: extras?.bump,
+    target: extras?.target,
+    stable: extras?.stable,
+    prerelease: extras?.prerelease ? true : undefined,
     skipNotes: true,
     skipPublish: true,
     skipGit: true,
@@ -383,35 +468,66 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     return { action: 'noop' };
   }
 
+  const githubContext = getGitHubContext();
+
+  // Look up the existing standing PR up front (one API call, reused throughout). Its labels
+  // are the canonical override surface — `bump:*` / `scope:*` / channel labels applied to
+  // the standing PR drive the next update.
+  let existingStandingPr: { number: number; url: string; labels: string[] } | null = null;
+  if (githubContext?.token) {
+    try {
+      const lookupOctokit = createOctokit(githubContext.token);
+      existingStandingPr = await findStandingPR(lookupOctokit, githubContext.owner, githubContext.repo, branch);
+    } catch (err) {
+      warn(`Could not look up standing PR for label overrides: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  const overrides = resolveStandingPrLabelOverrides(existingStandingPr?.labels ?? [], ciConfig);
+  if (overrides.bump) info(`Standing PR label override: bump=${overrides.bump}`);
+  if (overrides.target) info(`Standing PR label override: target=${overrides.target}`);
+  if (overrides.stable) info(`Standing PR label override: channel:stable`);
+  if (overrides.prerelease) info(`Standing PR label override: channel:prerelease`);
+  for (const conflict of overrides.conflicts) warn(conflict);
+
+  // Inherit sync from the loaded version config (defaults to true) — never silently force false.
+  const sync = releaseKitConfig.version?.sync ?? true;
+  // When labels conflict, drop the override (fall back to commit-driven) but keep the
+  // conflict descriptions for the final status check.
+  const buildExtras: BuildOptionsExtras = overrides.conflicts.length
+    ? { sync, target: overrides.target }
+    : {
+        sync,
+        bump: overrides.bump,
+        target: overrides.target,
+        stable: overrides.stable,
+        prerelease: overrides.prerelease,
+      };
+
   // Dry-run version analysis to compute bumps without writing
   info('Running version analysis (dry run)...');
-  const dryRunOptions = buildBaseReleaseOptions(options, true);
+  const dryRunOptions = buildBaseReleaseOptions(options, true, buildExtras);
   const versionOutputDry = await runVersionStep(dryRunOptions);
-
-  const githubContext = getGitHubContext();
 
   if (versionOutputDry.updates.length === 0) {
     info('No releasable changes found');
 
-    if (githubContext?.token) {
+    if (githubContext?.token && existingStandingPr) {
       const octokit = createOctokit(githubContext.token);
-      const existing = await findStandingPR(octokit, githubContext.owner, githubContext.repo, branch);
-      if (existing) {
-        await octokit.rest.issues.createComment({
-          owner: githubContext.owner,
-          repo: githubContext.repo,
-          issue_number: existing.number,
-          body: 'No releasable changes found. Closing this PR as the release queue is empty.',
-        });
-        await octokit.rest.pulls.update({
-          owner: githubContext.owner,
-          repo: githubContext.repo,
-          pull_number: existing.number,
-          state: 'closed',
-        });
-        info(`Closed standing PR #${existing.number}`);
-        return { action: 'closed', prNumber: existing.number, prUrl: existing.url };
-      }
+      await octokit.rest.issues.createComment({
+        owner: githubContext.owner,
+        repo: githubContext.repo,
+        issue_number: existingStandingPr.number,
+        body: 'No releasable changes found. Closing this PR as the release queue is empty.',
+      });
+      await octokit.rest.pulls.update({
+        owner: githubContext.owner,
+        repo: githubContext.repo,
+        pull_number: existingStandingPr.number,
+        state: 'closed',
+      });
+      info(`Closed standing PR #${existingStandingPr.number}`);
+      return { action: 'closed', prNumber: existingStandingPr.number, prUrl: existingStandingPr.url };
     }
 
     return { action: 'noop' };
@@ -423,25 +539,22 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     info(
       `Package count (${versionOutputDry.updates.length}) is below minPackages threshold (${minPackages}), skipping`,
     );
-    if (githubContext?.token) {
+    if (githubContext?.token && existingStandingPr) {
       const octokit = createOctokit(githubContext.token);
-      const existing = await findStandingPR(octokit, githubContext.owner, githubContext.repo, branch);
-      if (existing) {
-        await octokit.rest.issues.createComment({
-          owner: githubContext.owner,
-          repo: githubContext.repo,
-          issue_number: existing.number,
-          body: `Not enough packages with releasable changes (${versionOutputDry.updates.length} of ${minPackages} required). Closing until the threshold is reached.`,
-        });
-        await octokit.rest.pulls.update({
-          owner: githubContext.owner,
-          repo: githubContext.repo,
-          pull_number: existing.number,
-          state: 'closed',
-        });
-        info(`Closed standing PR #${existing.number} (minPackages not met)`);
-        return { action: 'closed', prNumber: existing.number, prUrl: existing.url };
-      }
+      await octokit.rest.issues.createComment({
+        owner: githubContext.owner,
+        repo: githubContext.repo,
+        issue_number: existingStandingPr.number,
+        body: `Not enough packages with releasable changes (${versionOutputDry.updates.length} of ${minPackages} required). Closing until the threshold is reached.`,
+      });
+      await octokit.rest.pulls.update({
+        owner: githubContext.owner,
+        repo: githubContext.repo,
+        pull_number: existingStandingPr.number,
+        state: 'closed',
+      });
+      info(`Closed standing PR #${existingStandingPr.number} (minPackages not met)`);
+      return { action: 'closed', prNumber: existingStandingPr.number, prUrl: existingStandingPr.url };
     }
     return { action: 'noop' };
   }
@@ -455,7 +568,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   // Materialize changes on release branch
   info('Writing version bumps...');
-  const writeOptions = buildBaseReleaseOptions(options, false);
+  const writeOptions = buildBaseReleaseOptions(options, false, buildExtras);
   const versionOutput = await runVersionStep(writeOptions);
 
   info('Generating release notes...');
@@ -497,7 +610,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     editableNotesEnabled && hasNotes ? renderNotesSection(versionOutput, notesResult.releaseNotes ?? {}) : undefined;
   const notesHash = freshSection ? computeNotesHash(freshSection) : undefined;
 
-  const existing = await findStandingPR(octokit, owner, repo, branch);
+  // Reuse the standing PR fetched at the top of this function — same source of truth as the
+  // label override resolution; saves an extra API call.
+  const existing = existingStandingPr;
 
   // When editableNotes is enabled and a PR exists, check whether the user has manually
   // edited the notes section. If the current section hash differs from the stored hash,
@@ -561,14 +676,18 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     info(`Created standing PR #${prNumber}`);
   }
 
-  // Apply labels
+  // Apply labels — preserve any maintainer-added labels (e.g. bump:major, scope:foo) by
+  // taking the union of currently-applied labels and the configured set. Without this,
+  // every update would wipe maintainer overrides.
   if (labels.length > 0) {
     try {
+      const currentLabels = existingStandingPr?.labels ?? [];
+      const mergedLabels = [...new Set([...currentLabels, ...labels])];
       await octokit.rest.issues.setLabels({
         owner,
         repo,
         issue_number: prNumber,
-        labels,
+        labels: mergedLabels,
       });
     } catch {
       warn('Failed to apply labels to standing PR (labels may not exist in the repository)');
@@ -625,6 +744,12 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const minAge = standingPrConfig?.minAge;
   let statusState: 'success' | 'pending' = 'success';
   let statusDescription = 'Ready to merge';
+
+  // Standing-PR label conflicts surface here as a pending check so the team notices.
+  if (overrides.conflicts.length > 0) {
+    statusState = 'pending';
+    statusDescription = overrides.conflicts.join('; ').slice(0, 140);
+  }
 
   if (minAge !== undefined) {
     const minAgeMs = parseDuration(minAge);
