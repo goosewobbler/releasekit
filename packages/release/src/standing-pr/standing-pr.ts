@@ -498,8 +498,8 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   if (overrides.prerelease) info(`Standing PR label override: channel:prerelease`);
   for (const conflict of overrides.conflicts) warn(conflict);
 
-  // Inherit sync from the loaded version config only when explicitly set — default false
-  // preserves the original per-package independent versioning behaviour for existing users.
+  // Use the version.sync setting from config; fall back to false (per-package versioning)
+  // when not set so existing repos without an explicit value are unaffected.
   const sync = releaseKitConfig.version?.sync ?? false;
   // When labels conflict, drop the override (fall back to commit-driven) but keep the
   // conflict descriptions for the final status check.
