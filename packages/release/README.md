@@ -290,6 +290,7 @@ The `ci` section controls automation behavior:
       "stable": "channel:stable",
       "prerelease": "channel:prerelease",
       "skip": "release:skip",
+      "immediate": "release:immediate",
       "major": "bump:major",
       "minor": "bump:minor",
       "patch": "bump:patch"
@@ -312,6 +313,8 @@ The `ci` section controls automation behavior:
 **`commit`** — Conventional commits drive the bump type automatically. Every merge can trigger a release. Use the `release:skip` label to prevent a release, or `bump:major` to override the commit-derived bump to major.
 
 Both modes support `channel:stable` and `channel:prerelease` as channel modifiers. `channel:stable` alone graduates any prerelease packages to their stable base version and skips packages that are already stable — no bump label required. `channel:prerelease` must be combined with a `bump:*` label — alone, it does not trigger a release.
+
+> **Standing-pr strategy is different.** When `releaseStrategy: "standing-pr"`, labels on **feeder PRs** are advisory only — the standing PR itself is the canonical override surface (add `bump:major` etc. to the standing PR to drive the next release). To bypass the queue and ship one PR directly, label it `release:immediate`. See [CI setup → Label semantics in standing-pr mode](./docs/ci-setup.md#label-semantics-in-standing-pr-mode).
 
 #### Release Strategy
 
@@ -391,7 +394,7 @@ When `releaseStrategy: "standing-pr"`, the `ci.standingPr` block tunes the bot-m
 |---|---|---|
 | `branch` | `release/next` | Bot-maintained release branch name. Force-reset to `main` on every update. |
 | `title` | `chore: release ${count} package(s)` | PR title template. Variables: `${count}`, `${version}`. Must start with a string matching `release.ci.skipPatterns` (default `chore: release `). |
-| `labels` | `["release"]` | Labels applied to the PR. Avoid overlap with `bump:*` / `release:*` to prevent the label-driven release flow from firing on merge. |
+| `labels` | `["release"]` | Labels applied to the PR. Maintainer-added `bump:*` / `scope:*` / `channel:*` labels on the standing PR are preserved across updates and drive the next release as overrides — see [Label semantics in standing-pr mode](./docs/ci-setup.md#label-semantics-in-standing-pr-mode). |
 | `deleteBranchOnMerge` | `true` | Delete the release branch after publish completes. |
 | `mergeMethod` | `merge` | `merge` \| `squash` \| `rebase`. |
 | `editableNotes` | `false` | Wrap the release notes in editable markers; user edits are preserved across updates and flow through to publish. |
