@@ -62,11 +62,14 @@ export function createStandingPRCommand(): Command {
 
     let prNumber: number | undefined;
     if (opts.pr !== undefined) {
-      prNumber = Number.parseInt(opts.pr, 10);
-      if (Number.isNaN(prNumber) || prNumber <= 0) {
+      // Use a strict regex rather than parseInt — the latter silently accepts trailing
+      // non-digit characters ('123abc' → 123), which would mask genuine input errors.
+      const trimmed = String(opts.pr).trim();
+      if (!/^[1-9]\d*$/.test(trimmed)) {
         console.error(`--pr must be a positive integer (got: ${opts.pr})`);
         process.exit(EXIT_CODES.GENERAL_ERROR);
       }
+      prNumber = Number.parseInt(trimmed, 10);
     }
 
     try {
