@@ -340,7 +340,6 @@ function renderMergeTable(rows: MergedRow[]): string[] {
   // short-circuit message renders. 'standing-only' rows are pre-existing queued content
   // unrelated to this PR — including them would suppress the message in any real scenario.
   const prParticipatingRows = rows.filter((r) => r.status !== 'standing-only');
-  const standingOnlyRows = rows.filter((r) => r.status === 'standing-only');
   const allUnchanged = prParticipatingRows.length > 0 && prParticipatingRows.every((r) => r.status === 'unchanged');
   if (allUnchanged) {
     const lines: string[] = [
@@ -349,13 +348,15 @@ function renderMergeTable(rows: MergedRow[]): string[] {
       "> No version escalation — this PR's changes will be included in the queued release without affecting the projected versions.",
       '',
     ];
-    if (standingOnlyRows.length > 0) {
+    // Show all rows so reviewers can see what's already queued for the packages this PR touches,
+    // even though no version escalation will occur.
+    if (rows.length > 0) {
       lines.push(
         '| Package | Standing PR | This PR | After merge |',
         '|---------|-------------|---------|-------------|',
       );
-      for (const row of standingOnlyRows) {
-        lines.push(`| \`${row.packageName}\` | ${row.standing ?? '—'} | — | ${row.afterMerge} |`);
+      for (const row of rows) {
+        lines.push(`| \`${row.packageName}\` | ${row.standing ?? '—'} | ${row.current ?? '—'} | ${row.afterMerge} |`);
       }
       lines.push('');
     }

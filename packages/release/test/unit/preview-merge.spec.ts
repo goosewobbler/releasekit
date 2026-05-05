@@ -126,4 +126,18 @@ describe('mergeForPreview', () => {
     const rows = mergeForPreview([unchanged], []);
     expect(rows).toEqual([]);
   });
+
+  it('should use current PR version as afterMerge when standing version is invalid semver', () => {
+    const standingCl: VersionPackageChangelog = {
+      ...changelog('@a/notes', '1.0.0', 'not-a-semver'),
+    };
+    const currentCl = changelog('@a/notes', '1.0.0', '1.1.0');
+    const rows = mergeForPreview([standingCl], [currentCl]);
+    expect(rows[0]).toMatchObject({
+      status: 'unchanged',
+      standing: 'not-a-semver',
+      current: '1.1.0',
+      afterMerge: '1.1.0',
+    });
+  });
 });

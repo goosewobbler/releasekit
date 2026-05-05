@@ -403,7 +403,7 @@ describe('formatPreviewComment', () => {
       expect(result).toContain('| `@a/version` | 0.3.2 | 0.3.2 | 0.3.2 |');
     });
 
-    it('should show a one-liner instead of the table when all rows are unchanged', () => {
+    it('should show no-escalation prose and a table with all rows when all rows are unchanged', () => {
       const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
       const allUnchanged: MergedRow[] = [
         {
@@ -430,7 +430,10 @@ describe('formatPreviewComment', () => {
       });
       expect(result).toContain('### After merge — predicted release');
       expect(result).toContain('No version escalation');
-      expect(result).not.toContain('| Package | Standing PR | This PR | After merge |');
+      // Participating rows are shown so reviewers can see what's already queued
+      expect(result).toContain('| Package | Standing PR | This PR | After merge |');
+      expect(result).toContain('| `@a/notes` | 0.5.0 | 0.5.0 | 0.5.0 |');
+      expect(result).toContain('| `@a/version` | 0.4.0 | 0.4.0 | 0.4.0 |');
       expect(result).not.toContain('Approximate. The standing PR rebuilds');
     });
 

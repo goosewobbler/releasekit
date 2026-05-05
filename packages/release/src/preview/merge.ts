@@ -62,6 +62,11 @@ export function mergeForPreview(
       existing.status = 'escalated';
     } else {
       existing.status = 'unchanged';
+      // When only the standing version is invalid, prefer the current PR's valid prediction so
+      // the rendered "After merge" cell shows a real version rather than a garbled string.
+      if (semver.valid(cl.version) && existing.standing && !semver.valid(existing.standing)) {
+        existing.afterMerge = cl.version;
+      }
     }
   }
 
