@@ -31,6 +31,27 @@ describe('Tag Verification', () => {
         cwd: '/test/path',
         stdio: 'ignore',
       });
+      expect(mockExecSync).toHaveBeenCalledWith('git', ['merge-base', '--is-ancestor', 'v1.0.0', 'HEAD'], {
+        cwd: '/test/path',
+        stdio: 'ignore',
+      });
+    });
+
+    it('should return reachable: false when ref exists but is not an ancestor of HEAD', () => {
+      // First call (rev-parse) succeeds; second call (merge-base --is-ancestor) fails with exit 1
+      mockExecSync
+        .mockImplementationOnce(() => Buffer.from('abc123'))
+        .mockImplementationOnce(() => {
+          throw new Error('exit code 1');
+        });
+
+      const result = verifyTag('deadbeef', '/test/path');
+
+      expect(result).toEqual({
+        exists: true,
+        reachable: false,
+        error: "Ref 'deadbeef' exists but is not an ancestor of HEAD",
+      });
     });
 
     it('should return exists: false when tag does not exist', () => {

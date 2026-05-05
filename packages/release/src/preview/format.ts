@@ -340,18 +340,18 @@ function renderMergeTable(rows: MergedRow[]): string[] {
   // short-circuit message renders. 'standing-only' rows are pre-existing queued content
   // unrelated to this PR — including them would suppress the message in any real scenario.
   const prParticipatingRows = rows.filter((r) => r.status !== 'standing-only');
-  // No escalation when this PR contributes nothing to the standing scope (length === 0) OR when
-  // all packages it touches are already at a higher-or-equal version in the standing PR.
-  const noEscalation = prParticipatingRows.length === 0 || prParticipatingRows.every((r) => r.status === 'unchanged');
-  if (noEscalation) {
-    const lines: string[] = [
-      '### After merge — predicted release',
-      '',
-      "> No version escalation — this PR's changes will be included in the queued release without affecting the projected versions.",
-      '',
-    ];
-    // Show all rows so reviewers can see what's already queued for the packages this PR touches,
-    // even though no version escalation will occur.
+  const allUnchanged = prParticipatingRows.length > 0 && prParticipatingRows.every((r) => r.status === 'unchanged');
+  // When length === 0 the current PR's packages are entirely outside the standing PR's scope —
+  // they are NOT yet in the queue and won't be released until the standing PR rebuilds after merge.
+  // This needs a different message from allUnchanged (where they ARE already in the queue).
+  const outsideScope = prParticipatingRows.length === 0;
+
+  if (allUnchanged || outsideScope) {
+    const prose = outsideScope
+      ? "> This PR's packages are outside the standing PR's current scope — they will be picked up when the standing PR rebuilds after merge."
+      : "> No version escalation — this PR's changes will be included in the queued release without affecting the projected versions.";
+    const lines: string[] = ['### After merge — predicted release', '', prose, ''];
+    // Show all rows so reviewers can see what's already queued.
     if (rows.length > 0) {
       lines.push(
         '| Package | Standing PR | This PR | After merge |',
