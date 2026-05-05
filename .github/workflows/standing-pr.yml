@@ -49,10 +49,27 @@ jobs:
         run: |
           set -euo pipefail
           STANDING_PR_BRANCH=$(jq -r '.ci.standingPr.branch // "release/next"' releasekit.config.json)
-          # Let gh api fail loudly: a transient API error here would otherwise look identical to
-          # "no PR for this commit", silently routing a release-PR merge to update-release-pr
-          # instead of publish-release and skipping the actual publish.
-          PRS=$(gh api "repos/$REPO/commits/$COMMIT_SHA/pulls")
+
+          # Retry transient API errors (rate limits, 5xx, network blips) before giving up. The
+          # API call distinguishes "no PR for this commit" (returns []) from real failures, so
+          # silent fall-through to update-release-pr is only safe when we got a successful
+          # response. On persistent failure we fail the job loudly — both downstream jobs will
+          # be skipped, but the next push retries the workflow.
+          PRS=""
+          for attempt in 1 2 3; do
+            if PRS=$(gh api "repos/$REPO/commits/$COMMIT_SHA/pulls" 2>&1); then
+              break
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::gh api failed (attempt $attempt/3): $PRS — retrying after ${attempt}s"
+              sleep "$attempt"
+              PRS=""
+            else
+              echo "::error::gh api failed after 3 attempts: $PRS"
+              exit 1
+            fi
+          done
+
           PR_NUM=$(echo "$PRS" | jq --arg branch "$STANDING_PR_BRANCH" -r \
             '[.[] | select(.head.ref == $branch)][0].number // empty')
           if [ -n "$PR_NUM" ]; then
