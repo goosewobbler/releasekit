@@ -63,6 +63,7 @@ function createMockOctokit(overrides: Record<string, unknown> = {}) {
   const pullsGet = vi.fn().mockResolvedValue({ data: { body: '' } });
   const pullsMerge = vi.fn().mockResolvedValue({});
   const issuesSetLabels = vi.fn().mockResolvedValue({});
+  const issuesCreateLabel = vi.fn().mockResolvedValue({});
   const createCommitStatus = vi.fn().mockResolvedValue({});
 
   const paginate = {
@@ -81,6 +82,7 @@ function createMockOctokit(overrides: Record<string, unknown> = {}) {
           listComments: vi.fn(),
           createComment,
           updateComment,
+          createLabel: issuesCreateLabel,
           setLabels: issuesSetLabels,
         },
         pulls: {
@@ -105,6 +107,7 @@ function createMockOctokit(overrides: Record<string, unknown> = {}) {
       pullsGet,
       pullsMerge,
       issuesSetLabels,
+      issuesCreateLabel,
       paginate,
       createCommitStatus,
     },

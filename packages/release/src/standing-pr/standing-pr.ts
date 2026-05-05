@@ -679,6 +679,21 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // taking the union of currently-applied labels and the configured set. Without this,
   // every update would wipe maintainer overrides.
   if (labels.length > 0) {
+    // Ensure each configured label exists in the repo with a description. createLabel
+    // throws 422 if the label already exists — that's expected and ignored.
+    for (const label of labels) {
+      try {
+        await octokit.rest.issues.createLabel({
+          owner,
+          repo,
+          name: label,
+          color: 'ededed',
+          description: 'ReleaseKit: marks this PR for automated release',
+        });
+      } catch {
+        // Label already exists — no action needed.
+      }
+    }
     try {
       const currentLabels = existingStandingPr?.labels ?? [];
       const mergedLabels = [...new Set([...currentLabels, ...labels])];
@@ -689,7 +704,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
         labels: mergedLabels,
       });
     } catch {
-      warn('Failed to apply labels to standing PR (labels may not exist in the repository)');
+      warn('Failed to apply labels to standing PR');
     }
   }
 
