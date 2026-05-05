@@ -32,17 +32,23 @@ jobs:
     outputs:
       pr_number: ${{ steps.detect.outputs.pr_number }}
     steps:
+      # Sparse checkout of just the config file — avoids cloning the whole repo while letting
+      # the branch name come from a single source of truth (ci.standingPr.branch).
+      - name: Checkout config
+        uses: actions/checkout@v6.0.2
+        with:
+          sparse-checkout: releasekit.config.json
+          sparse-checkout-cone-mode: false
+
       - name: Find PR for merge commit
         id: detect
         env:
           COMMIT_SHA: ${{ github.sha }}
           REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
-          # Must match ci.standingPr.branch in releasekit.config.json. Hardcoded here so this job
-          # doesn't need a checkout — keep in sync if you customize the standing-PR branch.
-          STANDING_PR_BRANCH: release/next
         run: |
           set -euo pipefail
+          STANDING_PR_BRANCH=$(jq -r '.ci.standingPr.branch // "release/next"' releasekit.config.json)
           # Let gh api fail loudly: a transient API error here would otherwise look identical to
           # "no PR for this commit", silently routing a release-PR merge to update-release-pr
           # instead of publish-release and skipping the actual publish.
@@ -53,7 +59,7 @@ jobs:
             echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
             echo "Detected standing PR merge: PR #$PR_NUM (head: $STANDING_PR_BRANCH)"
           else
-            echo "No standing PR merge detected for this push"
+            echo "No standing PR merge detected for this push (looking for head: $STANDING_PR_BRANCH)"
           fi
 
   update-release-pr:
