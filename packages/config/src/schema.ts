@@ -319,7 +319,7 @@ export const StandingPrConfigSchema = z.object({
 });
 
 export const CIConfigSchema = z.object({
-  releaseStrategy: z.enum(['manual', 'direct', 'standing-pr', 'scheduled']).default('direct'),
+  releaseStrategy: z.enum(['manual', 'direct', 'standing-pr']).default('direct'),
   releaseTrigger: z.enum(['commit', 'label']).default('label'),
   prPreview: z.boolean().default(true),
   autoRelease: z.boolean().default(false),

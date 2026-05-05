@@ -475,7 +475,7 @@ describe('CIConfigSchema', () => {
   });
 
   it('should accept all releaseStrategy values', () => {
-    for (const strategy of ['manual', 'direct', 'standing-pr', 'scheduled'] as const) {
+    for (const strategy of ['manual', 'direct', 'standing-pr'] as const) {
       expect(CIConfigSchema.parse({ releaseStrategy: strategy }).releaseStrategy).toBe(strategy);
     }
   });

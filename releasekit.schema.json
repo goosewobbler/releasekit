@@ -797,11 +797,10 @@
           "enum": [
             "manual",
             "direct",
-            "standing-pr",
-            "scheduled"
+            "standing-pr"
           ],
           "default": "direct",
-          "description": "How releases are delivered. 'direct': release on merge to main. 'manual': releases triggered manually (e.g. workflow_dispatch). 'standing-pr': changes accumulate in a release PR. 'scheduled': releases triggered on a schedule."
+          "description": "How releases are delivered. 'direct': release on merge to main. 'manual': releases triggered manually (e.g. workflow_dispatch). 'standing-pr': changes accumulate in a release PR."
         },
         "releaseTrigger": {
           "type": "string",
