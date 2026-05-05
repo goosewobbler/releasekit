@@ -335,7 +335,7 @@ export async function fetchStandingPRSnapshot(
   let gateState: 'success' | 'pending' = 'success';
   let gateReason: string | undefined;
 
-  if (minAge && manifest.firstUpdatedAt) {
+  if (minAge !== undefined && manifest.firstUpdatedAt) {
     const minAgeMs = parseDuration(minAge);
     if (minAgeMs !== null) {
       const ageMs = Date.now() - new Date(manifest.firstUpdatedAt).getTime();

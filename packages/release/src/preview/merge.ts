@@ -29,7 +29,7 @@ export function mergeForPreview(
   const byName = new Map<string, MergedRow>();
 
   for (const cl of standingChangelogs) {
-    if (!cl.entries.length) continue;
+    if (!cl.entries.length && cl.version === cl.previousVersion) continue;
     byName.set(cl.packageName, {
       packageName: cl.packageName,
       baseline: cl.previousVersion,
@@ -40,7 +40,7 @@ export function mergeForPreview(
   }
 
   for (const cl of currentChangelogs) {
-    if (!cl.entries.length) continue;
+    if (!cl.entries.length && cl.version === cl.previousVersion) continue;
     const existing = byName.get(cl.packageName);
     if (!existing) {
       byName.set(cl.packageName, {

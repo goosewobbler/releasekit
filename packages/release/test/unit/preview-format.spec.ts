@@ -6,7 +6,7 @@ import type { StandingPRSnapshot } from '../../src/standing-pr/standing-pr.js';
 import type { ReleaseOutput } from '../../src/types.js';
 
 function snapshotFor(
-  updates: Array<{ name: string; version: string }>,
+  updates: Array<{ name: string; version: string; previousVersion?: string }>,
   overrides: Partial<StandingPRSnapshot> = {},
 ): StandingPRSnapshot {
   return {
@@ -23,7 +23,14 @@ function snapshotFor(
           newVersion: u.version,
           filePath: `packages/${u.name}/package.json`,
         })),
-        changelogs: [],
+        changelogs: updates.map((u) => ({
+          packageName: u.name,
+          version: u.version,
+          previousVersion: u.previousVersion ?? '0.4.0',
+          revisionRange: `v${u.previousVersion ?? '0.4.0'}..HEAD`,
+          repoUrl: null,
+          entries: [],
+        })),
         tags: [],
       },
       releaseNotes: {},
@@ -438,9 +445,9 @@ describe('formatPreviewComment', () => {
       expect(result).toContain('| `@a/version` | 0.3.1 | 0.3.2 |');
     });
 
-    it('should omit the queued table when snapshot has no changelogs with entries', () => {
-      const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
-      // changelogs is empty by default in snapshotFor
+    it('should omit the queued table when snapshot has no packages being released', () => {
+      // version === previousVersion means the package is not being released
+      const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0', previousVersion: '0.5.0' }]);
       const result = formatPreviewComment(null, { strategy: 'standing-pr', standingPrSnapshot: snapshot });
       expect(result).not.toContain('### Currently queued for release');
     });

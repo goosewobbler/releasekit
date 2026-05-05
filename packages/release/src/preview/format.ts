@@ -287,8 +287,9 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
 }
 
 function renderStandingPRSnapshot(snapshot: StandingPRSnapshot): string[] {
-  const updates = snapshot.manifest.versionOutput.updates;
-  const pkgCount = updates.length;
+  const pkgCount = snapshot.manifest.versionOutput.changelogs.filter(
+    (cl) => cl.entries.length > 0 || cl.version !== cl.previousVersion,
+  ).length;
   const gateBadge = snapshot.gateState === 'pending' ? `⏳ ${snapshot.gateReason ?? 'pending'}` : '✅ ready to merge';
   const ageMs = Math.max(0, Date.now() - new Date(snapshot.openedAt).getTime());
   const ageStr = formatDuration(ageMs);
@@ -300,7 +301,9 @@ function renderStandingPRSnapshot(snapshot: StandingPRSnapshot): string[] {
 }
 
 function renderQueuedTable(snapshot: StandingPRSnapshot): string[] {
-  const changelogs = snapshot.manifest.versionOutput.changelogs.filter((cl) => cl.entries.length > 0);
+  const changelogs = snapshot.manifest.versionOutput.changelogs.filter(
+    (cl) => cl.entries.length > 0 || cl.version !== cl.previousVersion,
+  );
   if (changelogs.length === 0) return [];
   const lines: string[] = [
     '',

@@ -114,9 +114,16 @@ describe('mergeForPreview', () => {
     expect(rows[0]).toMatchObject({ status: 'escalated', afterMerge: '2.0.0' });
   });
 
-  it('should skip changelogs with no entries', () => {
-    const empty: VersionPackageChangelog = { ...changelog('@a/notes', '1.0.0', '1.1.0'), entries: [] };
-    const rows = mergeForPreview([empty], []);
+  it('should include sync-bumped packages (no entries but version changed)', () => {
+    const synced: VersionPackageChangelog = { ...changelog('@a/notes', '1.0.0', '1.1.0'), entries: [] };
+    const rows = mergeForPreview([synced], []);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ packageName: '@a/notes', standing: '1.1.0', status: 'standing-only' });
+  });
+
+  it('should skip packages with no entries and no version change', () => {
+    const unchanged: VersionPackageChangelog = { ...changelog('@a/notes', '1.0.0', '1.0.0'), entries: [] };
+    const rows = mergeForPreview([unchanged], []);
     expect(rows).toEqual([]);
   });
 });
