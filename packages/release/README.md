@@ -287,8 +287,8 @@ The `ci` section controls automation behavior:
 
     // Customise PR label names
     "labels": {
-      "stable": "release:stable",
-      "prerelease": "release:prerelease",
+      "stable": "channel:stable",
+      "prerelease": "channel:prerelease",
       "skip": "release:skip",
       "major": "bump:major",
       "minor": "bump:minor",
@@ -311,7 +311,7 @@ The `ci` section controls automation behavior:
 
 **`commit`** — Conventional commits drive the bump type automatically. Every merge can trigger a release. Use the `release:skip` label to prevent a release, or `bump:major` to override the commit-derived bump to major.
 
-Both modes support `release:stable` and `release:prerelease` as channel modifiers. `release:stable` alone graduates any prerelease packages to their stable base version and skips packages that are already stable — no bump label required. `release:prerelease` must be combined with a `bump:*` label — alone, it does not trigger a release.
+Both modes support `channel:stable` and `channel:prerelease` as channel modifiers. `channel:stable` alone graduates any prerelease packages to their stable base version and skips packages that are already stable — no bump label required. `channel:prerelease` must be combined with a `bump:*` label — alone, it does not trigger a release.
 
 #### Release Strategy
 
@@ -359,7 +359,7 @@ Multiple scope labels are combined with OR logic. Without a `release:*` label, c
 
 In label trigger mode, conflicting labels will block the release and post a comment explaining the issue:
 - Multiple bump labels (`bump:major` + `bump:minor` + `bump:patch`) → blocked
-- Conflicting release type (`release:stable` + `release:prerelease`) → blocked (both modes)
+- Conflicting release type (`channel:stable` + `channel:prerelease`) → blocked (both modes)
 
 **How it works:**
 
