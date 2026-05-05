@@ -340,8 +340,10 @@ function renderMergeTable(rows: MergedRow[]): string[] {
   // short-circuit message renders. 'standing-only' rows are pre-existing queued content
   // unrelated to this PR — including them would suppress the message in any real scenario.
   const prParticipatingRows = rows.filter((r) => r.status !== 'standing-only');
-  const allUnchanged = prParticipatingRows.length > 0 && prParticipatingRows.every((r) => r.status === 'unchanged');
-  if (allUnchanged) {
+  // No escalation when this PR contributes nothing to the standing scope (length === 0) OR when
+  // all packages it touches are already at a higher-or-equal version in the standing PR.
+  const noEscalation = prParticipatingRows.length === 0 || prParticipatingRows.every((r) => r.status === 'unchanged');
+  if (noEscalation) {
     const lines: string[] = [
       '### After merge — predicted release',
       '',

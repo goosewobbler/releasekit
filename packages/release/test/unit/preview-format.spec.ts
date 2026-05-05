@@ -437,6 +437,28 @@ describe('formatPreviewComment', () => {
       expect(result).not.toContain('Approximate. The standing PR rebuilds');
     });
 
+    it('should show no-escalation prose when all merged rows are standing-only (current PR out of scope)', () => {
+      const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
+      const standingOnlyRows: MergedRow[] = [
+        {
+          packageName: '@a/notes',
+          baseline: '0.4.0',
+          standing: '0.5.0',
+          afterMerge: '0.5.0',
+          status: 'standing-only',
+        },
+      ];
+      const result = formatPreviewComment(releaseOutput, {
+        strategy: 'standing-pr',
+        standingPrSnapshot: snapshot,
+        mergedRows: standingOnlyRows,
+      });
+      expect(result).toContain('### After merge — predicted release');
+      expect(result).toContain('No version escalation');
+      expect(result).toContain('| `@a/notes` | 0.5.0 | — | 0.5.0 |');
+      expect(result).not.toContain('Approximate. The standing PR rebuilds');
+    });
+
     it('should omit the merge table when no rows are provided', () => {
       const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
       const result = formatPreviewComment(releaseOutput, { strategy: 'standing-pr', standingPrSnapshot: snapshot });
