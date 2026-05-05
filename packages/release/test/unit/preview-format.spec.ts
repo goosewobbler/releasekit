@@ -348,6 +348,15 @@ describe('formatPreviewComment', () => {
       expect(result).not.toContain('✅ ready to merge');
     });
 
+    it('should render all conflict reasons joined in the gate badge', () => {
+      const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }], {
+        gateState: 'pending',
+        gateReason: 'Conflicting bump labels; Conflicting channel labels',
+      });
+      const result = formatPreviewComment(null, { strategy: 'standing-pr', standingPrSnapshot: snapshot });
+      expect(result).toContain('⏳ Conflicting bump labels; Conflicting channel labels');
+    });
+
     it('should omit the snapshot when strategy is not standing-pr (defensive)', () => {
       const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
       const result = formatPreviewComment(releaseOutput, { strategy: 'direct', standingPrSnapshot: snapshot });

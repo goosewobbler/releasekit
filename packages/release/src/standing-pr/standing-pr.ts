@@ -331,6 +331,9 @@ export async function fetchStandingPRSnapshot(
     return null;
   }
 
+  // firstUpdatedAt is only present on schema-v2 manifests. For schema-v1, createdAt is the
+  // latest-update timestamp (not the PR-open timestamp), so the displayed age will be ~0 until
+  // the next standing-pr update rewrites the manifest to schema v2.
   const openedAt = manifest.firstUpdatedAt ?? manifest.createdAt;
   const minAge = ciConfig?.standingPr?.minAge;
   let gateState: 'success' | 'pending' = 'success';
@@ -340,7 +343,7 @@ export async function fetchStandingPRSnapshot(
   const overrides = resolveStandingPrLabelOverrides(pr.labels, ciConfig);
   if (overrides.conflicts.length > 0) {
     gateState = 'pending';
-    gateReason = overrides.conflicts[0];
+    gateReason = overrides.conflicts.join('; ');
   } else if (minAge !== undefined && manifest.firstUpdatedAt) {
     const minAgeMs = parseDuration(minAge);
     if (minAgeMs !== null) {
