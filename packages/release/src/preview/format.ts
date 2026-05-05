@@ -306,7 +306,7 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
 function renderStandingPRSnapshot(snapshot: StandingPRSnapshot): string[] {
   const updates = snapshot.manifest.versionOutput.updates;
   const pkgCount = updates.length;
-  const gateBadge = snapshot.gateState === 'pending' ? `⏳ ${snapshot.gateReason}` : '✅ ready to merge';
+  const gateBadge = snapshot.gateState === 'pending' ? `⏳ ${snapshot.gateReason ?? 'pending'}` : '✅ ready to merge';
   const ageMs = Math.max(0, Date.now() - new Date(snapshot.openedAt).getTime());
   const ageStr = formatDuration(ageMs);
   const pkgWord = pkgCount === 1 ? 'package' : 'packages';

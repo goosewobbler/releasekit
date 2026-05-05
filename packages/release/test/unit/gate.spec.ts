@@ -70,6 +70,7 @@ describe('Gate', () => {
           stable: 'channel:stable',
           prerelease: 'channel:prerelease',
           skip: 'release:skip',
+          immediate: 'release:immediate',
         },
       },
     });
@@ -112,6 +113,7 @@ describe('Gate', () => {
           minor: 'bump:minor',
           patch: 'bump:patch',
           skip: 'release:skip',
+          immediate: 'release:immediate',
         },
       },
     });
@@ -142,6 +144,7 @@ describe('Gate', () => {
           minor: 'bump:minor',
           patch: 'bump:patch',
           skip: 'release:skip',
+          immediate: 'release:immediate',
         },
       },
     });
@@ -375,6 +378,7 @@ describe('Gate', () => {
           stable: 'channel:stable',
           prerelease: 'channel:prerelease',
           skip: 'release:skip',
+          immediate: 'release:immediate',
         },
         scopeLabels: {
           'scope:electron': '@wdio/electron-*',
@@ -410,6 +414,7 @@ describe('Gate', () => {
           stable: 'channel:stable',
           prerelease: 'channel:prerelease',
           skip: 'release:skip',
+          immediate: 'release:immediate',
         },
         scopeLabels: {
           'scope:utils': '@wdio/native-utils',
@@ -529,6 +534,7 @@ describe('Gate', () => {
             stable: 'channel:stable',
             prerelease: 'channel:prerelease',
             skip: 'release:skip',
+            immediate: 'release:immediate',
           },
         },
       });

@@ -53,7 +53,11 @@ export function mergeForPreview(
       continue;
     }
     existing.current = cl.version;
-    if (existing.standing && semver.gt(cl.version, existing.standing)) {
+    // Guard semver comparison against malformed version strings (older manifests, unexpected
+    // calculator output) — semver.gt throws on invalid input, which would otherwise abort the
+    // entire preview. Treat unparseable versions as 'unchanged' to keep the preview non-fatal.
+    const bothValid = semver.valid(cl.version) && existing.standing && semver.valid(existing.standing);
+    if (bothValid && existing.standing && semver.gt(cl.version, existing.standing)) {
       existing.afterMerge = cl.version;
       existing.status = 'escalated';
     } else {

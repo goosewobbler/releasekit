@@ -362,10 +362,9 @@ interface StandingPrOverrides {
   conflicts: string[];
 }
 
-const NO_OVERRIDES: StandingPrOverrides = { conflicts: [] };
-
 function resolveStandingPrLabelOverrides(prLabels: string[], ciConfig: CIConfig | undefined): StandingPrOverrides {
-  if (!prLabels || prLabels.length === 0) return NO_OVERRIDES;
+  // Return a fresh object rather than a shared constant — callers may mutate `conflicts`.
+  if (!prLabels || prLabels.length === 0) return { conflicts: [] };
   const labels = ciConfig?.labels ?? {
     stable: 'channel:stable',
     prerelease: 'channel:prerelease',

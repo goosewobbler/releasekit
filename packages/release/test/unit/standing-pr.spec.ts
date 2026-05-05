@@ -191,6 +191,7 @@ describe('runStandingPRUpdate', () => {
         stable: 'channel:stable',
         prerelease: 'channel:prerelease',
         skip: 'release:skip',
+        immediate: 'release:immediate',
         major: 'bump:major',
         minor: 'bump:minor',
         patch: 'bump:patch',
@@ -1066,6 +1067,7 @@ describe('runStandingPRUpdate — editableNotes', () => {
         stable: 'channel:stable',
         prerelease: 'channel:prerelease',
         skip: 'release:skip',
+        immediate: 'release:immediate',
         major: 'bump:major',
         minor: 'bump:minor',
         patch: 'bump:patch',
@@ -1084,7 +1086,7 @@ describe('runStandingPRUpdate — editableNotes', () => {
     vi.mocked(loadConfig).mockReturnValue(editableConfig as ReturnType<typeof loadConfig>);
 
     const { execSync } = await import('node:child_process');
-    vi.mocked(execSync).mockReturnValue(Buffer.from('abc123\n'));
+    vi.mocked(execSync).mockReturnValue('abc123\n');
   });
 
   afterEach(() => {

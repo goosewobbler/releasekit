@@ -239,6 +239,9 @@ async function applyLabelOverrides(
   };
 
   // Scope labels — multi-scope is supported in preview (gate picks one; preview shows all).
+  // Track label names (for the banner) and patterns (for runRelease target) separately so the
+  // advisory banner shows e.g. `scope:docs` rather than the configured glob `packages/docs/**`.
+  const matchedScopeLabelNames: string[] = [];
   const matchedScopePatterns: string[] = [];
   for (const [labelName, packagePattern] of Object.entries(scopeLabels)) {
     if (prLabels.includes(labelName)) {
@@ -247,10 +250,11 @@ async function applyLabelOverrides(
       } else {
         info(`PR label "${labelName}" detected — limiting release to packages matching "${packagePattern}"`);
       }
+      matchedScopeLabelNames.push(labelName);
       matchedScopePatterns.push(packagePattern);
     }
   }
-  labelContext.scopeLabels = matchedScopePatterns;
+  labelContext.scopeLabels = matchedScopeLabelNames;
 
   // Only propagate scope to the runRelease target when it would actually drive a release.
   // In advisory-standing-pr mode, the labels are recorded for display only.

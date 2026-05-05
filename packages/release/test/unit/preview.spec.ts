@@ -699,12 +699,14 @@ describe('runPreview', () => {
 
       await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
+      // Banner shows the LABEL NAME (what the author can recognise on the PR), not the
+      // configured glob pattern. result.target still uses the pattern.
       expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
         expect.anything(),
         'owner',
         'repo',
         1,
-        expect.stringContaining('**Scope:** @wdio/native-*'),
+        expect.stringContaining('**Scope:** scope:shared'),
       );
     });
 
