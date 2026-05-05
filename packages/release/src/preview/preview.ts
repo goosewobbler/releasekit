@@ -318,6 +318,44 @@ async function applyLabelOverrides(
     return { options: result, labelContext };
   }
 
+  // `release:immediate` short-circuits label-trigger gating. The user has opted into a direct
+  // release for this PR, so the rule "must have a bump:* label" doesn't apply — commits drive
+  // the bump (matching what merging the standing PR would do). Explicit bump/channel labels are
+  // still honored as overrides when present.
+  if (hasImmediate) {
+    const conflict = detectLabelConflicts(prLabels, labels);
+    if (conflict.bumpConflict) {
+      labelContext.bumpConflict = true;
+      labelContext.noBumpLabel = true;
+      warn(`Conflicting bump labels detected (${conflict.bumpLabelsPresent.join(', ')}) — release blocked`);
+    }
+    if (conflict.prereleaseConflict) {
+      labelContext.prereleaseConflict = true;
+      labelContext.noBumpLabel = true;
+      warn(`Conflicting labels "${labels.stable}" and "${labels.prerelease}" detected — release blocked`);
+    }
+    if (!labelContext.noBumpLabel) {
+      if (prLabels.includes(labels.major)) {
+        labelContext.bumpLabel = 'major';
+        result.bump = 'major';
+      } else if (prLabels.includes(labels.minor)) {
+        labelContext.bumpLabel = 'minor';
+        result.bump = 'minor';
+      } else if (prLabels.includes(labels.patch)) {
+        labelContext.bumpLabel = 'patch';
+        result.bump = 'patch';
+      }
+      if (prLabels.includes(labels.stable)) {
+        labelContext.stable = true;
+        result.stable = true;
+      } else if (prLabels.includes(labels.prerelease)) {
+        labelContext.prerelease = true;
+        result.prerelease = true;
+      }
+    }
+    return { options: result, labelContext };
+  }
+
   if (trigger === 'label') {
     // Single source of truth: the gate's per-PR evaluation. Preview shows exactly the
     // verdict the gate would produce for THIS PR's labels — never lies.

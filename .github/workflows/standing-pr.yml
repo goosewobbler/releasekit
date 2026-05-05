@@ -20,9 +20,69 @@ env:
   TURBO_TELEMETRY_DISABLED: 1
 
 jobs:
+  # Runs first on every push to main so the downstream jobs can serialize on its output:
+  # if the push is the merge of a release/* PR, only `publish-release` runs;
+  # otherwise only `update-release-pr` runs. Without this gate, both would run in parallel
+  # and `update-release-pr` could collect the just-released commits as "unreleased" before
+  # `publish-release` finishes tagging.
+  detect-release-merge:
+    name: Detect release merge
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.detect.outputs.pr_number }}
+    steps:
+      # Sparse checkout of just the config file — avoids cloning the whole repo while letting
+      # the branch name come from a single source of truth (ci.standingPr.branch).
+      - name: Checkout config
+        uses: actions/checkout@v6.0.2
+        with:
+          sparse-checkout: releasekit.config.json
+          sparse-checkout-cone-mode: false
+
+      - name: Find PR for merge commit
+        id: detect
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          STANDING_PR_BRANCH=$(jq -r '.ci.standingPr.branch // "release/next"' releasekit.config.json)
+
+          # Retry transient API errors (rate limits, 5xx, network blips) before giving up. The
+          # API call distinguishes "no PR for this commit" (returns []) from real failures, so
+          # silent fall-through to update-release-pr is only safe when we got a successful
+          # response. On persistent failure we fail the job loudly — both downstream jobs will
+          # be skipped, but the next push retries the workflow.
+          PRS=""
+          for attempt in 1 2 3; do
+            if PRS=$(gh api "repos/$REPO/commits/$COMMIT_SHA/pulls" 2>&1); then
+              break
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::gh api failed (attempt $attempt/3): $PRS — retrying after ${attempt}s"
+              sleep "$attempt"
+              PRS=""
+            else
+              echo "::error::gh api failed after 3 attempts: $PRS"
+              exit 1
+            fi
+          done
+
+          PR_NUM=$(echo "$PRS" | jq --arg branch "$STANDING_PR_BRANCH" -r \
+            '[.[] | select(.head.ref == $branch)][0].number // empty')
+          if [ -n "$PR_NUM" ]; then
+            echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
+            echo "Detected standing PR merge: PR #$PR_NUM (head: $STANDING_PR_BRANCH)"
+          else
+            echo "No standing PR merge detected for this push (looking for head: $STANDING_PR_BRANCH)"
+          fi
+
   update-release-pr:
     name: Update Release PR
-    if: github.event_name == 'push'
+    needs: detect-release-merge
+    if: github.event_name == 'push' && needs.detect-release-merge.outputs.pr_number == ''
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -90,10 +150,8 @@ jobs:
 
   publish-release:
     name: Publish Release
-    if: >
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.merged == true &&
-      startsWith(github.event.pull_request.head.ref, 'release/')
+    needs: detect-release-merge
+    if: needs.detect-release-merge.outputs.pr_number != ''
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -114,6 +172,6 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Publish from release PR
-        run: node packages/release/dist/cli.js standing-pr publish
+        run: node packages/release/dist/cli.js standing-pr publish --pr "${{ needs.detect-release-merge.outputs.pr_number }}"
         env:
           GITHUB_TOKEN: ${{ github.token }}

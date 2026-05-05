@@ -1032,6 +1032,21 @@ describe('runPreview', () => {
       expect(mockFetchStandingPRSnapshot).not.toHaveBeenCalled();
     });
 
+    it('should run version analysis with commit-driven bump when release:immediate is set without a bump label', async () => {
+      // Mirrors the bypass workflow: `releasekit release` with no --bump runs commit-driven.
+      // Previously the preview required a bump:* label and rendered "no release", contradicting
+      // the "bypassing the standing PR for a direct release" banner.
+      mockLoadCIConfig.mockReturnValue(ciWithLabels({ scopeLabels: { 'scope:all': '*' } }));
+      mockFetchPRLabels.mockResolvedValue(['release:immediate', 'scope:all']);
+
+      await runPreview({ projectDir: '/test', dryRun: false });
+
+      expect(mockRunRelease).toHaveBeenCalled();
+      const callArg = mockRunRelease.mock.calls[0]?.[0] as { bump?: string; target?: string };
+      expect(callArg?.bump).toBeUndefined();
+      expect(callArg?.target).toBe('*');
+    });
+
     it('should still propagate bump label in direct strategy mode (no change)', async () => {
       mockLoadCIConfig.mockReturnValue({
         releaseStrategy: 'direct',

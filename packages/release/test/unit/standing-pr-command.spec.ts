@@ -37,7 +37,32 @@ describe('createStandingPRCommand', () => {
   it('should call runStandingPRPublish for publish subcommand', async () => {
     const { runStandingPRPublish } = await import('../../src/standing-pr/standing-pr.js');
     await parseCommand(['publish', '--project-dir', '/test']);
-    expect(runStandingPRPublish).toHaveBeenCalledWith(expect.objectContaining({ projectDir: '/test' }));
+    expect(runStandingPRPublish).toHaveBeenCalledWith(expect.objectContaining({ projectDir: '/test' }), undefined);
+  });
+
+  it('should pass --pr through to runStandingPRPublish as a number', async () => {
+    const { runStandingPRPublish } = await import('../../src/standing-pr/standing-pr.js');
+    await parseCommand(['publish', '--project-dir', '/test', '--pr', '189']);
+    expect(runStandingPRPublish).toHaveBeenCalledWith(expect.objectContaining({ projectDir: '/test' }), 189);
+  });
+
+  it('should reject --pr values with trailing non-digit characters', async () => {
+    const { runStandingPRPublish } = await import('../../src/standing-pr/standing-pr.js');
+    vi.mocked(runStandingPRPublish).mockClear();
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`process.exit(${code})`);
+    }) as never);
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await expect(parseCommand(['publish', '--project-dir', '/test', '--pr', '123abc'])).rejects.toThrow(
+        /process\.exit/,
+      );
+      expect(runStandingPRPublish).not.toHaveBeenCalled();
+      expect(errSpy).toHaveBeenCalledWith(expect.stringContaining('positive integer'));
+    } finally {
+      exitSpy.mockRestore();
+      errSpy.mockRestore();
+    }
   });
 
   it('should pass --verbose, --quiet, --json flags through', async () => {
