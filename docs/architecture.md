@@ -116,6 +116,8 @@ Both modes support `bump:major` as an override and `channel:stable`/`channel:pre
 | Skip a release | add `release:skip` label | omit bump label |
 | Override to major | add `bump:major` label | add `bump:major` label |
 
+> **In standing-pr strategy, label semantics differ.** Feeder PR labels (`bump:*`, `scope:*`, `channel:*`) are advisory — they're rendered in the preview but don't drive behavior on merge. The standing PR itself is the canonical override surface: add `bump:major` etc. to the standing PR to drive the next release. To bypass the queue and ship a single PR directly, label it `release:immediate`. See [CI setup → Label semantics in standing-pr mode](../packages/release/docs/ci-setup.md#label-semantics-in-standing-pr-mode).
+
 ---
 
 ## LLM enhancement

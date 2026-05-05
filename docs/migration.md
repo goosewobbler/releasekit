@@ -117,19 +117,25 @@ For a monorepo, change `changelog.mode` to `"packages"` and list your packages i
 
 | changesets concept | releasekit equivalent |
 |---|---|
-| `.changeset/*.md` files | `bump:*` PR labels (or conventional commits) |
-| `pnpm changeset` (create changeset) | Add `bump:minor` (or other) label to the PR |
-| `pnpm changeset version` | `releasekit standing-pr update` |
+| `.changeset/*.md` files | Conventional commits across feeder PRs (default) |
+| `pnpm changeset` (create changeset) | Write conventional commit messages (`feat:`, `fix:`); the standing PR's bump is computed from the union of commits |
+| Override the bump on the upcoming release | Add `bump:major` (or other) **on the standing PR itself** |
+| `pnpm changeset version` | `releasekit standing-pr update` (runs automatically) |
 | "Version Packages" PR | Standing release PR (`ci.releaseStrategy: "standing-pr"`) |
-| `pnpm changeset publish` | `releasekit standing-pr publish` (or `releasekit release`) |
+| `pnpm changeset publish` | Merge the standing PR (publish runs automatically) |
+| Ship one PR urgently without queueing | Add `release:immediate` to the feeder PR |
 | `.changeset/config.json` | `releasekit.config.json` |
 | `fixed` packages (move together) | `version.sync: true` |
 | `linked` packages | Not directly supported; use `version.sync` |
 | `ignore` packages | `version.skip` array |
 
-The main conceptual shift is that bump intent moves from committed markdown files to PR labels.
-This keeps your repository history clean and avoids merge conflicts on `.changeset/` files in
-active monorepos.
+The main conceptual shift is that bump intent moves from committed markdown files to **the
+standing PR itself**. Conventional commits across feeder PRs are aggregated into the standing
+PR's bump; if you need to override the magnitude (e.g. escalate from minor to major), add a
+`bump:*` label directly to the standing release PR. Feeder-PR labels are advisory only —
+they're shown in the preview but don't drive behavior. This keeps your repository history
+clean (no `.changeset/` files), avoids merge conflicts on changesets in active monorepos, and
+gives you one canonical place to see and adjust what's about to release.
 
 ### Why the standing-PR strategy feels most familiar
 
@@ -175,13 +181,13 @@ Optional guardrails mirror changesets' workflow:
    }
    ```
 
-3. **Choose a release trigger.**
-   - `"releaseTrigger": "commit"` — conventional commits drive bump types automatically.
-     Every merged PR can contribute to the standing PR. This is the closest equivalent to
-     changesets' commit-driven mode.
-   - `"releaseTrigger": "label"` — explicit `bump:patch/minor/major` labels on each PR
-     control the bump type, analogous to choosing the bump level when running
-     `pnpm changeset`.
+3. **Pick a release trigger** (in standing-pr mode, this only affects the
+   `release:immediate` bypass path — see step 6; the standing PR itself is always
+   commit-driven regardless of trigger).
+   - `"releaseTrigger": "commit"` — for the immediate-release path, every merged PR with
+     `release:immediate` ships using conventional commits to determine the bump.
+   - `"releaseTrigger": "label"` — for the immediate-release path, the merged PR must
+     also carry `bump:patch/minor/major` to specify the magnitude.
 
 4. **Add the standing-PR workflow.** Copy the template from
    `templates/workflows/standing-pr.yml` into `.github/workflows/`. See
