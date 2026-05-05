@@ -307,7 +307,7 @@ describe('formatPreviewComment', () => {
   // --- Standing PR snapshot + merge table ---
 
   describe('standing PR snapshot', () => {
-    it('renders the snapshot block in the no-release branch when strategy is standing-pr', () => {
+    it('should render the snapshot block in the no-release branch when strategy is standing-pr', () => {
       const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
       const result = formatPreviewComment(null, { strategy: 'standing-pr', standingPrSnapshot: snapshot });
       expect(result).toContain('**Standing release PR:**');
@@ -316,7 +316,7 @@ describe('formatPreviewComment', () => {
       expect(result).toContain('✅ ready to merge');
     });
 
-    it('renders the snapshot block after the package list in the has-release branch', () => {
+    it('should render the snapshot one-liner above the collapsible details so it is always visible', () => {
       const snapshot = snapshotFor([
         { name: '@a/notes', version: '0.5.0' },
         { name: '@a/version', version: '0.3.2' },
@@ -324,14 +324,14 @@ describe('formatPreviewComment', () => {
       const result = formatPreviewComment(releaseOutput, { strategy: 'standing-pr', standingPrSnapshot: snapshot });
       expect(result).toContain('**Standing release PR:**');
       expect(result).toContain('2 packages queued');
-      // The snapshot block should appear after the package table
-      const tableIdx = result.indexOf('| `@releasekit/version` | 0.3.1 |');
+      // The snapshot must precede the <details> open tag (rendered outside, always visible).
+      const detailsIdx = result.indexOf('<details>');
       const snapshotIdx = result.indexOf('**Standing release PR:**');
-      expect(tableIdx).toBeGreaterThan(-1);
-      expect(snapshotIdx).toBeGreaterThan(tableIdx);
+      expect(snapshotIdx).toBeGreaterThan(-1);
+      expect(detailsIdx).toBeGreaterThan(snapshotIdx);
     });
 
-    it('shows the pending gate badge with countdown when gateState is pending', () => {
+    it('should show the pending gate badge with countdown when gateState is pending', () => {
       const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }], {
         gateState: 'pending',
         gateReason: 'Waiting 4h 20m for minAge',
@@ -341,13 +341,13 @@ describe('formatPreviewComment', () => {
       expect(result).not.toContain('✅ ready to merge');
     });
 
-    it('omits the snapshot when strategy is not standing-pr (defensive)', () => {
+    it('should omit the snapshot when strategy is not standing-pr (defensive)', () => {
       const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
       const result = formatPreviewComment(releaseOutput, { strategy: 'direct', standingPrSnapshot: snapshot });
       expect(result).not.toContain('**Standing release PR:**');
     });
 
-    it('renders the merge table with escalation, new, and unchanged annotations', () => {
+    it('should render the merge table with escalation, new, and unchanged annotations', () => {
       const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
       const mergedRows: MergedRow[] = [
         {
@@ -387,16 +387,62 @@ describe('formatPreviewComment', () => {
       expect(result).toContain('| `@a/version` | 0.3.2 | 0.3.2 | 0.3.2 |');
     });
 
-    it('omits the merge table when no rows are provided', () => {
+    it('should omit the merge table when no rows are provided', () => {
       const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
       const result = formatPreviewComment(releaseOutput, { strategy: 'standing-pr', standingPrSnapshot: snapshot });
       expect(result).not.toContain('### After merge');
     });
 
-    it('does not change output when no snapshot is provided (regression guard)', () => {
+    it('should not change output when no snapshot is provided (regression guard)', () => {
       const withoutSnapshot = formatPreviewComment(releaseOutput, { strategy: 'standing-pr' });
       expect(withoutSnapshot).not.toContain('**Standing release PR:**');
       expect(withoutSnapshot).not.toContain('### After merge');
+    });
+
+    it('should use "this PR contributes no changes" summary when snapshot is present and no result', () => {
+      const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
+      const result = formatPreviewComment(null, { strategy: 'standing-pr', standingPrSnapshot: snapshot });
+      expect(result).toContain('<summary><b>Release Preview</b> — this PR contributes no changes</summary>');
+      expect(result).not.toContain('— no release</summary>');
+    });
+
+    it('should keep "no release" summary when snapshot is absent', () => {
+      const result = formatPreviewComment(null, { strategy: 'standing-pr' });
+      expect(result).toContain('<summary><b>Release Preview</b> — no release</summary>');
+    });
+
+    it('should render a queued-for-release table inside the details when no result and snapshot has changelogs', () => {
+      const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
+      snapshot.manifest.versionOutput.changelogs = [
+        {
+          packageName: '@a/notes',
+          version: '0.5.0',
+          previousVersion: '0.4.2',
+          revisionRange: 'v0.4.2..HEAD',
+          repoUrl: null,
+          entries: [{ type: 'feat', description: 'queued change' }],
+        },
+        {
+          packageName: '@a/version',
+          version: '0.3.2',
+          previousVersion: '0.3.1',
+          revisionRange: 'v0.3.1..HEAD',
+          repoUrl: null,
+          entries: [{ type: 'fix', description: 'queued fix' }],
+        },
+      ];
+      const result = formatPreviewComment(null, { strategy: 'standing-pr', standingPrSnapshot: snapshot });
+      expect(result).toContain('### Currently queued for release');
+      expect(result).toContain('| Package | Current | Next |');
+      expect(result).toContain('| `@a/notes` | 0.4.2 | 0.5.0 |');
+      expect(result).toContain('| `@a/version` | 0.3.1 | 0.3.2 |');
+    });
+
+    it('should omit the queued table when snapshot has no changelogs with entries', () => {
+      const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
+      // changelogs is empty by default in snapshotFor
+      const result = formatPreviewComment(null, { strategy: 'standing-pr', standingPrSnapshot: snapshot });
+      expect(result).not.toContain('### Currently queued for release');
     });
   });
 

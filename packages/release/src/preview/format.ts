@@ -187,19 +187,26 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
   const mergedRows = strategy === 'standing-pr' ? options?.mergedRows : undefined;
   const lines: string[] = [MARKER, ''];
 
+  // Standing PR snapshot lives OUTSIDE the collapsible details so reviewers always see what's
+  // currently queued for release without having to expand the per-PR analysis.
+  if (standingPrSnapshot) {
+    lines.push(...renderStandingPRSnapshot(standingPrSnapshot));
+  }
+
   // Insert label-driven banner (outside the details block)
   const banner = getLabelBanner(labelContext);
 
   if (!result) {
-    // No changes or noBumpLabel — simple collapsed comment
-    lines.push('<details>', '<summary><b>Release Preview</b> — no release</summary>', '');
+    const summary = standingPrSnapshot
+      ? '<summary><b>Release Preview</b> — this PR contributes no changes</summary>'
+      : '<summary><b>Release Preview</b> — no release</summary>';
+    lines.push('<details>', summary, '');
     lines.push(...banner);
     if (!labelContext?.noBumpLabel) {
       lines.push(`> **Note:** No releasable changes detected. ${getNoChangesMessage(strategy)}`);
     }
     if (standingPrSnapshot) {
-      lines.push('', '---', '');
-      lines.push(...renderStandingPRSnapshot(standingPrSnapshot));
+      lines.push(...renderQueuedTable(standingPrSnapshot));
     }
     lines.push('', '---', FOOTER, '</details>');
     return lines.join('\n');
@@ -255,12 +262,8 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
     lines.push('');
   }
 
-  if (standingPrSnapshot) {
-    lines.push('---', '');
-    lines.push(...renderStandingPRSnapshot(standingPrSnapshot));
-    if (mergedRows && mergedRows.length > 0) {
-      lines.push(...renderMergeTable(mergedRows));
-    }
+  if (mergedRows && mergedRows.length > 0) {
+    lines.push(...renderMergeTable(mergedRows));
   }
 
   lines.push('---', FOOTER, '</details>');
@@ -278,6 +281,23 @@ function renderStandingPRSnapshot(snapshot: StandingPRSnapshot): string[] {
     `**Standing release PR:** [#${snapshot.number}](${snapshot.url}) · ${pkgCount} ${pkgWord} queued · open ${ageStr} · ${gateBadge}`,
     '',
   ];
+}
+
+function renderQueuedTable(snapshot: StandingPRSnapshot): string[] {
+  const changelogs = snapshot.manifest.versionOutput.changelogs.filter((cl) => cl.entries.length > 0);
+  if (changelogs.length === 0) return [];
+  const lines: string[] = [
+    '',
+    '### Currently queued for release',
+    '',
+    '| Package | Current | Next |',
+    '|---------|---------|------|',
+  ];
+  for (const cl of changelogs) {
+    lines.push(`| \`${cl.packageName}\` | ${cl.previousVersion ?? '—'} | ${cl.version} |`);
+  }
+  lines.push('');
+  return lines;
 }
 
 function renderMergeTable(rows: MergedRow[]): string[] {
