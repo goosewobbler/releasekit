@@ -234,7 +234,7 @@ Copy your existing `CHANGELOG.md` content into the file before the first Release
 Subsequent releases prepend new entries; existing content is left intact.
 
 **"My prerelease workflow is broken."**
-ReleaseKit uses the `--prerelease <id>` CLI flag or the `release:prerelease` PR label combined
+ReleaseKit uses the `--prerelease <id>` CLI flag or the `channel:prerelease` PR label combined
 with a `bump:*` label. See [CI setup](../packages/release/docs/ci-setup.md) for the label
 combination table and prerelease workflow examples.
 
