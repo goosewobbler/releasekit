@@ -1,63 +1,69 @@
-
-
-## `@releasekit/version` @ 0.20.0
-
-### New:
-- Publish operations now behave idempotently, allowing safe retries.
-
-### Fixed:
-- **Security**: Fixed shell injection vulnerability in e2e test runner by using execFileSync instead of exec.
+## `@releasekit/version` @ 0.21.0
 
 ### Changed:
-- Updated LLM provider interfaces and improved message handling for better reliability.
+- Enhanced standing PR preview to include merge prediction.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.3...releasekit-version-v0.20.0
+### Documentation:
+- Enhanced project documentation.
+
+### Developer:
+- **CI**: Reverted the release of 4 package(s).
+- **CI**: Released 4 package(s).
+
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.20.0...releasekit-version-v0.21.0
 
 ---
 
 
-## `@releasekit/notes` @ 0.20.0
-
-### New:
-- Made publish operations idempotent, allowing safe retries without duplicate content.
+## `@releasekit/notes` @ 0.21.0
 
 ### Fixed:
-- **Security**: Switched to execFileSync in e2e test runner to prevent shell injection vulnerabilities.
+- Improved error handling in the fetchPullRequestContext function for more reliable release note generation.
 
 ### Changed:
-- Updated LLM provider interfaces and improved message handling across the system.
+- Reverted the previous release of 4 package(s) due to an issue.
+- Released 4 package(s) to production.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.3...releasekit-version-v0.20.0
+### Documentation:
+- Updated project documentation for improved clarity.
+
+### Developer:
+- **Dependencies**: Updated 6 production dependencies in the project.
+
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.20.0...releasekit-notes-v0.21.0
 
 ---
 
 
-## `@releasekit/publish` @ 0.20.0
+## `@releasekit/publish` @ 0.21.0
 
-### New:
-- Added idempotent publish behavior to prevent duplicate publications
+### Documentation:
+- Updated project documentation
 
-### Fixed:
-- **Security**: Fixed shell injection vulnerability in e2e test runner by using execFileSync
+### Developer:
+- **Infrastructure**: Reverted the previous package release
+- **Infrastructure**: Released 4 packages
 
-### Changed:
-- Updated LLM provider interfaces and improved message handling for better reliability
-
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.3...releasekit-version-v0.20.0
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-publish-v0.20.0...releasekit-publish-v0.21.0
 
 ---
 
 
-## `@releasekit/release` @ 0.20.0
+## `@releasekit/release` @ 0.21.0
 
 ### New:
-- Made publish operation idempotent, allowing safe repeated execution without side effects.
-
-### Fixed:
-- **Security**: Replaced exec with execFileSync in e2e test runner to prevent shell injection vulnerabilities.
+- **Tooling**: Introduced a new standing PR command to the release program for managing standing pull requests.
 
 ### Changed:
-- Updated LLM provider interfaces and improved message handling for better reliability and consistency.
+- **CI**: The standing PR workflow now detects merge commits from push events for improved synchronization.
+- Reverted a previous release of 4 package(s) due to an issue.
+- Released 4 package(s) to distribution.
+- **CI**: Standing PR previews now include merge prediction to help anticipate merge outcomes.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.3...releasekit-version-v0.20.0
+### Removed:
+- Removed the scheduled release strategy from available options.
 
+### Documentation:
+- Updated documentation for clarity and completeness.
+
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.20.0...releasekit-release-v0.21.0

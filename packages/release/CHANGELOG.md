@@ -100,6 +100,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.21.0] - 2026-05-05
+
+[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.20.0...releasekit-release-v0.21.0)
+
+### Breaking
+- **BREAKING** Removed the scheduled release strategy from available options.
+
+### New
+- **Standing PR command**: Introduced a new standing PR command to the release program for managing standing pull requests.
+
+### Changed
+**CI**:
+- **Merge detection**: The standing PR workflow now detects merge commits from push events for improved synchronization.
+- **Merge prediction**: Standing PR previews now include merge prediction to help anticipate merge outcomes.
+- Reverted a previous release of 4 package(s) due to an issue.
+- Released 4 package(s) to distribution.
+
+### Documentation
+- Updated documentation for clarity and completeness.
+
 ## [0.20.0] - 2026-05-04
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.3...releasekit-version-v0.20.0)
