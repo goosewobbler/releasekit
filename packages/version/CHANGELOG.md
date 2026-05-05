@@ -89,17 +89,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
-
-## [0.21.0] - 2026-05-05
-
-[Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.20.0...releasekit-version-v0.21.0)
-
-### New
-- **Standing PR preview**: Standing PR preview now includes merge prediction.
-
-### Documentation
-- Documentation has been improved.
-
 ## [0.20.0] - 2026-05-04
 
 [Full Changelog](https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.3...releasekit-version-v0.20.0)
