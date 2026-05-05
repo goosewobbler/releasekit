@@ -673,6 +673,23 @@ describe('runStandingPRUpdate', () => {
       expect(lastStatus?.description).toMatch(/Conflicting bump labels/);
     });
 
+    it('should show conflict description when both a label conflict and a pending minAge exist', async () => {
+      const { loadConfig } = await import('@releasekit/config');
+      vi.mocked(loadConfig).mockReturnValue({
+        ...defaultConfig,
+        ci: { ...defaultConfig.ci, standingPr: { ...defaultConfig.ci.standingPr, minAge: '6h' } },
+      } as ReturnType<typeof loadConfig>);
+
+      const { mocks } = await setupWithStandingPRLabels(['release', 'bump:patch', 'bump:major']);
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const lastStatus = mocks.createCommitStatus.mock.calls.at(-1)?.[0];
+      expect(lastStatus?.state).toBe('pending');
+      expect(lastStatus?.description).toMatch(/Conflicting bump labels/);
+      expect(lastStatus?.description).not.toMatch(/minAge/);
+    });
+
     it('should preserve maintainer-added labels in setLabels (union with configured labels)', async () => {
       const { mocks } = await setupWithStandingPRLabels(['release', 'bump:major']);
 

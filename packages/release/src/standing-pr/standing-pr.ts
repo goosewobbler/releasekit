@@ -750,7 +750,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     statusDescription = overrides.conflicts.join('; ').slice(0, 140);
   }
 
-  if (minAge !== undefined) {
+  if (minAge !== undefined && overrides.conflicts.length === 0) {
     const minAgeMs = parseDuration(minAge);
     if (minAgeMs === null) {
       warn(
