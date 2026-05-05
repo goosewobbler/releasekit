@@ -95,16 +95,16 @@ jobs:
           # Only bump:* labels are supported (release:* labels are deprecated).
           LABELS=$(echo "$PRS_OUTPUT" | jq -r '.[].labels[].name' 2>/dev/null)
           
-          # Check for release:stable first (takes precedence over bump:* per ci-setup.md)
-          if echo "$LABELS" | grep -qE "^release:stable$"; then
+          # Check for channel:stable first (takes precedence over bump:* per ci-setup.md)
+          if echo "$LABELS" | grep -qE "^channel:stable$"; then
             echo "should_release=true" >> "$GITHUB_OUTPUT"
             echo "bump=auto" >> "$GITHUB_OUTPUT"
-            echo "release:stable label found — promoting prerelease to stable"
+            echo "channel:stable label found — promoting prerelease to stable"
             exit 0
           fi
           
-          # Check for release:prerelease + bump:* (creates prerelease)
-          if echo "$LABELS" | grep -qE "^release:prerelease$"; then
+          # Check for channel:prerelease + bump:* (creates prerelease)
+          if echo "$LABELS" | grep -qE "^channel:prerelease$"; then
             # Map bump label to prerelease bump type
             PRERELEASE_BUMP="prerelease"
             if echo "$LABELS" | grep -qE "^bump:patch$"; then
@@ -117,11 +117,11 @@ jobs:
             if echo "$LABELS" | grep -qE "^bump:(patch|minor|major)$"; then
               echo "should_release=true" >> "$GITHUB_OUTPUT"
               echo "bump=$PRERELEASE_BUMP" >> "$GITHUB_OUTPUT"
-              echo "release:prerelease + bump:* label found — creating $PRERELEASE_BUMP prerelease"
+              echo "channel:prerelease + bump:* label found — creating $PRERELEASE_BUMP prerelease"
               exit 0
             else
               echo "should_release=false" >> "$GITHUB_OUTPUT"
-              echo "release:prerelease requires a bump:* label — skipping release"
+              echo "channel:prerelease requires a bump:* label — skipping release"
               exit 0
             fi
           fi
