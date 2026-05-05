@@ -910,11 +910,6 @@
               "default": true,
               "description": "Whether to auto-delete the release branch after the PR is merged."
             },
-            "editableNotes": {
-              "type": "boolean",
-              "default": false,
-              "description": "Allow teams to edit the release notes section in the PR body before publishing. When enabled, the notes section is wrapped in editable markers and preserved across updates if manually changed."
-            },
             "mergeMethod": {
               "type": "string",
               "enum": [
