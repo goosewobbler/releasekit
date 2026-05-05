@@ -82,8 +82,14 @@ export async function fetchPullRequestContext(
           const body = truncateBody(sanitiseBody(raw));
           cache.set(number, { number, title: data.title, body });
         } catch (error) {
-          if (error instanceof RequestError && (error.status === 401 || error.status === 403)) {
-            warn(`GitHub API auth error fetching PR #${number} (${error.status}): check GITHUB_TOKEN permissions`);
+          if (error instanceof RequestError) {
+            if (error.status === 401 || error.status === 403) {
+              warn(`GitHub API auth error fetching PR #${number} (${error.status}): check GITHUB_TOKEN permissions`);
+            } else if (error.status === 404) {
+              cache.set(number, null); // not found — avoid re-fetching
+            } else {
+              debug(`Failed to fetch PR #${number}: ${error.message}`);
+            }
           } else {
             debug(`Failed to fetch PR #${number}: ${error instanceof Error ? error.message : String(error)}`);
           }
@@ -94,7 +100,7 @@ export async function fetchPullRequestContext(
 }
 
 export function parseIssueNumbers(issueIds: string[]): number[] {
-  return issueIds.map((id) => parseInt(id.replace(/^#/, ''), 10)).filter((n) => !isNaN(n) && n > 0);
+  return issueIds.map((id) => parseInt(id.replace(/^#/, ''), 10)).filter((n) => !Number.isNaN(n) && n > 0);
 }
 
 export function resolveGitHubToken(): string | undefined {
