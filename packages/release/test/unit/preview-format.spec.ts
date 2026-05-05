@@ -530,6 +530,82 @@ describe('formatPreviewComment', () => {
       });
       expect(result).toContain('`release:immediate`');
       expect(result).toContain('bypassing the standing PR for a direct release');
+      expect(result).toContain('bump derived from conventional commits');
+    });
+
+    it('should detail the bump magnitude and source label in the immediate banner', () => {
+      const result = formatPreviewComment(releaseOutput, {
+        strategy: 'standing-pr',
+        labelContext: {
+          trigger: 'label',
+          skip: false,
+          noBumpLabel: false,
+          immediate: true,
+          bumpLabel: 'minor',
+          labels: {
+            stable: 'channel:stable',
+            prerelease: 'channel:prerelease',
+            skip: 'release:skip',
+            immediate: 'release:immediate',
+            major: 'bump:major',
+            minor: 'bump:minor',
+            patch: 'bump:patch',
+          },
+        },
+      });
+      expect(result).toContain('direct **minor** release (from `bump:minor`)');
+      expect(result).not.toContain('bump derived from conventional commits');
+    });
+
+    it('should combine bump + prerelease channel + scope in the immediate banner', () => {
+      const result = formatPreviewComment(releaseOutput, {
+        strategy: 'standing-pr',
+        labelContext: {
+          trigger: 'label',
+          skip: false,
+          noBumpLabel: false,
+          immediate: true,
+          bumpLabel: 'minor',
+          prerelease: true,
+          scopeLabels: ['scope:docs'],
+          labels: {
+            stable: 'channel:stable',
+            prerelease: 'channel:prerelease',
+            skip: 'release:skip',
+            immediate: 'release:immediate',
+            major: 'bump:major',
+            minor: 'bump:minor',
+            patch: 'bump:patch',
+          },
+        },
+      });
+      expect(result).toContain('direct **minor prerelease** release');
+      expect(result).toContain('from `bump:minor`, `channel:prerelease`');
+      expect(result).toContain('scope: `scope:docs`');
+    });
+
+    it('should include scope when immediate is set without a bump label', () => {
+      const result = formatPreviewComment(releaseOutput, {
+        strategy: 'standing-pr',
+        labelContext: {
+          trigger: 'label',
+          skip: false,
+          noBumpLabel: false,
+          immediate: true,
+          scopeLabels: ['scope:all'],
+          labels: {
+            stable: 'channel:stable',
+            prerelease: 'channel:prerelease',
+            skip: 'release:skip',
+            immediate: 'release:immediate',
+            major: 'bump:major',
+            minor: 'bump:minor',
+            patch: 'bump:patch',
+          },
+        },
+      });
+      expect(result).toContain('bump derived from conventional commits');
+      expect(result).toContain('scope: `scope:all`');
     });
 
     it('should suppress the standing-PR snapshot when immediate label is set', () => {

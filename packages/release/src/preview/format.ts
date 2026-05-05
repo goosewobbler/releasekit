@@ -100,7 +100,43 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
   // directly, so the standard banners ("labeled for X", "no bump label", scope) would only confuse.
   if (labelContext.immediate) {
     const immediateLabel = labelContext.labels?.immediate ?? 'release:immediate';
-    lines.push(`> **\`${immediateLabel}\`** — bypassing the standing PR for a direct release.`, '');
+
+    // Build the descriptor (bump magnitude + channel) and the source-label list in parallel so
+    // the banner reads "direct **minor prerelease** release (from `bump:minor`, `channel:prerelease`)"
+    // — telling the reader both what will happen and which labels drove the decision.
+    const descriptor: string[] = [];
+    const sources: string[] = [];
+
+    if (
+      labelContext.bumpLabel === 'major' ||
+      labelContext.bumpLabel === 'minor' ||
+      labelContext.bumpLabel === 'patch'
+    ) {
+      descriptor.push(labelContext.bumpLabel);
+      const bumpLabelName = labelContext.labels?.[labelContext.bumpLabel];
+      if (bumpLabelName) sources.push(`\`${bumpLabelName}\``);
+    }
+    if (labelContext.prerelease) {
+      descriptor.push('prerelease');
+      sources.push(`\`${labelContext.labels?.prerelease ?? 'channel:prerelease'}\``);
+    }
+    if (labelContext.stable) {
+      descriptor.push('stable');
+      sources.push(`\`${labelContext.labels?.stable ?? 'channel:stable'}\``);
+    }
+
+    const releasePart = descriptor.length > 0 ? `**${descriptor.join(' ')}** release` : 'release';
+
+    const annotations: string[] = [];
+    annotations.push(sources.length > 0 ? `from ${sources.join(', ')}` : 'bump derived from conventional commits');
+    if (labelContext.scopeLabels && labelContext.scopeLabels.length > 0) {
+      annotations.push(`scope: ${labelContext.scopeLabels.map((s) => `\`${s}\``).join(', ')}`);
+    }
+
+    lines.push(
+      `> **\`${immediateLabel}\`** — bypassing the standing PR for a direct ${releasePart} (${annotations.join('; ')}).`,
+      '',
+    );
     return lines;
   }
 
