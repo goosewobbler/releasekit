@@ -150,11 +150,15 @@ function renderChangelogEntries(entries: VersionOutput['changelogs'][number]['en
 }
 
 function renderChangelogSection(versionOutput: VersionOutput): string {
+  const hasShared = (versionOutput.sharedEntries?.length ?? 0) > 0;
+  const hasPackageEntries = versionOutput.changelogs.some((cl) => cl.entries.length > 0);
+  if (!hasShared && !hasPackageEntries) return '';
+
   const lines: string[] = ['### Changelog', ''];
 
-  if (versionOutput.sharedEntries?.length) {
+  if (hasShared) {
     lines.push('#### Project-wide changes', '');
-    lines.push(...renderChangelogEntries(versionOutput.sharedEntries));
+    lines.push(...renderChangelogEntries(versionOutput.sharedEntries!));
   }
 
   for (const cl of versionOutput.changelogs) {
@@ -196,7 +200,8 @@ function renderPrBody(versionOutput: VersionOutput): string {
     lines.push(`| \`${update.packageName}\` | ${update.newVersion} |`);
   }
 
-  lines.push('', renderChangelogSection(versionOutput), '');
+  const changelog = renderChangelogSection(versionOutput);
+  if (changelog) lines.push('', changelog, '');
   lines.push('---', '> Merge this PR to publish. The release will be triggered automatically.');
   return lines.join('\n');
 }

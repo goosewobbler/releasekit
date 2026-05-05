@@ -340,6 +340,28 @@ describe('runStandingPRUpdate', () => {
     expect(createCall?.body).toContain('@scope/core — 1.2.2 → 1.2.3');
   });
 
+  it('should omit the ### Changelog section when all updates are sync-bumped (no entries)', async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    // sync-bumped: updates present but changelogs array is empty
+    const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const { createOctokit } = await import('../../src/github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [] });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const createCall = mocks.pullsCreate.mock.calls[0]?.[0] as { body?: string } | undefined;
+    expect(createCall?.body).not.toContain('### Changelog');
+    expect(createCall?.body).toContain('@scope/core');
+    expect(createCall?.body).toContain('1.2.3');
+  });
+
   it('should update existing PR when standing PR already exists', async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
