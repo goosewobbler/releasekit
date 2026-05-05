@@ -37,7 +37,13 @@ describe('createStandingPRCommand', () => {
   it('should call runStandingPRPublish for publish subcommand', async () => {
     const { runStandingPRPublish } = await import('../../src/standing-pr/standing-pr.js');
     await parseCommand(['publish', '--project-dir', '/test']);
-    expect(runStandingPRPublish).toHaveBeenCalledWith(expect.objectContaining({ projectDir: '/test' }));
+    expect(runStandingPRPublish).toHaveBeenCalledWith(expect.objectContaining({ projectDir: '/test' }), undefined);
+  });
+
+  it('should pass --pr through to runStandingPRPublish as a number', async () => {
+    const { runStandingPRPublish } = await import('../../src/standing-pr/standing-pr.js');
+    await parseCommand(['publish', '--project-dir', '/test', '--pr', '189']);
+    expect(runStandingPRPublish).toHaveBeenCalledWith(expect.objectContaining({ projectDir: '/test' }), 189);
   });
 
   it('should pass --verbose, --quiet, --json flags through', async () => {

@@ -45,7 +45,11 @@ export function createStandingPRCommand(): Command {
   sharedOptions(
     cmd
       .command('publish')
-      .description('Publish packages from a merged standing release PR (reads manifest from PR comment)'),
+      .description('Publish packages from a merged standing release PR (reads manifest from PR comment)')
+      .option(
+        '--pr <number>',
+        'PR number of the merged standing release PR. Use when the workflow runs on a push event (auto-detected from pull_request event when omitted)',
+      ),
   ).action(async (opts) => {
     const options: StandingPROptions = {
       config: opts.config,
@@ -56,8 +60,17 @@ export function createStandingPRCommand(): Command {
       quiet: opts.quiet,
     };
 
+    let prNumber: number | undefined;
+    if (opts.pr !== undefined) {
+      prNumber = Number.parseInt(opts.pr, 10);
+      if (Number.isNaN(prNumber) || prNumber <= 0) {
+        console.error(`--pr must be a positive integer (got: ${opts.pr})`);
+        process.exit(EXIT_CODES.GENERAL_ERROR);
+      }
+    }
+
     try {
-      const result = await runStandingPRPublish(options);
+      const result = await runStandingPRPublish(options, prNumber);
       if (opts.json && result) {
         console.log(JSON.stringify(result, null, 2));
       }

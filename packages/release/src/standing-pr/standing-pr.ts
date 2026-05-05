@@ -840,13 +840,21 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   };
 }
 
-export async function runStandingPRPublish(options: StandingPROptions): Promise<ReleaseOutput | null> {
+export async function runStandingPRPublish(
+  options: StandingPROptions,
+  explicitPrNumber?: number,
+): Promise<ReleaseOutput | null> {
+  // Push-event path: caller (workflow) detected the standing-PR merge and passed the PR number.
+  if (explicitPrNumber !== undefined) {
+    return publishFromManifest(explicitPrNumber, options);
+  }
+
   const cwd = options.projectDir;
 
-  // Guard: verify this is triggered by the release PR being merged
+  // Pull-request-event path: parse the event payload to find the merged PR.
   const eventPath = process.env.GITHUB_EVENT_PATH;
   if (!eventPath) {
-    error('GITHUB_EVENT_PATH not set — standing-pr publish must run in GitHub Actions');
+    error('GITHUB_EVENT_PATH not set and no --pr provided — cannot determine standing PR to publish');
     return null;
   }
 
