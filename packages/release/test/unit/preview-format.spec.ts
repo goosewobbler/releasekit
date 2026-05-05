@@ -278,11 +278,6 @@ describe('formatPreviewComment', () => {
       expect(result).toContain('These changes will be added to the release PR (#99) when merged:');
     });
 
-    it('should use scheduled intro when strategy is scheduled', () => {
-      const result = formatPreviewComment(releaseOutput, { strategy: 'scheduled' });
-      expect(result).toContain('These changes will be included in the next scheduled release:');
-    });
-
     // No-changes messages per strategy
 
     it('should show direct no-changes message by default', () => {
@@ -303,11 +298,6 @@ describe('formatPreviewComment', () => {
     it('should show standing-pr no-changes message', () => {
       const result = formatPreviewComment(null, { strategy: 'standing-pr' });
       expect(result).toContain('will not affect the release PR');
-    });
-
-    it('should show scheduled no-changes message', () => {
-      const result = formatPreviewComment(null, { strategy: 'scheduled' });
-      expect(result).toContain('will not be included in the next scheduled release');
     });
   });
 

@@ -291,7 +291,6 @@ All `ci.standingPr.*` options:
 | `labels` | `["release"]` | Labels applied to the standing PR. Do not overlap with `bump:*` or `release:*` labels — those would cause the label-driven release flow to fire on the standing PR's merge. |
 | `deleteBranchOnMerge` | `true` | Delete `release/next` after publish completes. |
 | `mergeMethod` | `merge` | `merge` \| `squash` \| `rebase`. Squash recommended — produces a single `chore: release …` commit on main that the skip-pattern guard recognises. |
-| `editableNotes` | `false` | When `true`, release notes are wrapped in `<!-- releasekit-editable-start -->` / `<!-- releasekit-editable-end -->` markers in the PR body. User edits are detected via SHA hash and preserved across updates; on publish, edited notes flow to the changelog and GitHub Release. |
 | `minAge` | (unset) | Duration string (`6h`, `30m`, `1d`). Until elapsed, the `releasekit/standing-pr` status check reports `pending` with a countdown. Combined with branch protection on the status check, blocks early merges. Time baseline is `firstUpdatedAt` — the PR's first creation timestamp, preserved across updates. |
 | `minPackages` | (unset) | Minimum distinct packages with releasable changes before a standing PR is created. Below the threshold, an open PR is closed with an explanatory comment and no new PR is created until the threshold is met. |
 

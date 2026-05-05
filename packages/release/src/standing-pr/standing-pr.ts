@@ -799,8 +799,6 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     );
   }
 
-  // If editableNotes is enabled, extract any user edits from the PR body and merge them
-  // into the manifest's releaseNotes, falling back to manifest notes for missing packages.
   info(`Publishing from manifest: ${manifest.versionOutput.updates.length} package(s)`);
 
   const publishOptions: ReleaseOptions = {

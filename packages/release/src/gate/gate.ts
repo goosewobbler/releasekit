@@ -56,11 +56,6 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
       "Gate mode is not compatible with releaseStrategy: 'standing-pr'. Use 'releasekit standing-pr update' instead — see docs/ci-setup.md.",
     );
   }
-  if (releaseStrategy === 'scheduled') {
-    throw new Error(
-      "Gate mode is not compatible with releaseStrategy: 'scheduled'. Scheduled releases are triggered by cron, not by gate checks.",
-    );
-  }
 
   // Check GitHub context (sha serves as a proxy for "are we in GitHub Actions?")
   const githubContext = getGitHubContext();

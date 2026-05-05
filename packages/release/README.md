@@ -277,7 +277,7 @@ The `ci` section controls automation behavior:
 {
   "ci": {
     // How releases are delivered
-    "releaseStrategy": "direct",       // "manual" | "direct" | "standing-pr" | "scheduled"
+    "releaseStrategy": "direct",       // "manual" | "direct" | "standing-pr"
 
     // What triggers a release
     "releaseTrigger": "label",         // "commit" | "label"
@@ -323,7 +323,6 @@ Both modes support `channel:stable` and `channel:prerelease` as channel modifier
 | `direct` | Release is triggered when a PR is merged to the main branch |
 | `manual` | Releases are triggered manually (e.g. via `workflow_dispatch`) |
 | `standing-pr` | Changes accumulate in a standing release PR, merged when ready |
-| `scheduled` | Releases are triggered on a schedule *(planned)* |
 
 #### Scope-Based Release
 
@@ -397,7 +396,6 @@ When `releaseStrategy: "standing-pr"`, the `ci.standingPr` block tunes the bot-m
 | `labels` | `["release"]` | Labels applied to the PR. Maintainer-added `bump:*` / `scope:*` / `channel:*` labels on the standing PR are preserved across updates and drive the next release as overrides — see [Label semantics in standing-pr mode](./docs/ci-setup.md#label-semantics-in-standing-pr-mode). |
 | `deleteBranchOnMerge` | `true` | Delete the release branch after publish completes. |
 | `mergeMethod` | `merge` | `merge` \| `squash` \| `rebase`. |
-| `editableNotes` | `false` | Wrap the release notes in editable markers; user edits are preserved across updates and flow through to publish. |
 | `minAge` | (unset) | Duration string (`6h`, `30m`, `1d`). Until elapsed, `releasekit/standing-pr` status check reports `pending`. |
 | `minPackages` | (unset) | Minimum distinct packages with releasable changes before a standing PR is created. Below threshold, an existing PR is closed. |
 
@@ -408,7 +406,6 @@ When `releaseStrategy: "standing-pr"`, the `ci.standingPr` block tunes the bot-m
     "standingPr": {
       "branch": "release/next",
       "mergeMethod": "squash",
-      "editableNotes": true,
       "minAge": "6h"
     }
   }

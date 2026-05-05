@@ -331,14 +331,6 @@ describe('Gate', () => {
     await expect(runGate()).rejects.toThrow('standing-pr');
   });
 
-  it('should throw with clear error when releaseStrategy is scheduled', async () => {
-    mockLoadReleaseKitConfig.mockReturnValue({
-      ci: { releaseStrategy: 'scheduled' },
-    });
-
-    await expect(runGate()).rejects.toThrow('scheduled');
-  });
-
   it('should return shouldRelease: false with reason when no GitHub context', async () => {
     delete process.env.GITHUB_REPOSITORY;
     delete process.env.GITHUB_SHA;

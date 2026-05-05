@@ -295,7 +295,7 @@ CI automation configuration for release triggers, PR previews, and label managem
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `releaseStrategy` | `"manual"` \| `"direct"` \| `"standing-pr"` \| `"scheduled"` | `"direct"` | How releases are delivered. 'direct': release on merge to main. 'manual': releases triggered manually (e.g. workflow_dispatch). 'standing-pr': changes accumulate in a release PR. 'scheduled': releases triggered on a schedule. |
+| `releaseStrategy` | `"manual"` \| `"direct"` \| `"standing-pr"` | `"direct"` | How releases are delivered. 'direct': release on merge to main. 'manual': releases triggered manually (e.g. workflow_dispatch). 'standing-pr': changes accumulate in a release PR. |
 | `releaseTrigger` | `"commit"` \| `"label"` | `"label"` | What triggers a release. 'label': a PR bump label (bump:patch/minor/major) is required. 'commit': conventional commits drive the bump automatically; every merge can trigger a release. |
 | `prPreview` | boolean | `true` | Enable PR preview comments showing what would be released if the PR is merged. Set to false to disable. |
 | `autoRelease` | boolean | `false` | Automatically trigger a release when CI conditions are met, without manual intervention. |
@@ -326,7 +326,6 @@ Configuration for the standing release PR feature (ci.releaseStrategy: 'standing
 | `title` | string | `"chore: release ${count} package(s)"` | PR title template. Variables: ${count} (package count), ${version} (for single-package repos). Must start with 'chore: release' to match the default skip pattern on squash merge. |
 | `labels` | `string[]` | `["release"]` | Labels to apply to the standing release PR. |
 | `deleteBranchOnMerge` | boolean | `true` | Whether to auto-delete the release branch after the PR is merged. |
-| `editableNotes` | boolean | `false` | Allow teams to edit the release notes section in the PR body before publishing. When enabled, the notes section is wrapped in editable markers and preserved across updates if manually changed. |
 | `mergeMethod` | `"merge"` \| `"squash"` \| `"rebase"` | `"merge"` | Merge method to use when merging the standing release PR via CLI. |
 | `minAge` | string | — | Minimum age of the standing PR before it can be merged. Duration string, e.g. '6h', '30m', '1d'. Gate enforced via the releasekit/standing-pr commit status check; configure it as a required status check in branch protection to block merges. |
 | `minPackages` | integer | — | Minimum number of packages with releasable changes required to create or maintain the standing PR. Below this threshold the PR is closed and no new PR is opened. |
