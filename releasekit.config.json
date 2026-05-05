@@ -6,14 +6,17 @@
   },
   "version": {
     "preset": "angular",
-    "sync": false,
+    "sync": true,
     "versionPrefix": "v",
-    "packages": ["packages/version", "packages/notes", "packages/publish", "packages/release"],
+    "packages": [
+      "packages/version",
+      "packages/notes",
+      "packages/publish",
+      "packages/release"
+    ],
     "mismatchStrategy": "prefer-package",
-    "tagTemplate": "${packageName}-${prefix}${version}",
-    "commitMessage": "chore: release ${packageName}@${version} [skip ci]",
-    "prereleaseIdentifier": "next",
-    "packageSpecificTags": true
+    "commitMessage": "chore: release v${version} [skip ci]",
+    "prereleaseIdentifier": "next"
   },
   "notes": {
     "changelog": {
@@ -35,11 +38,26 @@
           "categorize": true
         },
         "categories": [
-          { "name": "New", "description": "New features and additions" },
-          { "name": "Fixed", "description": "Bug fixes including security and performance fixes" },
-          { "name": "Changed", "description": "Changes to existing functionality" },
-          { "name": "Removed", "description": "Features that were removed" },
-          { "name": "Documentation", "description": "Documentation updates" },
+          {
+            "name": "New",
+            "description": "New features and additions"
+          },
+          {
+            "name": "Fixed",
+            "description": "Bug fixes including security and performance fixes"
+          },
+          {
+            "name": "Changed",
+            "description": "Changes to existing functionality"
+          },
+          {
+            "name": "Removed",
+            "description": "Features that were removed"
+          },
+          {
+            "name": "Documentation",
+            "description": "Documentation updates"
+          },
           {
             "name": "Developer",
             "description": "Internal changes",
@@ -74,7 +92,9 @@
   },
   "release": {
     "ci": {
-      "skipPatterns": ["chore: release "]
+      "skipPatterns": [
+        "chore: release "
+      ]
     }
   },
   "ci": {
