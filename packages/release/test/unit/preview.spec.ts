@@ -838,7 +838,7 @@ describe('runPreview', () => {
       };
     }
 
-    it('fetches the snapshot and threads it into the comment when strategy is standing-pr', async () => {
+    it('should fetch the snapshot and thread it into the comment when strategy is standing-pr', async () => {
       mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'standing-pr', releaseTrigger: 'commit' });
       mockFetchStandingPRSnapshot.mockResolvedValue(makeSnapshot());
 
@@ -851,7 +851,7 @@ describe('runPreview', () => {
       expect(body).toContain('### After merge — predicted release');
     });
 
-    it('renders snapshot only (no merge table) when this PR has no releasable changes', async () => {
+    it('should render snapshot only (no merge table) when this PR has no releasable changes', async () => {
       mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'standing-pr', releaseTrigger: 'commit' });
       mockFetchStandingPRSnapshot.mockResolvedValue(makeSnapshot());
       mockRunRelease.mockResolvedValue(null);
@@ -863,7 +863,7 @@ describe('runPreview', () => {
       expect(body).not.toContain('### After merge');
     });
 
-    it('omits the snapshot when no standing PR is found', async () => {
+    it('should omit the snapshot when no standing PR is found', async () => {
       mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'standing-pr', releaseTrigger: 'commit' });
       mockFetchStandingPRSnapshot.mockResolvedValue(null);
 
@@ -873,7 +873,7 @@ describe('runPreview', () => {
       expect(body).not.toContain('**Standing release PR:**');
     });
 
-    it('treats fetch failure as non-fatal (preview still posts)', async () => {
+    it('should treat fetch failure as non-fatal (preview still posts)', async () => {
       mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'standing-pr', releaseTrigger: 'commit' });
       mockFetchStandingPRSnapshot.mockRejectedValue(new Error('boom'));
 
@@ -884,7 +884,7 @@ describe('runPreview', () => {
       expect(body).not.toContain('**Standing release PR:**');
     });
 
-    it('does not fetch the snapshot when strategy is not standing-pr', async () => {
+    it('should not fetch the snapshot when strategy is not standing-pr', async () => {
       mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'direct', releaseTrigger: 'commit' });
 
       await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
@@ -911,7 +911,7 @@ describe('runPreview', () => {
       };
     }
 
-    it('does NOT propagate bump label to runRelease in standing-pr advisory mode', async () => {
+    it('should NOT propagate bump label to runRelease in standing-pr advisory mode', async () => {
       mockLoadCIConfig.mockReturnValue(ciWithLabels());
       mockFetchPRLabels.mockResolvedValue(['bump:patch']);
 
@@ -923,7 +923,7 @@ describe('runPreview', () => {
       expect(callArg?.bump).toBeUndefined();
     });
 
-    it('does NOT throw "No scope specified" in standing-pr advisory mode', async () => {
+    it('should NOT throw "No scope specified" in standing-pr advisory mode', async () => {
       mockLoadCIConfig.mockReturnValue(ciWithLabels({ scopeLabels: { 'scope:foo': '@scope/foo' } }));
       mockFetchPRLabels.mockResolvedValue(['bump:patch']); // no scope label, no --target
       // Without the advisory bypass this would throw "No scope specified"
@@ -931,7 +931,7 @@ describe('runPreview', () => {
       expect(mockPostOrUpdateComment).toHaveBeenCalled();
     });
 
-    it('propagates bump label to runRelease when release:immediate is also set', async () => {
+    it('should propagate bump label to runRelease when release:immediate is also set', async () => {
       mockLoadCIConfig.mockReturnValue(ciWithLabels());
       mockFetchPRLabels.mockResolvedValue(['release:immediate', 'bump:minor']);
 
@@ -941,7 +941,7 @@ describe('runPreview', () => {
       expect(callArg?.bump).toBe('minor');
     });
 
-    it('skips standing-PR snapshot fetch when release:immediate is set', async () => {
+    it('should skip standing-PR snapshot fetch when release:immediate is set', async () => {
       mockLoadCIConfig.mockReturnValue(ciWithLabels());
       mockFetchPRLabels.mockResolvedValue(['release:immediate', 'bump:patch']);
 
@@ -950,7 +950,7 @@ describe('runPreview', () => {
       expect(mockFetchStandingPRSnapshot).not.toHaveBeenCalled();
     });
 
-    it('still propagates bump label in direct strategy mode (no change)', async () => {
+    it('should still propagate bump label in direct strategy mode (no change)', async () => {
       mockLoadCIConfig.mockReturnValue({
         releaseStrategy: 'direct',
         releaseTrigger: 'label',

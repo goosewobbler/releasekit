@@ -640,7 +640,7 @@ describe('runStandingPRUpdate', () => {
       return { mocks, octokit, runVersionStepMock: vi.mocked(runVersionStep) };
     }
 
-    it('passes bump:major from standing PR labels into version step', async () => {
+    it('should pass bump:major from standing PR labels into version step', async () => {
       const { runVersionStepMock } = await setupWithStandingPRLabels(['release', 'bump:major']);
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
@@ -650,7 +650,7 @@ describe('runStandingPRUpdate', () => {
       expect(runVersionStepMock.mock.calls[1]?.[0]).toMatchObject({ bump: 'major' });
     });
 
-    it('passes channel:prerelease from standing PR labels as prerelease override', async () => {
+    it('should pass channel:prerelease from standing PR labels as prerelease override', async () => {
       const { runVersionStepMock } = await setupWithStandingPRLabels(['release', 'channel:prerelease']);
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
@@ -658,7 +658,7 @@ describe('runStandingPRUpdate', () => {
       expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ prerelease: true });
     });
 
-    it('drops conflicting bump labels and posts pending status check', async () => {
+    it('should drop conflicting bump labels and posts pending status check', async () => {
       const { mocks, runVersionStepMock } = await setupWithStandingPRLabels(['release', 'bump:patch', 'bump:major']);
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
@@ -672,7 +672,7 @@ describe('runStandingPRUpdate', () => {
       expect(lastStatus?.description).toMatch(/Conflicting bump labels/);
     });
 
-    it('preserves maintainer-added labels in setLabels (union with configured labels)', async () => {
+    it('should preserve maintainer-added labels in setLabels (union with configured labels)', async () => {
       const { mocks } = await setupWithStandingPRLabels(['release', 'bump:major']);
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
@@ -683,7 +683,7 @@ describe('runStandingPRUpdate', () => {
       expect(lastSetLabels?.labels).toContain('bump:major');
     });
 
-    it('inherits sync from version config (defaults true) instead of forcing false', async () => {
+    it('should inherit sync from version config (defaults true) instead of forcing false', async () => {
       const { runVersionStepMock } = await setupWithStandingPRLabels([]);
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
@@ -943,30 +943,30 @@ describe('extractEditableSection', () => {
   const START = '<!-- releasekit-editable-start -->';
   const END = '<!-- releasekit-editable-end -->';
 
-  it('returns the trimmed content between editable markers', () => {
+  it('should return the trimmed content between editable markers', () => {
     const body = `some text\n\n${START}\n### Release Notes\n\n#### pkg — 1.0.0\n\n- note\n${END}\n---`;
     expect(extractEditableSection(body)).toBe('### Release Notes\n\n#### pkg — 1.0.0\n\n- note');
   });
 
-  it('returns null when start marker is absent', () => {
+  it('should return null when start marker is absent', () => {
     expect(extractEditableSection(`### Release Notes\n\n${END}`)).toBeNull();
   });
 
-  it('returns null when end marker is absent', () => {
+  it('should return null when end marker is absent', () => {
     expect(extractEditableSection(`${START}\n### Release Notes`)).toBeNull();
   });
 
-  it('returns null when both markers are absent', () => {
+  it('should return null when both markers are absent', () => {
     expect(extractEditableSection('### Release Notes\n\n- note')).toBeNull();
   });
 
-  it('returns null when end marker precedes start marker', () => {
+  it('should return null when end marker precedes start marker', () => {
     expect(extractEditableSection(`${END}\n${START}`)).toBeNull();
   });
 });
 
 describe('parseEditedNotes', () => {
-  it('parses multiple packages from a section', () => {
+  it('should parse multiple packages from a section', () => {
     const section = [
       '### Release Notes',
       '',
@@ -984,7 +984,7 @@ describe('parseEditedNotes', () => {
     expect(result['@scope/cli']).toBe('- fixed bug');
   });
 
-  it('preserves h4 subheadings within package notes without truncating content', () => {
+  it('should preserve h4 subheadings within package notes without truncating content', () => {
     const section = [
       '### Release Notes',
       '',
@@ -1004,15 +1004,15 @@ describe('parseEditedNotes', () => {
     expect(result['@scope/core']).toContain('- another thing');
   });
 
-  it('returns empty object for a section with no package headings', () => {
+  it('should return empty object for a section with no package headings', () => {
     expect(parseEditedNotes('### Release Notes\n\nsome text')).toEqual({});
   });
 
-  it('returns empty object for an empty string', () => {
+  it('should return empty object for an empty string', () => {
     expect(parseEditedNotes('')).toEqual({});
   });
 
-  it('round-trips the content produced by renderPrBody editable markers', () => {
+  it('should round-trip the content produced by renderPrBody editable markers', () => {
     const versionOutput = createMockVersionOutput([
       { packageName: '@scope/core', newVersion: '1.2.3' },
       { packageName: '@scope/cli', newVersion: '2.0.0' },
@@ -1084,14 +1084,14 @@ describe('runStandingPRUpdate — editableNotes', () => {
     vi.mocked(loadConfig).mockReturnValue(editableConfig as ReturnType<typeof loadConfig>);
 
     const { execSync } = await import('node:child_process');
-    vi.mocked(execSync).mockReturnValue('abc123\n' as unknown as Buffer);
+    vi.mocked(execSync).mockReturnValue(Buffer.from('abc123\n'));
   });
 
   afterEach(() => {
     process.env = { ...originalEnv };
   });
 
-  it('stores notesHash in manifest when editableNotes is enabled and notes exist', async () => {
+  it('should store notesHash in manifest when editableNotes is enabled and notes exist', async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
     vi.mocked(runVersionStep)
@@ -1127,7 +1127,7 @@ describe('runStandingPRUpdate — editableNotes', () => {
     expect(typeof parsedManifest.notesHash).toBe('string');
   });
 
-  it('includes editable markers in PR body when editableNotes is enabled', async () => {
+  it('should include editable markers in PR body when editableNotes is enabled', async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
     vi.mocked(runVersionStep)
@@ -1158,7 +1158,7 @@ describe('runStandingPRUpdate — editableNotes', () => {
     );
   });
 
-  it('preserves user edits when existing section hash does not match stored notesHash', async () => {
+  it('should preserve user edits when existing section hash does not match stored notesHash', async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
     vi.mocked(runVersionStep)
@@ -1210,7 +1210,7 @@ describe('runStandingPRUpdate — editableNotes', () => {
     );
   });
 
-  it('regenerates notes when existing section hash matches stored notesHash (user has not edited)', async () => {
+  it('should regenerate notes when existing section hash matches stored notesHash (user has not edited)', async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
     vi.mocked(runVersionStep)
@@ -1294,7 +1294,7 @@ describe('publishFromManifest', () => {
     process.env = { ...originalEnv };
   });
 
-  it('returns null when no GitHub context is available', async () => {
+  it('should return null when no GitHub context is available', async () => {
     delete process.env.GITHUB_REPOSITORY;
     delete process.env.GITHUB_TOKEN;
 
@@ -1308,7 +1308,7 @@ describe('publishFromManifest', () => {
     expect(result).toBeNull();
   });
 
-  it('throws when manifest comment is missing from PR', async () => {
+  it('should throw when manifest comment is missing from PR', async () => {
     const { createOctokit } = await import('../../src/github.js');
     const { octokit } = createMockOctokit();
     vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
@@ -1318,7 +1318,7 @@ describe('publishFromManifest', () => {
     ).rejects.toThrow(/manifest not found/);
   });
 
-  it('publishes using manifest notes when editableNotes is disabled', async () => {
+  it('should publish using manifest notes when editableNotes is disabled', async () => {
     const { createOctokit } = await import('../../src/github.js');
     const { mocks, octokit } = createMockOctokit();
     const manifestBody = serializeManifest(baseManifest);
@@ -1350,7 +1350,7 @@ describe('publishFromManifest', () => {
     );
   });
 
-  it('uses edited notes from PR body when editableNotes is enabled', async () => {
+  it('should use edited notes from PR body when editableNotes is enabled', async () => {
     const { loadConfig } = await import('@releasekit/config');
     vi.mocked(loadConfig).mockReturnValue({
       ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true, editableNotes: true } },
@@ -1393,7 +1393,7 @@ describe('publishFromManifest', () => {
     );
   });
 
-  it('falls back to manifest notes for packages missing from edited section', async () => {
+  it('should fall back to manifest notes for packages missing from edited section', async () => {
     const { loadConfig } = await import('@releasekit/config');
     vi.mocked(loadConfig).mockReturnValue({
       ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true, editableNotes: true } },

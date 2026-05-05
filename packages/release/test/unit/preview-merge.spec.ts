@@ -22,11 +22,11 @@ function changelog(
 }
 
 describe('mergeForPreview', () => {
-  it('returns empty array when both sides are empty', () => {
+  it('should return empty array when both sides are empty', () => {
     expect(mergeForPreview([], [])).toEqual([]);
   });
 
-  it('renders standing-only packages', () => {
+  it('should render standing-only packages', () => {
     const rows = mergeForPreview([changelog('@a/notes', '1.0.0', '1.1.0')], []);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
@@ -39,7 +39,7 @@ describe('mergeForPreview', () => {
     expect(rows[0]?.current).toBeUndefined();
   });
 
-  it('renders pr-only packages', () => {
+  it('should render pr-only packages', () => {
     const rows = mergeForPreview([], [changelog('@a/notes', '1.0.0', '1.0.1')]);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
@@ -51,13 +51,13 @@ describe('mergeForPreview', () => {
     expect(rows[0]?.standing).toBeUndefined();
   });
 
-  it('marks unchanged when versions are equal on both sides', () => {
+  it('should mark unchanged when versions are equal on both sides', () => {
     const rows = mergeForPreview([changelog('@a/notes', '1.0.0', '1.1.0')], [changelog('@a/notes', '1.0.0', '1.1.0')]);
     expect(rows[0]?.status).toBe('unchanged');
     expect(rows[0]?.afterMerge).toBe('1.1.0');
   });
 
-  it('escalates when current PR has a higher bump than the standing PR', () => {
+  it('should escalate when current PR has a higher bump than the standing PR', () => {
     const rows = mergeForPreview(
       [changelog('@a/notes', '1.0.0', '1.0.1')], // standing: patch
       [changelog('@a/notes', '1.0.0', '1.1.0')], // PR: minor
@@ -70,7 +70,7 @@ describe('mergeForPreview', () => {
     });
   });
 
-  it('keeps standing version when standing has higher bump than current PR', () => {
+  it('should keep standing version when standing has higher bump than current PR', () => {
     const rows = mergeForPreview(
       [changelog('@a/notes', '1.0.0', '1.1.0')], // standing: minor
       [changelog('@a/notes', '1.0.0', '1.0.1')], // PR: patch
@@ -83,7 +83,7 @@ describe('mergeForPreview', () => {
     });
   });
 
-  it('handles a mix of overlap, escalation, and pr-only', () => {
+  it('should handle a mix of overlap, escalation, and pr-only', () => {
     const rows = mergeForPreview(
       [changelog('@a/notes', '1.0.0', '1.1.0'), changelog('@a/version', '0.3.1', '0.3.2')],
       [changelog('@a/version', '0.3.1', '0.4.0'), changelog('@a/publish', '0.2.0', '0.2.1')],
@@ -101,7 +101,7 @@ describe('mergeForPreview', () => {
     expect(version).toMatchObject({ status: 'escalated', afterMerge: '0.4.0', standing: '0.3.2' });
   });
 
-  it('treats a stable version as higher than a prerelease of the same target', () => {
+  it('should treat a stable version as higher than a prerelease of the same target', () => {
     const rows = mergeForPreview(
       [changelog('@a/notes', '1.0.0', '1.5.0-beta.1')],
       [changelog('@a/notes', '1.0.0', '1.5.0')],
@@ -109,12 +109,12 @@ describe('mergeForPreview', () => {
     expect(rows[0]).toMatchObject({ status: 'escalated', afterMerge: '1.5.0' });
   });
 
-  it('treats a major bump as higher than a minor bump', () => {
+  it('should treat a major bump as higher than a minor bump', () => {
     const rows = mergeForPreview([changelog('@a/notes', '1.0.0', '1.1.0')], [changelog('@a/notes', '1.0.0', '2.0.0')]);
     expect(rows[0]).toMatchObject({ status: 'escalated', afterMerge: '2.0.0' });
   });
 
-  it('skips changelogs with no entries', () => {
+  it('should skip changelogs with no entries', () => {
     const empty: VersionPackageChangelog = { ...changelog('@a/notes', '1.0.0', '1.1.0'), entries: [] };
     const rows = mergeForPreview([empty], []);
     expect(rows).toEqual([]);

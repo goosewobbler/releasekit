@@ -418,7 +418,7 @@ describe('Gate', () => {
       },
     };
 
-    it('does not produce preminor when an older prerelease-only PR is in the window', async () => {
+    it('should not produce preminor when an older prerelease-only PR is in the window', async () => {
       mockLoadReleaseKitConfig.mockReturnValue(fullConfig);
       // git-log order is newest-first: #224 (winner) before #225 (insufficient).
       mockFindMergedPRsSinceLastRelease.mockResolvedValue([224, 225]);
@@ -438,7 +438,7 @@ describe('Gate', () => {
       expect(result.labels).not.toContain('scope:tauri');
     });
 
-    it('exposes per-PR evaluations for both PRs', async () => {
+    it('should expose per-PR evaluations for both PRs', async () => {
       mockLoadReleaseKitConfig.mockReturnValue(fullConfig);
       mockFindMergedPRsSinceLastRelease.mockResolvedValue([224, 225]);
       mockFetchPRLabels
@@ -456,7 +456,7 @@ describe('Gate', () => {
       expect(skipped?.hasReleaseIntent).toBe(true);
     });
 
-    it('posts a notify comment on the prerelease-only PR but not the winner', async () => {
+    it('should post a notify comment on the prerelease-only PR but not the winner', async () => {
       mockLoadReleaseKitConfig.mockReturnValue(fullConfig);
       mockFindMergedPRsSinceLastRelease.mockResolvedValue([224, 225]);
       mockFetchPRLabels
@@ -477,7 +477,7 @@ describe('Gate', () => {
       expect(marker).toBe('<!-- releasekit-gate-notify -->');
     });
 
-    it('does not post notify when notify=false', async () => {
+    it('should not post notify when notify=false', async () => {
       mockLoadReleaseKitConfig.mockReturnValue(fullConfig);
       mockFindMergedPRsSinceLastRelease.mockResolvedValue([224, 225]);
       mockFetchPRLabels
@@ -491,7 +491,7 @@ describe('Gate', () => {
   });
 
   describe('notify — silence on PRs without release intent', () => {
-    it('does not post notify when a PR has only unrelated labels', async () => {
+    it('should not post notify when a PR has only unrelated labels', async () => {
       mockFindMergedPRsSinceLastRelease.mockResolvedValue([1, 2]);
       mockFetchPRLabels
         .mockResolvedValueOnce(['bump:minor']) // #1: winner
@@ -503,7 +503,7 @@ describe('Gate', () => {
       expect(mockPostOrUpdateComment).not.toHaveBeenCalled();
     });
 
-    it('posts notify on a single PR with conflicting bump labels', async () => {
+    it('should post notify on a single PR with conflicting bump labels', async () => {
       mockFindMergedPRsSinceLastRelease.mockResolvedValue([42]);
       mockFetchPRLabels.mockResolvedValueOnce(['bump:major', 'bump:minor']);
 
@@ -518,7 +518,7 @@ describe('Gate', () => {
       expect(body).toContain('bump:minor');
     });
 
-    it('does not post notify on commit-mode release:skip (intentional skip, not user error)', async () => {
+    it('should not post notify on commit-mode release:skip (intentional skip, not user error)', async () => {
       mockLoadReleaseKitConfig.mockReturnValue({
         ci: {
           releaseTrigger: 'commit',
