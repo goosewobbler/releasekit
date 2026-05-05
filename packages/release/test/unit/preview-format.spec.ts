@@ -394,6 +394,37 @@ describe('formatPreviewComment', () => {
       expect(result).toContain('| `@a/version` | 0.3.2 | 0.3.2 | 0.3.2 |');
     });
 
+    it('should show a one-liner instead of the table when all rows are unchanged', () => {
+      const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
+      const allUnchanged: MergedRow[] = [
+        {
+          packageName: '@a/notes',
+          baseline: '0.4.0',
+          standing: '0.5.0',
+          current: '0.5.0',
+          afterMerge: '0.5.0',
+          status: 'unchanged',
+        },
+        {
+          packageName: '@a/version',
+          baseline: '0.3.0',
+          standing: '0.4.0',
+          current: '0.4.0',
+          afterMerge: '0.4.0',
+          status: 'unchanged',
+        },
+      ];
+      const result = formatPreviewComment(releaseOutput, {
+        strategy: 'standing-pr',
+        standingPrSnapshot: snapshot,
+        mergedRows: allUnchanged,
+      });
+      expect(result).toContain('### After merge — predicted release');
+      expect(result).toContain('No version changes');
+      expect(result).not.toContain('| Package | Standing PR | This PR | After merge |');
+      expect(result).not.toContain('Approximate. The standing PR rebuilds');
+    });
+
     it('should omit the merge table when no rows are provided', () => {
       const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
       const result = formatPreviewComment(releaseOutput, { strategy: 'standing-pr', standingPrSnapshot: snapshot });

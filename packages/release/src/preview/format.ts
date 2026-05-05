@@ -320,6 +320,16 @@ function renderQueuedTable(snapshot: StandingPRSnapshot): string[] {
 }
 
 function renderMergeTable(rows: MergedRow[]): string[] {
+  const allUnchanged = rows.every((r) => r.status === 'unchanged');
+  if (allUnchanged) {
+    return [
+      '### After merge — predicted release',
+      '',
+      "> No version changes — this PR's packages match the standing PR. Queued versions will release as-is.",
+      '',
+    ];
+  }
+
   const lines: string[] = [
     '### After merge — predicted release',
     '',
