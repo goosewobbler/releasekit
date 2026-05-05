@@ -27,7 +27,11 @@
         },
         "pushMethod": {
           "type": "string",
-          "enum": ["auto", "ssh", "https"],
+          "enum": [
+            "auto",
+            "ssh",
+            "https"
+          ],
           "default": "auto",
           "description": "Method for pushing to remote"
         },
@@ -52,7 +56,11 @@
       "properties": {
         "mode": {
           "type": "string",
-          "enum": ["root", "packages", "both"],
+          "enum": [
+            "root",
+            "packages",
+            "both"
+          ],
           "description": "Changelog aggregation mode"
         },
         "rootPath": {
@@ -96,7 +104,9 @@
         },
         "packages": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "default": [],
           "description": "Packages to include in versioning"
         },
@@ -106,13 +116,20 @@
         },
         "updateInternalDependencies": {
           "type": "string",
-          "enum": ["major", "minor", "patch", "no-internal-update"],
+          "enum": [
+            "major",
+            "minor",
+            "patch",
+            "no-internal-update"
+          ],
           "default": "minor",
           "description": "How to bump internal dependencies"
         },
         "skip": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Packages to exclude from versioning"
         },
         "commitMessage": {
@@ -121,7 +138,10 @@
         },
         "versionStrategy": {
           "type": "string",
-          "enum": ["branchPattern", "commitMessage"],
+          "enum": [
+            "branchPattern",
+            "commitMessage"
+          ],
           "default": "commitMessage",
           "description": "Strategy for determining version bumps"
         },
@@ -130,24 +150,45 @@
           "items": {
             "type": "object",
             "properties": {
-              "pattern": { "type": "string" },
+              "pattern": {
+                "type": "string"
+              },
               "releaseType": {
                 "type": "string",
-                "enum": ["major", "minor", "patch", "prerelease"]
+                "enum": [
+                  "major",
+                  "minor",
+                  "patch",
+                  "prerelease"
+                ]
               }
             },
-            "required": ["pattern", "releaseType"]
+            "required": [
+              "pattern",
+              "releaseType"
+            ]
           },
           "description": "Branch name patterns for version determination"
         },
         "defaultReleaseType": {
           "type": "string",
-          "enum": ["major", "minor", "patch", "prerelease"],
+          "enum": [
+            "major",
+            "minor",
+            "patch",
+            "prerelease"
+          ],
           "description": "Default release type when no pattern matches"
         },
         "mismatchStrategy": {
           "type": "string",
-          "enum": ["error", "warn", "ignore", "prefer-package", "prefer-git"],
+          "enum": [
+            "error",
+            "warn",
+            "ignore",
+            "prefer-package",
+            "prefer-git"
+          ],
           "default": "warn",
           "description": "How to handle version mismatches"
         },
@@ -181,7 +222,9 @@
             },
             "paths": {
               "type": "array",
-              "items": { "type": "string" },
+              "items": {
+                "type": "string"
+              },
               "description": "Directories to search for Cargo.toml files"
             }
           }
@@ -204,7 +247,11 @@
             },
             "pushMethod": {
               "type": "string",
-              "enum": ["auto", "ssh", "https"],
+              "enum": [
+                "auto",
+                "ssh",
+                "https"
+              ],
               "description": "Push method override"
             },
             "remote": {
@@ -237,7 +284,11 @@
             },
             "auth": {
               "type": "string",
-              "enum": ["auto", "oidc", "token"],
+              "enum": [
+                "auto",
+                "oidc",
+                "token"
+              ],
               "default": "auto",
               "description": "Authentication method"
             },
@@ -248,7 +299,10 @@
             },
             "access": {
               "type": "string",
-              "enum": ["public", "restricted"],
+              "enum": [
+                "public",
+                "restricted"
+              ],
               "default": "public",
               "description": "Package access level"
             },
@@ -259,8 +313,12 @@
             },
             "copyFiles": {
               "type": "array",
-              "items": { "type": "string" },
-              "default": ["LICENSE"],
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "LICENSE"
+              ],
               "description": "Files to copy to package before publishing"
             },
             "tag": {
@@ -287,7 +345,9 @@
             },
             "publishOrder": {
               "type": "array",
-              "items": { "type": "string" },
+              "items": {
+                "type": "string"
+              },
               "default": [],
               "description": "Order in which to publish packages"
             },
@@ -319,13 +379,29 @@
               "description": "Create separate release per package"
             },
             "prerelease": {
-              "oneOf": [{ "type": "boolean" }, { "type": "string", "enum": ["auto"] }],
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "auto"
+                  ]
+                }
+              ],
               "default": "auto",
               "description": "Mark as prerelease"
             },
             "body": {
               "type": "string",
-              "enum": ["auto", "releaseNotes", "changelog", "generated", "none"],
+              "enum": [
+                "auto",
+                "releaseNotes",
+                "changelog",
+                "generated",
+                "none"
+              ],
               "default": "auto",
               "description": "Source for GitHub release body. 'auto': use release notes if enabled, else changelog, else GitHub auto. 'releaseNotes': use LLM-generated release notes. 'changelog': use changelog entries. 'generated': GitHub auto-generated. 'none': no body."
             },
@@ -410,7 +486,13 @@
       "properties": {
         "changelog": {
           "oneOf": [
-            { "type": "boolean", "enum": [false], "description": "Set to false to disable changelog generation" },
+            {
+              "type": "boolean",
+              "enum": [
+                false
+              ],
+              "description": "Set to false to disable changelog generation"
+            },
             {
               "type": "object",
               "description": "Changelog file configuration",
@@ -418,7 +500,11 @@
               "properties": {
                 "mode": {
                   "type": "string",
-                  "enum": ["root", "packages", "both"],
+                  "enum": [
+                    "root",
+                    "packages",
+                    "both"
+                  ],
                   "description": "Where to write changelog files. root: repo root only. packages: per-package (monorepos). both: repo root and per-package. When omitted entirely (no changelog config), defaults to root."
                 },
                 "file": {
@@ -436,7 +522,11 @@
                     },
                     "engine": {
                       "type": "string",
-                      "enum": ["handlebars", "liquid", "ejs"],
+                      "enum": [
+                        "handlebars",
+                        "liquid",
+                        "ejs"
+                      ],
                       "description": "Template engine"
                     }
                   }
@@ -447,7 +537,13 @@
         },
         "releaseNotes": {
           "oneOf": [
-            { "type": "boolean", "enum": [false], "description": "Set to false to disable release notes" },
+            {
+              "type": "boolean",
+              "enum": [
+                false
+              ],
+              "description": "Set to false to disable release notes"
+            },
             {
               "type": "object",
               "description": "Release notes configuration",
@@ -455,7 +551,11 @@
               "properties": {
                 "mode": {
                   "type": "string",
-                  "enum": ["root", "packages", "both"],
+                  "enum": [
+                    "root",
+                    "packages",
+                    "both"
+                  ],
                   "description": "Where to write release notes file. Omit to skip file output (LLM still runs if configured)."
                 },
                 "file": {
@@ -473,7 +573,11 @@
                     },
                     "engine": {
                       "type": "string",
-                      "enum": ["handlebars", "liquid", "ejs"],
+                      "enum": [
+                        "handlebars",
+                        "liquid",
+                        "ejs"
+                      ],
                       "description": "Template engine"
                     }
                   }
@@ -483,28 +587,65 @@
                   "description": "LLM configuration for release notes",
                   "additionalProperties": false,
                   "properties": {
-                    "provider": { "type": "string", "description": "LLM provider" },
-                    "model": { "type": "string", "description": "Model identifier" },
-                    "baseURL": { "type": "string", "description": "Custom API base URL" },
-                    "apiKey": { "type": "string", "description": "API key" },
+                    "provider": {
+                      "type": "string",
+                      "description": "LLM provider"
+                    },
+                    "model": {
+                      "type": "string",
+                      "description": "Model identifier"
+                    },
+                    "baseURL": {
+                      "type": "string",
+                      "description": "Custom API base URL"
+                    },
+                    "apiKey": {
+                      "type": "string",
+                      "description": "API key"
+                    },
                     "options": {
                       "type": "object",
                       "additionalProperties": false,
                       "properties": {
-                        "timeout": { "type": "integer", "description": "Request timeout in ms" },
-                        "maxTokens": { "type": "integer", "description": "Max tokens to generate" },
-                        "temperature": { "type": "number", "description": "Sampling temperature" }
+                        "timeout": {
+                          "type": "integer",
+                          "description": "Request timeout in ms"
+                        },
+                        "maxTokens": {
+                          "type": "integer",
+                          "description": "Max tokens to generate"
+                        },
+                        "temperature": {
+                          "type": "number",
+                          "description": "Sampling temperature"
+                        }
                       }
                     },
-                    "concurrency": { "type": "integer", "minimum": 1, "description": "Concurrent LLM requests" },
+                    "concurrency": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "description": "Concurrent LLM requests"
+                    },
                     "tasks": {
                       "type": "object",
                       "additionalProperties": false,
                       "properties": {
-                        "summarize": { "type": "boolean", "description": "Enable summarization" },
-                        "enhance": { "type": "boolean", "description": "Enable entry enhancement" },
-                        "categorize": { "type": "boolean", "description": "Enable categorization" },
-                        "releaseNotes": { "type": "boolean", "description": "Enable release note generation" }
+                        "summarize": {
+                          "type": "boolean",
+                          "description": "Enable summarization"
+                        },
+                        "enhance": {
+                          "type": "boolean",
+                          "description": "Enable entry enhancement"
+                        },
+                        "categorize": {
+                          "type": "boolean",
+                          "description": "Enable categorization"
+                        },
+                        "releaseNotes": {
+                          "type": "boolean",
+                          "description": "Enable release note generation"
+                        }
                       }
                     },
                     "categories": {
@@ -513,35 +654,69 @@
                         "type": "object",
                         "additionalProperties": false,
                         "properties": {
-                          "name": { "type": "string" },
-                          "description": { "type": "string" },
-                          "scopes": { "type": "array", "items": { "type": "string" } }
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "scopes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
                         },
-                        "required": ["name", "description"]
+                        "required": [
+                          "name",
+                          "description"
+                        ]
                       }
                     },
-                    "style": { "type": "string", "description": "Writing style for LLM" },
+                    "style": {
+                      "type": "string",
+                      "description": "Writing style for LLM"
+                    },
                     "scopes": {
                       "type": "object",
                       "additionalProperties": false,
                       "properties": {
                         "mode": {
                           "type": "string",
-                          "enum": ["restricted", "packages", "none", "unrestricted"],
+                          "enum": [
+                            "restricted",
+                            "packages",
+                            "none",
+                            "unrestricted"
+                          ],
                           "default": "unrestricted"
                         },
                         "rules": {
                           "type": "object",
                           "additionalProperties": false,
                           "properties": {
-                            "allowed": { "type": "array", "items": { "type": "string" } },
-                            "caseSensitive": { "type": "boolean", "default": false },
+                            "allowed": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "caseSensitive": {
+                              "type": "boolean",
+                              "default": false
+                            },
                             "invalidScopeAction": {
                               "type": "string",
-                              "enum": ["remove", "keep", "fallback"],
+                              "enum": [
+                                "remove",
+                                "keep",
+                                "fallback"
+                              ],
                               "default": "remove"
                             },
-                            "fallbackScope": { "type": "string" }
+                            "fallbackScope": {
+                              "type": "string"
+                            }
                           }
                         }
                       }
@@ -550,9 +725,21 @@
                       "type": "object",
                       "additionalProperties": false,
                       "properties": {
-                        "maxAttempts": { "type": "integer", "minimum": 1, "description": "Maximum number of attempts" },
-                        "initialDelay": { "type": "integer", "minimum": 0, "description": "Initial delay in ms" },
-                        "maxDelay": { "type": "integer", "minimum": 0, "description": "Maximum delay in ms" },
+                        "maxAttempts": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "description": "Maximum number of attempts"
+                        },
+                        "initialDelay": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Initial delay in ms"
+                        },
+                        "maxDelay": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Maximum delay in ms"
+                        },
                         "backoffFactor": {
                           "type": "number",
                           "minimum": 1,
@@ -566,18 +753,25 @@
                       "properties": {
                         "instructions": {
                           "type": "object",
-                          "additionalProperties": { "type": "string" },
+                          "additionalProperties": {
+                            "type": "string"
+                          },
                           "description": "Per-task instruction overrides"
                         },
                         "templates": {
                           "type": "object",
-                          "additionalProperties": { "type": "string" },
+                          "additionalProperties": {
+                            "type": "string"
+                          },
                           "description": "Per-task prompt template overrides"
                         }
                       }
                     }
                   },
-                  "required": ["provider", "model"]
+                  "required": [
+                    "provider",
+                    "model"
+                  ]
                 }
               }
             }
@@ -585,7 +779,10 @@
         },
         "updateStrategy": {
           "type": "string",
-          "enum": ["prepend", "regenerate"],
+          "enum": [
+            "prepend",
+            "regenerate"
+          ],
           "description": "How to update existing changelog files. 'prepend' adds new entries to the top; 'regenerate' rewrites the file from scratch."
         }
       }
@@ -597,13 +794,21 @@
       "properties": {
         "releaseStrategy": {
           "type": "string",
-          "enum": ["manual", "direct", "standing-pr", "scheduled"],
+          "enum": [
+            "manual",
+            "direct",
+            "standing-pr",
+            "scheduled"
+          ],
           "default": "direct",
           "description": "How releases are delivered. 'direct': release on merge to main. 'manual': releases triggered manually (e.g. workflow_dispatch). 'standing-pr': changes accumulate in a release PR. 'scheduled': releases triggered on a schedule."
         },
         "releaseTrigger": {
           "type": "string",
-          "enum": ["commit", "label"],
+          "enum": [
+            "commit",
+            "label"
+          ],
           "default": "label",
           "description": "What triggers a release. 'label': a PR bump label (bump:patch/minor/major) is required. 'commit': conventional commits drive the bump automatically; every merge can trigger a release."
         },
@@ -619,8 +824,12 @@
         },
         "skipPatterns": {
           "type": "array",
-          "items": { "type": "string" },
-          "default": ["chore: release "],
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "chore: release "
+          ],
           "description": "Commit message prefixes that suppress a release. The default matches the release commit template to prevent release loops."
         },
         "minChanges": {
@@ -636,18 +845,23 @@
           "properties": {
             "stable": {
               "type": "string",
-              "default": "release:stable",
+              "default": "channel:stable",
               "description": "Label to graduate a prerelease to stable"
             },
             "prerelease": {
               "type": "string",
-              "default": "release:prerelease",
+              "default": "channel:prerelease",
               "description": "Label to create a prerelease"
             },
             "skip": {
               "type": "string",
               "default": "release:skip",
               "description": "Label to suppress a release on this PR"
+            },
+            "immediate": {
+              "type": "string",
+              "default": "release:immediate",
+              "description": "Label to bypass the standing PR for one merge — triggers a direct release. Standing-pr mode only."
             },
             "major": {
               "type": "string",
@@ -683,8 +897,12 @@
             },
             "labels": {
               "type": "array",
-              "items": { "type": "string" },
-              "default": ["release"],
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "release"
+              ],
               "description": "Labels to apply to the standing release PR."
             },
             "deleteBranchOnMerge": {
@@ -699,7 +917,11 @@
             },
             "mergeMethod": {
               "type": "string",
-              "enum": ["merge", "squash", "rebase"],
+              "enum": [
+                "merge",
+                "squash",
+                "rebase"
+              ],
               "default": "merge",
               "description": "Merge method to use when merging the standing release PR via CLI."
             },
@@ -725,7 +947,10 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["notes", "publish"]
+            "enum": [
+              "notes",
+              "publish"
+            ]
           },
           "minItems": 1,
           "description": "Which steps to run by default. Omitting a step is equivalent to --skip-<step>."
@@ -737,7 +962,10 @@
           "properties": {
             "skipPatterns": {
               "type": "array",
-              "items": { "type": "string", "minLength": 1 },
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
               "description": "Commit message prefixes that prevent a release (e.g. 'chore(deps):', 'ci:')"
             },
             "minChanges": {
@@ -747,12 +975,16 @@
             },
             "githubRelease": {
               "type": "boolean",
-              "enum": [false],
+              "enum": [
+                false
+              ],
               "description": "Set to false to disable GitHub release creation in CI"
             },
             "notes": {
               "type": "boolean",
-              "enum": [false],
+              "enum": [
+                false
+              ],
               "description": "Set to false to disable changelog generation in CI"
             }
           }
