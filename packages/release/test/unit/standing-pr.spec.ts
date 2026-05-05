@@ -704,7 +704,20 @@ describe('runStandingPRUpdate', () => {
       expect(lastSetLabels?.labels).toContain('bump:major');
     });
 
-    it('should inherit sync from version config (defaults true) instead of forcing false', async () => {
+    it('should default sync to false when not set in config (preserves per-package versioning)', async () => {
+      const { runVersionStepMock } = await setupWithStandingPRLabels([]);
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ sync: false });
+    });
+
+    it('should inherit sync: true from version config when explicitly set', async () => {
+      const { loadConfig } = await import('@releasekit/config');
+      vi.mocked(loadConfig).mockReturnValue({
+        ...defaultConfig,
+        version: { sync: true },
+      } as ReturnType<typeof loadConfig>);
       const { runVersionStepMock } = await setupWithStandingPRLabels([]);
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });

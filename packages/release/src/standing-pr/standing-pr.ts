@@ -305,9 +305,9 @@ export interface StandingPRSnapshot {
   manifest: StandingPRManifest;
   /** ISO timestamp of when the standing PR was first opened. */
   openedAt: string;
-  /** 'success' = ready to merge; 'pending' = waiting on minAge. */
+  /** 'success' = ready to merge; 'pending' = label conflict or minAge not yet elapsed. */
   gateState: 'success' | 'pending';
-  /** Humanized "Waiting Xh Ym for minAge" when gateState === 'pending'. */
+  /** Human-readable reason when gateState === 'pending' (conflict description or minAge wait). */
   gateReason?: string;
 }
 
@@ -317,7 +317,8 @@ export async function fetchStandingPRSnapshot(
   repo: string,
   ciConfig: CIConfig | undefined,
 ): Promise<StandingPRSnapshot | null> {
-  const pr = await findStandingPRFromConfig(octokit, owner, repo, ciConfig);
+  const branch = ciConfig?.standingPr?.branch ?? 'release/next';
+  const pr = await findStandingPR(octokit, owner, repo, branch);
   if (!pr) return null;
 
   const comment = await findManifestComment(octokit, owner, repo, pr.number);
@@ -335,7 +336,12 @@ export async function fetchStandingPRSnapshot(
   let gateState: 'success' | 'pending' = 'success';
   let gateReason: string | undefined;
 
-  if (minAge !== undefined && manifest.firstUpdatedAt) {
+  // Label conflicts take priority over minAge — they must be resolved before merging.
+  const overrides = resolveStandingPrLabelOverrides(pr.labels, ciConfig);
+  if (overrides.conflicts.length > 0) {
+    gateState = 'pending';
+    gateReason = overrides.conflicts[0];
+  } else if (minAge !== undefined && manifest.firstUpdatedAt) {
     const minAgeMs = parseDuration(minAge);
     if (minAgeMs !== null) {
       const ageMs = Date.now() - new Date(manifest.firstUpdatedAt).getTime();
@@ -431,7 +437,7 @@ function buildBaseReleaseOptions(
   return {
     config: options.config,
     dryRun,
-    sync: extras?.sync ?? true,
+    sync: extras?.sync ?? false,
     bump: extras?.bump,
     target: extras?.target,
     stable: extras?.stable,
@@ -489,8 +495,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   if (overrides.prerelease) info(`Standing PR label override: channel:prerelease`);
   for (const conflict of overrides.conflicts) warn(conflict);
 
-  // Inherit sync from the loaded version config (defaults to true) — never silently force false.
-  const sync = releaseKitConfig.version?.sync ?? true;
+  // Inherit sync from the loaded version config only when explicitly set — default false
+  // preserves the original per-package independent versioning behaviour for existing users.
+  const sync = releaseKitConfig.version?.sync ?? false;
   // When labels conflict, drop the override (fall back to commit-driven) but keep the
   // conflict descriptions for the final status check.
   const buildExtras: BuildOptionsExtras = overrides.conflicts.length
