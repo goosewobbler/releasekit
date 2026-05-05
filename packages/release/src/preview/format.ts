@@ -75,8 +75,6 @@ function getNoChangesMessage(strategy: ReleaseStrategy): string {
       return 'Merging this PR will not trigger a release.';
     case 'standing-pr':
       return 'Merging this PR will not affect the release PR.';
-    default:
-      return '';
   }
 }
 
