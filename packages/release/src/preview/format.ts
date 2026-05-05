@@ -261,7 +261,14 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
   const sharedEntries = versionOutput.sharedEntries?.length ? versionOutput.sharedEntries : undefined;
   const hasPackageChangelogs = versionOutput.changelogs.some((cl) => cl.entries.length > 0);
 
-  if (sharedEntries || hasPackageChangelogs) {
+  // Packages bumped via sync versioning have no individual changelog entries but are still in
+  // updates — collect them so they remain visible even though they don't drive the changelog.
+  const packagesWithChangelog = new Set(
+    versionOutput.changelogs.filter((cl) => cl.entries.length > 0).map((cl) => cl.packageName),
+  );
+  const syncBumpedOnly = versionOutput.updates.filter((u) => !packagesWithChangelog.has(u.packageName));
+
+  if (sharedEntries || hasPackageChangelogs || syncBumpedOnly.length > 0) {
     lines.push('### Changelog', '');
 
     // Project-wide entries (CI, infra, shared-package commits) rendered once
@@ -276,6 +283,14 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
       if (changelog.entries.length > 0) {
         lines.push(...formatPackageChangelog(changelog));
       }
+    }
+
+    // List sync-bumped packages that have no individual commits so they aren't invisible
+    if (syncBumpedOnly.length > 0) {
+      if (hasPackageChangelogs || sharedEntries) lines.push('**Also bumped** (sync versioning)', '');
+      else lines.push('**Bumped** (sync versioning — no individual changes)', '');
+      for (const u of syncBumpedOnly) lines.push(`- \`${u.packageName}\` → ${u.newVersion}`);
+      lines.push('');
     }
   }
 

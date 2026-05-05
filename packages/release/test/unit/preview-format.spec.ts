@@ -709,8 +709,11 @@ describe('formatPreviewComment', () => {
 
     const result = formatPreviewComment(output);
     expect(result).not.toContain('### Packages');
-    expect(result).not.toContain('### Changelog');
     expect(result).not.toContain('### Tags');
+    // Sync-bumped packages with no entries should still appear under ### Changelog
+    expect(result).toContain('### Changelog');
+    expect(result).toContain('`my-lib` → 1.0.0');
+    expect(result).toContain('sync versioning');
   });
 
   it('should handle entries with unknown types', () => {
