@@ -784,6 +784,26 @@ describe('runPreview', () => {
 
       await expect(runPreview({ projectDir: '/test', dryRun: false })).rejects.toThrow('No scope specified');
     });
+
+    it('should not throw when release:immediate is set with a bump label but no scope label and no target', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseStrategy: 'standing-pr',
+        releaseTrigger: 'label',
+        scopeLabels: { 'scope:all': '@releasekit/*' },
+        labels: {
+          stable: 'channel:stable',
+          prerelease: 'channel:prerelease',
+          skip: 'release:skip',
+          immediate: 'release:immediate',
+          major: 'bump:major',
+          minor: 'bump:minor',
+          patch: 'bump:patch',
+        },
+      });
+      mockFetchPRLabels.mockResolvedValue(['release:immediate', 'bump:patch']);
+
+      await expect(runPreview({ projectDir: '/test', dryRun: false })).resolves.toBeUndefined();
+    });
   });
 
   describe('label fetching', () => {

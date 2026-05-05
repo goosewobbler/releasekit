@@ -260,7 +260,7 @@ async function applyLabelOverrides(
   // In advisory-standing-pr mode, the labels are recorded for display only.
   if (!advisoryInStandingPr && matchedScopePatterns.length > 0) {
     result.target = matchedScopePatterns.join(', ');
-  } else if (!advisoryInStandingPr && !options.target && matchedScopePatterns.length === 0) {
+  } else if (!advisoryInStandingPr && !hasImmediate && !options.target && matchedScopePatterns.length === 0) {
     // Only require a scope target when a release is actually going to happen.
     // In label mode with no qualifying labels, release is skipped — no scope needed.
     const willRelease =
