@@ -277,7 +277,7 @@ The `ci` section controls automation behavior:
 {
   "ci": {
     // How releases are delivered
-    "releaseStrategy": "direct",       // "manual" | "direct" | "standing-pr" | "scheduled"
+    "releaseStrategy": "direct",       // "manual" | "direct" | "standing-pr"
 
     // What triggers a release
     "releaseTrigger": "label",         // "commit" | "label"
@@ -323,7 +323,6 @@ Both modes support `channel:stable` and `channel:prerelease` as channel modifier
 | `direct` | Release is triggered when a PR is merged to the main branch |
 | `manual` | Releases are triggered manually (e.g. via `workflow_dispatch`) |
 | `standing-pr` | Changes accumulate in a standing release PR, merged when ready |
-| `scheduled` | Releases are triggered on a schedule *(planned)* |
 
 #### Scope-Based Release
 

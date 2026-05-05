@@ -5,7 +5,7 @@ import type { StandingPRSnapshot } from '../standing-pr/standing-pr.js';
 import type { ReleaseOutput } from '../types.js';
 import type { MergedRow } from './merge.js';
 
-export type ReleaseStrategy = 'manual' | 'direct' | 'standing-pr' | 'scheduled';
+export type ReleaseStrategy = 'manual' | 'direct' | 'standing-pr';
 const FOOTER = '*Updated automatically by [ReleaseKit](https://github.com/goosewobbler/releasekit)*';
 
 const TYPE_LABELS: Record<string, string> = {
@@ -75,8 +75,6 @@ function getNoChangesMessage(strategy: ReleaseStrategy): string {
       return 'Merging this PR will not trigger a release.';
     case 'standing-pr':
       return 'Merging this PR will not affect the release PR.';
-    case 'scheduled':
-      return 'These changes will not be included in the next scheduled release.';
     default:
       return '';
   }
@@ -90,8 +88,6 @@ function getIntroMessage(strategy: ReleaseStrategy, standingPrNumber?: number): 
       return standingPrNumber
         ? `These changes will be added to the release PR (#${standingPrNumber}) when merged:`
         : 'Merging this PR will create a new release PR with the following changes:';
-    case 'scheduled':
-      return 'These changes will be included in the next scheduled release:';
     default:
       return 'If released, this PR would include:';
   }
