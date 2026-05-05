@@ -52,7 +52,9 @@ export function mergeForPreview(
       });
       continue;
     }
-    existing.current = cl.version;
+    // Only record a current version when it is parseable — an invalid string would surface
+    // as a garbled value in the "This PR" column of the rendered table.
+    if (semver.valid(cl.version)) existing.current = cl.version;
     // Guard semver comparison against malformed version strings (older manifests, unexpected
     // calculator output) — semver.gt throws on invalid input, which would otherwise abort the
     // entire preview. Treat unparseable versions as 'unchanged' to keep the preview non-fatal.

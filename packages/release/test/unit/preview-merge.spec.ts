@@ -127,6 +127,19 @@ describe('mergeForPreview', () => {
     expect(rows).toEqual([]);
   });
 
+  it('should not set current when the current PR version is invalid semver', () => {
+    const standingCl = changelog('@a/notes', '1.0.0', '1.1.0');
+    const currentCl: VersionPackageChangelog = { ...changelog('@a/notes', '1.0.0', 'not-a-semver') };
+    const rows = mergeForPreview([standingCl], [currentCl]);
+    expect(rows[0]).toMatchObject({
+      status: 'unchanged',
+      standing: '1.1.0',
+      afterMerge: '1.1.0',
+    });
+    // current must not be set to the garbled string — it should be absent so the table shows '—'
+    expect(rows[0]?.current).toBeUndefined();
+  });
+
   it('should use current PR version as afterMerge when standing version is invalid semver', () => {
     const standingCl: VersionPackageChangelog = {
       ...changelog('@a/notes', '1.0.0', 'not-a-semver'),
