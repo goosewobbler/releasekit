@@ -193,8 +193,8 @@ export class PackageProcessor {
           } else {
             if (!this.fullConfig.baseRef && this.config.strictReachable) {
               throw new Error(
-                `Cannot generate changelog: tag '${baseForRange}' is not reachable from the current commit. ` +
-                  `When strictReachable is enabled, all tags must be reachable. ` +
+                `Cannot generate changelog: ref '${baseForRange}' is not reachable from the current commit. ` +
+                  `When strictReachable is enabled, all refs must be reachable. ` +
                   `To allow fallback to all commits, set strictReachable to false.`,
               );
             }

@@ -925,6 +925,54 @@ describe('runPreview', () => {
 
       expect(mockFetchStandingPRSnapshot).not.toHaveBeenCalled();
     });
+
+    it('should exclude packages outside standing PR scope from the merge prediction table', async () => {
+      // The standing PR only knows about 'queued-pkg'. This PR's runRelease result includes
+      // 'test-pkg' (outside standing scope). After the fix, 'test-pkg' must not appear as
+      // a new-from-pr row in the After-merge table.
+      mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'standing-pr', releaseTrigger: 'commit' });
+      mockFetchStandingPRSnapshot.mockResolvedValue(makeSnapshot());
+      // runRelease returns test-pkg (not in standing PR scope) and queued-pkg (is in scope)
+      mockRunRelease.mockResolvedValue({
+        versionOutput: {
+          dryRun: true,
+          updates: [
+            { packageName: 'test-pkg', newVersion: '1.1.0', filePath: 'package.json' },
+            { packageName: 'queued-pkg', newVersion: '0.6.0', filePath: 'package.json' },
+          ],
+          changelogs: [
+            {
+              packageName: 'test-pkg',
+              version: '1.1.0',
+              previousVersion: '1.0.0',
+              revisionRange: 'HEAD',
+              repoUrl: null,
+              entries: [{ type: 'feat', description: 'outside standing scope' }],
+            },
+            {
+              packageName: 'queued-pkg',
+              version: '0.6.0',
+              previousVersion: '0.5.0',
+              revisionRange: 'HEAD',
+              repoUrl: null,
+              entries: [{ type: 'feat', description: 'escalates standing PR' }],
+            },
+          ],
+          tags: [],
+        },
+        notesGenerated: false,
+      });
+
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
+
+      const body = mockPostOrUpdateComment.mock.calls[0]?.[4] as string;
+      // queued-pkg is in the standing PR scope — must appear as a table row (escalated)
+      expect(body).toContain('| `queued-pkg`');
+      // test-pkg is outside standing PR scope — must NOT appear as a merge-table row
+      // (it still appears in the changelog section as <b>test-pkg</b>, which is correct)
+      expect(body).not.toContain('| `test-pkg`');
+      expect(body).toContain('<b>test-pkg</b>');
+    });
   });
 
   describe('label semantics in standing-pr mode', () => {

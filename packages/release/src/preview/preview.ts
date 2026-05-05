@@ -124,7 +124,15 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   // Compute the merge prediction when we have both a standing PR snapshot and a current-PR result.
   let mergedRows: MergedRow[] | undefined;
   if (standingPrSnapshot && result) {
-    mergedRows = mergeForPreview(standingPrSnapshot.manifest.versionOutput.changelogs, result.versionOutput.changelogs);
+    // Scope the current-PR changelogs to packages the standing PR already tracks. Without this,
+    // packages this PR touches but the standing PR skips/excludes would appear as new-from-pr rows
+    // — a misleading prediction since the standing PR may not release those packages.
+    const standingScope = new Set([
+      ...standingPrSnapshot.manifest.versionOutput.updates.map((u) => u.packageName),
+      ...standingPrSnapshot.manifest.versionOutput.changelogs.map((cl) => cl.packageName),
+    ]);
+    const currentForMerge = result.versionOutput.changelogs.filter((cl) => standingScope.has(cl.packageName));
+    mergedRows = mergeForPreview(standingPrSnapshot.manifest.versionOutput.changelogs, currentForMerge);
   }
 
   // Format the comment

@@ -44,7 +44,7 @@ describe('Tag Verification', () => {
       expect(result).toEqual({
         exists: false,
         reachable: false,
-        error: "Tag 'v1.0.0' not found in repository",
+        error: "Ref 'v1.0.0' not found in repository",
       });
     });
 
@@ -59,7 +59,7 @@ describe('Tag Verification', () => {
       expect(result).toEqual({
         exists: false,
         reachable: false,
-        error: "Tag 'v1.0.0' not found in repository",
+        error: "Ref 'v1.0.0' not found in repository",
       });
     });
 
@@ -74,7 +74,7 @@ describe('Tag Verification', () => {
       expect(result).toEqual({
         exists: false,
         reachable: false,
-        error: "Tag 'v1.0.0' not found in repository",
+        error: "Ref 'v1.0.0' not found in repository",
       });
     });
 
@@ -181,7 +181,7 @@ describe('Tag Verification', () => {
         reason: 'Git tag unreachable',
       });
       expect(mockLog).toHaveBeenCalledWith(
-        "Git tag 'v1.0.0' unreachable (Tag 'v1.0.0' not found in repository), using package version: 1.0.0",
+        "Git tag 'v1.0.0' unreachable (Ref 'v1.0.0' not found in repository), using package version: 1.0.0",
         'warning',
       );
     });

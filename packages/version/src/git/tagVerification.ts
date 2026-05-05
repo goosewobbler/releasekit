@@ -42,7 +42,7 @@ export function verifyTag(tagName: string, cwd: string): TagVerificationResult {
       return {
         exists: false,
         reachable: false,
-        error: `Tag '${tagName}' not found in repository`,
+        error: `Ref '${tagName}' not found in repository`,
       };
     }
 
