@@ -483,7 +483,7 @@ describe('formatPreviewComment', () => {
       expect(result).not.toContain('### Currently queued for release');
     });
 
-    it('renders the immediate banner when labelContext.immediate is set', () => {
+    it('should render the immediate banner when labelContext.immediate is set', () => {
       const result = formatPreviewComment(releaseOutput, {
         strategy: 'standing-pr',
         labelContext: {
@@ -506,7 +506,7 @@ describe('formatPreviewComment', () => {
       expect(result).toContain('bypassing the standing PR for a direct release');
     });
 
-    it('suppresses the standing-PR snapshot when immediate label is set', () => {
+    it('should suppress the standing-PR snapshot when immediate label is set', () => {
       const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
       const result = formatPreviewComment(releaseOutput, {
         strategy: 'standing-pr',
@@ -522,7 +522,21 @@ describe('formatPreviewComment', () => {
       expect(result).not.toContain('### After merge');
     });
 
-    it('renders the advisory banner in standing-pr mode without immediate', () => {
+    it('should use direct-release intro message when immediate label is set', () => {
+      const result = formatPreviewComment(releaseOutput, {
+        strategy: 'standing-pr',
+        labelContext: {
+          trigger: 'commit',
+          skip: false,
+          noBumpLabel: false,
+          immediate: true,
+        },
+      });
+      expect(result).toContain('This PR will trigger the following release when merged:');
+      expect(result).not.toContain('release PR');
+    });
+
+    it('should render the advisory banner in standing-pr mode without immediate', () => {
       const result = formatPreviewComment(null, {
         strategy: 'standing-pr',
         labelContext: {
@@ -549,7 +563,7 @@ describe('formatPreviewComment', () => {
       expect(result).toContain('override by editing labels on the standing PR itself');
     });
 
-    it('advisory banner suppresses the regular trigger-mode banners', () => {
+    it('should suppress the regular trigger-mode banners', () => {
       // With advisoryInStandingPr, the "no bump label detected" banner should NOT render.
       const result = formatPreviewComment(null, {
         strategy: 'standing-pr',

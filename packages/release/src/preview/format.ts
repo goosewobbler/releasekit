@@ -254,7 +254,8 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
 
   lines.push('<details>', `<summary><b>Release Preview</b> — ${pkgSummary}</summary>`, '');
   lines.push(...banner);
-  lines.push(getIntroMessage(strategy, options?.standingPrNumber), '');
+  const effectiveStrategy = labelContext?.immediate ? 'direct' : strategy;
+  lines.push(getIntroMessage(effectiveStrategy, options?.standingPrNumber), '');
 
   // Changelog section
   const sharedEntries = versionOutput.sharedEntries?.length ? versionOutput.sharedEntries : undefined;
