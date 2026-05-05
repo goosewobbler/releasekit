@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+
 import * as fs from 'node:fs';
 import { type CIConfig, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput } from '@releasekit/core';
@@ -7,6 +7,7 @@ import { error, info, success, warn } from '@releasekit/core';
 import { formatDuration, parseDuration } from '../duration.js';
 import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from '../git.js';
 import { createOctokit } from '../github.js';
+import { DEFAULT_LABELS } from '../label-utils.js';
 import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { postStandingPRStatusSafe } from './status.js';
@@ -14,8 +15,6 @@ import { postStandingPRStatusSafe } from './status.js';
 const MANIFEST_MARKER = '<!-- releasekit-manifest -->';
 const MANIFEST_SCHEMA_VERSION = 2;
 const MANIFEST_SCHEMA_MIN_VERSION = 1;
-const EDITABLE_START = '<!-- releasekit-editable-start -->';
-const EDITABLE_END = '<!-- releasekit-editable-end -->';
 
 export interface StandingPROptions {
   config?: string;
@@ -40,7 +39,6 @@ export interface StandingPRManifest {
   notesFiles: string[];
   createdAt: string;
   baseSha: string;
-  notesHash?: string;
   /** ISO timestamp of when this standing PR was first created. Preserved across updates. Added in schema v2. */
   firstUpdatedAt?: string;
 }
@@ -97,62 +95,74 @@ function commitAndForcePush(branch: string, cwd: string): void {
 }
 
 // Renders the release notes section content (without editable markers).
-// Used both for writing to PR bodies and for computing notesHash.
-function renderNotesSection(versionOutput: VersionOutput, releaseNotes: Record<string, string>): string {
-  const lines: string[] = ['### Release Notes', ''];
-  for (const [pkg, notes] of Object.entries(releaseNotes)) {
-    const update = versionOutput.updates.find((u) => u.packageName === pkg);
-    if (update) {
-      lines.push(`#### ${pkg} — ${update.newVersion}`, '');
-    } else {
-      lines.push(`#### ${pkg}`, '');
-    }
-    lines.push(notes.trim(), '');
+const CHANGELOG_TYPE_LABELS: Record<string, string> = {
+  feat: 'Added',
+  fix: 'Fixed',
+  added: 'Added',
+  changed: 'Changed',
+  fixed: 'Fixed',
+  perf: 'Performance',
+  refactor: 'Refactored',
+  security: 'Security',
+  docs: 'Documentation',
+  chore: 'Chores',
+  test: 'Tests',
+  build: 'Build',
+  ci: 'CI',
+  revert: 'Reverts',
+  style: 'Styles',
+};
+
+function renderChangelogEntries(entries: VersionOutput['changelogs'][number]['entries']): string[] {
+  const grouped = new Map<string, typeof entries>();
+  for (const entry of entries) {
+    if (!grouped.has(entry.type)) grouped.set(entry.type, []);
+    grouped.get(entry.type)!.push(entry);
   }
+  const lines: string[] = [];
+  const renderedTypes = new Set<string>();
+  for (const type of Object.keys(CHANGELOG_TYPE_LABELS)) {
+    const group = grouped.get(type);
+    if (group?.length) {
+      lines.push(`**${CHANGELOG_TYPE_LABELS[type]}**`, '');
+      for (const e of group) {
+        lines.push(
+          `- ${e.description}${e.scope ? ` (\`${e.scope}\`)` : ''}${e.issueIds?.length ? ` ${e.issueIds.join(', ')}` : ''}`,
+        );
+      }
+      lines.push('');
+      renderedTypes.add(type);
+    }
+  }
+  for (const [type, group] of grouped) {
+    if (!renderedTypes.has(type) && group?.length) {
+      const label = type.charAt(0).toUpperCase() + type.slice(1);
+      lines.push(`**${label}**`, '');
+      for (const e of group) {
+        lines.push(`- ${e.description}${e.scope ? ` (\`${e.scope}\`)` : ''}`);
+      }
+      lines.push('');
+    }
+  }
+  return lines;
+}
+
+function renderChangelogSection(versionOutput: VersionOutput): string {
+  const lines: string[] = ['### Changelog', ''];
+
+  if (versionOutput.sharedEntries?.length) {
+    lines.push('#### Project-wide changes', '');
+    lines.push(...renderChangelogEntries(versionOutput.sharedEntries));
+  }
+
+  for (const cl of versionOutput.changelogs) {
+    if (cl.entries.length === 0) continue;
+    lines.push(`#### ${cl.packageName} — ${cl.previousVersion ?? 'N/A'} → ${cl.version}`, '');
+    lines.push(...renderChangelogEntries(cl.entries));
+  }
+
   if (lines[lines.length - 1] === '') lines.pop();
   return lines.join('\n');
-}
-
-function computeNotesHash(section: string): string {
-  return createHash('sha256').update(section).digest('hex').slice(0, 16);
-}
-
-// Extracts the content between editable markers from a PR body, or null if markers are absent.
-export function extractEditableSection(body: string): string | null {
-  const start = body.indexOf(EDITABLE_START);
-  const end = body.indexOf(EDITABLE_END);
-  if (start === -1 || end === -1 || end < start) return null;
-  return body.slice(start + EDITABLE_START.length, end).trim();
-}
-
-// Parses an editable section back into per-package notes using a line-by-line accumulator.
-// Package headings are "#### <pkg> — <version>" (em dash U+2014). h4 subheadings within
-// notes (e.g. "#### Breaking Changes") have no em dash and are accumulated as content.
-// [^—]+ is used for the package-name portion to avoid backtracking ambiguity.
-export function parseEditedNotes(section: string): Record<string, string> {
-  const result: Record<string, string> = {};
-  let currentPkg: string | null = null;
-  const accum: string[] = [];
-
-  const flush = () => {
-    if (currentPkg !== null) {
-      result[currentPkg] = accum.join('\n').trim();
-      accum.length = 0;
-    }
-  };
-
-  for (const line of section.split('\n')) {
-    const headingMatch = line.match(/^#### ([^—]+) — \S/);
-    if (headingMatch?.[1]) {
-      flush();
-      currentPkg = headingMatch[1].trim();
-    } else if (currentPkg !== null) {
-      accum.push(line);
-    }
-  }
-  flush();
-
-  return result;
 }
 
 function deleteReleaseBranch(releaseBranch: string, cwd: string): void {
@@ -169,12 +179,7 @@ function deleteReleaseBranch(releaseBranch: string, cwd: string): void {
   }
 }
 
-function renderPrBody(
-  versionOutput: VersionOutput,
-  releaseNotes: Record<string, string>,
-  editableNotes = false,
-  overrideSection?: string,
-): string {
+function renderPrBody(versionOutput: VersionOutput): string {
   const lines: string[] = [
     '## Release',
     '',
@@ -189,17 +194,7 @@ function renderPrBody(
     lines.push(`| \`${update.packageName}\` | ${update.newVersion} |`);
   }
 
-  const hasNotes = Object.keys(releaseNotes).length > 0;
-  if (hasNotes) {
-    const sectionContent = overrideSection ?? renderNotesSection(versionOutput, releaseNotes);
-    lines.push('');
-    if (editableNotes) {
-      lines.push(EDITABLE_START, sectionContent, EDITABLE_END, '');
-    } else {
-      lines.push(sectionContent, '');
-    }
-  }
-
+  lines.push('', renderChangelogSection(versionOutput), '');
   lines.push('---', '> Merge this PR to publish. The release will be triggered automatically.');
   return lines.join('\n');
 }
@@ -374,15 +369,7 @@ interface StandingPrOverrides {
 function resolveStandingPrLabelOverrides(prLabels: string[], ciConfig: CIConfig | undefined): StandingPrOverrides {
   // Return a fresh object rather than a shared constant — callers may mutate `conflicts`.
   if (!prLabels || prLabels.length === 0) return { conflicts: [] };
-  const labels = ciConfig?.labels ?? {
-    stable: 'channel:stable',
-    prerelease: 'channel:prerelease',
-    skip: 'release:skip',
-    immediate: 'release:immediate',
-    major: 'bump:major',
-    minor: 'bump:minor',
-    patch: 'bump:patch',
-  };
+  const labels = ciConfig?.labels ?? DEFAULT_LABELS;
   const scopeLabels = ciConfig?.scopeLabels ?? {};
   const conflicts: string[] = [];
 
@@ -611,48 +598,12 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     .replace(/\$\{version\}/g, firstUpdate?.newVersion ?? '');
 
   const labels = standingPrConfig?.labels ?? ['release'];
-  const editableNotesEnabled = standingPrConfig?.editableNotes ?? false;
-  const hasNotes = Object.keys(notesResult.releaseNotes ?? {}).length > 0;
-
-  // Pre-compute fresh notes section and its hash for edit-detection tracking
-  const freshSection =
-    editableNotesEnabled && hasNotes ? renderNotesSection(versionOutput, notesResult.releaseNotes ?? {}) : undefined;
-  const notesHash = freshSection ? computeNotesHash(freshSection) : undefined;
 
   // Reuse the standing PR fetched at the top of this function — same source of truth as the
   // label override resolution; saves an extra API call.
   const existing = existingStandingPr;
 
-  // When editableNotes is enabled and a PR exists, check whether the user has manually
-  // edited the notes section. If the current section hash differs from the stored hash,
-  // preserve the user's edits rather than overwriting them.
-  let overrideSection: string | undefined;
-  if (editableNotesEnabled && existing && freshSection) {
-    const existingManifestComment = await findManifestComment(octokit, owner, repo, existing.number);
-    if (existingManifestComment) {
-      try {
-        const existingManifest = parseManifest(existingManifestComment.body);
-        if (existingManifest.notesHash) {
-          const { data: prData } = await octokit.rest.pulls.get({
-            owner,
-            repo,
-            pull_number: existing.number,
-          });
-          if (prData.body) {
-            const currentSection = extractEditableSection(prData.body);
-            if (currentSection && computeNotesHash(currentSection) !== existingManifest.notesHash) {
-              warn('User has edited the release notes section — preserving edits');
-              overrideSection = currentSection;
-            }
-          }
-        }
-      } catch {
-        // Can't parse manifest — proceed with fresh generation
-      }
-    }
-  }
-
-  const body = renderPrBody(versionOutput, notesResult.releaseNotes ?? {}, editableNotesEnabled, overrideSection);
+  const body = renderPrBody(versionOutput);
 
   let prNumber: number;
   let prUrl: string;
@@ -742,7 +693,6 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     notesFiles: notesResult.files,
     createdAt: new Date().toISOString(),
     baseSha,
-    notesHash,
     firstUpdatedAt,
   };
 
@@ -844,26 +794,6 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
 
   // If editableNotes is enabled, extract any user edits from the PR body and merge them
   // into the manifest's releaseNotes, falling back to manifest notes for missing packages.
-  if (standingPrConfig?.editableNotes) {
-    const { data: prData } = await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber });
-    if (prData.body) {
-      const editableSection = extractEditableSection(prData.body);
-      if (editableSection) {
-        const editedNotes = parseEditedNotes(editableSection);
-        const mergedNotes: Record<string, string> = { ...manifest.releaseNotes };
-        for (const [pkg, notes] of Object.entries(editedNotes)) {
-          mergedNotes[pkg] = notes;
-        }
-        for (const pkg of Object.keys(manifest.releaseNotes)) {
-          if (!(pkg in editedNotes)) {
-            warn(`Package '${pkg}' heading not found in edited release notes — using original notes`);
-          }
-        }
-        manifest = { ...manifest, releaseNotes: mergedNotes };
-      }
-    }
-  }
-
   info(`Publishing from manifest: ${manifest.versionOutput.updates.length} package(s)`);
 
   const publishOptions: ReleaseOptions = {

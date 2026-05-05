@@ -1,7 +1,19 @@
 import type { VersionOutput } from '@releasekit/core';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // --- Mocks ---
+
+const mockFsExistsSync = vi.fn().mockReturnValue(false);
+const mockFsReadFileSync = vi.fn();
+
+vi.mock('node:fs', () => ({
+  default: {
+    existsSync: (...args: unknown[]) => mockFsExistsSync(...args),
+    readFileSync: (...args: unknown[]) => mockFsReadFileSync(...args),
+  },
+  existsSync: (...args: unknown[]) => mockFsExistsSync(...args),
+  readFileSync: (...args: unknown[]) => mockFsReadFileSync(...args),
+}));
 
 const mockLoadCIConfig = vi.fn();
 const mockLoadConfig = vi.fn();
@@ -992,6 +1004,84 @@ describe('runPreview', () => {
 
       const callArg = mockRunRelease.mock.calls[0]?.[0] as { bump?: string };
       expect(callArg?.bump).toBe('major');
+    });
+
+    describe('prBaseSha extraction from event payload', () => {
+      const originalEnv = { ...process.env };
+
+      afterEach(() => {
+        process.env = { ...originalEnv };
+        mockFsExistsSync.mockReturnValue(false);
+      });
+
+      it('should pass prBaseSha as baseRef to runRelease in advisory mode', async () => {
+        mockLoadCIConfig.mockReturnValue(ciWithLabels());
+        mockFetchPRLabels.mockResolvedValue([]); // no bump label — advisory mode
+
+        process.env.GITHUB_EVENT_PATH = '/tmp/event.json';
+        mockFsExistsSync.mockReturnValue(true);
+        mockFsReadFileSync.mockReturnValue(JSON.stringify({ pull_request: { base: { sha: 'pr-base-sha-abc' } } }));
+
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
+
+        const callArg = mockRunRelease.mock.calls[0]?.[0] as { baseRef?: string } | undefined;
+        expect(callArg?.baseRef).toBe('pr-base-sha-abc');
+      });
+
+      it('should NOT extract prBaseSha when release:immediate is set (not advisory mode)', async () => {
+        mockLoadCIConfig.mockReturnValue(ciWithLabels());
+        mockFetchPRLabels.mockResolvedValue(['release:immediate', 'bump:patch']);
+
+        process.env.GITHUB_EVENT_PATH = '/tmp/event.json';
+        mockFsExistsSync.mockReturnValue(true);
+        mockFsReadFileSync.mockReturnValue(JSON.stringify({ pull_request: { base: { sha: 'should-not-be-used' } } }));
+
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
+
+        // fs.existsSync/readFileSync should not have been called because immediate mode is not advisory
+        const callArg = mockRunRelease.mock.calls[0]?.[0] as { baseRef?: string } | undefined;
+        expect(callArg?.baseRef).toBeUndefined();
+      });
+
+      it('should not set baseRef when GITHUB_EVENT_PATH is not set', async () => {
+        mockLoadCIConfig.mockReturnValue(ciWithLabels());
+        mockFetchPRLabels.mockResolvedValue([]);
+
+        delete process.env.GITHUB_EVENT_PATH;
+
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
+
+        const callArg = mockRunRelease.mock.calls[0]?.[0] as { baseRef?: string } | undefined;
+        expect(callArg?.baseRef).toBeUndefined();
+      });
+
+      it('should not set baseRef when event file does not exist', async () => {
+        mockLoadCIConfig.mockReturnValue(ciWithLabels());
+        mockFetchPRLabels.mockResolvedValue([]);
+
+        process.env.GITHUB_EVENT_PATH = '/tmp/nonexistent-event.json';
+        mockFsExistsSync.mockReturnValue(false);
+
+        await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
+
+        const callArg = mockRunRelease.mock.calls[0]?.[0] as { baseRef?: string } | undefined;
+        expect(callArg?.baseRef).toBeUndefined();
+      });
+
+      it('should gracefully handle malformed event JSON without throwing', async () => {
+        mockLoadCIConfig.mockReturnValue(ciWithLabels());
+        mockFetchPRLabels.mockResolvedValue([]);
+
+        process.env.GITHUB_EVENT_PATH = '/tmp/event.json';
+        mockFsExistsSync.mockReturnValue(true);
+        mockFsReadFileSync.mockReturnValue('not valid json {{{{');
+
+        await expect(
+          runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' }),
+        ).resolves.toBeUndefined();
+
+        expect(mockPostOrUpdateComment).toHaveBeenCalled();
+      });
     });
   });
 });

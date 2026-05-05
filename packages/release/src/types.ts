@@ -22,6 +22,8 @@ export interface ReleaseOptions {
   quiet: boolean;
   projectDir: string;
   npmAuth?: 'auto' | 'oidc' | 'token';
+  /** When set, scope commit analysis (bump type + changelog) to commits after this SHA. */
+  baseRef?: string;
 }
 
 export interface ReleaseOutput {

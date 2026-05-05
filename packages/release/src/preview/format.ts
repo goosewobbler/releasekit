@@ -321,7 +321,11 @@ function renderQueuedTable(snapshot: StandingPRSnapshot): string[] {
 }
 
 function renderMergeTable(rows: MergedRow[]): string[] {
-  const allUnchanged = rows.every((r) => r.status === 'unchanged');
+  // Only rows the current PR participates in ('unchanged' or 'escalated') determine whether the
+  // short-circuit message renders. 'standing-only' rows are pre-existing queued content
+  // unrelated to this PR — including them would suppress the message in any real scenario.
+  const prParticipatingRows = rows.filter((r) => r.status !== 'standing-only');
+  const allUnchanged = prParticipatingRows.length > 0 && prParticipatingRows.every((r) => r.status === 'unchanged');
   if (allUnchanged) {
     return [
       '### After merge — predicted release',

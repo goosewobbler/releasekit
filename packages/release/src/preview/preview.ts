@@ -1,3 +1,4 @@
+import * as fs from 'node:fs';
 import type { CIConfig } from '@releasekit/config';
 import { loadCIConfig, loadConfig } from '@releasekit/config';
 import { info, success, warn } from '@releasekit/core';
@@ -69,6 +70,22 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
     }
   }
 
+  // In advisory standing-pr mode, scope the version analysis to only this PR's commits by
+  // using the PR's base SHA as the revision range start. Extracted from the GitHub Actions
+  // event payload (pull_request.base.sha) — non-fatal if unavailable.
+  let prBaseSha: string | undefined;
+  if (labelContext.advisoryInStandingPr) {
+    const eventPath = process.env.GITHUB_EVENT_PATH;
+    if (eventPath && fs.existsSync(eventPath)) {
+      try {
+        const event = JSON.parse(fs.readFileSync(eventPath, 'utf-8'));
+        prBaseSha = event.pull_request?.base?.sha as string | undefined;
+      } catch {
+        // Non-fatal: fall back to full commit history
+      }
+    }
+  }
+
   // Run version analysis unless release is skipped or in label mode with no bump label
   let result = null;
   if (!labelContext.skip && !labelContext.noBumpLabel) {
@@ -98,6 +115,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
       quiet: true,
       projectDir: effectiveOptions.projectDir,
       target: effectiveOptions.target,
+      baseRef: prBaseSha,
     });
   } else {
     info('No release label detected — skipping version analysis');
