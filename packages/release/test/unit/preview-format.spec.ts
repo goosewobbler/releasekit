@@ -420,7 +420,7 @@ describe('formatPreviewComment', () => {
         mergedRows: allUnchanged,
       });
       expect(result).toContain('### After merge — predicted release');
-      expect(result).toContain('No version changes');
+      expect(result).toContain('No version escalation');
       expect(result).not.toContain('| Package | Standing PR | This PR | After merge |');
       expect(result).not.toContain('Approximate. The standing PR rebuilds');
     });

@@ -325,7 +325,7 @@ function renderMergeTable(rows: MergedRow[]): string[] {
     return [
       '### After merge — predicted release',
       '',
-      "> No version changes — this PR's packages match the standing PR. Queued versions will release as-is.",
+      "> No version escalation — this PR's changes will be included in the queued release without affecting the projected versions.",
       '',
     ];
   }
