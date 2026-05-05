@@ -1,63 +1,52 @@
-
-
-## `@releasekit/version` @ 0.20.0
+## `@releasekit/version` @ 0.21.0
 
 ### New:
-- Publish operations now behave idempotently, allowing safe retries.
+- Standing PR preview now includes merge prediction.
 
-### Fixed:
-- **Security**: Fixed shell injection vulnerability in e2e test runner by using execFileSync instead of exec.
+### Documentation:
+- Documentation has been improved.
 
-### Changed:
-- Updated LLM provider interfaces and improved message handling for better reliability.
-
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.3...releasekit-version-v0.20.0
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.20.0...releasekit-version-v0.21.0
 
 ---
 
 
-## `@releasekit/notes` @ 0.20.0
-
-### New:
-- Made publish operations idempotent, allowing safe retries without duplicate content.
+## `@releasekit/notes` @ 0.21.0
 
 ### Fixed:
-- **Security**: Switched to execFileSync in e2e test runner to prevent shell injection vulnerabilities.
+- Improved error handling in the fetchPullRequestContext function to better handle failures.
 
-### Changed:
-- Updated LLM provider interfaces and improved message handling across the system.
+### Documentation:
+- Documentation was reviewed and enhanced for clarity.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.3...releasekit-version-v0.20.0
+### Developer:
+- **Dependencies**: Updated 6 production dependencies to their latest compatible versions.
+
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-notes-v0.20.0...releasekit-notes-v0.21.0
 
 ---
 
 
-## `@releasekit/publish` @ 0.20.0
+## `@releasekit/publish` @ 0.21.0
 
-### New:
-- Added idempotent publish behavior to prevent duplicate publications
+### Documentation:
+- Improved documentation for better clarity and usability.
 
-### Fixed:
-- **Security**: Fixed shell injection vulnerability in e2e test runner by using execFileSync
-
-### Changed:
-- Updated LLM provider interfaces and improved message handling for better reliability
-
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.3...releasekit-version-v0.20.0
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-publish-v0.20.0...releasekit-publish-v0.21.0
 
 ---
 
 
-## `@releasekit/release` @ 0.20.0
+## `@releasekit/release` @ 0.21.0
 
 ### New:
-- Made publish operation idempotent, allowing safe repeated execution without side effects.
+- Enhanced standing PR preview to include merge prediction.
+- Added standing PR command to release program.
 
-### Fixed:
-- **Security**: Replaced exec with execFileSync in e2e test runner to prevent shell injection vulnerabilities.
+### Removed:
+- Removed the 'scheduled' release strategy.
 
-### Changed:
-- Updated LLM provider interfaces and improved message handling for better reliability and consistency.
+### Documentation:
+- Improved documentation clarity and coverage.
 
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-version-v0.19.3...releasekit-version-v0.20.0
-
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/releasekit-release-v0.20.0...releasekit-release-v0.21.0
