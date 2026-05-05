@@ -325,14 +325,26 @@ function renderMergeTable(rows: MergedRow[]): string[] {
   // short-circuit message renders. 'standing-only' rows are pre-existing queued content
   // unrelated to this PR — including them would suppress the message in any real scenario.
   const prParticipatingRows = rows.filter((r) => r.status !== 'standing-only');
+  const standingOnlyRows = rows.filter((r) => r.status === 'standing-only');
   const allUnchanged = prParticipatingRows.length > 0 && prParticipatingRows.every((r) => r.status === 'unchanged');
   if (allUnchanged) {
-    return [
+    const lines: string[] = [
       '### After merge — predicted release',
       '',
       "> No version escalation — this PR's changes will be included in the queued release without affecting the projected versions.",
       '',
     ];
+    if (standingOnlyRows.length > 0) {
+      lines.push(
+        '| Package | Standing PR | This PR | After merge |',
+        '|---------|-------------|---------|-------------|',
+      );
+      for (const row of standingOnlyRows) {
+        lines.push(`| \`${row.packageName}\` | ${row.standing ?? '—'} | — | ${row.afterMerge} |`);
+      }
+      lines.push('');
+    }
+    return lines;
   }
 
   const lines: string[] = [
