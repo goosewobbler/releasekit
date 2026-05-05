@@ -38,14 +38,14 @@
   "devDependencies": {
     "@biomejs/biome": "catalog:",
     "@types/node": "catalog:",
-    "@typescript-eslint/parser": "^8.59.0",
+    "@typescript-eslint/parser": "^8.59.2",
     "@vitest/eslint-plugin": "^1.6.16",
-    "eslint": "^10.2.1",
+    "eslint": "^10.3.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
     "tsup": "catalog:",
     "tsx": "catalog:",
-    "turbo": "2.9.6",
+    "turbo": "2.9.9",
     "typescript": "catalog:"
   },
   "lint-staged": {
