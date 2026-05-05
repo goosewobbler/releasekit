@@ -6,7 +6,7 @@ import type { VersionOutput } from '@releasekit/core';
 import { error, info, success, warn } from '@releasekit/core';
 import { formatDuration, parseDuration } from '../duration.js';
 import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from '../git.js';
-import { createOctokit, findStandingPR as findStandingPRFromConfig } from '../github.js';
+import { createOctokit } from '../github.js';
 import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { postStandingPRStatusSafe } from './status.js';
