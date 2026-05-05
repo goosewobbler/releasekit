@@ -139,7 +139,9 @@ function renderChangelogEntries(entries: VersionOutput['changelogs'][number]['en
       const label = type.charAt(0).toUpperCase() + type.slice(1);
       lines.push(`**${label}**`, '');
       for (const e of group) {
-        lines.push(`- ${e.description}${e.scope ? ` (\`${e.scope}\`)` : ''}`);
+        lines.push(
+          `- ${e.description}${e.scope ? ` (\`${e.scope}\`)` : ''}${e.issueIds?.length ? ` ${e.issueIds.join(', ')}` : ''}`,
+        );
       }
       lines.push('');
     }
