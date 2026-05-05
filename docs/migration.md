@@ -143,10 +143,6 @@ Changesets users are used to reviewing a "Version Packages" PR before publishing
 `standing-pr` strategy is the direct analogue: ReleaseKit maintains a PR that accumulates
 releasable changes, shows what will be released, and publishes when you merge it.
 
-With `ci.standingPr.editableNotes: true`, you can edit the release notes directly in the PR
-description before merging — changes are preserved across updates and flow through to the
-published GitHub Release and changelog.
-
 Optional guardrails mirror changesets' workflow:
 
 - `ci.standingPr.minAge` — hold the PR open for a minimum duration (e.g. `"6h"`) before the
@@ -170,10 +166,7 @@ Optional guardrails mirror changesets' workflow:
    {
      "$schema": "https://goosewobbler.github.io/releasekit/schema.json",
      "ci": {
-       "releaseStrategy": "standing-pr",
-       "standingPr": {
-         "editableNotes": true
-       }
+       "releaseStrategy": "standing-pr"
      },
      "publish": {
        "npm": { "enabled": true }
