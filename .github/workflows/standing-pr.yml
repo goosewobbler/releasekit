@@ -111,12 +111,36 @@ jobs:
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
+  # Delegates to the same reusable release workflow used by `release.yml` so npm OIDC auth and
+  # SSH-based git push are configured identically — running the CLI inline previously skipped
+  # both, causing "ENEEDAUTH" on publish and inconsistent push behaviour.
   immediate-release:
     name: Immediate Release (bypass standing PR)
     if: >
       github.event_name == 'pull_request' &&
       github.event.pull_request.merged == true &&
       contains(github.event.pull_request.labels.*.name, 'release:immediate')
+    uses: ./.github/workflows/_release.reusable.yml
+    permissions:
+      id-token: write
+      contents: write
+    with:
+      packages: all
+      bump: auto
+      sync: true
+      dry_run: false
+      npm_auth: oidc
+    secrets:
+      ssh_key: ${{ secrets.DEPLOY_KEY }}
+      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+
+  # After an immediate release, the standing PR's queued changes overlap with what was just
+  # published. Re-running standing-pr update reconciles: closes the standing PR if nothing's
+  # left, otherwise rewrites the release branch against the new HEAD.
+  reconcile-standing-pr:
+    name: Reconcile standing PR (after immediate release)
+    needs: immediate-release
+    if: needs.immediate-release.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -135,12 +159,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Direct release (bypassing standing PR)
-        run: node packages/release/dist/cli.js release
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
       - name: Reconcile standing PR
         run: node packages/release/dist/cli.js standing-pr update
