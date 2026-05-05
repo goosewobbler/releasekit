@@ -256,14 +256,6 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
   lines.push(...banner);
   lines.push(getIntroMessage(strategy, options?.standingPrNumber), '');
 
-  // Package updates table
-  lines.push('### Packages', '');
-  lines.push('| Package | Version |', '|---------|---------|');
-  for (const update of versionOutput.updates) {
-    lines.push(`| \`${update.packageName}\` | ${update.newVersion} |`);
-  }
-  lines.push('');
-
   // Changelog section
   const sharedEntries = versionOutput.sharedEntries?.length ? versionOutput.sharedEntries : undefined;
   const hasPackageChangelogs = versionOutput.changelogs.some((cl) => cl.entries.length > 0);
@@ -284,15 +276,6 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
         lines.push(...formatPackageChangelog(changelog));
       }
     }
-  }
-
-  // Tags
-  if (versionOutput.tags.length > 0) {
-    lines.push('### Tags', '');
-    for (const tag of versionOutput.tags) {
-      lines.push(`- \`${tag}\``);
-    }
-    lines.push('');
   }
 
   if (mergedRows && mergedRows.length > 0) {

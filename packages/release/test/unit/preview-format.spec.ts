@@ -105,10 +105,10 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('<summary><b>Release Preview</b> — my-lib 1.0.0</summary>');
   });
 
-  it('should include package table', () => {
+  it('should not include package table', () => {
     const result = formatPreviewComment(releaseOutput);
-    expect(result).toContain('| `@releasekit/version` | 0.3.1 |');
-    expect(result).toContain('| `@releasekit/notes` | 0.3.1 |');
+    expect(result).not.toContain('### Packages');
+    expect(result).not.toContain('| `@releasekit/version` | 0.3.1 |');
   });
 
   it('should include changelog with entry grouping by type', () => {
@@ -129,10 +129,10 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('</details>');
   });
 
-  it('should include tags', () => {
+  it('should not include tags section', () => {
     const result = formatPreviewComment(releaseOutput);
-    expect(result).toContain('- `@releasekit/version@v0.3.1`');
-    expect(result).toContain('- `@releasekit/notes@v0.3.1`');
+    expect(result).not.toContain('### Tags');
+    expect(result).not.toContain('- `@releasekit/version@v0.3.1`');
   });
 
   describe('shared entries rendering', () => {
@@ -552,7 +552,7 @@ describe('formatPreviewComment', () => {
       expect(result).toContain('**Warning:**');
       expect(result).toContain('This PR is marked to skip release.');
       // Still shows the preview content underneath
-      expect(result).toContain('### Packages');
+      expect(result).toContain('### Changelog');
     });
 
     it('should show major override banner in commit mode', () => {
@@ -601,7 +601,7 @@ describe('formatPreviewComment', () => {
         labelContext: { trigger: 'label', skip: false, bumpLabel: 'minor', noBumpLabel: false },
       });
       expect(result).toContain('labeled for a **minor** release');
-      expect(result).toContain('### Packages');
+      expect(result).toContain('### Changelog');
     });
 
     it('should show patch label banner in label mode', () => {
@@ -623,7 +623,7 @@ describe('formatPreviewComment', () => {
         labelContext: { trigger: 'label', skip: false, noBumpLabel: false, prerelease: false, stable: true },
       });
       expect(result).toContain('labeled for a **stable** release (graduation from prerelease)');
-      expect(result).toContain('### Packages');
+      expect(result).not.toContain('### Packages');
     });
 
     it('should show prerelease-only banner in label mode (conventional commits driven)', () => {
@@ -631,7 +631,7 @@ describe('formatPreviewComment', () => {
         labelContext: { trigger: 'label', skip: false, noBumpLabel: false, prerelease: true, stable: false },
       });
       expect(result).toContain('labeled for a **prerelease** release (bump from conventional commits)');
-      expect(result).toContain('### Packages');
+      expect(result).not.toContain('### Packages');
     });
   });
 
@@ -647,9 +647,9 @@ describe('formatPreviewComment', () => {
     };
 
     const result = formatPreviewComment(output);
-    expect(result).toContain('| `my-lib` | 1.0.0 |');
+    expect(result).not.toContain('### Packages');
     expect(result).not.toContain('### Changelog');
-    expect(result).toContain('- `v1.0.0`');
+    expect(result).not.toContain('### Tags');
   });
 
   it('should handle entries with unknown types', () => {
