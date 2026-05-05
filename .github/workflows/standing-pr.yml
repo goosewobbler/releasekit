@@ -38,12 +38,20 @@ jobs:
           COMMIT_SHA: ${{ github.sha }}
           REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
+          # Must match ci.standingPr.branch in releasekit.config.json. Hardcoded here so this job
+          # doesn't need a checkout — keep in sync if you customize the standing-PR branch.
+          STANDING_PR_BRANCH: release/next
         run: |
-          PRS=$(gh api "repos/$REPO/commits/$COMMIT_SHA/pulls" 2>/dev/null || echo '[]')
-          PR_NUM=$(echo "$PRS" | jq -r '[.[] | select(.head.ref | startswith("release/"))][0].number // empty')
+          set -euo pipefail
+          # Let gh api fail loudly: a transient API error here would otherwise look identical to
+          # "no PR for this commit", silently routing a release-PR merge to update-release-pr
+          # instead of publish-release and skipping the actual publish.
+          PRS=$(gh api "repos/$REPO/commits/$COMMIT_SHA/pulls")
+          PR_NUM=$(echo "$PRS" | jq --arg branch "$STANDING_PR_BRANCH" -r \
+            '[.[] | select(.head.ref == $branch)][0].number // empty')
           if [ -n "$PR_NUM" ]; then
             echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
-            echo "Detected standing PR merge: PR #$PR_NUM"
+            echo "Detected standing PR merge: PR #$PR_NUM (head: $STANDING_PR_BRANCH)"
           else
             echo "No standing PR merge detected for this push"
           fi
