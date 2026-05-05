@@ -1,6 +1,9 @@
 import type { VersionChangelogEntry, VersionPackageChangelog } from '@releasekit/core';
+import { formatDuration } from '../duration.js';
 import { MARKER } from '../github.js';
+import type { StandingPRSnapshot } from '../standing-pr/standing-pr.js';
 import type { ReleaseOutput } from '../types.js';
+import type { MergedRow } from './merge.js';
 
 export type ReleaseStrategy = 'manual' | 'direct' | 'standing-pr' | 'scheduled';
 const FOOTER = '*Updated automatically by [ReleaseKit](https://github.com/goosewobbler/releasekit)*';
@@ -52,6 +55,10 @@ export interface LabelContext {
 export interface FormatOptions {
   strategy?: ReleaseStrategy;
   standingPrNumber?: number;
+  /** Snapshot of the current standing PR (link, manifest, gate state). Rendered when strategy === 'standing-pr'. */
+  standingPrSnapshot?: StandingPRSnapshot;
+  /** Per-package merge rows combining standing PR + this PR's contribution. Populated only when both exist. */
+  mergedRows?: MergedRow[];
   labelContext?: LabelContext;
 }
 
@@ -176,6 +183,8 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
 export function formatPreviewComment(result: ReleaseOutput | null, options?: FormatOptions): string {
   const strategy = options?.strategy ?? 'direct';
   const labelContext = options?.labelContext;
+  const standingPrSnapshot = strategy === 'standing-pr' ? options?.standingPrSnapshot : undefined;
+  const mergedRows = strategy === 'standing-pr' ? options?.mergedRows : undefined;
   const lines: string[] = [MARKER, ''];
 
   // Insert label-driven banner (outside the details block)
@@ -187,6 +196,10 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
     lines.push(...banner);
     if (!labelContext?.noBumpLabel) {
       lines.push(`> **Note:** No releasable changes detected. ${getNoChangesMessage(strategy)}`);
+    }
+    if (standingPrSnapshot) {
+      lines.push('', '---', '');
+      lines.push(...renderStandingPRSnapshot(standingPrSnapshot));
     }
     lines.push('', '---', FOOTER, '</details>');
     return lines.join('\n');
@@ -242,8 +255,50 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
     lines.push('');
   }
 
+  if (standingPrSnapshot) {
+    lines.push('---', '');
+    lines.push(...renderStandingPRSnapshot(standingPrSnapshot));
+    if (mergedRows && mergedRows.length > 0) {
+      lines.push(...renderMergeTable(mergedRows));
+    }
+  }
+
   lines.push('---', FOOTER, '</details>');
   return lines.join('\n');
+}
+
+function renderStandingPRSnapshot(snapshot: StandingPRSnapshot): string[] {
+  const updates = snapshot.manifest.versionOutput.updates;
+  const pkgCount = updates.length;
+  const gateBadge = snapshot.gateState === 'pending' ? `⏳ ${snapshot.gateReason}` : '✅ ready to merge';
+  const ageMs = Math.max(0, Date.now() - new Date(snapshot.openedAt).getTime());
+  const ageStr = formatDuration(ageMs);
+  const pkgWord = pkgCount === 1 ? 'package' : 'packages';
+  return [
+    `**Standing release PR:** [#${snapshot.number}](${snapshot.url}) · ${pkgCount} ${pkgWord} queued · open ${ageStr} · ${gateBadge}`,
+    '',
+  ];
+}
+
+function renderMergeTable(rows: MergedRow[]): string[] {
+  const lines: string[] = [
+    '### After merge — predicted release',
+    '',
+    '> Approximate. The standing PR rebuilds against `main` at merge time; if other commits land first, the prediction may shift.',
+    '',
+    '| Package | Standing PR | This PR | After merge |',
+    '|---------|-------------|---------|-------------|',
+  ];
+  for (const row of rows) {
+    const standing = row.standing ?? '—';
+    const current = row.current ?? '—';
+    let afterCell = row.afterMerge;
+    if (row.status === 'escalated' && row.standing) afterCell += ` ⚠ escalated from ${row.standing}`;
+    if (row.status === 'new-from-pr') afterCell += ' (new)';
+    lines.push(`| \`${row.packageName}\` | ${standing} | ${current} | ${afterCell} |`);
+  }
+  lines.push('');
+  return lines;
 }
 
 function renderEntries(entries: VersionChangelogEntry[]): string[] {

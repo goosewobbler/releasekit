@@ -1,12 +1,12 @@
 import { execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
-import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
+import { type CIConfig, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput } from '@releasekit/core';
 import { error, info, success, warn } from '@releasekit/core';
 import { formatDuration, parseDuration } from '../duration.js';
 import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from '../git.js';
-import { createOctokit } from '../github.js';
+import { createOctokit, findStandingPR as findStandingPRFromConfig } from '../github.js';
 import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { postStandingPRStatusSafe } from './status.js';
@@ -249,7 +249,7 @@ export function parseManifest(commentBody: string): StandingPRManifest {
 
 type OctokitInstance = ReturnType<typeof createOctokit>;
 
-async function findManifestComment(
+export async function findManifestComment(
   octokit: OctokitInstance,
   owner: string,
   repo: string,
@@ -289,6 +289,62 @@ export async function findStandingPR(
 
   const pr = prs[0];
   return pr ? { number: pr.number, url: pr.html_url } : null;
+}
+
+/**
+ * Read-only snapshot of the current standing PR, used by the preview command to render
+ * a "true release preview" comment (queued packages + minAge gate state).
+ *
+ * Returns null when no standing PR exists or its manifest comment is missing/malformed.
+ */
+export interface StandingPRSnapshot {
+  number: number;
+  url: string;
+  manifest: StandingPRManifest;
+  /** ISO timestamp of when the standing PR was first opened. */
+  openedAt: string;
+  /** 'success' = ready to merge; 'pending' = waiting on minAge. */
+  gateState: 'success' | 'pending';
+  /** Humanized "Waiting Xh Ym for minAge" when gateState === 'pending'. */
+  gateReason?: string;
+}
+
+export async function fetchStandingPRSnapshot(
+  octokit: OctokitInstance,
+  owner: string,
+  repo: string,
+  ciConfig: CIConfig | undefined,
+): Promise<StandingPRSnapshot | null> {
+  const pr = await findStandingPRFromConfig(octokit, owner, repo, ciConfig);
+  if (!pr) return null;
+
+  const comment = await findManifestComment(octokit, owner, repo, pr.number);
+  if (!comment) return null;
+
+  let manifest: StandingPRManifest;
+  try {
+    manifest = parseManifest(comment.body);
+  } catch {
+    return null;
+  }
+
+  const openedAt = manifest.firstUpdatedAt ?? manifest.createdAt;
+  const minAge = ciConfig?.standingPr?.minAge;
+  let gateState: 'success' | 'pending' = 'success';
+  let gateReason: string | undefined;
+
+  if (minAge && manifest.firstUpdatedAt) {
+    const minAgeMs = parseDuration(minAge);
+    if (minAgeMs !== null) {
+      const ageMs = Date.now() - new Date(manifest.firstUpdatedAt).getTime();
+      if (ageMs < minAgeMs) {
+        gateState = 'pending';
+        gateReason = `Waiting ${formatDuration(minAgeMs - ageMs)} for minAge`;
+      }
+    }
+  }
+
+  return { number: pr.number, url: pr.url, manifest, openedAt, gateState, gateReason };
 }
 
 function buildBaseReleaseOptions(options: StandingPROptions, dryRun: boolean): ReleaseOptions {

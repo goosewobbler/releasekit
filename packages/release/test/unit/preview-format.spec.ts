@@ -1,7 +1,40 @@
 import type { VersionOutput } from '@releasekit/core';
 import { describe, expect, it } from 'vitest';
 import { formatPreviewComment } from '../../src/preview/format.js';
+import type { MergedRow } from '../../src/preview/merge.js';
+import type { StandingPRSnapshot } from '../../src/standing-pr/standing-pr.js';
 import type { ReleaseOutput } from '../../src/types.js';
+
+function snapshotFor(
+  updates: Array<{ name: string; version: string }>,
+  overrides: Partial<StandingPRSnapshot> = {},
+): StandingPRSnapshot {
+  return {
+    number: 42,
+    url: 'https://github.com/owner/repo/pull/42',
+    openedAt: new Date(Date.now() - 2 * 3_600_000).toISOString(), // 2h ago
+    gateState: 'success',
+    manifest: {
+      schemaVersion: 2,
+      versionOutput: {
+        dryRun: false,
+        updates: updates.map((u) => ({
+          packageName: u.name,
+          newVersion: u.version,
+          filePath: `packages/${u.name}/package.json`,
+        })),
+        changelogs: [],
+        tags: [],
+      },
+      releaseNotes: {},
+      notesFiles: [],
+      createdAt: new Date(Date.now() - 2 * 3_600_000).toISOString(),
+      baseSha: 'abc',
+      firstUpdatedAt: new Date(Date.now() - 2 * 3_600_000).toISOString(),
+    },
+    ...overrides,
+  };
+}
 
 const versionOutput: VersionOutput = {
   dryRun: true,
@@ -268,6 +301,102 @@ describe('formatPreviewComment', () => {
     it('should show scheduled no-changes message', () => {
       const result = formatPreviewComment(null, { strategy: 'scheduled' });
       expect(result).toContain('will not be included in the next scheduled release');
+    });
+  });
+
+  // --- Standing PR snapshot + merge table ---
+
+  describe('standing PR snapshot', () => {
+    it('renders the snapshot block in the no-release branch when strategy is standing-pr', () => {
+      const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
+      const result = formatPreviewComment(null, { strategy: 'standing-pr', standingPrSnapshot: snapshot });
+      expect(result).toContain('**Standing release PR:**');
+      expect(result).toContain('[#42](https://github.com/owner/repo/pull/42)');
+      expect(result).toContain('1 package queued');
+      expect(result).toContain('✅ ready to merge');
+    });
+
+    it('renders the snapshot block after the package list in the has-release branch', () => {
+      const snapshot = snapshotFor([
+        { name: '@a/notes', version: '0.5.0' },
+        { name: '@a/version', version: '0.3.2' },
+      ]);
+      const result = formatPreviewComment(releaseOutput, { strategy: 'standing-pr', standingPrSnapshot: snapshot });
+      expect(result).toContain('**Standing release PR:**');
+      expect(result).toContain('2 packages queued');
+      // The snapshot block should appear after the package table
+      const tableIdx = result.indexOf('| `@releasekit/version` | 0.3.1 |');
+      const snapshotIdx = result.indexOf('**Standing release PR:**');
+      expect(tableIdx).toBeGreaterThan(-1);
+      expect(snapshotIdx).toBeGreaterThan(tableIdx);
+    });
+
+    it('shows the pending gate badge with countdown when gateState is pending', () => {
+      const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }], {
+        gateState: 'pending',
+        gateReason: 'Waiting 4h 20m for minAge',
+      });
+      const result = formatPreviewComment(null, { strategy: 'standing-pr', standingPrSnapshot: snapshot });
+      expect(result).toContain('⏳ Waiting 4h 20m for minAge');
+      expect(result).not.toContain('✅ ready to merge');
+    });
+
+    it('omits the snapshot when strategy is not standing-pr (defensive)', () => {
+      const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
+      const result = formatPreviewComment(releaseOutput, { strategy: 'direct', standingPrSnapshot: snapshot });
+      expect(result).not.toContain('**Standing release PR:**');
+    });
+
+    it('renders the merge table with escalation, new, and unchanged annotations', () => {
+      const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
+      const mergedRows: MergedRow[] = [
+        {
+          packageName: '@a/notes',
+          baseline: '0.4.0',
+          standing: '0.4.1',
+          current: '0.5.0',
+          afterMerge: '0.5.0',
+          status: 'escalated',
+        },
+        {
+          packageName: '@a/publish',
+          baseline: '0.2.0',
+          current: '0.2.1',
+          afterMerge: '0.2.1',
+          status: 'new-from-pr',
+        },
+        {
+          packageName: '@a/version',
+          baseline: '0.3.1',
+          standing: '0.3.2',
+          current: '0.3.2',
+          afterMerge: '0.3.2',
+          status: 'unchanged',
+        },
+      ];
+      const result = formatPreviewComment(releaseOutput, {
+        strategy: 'standing-pr',
+        standingPrSnapshot: snapshot,
+        mergedRows,
+      });
+      expect(result).toContain('### After merge — predicted release');
+      expect(result).toContain('Approximate. The standing PR rebuilds against `main`');
+      expect(result).toContain('| Package | Standing PR | This PR | After merge |');
+      expect(result).toContain('| `@a/notes` | 0.4.1 | 0.5.0 | 0.5.0 ⚠ escalated from 0.4.1 |');
+      expect(result).toContain('| `@a/publish` | — | 0.2.1 | 0.2.1 (new) |');
+      expect(result).toContain('| `@a/version` | 0.3.2 | 0.3.2 | 0.3.2 |');
+    });
+
+    it('omits the merge table when no rows are provided', () => {
+      const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
+      const result = formatPreviewComment(releaseOutput, { strategy: 'standing-pr', standingPrSnapshot: snapshot });
+      expect(result).not.toContain('### After merge');
+    });
+
+    it('does not change output when no snapshot is provided (regression guard)', () => {
+      const withoutSnapshot = formatPreviewComment(releaseOutput, { strategy: 'standing-pr' });
+      expect(withoutSnapshot).not.toContain('**Standing release PR:**');
+      expect(withoutSnapshot).not.toContain('### After merge');
     });
   });
 

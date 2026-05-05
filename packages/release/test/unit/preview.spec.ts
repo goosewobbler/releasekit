@@ -53,6 +53,12 @@ vi.mock('../../src/preview/detect.js', () => ({
   detectPrerelease: (...args: unknown[]) => mockDetectPrerelease(...args),
 }));
 
+const mockFetchStandingPRSnapshot = vi.fn();
+
+vi.mock('../../src/standing-pr/standing-pr.js', () => ({
+  fetchStandingPRSnapshot: (...args: unknown[]) => mockFetchStandingPRSnapshot(...args),
+}));
+
 // --- Fixtures ---
 
 const versionOutputWithChanges: VersionOutput = {
@@ -98,6 +104,7 @@ describe('runPreview', () => {
     mockCreateOctokit.mockReturnValue({});
     mockFetchPRLabels.mockResolvedValue([]);
     mockPostOrUpdateComment.mockResolvedValue(undefined);
+    mockFetchStandingPRSnapshot.mockResolvedValue(null);
 
     const mod = await import('../../src/preview/preview.js');
     runPreview = mod.runPreview;
@@ -795,6 +802,94 @@ describe('runPreview', () => {
 
       expect(mockRunRelease).toHaveBeenCalled();
       expect(mockPostOrUpdateComment).toHaveBeenCalled();
+    });
+  });
+
+  describe('standing PR snapshot', () => {
+    function makeSnapshot() {
+      return {
+        number: 42,
+        url: 'https://github.com/owner/repo/pull/42',
+        openedAt: new Date().toISOString(),
+        gateState: 'success' as const,
+        manifest: {
+          schemaVersion: 2 as const,
+          versionOutput: {
+            dryRun: false,
+            updates: [{ packageName: 'queued-pkg', newVersion: '0.5.0', filePath: 'package.json' }],
+            changelogs: [
+              {
+                packageName: 'queued-pkg',
+                version: '0.5.0',
+                previousVersion: '0.4.0',
+                revisionRange: 'v0.4.0..HEAD',
+                repoUrl: null,
+                entries: [{ type: 'feat', description: 'queued change' }],
+              },
+            ],
+            tags: [],
+          },
+          releaseNotes: {},
+          notesFiles: [],
+          createdAt: new Date().toISOString(),
+          baseSha: 'abc',
+          firstUpdatedAt: new Date().toISOString(),
+        },
+      };
+    }
+
+    it('fetches the snapshot and threads it into the comment when strategy is standing-pr', async () => {
+      mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'standing-pr', releaseTrigger: 'commit' });
+      mockFetchStandingPRSnapshot.mockResolvedValue(makeSnapshot());
+
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
+
+      expect(mockFetchStandingPRSnapshot).toHaveBeenCalledTimes(1);
+      const body = mockPostOrUpdateComment.mock.calls[0]?.[4] as string;
+      expect(body).toContain('**Standing release PR:**');
+      expect(body).toContain('[#42]');
+      expect(body).toContain('### After merge — predicted release');
+    });
+
+    it('renders snapshot only (no merge table) when this PR has no releasable changes', async () => {
+      mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'standing-pr', releaseTrigger: 'commit' });
+      mockFetchStandingPRSnapshot.mockResolvedValue(makeSnapshot());
+      mockRunRelease.mockResolvedValue(null);
+
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
+
+      const body = mockPostOrUpdateComment.mock.calls[0]?.[4] as string;
+      expect(body).toContain('**Standing release PR:**');
+      expect(body).not.toContain('### After merge');
+    });
+
+    it('omits the snapshot when no standing PR is found', async () => {
+      mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'standing-pr', releaseTrigger: 'commit' });
+      mockFetchStandingPRSnapshot.mockResolvedValue(null);
+
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
+
+      const body = mockPostOrUpdateComment.mock.calls[0]?.[4] as string;
+      expect(body).not.toContain('**Standing release PR:**');
+    });
+
+    it('treats fetch failure as non-fatal (preview still posts)', async () => {
+      mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'standing-pr', releaseTrigger: 'commit' });
+      mockFetchStandingPRSnapshot.mockRejectedValue(new Error('boom'));
+
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
+
+      expect(mockPostOrUpdateComment).toHaveBeenCalled();
+      const body = mockPostOrUpdateComment.mock.calls[0]?.[4] as string;
+      expect(body).not.toContain('**Standing release PR:**');
+    });
+
+    it('does not fetch the snapshot when strategy is not standing-pr', async () => {
+      mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'direct', releaseTrigger: 'commit' });
+
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
+
+      expect(mockFetchStandingPRSnapshot).not.toHaveBeenCalled();
     });
   });
 });

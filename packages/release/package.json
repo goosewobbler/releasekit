@@ -63,6 +63,7 @@
     "conventional-changelog-angular": "^8.3.1",
     "conventional-changelog-conventionalcommits": "^9.3.1",
     "minimatch": "catalog:",
+    "semver": "catalog:",
     "smol-toml": "catalog:",
     "zod": "catalog:"
   },

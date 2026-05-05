@@ -2,14 +2,16 @@ import type { CIConfig } from '@releasekit/config';
 import { loadCIConfig, loadConfig } from '@releasekit/config';
 import { info, success, warn } from '@releasekit/core';
 import { evaluatePR } from '../gate/evaluate-pr.js';
-import { createOctokit, fetchPRLabels, findStandingPR, postOrUpdateComment } from '../github.js';
+import { createOctokit, fetchPRLabels, postOrUpdateComment } from '../github.js';
 import { DEFAULT_LABELS, detectLabelConflicts } from '../label-utils.js';
 import { runRelease } from '../release.js';
+import { fetchStandingPRSnapshot, type StandingPRSnapshot } from '../standing-pr/standing-pr.js';
 import type { PreviewContext } from './context.js';
 import { resolvePreviewContext } from './context.js';
 import { detectPrerelease } from './detect.js';
 import type { LabelContext } from './format.js';
 import { formatPreviewComment } from './format.js';
+import { type MergedRow, mergeForPreview } from './merge.js';
 
 export interface PreviewOptions {
   config?: string;
@@ -54,14 +56,14 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
 
   const strategy = ciConfig?.releaseStrategy ?? 'direct';
 
-  // For standing-pr strategy, discover the current standing PR number for the preview comment
-  let standingPrNumber: number | undefined;
+  // For standing-pr strategy, fetch a read-only snapshot of the current standing PR (link,
+  // queued packages, minAge gate state) so the preview can render a true release preview.
+  let standingPrSnapshot: StandingPRSnapshot | undefined;
   if (strategy === 'standing-pr' && context && octokit) {
     try {
-      const standingPr = await findStandingPR(octokit, context.owner, context.repo, ciConfig);
-      standingPrNumber = standingPr?.number;
+      standingPrSnapshot = (await fetchStandingPRSnapshot(octokit, context.owner, context.repo, ciConfig)) ?? undefined;
     } catch {
-      // Non-fatal: preview still renders without the PR number
+      // Non-fatal: preview still renders without the snapshot
     }
   }
 
@@ -99,8 +101,20 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
     info('No release label detected — skipping version analysis');
   }
 
+  // Compute the merge prediction when we have both a standing PR snapshot and a current-PR result.
+  let mergedRows: MergedRow[] | undefined;
+  if (standingPrSnapshot && result) {
+    mergedRows = mergeForPreview(standingPrSnapshot.manifest.versionOutput.changelogs, result.versionOutput.changelogs);
+  }
+
   // Format the comment
-  const commentBody = formatPreviewComment(result, { strategy, standingPrNumber, labelContext });
+  const commentBody = formatPreviewComment(result, {
+    strategy,
+    standingPrNumber: standingPrSnapshot?.number,
+    standingPrSnapshot,
+    mergedRows,
+    labelContext,
+  });
 
   if (!context || !octokit) {
     // Dry-run mode or GitHub context unavailable — print to stdout
