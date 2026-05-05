@@ -158,6 +158,20 @@ describe('Version Engine', () => {
 
       expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(expect.objectContaining({ stableOnly: true }));
     });
+
+    it('should propagate baseRef from runOptions to effective config', () => {
+      new VersionEngine(defaultConfig as Config, { baseRef: 'abc1234def' });
+
+      expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(expect.objectContaining({ baseRef: 'abc1234def' }));
+    });
+
+    it('should not set baseRef when runOptions does not include it', () => {
+      new VersionEngine(defaultConfig as Config, { bump: 'minor' });
+
+      expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(
+        expect.not.objectContaining({ baseRef: expect.anything() }),
+      );
+    });
   });
 
   describe('getWorkspacePackages', () => {

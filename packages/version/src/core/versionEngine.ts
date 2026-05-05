@@ -46,6 +46,7 @@ export class VersionEngine {
       }
       if (runOptions.stable) effective.stableOnly = true;
       if (runOptions.targets?.length) this.runtimeTargets = runOptions.targets;
+      if (runOptions.baseRef) effective.baseRef = runOptions.baseRef;
     }
 
     // Default values for required properties

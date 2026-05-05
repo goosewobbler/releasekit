@@ -447,6 +447,40 @@ describe('Version Strategies', () => {
         );
       });
 
+      it('should use baseRef for revision range when config.baseRef is set', async () => {
+        const config: Partial<Config> = {
+          ...defaultConfig,
+          sync: true,
+          baseRef: 'deadbeef1234',
+        };
+
+        const syncStrategy = strategies.createSyncStrategy(config as Config);
+        await syncStrategy(mockPackages);
+
+        expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith(
+          '/test/workspace',
+          'deadbeef1234..HEAD',
+        );
+      });
+
+      it('should fall back to HEAD when baseRef cannot be resolved by git', async () => {
+        // Make the rev-parse --verify call fail for the baseRef
+        vi.mocked(commandExecutor.execSync, { partial: true }).mockImplementationOnce(() => {
+          throw new Error('fatal: bad object nonexistent-sha');
+        });
+
+        const config: Partial<Config> = {
+          ...defaultConfig,
+          sync: true,
+          baseRef: 'nonexistent-sha',
+        };
+
+        const syncStrategy = strategies.createSyncStrategy(config as Config);
+        await syncStrategy(mockPackages);
+
+        expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith('/test/workspace', 'HEAD');
+      });
+
       it('should create one tag per workspace package when packageSpecificTags is true', async () => {
         vi.mocked(formatting.formatTag, { partial: true }).mockImplementation((_version, _prefix, packageName) =>
           packageName ? `${packageName}-v1.1.0` : 'v1.1.0',

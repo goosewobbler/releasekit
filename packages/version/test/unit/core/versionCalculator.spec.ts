@@ -710,6 +710,29 @@ describe('Version Calculator', () => {
   });
 
   describe('Conventional commits analysis', () => {
+    it('should call Bumper.commits with baseRef when config.baseRef is set', async () => {
+      const commitsSpy = vi.spyOn(Bumper.prototype, 'commits').mockReturnThis();
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.0.1');
+
+      const config = { ...defaultConfig, baseRef: 'deadbeef123' } as Config;
+      const options: VersionOptions = { latestTag: 'v1.0.0', versionPrefix: 'v' };
+
+      await calculateVersion(config, options);
+
+      expect(commitsSpy).toHaveBeenCalledWith({ from: 'deadbeef123' });
+    });
+
+    it('should NOT call Bumper.commits when config.baseRef is not set', async () => {
+      const commitsSpy = vi.spyOn(Bumper.prototype, 'commits').mockReturnThis();
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.0.1');
+
+      const options: VersionOptions = { latestTag: 'v1.0.0', versionPrefix: 'v' };
+
+      await calculateVersion(defaultConfig as Config, options);
+
+      expect(commitsSpy).not.toHaveBeenCalled();
+    });
+
     it('should use conventional commits when no type or branch pattern matches', async () => {
       // Setup specific mocks
       vi.spyOn(Bumper.prototype, 'loadPreset').mockImplementation(() => {

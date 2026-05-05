@@ -287,6 +287,9 @@ export async function calculateVersion(config: Config, options: VersionOptions):
       log(`Creating bumper with preset: ${preset}`, 'debug');
       const bumper = new Bumper();
       bumper.loadPreset(preset);
+      if (config.baseRef) {
+        bumper.commits({ from: config.baseRef });
+      }
       const recommendedBump = await bumper.bump();
       const releaseTypeFromCommits =
         recommendedBump && 'releaseType' in recommendedBump ? (recommendedBump.releaseType as ReleaseType) : undefined;
