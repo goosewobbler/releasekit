@@ -93,7 +93,6 @@ How and when releases are delivered. Configure under `ci.releaseStrategy`.
 | `direct` | Release on every merge to main (default) |
 | `manual` | Human-triggered only (`workflow_dispatch`) |
 | `standing-pr` | Changes accumulate in a bot-maintained release PR; merged when ready |
-| `scheduled` | Periodic batching *(planned)* |
 
 See [CI setup](../packages/release/docs/ci-setup.md) for full workflow YAML, prerequisites, and the standing-PR lifecycle.
 
