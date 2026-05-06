@@ -158,6 +158,48 @@ function commitNotesFiles(files: string[], versionOutput: VersionOutput, cwd: st
   }
 }
 
+/**
+ * Create the release tags locally at HEAD.
+ *
+ * The publish pipeline's `runGitCommitStage` is what normally creates tags, but the standing-PR
+ * publish flow sets `skipGitCommit: true` to avoid duplicating the squash-merge commit, which
+ * also skips tag creation. The pipeline's `git push --tags` then has nothing to push.
+ *
+ * Mirrors the idempotency check in `runGitCommitStage` (packages/publish/src/stages/git-commit.ts):
+ * if the tag already points at HEAD it's a no-op (re-runs are safe); if it points at a different
+ * commit we warn and skip rather than rewriting history. Errors here don't propagate — the
+ * publish pipeline's `--tags` push will publish whatever tags we managed to create.
+ */
+function createReleaseTags(tags: string[], cwd: string): void {
+  if (tags.length === 0) return;
+  const headSha = execSync('git rev-parse HEAD', { cwd, encoding: 'utf-8' }).trim();
+
+  for (const tag of tags) {
+    try {
+      const existing = execSync(`git rev-parse -q --verify "refs/tags/${tag}^{}"`, {
+        cwd,
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
+      if (existing === headSha) {
+        info(`Tag ${tag} already exists at HEAD, skipping`);
+        continue;
+      }
+      warn(`Tag ${tag} exists at ${existing} but HEAD is ${headSha} — skipping (re-tag manually if intended)`);
+      continue;
+    } catch {
+      // Tag doesn't exist; create it below.
+    }
+
+    try {
+      execFileSync('git', ['tag', '-a', tag, '-m', `Release ${tag}`], { cwd, stdio: 'pipe' });
+      success(`Created tag: ${tag}`);
+    } catch (err) {
+      warn(`Failed to create tag ${tag}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+}
+
 // Renders the release notes section content (without editable markers).
 const CHANGELOG_TYPE_LABELS: Record<string, string> = {
   feat: 'Added',
@@ -916,8 +958,8 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     notesFiles = [...notesFiles, ...newFiles];
 
     // Commit the new RELEASE_NOTES.md so main reflects what's in the GitHub release body.
-    // Tags created next by the publish step land on this commit (which is fine — the tag
-    // captures the full release state including notes).
+    // Tags created next land on this commit (which is fine — the tag captures the full release
+    // state including notes).
     if (newFiles.length > 0) {
       commitNotesFiles(newFiles, manifest.versionOutput, cwd);
     }
@@ -925,6 +967,11 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     warn(`Release notes generation failed: ${err instanceof Error ? err.message : String(err)}`);
     warn('Publish will proceed with empty release notes; GitHub release will use auto-generated notes.');
   }
+
+  // Create the release tags at HEAD before invoking the publish pipeline. The pipeline's
+  // git-commit stage (where tag creation normally lives) is skipped via skipGitCommit below,
+  // so without this the pipeline's `git push --tags` would have nothing to push.
+  createReleaseTags(manifest.versionOutput.tags, cwd);
 
   const publishOptions: ReleaseOptions = {
     config: options.config,
