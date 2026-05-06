@@ -6,6 +6,7 @@ on:
   pull_request:
     types: [closed]
     branches: [main]
+  workflow_dispatch: {}
 
 concurrency:
   group: standing-release-pr
@@ -27,7 +28,7 @@ jobs:
   # `publish-release` finishes tagging.
   detect-release-merge:
     name: Detect release merge
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
       pr_number: ${{ steps.detect.outputs.pr_number }}
@@ -82,7 +83,7 @@ jobs:
   update-release-pr:
     name: Update Release PR
     needs: detect-release-merge
-    if: github.event_name == 'push' && needs.detect-release-merge.outputs.pr_number == ''
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.detect-release-merge.outputs.pr_number == ''
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
