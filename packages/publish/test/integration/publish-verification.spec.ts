@@ -6,13 +6,20 @@ import * as path from 'node:path';
 // on CI runners (cold npm-CLI bootstrap was ~4-5s, brushing the 5s test timeout).
 // @ts-expect-error - npm-packlist ships no type declarations.
 import packlist from 'npm-packlist';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 interface PackTree {
   path: string;
   package: { name: string; version: string; files?: string[] };
 }
 
+// npm-packlist's documented API takes an Arborist node from `arborist.loadActual()`,
+// but it only reads `node.path` and `node.package` for plain packages with a `files`
+// field, no workspaces, and no bundleDependencies — which is what we test here. A
+// minimal POJO is enough; pulling in @npmcli/arborist just to construct a real node
+// would be a heavy dep for no gain. If a future npm-packlist version starts reading
+// other Arborist properties (e.g. node.realpath, node.edgesIn) this will break loudly
+// and we revisit.
 const pack = (tree: PackTree): Promise<string[]> => packlist(tree) as Promise<string[]>;
 
 describe('Package Content Verification', () => {
@@ -21,7 +28,7 @@ describe('Package Content Verification', () => {
   let distDir: string;
   let pkgJson: PackTree['package'];
 
-  beforeAll(() => {
+  beforeEach(() => {
     testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-publish-test-'));
     pkgDir = path.join(testDir, 'packages', 'test-pkg');
     distDir = path.join(pkgDir, 'dist');
@@ -53,7 +60,7 @@ describe('Package Content Verification', () => {
     fs.writeFileSync(path.join(pkgDir, '.gitignore'), '*.log');
   });
 
-  afterAll(() => {
+  afterEach(() => {
     if (fs.existsSync(testDir)) {
       fs.rmSync(testDir, { recursive: true, force: true });
     }
@@ -87,8 +94,6 @@ describe('Package Content Verification', () => {
   });
 
   it('should handle missing files in files field', async () => {
-    // Mutates the shared fixture — runs last because of file ordering. If a future test
-    // is added that needs LICENSE present, restructure into per-test fixtures.
     fs.unlinkSync(path.join(pkgDir, 'LICENSE'));
 
     const includedFiles = await pack({ path: pkgDir, package: pkgJson });
