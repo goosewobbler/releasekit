@@ -47,16 +47,15 @@ jobs:
           git add -f packages/release/dist/
           git commit --no-verify -m "chore: build action dist for ${RELEASE_TAG} [skip ci]"
 
-          # Extract semver from tag: releasekit-release-v1.2.3 -> 1.2.3
-          VERSION="${RELEASE_TAG#releasekit-release-v}"
+          # Extract semver from the sync-mode shared tag, e.g. `v1.2.3` -> `1.2.3`.
+          VERSION="${RELEASE_TAG#v}"
           MAJOR="${VERSION%%.*}"
 
-          # Immutable patch tag — skip if it already exists (idempotent re-runs)
-          if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
-            echo "Tag v${VERSION} already exists, skipping"
+          # The release tag itself is already `v${VERSION}` in sync mode, so the version tag
+          # exists. Just ensure the GitHub Release exists (idempotent for re-runs).
+          if gh release view "v${VERSION}" >/dev/null 2>&1; then
+            echo "Release v${VERSION} already exists, skipping"
           else
-            git tag "v${VERSION}"
-            git push origin "v${VERSION}"
             if [[ "${VERSION}" != *"-"* ]]; then
               gh release create "v${VERSION}" --title "v${VERSION}" --generate-notes
             else
