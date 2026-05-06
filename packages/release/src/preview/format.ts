@@ -1,4 +1,5 @@
 import type { VersionChangelogEntry, VersionPackageChangelog } from '@releasekit/core';
+import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration } from '../duration.js';
 import { MARKER } from '../github.js';
 import type { StandingPRSnapshot } from '../standing-pr/standing-pr.js';
@@ -6,7 +7,6 @@ import type { ReleaseOutput } from '../types.js';
 import type { MergedRow } from './merge.js';
 
 export type ReleaseStrategy = 'manual' | 'direct' | 'standing-pr';
-const FOOTER = '*Updated automatically by [ReleaseKit](https://github.com/goosewobbler/releasekit)*';
 
 const TYPE_LABELS: Record<string, string> = {
   added: 'Added',
@@ -271,7 +271,7 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
     if (standingPrSnapshot) {
       lines.push(...renderQueuedTable(standingPrSnapshot));
     }
-    lines.push('', '---', FOOTER, '</details>');
+    lines.push('', '---', ATTRIBUTION_FOOTER, '</details>');
     return lines.join('\n');
   }
 
@@ -328,7 +328,7 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
     lines.push(...renderMergeTable(mergedRows));
   }
 
-  lines.push('---', FOOTER, '</details>');
+  lines.push('---', ATTRIBUTION_FOOTER, '</details>');
   return lines.join('\n');
 }
 
