@@ -84,33 +84,12 @@ jobs:
     name: Update Release PR
     needs: detect-release-merge
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.detect-release-merge.outputs.pr_number == ''
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6.0.2
-        with:
-          fetch-depth: 0
-          token: ${{ github.token }}
-
-      - name: Setup workspace
-        uses: ./.github/workflows/actions/setup-workspace
-
-      - name: Build packages
-        run: pnpm build
-
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Update standing release PR
-        run: node packages/release/dist/cli.js standing-pr update
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          # Uncomment the env var matching your notes.releaseNotes.llm.provider.
-          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+    uses: ./.github/workflows/_standing-pr-update.reusable.yml
+    permissions:
+      contents: write
+      pull-requests: write
+    secrets:
+      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
   # Delegates to the same reusable release workflow used by `release.yml` so npm OIDC auth and
   # SSH-based git push are configured identically — running the CLI inline previously skipped
@@ -157,58 +136,45 @@ jobs:
     # set whenever any package releases. If you switch back to async, this gate becomes too
     # narrow (it only fires when @releasekit/release itself is bumped) and should be revisited.
     if: needs.immediate-release.result == 'success' && needs.immediate-release.outputs.action_tag != ''
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6.0.2
-        with:
-          fetch-depth: 0
-          token: ${{ github.token }}
+    uses: ./.github/workflows/_standing-pr-update.reusable.yml
+    permissions:
+      contents: write
+      pull-requests: write
+    secrets:
+      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
-      - name: Setup workspace
-        uses: ./.github/workflows/actions/setup-workspace
-
-      - name: Build packages
-        run: pnpm build
-
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Reconcile standing PR
-        run: node packages/release/dist/cli.js standing-pr update
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          # Uncomment the env var matching your notes.releaseNotes.llm.provider.
-          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-
+  # Routed through `_release.reusable.yml` so the OIDC `job_workflow_ref` matches the npm
+  # trusted-publisher entry (npm only allows one trusted-publisher workflow path per package).
+  # The reusable's `standing_pr_number` input switches it from the version+notes+publish flow
+  # to the manifest-driven standing-pr publish flow, while keeping SSH/auth setup identical.
   publish-release:
     name: Publish Release
     needs: detect-release-merge
     if: needs.detect-release-merge.outputs.pr_number != ''
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6.0.2
-        with:
-          fetch-depth: 0
-          token: ${{ github.token }}
+    uses: ./.github/workflows/_release.reusable.yml
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: write
+    with:
+      packages: all
+      bump: auto
+      sync: true
+      dry_run: false
+      npm_auth: oidc
+      standing_pr_number: ${{ needs.detect-release-merge.outputs.pr_number }}
+    secrets:
+      ssh_key: ${{ secrets.DEPLOY_KEY }}
+      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
-      - name: Setup workspace
-        uses: ./.github/workflows/actions/setup-workspace
-
-      - name: Build packages
-        run: pnpm build
-
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Publish from release PR
-        run: node packages/release/dist/cli.js standing-pr publish --pr "${{ needs.detect-release-merge.outputs.pr_number }}"
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+  build-action-publish:
+    name: Build and tag action dist
+    needs: publish-release
+    if: needs.publish-release.result == 'success' && needs.publish-release.outputs.action_tag != ''
+    uses: ./.github/workflows/_action-release.reusable.yml
+    permissions:
+      contents: write
+    with:
+      tag: ${{ needs.publish-release.outputs.action_tag }}
+    secrets:
+      ssh_key: ${{ secrets.DEPLOY_KEY }}

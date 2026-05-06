@@ -22,6 +22,11 @@ on:
         required: false
         type: boolean
         default: false
+      standing_pr_number:
+        description: When set, run `standing-pr publish` against this PR number instead of the full release flow. Routes the standing-PR publish path through this trusted-publisher workflow so npm OIDC authenticates correctly.
+        required: false
+        type: string
+        default: ''
     secrets:
       ssh_key:
         required: false
@@ -35,6 +40,7 @@ on:
 permissions:
   id-token: write
   contents: write
+  pull-requests: write
 
 env:
   TURBO_TELEMETRY_DISABLED: 1
@@ -80,6 +86,7 @@ jobs:
 
       - name: Run releasekit
         id: release
+        if: inputs.standing_pr_number == ''
         env:
           GITHUB_TOKEN: ${{ github.token }}
           OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
@@ -169,6 +176,43 @@ jobs:
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Standing-PR publish path. Routed through this reusable so the OIDC `job_workflow_ref`
+      # matches the npm trusted-publisher entry — npm only allows one trusted-publisher
+      # workflow path per package, and that path is this file.
+      - name: Run releasekit (standing-pr publish)
+        id: release-standing-pr
+        if: inputs.standing_pr_number != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          STANDING_PR_NUMBER: ${{ inputs.standing_pr_number }}
+          INPUT_NPM_AUTH: ${{ inputs.npm_auth }}
+        run: |
+          if [ "${INPUT_NPM_AUTH:-oidc}" != "oidc" ]; then
+            echo "::error::standing-pr publish only supports npm_auth=oidc (got: '${INPUT_NPM_AUTH}')"
+            exit 1
+          fi
+          set +e
+          RELEASE_OUTPUT=$(node packages/release/dist/cli.js standing-pr publish \
+            --pr "$STANDING_PR_NUMBER" \
+            --npm-auth oidc \
+            --json \
+            2> >(tee /tmp/release_stderr >&2))
+          EXIT_CODE=$?
+          set -e
+
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "::error::standing-pr publish failed with exit code $EXIT_CODE"
+            exit $EXIT_CODE
+          fi
+
+          if echo "$RELEASE_OUTPUT" | jq -e '.versionOutput' > /dev/null 2>&1; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "$RELEASE_OUTPUT" > release-output.json
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Extract action tag
         id: extract-tag
         if: ${{ !inputs.dry_run }}
@@ -189,7 +233,7 @@ jobs:
           INPUT_DRY_RUN: ${{ inputs.dry_run }}
           INPUT_NPM_AUTH: ${{ inputs.npm_auth }}
           INPUT_SYNC: ${{ inputs.sync }}
-          HAS_CHANGES: ${{ steps.release.outputs.has_changes }}
+          HAS_CHANGES: ${{ steps.release.outputs.has_changes || steps.release-standing-pr.outputs.has_changes }}
         run: |
           echo "## Release" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
