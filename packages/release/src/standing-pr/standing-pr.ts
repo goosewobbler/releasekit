@@ -221,7 +221,11 @@ function renderChangelogSection(versionOutput: VersionOutput): string {
   const hasPackageEntries = versionOutput.changelogs.some((cl) => cl.entries.length > 0);
   if (sharedEntries.length === 0 && !hasPackageEntries) return '';
 
-  const lines: string[] = ['### Changelog', ''];
+  const totalEntries =
+    (versionOutput.sharedEntries?.length ?? 0) +
+    versionOutput.changelogs.reduce((acc, cl) => acc + cl.entries.length, 0);
+
+  const inner: string[] = ['### Changelog', ''];
 
   if (sharedEntries.length > 0) {
     lines.push('#### Project-wide changes', '');
@@ -230,12 +234,17 @@ function renderChangelogSection(versionOutput: VersionOutput): string {
 
   for (const cl of versionOutput.changelogs) {
     if (cl.entries.length === 0) continue;
-    lines.push(`#### ${cl.packageName} — ${cl.previousVersion ?? 'N/A'} → ${cl.version}`, '');
-    lines.push(...renderChangelogEntries(cl.entries));
+    inner.push(`#### ${cl.packageName} — ${cl.previousVersion ?? 'N/A'} → ${cl.version}`, '');
+    inner.push(...renderChangelogEntries(cl.entries));
   }
 
-  if (lines[lines.length - 1] === '') lines.pop();
-  return lines.join('\n');
+  if (inner[inner.length - 1] === '') inner.pop();
+
+  // Wrap in <details> — standing-PR changelogs can run to hundreds of entries across
+  // many packages and dominate the PR body. Collapsed-by-default keeps the package
+  // table immediately visible while still letting reviewers expand to inspect.
+  const summary = `Show changelog (${totalEntries} ${totalEntries === 1 ? 'entry' : 'entries'})`;
+  return ['<details>', `<summary>${summary}</summary>`, '', ...inner, '', '</details>'].join('\n');
 }
 
 function deleteReleaseBranch(releaseBranch: string, cwd: string): void {
