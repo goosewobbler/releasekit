@@ -114,10 +114,19 @@ function commitNotesFiles(files: string[], versionOutput: VersionOutput, cwd: st
   // is ignored) AND reports untracked files (`??` prefix) — which `git diff HEAD` misses.
   // Without the untracked check, a brand-new RELEASE_NOTES.md (first release in a repo) would
   // be silently skipped and never make it into the publish commit.
-  const statusOut = execFileSync('git', ['status', '--porcelain', '--', ...files], {
-    cwd,
-    encoding: 'utf-8',
-  }).trim();
+  // The probe is wrapped so the function never propagates — the caller's outer try/catch is
+  // scoped to LLM failures, and a bubbled git error there would emit a misleading "release
+  // notes generation failed" warning even though notes were generated successfully.
+  let statusOut: string;
+  try {
+    statusOut = execFileSync('git', ['status', '--porcelain', '--', ...files], {
+      cwd,
+      encoding: 'utf-8',
+    }).trim();
+  } catch (err) {
+    warn(`Failed to probe release notes status: ${err instanceof Error ? err.message : String(err)}`);
+    return;
+  }
 
   if (!statusOut) {
     info('Release notes already match the on-disk content, skipping commit');
