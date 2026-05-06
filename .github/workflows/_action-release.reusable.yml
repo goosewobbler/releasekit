@@ -63,6 +63,11 @@ jobs:
             fi
           fi
 
+          # Force-move the exact version tag to the dist commit so consumers
+          # pinning `uses: goosewobbler/releasekit@v1.2.3` get the built dist.
+          git tag -f "v${VERSION}"
+          git push origin -f "v${VERSION}"
+
           # Moving major alias — only update for stable releases
           if [[ "${VERSION}" != *"-"* ]]; then
             git tag -f "v${MAJOR}"
