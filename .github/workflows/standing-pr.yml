@@ -15,17 +15,16 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
-  id-token: write
 
 env:
   TURBO_TELEMETRY_DISABLED: 1
 
 jobs:
   # Runs first on every push to main so the downstream jobs can serialize on its output:
-  # if the push is the merge of a release/* PR, only `publish-release` runs;
-  # otherwise only `update-release-pr` runs. Without this gate, both would run in parallel
-  # and `update-release-pr` could collect the just-released commits as "unreleased" before
-  # `publish-release` finishes tagging.
+  # if the push is the merge of a release/* PR, only `trigger-publish` runs (which dispatches
+  # release.yml); otherwise only `update-release-pr` runs. Without this gate, both would run
+  # in parallel and `update-release-pr` could collect the just-released commits as "unreleased"
+  # before the dispatched release.yml run finishes tagging.
   detect-release-merge:
     name: Detect release merge
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
@@ -112,89 +111,65 @@ jobs:
     secrets:
       OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
-  # Delegates to the same reusable release workflow used by `release.yml` so npm OIDC auth and
-  # SSH-based git push are configured identically — running the CLI inline previously skipped
-  # both, causing "ENEEDAUTH" on publish and inconsistent push behaviour.
-  immediate-release:
-    name: Immediate Release (bypass standing PR)
+  # Same architectural constraint as `trigger-publish` below: any OIDC publish triggered from
+  # `standing-pr.yml` would have `workflow_ref = standing-pr.yml`, which doesn't match the
+  # `release.yml` trusted-publisher entry on npmjs.com (only one is allowed per package). So
+  # immediate releases are dispatched to `release.yml workflow_dispatch` too. The
+  # `reconcile_after=true` flag tells release.yml to rebuild the standing PR after the publish
+  # succeeds, replacing what used to be the `reconcile-standing-pr` job here.
+  trigger-immediate:
+    name: Trigger immediate release via release.yml
     if: >
       github.event_name == 'pull_request' &&
       github.event.pull_request.merged == true &&
       contains(github.event.pull_request.labels.*.name, 'release:immediate')
-    uses: ./.github/workflows/_release.reusable.yml
+    runs-on: ubuntu-latest
     permissions:
-      id-token: write
-      contents: write
-    with:
-      packages: all
-      bump: auto
-      sync: true
-      dry_run: false
-      npm_auth: oidc
-    secrets:
-      ssh_key: ${{ secrets.DEPLOY_KEY }}
-      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+      actions: write
+    steps:
+      - name: Dispatch release.yml
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          gh workflow run release.yml \
+            --repo "$REPO" \
+            --ref main \
+            --field packages=all \
+            --field bump=auto \
+            --field npm_auth=oidc \
+            --field sync=true \
+            --field dry_run=false \
+            --field reconcile_after=true
+          echo "Dispatched release.yml for immediate release of PR #$PR_NUMBER"
+          echo "Watch publish progress: https://github.com/$REPO/actions/workflows/release.yml"
 
-  build-action-immediate:
-    name: Build and tag action dist
-    needs: immediate-release
-    if: needs.immediate-release.result == 'success' && needs.immediate-release.outputs.action_tag != ''
-    uses: ./.github/workflows/_action-release.reusable.yml
-    permissions:
-      contents: write
-    with:
-      tag: ${{ needs.immediate-release.outputs.action_tag }}
-    secrets:
-      ssh_key: ${{ secrets.DEPLOY_KEY }}
-
-  # After an immediate release, the standing PR's queued changes overlap with what was just
-  # published. Re-running standing-pr update reconciles: closes the standing PR if nothing's
-  # left, otherwise rewrites the release branch against the new HEAD.
-  reconcile-standing-pr:
-    name: Reconcile standing PR (after immediate release)
-    needs: immediate-release
-    # Skip when nothing actually released — under sync mode (the current config), action_tag is
-    # set whenever any package releases. If you switch back to async, this gate becomes too
-    # narrow (it only fires when @releasekit/release itself is bumped) and should be revisited.
-    if: needs.immediate-release.result == 'success' && needs.immediate-release.outputs.action_tag != ''
-    uses: ./.github/workflows/_standing-pr-update.reusable.yml
-    permissions:
-      contents: write
-      pull-requests: write
-    secrets:
-      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-
-  # Routed through `_release.reusable.yml` so the OIDC `job_workflow_ref` matches the npm
-  # trusted-publisher entry (npm only allows one trusted-publisher workflow path per package).
-  # The reusable's `standing_pr_number` input switches it from the version+notes+publish flow
-  # to the manifest-driven standing-pr publish flow, while keeping SSH/auth setup identical.
-  publish-release:
-    name: Publish Release
+  # Trigger release.yml via workflow_dispatch instead of running the publish here directly.
+  # npm trusted publishing matches the OIDC token's top-level `workflow_ref` claim (only one
+  # trusted-publisher entry per package, currently `release.yml`), so any publish triggered from
+  # `standing-pr.yml` would be rejected with ENEEDAUTH. Routing through `gh workflow run
+  # release.yml` makes the dispatched run's `workflow_ref` resolve to `release.yml`, which
+  # matches the trusted-publisher config and lets OIDC trusted publishing succeed.
+  trigger-publish:
+    name: Trigger publish via release.yml
     needs: detect-release-merge
     if: needs.detect-release-merge.outputs.pr_number != ''
-    uses: ./.github/workflows/_release.reusable.yml
+    runs-on: ubuntu-latest
     permissions:
-      id-token: write
-      contents: write
-    with:
-      packages: all
-      bump: auto
-      sync: true
-      dry_run: false
-      npm_auth: oidc
-      standing_pr_number: ${{ needs.detect-release-merge.outputs.pr_number }}
-    secrets:
-      ssh_key: ${{ secrets.DEPLOY_KEY }}
-      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-
-  build-action-publish:
-    name: Build and tag action dist
-    needs: publish-release
-    if: needs.publish-release.result == 'success' && needs.publish-release.outputs.action_tag != ''
-    uses: ./.github/workflows/_action-release.reusable.yml
-    permissions:
-      contents: write
-    with:
-      tag: ${{ needs.publish-release.outputs.action_tag }}
-    secrets:
-      ssh_key: ${{ secrets.DEPLOY_KEY }}
+      actions: write
+    steps:
+      - name: Dispatch release.yml
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ needs.detect-release-merge.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          gh workflow run release.yml \
+            --repo "$REPO" \
+            --ref main \
+            --field "standing_pr_number=$PR_NUMBER"
+          echo "Dispatched release.yml with standing_pr_number=$PR_NUMBER"
+          echo "Watch publish progress: https://github.com/$REPO/actions/workflows/release.yml"
