@@ -88,7 +88,11 @@ function commitAndForcePush(branch: string, cwd: string): void {
   // Check if there's anything to commit
   const status = execSync('git status --porcelain', { encoding: 'utf-8', cwd }).trim();
   if (status) {
-    execSync('git commit -m "chore: release preparation [skip ci]"', { encoding: 'utf-8', cwd, stdio: 'pipe' });
+    // Subject must match `release.ci.skipPatterns` (default 'chore: release ') so a future
+    // standing-pr update on this branch noops correctly. Do NOT add `[skip ci]` — when the PR
+    // is squash-merged with this single-commit history, the squash inherits this message and
+    // suppresses ALL workflow runs on main, including the publish job.
+    execSync('git commit -m "chore: release preparation"', { encoding: 'utf-8', cwd, stdio: 'pipe' });
   }
 
   execSync(`git push --force-with-lease origin "${branch}"`, { encoding: 'utf-8', cwd, stdio: 'pipe' });
