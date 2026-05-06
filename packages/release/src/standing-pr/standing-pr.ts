@@ -109,17 +109,17 @@ function commitAndForcePush(branch: string, cwd: string): void {
 function commitNotesFiles(files: string[], versionOutput: VersionOutput, cwd: string): void {
   if (files.length === 0) return;
 
-  // Probe whether ANY of the target paths actually differs from HEAD before touching the index.
-  // `git diff --quiet -- <paths>` exits 0 when no diff, 1 when there is a diff. Scoping to
-  // explicit paths avoids picking up unrelated repo-wide dirty state.
-  let hasChanges = false;
-  try {
-    execFileSync('git', ['diff', '--quiet', 'HEAD', '--', ...files], { cwd, stdio: 'pipe' });
-  } catch {
-    hasChanges = true;
-  }
+  // Probe whether ANY of the target paths has tracked changes OR is untracked. `git status
+  // --porcelain -- <paths>` is scoped to the listed paths (so unrelated repo-wide dirty state
+  // is ignored) AND reports untracked files (`??` prefix) — which `git diff HEAD` misses.
+  // Without the untracked check, a brand-new RELEASE_NOTES.md (first release in a repo) would
+  // be silently skipped and never make it into the publish commit.
+  const statusOut = execFileSync('git', ['status', '--porcelain', '--', ...files], {
+    cwd,
+    encoding: 'utf-8',
+  }).trim();
 
-  if (!hasChanges) {
+  if (!statusOut) {
     info('Release notes already match the on-disk content, skipping commit');
     return;
   }
