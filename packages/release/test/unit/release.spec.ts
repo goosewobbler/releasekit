@@ -437,7 +437,7 @@ describe('runRelease', () => {
   it('should pass dryRun to notes pipeline', async () => {
     await runRelease({ ...defaultOptions, dryRun: true });
 
-    expect(mockNotesRunPipeline).toHaveBeenCalledWith(expect.anything(), expect.anything(), true);
+    expect(mockNotesRunPipeline).toHaveBeenCalledWith(expect.anything(), expect.anything(), true, expect.anything());
   });
 
   it('should pass version output to notes directly', async () => {
