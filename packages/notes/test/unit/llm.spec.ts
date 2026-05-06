@@ -219,7 +219,7 @@ describe('categorizeEntries()', () => {
     expect(result[0]?.entries[1]?.scope).toBeUndefined();
   });
 
-  it('should validate scopes and trigger corrective retry on invalid scopes', async () => {
+  it('should apply invalidScopeAction (default remove) without triggering an LLM retry', async () => {
     const entries: ChangelogEntry[] = [
       { type: 'added', description: 'Update CI config' },
       { type: 'fixed', description: 'Fix deps' },
@@ -231,20 +231,10 @@ describe('categorizeEntries()', () => {
       capabilities: { systemRole: true, structuredOutputs: false, toolUse: false },
       async complete(): Promise<CompleteResult> {
         callCount++;
-        if (callCount === 1) {
-          const content = JSON.stringify({
-            entries: [
-              { category: 'Developer', scope: 'CI' },
-              { category: 'Developer', scope: 'InvalidScope' },
-            ],
-          });
-          return { content, structured: JSON.parse(content) };
-        }
-        // Second attempt (corrective): return valid scopes
         const content = JSON.stringify({
           entries: [
             { category: 'Developer', scope: 'CI' },
-            { category: 'Developer', scope: 'Dependencies' },
+            { category: 'Developer', scope: 'InvalidScope' },
           ],
         });
         return { content, structured: JSON.parse(content) };
@@ -259,8 +249,10 @@ describe('categorizeEntries()', () => {
 
     const dev = result.find((c) => c.category === 'Developer');
     expect(dev?.entries[0]?.scope).toBe('CI');
-    expect(dev?.entries[1]?.scope).toBe('Dependencies');
-    expect(callCount).toBe(2);
+    // 'InvalidScope' is dropped per the default invalidScopeAction: 'remove'.
+    expect(dev?.entries[1]?.scope).toBeUndefined();
+    // Only one LLM call — scope mismatches are resolved by the configured action, not retried.
+    expect(callCount).toBe(1);
   });
 
   it('should strip all scopes when scope mode is none', async () => {
@@ -521,7 +513,7 @@ describe('enhanceAndCategorize()', () => {
     await expect(enhanceAndCategorize(provider, sampleEntries, llmContext)).rejects.toThrow();
   });
 
-  it('should validate scopes against restricted scope config', async () => {
+  it('should apply invalidScopeAction to disallowed scopes without retrying the LLM', async () => {
     const response = JSON.stringify({
       entries: [
         { description: 'Updated CI', category: 'Developer', scope: 'CI', breaking: null, leadIn: null },
@@ -536,18 +528,7 @@ describe('enhanceAndCategorize()', () => {
       capabilities: { systemRole: true, structuredOutputs: false, toolUse: false },
       async complete(): Promise<CompleteResult> {
         callCount++;
-        if (callCount === 1) {
-          return { content: response, structured: JSON.parse(response) };
-        }
-        // Corrective: fix invalid scopes
-        const fixed = JSON.stringify({
-          entries: [
-            { description: 'Updated CI', category: 'Developer', scope: 'CI', breaking: null, leadIn: null },
-            { description: 'Fixed bug', category: 'Fixed', scope: null, breaking: null, leadIn: null },
-            { description: 'Refactored', category: 'Developer', scope: 'Dependencies', breaking: null, leadIn: null },
-          ],
-        });
-        return { content: fixed, structured: JSON.parse(fixed) };
+        return { content: response, structured: JSON.parse(response) };
       },
     };
 
@@ -561,8 +542,10 @@ describe('enhanceAndCategorize()', () => {
     });
 
     expect(result.enhancedEntries[0]?.scope).toBe('CI');
-    expect(result.enhancedEntries[2]?.scope).toBe('Dependencies');
-    expect(callCount).toBe(2);
+    // 'InvalidScope' and 'Code Quality' both fall outside the allowed set; default action `remove`.
+    expect(result.enhancedEntries[1]?.scope).toBeUndefined();
+    expect(result.enhancedEntries[2]?.scope).toBeUndefined();
+    expect(callCount).toBe(1);
   });
 
   it('should pass prompt instructions to the provider in the system message', async () => {

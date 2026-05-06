@@ -109,16 +109,15 @@ function makeValidator(
       return scope ? { ...entry, scope } : entry;
     });
 
-    // Validate scopes
+    // Validate scopes. The validator applies `invalidScopeAction` (default `remove`) and
+    // returns `valid: true` — scope mismatches don't trigger an LLM retry, since the configured
+    // action defines the resolution. Surface a warning so disallowed scopes stay visible.
     const scopeResult = validateEntryScopes(withScopes, context.scopes, context.categories);
-    if (!scopeResult.valid) {
-      const msg = scopeResult.errors
-        .map(
-          (e) =>
-            `entry ${e.entryIndex} scope "${e.providedScope}" (${e.allowedScopes.length ? `valid: ${e.allowedScopes.join(', ')}` : 'no scopes permitted'})`,
-        )
-        .join('; ');
-      return { valid: false, error: `Invalid scopes: ${msg}` };
+    if (scopeResult.errors.length > 0) {
+      const offenders = [...new Set(scopeResult.errors.map((e) => e.providedScope))];
+      warn(
+        `LLM returned ${scopeResult.errors.length} entries with disallowed scopes (${offenders.join(', ')}); resolved per invalidScopeAction.`,
+      );
     }
 
     return { valid: true, value: groupByCategory(zodResult.data.entries, scopeResult.entries) };
@@ -160,7 +159,11 @@ export async function categorizeEntries(
   } catch (error) {
     if (error instanceof LLMError) {
       warn(`categorizeEntries failed after all attempts: ${error.message}. Returning entries under General.`);
-      // Strip LLM-assigned scopes — they were never validated in this path.
+      // Triggered by structural validation failures the LLM couldn't recover from across the
+      // retry budget: malformed JSON, schema-incompatible output, wrong entry count, or
+      // categories outside the configured list. (Disallowed scopes don't reach here — the
+      // configured invalidScopeAction resolves them in-place.) Strip scopes since the LLM
+      // run never produced validated values.
       return [{ category: 'General', entries: entries.map((e) => ({ ...e, scope: undefined })) }];
     }
     throw error;

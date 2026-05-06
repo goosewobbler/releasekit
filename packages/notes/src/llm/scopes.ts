@@ -1,3 +1,4 @@
+import { warn } from '@releasekit/core';
 import type { ChangelogEntry, LLMCategory, ScopeConfig } from '../core/types.js';
 
 export interface ScopeError {
@@ -7,7 +8,9 @@ export interface ScopeError {
 }
 
 export interface ScopeValidationResult {
-  valid: boolean;
+  // Always `true` — the configured `invalidScopeAction` defines the resolution, so the
+  // validator never signals retry-worthy failure. The literal type encodes the contract.
+  valid: true;
   entries: ChangelogEntry[];
   errors: ScopeError[];
 }
@@ -73,9 +76,12 @@ export function validateScope(
 }
 
 /**
- * Validate scopes on all entries. Returns cleaned entries (invalid scopes set
- * to undefined) plus structured errors for each violation. Callers can use the
- * errors to build corrective-retry messages rather than silently dropping scopes.
+ * Validate scopes on all entries and apply the configured `invalidScopeAction`
+ * (`remove` | `keep` | `fallback`, default `remove`). Always returns
+ * `valid: true` once the action has been applied — the action defines the
+ * resolution, so callers should not trigger a corrective retry on the LLM.
+ *
+ * `errors` is populated for logging/inspection but does not signal failure.
  */
 export function validateEntryScopes(
   entries: ChangelogEntry[],
@@ -86,7 +92,22 @@ export function validateEntryScopes(
   if (allowedScopes === null) return { valid: true, entries, errors: [] };
 
   const caseSensitive = scopeConfig?.rules?.caseSensitive ?? false;
+  const action = scopeConfig?.rules?.invalidScopeAction ?? 'remove';
+  const fallback = scopeConfig?.rules?.fallbackScope;
   const errors: ScopeError[] = [];
+
+  // Misconfiguration guard: if `fallback` is set but isn't itself in the allow list, the
+  // substituted scope would still violate the rules. Warn once at the top of the validator
+  // rather than once per entry; this is a config bug, not an LLM bug.
+  if (
+    action === 'fallback' &&
+    fallback !== undefined &&
+    validateScope(fallback, allowedScopes, caseSensitive) === undefined
+  ) {
+    warn(
+      `scopes.rules.fallbackScope "${fallback}" is not in the allowed scope list (${allowedScopes.length ? allowedScopes.join(', ') : '<empty>'}); substituted scopes will violate the allow-list. Add "${fallback}" to the allow list or change invalidScopeAction.`,
+    );
+  }
 
   const validatedEntries = entries.map((entry, index) => {
     const cleaned = validateScope(entry.scope, allowedScopes, caseSensitive);
@@ -96,10 +117,11 @@ export function validateEntryScopes(
         providedScope: entry.scope,
         allowedScopes,
       });
-      return { ...entry, scope: undefined };
+      const replacement = action === 'keep' ? entry.scope : action === 'fallback' ? fallback : undefined;
+      return { ...entry, scope: replacement };
     }
     return entry.scope !== cleaned ? { ...entry, scope: cleaned } : entry;
   });
 
-  return { valid: errors.length === 0, entries: validatedEntries, errors };
+  return { valid: true, entries: validatedEntries, errors };
 }

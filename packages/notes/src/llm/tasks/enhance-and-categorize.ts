@@ -137,16 +137,16 @@ function makeValidator(
       };
     });
 
-    // Validate scopes
+    // Validate scopes. The validator applies `invalidScopeAction` (default `remove`) and
+    // returns `valid: true` once the action has been applied — we don't retry the LLM for
+    // scope mismatches, since the configured action defines the resolution. We do surface a
+    // warning so users can see which scopes the LLM produced that didn't match the allow list.
     const scopeResult = validateEntryScopes(enhancedEntries, context.scopes, context.categories);
-    if (!scopeResult.valid) {
-      const msg = scopeResult.errors
-        .map(
-          (e) =>
-            `entry ${e.entryIndex} scope "${e.providedScope}" (${e.allowedScopes.length ? `valid: ${e.allowedScopes.join(', ')}` : 'no scopes permitted'})`,
-        )
-        .join('; ');
-      return { valid: false, error: `Invalid scopes: ${msg}` };
+    if (scopeResult.errors.length > 0) {
+      const offenders = [...new Set(scopeResult.errors.map((e) => e.providedScope))];
+      warn(
+        `LLM returned ${scopeResult.errors.length} entries with disallowed scopes (${offenders.join(', ')}); resolved per invalidScopeAction.`,
+      );
     }
 
     const categories = groupByCategory(zodResult.data.entries, scopeResult.entries);
@@ -199,7 +199,11 @@ export async function enhanceAndCategorize(
   } catch (error) {
     if (error instanceof LLMError) {
       warn(`enhanceAndCategorize failed after all attempts: ${error.message}. Returning entries ungrouped.`);
-      // Strip LLM-assigned fields — scopes/leadIns were never validated in this path.
+      // Triggered by structural validation failures the LLM couldn't recover from across the
+      // retry budget: malformed JSON, schema-incompatible output, wrong entry count, or
+      // categories outside the configured list. (Disallowed scopes don't reach here — the
+      // configured invalidScopeAction resolves them in-place.) Strip the original entries'
+      // scope/leadIn since the LLM run never produced validated values for either.
       const stripped = entries.map((e) => ({ ...e, scope: undefined, leadIn: undefined }));
       return { enhancedEntries: stripped, categories: [{ category: 'General', entries: stripped }] };
     }

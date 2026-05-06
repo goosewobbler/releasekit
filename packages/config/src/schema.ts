@@ -213,6 +213,8 @@ export const LLMCategorySchema = z.object({
 export const ScopeRulesSchema = z.object({
   allowed: z.array(z.string()).optional(),
   caseSensitive: z.boolean().default(false),
+  invalidScopeAction: z.enum(['remove', 'keep', 'fallback']).default('remove'),
+  fallbackScope: z.string().optional(),
 });
 
 export const ScopeConfigSchema = z.object({
