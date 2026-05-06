@@ -155,7 +155,6 @@ jobs:
     permissions:
       id-token: write
       contents: write
-      pull-requests: write
     with:
       packages: all
       bump: auto
