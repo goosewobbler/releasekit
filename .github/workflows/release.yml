@@ -56,6 +56,10 @@ on:
         description: PR number of a merged standing release PR. When set, runs the manifest-driven publish path instead of the full version+notes+publish flow. Triggered by standing-pr.yml; manual callers should leave blank.
         type: string
         default: ''
+      reconcile_after:
+        description: When true, run a standing-pr update after the release completes. Used by the immediate-release path so the standing PR's queued changes get rebuilt against the new HEAD. Manual callers should leave false.
+        type: boolean
+        default: false
 
 concurrency:
   group: release
@@ -235,3 +239,18 @@ jobs:
       tag: ${{ needs.release-standing-pr.outputs.action_tag }}
     secrets:
       ssh_key: ${{ secrets.DEPLOY_KEY }}
+
+  # After an immediate release, the standing PR's queued changes overlap with what was just
+  # published. Re-running standing-pr update reconciles: closes the standing PR if nothing's
+  # left, otherwise rewrites the release branch against the new HEAD. Triggered by
+  # standing-pr.yml's `trigger-immediate` job via `reconcile_after=true`.
+  reconcile-after-release:
+    name: Reconcile standing PR (after immediate release)
+    needs: release-manual
+    if: github.event_name == 'workflow_dispatch' && inputs.reconcile_after && needs.release-manual.result == 'success' && needs.release-manual.outputs.action_tag != ''
+    uses: ./.github/workflows/_standing-pr-update.reusable.yml
+    permissions:
+      contents: write
+      pull-requests: write
+    secrets:
+      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
