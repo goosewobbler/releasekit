@@ -1,0 +1,49 @@
+name: Standing PR Update
+
+# Wraps `cli.js standing-pr update` for both the routine update job and the post-immediate-release
+# reconcile job. No npm publish, no SSH push — uses the default GITHUB_TOKEN to push the release
+# branch and create/update the standing PR.
+
+on:
+  workflow_call:
+    secrets:
+      OLLAMA_API_KEY:
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+jobs:
+  update:
+    name: Update standing PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Setup workspace
+        uses: ./.github/workflows/actions/setup-workspace
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update standing release PR
+        run: node packages/release/dist/cli.js standing-pr update
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          # Uncomment the env var matching your notes.releaseNotes.llm.provider.
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
