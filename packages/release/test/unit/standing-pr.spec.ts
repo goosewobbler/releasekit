@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { StandingPRManifest } from '../../src/standing-pr/standing-pr.js';
 import {
+  createReleaseTags,
   parseManifest,
   publishFromManifest,
   runStandingPRMerge,
@@ -11,6 +12,7 @@ import {
 
 vi.mock('node:child_process', () => ({
   execSync: vi.fn().mockReturnValue(''),
+  execFileSync: vi.fn().mockReturnValue(''),
 }));
 
 vi.mock('node:fs', () => ({
@@ -120,6 +122,111 @@ const baseManifest: StandingPRManifest = {
   createdAt: '2024-01-01T00:00:00.000Z',
   baseSha: 'abc123',
 };
+
+describe('createReleaseTags', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it('is a no-op for an empty tag list', async () => {
+    const { execSync, execFileSync } = await import('node:child_process');
+    createReleaseTags([], '/tmp/test');
+    expect(execSync).not.toHaveBeenCalled();
+    expect(execFileSync).not.toHaveBeenCalled();
+  });
+
+  it('creates a tag when none exists', async () => {
+    const { execFileSync } = await import('node:child_process');
+    // git rev-parse HEAD
+    vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
+    // git rev-parse --verify (doesn't exist) — throws
+    vi.mocked(execFileSync).mockImplementationOnce(() => {
+      throw new Error('not found');
+    });
+    // git tag -a (succeeds)
+    vi.mocked(execFileSync).mockReturnValueOnce('');
+
+    createReleaseTags(['v1.2.3'], '/tmp/test');
+
+    expect(execFileSync).toHaveBeenLastCalledWith(
+      'git',
+      ['tag', '-a', 'v1.2.3', '-m', 'Release v1.2.3'],
+      expect.anything(),
+    );
+  });
+
+  it('skips creation when the tag already points at HEAD', async () => {
+    const { execFileSync } = await import('node:child_process');
+    vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
+    // tag exists at HEAD
+    vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
+
+    createReleaseTags(['v1.2.3'], '/tmp/test');
+
+    // Two calls only: rev-parse HEAD, rev-parse refs/tags/...^{}. No `git tag -a`.
+    expect(execFileSync).toHaveBeenCalledTimes(2);
+    expect(execFileSync).not.toHaveBeenCalledWith('git', expect.arrayContaining(['tag', '-a']), expect.anything());
+  });
+
+  it('does not recreate a tag that points at a different commit', async () => {
+    const { execFileSync } = await import('node:child_process');
+    vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
+    vi.mocked(execFileSync).mockReturnValueOnce('othersha\n');
+
+    createReleaseTags(['v1.2.3'], '/tmp/test');
+
+    expect(execFileSync).not.toHaveBeenCalledWith('git', expect.arrayContaining(['tag', '-a']), expect.anything());
+  });
+
+  it('processes multiple tags independently', async () => {
+    const { execFileSync } = await import('node:child_process');
+    // git rev-parse HEAD
+    vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
+    // tag 1: doesn't exist
+    vi.mocked(execFileSync).mockImplementationOnce(() => {
+      throw new Error('not found');
+    });
+    // tag 1: git tag -a (succeeds)
+    vi.mocked(execFileSync).mockReturnValueOnce('');
+    // tag 2: exists at HEAD
+    vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
+
+    createReleaseTags(['v1.2.3', '@scope/pkg@v1.2.3'], '/tmp/test');
+
+    expect(execFileSync).toHaveBeenCalledWith(
+      'git',
+      ['tag', '-a', 'v1.2.3', '-m', 'Release v1.2.3'],
+      expect.anything(),
+    );
+    // Exactly one `git tag -a` invocation — the second tag was already at HEAD.
+    const tagCalls = vi.mocked(execFileSync).mock.calls.filter((c) => c[1]?.[0] === 'tag');
+    expect(tagCalls).toHaveLength(1);
+  });
+
+  it('does not throw when tag creation fails', async () => {
+    const { execFileSync } = await import('node:child_process');
+    vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
+    vi.mocked(execFileSync).mockImplementationOnce(() => {
+      throw new Error('not found');
+    });
+    vi.mocked(execFileSync).mockImplementationOnce(() => {
+      throw new Error('git tag failed');
+    });
+
+    expect(() => createReleaseTags(['v1.2.3'], '/tmp/test')).not.toThrow();
+  });
+
+  it('does not throw when HEAD lookup fails', async () => {
+    const { execFileSync } = await import('node:child_process');
+    vi.mocked(execFileSync).mockImplementationOnce(() => {
+      throw new Error('fatal: not a git repository');
+    });
+
+    expect(() => createReleaseTags(['v1.2.3'], '/tmp/test')).not.toThrow();
+    // Bails at HEAD lookup — only one call.
+    expect(execFileSync).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('serializeManifest / parseManifest', () => {
   it('should round-trip a manifest through serialize/parse', () => {
