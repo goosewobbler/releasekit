@@ -1,3 +1,4 @@
+import { warn } from '@releasekit/core';
 import type { ChangelogEntry, LLMCategory, ScopeConfig } from '../core/types.js';
 
 export interface ScopeError {
@@ -7,7 +8,9 @@ export interface ScopeError {
 }
 
 export interface ScopeValidationResult {
-  valid: boolean;
+  // Always `true` — the configured `invalidScopeAction` defines the resolution, so the
+  // validator never signals retry-worthy failure. The literal type encodes the contract.
+  valid: true;
   entries: ChangelogEntry[];
   errors: ScopeError[];
 }
@@ -92,6 +95,19 @@ export function validateEntryScopes(
   const action = scopeConfig?.rules?.invalidScopeAction ?? 'remove';
   const fallback = scopeConfig?.rules?.fallbackScope;
   const errors: ScopeError[] = [];
+
+  // Misconfiguration guard: if `fallback` is set but isn't itself in the allow list, the
+  // substituted scope would still violate the rules. Warn once at the top of the validator
+  // rather than once per entry; this is a config bug, not an LLM bug.
+  if (
+    action === 'fallback' &&
+    fallback !== undefined &&
+    validateScope(fallback, allowedScopes, caseSensitive) === undefined
+  ) {
+    warn(
+      `scopes.rules.fallbackScope "${fallback}" is not in the allowed scope list (${allowedScopes.length ? allowedScopes.join(', ') : '<empty>'}); substituted scopes will violate the allow-list. Add "${fallback}" to the allow list or change invalidScopeAction.`,
+    );
+  }
 
   const validatedEntries = entries.map((entry, index) => {
     const cleaned = validateScope(entry.scope, allowedScopes, caseSensitive);

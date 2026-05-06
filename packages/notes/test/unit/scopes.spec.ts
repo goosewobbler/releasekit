@@ -232,6 +232,28 @@ describe('validateEntryScopes()', () => {
     expect(result.entries[1]?.scope).toBeUndefined();
   });
 
+  it('should warn when fallbackScope is set but not in the allow list', async () => {
+    // @releasekit/core's `warn` writes to console.error (all log lines go via stderr)
+    const messages: string[] = [];
+    const originalError = console.error;
+    console.error = (...args: unknown[]) => {
+      messages.push(args.map(String).join(' '));
+    };
+    try {
+      const categories: LLMCategory[] = [
+        { name: 'Developer', description: 'Internal', scopes: ['CI', 'Dependencies'] },
+      ];
+      validateEntryScopes(
+        entries,
+        { mode: 'restricted', rules: { invalidScopeAction: 'fallback', fallbackScope: 'NotAllowed' } },
+        categories,
+      );
+    } finally {
+      console.error = originalError;
+    }
+    expect(messages.some((m) => m.includes('fallbackScope') && m.includes('NotAllowed'))).toBe(true);
+  });
+
   it('should return valid result when all scopes are valid', () => {
     const validEntries: ChangelogEntry[] = [
       { type: 'added', description: 'Update CI', scope: 'CI' },
