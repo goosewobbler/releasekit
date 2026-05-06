@@ -172,11 +172,23 @@ function commitNotesFiles(files: string[], versionOutput: VersionOutput, cwd: st
  */
 export function createReleaseTags(tags: string[], cwd: string): void {
   if (tags.length === 0) return;
-  const headSha = execSync('git rev-parse HEAD', { cwd, encoding: 'utf-8' }).trim();
+
+  // Wrapped per the function contract — errors here must not propagate. A corrupt repo state or
+  // permission error reading HEAD shouldn't abort the publish pipeline before tag creation runs.
+  let headSha: string;
+  try {
+    headSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf-8' }).trim();
+  } catch (err) {
+    warn(`Failed to resolve HEAD for tag creation: ${err instanceof Error ? err.message : String(err)}`);
+    return;
+  }
 
   for (const tag of tags) {
     try {
-      const existing = execSync(`git rev-parse -q --verify "refs/tags/${tag}^{}"`, {
+      // execFileSync (not execSync) — `refs/tags/${tag}^{}` is a git argument, not a shell
+      // expression. The array form avoids shell parsing entirely if tag names ever contain
+      // metacharacters.
+      const existing = execFileSync('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}^{}`], {
         cwd,
         encoding: 'utf-8',
         stdio: ['ignore', 'pipe', 'ignore'],

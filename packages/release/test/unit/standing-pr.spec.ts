@@ -136,17 +136,19 @@ describe('createReleaseTags', () => {
   });
 
   it('creates a tag when none exists', async () => {
-    const { execSync, execFileSync } = await import('node:child_process');
+    const { execFileSync } = await import('node:child_process');
     // git rev-parse HEAD
-    vi.mocked(execSync).mockReturnValueOnce('headsha\n');
+    vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
     // git rev-parse --verify (doesn't exist) — throws
-    vi.mocked(execSync).mockImplementationOnce(() => {
+    vi.mocked(execFileSync).mockImplementationOnce(() => {
       throw new Error('not found');
     });
+    // git tag -a (succeeds)
+    vi.mocked(execFileSync).mockReturnValueOnce('');
 
     createReleaseTags(['v1.2.3'], '/tmp/test');
 
-    expect(execFileSync).toHaveBeenCalledWith(
+    expect(execFileSync).toHaveBeenLastCalledWith(
       'git',
       ['tag', '-a', 'v1.2.3', '-m', 'Release v1.2.3'],
       expect.anything(),
@@ -154,53 +156,57 @@ describe('createReleaseTags', () => {
   });
 
   it('skips creation when the tag already points at HEAD', async () => {
-    const { execSync, execFileSync } = await import('node:child_process');
-    // git rev-parse HEAD
-    vi.mocked(execSync).mockReturnValueOnce('headsha\n');
-    // git rev-parse refs/tags/v1.2.3^{} — same sha as HEAD
-    vi.mocked(execSync).mockReturnValueOnce('headsha\n');
+    const { execFileSync } = await import('node:child_process');
+    vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
+    // tag exists at HEAD
+    vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
 
     createReleaseTags(['v1.2.3'], '/tmp/test');
 
-    expect(execFileSync).not.toHaveBeenCalled();
+    // Two calls only: rev-parse HEAD, rev-parse refs/tags/...^{}. No `git tag -a`.
+    expect(execFileSync).toHaveBeenCalledTimes(2);
+    expect(execFileSync).not.toHaveBeenCalledWith('git', expect.arrayContaining(['tag', '-a']), expect.anything());
   });
 
   it('does not recreate a tag that points at a different commit', async () => {
-    const { execSync, execFileSync } = await import('node:child_process');
-    vi.mocked(execSync).mockReturnValueOnce('headsha\n');
-    // tag exists at a different sha
-    vi.mocked(execSync).mockReturnValueOnce('othersha\n');
+    const { execFileSync } = await import('node:child_process');
+    vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
+    vi.mocked(execFileSync).mockReturnValueOnce('othersha\n');
 
     createReleaseTags(['v1.2.3'], '/tmp/test');
 
-    expect(execFileSync).not.toHaveBeenCalled();
+    expect(execFileSync).not.toHaveBeenCalledWith('git', expect.arrayContaining(['tag', '-a']), expect.anything());
   });
 
   it('processes multiple tags independently', async () => {
-    const { execSync, execFileSync } = await import('node:child_process');
-    // git rev-parse HEAD (once for the whole call)
-    vi.mocked(execSync).mockReturnValueOnce('headsha\n');
+    const { execFileSync } = await import('node:child_process');
+    // git rev-parse HEAD
+    vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
     // tag 1: doesn't exist
-    vi.mocked(execSync).mockImplementationOnce(() => {
+    vi.mocked(execFileSync).mockImplementationOnce(() => {
       throw new Error('not found');
     });
+    // tag 1: git tag -a (succeeds)
+    vi.mocked(execFileSync).mockReturnValueOnce('');
     // tag 2: exists at HEAD
-    vi.mocked(execSync).mockReturnValueOnce('headsha\n');
+    vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
 
     createReleaseTags(['v1.2.3', '@scope/pkg@v1.2.3'], '/tmp/test');
 
-    expect(execFileSync).toHaveBeenCalledTimes(1);
     expect(execFileSync).toHaveBeenCalledWith(
       'git',
       ['tag', '-a', 'v1.2.3', '-m', 'Release v1.2.3'],
       expect.anything(),
     );
+    // Exactly one `git tag -a` invocation — the second tag was already at HEAD.
+    const tagCalls = vi.mocked(execFileSync).mock.calls.filter((c) => c[1]?.[0] === 'tag');
+    expect(tagCalls).toHaveLength(1);
   });
 
   it('does not throw when tag creation fails', async () => {
-    const { execSync, execFileSync } = await import('node:child_process');
-    vi.mocked(execSync).mockReturnValueOnce('headsha\n');
-    vi.mocked(execSync).mockImplementationOnce(() => {
+    const { execFileSync } = await import('node:child_process');
+    vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
+    vi.mocked(execFileSync).mockImplementationOnce(() => {
       throw new Error('not found');
     });
     vi.mocked(execFileSync).mockImplementationOnce(() => {
@@ -208,6 +214,17 @@ describe('createReleaseTags', () => {
     });
 
     expect(() => createReleaseTags(['v1.2.3'], '/tmp/test')).not.toThrow();
+  });
+
+  it('does not throw when HEAD lookup fails', async () => {
+    const { execFileSync } = await import('node:child_process');
+    vi.mocked(execFileSync).mockImplementationOnce(() => {
+      throw new Error('fatal: not a git repository');
+    });
+
+    expect(() => createReleaseTags(['v1.2.3'], '/tmp/test')).not.toThrow();
+    // Bails at HEAD lookup — only one call.
+    expect(execFileSync).toHaveBeenCalledTimes(1);
   });
 });
 
