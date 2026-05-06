@@ -62,10 +62,9 @@ jobs:
           SUBJECT=$(printf '%s\n' "$COMMIT_MSG" | head -1)
           if [[ "$SUBJECT" =~ \(#([0-9]+)\)[[:space:]]*$ ]]; then
             CANDIDATE="${BASH_REMATCH[1]}"
-            HEAD_REF=$(gh pr view "$CANDIDATE" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+            HEAD_REF=$(gh pr view "$CANDIDATE" --repo "$REPO" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
             if [ "$HEAD_REF" = "$STANDING_PR_BRANCH" ]; then
               PR_NUM="$CANDIDATE"
-              echo "Detected standing PR merge from subject: PR #$PR_NUM (head: $STANDING_PR_BRANCH)"
             else
               echo "Subject references PR #$CANDIDATE but its head ref ('$HEAD_REF') is not '$STANDING_PR_BRANCH' — not a standing-PR merge"
             fi
