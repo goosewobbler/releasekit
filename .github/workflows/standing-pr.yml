@@ -164,37 +164,30 @@ jobs:
     secrets:
       OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
-  # Routed through `_release.reusable.yml` so the OIDC `job_workflow_ref` matches the npm
-  # trusted-publisher entry (npm only allows one trusted-publisher workflow path per package).
-  # The reusable's `standing_pr_number` input switches it from the version+notes+publish flow
-  # to the manifest-driven standing-pr publish flow, while keeping SSH/auth setup identical.
-  publish-release:
-    name: Publish Release
+  # Trigger release.yml via workflow_dispatch instead of running the publish here directly.
+  # npm trusted publishing matches the OIDC token's top-level `workflow_ref` claim (only one
+  # trusted-publisher entry per package, currently `release.yml`), so any publish triggered from
+  # `standing-pr.yml` would be rejected with ENEEDAUTH. Routing through `gh workflow run
+  # release.yml` makes the dispatched run's `workflow_ref` resolve to `release.yml`, which
+  # matches the trusted-publisher config and lets OIDC trusted publishing succeed.
+  trigger-publish:
+    name: Trigger publish via release.yml
     needs: detect-release-merge
     if: needs.detect-release-merge.outputs.pr_number != ''
-    uses: ./.github/workflows/_release.reusable.yml
+    runs-on: ubuntu-latest
     permissions:
-      id-token: write
-      contents: write
-    with:
-      packages: all
-      bump: auto
-      sync: true
-      dry_run: false
-      npm_auth: oidc
-      standing_pr_number: ${{ needs.detect-release-merge.outputs.pr_number }}
-    secrets:
-      ssh_key: ${{ secrets.DEPLOY_KEY }}
-      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-
-  build-action-publish:
-    name: Build and tag action dist
-    needs: publish-release
-    if: needs.publish-release.result == 'success' && needs.publish-release.outputs.action_tag != ''
-    uses: ./.github/workflows/_action-release.reusable.yml
-    permissions:
-      contents: write
-    with:
-      tag: ${{ needs.publish-release.outputs.action_tag }}
-    secrets:
-      ssh_key: ${{ secrets.DEPLOY_KEY }}
+      actions: write
+    steps:
+      - name: Dispatch release.yml
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ needs.detect-release-merge.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          gh workflow run release.yml \
+            --repo "$REPO" \
+            --ref main \
+            --field "standing_pr_number=$PR_NUMBER"
+          echo "Dispatched release.yml with standing_pr_number=$PR_NUMBER"
+          echo "Watch publish progress: https://github.com/$REPO/actions/workflows/release.yml"

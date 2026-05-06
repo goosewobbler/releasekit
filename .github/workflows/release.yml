@@ -52,6 +52,10 @@ on:
         description: Dry run (no publish, no push)
         type: boolean
         default: true
+      standing_pr_number:
+        description: PR number of a merged standing release PR. When set, runs the manifest-driven publish path instead of the full version+notes+publish flow. Triggered by standing-pr.yml; manual callers should leave blank.
+        type: string
+        default: ''
 
 concurrency:
   group: release
@@ -159,7 +163,7 @@ jobs:
 
   release-manual:
     name: Manual Release
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.standing_pr_number == ''
     uses: ./.github/workflows/_release.reusable.yml
     permissions:
       id-token: write
@@ -174,10 +178,32 @@ jobs:
       ssh_key: ${{ secrets.DEPLOY_KEY }}
       OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
+  # Standing-PR publish path. Triggered by standing-pr.yml via `gh workflow run` so the OIDC
+  # token's `workflow_ref` claim is `release.yml` — the trusted-publisher entry on npmjs.com is
+  # keyed off the top-level workflow filename, and only one is allowed per package, so all
+  # OIDC publishes have to funnel through here.
+  release-standing-pr:
+    name: Release from Standing PR
+    if: github.event_name == 'workflow_dispatch' && inputs.standing_pr_number != ''
+    uses: ./.github/workflows/_release.reusable.yml
+    permissions:
+      id-token: write
+      contents: write
+    with:
+      packages: all
+      bump: auto
+      sync: true
+      dry_run: false
+      npm_auth: oidc
+      standing_pr_number: ${{ inputs.standing_pr_number }}
+    secrets:
+      ssh_key: ${{ secrets.DEPLOY_KEY }}
+      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+
   build-action-manual:
     name: Build and tag action dist
     needs: release-manual
-    if: ${{ github.event_name == 'workflow_dispatch' && needs.release-manual.outputs.action_tag != '' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.standing_pr_number == '' && needs.release-manual.outputs.action_tag != '' }}
     uses: ./.github/workflows/_action-release.reusable.yml
     permissions:
       contents: write
@@ -195,5 +221,17 @@ jobs:
       contents: write
     with:
       tag: ${{ needs.release-auto.outputs.action_tag }}
+    secrets:
+      ssh_key: ${{ secrets.DEPLOY_KEY }}
+
+  build-action-standing-pr:
+    name: Build and tag action dist
+    needs: release-standing-pr
+    if: needs.release-standing-pr.result == 'success' && needs.release-standing-pr.outputs.action_tag != ''
+    uses: ./.github/workflows/_action-release.reusable.yml
+    permissions:
+      contents: write
+    with:
+      tag: ${{ needs.release-standing-pr.outputs.action_tag }}
     secrets:
       ssh_key: ${{ secrets.DEPLOY_KEY }}
