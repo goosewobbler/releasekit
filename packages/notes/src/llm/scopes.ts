@@ -73,9 +73,12 @@ export function validateScope(
 }
 
 /**
- * Validate scopes on all entries. Returns cleaned entries (invalid scopes set
- * to undefined) plus structured errors for each violation. Callers can use the
- * errors to build corrective-retry messages rather than silently dropping scopes.
+ * Validate scopes on all entries and apply the configured `invalidScopeAction`
+ * (`remove` | `keep` | `fallback`, default `remove`). Always returns
+ * `valid: true` once the action has been applied — the action defines the
+ * resolution, so callers should not trigger a corrective retry on the LLM.
+ *
+ * `errors` is populated for logging/inspection but does not signal failure.
  */
 export function validateEntryScopes(
   entries: ChangelogEntry[],
@@ -86,6 +89,8 @@ export function validateEntryScopes(
   if (allowedScopes === null) return { valid: true, entries, errors: [] };
 
   const caseSensitive = scopeConfig?.rules?.caseSensitive ?? false;
+  const action = scopeConfig?.rules?.invalidScopeAction ?? 'remove';
+  const fallback = scopeConfig?.rules?.fallbackScope;
   const errors: ScopeError[] = [];
 
   const validatedEntries = entries.map((entry, index) => {
@@ -96,10 +101,11 @@ export function validateEntryScopes(
         providedScope: entry.scope,
         allowedScopes,
       });
-      return { ...entry, scope: undefined };
+      const replacement = action === 'keep' ? entry.scope : action === 'fallback' ? fallback : undefined;
+      return { ...entry, scope: replacement };
     }
     return entry.scope !== cleaned ? { ...entry, scope: cleaned } : entry;
   });
 
-  return { valid: errors.length === 0, entries: validatedEntries, errors };
+  return { valid: true, entries: validatedEntries, errors };
 }

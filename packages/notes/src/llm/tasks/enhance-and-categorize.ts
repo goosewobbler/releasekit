@@ -137,16 +137,16 @@ function makeValidator(
       };
     });
 
-    // Validate scopes
+    // Validate scopes. The validator applies `invalidScopeAction` (default `remove`) and
+    // returns `valid: true` once the action has been applied — we don't retry the LLM for
+    // scope mismatches, since the configured action defines the resolution. We do surface a
+    // warning so users can see which scopes the LLM produced that didn't match the allow list.
     const scopeResult = validateEntryScopes(enhancedEntries, context.scopes, context.categories);
-    if (!scopeResult.valid) {
-      const msg = scopeResult.errors
-        .map(
-          (e) =>
-            `entry ${e.entryIndex} scope "${e.providedScope}" (${e.allowedScopes.length ? `valid: ${e.allowedScopes.join(', ')}` : 'no scopes permitted'})`,
-        )
-        .join('; ');
-      return { valid: false, error: `Invalid scopes: ${msg}` };
+    if (scopeResult.errors.length > 0) {
+      const offenders = [...new Set(scopeResult.errors.map((e) => e.providedScope))];
+      warn(
+        `LLM returned ${scopeResult.errors.length} entries with disallowed scopes (${offenders.join(', ')}); resolved per invalidScopeAction.`,
+      );
     }
 
     const categories = groupByCategory(zodResult.data.entries, scopeResult.entries);

@@ -108,6 +108,8 @@ export interface LLMCategory {
 export interface ScopeRules {
   allowed?: string[];
   caseSensitive?: boolean;
+  invalidScopeAction?: 'remove' | 'keep' | 'fallback';
+  fallbackScope?: string;
 }
 
 export interface ScopeConfig {
