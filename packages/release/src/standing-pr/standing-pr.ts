@@ -170,7 +170,7 @@ function commitNotesFiles(files: string[], versionOutput: VersionOutput, cwd: st
  * commit we warn and skip rather than rewriting history. Errors here don't propagate — the
  * publish pipeline's `--tags` push will publish whatever tags we managed to create.
  */
-function createReleaseTags(tags: string[], cwd: string): void {
+export function createReleaseTags(tags: string[], cwd: string): void {
   if (tags.length === 0) return;
   const headSha = execSync('git rev-parse HEAD', { cwd, encoding: 'utf-8' }).trim();
 
