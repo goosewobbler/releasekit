@@ -98,6 +98,24 @@ describe('tagsAndBranches', () => {
       expect(log).toHaveBeenCalledWith('Failed to get latest tag: No names found', 'error');
       expect(log).toHaveBeenCalledWith('No tags found in the repository.', 'info');
     });
+
+    it('should sort multi-segment-prefixed tags by semver (not as 0.0.0)', async () => {
+      // Without the prefix strip in getLatestTag, semver.clean('release/v1.0.0') returns null,
+      // every tag falls through to '0.0.0', and rcompare returns 0 for every pair — meaning a
+      // chronologically-out-of-order backfill would be returned as the "latest".
+      const mockGetSemverTags = await import('git-semver-tags');
+      // Newest tag created last (chronological order from getSemverTags is creator-date descending,
+      // so that's tags[0]). Pretend release/v0.21.0 was backfilled AFTER release/v0.22.0.
+      vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
+        'release/v0.21.0',
+        'release/v0.22.0',
+      ]);
+
+      const result = await getLatestTag('release/v');
+
+      // Semantic latest is v0.22.0 even though v0.21.0 came first chronologically.
+      expect(result).toBe('release/v0.22.0');
+    });
   });
 
   describe('lastMergeBranchName', () => {

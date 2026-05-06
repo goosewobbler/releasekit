@@ -161,8 +161,12 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         log(`No valid package path found, using current working directory: ${mainPkgPath}`, 'warning');
       }
 
-      // Try to get package-specific tags for the version source package
-      if (versionSourceName) {
+      // Try to get package-specific tags for the version source package. Skip this entirely
+      // when `baselineTagTemplate` is set — the baseline lookup above is the authoritative
+      // source for the previous release in that mode, and overwriting it with a consumer-facing
+      // tag (which may have been force-moved off the source branch) would re-introduce the
+      // exact unreachable-tag regression baselineTagTemplate exists to fix.
+      if (versionSourceName && !config.baselineTagTemplate) {
         const packageSpecificTag = await getLatestTagForPackage(versionSourceName, formattedPrefix, {
           tagTemplate,
           packageSpecificTags: config.packageSpecificTags,
@@ -411,17 +415,17 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       // (e.g. 'chore: release  v1.0.0' → 'chore: release v1.0.0') and trim edges.
       formattedCommitMessage = formattedCommitMessage.replace(/\s{2,}/g, ' ').trim();
 
-      // Track tags and commit message for JSON output (git ops now handled by publish)
-      for (const tag of nextTags) {
-        addTag(tag);
-      }
+      // Track tags and commit message for JSON output (git ops now handled by publish).
       // When configured, also emit the baseline tag — this lives at the same release commit
       // but stays on the source branch's history even if `tagTemplate`'s tag gets moved by a
       // downstream step. Future getLatestTag() calls find this one when `baselineTagTemplate`
       // is set in config.
-      if (config.baselineTagTemplate) {
-        const baselineTag = formatTag(nextVersion, formattedPrefix, mainPkgName, config.baselineTagTemplate, false);
-        addTag(baselineTag);
+      const baselineTag = config.baselineTagTemplate
+        ? formatTag(nextVersion, formattedPrefix, mainPkgName, config.baselineTagTemplate, false)
+        : undefined;
+      const allTags = baselineTag ? [...nextTags, baselineTag] : nextTags;
+      for (const tag of allTags) {
+        addTag(tag);
       }
       // Link per-package tags back to their update records so the publish pipeline
       // can push each tag immediately after that package publishes.
@@ -435,9 +439,9 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       setCommitMessage(formattedCommitMessage);
 
       if (!dryRun) {
-        log(`Version ${nextVersion} prepared (tags: ${nextTags.join(', ')})`, 'success');
+        log(`Version ${nextVersion} prepared (tags: ${allTags.join(', ')})`, 'success');
       } else {
-        log(`Would create tags: ${nextTags.join(', ')}`, 'info');
+        log(`Would create tags: ${allTags.join(', ')}`, 'info');
       }
     } catch (error) {
       if (BaseVersionError.isVersionError(error)) {

@@ -398,6 +398,31 @@ describe('Version Strategies', () => {
       expect(jsonOutput.addTag).not.toHaveBeenCalledWith(expect.stringContaining('release/'));
     });
 
+    it('should skip the package-specific tag override when baselineTagTemplate is set', async () => {
+      // Without the guard, getLatestTagForPackage's return value would clobber the baseline
+      // — which would re-introduce the unreachable-tag regression baselineTagTemplate exists
+      // to fix when packageSpecificTags is enabled alongside it.
+      vi.mocked(git.getLatestTagForPackage).mockResolvedValue('v0.99.0');
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        sync: true,
+        packageSpecificTags: true,
+        baselineTagTemplate: 'release/${' + 'prefix}${' + 'version}',
+      };
+
+      const syncStrategy = strategies.createSyncStrategy(config as Config);
+
+      await syncStrategy(mockPackages);
+
+      // getLatestTagForPackage must not be called when baselineTagTemplate is set.
+      expect(git.getLatestTagForPackage).not.toHaveBeenCalled();
+      // calculateVersion must use the baseline tag, not the package-specific override.
+      expect(calculator.calculateVersion).toHaveBeenCalledWith(
+        config as Config,
+        expect.objectContaining({ latestTag: 'v1.0.0' }),
+      );
+    });
+
     it('should respect skip configuration', async () => {
       const config: Partial<Config> = {
         ...defaultConfig,
