@@ -247,6 +247,9 @@ jobs:
   reconcile-after-release:
     name: Reconcile standing PR (after immediate release)
     needs: release-manual
+    # Skip when nothing actually released — under sync mode (the current config), action_tag is
+    # set whenever any package releases. If you switch back to async, this gate becomes too
+    # narrow (it only fires when @releasekit/release itself is bumped) and should be revisited.
     if: github.event_name == 'workflow_dispatch' && inputs.reconcile_after && needs.release-manual.result == 'success' && needs.release-manual.outputs.action_tag != ''
     uses: ./.github/workflows/_standing-pr-update.reusable.yml
     permissions:

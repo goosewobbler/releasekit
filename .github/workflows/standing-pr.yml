@@ -22,10 +22,10 @@ env:
 
 jobs:
   # Runs first on every push to main so the downstream jobs can serialize on its output:
-  # if the push is the merge of a release/* PR, only `publish-release` runs;
-  # otherwise only `update-release-pr` runs. Without this gate, both would run in parallel
-  # and `update-release-pr` could collect the just-released commits as "unreleased" before
-  # `publish-release` finishes tagging.
+  # if the push is the merge of a release/* PR, only `trigger-publish` runs (which dispatches
+  # release.yml); otherwise only `update-release-pr` runs. Without this gate, both would run
+  # in parallel and `update-release-pr` could collect the just-released commits as "unreleased"
+  # before the dispatched release.yml run finishes tagging.
   detect-release-merge:
     name: Detect release merge
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
