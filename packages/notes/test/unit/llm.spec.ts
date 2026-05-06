@@ -508,6 +508,25 @@ describe('enhanceAndCategorize()', () => {
     expect(provider.callCount).toBe(3); // 1 initial + 2 corrective
   });
 
+  it('should truncate and warn when LLM returns more entries than expected', async () => {
+    const response = JSON.stringify({
+      entries: [
+        { description: 'Enhanced A', category: 'New', scope: null, breaking: null, leadIn: null },
+        { description: 'Enhanced B', category: 'Fixed', scope: null, breaking: null, leadIn: null },
+        { description: 'Enhanced C', category: 'Changed', scope: null, breaking: null, leadIn: null },
+        { description: 'Spurious extra', category: 'New', scope: null, breaking: null, leadIn: null },
+        { description: 'Another extra', category: 'Fixed', scope: null, breaking: null, leadIn: null },
+      ],
+    });
+    const provider = makeMockProvider(response);
+    const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
+
+    expect(provider.callCount).toBe(1);
+    expect(result.enhancedEntries).toHaveLength(3);
+    expect(result.enhancedEntries[0]?.description).toBe('Enhanced A');
+    expect(result.enhancedEntries[2]?.description).toBe('Enhanced C');
+  });
+
   it('should throw when provider errors on all attempts', async () => {
     const provider = makeFailingProvider(0);
     await expect(enhanceAndCategorize(provider, sampleEntries, llmContext)).rejects.toThrow();

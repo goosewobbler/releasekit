@@ -104,11 +104,16 @@ function makeValidator(
       return { valid: false, error: `Schema error: ${zodResult.error.message}` };
     }
 
-    if (zodResult.data.entries.length !== entries.length) {
+    const receivedCount = zodResult.data.entries.length;
+    if (receivedCount < entries.length) {
       return {
         valid: false,
-        error: `Expected ${entries.length} entries, got ${zodResult.data.entries.length}`,
+        error: `Expected ${entries.length} entries, got ${receivedCount} (entries missing — cannot proceed)`,
       };
+    }
+    if (receivedCount > entries.length) {
+      warn(`LLM returned ${receivedCount} entries for ${entries.length} inputs; truncating to expected count.`);
+      zodResult.data.entries.length = entries.length;
     }
 
     // Validate category names when categories are configured
