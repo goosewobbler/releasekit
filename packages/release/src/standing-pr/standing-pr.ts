@@ -221,15 +221,13 @@ function renderChangelogSection(versionOutput: VersionOutput): string {
   const hasPackageEntries = versionOutput.changelogs.some((cl) => cl.entries.length > 0);
   if (sharedEntries.length === 0 && !hasPackageEntries) return '';
 
-  const totalEntries =
-    (versionOutput.sharedEntries?.length ?? 0) +
-    versionOutput.changelogs.reduce((acc, cl) => acc + cl.entries.length, 0);
+  const totalEntries = sharedEntries.length + versionOutput.changelogs.reduce((acc, cl) => acc + cl.entries.length, 0);
 
   const inner: string[] = ['### Changelog', ''];
 
   if (sharedEntries.length > 0) {
-    lines.push('#### Project-wide changes', '');
-    lines.push(...renderChangelogEntries(sharedEntries));
+    inner.push('#### Project-wide changes', '');
+    inner.push(...renderChangelogEntries(sharedEntries));
   }
 
   for (const cl of versionOutput.changelogs) {
