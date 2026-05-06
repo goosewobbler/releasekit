@@ -199,7 +199,11 @@ export async function enhanceAndCategorize(
   } catch (error) {
     if (error instanceof LLMError) {
       warn(`enhanceAndCategorize failed after all attempts: ${error.message}. Returning entries ungrouped.`);
-      // Strip LLM-assigned fields — scopes/leadIns were never validated in this path.
+      // Triggered by structural validation failures the LLM couldn't recover from across the
+      // retry budget: malformed JSON, schema-incompatible output, wrong entry count, or
+      // categories outside the configured list. (Disallowed scopes don't reach here — the
+      // configured invalidScopeAction resolves them in-place.) Strip the original entries'
+      // scope/leadIn since the LLM run never produced validated values for either.
       const stripped = entries.map((e) => ({ ...e, scope: undefined, leadIn: undefined }));
       return { enhancedEntries: stripped, categories: [{ category: 'General', entries: stripped }] };
     }

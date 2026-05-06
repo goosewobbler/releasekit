@@ -159,7 +159,11 @@ export async function categorizeEntries(
   } catch (error) {
     if (error instanceof LLMError) {
       warn(`categorizeEntries failed after all attempts: ${error.message}. Returning entries under General.`);
-      // Strip LLM-assigned scopes — they were never validated in this path.
+      // Triggered by structural validation failures the LLM couldn't recover from across the
+      // retry budget: malformed JSON, schema-incompatible output, wrong entry count, or
+      // categories outside the configured list. (Disallowed scopes don't reach here — the
+      // configured invalidScopeAction resolves them in-place.) Strip scopes since the LLM
+      // run never produced validated values.
       return [{ category: 'General', entries: entries.map((e) => ({ ...e, scope: undefined })) }];
     }
     throw error;
