@@ -179,8 +179,12 @@ const CHANGELOG_TYPE_LABELS: Record<string, string> = {
 function renderChangelogEntries(entries: VersionOutput['changelogs'][number]['entries']): string[] {
   const grouped = new Map<string, typeof entries>();
   for (const entry of entries) {
-    if (!grouped.has(entry.type)) grouped.set(entry.type, []);
-    grouped.get(entry.type)!.push(entry);
+    let group = grouped.get(entry.type);
+    if (!group) {
+      group = [];
+      grouped.set(entry.type, group);
+    }
+    group.push(entry);
   }
   const lines: string[] = [];
   const renderedTypes = new Set<string>();
@@ -213,19 +217,17 @@ function renderChangelogEntries(entries: VersionOutput['changelogs'][number]['en
 }
 
 function renderChangelogSection(versionOutput: VersionOutput): string {
-  const hasShared = (versionOutput.sharedEntries?.length ?? 0) > 0;
+  const sharedEntries = versionOutput.sharedEntries ?? [];
   const hasPackageEntries = versionOutput.changelogs.some((cl) => cl.entries.length > 0);
-  if (!hasShared && !hasPackageEntries) return '';
+  if (sharedEntries.length === 0 && !hasPackageEntries) return '';
 
-  const totalEntries =
-    (versionOutput.sharedEntries?.length ?? 0) +
-    versionOutput.changelogs.reduce((acc, cl) => acc + cl.entries.length, 0);
+  const totalEntries = sharedEntries.length + versionOutput.changelogs.reduce((acc, cl) => acc + cl.entries.length, 0);
 
   const inner: string[] = ['### Changelog', ''];
 
-  if (hasShared) {
+  if (sharedEntries.length > 0) {
     inner.push('#### Project-wide changes', '');
-    inner.push(...renderChangelogEntries(versionOutput.sharedEntries!));
+    inner.push(...renderChangelogEntries(sharedEntries));
   }
 
   for (const cl of versionOutput.changelogs) {
