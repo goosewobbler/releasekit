@@ -64,10 +64,17 @@ export async function getLatestTag(versionPrefix?: string): Promise<string> {
     // Store chronological latest before sorting
     const chronologicalLatest = tags[0];
 
+    // Strip the configured prefix before passing to `semver.clean`. semver only knows how to
+    // strip a leading `v` (or `=`); a multi-segment prefix like `release/v` would otherwise
+    // make every tag fall through to `'0.0.0'` and the sort becomes a stable no-op. This
+    // mattered the moment we introduced multi-segment prefixes via `baselineTagTemplate`.
+    const stripPrefix = (tag: string) =>
+      versionPrefix && tag.startsWith(versionPrefix) ? tag.slice(versionPrefix.length) : tag;
+
     // Sort tags by semantic version (highest first)
     const sortedTags = [...tags].sort((a, b) => {
-      const versionA = semver.clean(a) || '0.0.0';
-      const versionB = semver.clean(b) || '0.0.0';
+      const versionA = semver.clean(stripPrefix(a)) || '0.0.0';
+      const versionB = semver.clean(stripPrefix(b)) || '0.0.0';
       return semver.rcompare(versionA, versionB); // Reverse compare (highest first)
     });
 

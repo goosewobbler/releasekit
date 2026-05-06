@@ -49,6 +49,12 @@ export interface VersionConfigBase {
 
 export interface Config extends VersionConfigBase {
   tagTemplate: string;
+  /** Optional secondary tag template for an internal "baseline" marker that records the
+   *  release commit on the source branch. Lives alongside the tag from `tagTemplate`. Used
+   *  when the primary tag gets force-moved off the source branch by a downstream step (e.g.
+   *  an action-dist build) — version-bump and changelog logic reads the baseline tag instead.
+   *  Supports the same `${packageName}` / `${prefix}` / `${version}` substitutions. */
+  baselineTagTemplate?: string;
   packageSpecificTags?: boolean;
   preset: string;
   sync: boolean;
@@ -136,6 +142,7 @@ export function toVersionConfig(config: VersionConfig | undefined, gitConfig?: G
 
   return {
     tagTemplate: config.tagTemplate ?? 'v{version}',
+    baselineTagTemplate: config.baselineTagTemplate,
     packageSpecificTags: config.packageSpecificTags,
     preset: config.preset ?? 'conventional',
     sync: config.sync ?? true,

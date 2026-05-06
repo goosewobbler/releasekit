@@ -349,6 +349,80 @@ describe('Version Strategies', () => {
       expect(logging.log).toHaveBeenCalledWith('No version change needed', 'info');
     });
 
+    it('should emit a baseline tag and use its prefix for getLatestTag when baselineTagTemplate is set', async () => {
+      // Override the default formatTag mock so it actually applies the template — otherwise
+      // both the consumer tag and the baseline tag would render identically.
+      vi.mocked(formatting.formatTag).mockImplementation((version, prefix, packageName, template) => {
+        if (template) {
+          return template
+            .replace(/\$\{version\}/g, version)
+            .replace(/\$\{prefix\}/g, prefix)
+            .replace(/\$\{packageName\}/g, packageName || '');
+        }
+        return packageName ? `${packageName}@${prefix}${version}` : `${prefix}${version}`;
+      });
+
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        sync: true,
+        baselineTagTemplate: 'release/${' + 'prefix}${' + 'version}',
+      };
+
+      const syncStrategy = strategies.createSyncStrategy(config as Config);
+
+      await syncStrategy(mockPackages);
+
+      // getLatestTag should be invoked with the baseline prefix so the semver scan filters
+      // to baseline tags (which stay on the source branch's history).
+      expect(git.getLatestTag).toHaveBeenCalledWith('release/v');
+
+      // Both the consumer-facing tag and the baseline tag should be tracked for the publish
+      // pipeline to push.
+      expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
+      expect(jsonOutput.addTag).toHaveBeenCalledWith('release/v1.1.0');
+    });
+
+    it('should not emit a baseline tag or alter getLatestTag when baselineTagTemplate is unset', async () => {
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        sync: true,
+      };
+
+      const syncStrategy = strategies.createSyncStrategy(config as Config);
+
+      await syncStrategy(mockPackages);
+
+      // No prefix passed — falls back to the default semver-tag scan.
+      expect(git.getLatestTag).toHaveBeenCalledWith(undefined);
+      expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
+      expect(jsonOutput.addTag).not.toHaveBeenCalledWith(expect.stringContaining('release/'));
+    });
+
+    it('should skip the package-specific tag override when baselineTagTemplate is set', async () => {
+      // Without the guard, getLatestTagForPackage's return value would clobber the baseline
+      // — which would re-introduce the unreachable-tag regression baselineTagTemplate exists
+      // to fix when packageSpecificTags is enabled alongside it.
+      vi.mocked(git.getLatestTagForPackage).mockResolvedValue('v0.99.0');
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        sync: true,
+        packageSpecificTags: true,
+        baselineTagTemplate: 'release/${' + 'prefix}${' + 'version}',
+      };
+
+      const syncStrategy = strategies.createSyncStrategy(config as Config);
+
+      await syncStrategy(mockPackages);
+
+      // getLatestTagForPackage must not be called when baselineTagTemplate is set.
+      expect(git.getLatestTagForPackage).not.toHaveBeenCalled();
+      // calculateVersion must use the baseline tag, not the package-specific override.
+      expect(calculator.calculateVersion).toHaveBeenCalledWith(
+        config as Config,
+        expect.objectContaining({ latestTag: 'v1.0.0' }),
+      );
+    });
+
     it('should respect skip configuration', async () => {
       const config: Partial<Config> = {
         ...defaultConfig,

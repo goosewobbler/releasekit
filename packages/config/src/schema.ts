@@ -32,6 +32,18 @@ export const VersionCargoConfigSchema = z.object({
 
 export const VersionConfigSchema = z.object({
   tagTemplate: z.string().default('v{version}'),
+  /**
+   * Optional secondary tag template for an internal "baseline" marker that records the
+   * release commit on the source branch. Use this when `tagTemplate` resolves to a tag that
+   * gets force-moved off the source branch by a downstream step (for example, a GitHub
+   * Action distributing built artifacts at the version tag) — the baseline tag stays on the
+   * release commit so version-bump and changelog calculations can still find the previous
+   * release in the working branch's history.
+   *
+   * Supports `${packageName}`, `${prefix}`, `${version}` substitutions. Leave unset for
+   * single-tag workflows (the default).
+   */
+  baselineTagTemplate: z.string().optional(),
   packageSpecificTags: z.boolean().default(false),
   preset: z.string().default('conventional'),
   sync: z.boolean().default(true),
