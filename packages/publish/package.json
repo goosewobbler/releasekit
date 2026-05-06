@@ -73,6 +73,7 @@
     "@types/node": "catalog:",
     "@types/semver": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "npm-packlist": "^10.0.4",
     "tsup": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
