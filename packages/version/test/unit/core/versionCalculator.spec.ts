@@ -588,6 +588,53 @@ describe('Version Calculator', () => {
       expect(versionUtils.bumpVersion).toHaveBeenCalledWith('1.2.3', 'minor', undefined);
       expect(version).toBe('1.3.0');
     });
+
+    it('should strip a multi-segment baselineTagTemplate prefix from latestTag', async () => {
+      // Reproduces the regression where a baseline tag like `release/v0.21.0` falls through
+      // the strip regex (which only knew about the consumer prefix `v`) and semver.clean
+      // returns null, leaving the version source as '0.0.0' and the bump producing 0.1.0
+      // instead of 0.22.0.
+      vi.resetAllMocks();
+      vi.spyOn(semver, 'clean').mockImplementation((version) => {
+        if (typeof version !== 'string') return null;
+        const match = version.match(/^v?(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?)$/);
+        return match ? match[1] : null;
+      });
+      vi.spyOn(semver, 'prerelease').mockReturnValue(null);
+      vi.spyOn(versionUtils, 'getBestVersionSource').mockResolvedValue({
+        source: 'git',
+        version: 'release/v0.21.0',
+        reason: 'Git tag reachable',
+      });
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('0.22.0');
+      vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
+        version: '0.21.0',
+        manifestFound: true,
+        manifestPath: '/repo/package.json',
+        manifestType: 'package.json',
+      });
+
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        tagTemplate: '${prefix}${version}',
+        baselineTagTemplate: 'release/${prefix}${version}',
+      };
+
+      const options: VersionOptions = {
+        latestTag: 'release/v0.21.0',
+        hasRealTag: true,
+        versionPrefix: 'v',
+        path: '/repo',
+        type: 'minor',
+      };
+
+      const version = await calculateVersion(config as Config, options);
+
+      // The strip regex must extract 0.21.0 from `release/v0.21.0` so the bump runs from
+      // the right base.
+      expect(versionUtils.bumpVersion).toHaveBeenCalledWith('0.21.0', 'minor', undefined);
+      expect(version).toBe('0.22.0');
+    });
   });
 
   describe('Branch pattern versioning', () => {
