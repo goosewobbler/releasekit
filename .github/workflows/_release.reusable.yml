@@ -186,7 +186,12 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
           STANDING_PR_NUMBER: ${{ inputs.standing_pr_number }}
+          INPUT_NPM_AUTH: ${{ inputs.npm_auth }}
         run: |
+          if [ "${INPUT_NPM_AUTH:-oidc}" != "oidc" ]; then
+            echo "::error::standing-pr publish only supports npm_auth=oidc (got: '${INPUT_NPM_AUTH}')"
+            exit 1
+          fi
           set +e
           RELEASE_OUTPUT=$(node packages/release/dist/cli.js standing-pr publish \
             --pr "$STANDING_PR_NUMBER" \
