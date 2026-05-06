@@ -15,7 +15,6 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
-  id-token: write
 
 env:
   TURBO_TELEMETRY_DISABLED: 1
