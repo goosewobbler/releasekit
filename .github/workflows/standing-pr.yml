@@ -134,6 +134,18 @@ jobs:
       ssh_key: ${{ secrets.DEPLOY_KEY }}
       OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
+  build-action-immediate:
+    name: Build and tag action dist
+    needs: immediate-release
+    if: needs.immediate-release.result == 'success' && needs.immediate-release.outputs.action_tag != ''
+    uses: ./.github/workflows/_action-release.reusable.yml
+    permissions:
+      contents: write
+    with:
+      tag: ${{ needs.immediate-release.outputs.action_tag }}
+    secrets:
+      ssh_key: ${{ secrets.DEPLOY_KEY }}
+
   # After an immediate release, the standing PR's queued changes overlap with what was just
   # published. Re-running standing-pr update reconciles: closes the standing PR if nothing's
   # left, otherwise rewrites the release branch against the new HEAD.
