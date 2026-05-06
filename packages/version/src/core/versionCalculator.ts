@@ -84,7 +84,22 @@ export async function calculateVersion(config: Config, options: VersionOptions):
       return `(?:${escapedRaw}|${escapedDash})`;
     }
 
-    const escapedTagPattern = buildTagStripPattern(name, originalPrefix);
+    let escapedTagPattern = buildTagStripPattern(name, originalPrefix);
+
+    // When `baselineTagTemplate` is configured, the latestTag may carry the baseline's
+    // multi-segment prefix (e.g. `release/v0.21.0`). The default tag-strip pattern only
+    // strips the consumer-tag prefix (`v`), so semver.clean on the residue still returns
+    // null and the version source falls through to '0.0.0' → 0.1.0. Extend the pattern
+    // with the baseline prefix as an alternative so both shapes are stripped correctly.
+    if (config.baselineTagTemplate) {
+      const baselinePrefix = config.baselineTagTemplate
+        .split('${' + 'version}')[0]
+        .replace(/\$\{prefix\}/g, originalPrefix)
+        .replace(/\$\{packageName\}/g, name ? sanitizePackageName(name) : '');
+      if (baselinePrefix) {
+        escapedTagPattern = `(?:${escapeRegExp(baselinePrefix)}|${escapedTagPattern})`;
+      }
+    }
 
     // Get the best available version source using smart fallback
     let versionSource: VersionSourceResult | undefined;
