@@ -43,7 +43,14 @@ export const VersionConfigSchema = z.object({
    * Supports `${packageName}`, `${prefix}`, `${version}` substitutions. Leave unset for
    * single-tag workflows (the default).
    */
-  baselineTagTemplate: z.string().optional(),
+  baselineTagTemplate: z
+    .string()
+    .refine((tpl) => tpl.includes('${' + 'version}'), {
+      message:
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting the expected placeholder syntax to the user
+        'baselineTagTemplate must contain a ${version} placeholder so the prefix can be derived (e.g. "release/${prefix}${version}").',
+    })
+    .optional(),
   packageSpecificTags: z.boolean().default(false),
   preset: z.string().default('conventional'),
   sync: z.boolean().default(true),

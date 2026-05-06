@@ -113,6 +113,15 @@ describe('VersionConfigSchema', () => {
     expect(result.branchPatterns).toHaveLength(2);
   });
 
+  it('should accept a baselineTagTemplate that contains ${version}', () => {
+    const result = VersionConfigSchema.parse({ baselineTagTemplate: 'release/${' + 'prefix}${' + 'version}' });
+    expect(result.baselineTagTemplate).toBe('release/${' + 'prefix}${' + 'version}');
+  });
+
+  it('should reject a baselineTagTemplate without ${version}', () => {
+    expect(() => VersionConfigSchema.parse({ baselineTagTemplate: 'release/v' })).toThrow(/\$\{version\}/);
+  });
+
   it('should accept cargo config', () => {
     const result = VersionConfigSchema.parse({
       cargo: {
