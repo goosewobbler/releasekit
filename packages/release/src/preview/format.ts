@@ -7,7 +7,6 @@ import type { ReleaseOutput } from '../types.js';
 import type { MergedRow } from './merge.js';
 
 export type ReleaseStrategy = 'manual' | 'direct' | 'standing-pr';
-const FOOTER = ATTRIBUTION_FOOTER;
 
 const TYPE_LABELS: Record<string, string> = {
   added: 'Added',
@@ -272,7 +271,7 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
     if (standingPrSnapshot) {
       lines.push(...renderQueuedTable(standingPrSnapshot));
     }
-    lines.push('', '---', FOOTER, '</details>');
+    lines.push('', '---', ATTRIBUTION_FOOTER, '</details>');
     return lines.join('\n');
   }
 
@@ -329,7 +328,7 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
     lines.push(...renderMergeTable(mergedRows));
   }
 
-  lines.push('---', FOOTER, '</details>');
+  lines.push('---', ATTRIBUTION_FOOTER, '</details>');
   return lines.join('\n');
 }
 
