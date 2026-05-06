@@ -896,7 +896,15 @@ describe('runStandingPRPublish', () => {
     });
     vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
 
-    const { runPublishStep } = await import('../../src/steps.js');
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    // publishFromManifest regenerates LLM-enhanced notes against the merged commit set
+    // — the publish step should receive these regenerated notes, not whatever (now empty)
+    // releaseNotes lives on the manifest.
+    vi.mocked(runNotesStep).mockResolvedValue({
+      packageNotes: {},
+      releaseNotes: { '@scope/core': '- regenerated at publish time' },
+      files: ['RELEASE_NOTES.md'],
+    });
     vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
       ReturnType<typeof runPublishStep>
     >);
@@ -909,11 +917,59 @@ describe('runStandingPRPublish', () => {
     });
 
     expect(result).not.toBeNull();
+    // runNotesStep is called with skipChangelogs:true (LLM-only, against the already-merged
+    // tree) before the publish step runs.
+    expect(vi.mocked(runNotesStep)).toHaveBeenCalledWith(
+      expect.objectContaining({ updates: baseManifest.versionOutput.updates }),
+      expect.objectContaining({ skipChangelogs: true, skipReleaseNotes: false }),
+    );
     expect(vi.mocked(runPublishStep)).toHaveBeenCalledWith(
       expect.objectContaining({ updates: baseManifest.versionOutput.updates }),
       expect.objectContaining({ skipGitCommit: true }),
-      baseManifest.releaseNotes,
-      baseManifest.notesFiles,
+      { '@scope/core': '- regenerated at publish time' },
+      expect.arrayContaining(['RELEASE_NOTES.md', ...baseManifest.notesFiles]),
+    );
+  });
+
+  it('should fall back to empty release notes when LLM regeneration fails', async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({
+        pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
+      }),
+    );
+
+    const { createOctokit } = await import('../../src/github.js');
+    const { octokit } = createMockOctokit();
+    const manifestBody = serializeManifest(baseManifest);
+    (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { data: [{ id: 1, body: manifestBody }] };
+      },
+    });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockRejectedValue(new Error('LLM provider unavailable'));
+    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+      ReturnType<typeof runPublishStep>
+    >);
+
+    const result = await runStandingPRPublish({
+      projectDir: '/test',
+      verbose: false,
+      quiet: false,
+      json: false,
+    });
+
+    expect(result).not.toBeNull();
+    // Publish proceeds with empty releaseNotes — the publish stage falls back to
+    // GitHub's --generate-notes for the release body.
+    expect(vi.mocked(runPublishStep)).toHaveBeenCalledWith(
+      expect.objectContaining({ updates: baseManifest.versionOutput.updates }),
+      expect.objectContaining({ skipGitCommit: true }),
+      {},
+      expect.arrayContaining(baseManifest.notesFiles),
     );
   });
 
@@ -1250,7 +1306,12 @@ describe('runStandingPRMerge', () => {
     });
     vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
 
-    const { runPublishStep } = await import('../../src/steps.js');
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({
+      packageNotes: {},
+      releaseNotes: { '@scope/core': '- regenerated' },
+      files: ['RELEASE_NOTES.md'],
+    });
     vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
       ReturnType<typeof runPublishStep>
     >);
@@ -1264,8 +1325,8 @@ describe('runStandingPRMerge', () => {
     expect(vi.mocked(runPublishStep)).toHaveBeenCalledWith(
       expect.objectContaining({ updates: baseManifest.versionOutput.updates }),
       expect.objectContaining({ skipGitCommit: true }),
-      baseManifest.releaseNotes,
-      baseManifest.notesFiles,
+      { '@scope/core': '- regenerated' },
+      expect.arrayContaining(['RELEASE_NOTES.md', ...baseManifest.notesFiles]),
     );
   });
 

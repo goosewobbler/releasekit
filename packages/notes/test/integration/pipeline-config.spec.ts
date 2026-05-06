@@ -255,3 +255,59 @@ describe('Pipeline: file-only config defaults mode to root', () => {
     expect(result.releaseNotes).toBeUndefined();
   });
 });
+
+describe('Pipeline: skipReleaseNotes / skipChangelogs flags', () => {
+  beforeEach(() => {
+    vi.mocked(fs.existsSync).mockReturnValue(false);
+    vi.mocked(fs.mkdirSync).mockReturnValue(undefined as never);
+    vi.mocked(fs.writeFileSync).mockReturnValue(undefined);
+  });
+
+  it('skipReleaseNotes:true should not write RELEASE_NOTES.md and should not invoke the LLM', async () => {
+    const { createProvider } = await import('../../src/llm/index.js');
+    vi.mocked(createProvider).mockClear();
+
+    const { runPipeline } = await import('../../src/core/pipeline.js');
+    const config: Config = {
+      changelog: { mode: 'root', file: 'CHANGELOG.md' },
+      releaseNotes: {
+        mode: 'root',
+        file: 'RELEASE_NOTES.md',
+        llm: { provider: 'openai-compatible', model: 'gpt-4o', tasks: { releaseNotes: true } },
+      },
+    };
+    const result = await runPipeline(sampleInput, config, false, { skipReleaseNotes: true });
+
+    expect(createProvider).not.toHaveBeenCalled();
+    expect(result.files).toContain('CHANGELOG.md');
+    expect(result.files).not.toContain('RELEASE_NOTES.md');
+    expect(result.releaseNotes).toBeUndefined();
+  });
+
+  it('skipChangelogs:true should skip CHANGELOG.md but still write RELEASE_NOTES.md', async () => {
+    const { createProvider } = await import('../../src/llm/index.js');
+    vi.mocked(createProvider).mockClear();
+
+    const { runPipeline } = await import('../../src/core/pipeline.js');
+    const config: Config = {
+      changelog: { mode: 'root', file: 'CHANGELOG.md' },
+      releaseNotes: { mode: 'root', file: 'RELEASE_NOTES.md' },
+    };
+    const result = await runPipeline(sampleInput, config, false, { skipChangelogs: true });
+
+    expect(result.files).not.toContain('CHANGELOG.md');
+    expect(result.files).toContain('RELEASE_NOTES.md');
+  });
+
+  it('both flags omitted preserves existing behaviour (changelog + release notes both written)', async () => {
+    const { runPipeline } = await import('../../src/core/pipeline.js');
+    const config: Config = {
+      changelog: { mode: 'root', file: 'CHANGELOG.md' },
+      releaseNotes: { mode: 'root', file: 'RELEASE_NOTES.md' },
+    };
+    const result = await runPipeline(sampleInput, config, false);
+
+    expect(result.files).toContain('CHANGELOG.md');
+    expect(result.files).toContain('RELEASE_NOTES.md');
+  });
+});

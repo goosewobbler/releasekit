@@ -330,7 +330,28 @@ export interface PipelineResult {
   releaseNotes?: Record<string, string>;
 }
 
-export async function runPipeline(input: ChangelogInput, config: Config, dryRun: boolean): Promise<PipelineResult> {
+export interface PipelineOptions {
+  /**
+   * Skip the LLM pass and the release-notes file write (RELEASE_NOTES.md).
+   * Per-package CHANGELOG.md is unaffected. Use during standing-PR update so the
+   * standing-PR workflow doesn't depend on LLM availability and doesn't pay for
+   * an LLM call on every push to main.
+   */
+  skipReleaseNotes?: boolean;
+  /**
+   * Skip the changelog file writes (CHANGELOG.md). LLM + release-notes generation
+   * are unaffected. Use during publish from manifest to regenerate only the
+   * release notes against an already-bumped tree.
+   */
+  skipChangelogs?: boolean;
+}
+
+export async function runPipeline(
+  input: ChangelogInput,
+  config: Config,
+  dryRun: boolean,
+  pipelineOptions?: PipelineOptions,
+): Promise<PipelineResult> {
   debug(`Processing ${input.packages.length} package(s)`);
 
   let contexts = input.packages.map(createTemplateContext);
@@ -349,7 +370,10 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
         : config.releaseNotes;
 
   const llmConfig = releaseNotesConfig?.llm;
-  if (llmConfig && !process.env.CHANGELOG_NO_LLM) {
+  // The LLM pass is part of release-notes generation: enhanced text only flows into the
+  // release-notes output (and the per-package map returned to callers). When release notes
+  // are skipped, the LLM call is wasted compute, so gate them together.
+  if (llmConfig && !process.env.CHANGELOG_NO_LLM && !pipelineOptions?.skipReleaseNotes) {
     info('Processing with LLM enhancement');
 
     const examplesCount = llmConfig.examples ?? 3;
@@ -421,7 +445,7 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
     links: releaseNotesConfig?.links,
   };
 
-  if (changelogConfig !== false && changelogConfig.mode) {
+  if (!pipelineOptions?.skipChangelogs && changelogConfig !== false && changelogConfig.mode) {
     const fileName = changelogConfig.file ?? 'CHANGELOG.md';
     const mode = changelogConfig.mode;
 
@@ -452,7 +476,7 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
     }
   }
 
-  if (releaseNotesConfig?.mode) {
+  if (!pipelineOptions?.skipReleaseNotes && releaseNotesConfig?.mode) {
     const fileName = releaseNotesConfig.file ?? 'RELEASE_NOTES.md';
     const mode = releaseNotesConfig.mode;
 
@@ -492,6 +516,11 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
   const releaseNotesResult: Record<string, string> = {};
   for (const ctx of contexts) {
     packageNotes[ctx.packageName] = formatVersion(ctx);
+    if (pipelineOptions?.skipReleaseNotes) {
+      // Caller asked to skip release notes — don't populate the per-package map either,
+      // otherwise the callsite will treat it as "available" content and propagate it.
+      continue;
+    }
     if (ctx.enhanced?.releaseNotes) {
       releaseNotesResult[ctx.packageName] = ctx.enhanced.releaseNotes;
     } else if (releaseNotesConfig) {
@@ -528,9 +557,14 @@ export async function runPipeline(input: ChangelogInput, config: Config, dryRun:
   };
 }
 
-export async function processInput(inputJson: string, config: Config, dryRun: boolean): Promise<PipelineResult> {
+export async function processInput(
+  inputJson: string,
+  config: Config,
+  dryRun: boolean,
+  pipelineOptions?: PipelineOptions,
+): Promise<PipelineResult> {
   const input = parseVersionOutput(inputJson);
-  return runPipeline(input, config, dryRun);
+  return runPipeline(input, config, dryRun, pipelineOptions);
 }
 
 async function writeMonorepoFiles(

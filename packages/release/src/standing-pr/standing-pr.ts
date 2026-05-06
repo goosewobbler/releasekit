@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 
 import * as fs from 'node:fs';
 import { type CIConfig, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
@@ -96,6 +96,65 @@ function commitAndForcePush(branch: string, cwd: string): void {
   }
 
   execSync(`git push --force-with-lease origin "${branch}"`, { encoding: 'utf-8', cwd, stdio: 'pipe' });
+}
+
+/**
+ * Stage and commit the LLM-enhanced release notes files generated at publish time. Tags created
+ * by the subsequent publish stage land on this commit (which captures the full release state
+ * including the polished notes).
+ *
+ * Uses execFileSync (no shell) and scopes both the diff probe and the commit to the specific
+ * file paths so unrelated dirty index state can't pollute the notes commit.
+ */
+function commitNotesFiles(files: string[], versionOutput: VersionOutput, cwd: string): void {
+  if (files.length === 0) return;
+
+  // Probe whether ANY of the target paths has tracked changes OR is untracked. `git status
+  // --porcelain -- <paths>` is scoped to the listed paths (so unrelated repo-wide dirty state
+  // is ignored) AND reports untracked files (`??` prefix) — which `git diff HEAD` misses.
+  // Without the untracked check, a brand-new RELEASE_NOTES.md (first release in a repo) would
+  // be silently skipped and never make it into the publish commit.
+  // The probe is wrapped so the function never propagates — the caller's outer try/catch is
+  // scoped to LLM failures, and a bubbled git error there would emit a misleading "release
+  // notes generation failed" warning even though notes were generated successfully.
+  let statusOut: string;
+  try {
+    statusOut = execFileSync('git', ['status', '--porcelain', '--', ...files], {
+      cwd,
+      encoding: 'utf-8',
+    }).trim();
+  } catch (err) {
+    warn(`Failed to probe release notes status: ${err instanceof Error ? err.message : String(err)}`);
+    return;
+  }
+
+  if (!statusOut) {
+    info('Release notes already match the on-disk content, skipping commit');
+    return;
+  }
+
+  // Single atomic git add — either every file is staged or none are, no partial-staging
+  // dirty-index window before the subsequent publish step runs.
+  try {
+    execFileSync('git', ['add', '--', ...files], { cwd, stdio: 'pipe' });
+  } catch (err) {
+    warn(`Failed to stage release notes files: ${err instanceof Error ? err.message : String(err)}`);
+    return;
+  }
+
+  // Commit ONLY the listed paths via `git commit -- <paths>`. This is belt-and-braces against
+  // any unrelated content that may already be staged in the index — git will only write the
+  // explicit paths into the commit even if other paths are staged.
+  // Use the first update's version for the commit subject (sync mode shares a single version;
+  // async picks a representative — fine for an audit-only commit).
+  const version = versionOutput.updates[0]?.newVersion ?? '';
+  const message = version ? `chore: release notes for v${version}` : 'chore: release notes';
+  try {
+    execFileSync('git', ['commit', '-m', message, '--', ...files], { cwd, stdio: 'pipe' });
+    success(`Committed release notes (${files.length} file(s))`);
+  } catch (err) {
+    warn(`Failed to commit release notes: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 // Renders the release notes section content (without editable markers).
@@ -578,8 +637,11 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const writeOptions = buildBaseReleaseOptions(options, false, buildExtras);
   const versionOutput = await runVersionStep(writeOptions);
 
-  info('Generating release notes...');
-  const notesOptions = { ...writeOptions, skipNotes: false };
+  // Generate per-package CHANGELOG.md only — release-notes generation (LLM + RELEASE_NOTES.md)
+  // is deferred to publish time. This decouples standing-PR updates from LLM availability and
+  // avoids paying for an LLM call on every push to main when only the final publish needs it.
+  info('Generating changelog...');
+  const notesOptions = { ...writeOptions, skipNotes: false, skipReleaseNotes: true };
   const notesResult = await runNotesStep(versionOutput, notesOptions);
 
   // Commit and force-push the release branch
@@ -696,11 +758,13 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   }
 
-  // Store manifest as a bot comment
+  // Store manifest as a bot comment. `releaseNotes` is intentionally omitted — publishFromManifest
+  // regenerates LLM-enhanced release notes against the merged commit set, so caching them here
+  // would waste LLM calls and risk drift if the standing PR sits open while new commits land.
   const manifest: StandingPRManifest = {
     schemaVersion: 2,
     versionOutput,
-    releaseNotes: notesResult.releaseNotes ?? {},
+    releaseNotes: {},
     notesFiles: notesResult.files,
     createdAt: new Date().toISOString(),
     baseSha,
@@ -805,6 +869,51 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
 
   info(`Publishing from manifest: ${manifest.versionOutput.updates.length} package(s)`);
 
+  // Regenerate LLM-enhanced release notes against the merged commit set. The standing-PR update
+  // intentionally skipped this so the standing-PR workflow doesn't depend on LLM availability.
+  // On failure we proceed with empty release notes — the publish stage falls back to GitHub's
+  // --generate-notes for the release body.
+  const notesGenerationOptions: ReleaseOptions = {
+    config: options.config,
+    dryRun: false,
+    sync: false,
+    skipNotes: false,
+    skipChangelogs: true,
+    skipReleaseNotes: false,
+    skipPublish: true,
+    skipGit: true,
+    skipGithubRelease: true,
+    skipVerification: true,
+    json: options.json,
+    verbose: options.verbose,
+    quiet: options.quiet,
+    projectDir: cwd,
+  };
+
+  let releaseNotes: Record<string, string> = {};
+  let notesFiles: string[] = [...manifest.notesFiles];
+  try {
+    info('Generating release notes (with LLM enhancement)...');
+    const notesResult = await runNotesStep(manifest.versionOutput, notesGenerationOptions);
+    releaseNotes = notesResult.releaseNotes ?? {};
+    // Add any newly written files (RELEASE_NOTES.md) to the notesFiles list. Don't dedupe
+    // against manifest.notesFiles by string equality alone — paths may differ — but the
+    // changelog files were already on main from the merge so we don't need them in the
+    // publish commit anyway. Just track the new ones.
+    const newFiles = notesResult.files.filter((f) => !manifest.notesFiles.includes(f));
+    notesFiles = [...notesFiles, ...newFiles];
+
+    // Commit the new RELEASE_NOTES.md so main reflects what's in the GitHub release body.
+    // Tags created next by the publish step land on this commit (which is fine — the tag
+    // captures the full release state including notes).
+    if (newFiles.length > 0) {
+      commitNotesFiles(newFiles, manifest.versionOutput, cwd);
+    }
+  } catch (err) {
+    warn(`Release notes generation failed: ${err instanceof Error ? err.message : String(err)}`);
+    warn('Publish will proceed with empty release notes; GitHub release will use auto-generated notes.');
+  }
+
   const publishOptions: ReleaseOptions = {
     config: options.config,
     dryRun: false,
@@ -822,12 +931,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     npmAuth: (options.npmAuth as ReleaseOptions['npmAuth']) ?? 'auto',
   };
 
-  const publishOutput = await runPublishStep(
-    manifest.versionOutput,
-    publishOptions,
-    manifest.releaseNotes,
-    manifest.notesFiles,
-  );
+  const publishOutput = await runPublishStep(manifest.versionOutput, publishOptions, releaseNotes, notesFiles);
 
   success('Publish complete');
 
@@ -838,8 +942,10 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
 
   return {
     versionOutput: manifest.versionOutput,
-    notesGenerated: false,
-    releaseNotes: manifest.releaseNotes,
+    // Reflect actual success — the LLM call may have failed and left releaseNotes empty,
+    // in which case downstream consumers should know not to display/propagate "generated" notes.
+    notesGenerated: Object.keys(releaseNotes).length > 0,
+    releaseNotes,
     publishOutput,
   };
 }
