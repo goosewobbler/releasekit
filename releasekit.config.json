@@ -16,7 +16,8 @@
     ],
     "mismatchStrategy": "prefer-package",
     "commitMessage": "chore: release v${version} [skip ci]",
-    "prereleaseIdentifier": "next"
+    "prereleaseIdentifier": "next",
+    "baselineTagTemplate": "release/${prefix}${version}"
   },
   "notes": {
     "changelog": {
