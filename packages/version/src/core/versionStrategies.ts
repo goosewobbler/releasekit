@@ -20,7 +20,13 @@ import { updatePackageVersion } from '../package/packageManagement.js';
 import { PackageProcessor } from '../package/packageProcessor.js';
 import type { Config } from '../types.js';
 import { formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
-import { addChangelogData, addTag, setCommitMessage, setPackageUpdateTag } from '../utils/jsonOutput.js';
+import {
+  addBaselineTag,
+  addChangelogData,
+  addTag,
+  setCommitMessage,
+  setPackageUpdateTag,
+} from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { calculateVersion } from './versionCalculator.js';
 import type { PackagesWithRoot } from './versionEngine.js';
@@ -416,17 +422,19 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       formattedCommitMessage = formattedCommitMessage.replace(/\s{2,}/g, ' ').trim();
 
       // Track tags and commit message for JSON output (git ops now handled by publish).
+      for (const tag of nextTags) {
+        addTag(tag);
+      }
       // When configured, also emit the baseline tag — this lives at the same release commit
       // but stays on the source branch's history even if `tagTemplate`'s tag gets moved by a
       // downstream step. Future getLatestTag() calls find this one when `baselineTagTemplate`
-      // is set in config.
+      // is set. Stored in a separate `baselineTags` field so the publish pipeline can push it
+      // alongside the consumer tags but skip GitHub Release creation for it.
       const baselineTag = config.baselineTagTemplate
         ? formatTag(nextVersion, formattedPrefix, mainPkgName, config.baselineTagTemplate, false)
         : undefined;
+      if (baselineTag) addBaselineTag(baselineTag);
       const allTags = baselineTag ? [...nextTags, baselineTag] : nextTags;
-      for (const tag of allTags) {
-        addTag(tag);
-      }
       // Link per-package tags back to their update records so the publish pipeline
       // can push each tag immediately after that package publishes.
       if (config.packageSpecificTags && workspaceNames.length > 0) {
