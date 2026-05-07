@@ -400,6 +400,29 @@ describe('Version Strategies', () => {
       expect(jsonOutput.addBaselineTag).not.toHaveBeenCalled();
     });
 
+    it('should display previousVersion in consumer-facing form when baselineTagTemplate is set', async () => {
+      // The preview/changelog should show `v0.21.0 → 0.22.0`, not the internal baseline form
+      // `release/v0.21.0 → 0.22.0`. previousVersion needs the prefix swapped from the baseline
+      // family back to the consumer family.
+      vi.mocked(git.getLatestTag).mockResolvedValue('release/v0.21.0');
+
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        sync: true,
+        baselineTagTemplate: 'release/${' + 'prefix}${' + 'version}',
+      };
+
+      const syncStrategy = strategies.createSyncStrategy(config as Config);
+
+      await syncStrategy(mockPackages);
+
+      expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
+        expect.objectContaining({
+          previousVersion: 'v0.21.0',
+        }),
+      );
+    });
+
     it('should skip the package-specific tag override when baselineTagTemplate is set', async () => {
       // Without the guard, getLatestTagForPackage's return value would clobber the baseline
       // — which would re-introduce the unreachable-tag regression baselineTagTemplate exists

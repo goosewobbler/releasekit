@@ -127,6 +127,16 @@ export function createSyncStrategy(config: Config): StrategyFunction {
 
       let latestTag = await getLatestTag(baselineTagPrefix);
 
+      // Display form of latestTag for changelog headers etc. — keeps `latestTag` itself as
+      // the full git ref (needed for `${tag}..HEAD` ranges and git-rev-parse) while showing
+      // users the consumer-facing tag form. With `baselineTagTemplate` set, replace its
+      // prefix with `tagTemplate`'s prefix so `release/v0.22.0` shows as `v0.22.0` in the
+      // preview rather than leaking the internal marker scheme.
+      const displayLatestTag = (tag: string): string => {
+        if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) return tag;
+        return `${formattedPrefix}${tag.slice(baselineTagPrefix.length)}`;
+      };
+
       // Capture the repo root before any mainPackage branch can overwrite mainPkgPath.
       // This is used as commitCheckPath so commit counting always spans the full repo.
       const repoRoot = packages.root ?? process.cwd();
@@ -363,12 +373,13 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       // In per-package tag mode, emit one changelog entry per workspace package so the
       // notes pipeline can write a CHANGELOG.md to each package directory and the
       // publish pipeline can match tags to the right release notes.
+      const displayPrevious = latestTag ? displayLatestTag(latestTag) : null;
       if (config.packageSpecificTags && workspaceNames.length > 0) {
         for (const pkgName of workspaceNames) {
           addChangelogData({
             packageName: pkgName,
             version: nextVersion,
-            previousVersion: latestTag || null,
+            previousVersion: displayPrevious,
             revisionRange,
             repoUrl,
             entries: changelogEntries,
@@ -378,7 +389,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         addChangelogData({
           packageName: mainPkgName || 'monorepo',
           version: nextVersion,
-          previousVersion: latestTag || null,
+          previousVersion: displayPrevious,
           revisionRange,
           repoUrl,
           entries: changelogEntries,
