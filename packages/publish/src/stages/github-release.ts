@@ -172,7 +172,13 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
     return;
   }
 
-  const tags = output.git.tags.length > 0 ? output.git.tags : ctx.input.tags;
+  // Filter baseline tags out of the candidate set. Baselines are pushed alongside consumer
+  // tags but are an internal source-branch marker, not a consumer-facing release point, so
+  // they shouldn't get a GitHub Release. The fallback to ctx.input.tags is preserved for
+  // callers that bypass the git-commit stage and don't pre-populate output.git.tags.
+  const baselineSet = new Set(ctx.input.baselineTags ?? []);
+  const candidateTags = output.git.tags.length > 0 ? output.git.tags : ctx.input.tags;
+  const tags = candidateTags.filter((tag) => !baselineSet.has(tag));
 
   if (tags.length === 0) {
     info('No tags available for GitHub release');
