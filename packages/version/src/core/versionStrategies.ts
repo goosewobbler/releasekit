@@ -20,7 +20,13 @@ import { updatePackageVersion } from '../package/packageManagement.js';
 import { PackageProcessor } from '../package/packageProcessor.js';
 import type { Config } from '../types.js';
 import { formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
-import { addChangelogData, addTag, setCommitMessage, setPackageUpdateTag } from '../utils/jsonOutput.js';
+import {
+  addBaselineTag,
+  addChangelogData,
+  addTag,
+  setCommitMessage,
+  setPackageUpdateTag,
+} from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { calculateVersion } from './versionCalculator.js';
 import type { PackagesWithRoot } from './versionEngine.js';
@@ -120,6 +126,16 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         : undefined;
 
       let latestTag = await getLatestTag(baselineTagPrefix);
+
+      // Display form of latestTag for changelog headers etc. — keeps `latestTag` itself as
+      // the full git ref (needed for `${tag}..HEAD` ranges and git-rev-parse) while showing
+      // users the consumer-facing tag form. With `baselineTagTemplate` set, replace its
+      // prefix with `tagTemplate`'s prefix so `release/v0.22.0` shows as `v0.22.0` in the
+      // preview rather than leaking the internal marker scheme.
+      const displayLatestTag = (tag: string): string => {
+        if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) return tag;
+        return `${formattedPrefix}${tag.slice(baselineTagPrefix.length)}`;
+      };
 
       // Capture the repo root before any mainPackage branch can overwrite mainPkgPath.
       // This is used as commitCheckPath so commit counting always spans the full repo.
@@ -357,12 +373,13 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       // In per-package tag mode, emit one changelog entry per workspace package so the
       // notes pipeline can write a CHANGELOG.md to each package directory and the
       // publish pipeline can match tags to the right release notes.
+      const displayPrevious = latestTag ? displayLatestTag(latestTag) : null;
       if (config.packageSpecificTags && workspaceNames.length > 0) {
         for (const pkgName of workspaceNames) {
           addChangelogData({
             packageName: pkgName,
             version: nextVersion,
-            previousVersion: latestTag || null,
+            previousVersion: displayPrevious,
             revisionRange,
             repoUrl,
             entries: changelogEntries,
@@ -372,7 +389,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         addChangelogData({
           packageName: mainPkgName || 'monorepo',
           version: nextVersion,
-          previousVersion: latestTag || null,
+          previousVersion: displayPrevious,
           revisionRange,
           repoUrl,
           entries: changelogEntries,
@@ -416,17 +433,19 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       formattedCommitMessage = formattedCommitMessage.replace(/\s{2,}/g, ' ').trim();
 
       // Track tags and commit message for JSON output (git ops now handled by publish).
+      for (const tag of nextTags) {
+        addTag(tag);
+      }
       // When configured, also emit the baseline tag — this lives at the same release commit
       // but stays on the source branch's history even if `tagTemplate`'s tag gets moved by a
       // downstream step. Future getLatestTag() calls find this one when `baselineTagTemplate`
-      // is set in config.
+      // is set. Stored in a separate `baselineTags` field so the publish pipeline can push it
+      // alongside the consumer tags but skip GitHub Release creation for it.
       const baselineTag = config.baselineTagTemplate
         ? formatTag(nextVersion, formattedPrefix, mainPkgName, config.baselineTagTemplate, false)
         : undefined;
+      if (baselineTag) addBaselineTag(baselineTag);
       const allTags = baselineTag ? [...nextTags, baselineTag] : nextTags;
-      for (const tag of allTags) {
-        addTag(tag);
-      }
       // Link per-package tags back to their update records so the publish pipeline
       // can push each tag immediately after that package publishes.
       if (config.packageSpecificTags && workspaceNames.length > 0) {

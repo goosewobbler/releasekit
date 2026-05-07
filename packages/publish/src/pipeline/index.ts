@@ -66,10 +66,12 @@ export async function runPipeline(
 
     // Stage 3: Git commit + tag
     // When skipGitCommit is set, the caller already created the commit and tags.
-    // Pre-populate the output so push and github-release stages work.
+    // Pre-populate the output so push and github-release stages work. Both consumer-facing
+    // tags and baseline tags need to be pushed; the github-release stage filters back down
+    // to consumer tags via `ctx.input.tags`.
     if (options.skipGitCommit && !options.skipGit) {
       ctx.output.git.committed = !!input.commitMessage;
-      ctx.output.git.tags = [...input.tags];
+      ctx.output.git.tags = [...input.tags, ...(input.baselineTags ?? [])];
     } else if (!options.skipGit) {
       await runGitCommitStage(ctx);
     }

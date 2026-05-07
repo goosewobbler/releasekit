@@ -376,10 +376,12 @@ describe('Version Strategies', () => {
       // to baseline tags (which stay on the source branch's history).
       expect(git.getLatestTag).toHaveBeenCalledWith('release/v');
 
-      // Both the consumer-facing tag and the baseline tag should be tracked for the publish
-      // pipeline to push.
+      // Consumer tag goes to addTag; baseline tag goes to addBaselineTag — separate fields
+      // on VersionOutput so the publish pipeline can push both but skip the GitHub Release
+      // for the baseline.
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
-      expect(jsonOutput.addTag).toHaveBeenCalledWith('release/v1.1.0');
+      expect(jsonOutput.addBaselineTag).toHaveBeenCalledWith('release/v1.1.0');
+      expect(jsonOutput.addTag).not.toHaveBeenCalledWith('release/v1.1.0');
     });
 
     it('should not emit a baseline tag or alter getLatestTag when baselineTagTemplate is unset', async () => {
@@ -395,7 +397,30 @@ describe('Version Strategies', () => {
       // No prefix passed — falls back to the default semver-tag scan.
       expect(git.getLatestTag).toHaveBeenCalledWith(undefined);
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
-      expect(jsonOutput.addTag).not.toHaveBeenCalledWith(expect.stringContaining('release/'));
+      expect(jsonOutput.addBaselineTag).not.toHaveBeenCalled();
+    });
+
+    it('should display previousVersion in consumer-facing form when baselineTagTemplate is set', async () => {
+      // The preview/changelog should show `v0.21.0 → 0.22.0`, not the internal baseline form
+      // `release/v0.21.0 → 0.22.0`. previousVersion needs the prefix swapped from the baseline
+      // family back to the consumer family.
+      vi.mocked(git.getLatestTag).mockResolvedValue('release/v0.21.0');
+
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        sync: true,
+        baselineTagTemplate: 'release/${' + 'prefix}${' + 'version}',
+      };
+
+      const syncStrategy = strategies.createSyncStrategy(config as Config);
+
+      await syncStrategy(mockPackages);
+
+      expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
+        expect.objectContaining({
+          previousVersion: 'v0.21.0',
+        }),
+      );
     });
 
     it('should skip the package-specific tag override when baselineTagTemplate is set', async () => {

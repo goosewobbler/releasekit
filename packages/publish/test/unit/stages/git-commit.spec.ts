@@ -125,6 +125,28 @@ describe('git-commit stage', () => {
     expect(ctx.output.git.tags).toEqual(['a@v1.0.0', 'b@v1.0.0']);
   });
 
+  it('should also create baseline tags when present on input', async () => {
+    // Baseline tags live alongside consumer tags: both are created locally and pushed,
+    // but the github-release stage only reads input.tags so baselines don't get a Release.
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    const ctx = createContext({
+      input: {
+        dryRun: false,
+        updates: [{ packageName: 'a', newVersion: '1.0.0', filePath: 'a/package.json' }],
+        changelogs: [],
+        commitMessage: 'release',
+        tags: ['v1.0.0'],
+        baselineTags: ['release/v1.0.0'],
+      },
+    });
+
+    await runGitCommitStage(ctx);
+
+    // add + commit + 1 consumer tag + 1 baseline tag = 4 calls
+    expect(execCommand).toHaveBeenCalledTimes(4);
+    expect(ctx.output.git.tags).toEqual(['v1.0.0', 'release/v1.0.0']);
+  });
+
   it('should pass --no-verify when skipHooks is true', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const ctx = createContext({

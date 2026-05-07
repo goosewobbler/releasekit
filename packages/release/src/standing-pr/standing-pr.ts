@@ -982,8 +982,10 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
 
   // Create the release tags at HEAD before invoking the publish pipeline. The pipeline's
   // git-commit stage (where tag creation normally lives) is skipped via skipGitCommit below,
-  // so without this the pipeline's `git push --tags` would have nothing to push.
-  createReleaseTags(manifest.versionOutput.tags, cwd);
+  // so without this the pipeline's `git push --tags` would have nothing to push. Baseline
+  // tags (when configured via baselineTagTemplate) are created here too — they live at the
+  // same release commit and need to be pushed alongside the consumer tags.
+  createReleaseTags([...manifest.versionOutput.tags, ...(manifest.versionOutput.baselineTags ?? [])], cwd);
 
   const publishOptions: ReleaseOptions = {
     config: options.config,
