@@ -31,6 +31,8 @@ vi.mock('../../../src/utils/formatting.js', () => ({
     return template.replace('${version}', version);
   }),
   escapeRegExp: vi.fn().mockImplementation((str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+  deriveBaselineTagPrefix: vi.fn().mockReturnValue(undefined),
+  displayTag: vi.fn().mockImplementation((tag) => tag),
 }));
 vi.mock('../../../src/utils/jsonOutput.js');
 vi.mock('../../../src/utils/manifestHelpers.js', () => ({
