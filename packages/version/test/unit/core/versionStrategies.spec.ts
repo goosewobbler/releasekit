@@ -35,9 +35,12 @@ vi.mock('../../../src/utils/formatting.js', () => ({
   formatCommitMessage: vi.fn().mockImplementation((template, version, packageName) => {
     return template.replace(/\$\{version\}/g, version).replace(/\$\{packageName\}/g, packageName || '');
   }),
-  deriveBaselineTagPrefix: vi.fn().mockImplementation((template, formattedPrefix) => {
+  deriveBaselineTagPrefix: vi.fn().mockImplementation((template, formattedPrefix, packageName) => {
     if (!template) return undefined;
-    return template.split('${' + 'version}')[0].replace(/\$\{prefix\}/g, formattedPrefix);
+    return template
+      .split('${' + 'version}')[0]
+      .replace(/\$\{prefix\}/g, formattedPrefix)
+      .replace(/\$\{packageName\}/g, packageName ?? '');
   }),
   displayTag: vi.fn().mockImplementation((tag, baselineTagPrefix, formattedPrefix) => {
     if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) return tag;
@@ -100,10 +103,15 @@ describe('Version Strategies', () => {
     vi.mocked(formatting.formatTag, { partial: true }).mockReturnValue('v1.1.0');
     // Default mock: single-package result used by most tests. Sync tests override this.
     vi.mocked(formatting.formatCommitMessage, { partial: true }).mockReturnValue('chore: release package-a v1.1.0');
-    vi.mocked(formatting.deriveBaselineTagPrefix, { partial: true }).mockImplementation((template, formattedPrefix) => {
-      if (!template) return undefined;
-      return template.split('${' + 'version}')[0].replace(/\$\{prefix\}/g, formattedPrefix);
-    });
+    vi.mocked(formatting.deriveBaselineTagPrefix, { partial: true }).mockImplementation(
+      (template, formattedPrefix, packageName) => {
+        if (!template) return undefined;
+        return template
+          .split('${' + 'version}')[0]
+          .replace(/\$\{prefix\}/g, formattedPrefix)
+          .replace(/\$\{packageName\}/g, packageName ?? '');
+      },
+    );
     vi.mocked(formatting.displayTag, { partial: true }).mockImplementation(
       (tag, baselineTagPrefix, formattedPrefix) => {
         if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) return tag;
