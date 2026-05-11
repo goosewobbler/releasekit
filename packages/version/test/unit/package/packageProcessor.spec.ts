@@ -32,7 +32,10 @@ vi.mock('../../../src/utils/formatting.js', () => ({
   }),
   escapeRegExp: vi.fn().mockImplementation((str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
   deriveBaselineTagPrefix: vi.fn().mockReturnValue(undefined),
-  displayTag: vi.fn().mockImplementation((tag) => tag),
+  displayTag: vi.fn().mockImplementation((tag, baselineTagPrefix, formattedPrefix) => {
+    if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) return tag;
+    return `${formattedPrefix}${tag.slice(baselineTagPrefix.length)}`;
+  }),
 }));
 vi.mock('../../../src/utils/jsonOutput.js');
 vi.mock('../../../src/utils/manifestHelpers.js', () => ({
