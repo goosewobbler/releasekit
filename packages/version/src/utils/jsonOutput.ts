@@ -22,6 +22,7 @@ const _jsonData: VersionOutput = {
   changelogs: [],
   sharedEntries: undefined,
   tags: [],
+  baselineTags: undefined,
 };
 
 /**
@@ -35,6 +36,7 @@ export function enableJsonOutput(dryRun = false): void {
   _jsonData.changelogs = [];
   _jsonData.sharedEntries = undefined;
   _jsonData.tags = [];
+  _jsonData.baselineTags = undefined;
   _jsonData.commitMessage = undefined;
   _pendingWrites.length = 0;
 }
@@ -123,6 +125,17 @@ export function addTag(tag: string): void {
   if (!_jsonOutputMode) return;
 
   _jsonData.tags.push(tag);
+}
+
+/**
+ * Add a baseline tag (internal-only marker) to the JSON output. Pushed alongside the
+ * consumer tags but excluded from GitHub Release creation.
+ */
+export function addBaselineTag(tag: string): void {
+  if (!_jsonOutputMode) return;
+
+  if (!_jsonData.baselineTags) _jsonData.baselineTags = [];
+  _jsonData.baselineTags.push(tag);
 }
 
 /**

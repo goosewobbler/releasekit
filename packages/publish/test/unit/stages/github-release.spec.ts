@@ -63,6 +63,34 @@ describe('github-release stage', () => {
     });
   });
 
+  it('should not create a Release for baseline tags even when they appear in output.git.tags', async () => {
+    // Baseline tags (e.g. release/v1.0.0) get pushed alongside consumer tags but are an
+    // internal source-branch marker, not a consumer-facing release. The stage should read
+    // input.tags directly and ignore the merged set in output.git.tags.
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    const ctx = createContext({
+      input: { dryRun: false, updates: [], changelogs: [], tags: ['v1.0.0'], baselineTags: ['release/v1.0.0'] },
+      output: {
+        dryRun: false,
+        // Both tags landed in output.git.tags via the pipeline's pre-populate path.
+        git: { committed: true, tags: ['v1.0.0', 'release/v1.0.0'], pushed: true },
+        npm: [],
+        cargo: [],
+        verification: [],
+        githubReleases: [],
+        publishSucceeded: true,
+      },
+    });
+
+    await runGithubReleaseStage(ctx);
+
+    // Exactly one Release call — the consumer tag.
+    expect(execCommand).toHaveBeenCalledTimes(1);
+    const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
+    expect(args).toEqual(expect.arrayContaining(['release', 'create', 'v1.0.0']));
+    expect(args).not.toEqual(expect.arrayContaining(['release/v1.0.0']));
+  });
+
   it('should fall back to --generate-notes when notes is auto and no files/changelogs exist', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const ctx = createContext();

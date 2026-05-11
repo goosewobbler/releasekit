@@ -166,6 +166,26 @@ describe('pipeline', () => {
     expect(result.git.tags).toEqual(['v1.0.0', 'pkg-a@v1.0.0']);
   });
 
+  it('should merge baselineTags into pre-populated git.tags when skipGitCommit is set', async () => {
+    // Both consumer tags and baseline tags need to be pushed, but only consumer tags get a
+    // GitHub Release (the github-release stage reads input.tags directly).
+    const inputWithBaseline: VersionOutput = {
+      dryRun: false,
+      updates: [],
+      changelogs: [],
+      commitMessage: 'chore: release v1.0.0',
+      tags: ['v1.0.0'],
+      baselineTags: ['release/v1.0.0'],
+    };
+
+    const result = await runPipeline(inputWithBaseline, getDefaultConfig(), {
+      ...defaultOptions,
+      skipGitCommit: true,
+    });
+
+    expect(result.git.tags).toEqual(['v1.0.0', 'release/v1.0.0']);
+  });
+
   it('should skip github release when --skip-github-release', async () => {
     const { runGithubReleaseStage } = await import('../../src/stages/github-release.js');
 

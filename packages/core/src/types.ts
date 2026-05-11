@@ -44,7 +44,14 @@ export interface VersionOutput {
    */
   sharedEntries?: VersionChangelogEntry[];
   commitMessage?: string;
+  /** Consumer-facing tags from `tagTemplate` (e.g. `v1.2.3`). The publish pipeline pushes
+   *  them and creates a GitHub Release for each. */
   tags: string[];
+  /** Internal baseline-marker tags from `baselineTagTemplate` (e.g. `release/v1.2.3`).
+   *  Pushed alongside `tags` but not used to create GitHub Releases — they exist purely
+   *  so future version-bump and changelog calculations can find the previous release on
+   *  the source branch's history when the consumer-facing tag has been force-moved off it. */
+  baselineTags?: string[];
 }
 
 /**

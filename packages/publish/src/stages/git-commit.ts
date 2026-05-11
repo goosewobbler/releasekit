@@ -66,8 +66,10 @@ export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
     }
   }
 
-  // Create tags
-  for (const tag of input.tags) {
+  // Create tags. Baseline tags (when present) are created at the same commit as consumer
+  // tags but flagged separately on VersionOutput so the github-release stage can skip them.
+  const allTags = [...input.tags, ...(input.baselineTags ?? [])];
+  for (const tag of allTags) {
     if (!dryRun) {
       // Check if tag already exists before creating
       const checkResult = await execCommandSafe('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}`], { cwd });
