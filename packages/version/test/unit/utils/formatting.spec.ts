@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildTagStripPatternFromTemplate,
+  deriveBaselineTagPrefix,
+  displayTag,
   formatCommitMessage,
   formatTag,
   formatTagPrefix,
@@ -329,6 +331,64 @@ describe('formatting', () => {
         'v',
       );
       expect(result).toBe('release-wdio-native-spy@v');
+    });
+  });
+
+  describe('deriveBaselineTagPrefix', () => {
+    it('should return undefined when template is undefined', () => {
+      expect(deriveBaselineTagPrefix(undefined, 'v')).toBeUndefined();
+    });
+
+    it('should extract the prefix before ${version}', () => {
+      expect(deriveBaselineTagPrefix('release/${' + 'prefix}${' + 'version}', 'v')).toBe('release/v');
+    });
+
+    it('should substitute ${prefix}', () => {
+      expect(deriveBaselineTagPrefix('${' + 'prefix}${' + 'version}', 'v')).toBe('v');
+    });
+
+    it('should substitute ${packageName} with sanitized package name', () => {
+      expect(deriveBaselineTagPrefix('release/${' + 'packageName}/${' + 'prefix}${' + 'version}', 'v', 'my-pkg')).toBe(
+        'release/my-pkg/v',
+      );
+    });
+
+    it('should sanitize scoped package names in ${packageName}', () => {
+      expect(
+        deriveBaselineTagPrefix('release/${' + 'packageName}/${' + 'prefix}${' + 'version}', 'v', '@scope/pkg'),
+      ).toBe('release/scope-pkg/v');
+    });
+
+    it('should replace ${packageName} with empty string when packageName is omitted', () => {
+      expect(deriveBaselineTagPrefix('release/${' + 'packageName}/${' + 'prefix}${' + 'version}', 'v')).toBe(
+        'release//v',
+      );
+    });
+
+    it('should return empty string when template starts with ${version}', () => {
+      expect(deriveBaselineTagPrefix('${' + 'version}', 'v')).toBe('');
+    });
+  });
+
+  describe('displayTag', () => {
+    it('should return the tag unchanged when baselineTagPrefix is undefined', () => {
+      expect(displayTag('release/v1.2.3', undefined, 'v')).toBe('release/v1.2.3');
+    });
+
+    it('should return the tag unchanged when it does not start with the baseline prefix', () => {
+      expect(displayTag('v1.2.3', 'release/v', 'v')).toBe('v1.2.3');
+    });
+
+    it('should replace the baseline prefix with the consumer prefix', () => {
+      expect(displayTag('release/v1.2.3', 'release/v', 'v')).toBe('v1.2.3');
+    });
+
+    it('should handle an empty consumer prefix', () => {
+      expect(displayTag('release/1.2.3', 'release/', '')).toBe('1.2.3');
+    });
+
+    it('should handle baseline prefix equal to the full tag', () => {
+      expect(displayTag('release/v', 'release/v', 'v')).toBe('v');
     });
   });
 });
