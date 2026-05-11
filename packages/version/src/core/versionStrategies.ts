@@ -6,11 +6,7 @@ import fs from 'node:fs';
 import * as path from 'node:path';
 import type { Package } from '@manypkg/get-packages';
 import type { VersionChangelogEntry } from '@releasekit/core';
-import {
-  sanitizePackageName,
-  shouldMatchPackageTargets,
-  shouldProcessPackage as shouldProcessPackageUtil,
-} from '@releasekit/core';
+import { shouldMatchPackageTargets, shouldProcessPackage as shouldProcessPackageUtil } from '@releasekit/core';
 import { extractChangelogEntriesFromCommits } from '../changelog/commitParser.js';
 import { BaseVersionError } from '../errors/baseError.js';
 import { createVersionError, VersionErrorCode } from '../errors/versionError.js';
@@ -19,7 +15,13 @@ import { getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js'
 import { updatePackageVersion } from '../package/packageManagement.js';
 import { PackageProcessor } from '../package/packageProcessor.js';
 import type { Config } from '../types.js';
-import { formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
+import {
+  deriveBaselineTagPrefix,
+  displayTag,
+  formatCommitMessage,
+  formatTag,
+  formatVersionPrefix,
+} from '../utils/formatting.js';
 import {
   addBaselineTag,
   addChangelogData,
@@ -116,26 +118,10 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       // read a separate "baseline" tag (one that stays on the source branch's history) rather
       // than the consumer-facing `tagTemplate` tag (which a downstream step may force-move
       // off the branch). Resolve the baseline template's leading prefix so getLatestTag's
-      // semver scan filters to the baseline family. `${version}` marks the boundary; anything
-      // before it (after `${prefix}`/`${packageName}` substitution) is the literal prefix.
-      const baselineTagPrefix = config.baselineTagTemplate
-        ? config.baselineTagTemplate
-            .split('${' + 'version}')[0]
-            .replace(/\$\{prefix\}/g, formattedPrefix)
-            .replace(/\$\{packageName\}/g, mainPackage ? sanitizePackageName(mainPackage) : '')
-        : undefined;
+      // semver scan filters to the baseline family.
+      const baselineTagPrefix = deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, mainPackage);
 
       let latestTag = await getLatestTag(baselineTagPrefix);
-
-      // Display form of latestTag for changelog headers etc. — keeps `latestTag` itself as
-      // the full git ref (needed for `${tag}..HEAD` ranges and git-rev-parse) while showing
-      // users the consumer-facing tag form. With `baselineTagTemplate` set, replace its
-      // prefix with `tagTemplate`'s prefix so `release/v0.22.0` shows as `v0.22.0` in the
-      // preview rather than leaking the internal marker scheme.
-      const displayLatestTag = (tag: string): string => {
-        if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) return tag;
-        return `${formattedPrefix}${tag.slice(baselineTagPrefix.length)}`;
-      };
 
       // Capture the repo root before any mainPackage branch can overwrite mainPkgPath.
       // This is used as commitCheckPath so commit counting always spans the full repo.
@@ -373,7 +359,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       // In per-package tag mode, emit one changelog entry per workspace package so the
       // notes pipeline can write a CHANGELOG.md to each package directory and the
       // publish pipeline can match tags to the right release notes.
-      const displayPrevious = latestTag ? displayLatestTag(latestTag) : null;
+      const displayPrevious = latestTag ? displayTag(latestTag, baselineTagPrefix, formattedPrefix) : null;
       if (config.packageSpecificTags && workspaceNames.length > 0) {
         for (const pkgName of workspaceNames) {
           addChangelogData({
@@ -525,6 +511,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
 
       // At this point, latestTagResult is guaranteed to be a string (possibly empty)
       const latestTag = latestTagResult;
+      const baselineTagPrefix = deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, packageName);
 
       let nextVersion: string | undefined;
 
@@ -624,7 +611,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
       addChangelogData({
         packageName,
         version: nextVersion,
-        previousVersion: latestTag || null,
+        previousVersion: latestTag ? displayTag(latestTag, baselineTagPrefix, formattedPrefix) : null,
         revisionRange,
         repoUrl: repoUrl || null,
         entries: changelogEntries,
