@@ -158,3 +158,35 @@ export function buildTagStripPatternFromTemplate(template: string, packageName: 
 
   return escapeRegExp(prefixPattern);
 }
+
+/**
+ * Resolve a `baselineTagTemplate` to its literal leading prefix — the substring before the
+ * `${version}` placeholder, with `${prefix}` and `${packageName}` substitutions applied.
+ * Used to filter `getSemverTags`'s scan to the baseline family and to recognise baseline
+ * tags when stripping for display. Returns `undefined` when the template is unset.
+ */
+export function deriveBaselineTagPrefix(
+  template: string | undefined,
+  formattedPrefix: string,
+  packageName?: string,
+): string | undefined {
+  if (!template) return undefined;
+  return template
+    .split('${' + 'version}')[0]
+    .replace(/\$\{prefix\}/g, formattedPrefix)
+    .replace(/\$\{packageName\}/g, packageName ? sanitizePackageName(packageName) : '');
+}
+
+/**
+ * Convert an internal baseline tag (e.g. `release/v1.2.3`) to its consumer-facing display
+ * form (e.g. `v1.2.3`) by swapping the baseline prefix for the consumer prefix. When the
+ * tag isn't a baseline tag — or no baseline prefix is configured — returns it unchanged.
+ *
+ * Used wherever a tag is shown to the user (changelog headers, preview blocks). The
+ * underlying `latestTag` value used for git-rev-parse and `${tag}..HEAD` ranges is left
+ * alone — only the display surfaces are cleaned up.
+ */
+export function displayTag(tag: string, baselineTagPrefix: string | undefined, formattedPrefix: string): string {
+  if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) return tag;
+  return `${formattedPrefix}${tag.slice(baselineTagPrefix.length)}`;
+}

@@ -8,7 +8,13 @@ import { calculateVersion } from '../core/versionCalculator.js';
 import { getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { verifyTag } from '../git/tagVerification.js';
 import type { Config, VersionConfigBase } from '../types.js';
-import { formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
+import {
+  deriveBaselineTagPrefix,
+  displayTag,
+  formatCommitMessage,
+  formatTag,
+  formatVersionPrefix,
+} from '../utils/formatting.js';
 import {
   addChangelogData,
   addTag,
@@ -277,11 +283,14 @@ export class PackageProcessor {
         );
       }
 
-      // Track changelog data for JSON output
+      // Track changelog data for JSON output. previousVersion is shown to users in the
+      // changelog header — strip the baseline-tag scheme back to its consumer-facing form
+      // so `release/v0.22.0` appears as `v0.22.0` rather than leaking the internal marker.
+      const baselineTagPrefix = deriveBaselineTagPrefix(this.fullConfig.baselineTagTemplate, formattedPrefix, name);
       addChangelogData({
         packageName: name,
         version: nextVersion,
-        previousVersion: latestTag || null,
+        previousVersion: latestTag ? displayTag(latestTag, baselineTagPrefix, formattedPrefix) : null,
         revisionRange,
         repoUrl: repoUrl || null,
         entries: changelogEntries,

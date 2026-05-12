@@ -31,6 +31,11 @@ vi.mock('../../../src/utils/formatting.js', () => ({
     return template.replace('${version}', version);
   }),
   escapeRegExp: vi.fn().mockImplementation((str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+  deriveBaselineTagPrefix: vi.fn().mockReturnValue(undefined),
+  displayTag: vi.fn().mockImplementation((tag, baselineTagPrefix, formattedPrefix) => {
+    if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) return tag;
+    return `${formattedPrefix}${tag.slice(baselineTagPrefix.length)}`;
+  }),
 }));
 vi.mock('../../../src/utils/jsonOutput.js');
 vi.mock('../../../src/utils/manifestHelpers.js', () => ({
@@ -367,6 +372,30 @@ describe('Package Processor', () => {
       expect(result.updatedPackages).toHaveLength(2);
       expect(result.updatedPackages[0].name).toBe('package-a');
       expect(result.updatedPackages[1].name).toBe('package-b');
+    });
+
+    it('should strip baseline tag prefix from previousVersion passed to addChangelogData', async () => {
+      vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('release/v1.0.0');
+      vi.spyOn(formatting, 'deriveBaselineTagPrefix').mockReturnValue('release/v');
+      vi.spyOn(formatting, 'displayTag').mockImplementation((tag, baselineTagPrefix, formattedPrefix) => {
+        if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) return tag;
+        return `${formattedPrefix}${tag.slice(baselineTagPrefix.length)}`;
+      });
+
+      const processor = new PackageProcessor({
+        ...defaultOptions,
+        fullConfig: {
+          ...mockConfig,
+          baselineTagTemplate: 'release/${' + 'prefix}${' + 'version}',
+          writeChangelog: false,
+        },
+      });
+
+      await processor.processPackages([mockPackages[0]]);
+
+      const calls = vi.mocked(jsonOutput.addChangelogData).mock.calls;
+      expect(calls.length).toBeGreaterThan(0);
+      expect(calls[0][0]).toMatchObject({ previousVersion: 'v1.0.0' });
     });
 
     it('should emit repo-level entries as sharedEntries, not in individual package changelogs', async () => {
