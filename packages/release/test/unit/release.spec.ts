@@ -22,6 +22,9 @@ vi.mock('../../src/github.js', () => ({
   createOctokit: (...args: unknown[]) => mockCreateOctokit(...args),
   findMergedPRsForCommit: (...args: unknown[]) => mockFindMergedPRsForCommit(...args),
   fetchPRLabels: (...args: unknown[]) => mockFetchPRLabels(...args),
+  // Used by the best-effort failure-report resolve path; a plain stub keeps it quiet.
+  findPreviewComment: vi.fn().mockResolvedValue(null),
+  postOrUpdateComment: vi.fn().mockResolvedValue(undefined),
 }));
 
 const mockEnableJsonOutput = vi.fn();

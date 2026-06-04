@@ -127,7 +127,8 @@ describe('postFailureReport', () => {
       expect(written).toContain('1/2 package(s) published');
       fs.unlinkSync(tmp);
     } finally {
-      process.env.GITHUB_STEP_SUMMARY = undefined;
+      // Assigning undefined would coerce to the string "undefined" — delete instead.
+      delete process.env.GITHUB_STEP_SUMMARY;
     }
   });
 });

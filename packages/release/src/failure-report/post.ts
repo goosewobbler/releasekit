@@ -7,6 +7,7 @@ import { findPreviewComment, postOrUpdateComment } from '../github.js';
 import {
   FAILURE_MARKER,
   type FailureReportMode,
+  parseFailureReportData,
   parseFailureReportStatus,
   renderFailureReport,
   renderResolvedReport,
@@ -147,17 +148,16 @@ export async function detectUnresolvedFailure(
 
 /**
  * Recover the headline numbers from a rendered failure report so the supersede warning can be
- * rebuilt without the original pipeline output. Parses the released label from the heading and
- * the published/total fraction from the summary line.
+ * rebuilt without the original pipeline output. Reads the machine-readable data comment the
+ * report embeds — never the human-facing copy, which is free to change.
  */
 function parseReportLedgerSummary(body: string, prNumber: number): UnresolvedFailure | null {
-  const labelMatch = body.match(/Publish of (\S+) failed partway through/);
-  const fractionMatch = body.match(/\*\*(\d+)\/(\d+) package\(s\) published\.\*\*/);
-  if (!labelMatch?.[1] || !fractionMatch?.[1] || !fractionMatch[2]) return null;
+  const data = parseFailureReportData(body);
+  if (!data) return null;
   return {
-    previousLabel: labelMatch[1],
-    published: Number.parseInt(fractionMatch[1], 10),
-    total: Number.parseInt(fractionMatch[2], 10),
+    previousLabel: data.label,
+    published: data.published,
+    total: data.total,
     prNumber,
   };
 }

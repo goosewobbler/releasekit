@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildLedger,
   FAILURE_MARKER,
+  parseFailureReportData,
   parseFailureReportStatus,
   renderFailureReport,
   renderResolvedReport,
@@ -125,6 +126,27 @@ describe('renderFailureReport', () => {
     });
     expect(body.startsWith(FAILURE_MARKER)).toBe(true);
     expect(parseFailureReportStatus(body)).toBe('unresolved');
+  });
+
+  it('embeds machine-readable headline data that round-trips independent of the prose', () => {
+    const body = renderFailureReport({
+      versionOutput,
+      publishOutput,
+      failedStage: 'npm-publish',
+      errorMessage: 'Failed to publish to npm: npm 403',
+      recovery: { mode: 'standing-pr', standingPrNumber: 42 },
+    });
+    expect(parseFailureReportData(body)).toEqual({ label: 'v0.24.0', published: 1, total: 2 });
+    // Detection must survive copy-edits to the human-facing report text.
+    const copyEdited = body.replace('failed partway through', 'did not complete');
+    expect(parseFailureReportData(copyEdited)).toEqual({ label: 'v0.24.0', published: 1, total: 2 });
+  });
+
+  it('returns null headline data for non-report bodies and malformed data comments', () => {
+    expect(parseFailureReportData('not a report')).toBeNull();
+    expect(
+      parseFailureReportData(`${FAILURE_MARKER}\n<!-- releasekit-publish-failure-data: {bad json} -->`),
+    ).toBeNull();
   });
 
   it('renders the per-package ledger with status icons and the published fraction', () => {

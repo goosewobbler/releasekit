@@ -1060,20 +1060,27 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   } catch (err) {
     // Partial-publish failure: surface the report on the merged standing PR (the PR whose
     // manifest drove this publish). Versions are already on main (roll-forward); the report
-    // explains what landed and how to retry. Best-effort — re-throw so the workflow fails.
+    // explains what landed and how to retry. Best-effort — the guard ensures a reporting
+    // failure never replaces the original pipeline error, which is always re-thrown.
     if (err instanceof PipelineError) {
-      await postFailureReport(
-        {
-          octokit,
-          owner,
-          repo,
-          mode: 'standing-pr',
-          prNumber,
-          standingPrNumber: prNumber,
-        },
-        manifest.versionOutput,
-        err,
-      );
+      try {
+        await postFailureReport(
+          {
+            octokit,
+            owner,
+            repo,
+            mode: 'standing-pr',
+            prNumber,
+            standingPrNumber: prNumber,
+          },
+          manifest.versionOutput,
+          err,
+        );
+      } catch (reportErr) {
+        warn(
+          `Failed to surface publish-failure report: ${reportErr instanceof Error ? reportErr.message : String(reportErr)}`,
+        );
+      }
     }
     throw err;
   }

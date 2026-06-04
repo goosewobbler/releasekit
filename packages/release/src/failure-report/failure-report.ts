@@ -19,6 +19,20 @@ export const FAILURE_MARKER = '<!-- releasekit-publish-failure -->';
 export type FailureReportStatus = 'unresolved' | 'resolved';
 const STATUS_PREFIX = '<!-- releasekit-publish-failure-status:';
 
+/**
+ * Machine-readable headline data (release label + published/total fraction), encoded as its own
+ * HTML comment so the supersede warning can be rebuilt without parsing the human-facing report
+ * copy — prose edits to the report must not silently break detection.
+ */
+const DATA_PREFIX = '<!-- releasekit-publish-failure-data:';
+
+export interface FailureReportData {
+  /** Release label of the partially-published release, e.g. `v0.24.0`. */
+  label: string;
+  published: number;
+  total: number;
+}
+
 /** Release mode the failed publish ran in — drives the recovery instructions. */
 export type FailureReportMode = 'standing-pr' | 'direct' | 'manual';
 
@@ -182,6 +196,7 @@ export function renderFailureReport(input: FailureReportInput): string {
   const lines: string[] = [
     FAILURE_MARKER,
     `${STATUS_PREFIX} unresolved -->`,
+    `${DATA_PREFIX} ${JSON.stringify({ label, published, total } satisfies FailureReportData)} -->`,
     '',
     `## ❌ Publish of ${label} failed partway through`,
     '',
@@ -249,6 +264,25 @@ export function parseFailureReportStatus(body: string): FailureReportStatus | nu
   if (!body.startsWith(FAILURE_MARKER)) return null;
   const match = body.match(/<!-- releasekit-publish-failure-status:\s*(unresolved|resolved)\s*-->/);
   return (match?.[1] as FailureReportStatus | undefined) ?? 'unresolved';
+}
+
+/**
+ * Read the encoded headline data from a failure-report comment body. Returns null when the body
+ * is not a failure report or the data comment is missing/malformed.
+ */
+export function parseFailureReportData(body: string): FailureReportData | null {
+  if (!body.startsWith(FAILURE_MARKER)) return null;
+  const match = body.match(/<!-- releasekit-publish-failure-data:\s*(\{.*?\})\s*-->/);
+  if (!match?.[1]) return null;
+  try {
+    const parsed = JSON.parse(match[1]) as Partial<FailureReportData>;
+    if (typeof parsed.label !== 'string' || typeof parsed.published !== 'number' || typeof parsed.total !== 'number') {
+      return null;
+    }
+    return { label: parsed.label, published: parsed.published, total: parsed.total };
+  } catch {
+    return null;
+  }
 }
 
 export interface SupersedeWarningInput {
