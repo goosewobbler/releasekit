@@ -4,8 +4,11 @@ import * as fs from 'node:fs';
 import { type CIConfig, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput } from '@releasekit/core';
 import { error, info, success, warn } from '@releasekit/core';
+import { PipelineError } from '@releasekit/publish';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration, parseDuration } from '../duration.js';
+import { renderSupersedeWarning } from '../failure-report/failure-report.js';
+import { detectUnresolvedFailure, postFailureReport, resolveFailureReportIfPresent } from '../failure-report/post.js';
 import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from '../git.js';
 import { createOctokit } from '../github.js';
 import { DEFAULT_LABELS } from '../label-utils.js';
@@ -323,8 +326,14 @@ function deleteReleaseBranch(releaseBranch: string, cwd: string): void {
   }
 }
 
-function renderPrBody(versionOutput: VersionOutput): string {
+function renderPrBody(versionOutput: VersionOutput, supersedeWarning?: string[]): string {
   const lines: string[] = ['## Release', ''];
+
+  // While a prior release remains partially published, lead with the supersede warning so the
+  // maintainer sees the retry-vs-supersede choice before the package list.
+  if (supersedeWarning && supersedeWarning.length > 0) {
+    lines.push(...supersedeWarning);
+  }
 
   // The root lockstep bump (sync mode) is never published — keep it out of the package list.
   const updates = publishableUpdates(versionOutput);
@@ -777,7 +786,28 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // label override resolution; saves an extra API call.
   const existing = existingStandingPr;
 
-  const body = renderPrBody(versionOutput);
+  // Detect an unresolved partial-publish on the most recently merged standing PR so this PR's
+  // body warns that the prior release is incomplete and offers the retry-vs-supersede choice.
+  // Best-effort — a lookup failure must not block the standing-PR update.
+  let supersedeWarning: string[] | undefined;
+  try {
+    const latestMerged = await findLatestMergedStandingPR(octokit, owner, repo, branch);
+    if (latestMerged !== null) {
+      const unresolved = await detectUnresolvedFailure(octokit, owner, repo, latestMerged);
+      if (unresolved) {
+        supersedeWarning = renderSupersedeWarning({
+          previousLabel: unresolved.previousLabel,
+          published: unresolved.published,
+          total: unresolved.total,
+          standingPrNumber: unresolved.prNumber,
+        });
+      }
+    }
+  } catch (err) {
+    warn(`Could not check for unresolved publish failures: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  const body = renderPrBody(versionOutput, supersedeWarning);
 
   let prNumber: number;
   let prUrl: string;
@@ -1039,9 +1069,42 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     npmAuth: (options.npmAuth as ReleaseOptions['npmAuth']) ?? 'auto',
   };
 
-  const publishOutput = await runPublishStep(manifest.versionOutput, publishOptions, releaseNotes, notesFiles);
+  let publishOutput: ReleaseOutput['publishOutput'];
+  try {
+    publishOutput = await runPublishStep(manifest.versionOutput, publishOptions, releaseNotes, notesFiles);
+  } catch (err) {
+    // Partial-publish failure: surface the report on the merged standing PR (the PR whose
+    // manifest drove this publish). Versions are already on main (roll-forward); the report
+    // explains what landed and how to retry. Best-effort — the guard ensures a reporting
+    // failure never replaces the original pipeline error, which is always re-thrown.
+    if (err instanceof PipelineError) {
+      try {
+        await postFailureReport(
+          {
+            octokit,
+            owner,
+            repo,
+            mode: 'standing-pr',
+            prNumber,
+            standingPrNumber: prNumber,
+          },
+          manifest.versionOutput,
+          err,
+        );
+      } catch (reportErr) {
+        warn(
+          `Failed to surface publish-failure report: ${reportErr instanceof Error ? reportErr.message : String(reportErr)}`,
+        );
+      }
+    }
+    throw err;
+  }
 
   success('Publish complete');
+
+  // Publish succeeded — clear any prior failure report on this PR (resolves it and the supersede
+  // warning that would otherwise show on the next standing PR).
+  await resolveFailureReportIfPresent(octokit, owner, repo, prNumber, manifest.versionOutput);
 
   // Cleanup: delete release branch if configured
   if (deleteBranchOnMerge) {

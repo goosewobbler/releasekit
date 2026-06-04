@@ -1,3 +1,25 @@
+export type {
+  FailureReportInput,
+  FailureReportMode,
+  FailureReportStatus,
+  LedgerEntry,
+  LedgerStatus,
+  RecoveryContext,
+  SupersedeWarningInput,
+} from './failure-report/failure-report.js';
+export {
+  buildLedger,
+  FAILURE_MARKER,
+  parseFailureReportStatus,
+  renderFailureReport,
+  renderResolvedReport,
+  renderSupersedeWarning,
+} from './failure-report/failure-report.js';
+export {
+  detectUnresolvedFailure,
+  postFailureReport,
+  resolveFailureReportIfPresent,
+} from './failure-report/post.js';
 export type { GateOptions, GateOutput } from './gate/gate.js';
 export { runGate } from './gate/gate.js';
 export type { PreviewOptions } from './preview/preview.js';

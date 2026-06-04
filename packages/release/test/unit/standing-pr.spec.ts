@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { renderFailureReport, renderResolvedReport } from '../../src/failure-report/failure-report.js';
 import type { StandingPRManifest } from '../../src/standing-pr/standing-pr.js';
 import {
   createReleaseTags,
@@ -566,6 +567,122 @@ describe('runStandingPRUpdate', () => {
     expect(createCall?.body).not.toContain('### Changelog');
     expect(createCall?.body).toContain('@scope/core');
     expect(createCall?.body).toContain('1.2.3');
+  });
+
+  describe('partial-publish supersede warning on the next standing PR', () => {
+    function failureReportBody() {
+      const versionOutput = {
+        ...createMockVersionOutput([
+          { packageName: '@scope/core', newVersion: '0.24.0' },
+          { packageName: '@scope/utils', newVersion: '0.24.0' },
+        ]),
+      } as unknown as Parameters<typeof renderFailureReport>[0]['versionOutput'];
+      return renderFailureReport({
+        versionOutput,
+        publishOutput: {
+          dryRun: false,
+          git: { committed: true, tags: [], pushed: false },
+          npm: [
+            { packageName: '@scope/core', version: '0.24.0', registry: 'npm', success: true, skipped: false },
+            {
+              packageName: '@scope/utils',
+              version: '0.24.0',
+              registry: 'npm',
+              success: false,
+              skipped: false,
+              reason: 'npm 403',
+            },
+          ],
+          cargo: [],
+          verification: [],
+          githubReleases: [],
+          publishSucceeded: false,
+        },
+        failedStage: 'npm-publish',
+        errorMessage: 'npm 403',
+        recovery: { mode: 'standing-pr', standingPrNumber: 7 },
+      });
+    }
+
+    // pullsList is used both for the open standing PR (findStandingPR) and the most recently
+    // merged one (findLatestMergedStandingPR). Branch on the requested state.
+    function listByState(merged: Array<{ number: number; merged_at: string }>) {
+      return (args: { state?: string }) => Promise.resolve({ data: args.state === 'closed' ? merged : [] });
+    }
+
+    it('includes the warning when the latest merged standing PR has an unresolved failure', async () => {
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '0.25.0' }]);
+      vi.mocked(runVersionStep)
+        .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+        .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+      const { createOctokit } = await import('../../src/github.js');
+      const { mocks, octokit } = createMockOctokit();
+      mocks.pullsList.mockImplementation(listByState([{ number: 7, merged_at: '2026-01-01T00:00:00Z' }]));
+      mocks.paginate.iterator.mockReturnValue({
+        async *[Symbol.asyncIterator]() {
+          yield { data: [{ id: 1, body: failureReportBody() }] };
+        },
+      });
+      vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const createCall = mocks.pullsCreate.mock.calls[0]?.[0] as { body?: string } | undefined;
+      expect(createCall?.body).toContain('partially published');
+      expect(createCall?.body).toContain('1/2 packages');
+      expect(createCall?.body).toContain('#7');
+    });
+
+    it('omits the warning when the latest merged standing PR failure is resolved', async () => {
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '0.25.0' }]);
+      vi.mocked(runVersionStep)
+        .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+        .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+      const { createOctokit } = await import('../../src/github.js');
+      const { mocks, octokit } = createMockOctokit();
+      mocks.pullsList.mockImplementation(listByState([{ number: 7, merged_at: '2026-01-01T00:00:00Z' }]));
+      const resolved = renderResolvedReport(
+        createMockVersionOutput([{ packageName: '@scope/core', newVersion: '0.24.0' }]) as unknown as Parameters<
+          typeof renderResolvedReport
+        >[0],
+      );
+      mocks.paginate.iterator.mockReturnValue({
+        async *[Symbol.asyncIterator]() {
+          yield { data: [{ id: 1, body: resolved }] };
+        },
+      });
+      vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const createCall = mocks.pullsCreate.mock.calls[0]?.[0] as { body?: string } | undefined;
+      expect(createCall?.body).not.toContain('partially published');
+    });
+
+    it('omits the warning when there is no merged standing PR', async () => {
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '0.25.0' }]);
+      vi.mocked(runVersionStep)
+        .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+        .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+      const { createOctokit } = await import('../../src/github.js');
+      const { mocks, octokit } = createMockOctokit();
+      mocks.pullsList.mockImplementation(listByState([]));
+      vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const createCall = mocks.pullsCreate.mock.calls[0]?.[0] as { body?: string } | undefined;
+      expect(createCall?.body).not.toContain('partially published');
+    });
   });
 
   it('should update existing PR when standing PR already exists', async () => {

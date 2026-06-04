@@ -66,6 +66,11 @@ export interface FormatOptions {
   /** Per-package merge rows combining standing PR + this PR's contribution. Populated only when both exist. */
   mergedRows?: MergedRow[];
   labelContext?: LabelContext;
+  /**
+   * Warning block (rendered lines) shown while a prior release is partially published — gives the
+   * maintainer the retry-vs-supersede choice. Populated by runPreview in standing-pr mode.
+   */
+  supersedeWarning?: string[];
 }
 
 function getNoChangesMessage(strategy: ReleaseStrategy): string {
@@ -250,6 +255,12 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
   const standingPrSnapshot = showStandingPrContext ? options?.standingPrSnapshot : undefined;
   const mergedRows = showStandingPrContext ? options?.mergedRows : undefined;
   const lines: string[] = [MARKER, ''];
+
+  // Partial-publish supersede warning lives OUTSIDE the details block (and above the snapshot) so
+  // the maintainer always sees that the prior release is incomplete and what their options are.
+  if (showStandingPrContext && options?.supersedeWarning && options.supersedeWarning.length > 0) {
+    lines.push(...options.supersedeWarning);
+  }
 
   // Standing PR snapshot lives OUTSIDE the collapsible details so reviewers always see what's
   // currently queued for release without having to expand the per-PR analysis.

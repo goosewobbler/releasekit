@@ -1039,4 +1039,42 @@ describe('formatPreviewComment', () => {
       expect(result).toContain('No bump label detected');
     });
   });
+
+  describe('partial-publish supersede warning', () => {
+    const warning = [
+      '> ⚠️ **Previous release v0.24.0 is partially published** (2/4 packages on the registry; no tags/GitHub release created).',
+      '> Retry it by dispatching the release workflow against the merged standing PR (#42), **or** merging this PR supersedes it — the next release re-publishes everything at the new version.',
+      '',
+    ];
+
+    it('renders the warning above the standing PR snapshot when present', () => {
+      const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
+      const result = formatPreviewComment(releaseOutput, {
+        strategy: 'standing-pr',
+        standingPrSnapshot: snapshot,
+        supersedeWarning: warning,
+      });
+      expect(result).toContain('Previous release v0.24.0 is partially published');
+      expect(result).toContain('2/4 packages');
+      // Warning must sit before the snapshot block.
+      expect(result.indexOf('partially published')).toBeLessThan(result.indexOf('**Standing release PR:**'));
+    });
+
+    it('omits the warning when none is supplied (failure cleared / never occurred)', () => {
+      const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
+      const result = formatPreviewComment(releaseOutput, {
+        strategy: 'standing-pr',
+        standingPrSnapshot: snapshot,
+      });
+      expect(result).not.toContain('partially published');
+    });
+
+    it('suppresses the warning outside standing-pr strategy (defensive)', () => {
+      const result = formatPreviewComment(releaseOutput, {
+        strategy: 'direct',
+        supersedeWarning: warning,
+      });
+      expect(result).not.toContain('partially published');
+    });
+  });
 });

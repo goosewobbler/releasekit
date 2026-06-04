@@ -22,6 +22,9 @@ vi.mock('../../src/github.js', () => ({
   createOctokit: (...args: unknown[]) => mockCreateOctokit(...args),
   findMergedPRsForCommit: (...args: unknown[]) => mockFindMergedPRsForCommit(...args),
   fetchPRLabels: (...args: unknown[]) => mockFetchPRLabels(...args),
+  // Used by the best-effort failure-report resolve path; a plain stub keeps it quiet.
+  findPreviewComment: vi.fn().mockResolvedValue(null),
+  postOrUpdateComment: vi.fn().mockResolvedValue(undefined),
 }));
 
 const mockEnableJsonOutput = vi.fn();
@@ -69,10 +72,16 @@ vi.mock('@releasekit/notes', () => ({
 const mockPublishRunPipeline = vi.fn();
 const mockPublishLoadConfig = vi.fn();
 
-vi.mock('@releasekit/publish', () => ({
-  runPipeline: (...args: unknown[]) => mockPublishRunPipeline(...args),
-  loadConfig: (...args: unknown[]) => mockPublishLoadConfig(...args),
-}));
+vi.mock('@releasekit/publish', async (importOriginal) => {
+  // Pull the real PipelineError through so release.ts's `instanceof PipelineError` check works;
+  // only runPipeline/loadConfig are stubbed.
+  const actual = await importOriginal<typeof import('@releasekit/publish')>();
+  return {
+    PipelineError: actual.PipelineError,
+    runPipeline: (...args: unknown[]) => mockPublishRunPipeline(...args),
+    loadConfig: (...args: unknown[]) => mockPublishLoadConfig(...args),
+  };
+});
 
 vi.mock('@releasekit/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@releasekit/core')>();

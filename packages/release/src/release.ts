@@ -1,12 +1,71 @@
 import type { CIConfig, ReleaseConfig } from '@releasekit/config';
 import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
+import type { VersionOutput } from '@releasekit/core';
 import { error, info, setJsonMode, setLogLevel, setQuietMode, success, warn } from '@releasekit/core';
+import { PipelineError } from '@releasekit/publish';
+import { postFailureReport, resolveFailureReportIfPresent } from './failure-report/post.js';
 import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from './git.js';
 import { createOctokit, fetchPRLabels, findMergedPRsForCommit } from './github.js';
 import { DEFAULT_LABELS, detectLabelConflicts } from './label-utils.js';
 import { runNotesStep, runPublishStep, runVersionStep } from './steps.js';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
 import { publishableUpdates } from './version-display.js';
+
+/**
+ * Resolve the release-driving PR + mode for the failure report. Direct/label mode: the merged
+ * feature PR that triggered the release (discovered from the HEAD commit). Manual dispatch (no
+ * PR): mode 'manual' with no PR number — the report goes to the workflow step summary.
+ */
+async function resolveReleaseReportTarget(): Promise<{
+  octokit: ReturnType<typeof createOctokit>;
+  owner: string;
+  repo: string;
+  prNumber?: number;
+  mode: 'direct' | 'manual';
+} | null> {
+  const githubContext = getGitHubContext();
+  if (!githubContext?.token) return null;
+  const octokit = createOctokit(githubContext.token);
+  const { owner, repo, sha } = githubContext;
+
+  const isManualDispatch = process.env.GITHUB_EVENT_NAME === 'workflow_dispatch';
+  let prNumber: number | undefined;
+  if (sha && !isManualDispatch) {
+    const prs = await findMergedPRsForCommit(octokit, owner, repo, sha);
+    prNumber = prs[0];
+  }
+
+  return { octokit, owner, repo, prNumber, mode: prNumber !== undefined ? 'direct' : 'manual' };
+}
+
+/**
+ * Post a partial-publish failure report for a direct/label-mode or manual-dispatch release.
+ * Best-effort: never throws (the caller re-throws the original pipeline error).
+ */
+async function reportReleaseFailure(versionOutput: VersionOutput, err: PipelineError): Promise<void> {
+  try {
+    const target = await resolveReleaseReportTarget();
+    if (!target) {
+      warn('No GitHub context — publish-failure report not surfaced');
+      return;
+    }
+    await postFailureReport(
+      {
+        octokit: target.octokit,
+        owner: target.owner,
+        repo: target.repo,
+        mode: target.mode,
+        prNumber: target.prNumber,
+      },
+      versionOutput,
+      err,
+    );
+  } catch (reportErr) {
+    warn(
+      `Failed to surface publish-failure report: ${reportErr instanceof Error ? reportErr.message : String(reportErr)}`,
+    );
+  }
+}
 
 export function resolveScopeToTarget(scopeName: string, scopeLabels: Record<string, string>): string {
   const prefixed = `scope:${scopeName}`;
@@ -257,8 +316,39 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   let publishOutput: ReleaseOutput['publishOutput'];
   if (!options.skipPublish) {
     info('Publishing...');
-    publishOutput = await runPublishStep(versionOutput, options, releaseNotes, notesFiles);
+    try {
+      publishOutput = await runPublishStep(versionOutput, options, releaseNotes, notesFiles);
+    } catch (err) {
+      // On a partial-publish failure the pipeline throws a PipelineError carrying the per-package
+      // ledger. Surface a failure report on the release-driving PR (or the step summary), then
+      // re-throw so the workflow still fails. Skip in dry-run — no real publish happened.
+      if (err instanceof PipelineError && !options.dryRun) {
+        await reportReleaseFailure(versionOutput, err);
+      }
+      throw err;
+    }
     success('Publish complete');
+
+    // A successful publish clears any prior failure report for this release (resolves it and the
+    // supersede warning). Only meaningful for a direct-mode release with a triggering PR.
+    if (!options.dryRun) {
+      try {
+        const target = await resolveReleaseReportTarget();
+        if (target?.prNumber !== undefined) {
+          await resolveFailureReportIfPresent(
+            target.octokit,
+            target.owner,
+            target.repo,
+            target.prNumber,
+            versionOutput,
+          );
+        }
+      } catch (resolveErr) {
+        warn(
+          `Failed to resolve prior publish-failure report: ${resolveErr instanceof Error ? resolveErr.message : String(resolveErr)}`,
+        );
+      }
+    }
   }
 
   return { versionOutput, notesGenerated, packageNotes, releaseNotes, publishOutput };
