@@ -125,6 +125,7 @@ See the [package docs](#documentation) for the full option reference.
 - [Migration](./docs/migration.md) — from semantic-release or changesets
 
 **Reference**
+- [CLI](./docs/cli.md) — every command and flag for the `releasekit` CLI
 - [Configuration](./docs/configuration.md) — full config reference (all `releasekit.config.json` options)
 - [GitHub Action](./docs/action.md) — `goosewobbler/releasekit` action inputs, outputs, and rollout
 - [@releasekit/release](./packages/release/README.md) — unified pipeline, CI automation, programmatic API

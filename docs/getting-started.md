@@ -26,7 +26,7 @@ npm install -g @releasekit/release
 pnpm add -g @releasekit/release
 ```
 
-This provides the `releasekit` command. Individual tools (`releasekit-version`, `releasekit-notes`, `releasekit-publish`) are also available if you need them independently.
+This provides the `releasekit` command. Individual tools (`releasekit-version`, `releasekit-notes`, `releasekit-publish`) are also available if you need them independently. See the [CLI reference](./cli.md) for every command and flag.
 
 ---
 
@@ -187,6 +187,7 @@ jobs:
 
 - **[Architecture](./architecture.md)** — pipeline design, mental model, and how everything fits together
 - **[CI setup guide](../packages/release/docs/ci-setup.md)** — complete workflow recipes
+- **[CLI reference](./cli.md)** — every command and flag
 - **[Configuration reference](./configuration.md)** — all `releasekit.config.json` options
 - **[Troubleshooting](./troubleshooting.md)** — symptom-indexed error guide
 - **[@releasekit/notes — LLM providers](../packages/notes/docs/llm-providers.md)** — add AI-enhanced release notes
