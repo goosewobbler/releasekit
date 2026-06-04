@@ -69,10 +69,16 @@ vi.mock('@releasekit/notes', () => ({
 const mockPublishRunPipeline = vi.fn();
 const mockPublishLoadConfig = vi.fn();
 
-vi.mock('@releasekit/publish', () => ({
-  runPipeline: (...args: unknown[]) => mockPublishRunPipeline(...args),
-  loadConfig: (...args: unknown[]) => mockPublishLoadConfig(...args),
-}));
+vi.mock('@releasekit/publish', async (importOriginal) => {
+  // Pull the real PipelineError through so release.ts's `instanceof PipelineError` check works;
+  // only runPipeline/loadConfig are stubbed.
+  const actual = await importOriginal<typeof import('@releasekit/publish')>();
+  return {
+    PipelineError: actual.PipelineError,
+    runPipeline: (...args: unknown[]) => mockPublishRunPipeline(...args),
+    loadConfig: (...args: unknown[]) => mockPublishLoadConfig(...args),
+  };
+});
 
 vi.mock('@releasekit/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@releasekit/core')>();

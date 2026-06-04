@@ -2,11 +2,17 @@ import * as fs from 'node:fs';
 import type { CIConfig } from '@releasekit/config';
 import { loadCIConfig, loadConfig } from '@releasekit/config';
 import { info, success, warn } from '@releasekit/core';
+import { renderSupersedeWarning } from '../failure-report/failure-report.js';
+import { detectUnresolvedFailure } from '../failure-report/post.js';
 import { evaluatePR } from '../gate/evaluate-pr.js';
 import { createOctokit, fetchPRLabels, postOrUpdateComment } from '../github.js';
 import { DEFAULT_LABELS, detectLabelConflicts } from '../label-utils.js';
 import { runRelease } from '../release.js';
-import { fetchStandingPRSnapshot, type StandingPRSnapshot } from '../standing-pr/standing-pr.js';
+import {
+  fetchStandingPRSnapshot,
+  findLatestMergedStandingPR,
+  type StandingPRSnapshot,
+} from '../standing-pr/standing-pr.js';
 import type { PreviewContext } from './context.js';
 import { resolvePreviewContext } from './context.js';
 import { detectPrerelease } from './detect.js';
@@ -62,11 +68,32 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   // When `release:immediate` is set, skip the fetch — the preview reflects a direct release,
   // not a queued-state outcome.
   let standingPrSnapshot: StandingPRSnapshot | undefined;
+  let supersedeWarning: string[] | undefined;
   if (strategy === 'standing-pr' && !labelContext.immediate && context && octokit) {
     try {
       standingPrSnapshot = (await fetchStandingPRSnapshot(octokit, context.owner, context.repo, ciConfig)) ?? undefined;
     } catch {
       // Non-fatal: preview still renders without the snapshot
+    }
+
+    // Surface the retry-vs-supersede choice while a prior release is partially published. Keyed
+    // off the failure-report comment on the most recently merged standing PR. Non-fatal.
+    try {
+      const branch = ciConfig?.standingPr?.branch ?? 'release/next';
+      const latestMerged = await findLatestMergedStandingPR(octokit, context.owner, context.repo, branch);
+      if (latestMerged !== null) {
+        const unresolved = await detectUnresolvedFailure(octokit, context.owner, context.repo, latestMerged);
+        if (unresolved) {
+          supersedeWarning = renderSupersedeWarning({
+            previousLabel: unresolved.previousLabel,
+            published: unresolved.published,
+            total: unresolved.total,
+            standingPrNumber: unresolved.prNumber,
+          });
+        }
+      }
+    } catch {
+      // Non-fatal: preview still renders without the warning
     }
   }
 
@@ -142,6 +169,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
     standingPrSnapshot,
     mergedRows,
     labelContext,
+    supersedeWarning,
   });
 
   if (!context || !octokit) {

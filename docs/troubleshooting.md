@@ -223,6 +223,58 @@ There is no OIDC equivalent for crates.io at this time.
 
 ---
 
+## Recovering from a failed publish
+
+A publish run can fail partway through: some packages reach the registry, the next one errors, and the run stops. ReleaseKit is built so this state is **recoverable by retrying** — you never have to revert version commits or hand-clean the registry.
+
+### The roll-forward model
+
+Version bumps are committed to `main` (or squash-merged from the standing PR) **before** publishing begins. ReleaseKit never rewrites that history to "undo" a failed publish. Instead, the release rolls **forward**: you retry the same release, or you supersede it with the next one.
+
+Concretely, a partial-publish failure leaves the repository in this state:
+
+- **Versions are already on `main`** — the bumped `package.json` / `Cargo.toml` files and changelogs are committed.
+- **Some packages are on the registry** — every package the pipeline reached before the failure is published at its new version.
+- **No tags, no GitHub releases** — consumer tags and GitHub releases are only created **after** the publish succeeds, so a failed run leaves none of them behind. There is nothing half-created to clean up.
+
+### The failure report
+
+On a partial-publish failure, ReleaseKit posts a **failure report** so the state is visible outside the workflow logs. Where it lands depends on the release mode:
+
+- **Standing-pr mode** — a comment on the merged standing PR whose manifest drove the publish.
+- **Direct / label mode** — a comment on the merged feature PR that triggered the release.
+- **Manual dispatch (no PR)** — the workflow step summary.
+
+The report contains a per-package ledger (✅ published / ⏭ skipped / ❌ failed / ⏸ not attempted), the stage that failed and its error, mode-appropriate recovery instructions, and a note that retrying is safe. The comment is idempotent: a repeated failure updates the same report, and a later successful run flips it to **resolved**.
+
+### Recovery path 1 — retry (reconcile the same release)
+
+Re-run the publish for the failed release. Because the publish path **skips versions already on the registry** and only creates tags / GitHub releases after a clean publish, retrying simply re-publishes the packages that did not land the first time and then creates the tags and releases.
+
+- **Standing-pr mode:** dispatch the release workflow targeting the merged standing PR (`standing-pr publish --pr <number>`). Once the `release:retry` label flow lands (issue #245), adding that label to the merged standing PR will trigger the retry automatically.
+- **Direct / label mode:** use GitHub's **"Re-run failed jobs"** on the failed workflow run.
+
+A successful retry marks the failure report resolved and clears the supersede warning described below.
+
+### Recovery path 2 — supersede (let the next release self-heal)
+
+If you would rather move on, **merge the next standing PR**. In sync mode the release partially self-heals at the new version:
+
+- Every package — including the ones that failed before — publishes at the new version.
+- The failed release's baseline tag was never pushed, so the next changelog correctly spans both releases' commits.
+
+The remaining gap is cosmetic: there is no tag or GitHub release for the **failed** version, and the registry has a version hole for the packages that didn't publish in the failed run. Nothing is broken; the history simply skips a version for those packages.
+
+### The supersede warning on the next standing PR
+
+So a failed publish does not silently fade away, ReleaseKit warns while a partially-published release remains unresolved. The **next** standing PR's body and the release preview include a block such as:
+
+> ⚠️ **Previous release v0.24.0 is partially published** (2/4 packages on the registry; no tags/GitHub release created). Retry it by dispatching the release workflow against the merged standing PR (#42), **or** merging this PR supersedes it — the next release re-publishes everything at the new version.
+
+This gives you an honest choice between the two recovery paths. The warning is keyed off the failure report on the most recently merged standing PR and its resolved status, so it clears automatically once the failed release is retried successfully or superseded by the next release.
+
+---
+
 ## Git stage
 
 ### Failed to push: branch protection rules
