@@ -281,6 +281,153 @@ describe('npm-publish stage', () => {
     expect(ctx.output.npm[0]?.success).toBe(false);
   });
 
+  it('should fail fast (zero retries) on a permanent auth error', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    let publishCalls = 0;
+    vi.mocked(execCommand).mockImplementation(async (_file, args) => {
+      if ((args as string[])?.includes('publish')) {
+        publishCalls++;
+        throw Object.assign(new Error('Command failed'), {
+          stdout: '',
+          stderr: 'npm ERR! code ENEEDAUTH\nnpm ERR! 401 Unauthorized',
+          exitCode: 1,
+        });
+      }
+      return { stdout: '', stderr: '', exitCode: 0 };
+    });
+
+    const dir = createTmpDir();
+    const pkgDir = path.join(dir, 'packages', 'pkg');
+    fs.mkdirSync(pkgDir, { recursive: true });
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: '@test/pkg', version: '1.0.0' }));
+
+    const ctx = createContext(dir);
+    await expect(runNpmPublishStage(ctx)).rejects.toThrow();
+    expect(publishCalls).toBe(1); // no retries
+    expect(ctx.output.npm[0]?.success).toBe(false);
+  });
+
+  it('should retry a transient registry error and succeed, recording attempts', async () => {
+    vi.useFakeTimers();
+    try {
+      const { execCommand } = await import('../../../src/utils/exec.js');
+      let publishCalls = 0;
+      vi.mocked(execCommand).mockImplementation(async (_file, args) => {
+        if ((args as string[])?.includes('publish')) {
+          publishCalls++;
+          if (publishCalls === 1) {
+            throw Object.assign(new Error('Command failed'), {
+              stdout: '',
+              stderr: 'npm ERR! 503 Service Unavailable',
+              exitCode: 1,
+            });
+          }
+        }
+        return { stdout: '', stderr: '', exitCode: 0 };
+      });
+
+      const dir = createTmpDir();
+      const pkgDir = path.join(dir, 'packages', 'pkg');
+      fs.mkdirSync(pkgDir, { recursive: true });
+      fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: '@test/pkg', version: '1.0.0' }));
+
+      const ctx = createContext(dir);
+      const promise = runNpmPublishStage(ctx);
+      await vi.runAllTimersAsync();
+      await promise;
+
+      expect(publishCalls).toBe(2); // one failure + one success
+      expect(ctx.output.npm[0]?.success).toBe(true);
+      expect(ctx.output.npm[0]?.attempts).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('should exhaust retries on a persistent transient error and throw the real error', async () => {
+    vi.useFakeTimers();
+    try {
+      const { execCommand } = await import('../../../src/utils/exec.js');
+      let publishCalls = 0;
+      vi.mocked(execCommand).mockImplementation(async (_file, args) => {
+        if ((args as string[])?.includes('publish')) {
+          publishCalls++;
+          throw Object.assign(new Error('npm ERR! 503 Service Unavailable'), {
+            stdout: '',
+            stderr: 'npm ERR! 503 Service Unavailable',
+            exitCode: 1,
+          });
+        }
+        return { stdout: '', stderr: '', exitCode: 0 };
+      });
+
+      const dir = createTmpDir();
+      const pkgDir = path.join(dir, 'packages', 'pkg');
+      fs.mkdirSync(pkgDir, { recursive: true });
+      fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: '@test/pkg', version: '1.0.0' }));
+
+      const ctx = createContext(dir);
+      const promise = runNpmPublishStage(ctx).catch((e) => e);
+      await vi.runAllTimersAsync();
+      const error = await promise;
+
+      // The final (real) error is surfaced, not a synthetic one.
+      expect(String(error)).toContain('503');
+      expect(publishCalls).toBe(3); // initial + 2 retries
+      expect(ctx.output.npm[0]?.success).toBe(false);
+      // The failed result still records how many attempts were made.
+      expect(ctx.output.npm[0]?.attempts).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('should resolve a retried publish as already-published when the conflict surfaces (no duplicate)', async () => {
+    vi.useFakeTimers();
+    try {
+      const { execCommand } = await import('../../../src/utils/exec.js');
+      let publishCalls = 0;
+      vi.mocked(execCommand).mockImplementation(async (_file, args) => {
+        if ((args as string[])?.includes('publish')) {
+          publishCalls++;
+          if (publishCalls === 1) {
+            // First attempt: transient blip after the publish may have landed.
+            throw Object.assign(new Error('Command failed'), {
+              stdout: '',
+              stderr: 'npm ERR! 503 Service Unavailable',
+              exitCode: 1,
+            });
+          }
+          // Retry sees the version is now present.
+          throw Object.assign(new Error('Command failed'), {
+            stdout: '',
+            stderr:
+              'npm ERR! code EPUBLISHCONFLICT\nnpm ERR! 403 You cannot publish over the previously published versions: 1.0.0.',
+            exitCode: 1,
+          });
+        }
+        return { stdout: '', stderr: '', exitCode: 0 };
+      });
+
+      const dir = createTmpDir();
+      const pkgDir = path.join(dir, 'packages', 'pkg');
+      fs.mkdirSync(pkgDir, { recursive: true });
+      fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: '@test/pkg', version: '1.0.0' }));
+
+      const ctx = createContext(dir);
+      const promise = runNpmPublishStage(ctx);
+      await vi.runAllTimersAsync();
+      await expect(promise).resolves.toBeUndefined();
+
+      expect(publishCalls).toBe(2); // EPUBLISHCONFLICT is not retried further
+      expect(ctx.output.npm[0]?.alreadyPublished).toBe(true);
+      expect(ctx.output.npm[0]?.skipped).toBe(true);
+      expect(ctx.output.npm[0]?.success).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('should skip when npm disabled', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const config = getDefaultConfig();

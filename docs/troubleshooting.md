@@ -141,6 +141,16 @@ Paths are resolved relative to the project root (the directory containing `relea
 
 ## Publish stage
 
+### Transient registry error during publish (auto-retried)
+
+**Symptom:** The publish logs `Transient publish error for <pkg>@<version> (attempt N/3), retrying in <ms>ms` and then either succeeds or, after the attempts are exhausted, fails the stage with the original registry error.
+
+**Cause:** A short-lived registry or network blip — HTTP 5xx, `ETIMEDOUT`, `ECONNRESET`, `EAI_AGAIN`, or a `429` rate-limit response — interrupted the publish.
+
+**Fix:** No action required when it recovers. releasekit auto-retries transient errors per package up to **2 times** (3 attempts total) with exponential backoff before failing. The attempt count is recorded in the per-package publish result. Permanent errors (auth, missing scope/package, validation) are **not** retried and still fail fast. If the retries are exhausted, the final error shown is the real registry error — check the registry status page, then re-run the release. Re-running is safe: a version that already landed is detected and skipped rather than re-published.
+
+---
+
 ### npm publish failed: ENEEDAUTH
 
 **Symptom:** The publish stage fails with `npm publish failed: ENEEDAUTH` or `code ENEEDAUTH`.

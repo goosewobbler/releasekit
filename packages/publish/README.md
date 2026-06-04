@@ -62,6 +62,10 @@ The publish pipeline runs in order:
 
 The pipeline is **fail-fast**: the first package publish failure throws immediately. Git push and GitHub release are skipped, so the version commit and tag remain local until the issue is fixed and the release is retried.
 
+### Auto-retry for transient registry errors
+
+Before failing the stage, the npm and cargo publish steps automatically retry **transient** registry errors — HTTP 5xx, timeouts (`ETIMEDOUT`), connection resets (`ECONNRESET`), DNS hiccups (`EAI_AGAIN`), and rate limits (`429`). Each package is retried up to **2 times** (3 attempts total) with exponential backoff. **Permanent** errors — authentication failures, missing scope/package, and validation errors — fail fast with no retries. The attempt count is recorded in the per-package publish result. Re-running a publish that partially landed is safe: the already-published pre-check (and the conflict detection on the publish error itself) resolves it as a skip rather than a duplicate publish, including on a retry attempt.
+
 ## CLI Reference
 
 | Flag | Description | Default |

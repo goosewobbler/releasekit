@@ -186,6 +186,111 @@ describe('cargo-publish stage', () => {
     await expect(runCargoPublishStage(ctx)).rejects.toThrow();
   });
 
+  it('should fail fast (zero retries) on an unrelated cargo publish failure', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    let publishCalls = 0;
+    vi.mocked(execCommand).mockImplementation(async (cmd, args) => {
+      if (cmd === 'cargo' && (args as string[])[0] === 'publish') {
+        publishCalls++;
+        throw Object.assign(new Error('Command failed: cargo publish ...'), {
+          stdout: '',
+          stderr: 'error: failed to verify package tarball',
+          exitCode: 101,
+        });
+      }
+      return { stdout: '', stderr: '', exitCode: 0 };
+    });
+
+    const dir = createTmpDir();
+    const crateDir = path.join(dir, 'crates', 'my-crate');
+    fs.mkdirSync(crateDir, { recursive: true });
+    fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "my-crate"\nversion = "0.5.0"\n');
+
+    const ctx = createContext(dir);
+    await expect(runCargoPublishStage(ctx)).rejects.toThrow();
+    expect(publishCalls).toBe(1); // permanent error, no retries
+  });
+
+  it('should retry a transient cargo publish error and succeed, recording attempts', async () => {
+    vi.useFakeTimers();
+    try {
+      const { execCommand } = await import('../../../src/utils/exec.js');
+      let publishCalls = 0;
+      vi.mocked(execCommand).mockImplementation(async (cmd, args) => {
+        if (cmd === 'cargo' && (args as string[])[0] === 'publish') {
+          publishCalls++;
+          if (publishCalls === 1) {
+            throw Object.assign(new Error('Command failed: cargo publish ...'), {
+              stdout: '',
+              stderr: 'error: failed to get a 200 OK response, got 503 Service Unavailable',
+              exitCode: 101,
+            });
+          }
+        }
+        return { stdout: '', stderr: '', exitCode: 0 };
+      });
+
+      const dir = createTmpDir();
+      const crateDir = path.join(dir, 'crates', 'my-crate');
+      fs.mkdirSync(crateDir, { recursive: true });
+      fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "my-crate"\nversion = "0.5.0"\n');
+
+      const ctx = createContext(dir);
+      const promise = runCargoPublishStage(ctx);
+      await vi.runAllTimersAsync();
+      await promise;
+
+      expect(publishCalls).toBe(2);
+      expect(ctx.output.cargo[0]?.success).toBe(true);
+      expect(ctx.output.cargo[0]?.attempts).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('should resolve a retried cargo publish as already-published (no duplicate)', async () => {
+    vi.useFakeTimers();
+    try {
+      const { execCommand } = await import('../../../src/utils/exec.js');
+      let publishCalls = 0;
+      vi.mocked(execCommand).mockImplementation(async (cmd, args) => {
+        if (cmd === 'cargo' && (args as string[])[0] === 'publish') {
+          publishCalls++;
+          if (publishCalls === 1) {
+            throw Object.assign(new Error('Command failed: cargo publish ...'), {
+              stdout: '',
+              stderr: 'error: failed to get a 200 OK response, got 503 Service Unavailable',
+              exitCode: 101,
+            });
+          }
+          throw Object.assign(new Error('Command failed: cargo publish ...'), {
+            stdout: '',
+            stderr: 'error: crate my-crate@0.5.0 already exists on crates.io index',
+            exitCode: 101,
+          });
+        }
+        return { stdout: '', stderr: '', exitCode: 0 };
+      });
+
+      const dir = createTmpDir();
+      const crateDir = path.join(dir, 'crates', 'my-crate');
+      fs.mkdirSync(crateDir, { recursive: true });
+      fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "my-crate"\nversion = "0.5.0"\n');
+
+      const ctx = createContext(dir);
+      const promise = runCargoPublishStage(ctx);
+      await vi.runAllTimersAsync();
+      await expect(promise).resolves.toBeUndefined();
+
+      expect(publishCalls).toBe(2); // already-exists is not retried further
+      expect(ctx.output.cargo[0]?.alreadyPublished).toBe(true);
+      expect(ctx.output.cargo[0]?.skipped).toBe(true);
+      expect(ctx.output.cargo[0]?.success).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('should pass --no-verify when configured', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const dir = createTmpDir();

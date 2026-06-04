@@ -6,8 +6,12 @@ import type { PipelineContext, PublishResult } from '../types.js';
 import { hasCargoAuth } from '../utils/auth.js';
 import { CRATES_IO_API_TIMEOUT_MS, CRATES_IO_USER_AGENT, extractPathDeps, parseCargoToml } from '../utils/cargo.js';
 import { execCommand, execCommandSafe, getExecErrorOutput } from '../utils/exec.js';
+import { classifyPublishError, withPublishRetry } from '../utils/publish-retry.js';
 
 const ALREADY_PUBLISHED_PATTERN = /already exists on crates\.io index|already uploaded/i;
+
+/** Bounded auto-retry for transient registry blips: initial attempt + 2 retries. */
+const PUBLISH_RETRY = { maxAttempts: 3, initialDelay: 1000 } as const;
 
 async function isCratePublished(name: string, version: string): Promise<boolean> {
   try {
@@ -104,12 +108,32 @@ export async function runCargoPublishStage(ctx: PipelineContext): Promise<void> 
     }
 
     try {
-      await execCommand('cargo', publishArgs, {
-        cwd,
-        dryRun,
-        label: `cargo publish ${crate.name}@${crate.version}`,
-        timeout: 30 * 60 * 1000, // 30 minutes timeout
-      });
+      // Transient registry errors (5xx, timeouts, rate limits) are retried with
+      // backoff; permanent errors (auth, validation) fail fast. The
+      // already-published conflict is surfaced as a non-retryable skip below, so a
+      // retry of a "publish landed but the response was lost" case resolves as a
+      // skip rather than a duplicate publish.
+      await withPublishRetry(
+        () =>
+          execCommand('cargo', publishArgs, {
+            cwd,
+            dryRun,
+            label: `cargo publish ${crate.name}@${crate.version}`,
+            timeout: 30 * 60 * 1000, // 30 minutes timeout
+          }),
+        {
+          ...PUBLISH_RETRY,
+          label: `${crate.name}@${crate.version}`,
+          // Never retry an already-published conflict — it is handled as a skip below.
+          shouldRetry: (error) =>
+            !ALREADY_PUBLISHED_PATTERN.test(getExecErrorOutput(error)) && classifyPublishError(error) === 'transient',
+          // Recorded via callback (not the return value) so the failure paths
+          // below — including exhaustion — still carry the attempt count.
+          onAttempt: (attempt) => {
+            result.attempts = attempt;
+          },
+        },
+      );
       result.success = true;
       if (!dryRun) {
         success(`Published ${crate.name}@${crate.version} to crates.io`);

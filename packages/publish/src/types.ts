@@ -88,6 +88,13 @@ export interface PublishResult {
   skipped: boolean;
   reason?: string;
   alreadyPublished?: boolean;
+  /**
+   * Number of publish attempts made for this package (1 = succeeded first try,
+   * >1 = transient errors were retried). Recorded so the failure report can
+   * surface retry activity. Absent for packages that were never attempted
+   * (e.g. private/already-published skips).
+   */
+  attempts?: number;
 }
 
 export interface VerificationResult {

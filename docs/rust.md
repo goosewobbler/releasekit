@@ -245,4 +245,4 @@ crates.io index propagation can take several minutes. If `publish.verify.cargo` 
 
 **Re-running a partially failed release**
 
-If a release run fails mid-way through a multi-crate workspace, re-running is safe. releasekit checks crates.io before each publish via the API, and also catches the `already exists on crates.io index` error from `cargo publish` itself (to handle sparse index lag). Both paths mark the crate as skipped rather than failing the pipeline.
+If a release run fails mid-way through a multi-crate workspace, re-running is safe. releasekit checks crates.io before each publish via the API, and also catches the `already exists on crates.io index` error from `cargo publish` itself (to handle sparse index lag). Both paths mark the crate as skipped rather than failing the pipeline. Transient registry errors (5xx, timeouts, connection resets, rate limits) are auto-retried per crate up to 2 times before the stage fails, so a brief crates.io blip rarely needs a manual re-run.
