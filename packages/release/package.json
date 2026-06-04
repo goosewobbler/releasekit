@@ -62,6 +62,7 @@
     "commander": "catalog:",
     "conventional-changelog-angular": "^8.3.1",
     "conventional-changelog-conventionalcommits": "^9.3.1",
+    "jsonc-parser": "catalog:",
     "minimatch": "catalog:",
     "semver": "catalog:",
     "smol-toml": "catalog:",

@@ -105,4 +105,74 @@ describe('parseJsonc', () => {
     const result = parseJsonc(jsonc);
     expect(result).toEqual({ url: 'https://example.com/path?q=1&a=2' });
   });
+
+  // Regression for #247: a real comment forces the JSONC path, and the `//`
+  // inside the $schema URL must not be treated as a line comment.
+  it('should parse a config with a comment and an https URL ($schema)', () => {
+    const jsonc = `{
+      // standing-pr config
+      "$schema": "https://goosewobbler.github.io/releasekit/schema.json",
+      "git": { "pushMethod": "ssh" }
+    }`;
+    const result = parseJsonc(jsonc);
+    expect(result).toEqual({
+      $schema: 'https://goosewobbler.github.io/releasekit/schema.json',
+      git: { pushMethod: 'ssh' },
+    });
+  });
+
+  it('should not strip // sequences inside string values', () => {
+    const jsonc = `{
+      // a comment to force the JSONC path
+      "a": "http://a",
+      "b": "x // not a comment",
+      "c": "/* also not a comment */"
+    }`;
+    const result = parseJsonc(jsonc);
+    expect(result).toEqual({ a: 'http://a', b: 'x // not a comment', c: '/* also not a comment */' });
+  });
+
+  it('should parse comments-only structure (no URLs)', () => {
+    const jsonc = `{
+      // just a comment
+      "key": "value"
+    }`;
+    expect(parseJsonc(jsonc)).toEqual({ key: 'value' });
+  });
+
+  it('should parse URLs without comments via the strict fast path', () => {
+    const json = `{"$schema": "https://goosewobbler.github.io/releasekit/schema.json"}`;
+    expect(parseJsonc(json)).toEqual({ $schema: 'https://goosewobbler.github.io/releasekit/schema.json' });
+  });
+
+  it('should parse block comments alongside URLs', () => {
+    const jsonc = `{
+      /* block comment */
+      "url": "https://example.com//double-slash"
+    }`;
+    expect(parseJsonc(jsonc)).toEqual({ url: 'https://example.com//double-slash' });
+  });
+
+  it('should parse trailing commas', () => {
+    const jsonc = `{
+      // comment to force JSONC path
+      "a": 1,
+      "b": 2,
+    }`;
+    expect(parseJsonc(jsonc)).toEqual({ a: 1, b: 2 });
+  });
+
+  it('should throw on trailing content after a comment', () => {
+    const jsonc = `{ "a": 1 } // trailing comment
+    garbage`;
+    expect(() => parseJsonc(jsonc)).toThrow();
+  });
+
+  it('should throw on comments-only input', () => {
+    expect(() => parseJsonc('// only a comment')).toThrow();
+  });
+
+  it('should throw on a malformed value after a comment', () => {
+    expect(() => parseJsonc('{ "a": } // comment')).toThrow();
+  });
 });

@@ -61,6 +61,7 @@
   "dependencies": {
     "chalk": "catalog:",
     "commander": "catalog:",
+    "jsonc-parser": "catalog:",
     "minimatch": "catalog:",
     "semver": "catalog:",
     "smol-toml": "catalog:",

@@ -21,7 +21,19 @@ export interface LoadOptions {
   configPath?: string;
 }
 
-const CONFIG_FILE = 'releasekit.config.json';
+// Default config filenames, in lookup order. `.jsonc` is tried after `.json`.
+const CONFIG_FILES = ['releasekit.config.json', 'releasekit.config.jsonc'] as const;
+
+function resolveConfigPath(cwd: string): string {
+  for (const file of CONFIG_FILES) {
+    const candidate = path.join(cwd, file);
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  // None found — return the primary path so the not-found path is exercised.
+  return path.join(cwd, CONFIG_FILES[0]);
+}
 
 function loadConfigFile(configPath: string): ReleaseKitConfig {
   if (!fs.existsSync(configPath)) {
@@ -47,7 +59,7 @@ function loadConfigFile(configPath: string): ReleaseKitConfig {
 
 export function loadConfig(options?: LoadOptions): ReleaseKitConfig {
   const cwd = options?.cwd ?? process.cwd();
-  const configPath = options?.configPath ?? path.join(cwd, CONFIG_FILE);
+  const configPath = options?.configPath ?? resolveConfigPath(cwd);
 
   return loadConfigFile(configPath);
 }

@@ -64,6 +64,7 @@
     "commander": "catalog:",
     "ejs": "^4.0.1",
     "handlebars": "^4.7.9",
+    "jsonc-parser": "catalog:",
     "liquidjs": "^10.27.0",
     "minimatch": "catalog:",
     "openai": "^6.39.1",
