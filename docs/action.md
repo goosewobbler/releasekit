@@ -83,6 +83,13 @@ uses: goosewobbler/releasekit@v0
 | `preview-dry-run` | `false` | Print markdown instead of posting |
 | `preview-target` | - | Comma-separated package targets |
 
+### Standing PR mode inputs
+
+| Input | Default | Description |
+|---|---|---|
+| `pr` | - | Merged standing PR number (`standing-pr-publish`, when not triggered by a `pull_request` event) |
+| `reconcile` | `false` | `standing-pr-update` only: bypass the skip-pattern guard. Set this for a post-release reconcile run, where HEAD is the just-pushed release commit (which matches the skip pattern). Without it the reconcile run no-ops and the standing PR keeps holding the just-published versions. |
+
 ## Outputs
 
 | Output | Description |

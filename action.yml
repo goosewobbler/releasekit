@@ -97,6 +97,11 @@ inputs:
     description: SSH deploy key for git push (enables SSH checkout when not dry-run)
     required: false
 
+  reconcile:
+    description: "Bypass the skip-pattern guard in standing-pr-update mode (for post-release reconcile runs, where HEAD is a release commit)"
+    required: false
+    default: "false"
+
   pr:
     description: Pull request number (preview mode; standing-pr-publish mode when not triggered by a pull_request event)
     required: false
@@ -285,6 +290,7 @@ runs:
         INPUT_SKIP_GIT: ${{ inputs.skip-git }}
         INPUT_SKIP_GITHUB_RELEASE: ${{ inputs.skip-github-release }}
         INPUT_SKIP_VERIFICATION: ${{ inputs.skip-verification }}
+        INPUT_RECONCILE: ${{ inputs.reconcile }}
         INPUT_PR: ${{ inputs.pr }}
         INPUT_REPO: ${{ inputs.repo }}
         INPUT_PREVIEW_PRERELEASE: ${{ inputs.preview-prerelease }}

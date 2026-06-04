@@ -252,6 +252,11 @@ jobs:
     # narrow (it only fires when @releasekit/release itself is bumped) and should be revisited.
     if: github.event_name == 'workflow_dispatch' && inputs.reconcile_after && needs.release-manual.result == 'success' && needs.release-manual.outputs.action_tag != ''
     uses: ./.github/workflows/_standing-pr-update.reusable.yml
+    # HEAD is the just-pushed release commit (matches the skip pattern), so the reconcile run must
+    # bypass the skip-pattern guard or it would no-op and leave the standing PR holding the
+    # just-published versions.
+    with:
+      reconcile: true
     permissions:
       contents: write
       pull-requests: write

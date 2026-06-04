@@ -86,6 +86,7 @@ export function buildStandingPRUpdateArgs(input) {
   pushOptionalArg(args, '--config', input.config);
   pushOptionalArg(args, '--project-dir', input.projectDir);
   pushOptionalArg(args, '--npm-auth', input.npmAuth);
+  pushBooleanFlag(args, '--reconcile', input.reconcile);
   pushBooleanFlag(args, '--verbose', input.verbose);
   pushBooleanFlag(args, '--quiet', input.quiet);
 
@@ -189,6 +190,7 @@ export function parseInputs(env = process.env) {
     skipGithubRelease: env.INPUT_SKIP_GITHUB_RELEASE,
     skipVerification: env.INPUT_SKIP_VERIFICATION,
 
+    reconcile: env.INPUT_RECONCILE,
     pr: normalizeString(env.INPUT_PR),
     repo: normalizeString(env.INPUT_REPO),
     previewPrerelease: normalizeString(env.INPUT_PREVIEW_PRERELEASE),
