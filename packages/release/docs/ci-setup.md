@@ -38,7 +38,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
@@ -114,7 +114,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
@@ -207,7 +207,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
 
       - run: pnpm install --frozen-lockfile
 
@@ -308,7 +308,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    types: [closed]
+    types: [closed, labeled]  # labeled: release:retry on the merged standing PR (fires on closed PRs)
     branches: [main]
   schedule:
     - cron: '0 * * * *'  # Hourly — re-evaluates minAge status check as time passes
@@ -336,7 +336,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
@@ -357,8 +357,11 @@ jobs:
 
   publish-release:
     name: Publish Release
+    # action == 'closed' matters: with `labeled` subscribed above, a label added to the
+    # already-merged standing PR would otherwise re-match this job and publish unvalidated.
     if: >
       github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
       github.event.pull_request.merged == true &&
       startsWith(github.event.pull_request.head.ref, 'release/')
     runs-on: ubuntu-latest
@@ -370,7 +373,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
@@ -386,6 +389,51 @@ jobs:
           # With OIDC trusted publishing (recommended) NODE_AUTH_TOKEN is
           # unnecessary. With token-based npm auth, uncomment the next line:
           # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Maintainer-invoked retry after a partial-publish failure: apply `release:retry` to the
+  # MERGED standing PR (label events fire on closed PRs). Publishing is idempotent — versions
+  # already on the registry are skipped, and tags / GitHub releases are only created once the
+  # publish succeeds — so the retry completes exactly what the failed run left unfinished.
+  retry-publish:
+    name: Retry Publish
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.action == 'labeled' &&
+      github.event.label.name == 'release:retry' &&
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'release/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+          ref: main  # the standing PR's branch is deleted on merge; publish from main
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - run: pnpm exec releasekit standing-pr publish --pr ${{ github.event.pull_request.number }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          # Same auth note as publish-release above.
+          # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Remove the label so each application is exactly one retry; re-apply to retry again.
+      - name: Remove retry label
+        if: always()
+        run: gh api -X DELETE "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/labels/release%3Aretry" || true
+        env:
+          GH_TOKEN: ${{ github.token }}
 ```
 
 > **Using npm?** Replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
@@ -456,6 +504,16 @@ The `immediate-release` job in `standing-pr.yml` handles this:
 
 Result: the standing PR is up-to-date by the time the workflow exits — no staleness window.
 
+#### Retrying a failed publish
+
+If a standing-PR publish fails partway through (some packages on the registry, no tags/GitHub release), add the **`release:retry`** label to the **merged** standing PR. The `retry-publish` job in the workflow template above:
+
+1. Validates via its `if` guard that the PR is a merged standing PR and the label is `release:retry` — note the guard hardcodes the label name (workflow `if` expressions can't read releasekit config), so renaming the label via `ci.labels.retry` requires updating the guard to match.
+2. Re-runs the manifest-driven publish for that PR (`standing-pr publish --pr <n>`) — idempotent, so it re-publishes only the packages that did not land, then pushes tags and creates GitHub releases.
+3. Removes the label, so each application is exactly one retry; re-apply it to retry again.
+
+Applying the label to a non-standing or unmerged PR simply doesn't match the job's guard — nothing runs. A successful retry resolves the partial-publish failure report and clears the supersede warning from the next standing PR. Full recovery walkthrough: [Recovering from a failed publish](../../../docs/troubleshooting.md#recovering-from-a-failed-publish). (For reference, releasekit's own repo implements the same flow as a standalone [`release-retry.yml`](../../../.github/workflows/release-retry.yml) that dispatches its release workflow — useful if your publish runs in a separate dispatchable workflow.)
+
 ### Troubleshooting
 
 | Symptom | Cause / fix |
@@ -490,6 +548,7 @@ Standing-pr mode handles both batched and one-off releases through a single work
 | Critical fix that needs to ship now | Add `release:immediate` (optionally `+ bump:patch`) to the PR. |
 | Adjust the standing PR's bump magnitude | Add `bump:major` (etc.) to the standing PR itself; the next update applies it. |
 | Promote accumulated prereleases to stable | Add `channel:stable` to the standing PR and merge it. |
+| Retry a publish that failed partway | Add `release:retry` to the **merged** standing PR. |
 
 ---
 
@@ -511,7 +570,7 @@ permissions:
 steps:
   - uses: actions/setup-node@v6
     with:
-      node-version: '20'
+      node-version: '24'
       registry-url: 'https://registry.npmjs.org'
 
   - run: pnpm exec releasekit release
@@ -554,7 +613,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile

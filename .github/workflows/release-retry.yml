@@ -1,0 +1,103 @@
+name: Release Retry
+
+# Maintainer-invoked retry for a failed standing-PR publish (issue #245).
+#
+# Applying the `release:retry` label to a MERGED standing PR dispatches the manifest-driven
+# publish path in release.yml for that PR. The publish is idempotent: it skips versions already
+# on the registry and only pushes tags / creates GitHub releases once the publish succeeds, so a
+# retry after a partial failure publishes only the missing packages. A successful retry also
+# resolves the partial-publish failure report (#243), which clears the supersede warning from the
+# next standing PR.
+#
+# Label events fire even on closed (merged) PRs, which is why this listens for `labeled`. The
+# label is removed after each application, so each application is exactly one retry and the label
+# can be re-applied for another. Permission gating comes free — only users with triage rights can
+# apply labels. Applying the label to a non-standing or unmerged PR is a no-op with an explanatory
+# comment.
+on:
+  pull_request:
+    types: [labeled]
+
+# Only act on the retry label. Other label events (bump:*, scope:*, etc.) are ignored. The
+# job-level guard is necessarily hardcoded to the default `release:retry` — workflow `if`
+# expressions can't read releasekit.config.json. If you rename the label via ci.labels.retry,
+# update the guard below to match; the validation step re-checks the configured name as the
+# authoritative source either way.
+permissions:
+  actions: write
+  contents: read # checkout of the config file below; an explicit permissions block zeroes everything unlisted
+  pull-requests: write
+
+jobs:
+  retry-publish:
+    name: Retry standing-PR publish
+    if: github.event.label.name == 'release:retry'
+    runs-on: ubuntu-latest
+    steps:
+      # Sparse checkout of just the config file — avoids cloning the whole repo while letting the
+      # branch and label names come from a single source of truth (releasekit.config.json). Pin to
+      # `main`: the standing PR's branch is typically deleted on merge, so the PR head ref may no
+      # longer exist when this runs.
+      - name: Checkout config
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: main
+          sparse-checkout: releasekit.config.json
+          sparse-checkout-cone-mode: false
+
+      - name: Validate, dispatch, and remove the label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          LABEL_NAME: ${{ github.event.label.name }}
+        run: |
+          set -euo pipefail
+
+          STANDING_PR_BRANCH=$(jq -r '.ci.standingPr.branch // "release/next"' releasekit.config.json)
+          RETRY_LABEL=$(jq -r '.ci.labels.retry // "release:retry"' releasekit.config.json)
+
+          # Honour a custom retry label: if the event label isn't the configured one, do nothing.
+          # (The job-level `if` already matched the default; this covers a renamed label.)
+          if [ "$LABEL_NAME" != "$RETRY_LABEL" ]; then
+            echo "Label '$LABEL_NAME' is not the configured retry label '$RETRY_LABEL' — ignoring"
+            exit 0
+          fi
+
+          # Always remove the label so the action is one-shot and re-appliable, regardless of
+          # whether validation passes. Best-effort — removal failure must not mask a dispatch.
+          remove_label() {
+            gh api -X DELETE \
+              "repos/$REPO/issues/$PR_NUMBER/labels/$(jq -rn --arg l "$RETRY_LABEL" '$l|@uri')" \
+              >/dev/null 2>&1 || echo "::warning::Could not remove label '$RETRY_LABEL' from PR #$PR_NUMBER"
+          }
+
+          # Validation: the PR must be a MERGED standing PR (head ref is the configured release
+          # branch). On failure, leave an explanatory comment and remove the label without
+          # dispatching — applying the label to a non-standing or unmerged PR is a clear no-op.
+          if [ "$PR_MERGED" != "true" ]; then
+            echo "PR #$PR_NUMBER is not merged — not retrying"
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body \
+              "⚠️ \`$RETRY_LABEL\` ignored: this PR is not merged. The retry label only applies to a **merged** standing PR (head \`$STANDING_PR_BRANCH\`). Removing the label."
+            remove_label
+            exit 0
+          fi
+
+          if [ "$PR_HEAD_REF" != "$STANDING_PR_BRANCH" ]; then
+            echo "PR #$PR_NUMBER head ref '$PR_HEAD_REF' is not the standing branch '$STANDING_PR_BRANCH' — not retrying"
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body \
+              "⚠️ \`$RETRY_LABEL\` ignored: this is not a standing release PR (its head is \`$PR_HEAD_REF\`, not \`$STANDING_PR_BRANCH\`). The retry label only applies to a merged standing PR. Removing the label."
+            remove_label
+            exit 0
+          fi
+
+          # Dispatch the manifest-driven publish for this PR, then remove the label.
+          gh workflow run release.yml \
+            --repo "$REPO" \
+            --ref main \
+            --field "standing_pr_number=$PR_NUMBER"
+          echo "Dispatched release.yml with standing_pr_number=$PR_NUMBER (retry)"
+          echo "Watch publish progress: https://github.com/$REPO/actions/workflows/release.yml"
+          remove_label

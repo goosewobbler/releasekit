@@ -316,6 +316,8 @@ export const CILabelsConfigSchema = z.object({
   skip: z.string().default('release:skip'),
   /** Bypass the standing PR for one merge — triggers a direct release. Standing-pr mode only. */
   immediate: z.string().default('release:immediate'),
+  /** Retry a failed publish by re-applying it to a merged standing PR. Standing-pr mode only. */
+  retry: z.string().default('release:retry'),
   major: z.string().default('bump:major'),
   minor: z.string().default('bump:minor'),
   patch: z.string().default('bump:patch'),
@@ -362,6 +364,7 @@ export const CIConfigSchema = z.object({
     prerelease: 'channel:prerelease',
     skip: 'release:skip',
     immediate: 'release:immediate',
+    retry: 'release:retry',
     major: 'bump:major',
     minor: 'bump:minor',
     patch: 'bump:patch',

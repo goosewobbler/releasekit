@@ -124,6 +124,7 @@ For a monorepo, change `changelog.mode` to `"packages"` and list your packages i
 | "Version Packages" PR | Standing release PR (`ci.releaseStrategy: "standing-pr"`) |
 | `pnpm changeset publish` | Merge the standing PR (publish runs automatically) |
 | Ship one PR urgently without queueing | Add `release:immediate` to the feeder PR |
+| Retry a publish that failed partway | Add `release:retry` to the merged standing PR |
 | `.changeset/config.json` | `releasekit.config.json` |
 | `fixed` packages (move together) | `version.sync: true` |
 | `linked` packages | Not directly supported; use `version.sync` |

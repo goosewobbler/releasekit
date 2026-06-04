@@ -147,7 +147,7 @@ Paths are resolved relative to the project root (the directory containing `relea
 
 **Cause:** A short-lived registry or network blip — HTTP 5xx, `ETIMEDOUT`, `ECONNRESET`, `EAI_AGAIN`, or a `429` rate-limit response — interrupted the publish.
 
-**Fix:** No action required when it recovers. releasekit auto-retries transient errors per package up to **2 times** (3 attempts total) with exponential backoff before failing. The attempt count is recorded in the per-package publish result. Permanent errors (auth, missing scope/package, validation) are **not** retried and still fail fast. If the retries are exhausted, the final error shown is the real registry error — check the registry status page, then re-run the release. Re-running is safe: a version that already landed is detected and skipped rather than re-published.
+**Fix:** No action required when it recovers. releasekit auto-retries transient errors per package up to **2 times** (3 attempts total) with exponential backoff before failing. The attempt count is recorded in the per-package publish result. Permanent errors (auth, missing scope/package, validation) are **not** retried and still fail fast. If the retries are exhausted, the final error shown is the real registry error — check the registry status page, then re-run the release. Re-running is safe: a version that already landed is detected and skipped rather than re-published. If the failure left a release partially published, see [Recovering from a failed publish](#recovering-from-a-failed-publish).
 
 ---
 
@@ -261,7 +261,7 @@ The report contains a per-package ledger (✅ published / ⏭ skipped / ❌ fail
 
 Re-run the publish for the failed release. Because the publish path **skips versions already on the registry** and only creates tags / GitHub releases after a clean publish, retrying simply re-publishes the packages that did not land the first time and then creates the tags and releases.
 
-- **Standing-pr mode:** dispatch the release workflow targeting the merged standing PR (`standing-pr publish --pr <number>`). Once the `release:retry` label flow lands (issue #245), adding that label to the merged standing PR will trigger the retry automatically.
+- **Standing-pr mode:** add the **`release:retry`** label to the merged standing PR. A workflow validates that the PR is a merged standing PR, dispatches the manifest-driven publish for it, and removes the label — so each application is exactly one retry and you can re-apply the label to retry again. (Applying it to a non-standing or unmerged PR is a no-op: the workflow leaves a comment explaining why and removes the label.) Equivalently, dispatch the release workflow yourself targeting the merged standing PR (`standing-pr publish --pr <number>`). The label name is configurable via `ci.labels.retry`.
 - **Direct / label mode:** use GitHub's **"Re-run failed jobs"** on the failed workflow run.
 
 A successful retry marks the failure report resolved and clears the supersede warning described below.
@@ -279,7 +279,7 @@ The remaining gap is cosmetic: there is no tag or GitHub release for the **faile
 
 So a failed publish does not silently fade away, ReleaseKit warns while a partially-published release remains unresolved. The **next** standing PR's body and the release preview include a block such as:
 
-> ⚠️ **Previous release v0.24.0 is partially published** (2/4 packages on the registry; no tags/GitHub release created). Retry it by dispatching the release workflow against the merged standing PR (#42), **or** merging this PR supersedes it — the next release re-publishes everything at the new version.
+> ⚠️ **Previous release v0.24.0 is partially published** (2/4 packages on the registry; no tags/GitHub release created). Retry it via `release:retry` on the merged standing PR (#42), **or** merging this PR supersedes it — the next release re-publishes everything at the new version.
 
 This gives you an honest choice between the two recovery paths. The warning is keyed off the failure report on the most recently merged standing PR and its resolved status, so it clears automatically once the failed release is retried successfully or superseded by the next release.
 

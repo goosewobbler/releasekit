@@ -89,6 +89,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
             published: unresolved.published,
             total: unresolved.total,
             standingPrNumber: unresolved.prNumber,
+            retryLabelAvailable: true,
           });
         }
       }

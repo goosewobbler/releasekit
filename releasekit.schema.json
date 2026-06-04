@@ -867,6 +867,11 @@
               "default": "release:immediate",
               "description": "Label to bypass the standing PR for one merge — triggers a direct release. Standing-pr mode only."
             },
+            "retry": {
+              "type": "string",
+              "default": "release:retry",
+              "description": "Label to retry a failed publish by re-applying it to a merged standing PR. Standing-pr mode only."
+            },
             "major": {
               "type": "string",
               "default": "bump:major",
