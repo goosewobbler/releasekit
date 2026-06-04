@@ -7,6 +7,7 @@ ReleaseKit ships a unified `releasekit` command plus three standalone binaries. 
 | Binary | Provided by | Commands |
 |---|---|---|
 | `releasekit` | `@releasekit/release` | `preview` (default), `release`, `standing-pr`, `init`, `version`, `notes`, `publish` |
+| `releasekit-release` | `@releasekit/release` | `preview` (default), `release`, `standing-pr`, [`gate`](#releasekit-release-gate) |
 | `releasekit-version` | `@releasekit/version` | `version` |
 | `releasekit-notes` | `@releasekit/notes` | `notes` |
 | `releasekit-publish` | `@releasekit/publish` | `publish` |
