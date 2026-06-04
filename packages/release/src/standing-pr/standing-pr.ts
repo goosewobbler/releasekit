@@ -800,6 +800,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
           published: unresolved.published,
           total: unresolved.total,
           standingPrNumber: unresolved.prNumber,
+          retryLabelAvailable: true,
         });
       }
     }
@@ -871,6 +872,23 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     } catch {
       warn('Failed to apply labels to standing PR');
     }
+  }
+
+  // Ensure the retry label exists in the repo (with a description) so a maintainer can apply it
+  // to this PR after merge to retry a failed publish (issue #245). It is NOT applied here — the
+  // maintainer applies it on demand, and the release-retry workflow removes it after each retry.
+  // createLabel throws 422 if it already exists; that's expected and ignored.
+  const retryLabel = ciConfig?.labels?.retry ?? DEFAULT_LABELS.retry;
+  try {
+    await octokit.rest.issues.createLabel({
+      owner,
+      repo,
+      name: retryLabel,
+      color: 'ededed',
+      description: 'ReleaseKit: retry a failed publish on this merged standing PR',
+    });
+  } catch {
+    // Label already exists — no action needed.
   }
 
   // Find existing manifest to preserve firstUpdatedAt across updates
@@ -1087,6 +1105,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
             mode: 'standing-pr',
             prNumber,
             standingPrNumber: prNumber,
+            retryLabelAvailable: true,
           },
           manifest.versionOutput,
           err,

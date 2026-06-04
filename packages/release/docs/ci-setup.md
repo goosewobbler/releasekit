@@ -456,6 +456,16 @@ The `immediate-release` job in `standing-pr.yml` handles this:
 
 Result: the standing PR is up-to-date by the time the workflow exits — no staleness window.
 
+#### Retrying a failed publish
+
+If a standing-PR publish fails partway through (some packages on the registry, no tags/GitHub release), add the **`release:retry`** label to the **merged** standing PR (configurable via `ci.labels.retry`). The `release-retry.yml` workflow:
+
+1. Validates the PR is a merged standing PR (head is the configured release branch).
+2. Dispatches the manifest-driven publish in `release.yml` for that PR — idempotent, so it re-publishes only the packages that did not land, then pushes tags and creates GitHub releases.
+3. Removes the label, so each application is exactly one retry; re-apply it to retry again.
+
+Applying the label to a non-standing or unmerged PR is a no-op — the workflow leaves an explanatory comment and removes the label without dispatching. A successful retry resolves the partial-publish failure report and clears the supersede warning from the next standing PR. Full recovery walkthrough: [Recovering from a failed publish](../../../docs/troubleshooting.md#recovering-from-a-failed-publish).
+
 ### Troubleshooting
 
 | Symptom | Cause / fix |
@@ -490,6 +500,7 @@ Standing-pr mode handles both batched and one-off releases through a single work
 | Critical fix that needs to ship now | Add `release:immediate` (optionally `+ bump:patch`) to the PR. |
 | Adjust the standing PR's bump magnitude | Add `bump:major` (etc.) to the standing PR itself; the next update applies it. |
 | Promote accumulated prereleases to stable | Add `channel:stable` to the standing PR and merge it. |
+| Retry a publish that failed partway | Add `release:retry` to the **merged** standing PR. |
 
 ---
 

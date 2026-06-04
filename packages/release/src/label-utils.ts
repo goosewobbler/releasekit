@@ -3,6 +3,7 @@ export interface LabelConfig {
   prerelease: string;
   skip: string;
   immediate: string;
+  retry: string;
   major: string;
   minor: string;
   patch: string;
@@ -13,6 +14,7 @@ export const DEFAULT_LABELS: LabelConfig = {
   prerelease: 'channel:prerelease',
   skip: 'release:skip',
   immediate: 'release:immediate',
+  retry: 'release:retry',
   major: 'bump:major',
   minor: 'bump:minor',
   patch: 'bump:patch',

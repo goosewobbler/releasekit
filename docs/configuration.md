@@ -325,6 +325,7 @@ PR label names used for release control. Override to match your repository's lab
 | `prerelease` | string | `"channel:prerelease"` | Label to create a prerelease |
 | `skip` | string | `"release:skip"` | Label to suppress a release on this PR |
 | `immediate` | string | `"release:immediate"` | Label to bypass the standing PR for one merge — triggers a direct release. Standing-pr mode only. |
+| `retry` | string | `"release:retry"` | Label to retry a failed publish by re-applying it to a merged standing PR. Standing-pr mode only. |
 | `major` | string | `"bump:major"` | Label to force a major bump |
 | `minor` | string | `"bump:minor"` | Label to force a minor bump |
 | `patch` | string | `"bump:patch"` | Label to force a patch bump |

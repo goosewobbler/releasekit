@@ -141,7 +141,11 @@ export interface RecoveryContext {
   mode: FailureReportMode;
   /** Standing PR number (standing-pr mode) used to phrase the dispatch/retry instruction. */
   standingPrNumber?: number;
-  /** Whether the `release:retry` label flow is available yet (issue #245). Off until it lands. */
+  /**
+   * Whether the `release:retry` label flow is wired (issue #245). When set, the label is the
+   * primary standing-pr recovery path; dispatch is offered as the manual fallback. Defaults off
+   * for callers that have not opted in (e.g. tests asserting the pre-#245 copy).
+   */
   retryLabelAvailable?: boolean;
 }
 
@@ -152,10 +156,18 @@ function renderRecovery(ctx: RecoveryContext): string[] {
     lines.push(
       `Re-run the publish for ${prRef}. Versions are already on \`main\`; retrying re-publishes only the packages that did not land.`,
       '',
-      `- **Dispatch the release workflow** targeting the merged standing PR (\`--pr ${ctx.standingPrNumber ?? '<number>'}\`).`,
     );
     if (ctx.retryLabelAvailable) {
-      lines.push(`- Or add the \`release:retry\` label to ${prRef} to trigger a retry automatically.`);
+      // The label is the primary recovery path — it dispatches the manifest-driven publish for
+      // this PR and removes itself, so it can be re-applied for another retry.
+      lines.push(
+        `- **Add the \`release:retry\` label** to ${prRef} to retry the publish automatically. The label is removed after each retry, so re-apply it to retry again.`,
+        `- Or **dispatch the release workflow** targeting the merged standing PR (\`--pr ${ctx.standingPrNumber ?? '<number>'}\`).`,
+      );
+    } else {
+      lines.push(
+        `- **Dispatch the release workflow** targeting the merged standing PR (\`--pr ${ctx.standingPrNumber ?? '<number>'}\`).`,
+      );
     }
   } else if (ctx.mode === 'direct') {
     lines.push(
@@ -292,7 +304,7 @@ export interface SupersedeWarningInput {
   total: number;
   /** Standing PR number carrying the failure report (the retry surface). */
   standingPrNumber?: number;
-  /** Whether `release:retry` is available yet (issue #245). */
+  /** Whether the `release:retry` label flow is wired (issue #245) — makes it the primary hint. */
   retryLabelAvailable?: boolean;
 }
 

@@ -462,6 +462,7 @@ describe('CIConfigSchema', () => {
       prerelease: 'channel:prerelease',
       skip: 'release:skip',
       immediate: 'release:immediate',
+      retry: 'release:retry',
       major: 'bump:major',
       minor: 'bump:minor',
       patch: 'bump:patch',

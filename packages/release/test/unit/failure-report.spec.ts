@@ -207,6 +207,25 @@ describe('renderFailureReport', () => {
     expect(withoutRetry).not.toContain('release:retry');
   });
 
+  it('makes the release:retry label the primary recovery path when available', () => {
+    const body = renderFailureReport({
+      versionOutput,
+      publishOutput,
+      failedStage: 'npm-publish',
+      errorMessage: 'npm 403',
+      recovery: { mode: 'standing-pr', standingPrNumber: 42, retryLabelAvailable: true },
+    });
+    // The label instruction is listed before the dispatch fallback.
+    const labelIdx = body.indexOf('release:retry');
+    const dispatchIdx = body.indexOf('--pr 42');
+    expect(labelIdx).toBeGreaterThanOrEqual(0);
+    expect(dispatchIdx).toBeGreaterThanOrEqual(0);
+    expect(labelIdx).toBeLessThan(dispatchIdx);
+    // Still mentions that the label is removed / re-appliable, and keeps the dispatch fallback.
+    expect(body).toContain('re-apply');
+    expect(body).toContain('#42');
+  });
+
   it('gives direct-mode recovery instructions (re-run failed jobs)', () => {
     const body = renderFailureReport({
       versionOutput,
@@ -253,5 +272,28 @@ describe('renderSupersedeWarning', () => {
     expect(text).toContain('2/4 packages');
     expect(text).toContain('#42');
     expect(text).toContain('supersedes it');
+  });
+
+  it('references the release:retry label as the primary reconcile path when available', () => {
+    const text = renderSupersedeWarning({
+      previousLabel: 'v0.24.0',
+      published: 2,
+      total: 4,
+      standingPrNumber: 42,
+      retryLabelAvailable: true,
+    }).join('\n');
+    expect(text).toContain('release:retry');
+    expect(text).toContain('supersedes it');
+  });
+
+  it('falls back to the dispatch instruction when the label is not available', () => {
+    const text = renderSupersedeWarning({
+      previousLabel: 'v0.24.0',
+      published: 2,
+      total: 4,
+      standingPrNumber: 42,
+    }).join('\n');
+    expect(text).not.toContain('release:retry');
+    expect(text).toContain('dispatching the release workflow');
   });
 });
