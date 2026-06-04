@@ -340,6 +340,36 @@ describe('runStandingPRUpdate', () => {
     expect(result.action).toBe('noop');
   });
 
+  it('should bypass the skip-pattern guard when reconcile is set', async () => {
+    // HEAD is a release commit (matches the skip pattern) — the post-release reconcile scenario.
+    // Without reconcile this would noop; with reconcile it must proceed and create the PR.
+    const { execSync } = await import('node:child_process');
+    vi.mocked(execSync).mockReturnValue('chore: release @scope/core v1.2.3');
+
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const { createOctokit } = await import('../../src/github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [] });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    const result = await runStandingPRUpdate({
+      projectDir: '/test',
+      verbose: false,
+      quiet: false,
+      json: false,
+      reconcile: true,
+    });
+
+    expect(result.action).toBe('created');
+    expect(mocks.pullsCreate).toHaveBeenCalled();
+  });
+
   it('should return noop when no releasable changes found and no existing PR', async () => {
     const { runVersionStep } = await import('../../src/steps.js');
     vi.mocked(runVersionStep).mockResolvedValue(

@@ -9,6 +9,7 @@ import {
   buildReleaseArgs,
   buildReleaseSummary,
   buildStandingPRPublishArgs,
+  buildStandingPRUpdateArgs,
   parseInputs,
   parseReleaseOutput,
   runAction,
@@ -182,6 +183,33 @@ describe('action runner', () => {
 
     expect(args).not.toContain('--pr');
     expect(args).toEqual(expect.arrayContaining(['standing-pr', 'publish', '--json']));
+  });
+
+  it('should build standing-pr update args with --reconcile when reconcile is true', () => {
+    const args = buildStandingPRUpdateArgs({
+      projectDir: '.',
+      reconcile: 'true',
+    });
+
+    expect(args).toEqual(expect.arrayContaining(['standing-pr', 'update', '--json', '--reconcile']));
+  });
+
+  it('should omit --reconcile from standing-pr update args when reconcile is not set', () => {
+    const args = buildStandingPRUpdateArgs({
+      projectDir: '.',
+    });
+
+    expect(args).not.toContain('--reconcile');
+    expect(args).toEqual(expect.arrayContaining(['standing-pr', 'update', '--json']));
+  });
+
+  it('should parse INPUT_RECONCILE into the reconcile input', () => {
+    const parsed = parseInputs({
+      INPUT_MODE: 'standing-pr-update',
+      INPUT_RECONCILE: 'true',
+    });
+
+    expect(parsed.reconcile).toBe('true');
   });
 
   it('should parse action env inputs', () => {

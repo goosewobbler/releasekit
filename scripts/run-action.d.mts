@@ -19,6 +19,7 @@ export interface ActionInputs {
   skipGit?: string;
   skipGithubRelease?: string;
   skipVerification?: string;
+  reconcile?: string;
   pr?: string;
   repo?: string;
   previewPrerelease?: string;

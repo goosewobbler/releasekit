@@ -20,7 +20,12 @@ export function createStandingPRCommand(): Command {
   sharedOptions(
     cmd
       .command('update')
-      .description('Calculate versions, commit to release branch, and create/update the standing PR'),
+      .description('Calculate versions, commit to release branch, and create/update the standing PR')
+      .option(
+        '--reconcile',
+        'Bypass the skip-pattern guard so a post-release reconcile run still updates the standing PR (HEAD is a release commit at that point)',
+        false,
+      ),
   ).action(async (opts) => {
     const options: StandingPROptions = {
       config: opts.config,
@@ -29,6 +34,7 @@ export function createStandingPRCommand(): Command {
       json: opts.json,
       verbose: opts.verbose,
       quiet: opts.quiet,
+      reconcile: opts.reconcile,
     };
 
     try {

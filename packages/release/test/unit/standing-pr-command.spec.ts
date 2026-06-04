@@ -84,4 +84,16 @@ describe('createStandingPRCommand', () => {
     await parseCommand(['update', '--config', '/path/to/config.json']);
     expect(runStandingPRUpdate).toHaveBeenCalledWith(expect.objectContaining({ config: '/path/to/config.json' }));
   });
+
+  it('should pass --reconcile through as reconcile: true', async () => {
+    const { runStandingPRUpdate } = await import('../../src/standing-pr/standing-pr.js');
+    await parseCommand(['update', '--reconcile']);
+    expect(runStandingPRUpdate).toHaveBeenCalledWith(expect.objectContaining({ reconcile: true }));
+  });
+
+  it('should default reconcile to false when --reconcile is omitted', async () => {
+    const { runStandingPRUpdate } = await import('../../src/standing-pr/standing-pr.js');
+    await parseCommand(['update']);
+    expect(runStandingPRUpdate).toHaveBeenCalledWith(expect.objectContaining({ reconcile: false }));
+  });
 });

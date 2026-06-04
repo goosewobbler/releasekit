@@ -25,6 +25,14 @@ export interface StandingPROptions {
   quiet: boolean;
   json: boolean;
   npmAuth?: string;
+  /**
+   * Bypass ONLY the skip-pattern guard at the top of `runStandingPRUpdate`. The guard exists to
+   * stop push-triggered runs reacting to a release's own commits, but the post-release reconcile
+   * flow deliberately runs `standing-pr update` right after a release — when HEAD is, by
+   * definition, a release commit that matches the skip pattern. Reconcile callers explicitly
+   * intend an update, so they opt out via this flag. All other guards/behaviour are unchanged.
+   */
+  reconcile?: boolean;
 }
 
 export interface StandingPRResult {
@@ -604,11 +612,18 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const base = releaseKitConfig.git?.branch ?? 'main';
   const skipPatterns = releaseKitConfig.release?.ci?.skipPatterns ?? ['chore: release '];
 
-  // Skip-pattern guard
-  const headSubject = getHeadCommitMessage(cwd);
-  if (headSubject && matchesSkipPattern(headSubject, skipPatterns)) {
-    info(`Skipping standing PR update: commit matches skip pattern`);
-    return { action: 'noop' };
+  // Skip-pattern guard. The reconcile flag bypasses it: reconcile runs deliberately right after
+  // a release (HEAD is a release commit that matches the skip pattern by design), so the
+  // push-event noise rejection this guard provides would otherwise turn every reconcile into a
+  // no-op and leave the standing PR holding just-published versions.
+  if (options.reconcile) {
+    info('Reconcile mode: bypassing skip-pattern guard');
+  } else {
+    const headSubject = getHeadCommitMessage(cwd);
+    if (headSubject && matchesSkipPattern(headSubject, skipPatterns)) {
+      info(`Skipping standing PR update: commit matches skip pattern`);
+      return { action: 'noop' };
+    }
   }
 
   const githubContext = getGitHubContext();
@@ -747,9 +762,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const countableUpdates = publishableUpdates(versionOutput);
   const count = countableUpdates.length;
   const firstUpdate = countableUpdates[0];
+  const isSync = versionOutput.strategy === 'sync';
   /* biome-ignore lint/suspicious/noTemplateCurlyInString: template string uses config variable */
-  const defaultTitle =
-    versionOutput.strategy === 'sync' ? 'chore: release ${tag}' : 'chore: release ${count} package(s)';
+  const defaultTitle = isSync ? 'chore: release ${tag}' : 'chore: release ${count} package(s)';
   const titleTemplate = standingPrConfig?.title ?? defaultTitle;
   const title = titleTemplate
     .replace(/\$\{count\}/g, String(count))
