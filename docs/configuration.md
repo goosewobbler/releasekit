@@ -71,8 +71,8 @@ Array of objects with the following properties:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `pattern` | string | — |  |
-| `releaseType` | `"major"` \| `"minor"` \| `"patch"` \| `"prerelease"` | — |  |
+| `pattern` | string | — | |
+| `releaseType` | `"major"` \| `"minor"` \| `"patch"` \| `"prerelease"` | — | |
 
 ### `version.cargo`
 
@@ -246,9 +246,9 @@ Array of category objects used for commit categorization. Each item has:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `name` | string | — |  |
-| `description` | string | — |  |
-| `scopes` | `string[]` | — |  |
+| `name` | string | — | |
+| `description` | string | — | |
+| `scopes` | `string[]` | — | |
 
 #### `notes.releaseNotes.llm.scopes`
 
@@ -256,16 +256,16 @@ Scope validation configuration.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `mode` | `"restricted"` \| `"packages"` \| `"none"` \| `"unrestricted"` | `"unrestricted"` |  |
+| `mode` | `"restricted"` \| `"packages"` \| `"none"` \| `"unrestricted"` | `"unrestricted"` | |
 
 **`notes.releaseNotes.llm.scopes.rules`**
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `allowed` | `string[]` | — |  |
-| `caseSensitive` | boolean | `false` |  |
-| `invalidScopeAction` | `"remove"` \| `"keep"` \| `"fallback"` | `"remove"` |  |
-| `fallbackScope` | string | — |  |
+| `allowed` | `string[]` | — | |
+| `caseSensitive` | boolean | `false` | |
+| `invalidScopeAction` | `"remove"` \| `"keep"` \| `"fallback"` | `"remove"` | |
+| `fallbackScope` | string | — | |
 
 #### `notes.releaseNotes.llm.retry`
 
@@ -296,7 +296,7 @@ CI automation configuration for release triggers, PR previews, and label managem
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `releaseStrategy` | `"manual"` \| `"direct"` \| `"standing-pr"` | `"direct"` | How releases are delivered. 'direct': release on merge to main. 'manual': releases triggered manually (e.g. workflow_dispatch). 'standing-pr': changes accumulate in a release PR. |
+| `releaseStrategy` | `"manual"` \| `"direct"` \| `"standing-pr"` | `"direct"` | How releases are delivered. 'direct': release on merge to main. 'manual': releases triggered manually (e.g. workflow_dispatch). 'standing-pr': changes accumulate in a release PR; gate mode acts as the immediate-release evaluator, firing only for merges labelled with the immediate label. |
 | `releaseTrigger` | `"commit"` \| `"label"` | `"label"` | What triggers a release. 'label': a PR bump label (bump:patch/minor/major) is required. 'commit': conventional commits drive the bump automatically; every merge can trigger a release. |
 | `prPreview` | boolean | `true` | Enable PR preview comments showing what would be released if the PR is merged. Set to false to disable. |
 | `autoRelease` | boolean | `false` | Automatically trigger a release when CI conditions are met, without manual intervention. |

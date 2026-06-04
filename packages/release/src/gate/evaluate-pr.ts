@@ -39,6 +39,12 @@ export interface PREvaluation {
  *  - `release:skip` ⇒ no release
  *  - otherwise ⇒ release
  *
+ * Under the `standing-pr` release strategy (either trigger mode), the gate is the
+ * immediate-release evaluator:
+ *  - no `release:immediate` label ⇒ neutral (changes accumulate in the standing release PR;
+ *    no conflict checks, no notify comment — feeder-PR labels are advisory there)
+ *  - `release:immediate` present ⇒ evaluated against the rules above
+ *
  * Scope/target are resolved from THIS PR's labels only — no cross-PR union.
  */
 export function evaluatePR(
@@ -56,6 +62,7 @@ export function evaluatePR(
     labelConfig.patch,
     labelConfig.stable,
     labelConfig.prerelease,
+    labelConfig.immediate,
   ]);
   const hasScopeLabel = labels.some((l) => Boolean(scopeLabels[l]));
   const hasReleaseIntent = labels.some((l) => releaseLabelNames.has(l)) || hasScopeLabel;
@@ -69,6 +76,23 @@ export function evaluatePR(
       target = scopeLabels[label];
       break;
     }
+  }
+
+  // Standing-pr strategy: merges accumulate in the standing release PR, so a PR without the
+  // immediate label is neutral — not blocked, not notified. Its bump/scope labels are advisory
+  // overrides for the standing PR, not errors, so conflict detection is skipped too.
+  const releaseStrategy = ciConfig?.releaseStrategy ?? 'direct';
+  if (releaseStrategy === 'standing-pr' && !labels.includes(labelConfig.immediate)) {
+    return {
+      prNumber,
+      labels,
+      shouldRelease: false,
+      scope,
+      target,
+      stable: false,
+      reason: `standing-pr strategy: no ${labelConfig.immediate} label — changes accumulate in the standing release PR`,
+      hasReleaseIntent: false,
+    };
   }
 
   const conflict = detectLabelConflicts(labels, labelConfig);
