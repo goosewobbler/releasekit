@@ -7,9 +7,13 @@ import { detectNpmAuth } from '../utils/auth.js';
 import { execCommand, execCommandSafe, getExecErrorOutput } from '../utils/exec.js';
 import { createNpmSubprocessIsolation } from '../utils/npm-env.js';
 import { buildPublishCommand, buildViewCommand } from '../utils/package-manager.js';
+import { classifyPublishError, withPublishRetry } from '../utils/publish-retry.js';
 import { getDistTag } from '../utils/semver.js';
 
 const ALREADY_PUBLISHED_PATTERN = /EPUBLISHCONFLICT|cannot publish over (?:the )?previously published versions?/i;
+
+/** Bounded auto-retry for transient registry blips: initial attempt + 2 retries. */
+const PUBLISH_RETRY = { maxAttempts: 3, initialDelay: 1000 } as const;
 
 /** Error strategy: FAIL-FAST. First publish failure aborts the stage. */
 export async function runNpmPublishStage(ctx: PipelineContext): Promise<void> {
@@ -111,38 +115,55 @@ export async function runNpmPublishStage(ctx: PipelineContext): Promise<void> {
       debug(`Publish command: ${pubFile} ${pubArgs.join(' ')}`);
       debug(`Working directory: ${pkgDir}`);
 
+      // Debug: Check if dist directory exists before publishing
+      const distExists = fs.existsSync(path.join(pkgDir, 'dist'));
+      debug(`Publishing ${update.packageName}@${update.newVersion} from ${pkgDir}`);
+      debug(`Dist directory exists: ${distExists}`);
+      if (distExists) {
+        const distContents = fs.readdirSync(path.join(pkgDir, 'dist'));
+        debug(`Dist directory contents: ${distContents.join(', ')}`);
+      }
+
+      // Check package manager version
       try {
-        // Debug: Check if dist directory exists before publishing
-        const distExists = fs.existsSync(path.join(pkgDir, 'dist'));
-        debug(`Publishing ${update.packageName}@${update.newVersion} from ${pkgDir}`);
-        debug(`Dist directory exists: ${distExists}`);
-        if (distExists) {
-          const distContents = fs.readdirSync(path.join(pkgDir, 'dist'));
-          debug(`Dist directory contents: ${distContents.join(', ')}`);
-        }
-
-        // Check package manager version
-        try {
-          const versionResult = await execCommand(ctx.packageManager, ['--version'], {
-            cwd,
-            dryRun: false,
-          });
-          debug(`Package manager version (${ctx.packageManager}): ${versionResult.stdout.trim()}`);
-        } catch (error) {
-          debug(`Failed to get package manager version: ${error}`);
-        }
-
-        const publishResult = await execCommand(pubFile, pubArgs, {
-          cwd: pkgDir, // Always publish from the package directory for reliability
-          dryRun,
-          label: `npm publish ${update.packageName}@${update.newVersion}`,
-          env: npmIsolation.env,
+        const versionResult = await execCommand(ctx.packageManager, ['--version'], {
+          cwd,
+          dryRun: false,
         });
+        debug(`Package manager version (${ctx.packageManager}): ${versionResult.stdout.trim()}`);
+      } catch (error) {
+        debug(`Failed to get package manager version: ${error}`);
+      }
 
-        debug(`Publish command completed successfully`);
-        if (publishResult.stdout) debug(`Publish stdout: ${publishResult.stdout}`);
-        if (publishResult.stderr) debug(`Publish stderr: ${publishResult.stderr}`);
+      try {
+        // Transient registry errors (5xx, timeouts, rate limits) are retried with
+        // backoff; permanent errors (auth, validation) fail fast. The
+        // already-published conflict is detected inside the retried function and
+        // surfaced as a non-retryable skip, so a retry of a "publish landed but the
+        // response was lost" case resolves as a skip rather than a duplicate publish.
+        const { attempts } = await withPublishRetry(
+          async () => {
+            const publishResult = await execCommand(pubFile, pubArgs, {
+              cwd: pkgDir, // Always publish from the package directory for reliability
+              dryRun,
+              label: `npm publish ${update.packageName}@${update.newVersion}`,
+              env: npmIsolation.env,
+            });
 
+            debug(`Publish command completed successfully`);
+            if (publishResult.stdout) debug(`Publish stdout: ${publishResult.stdout}`);
+            if (publishResult.stderr) debug(`Publish stderr: ${publishResult.stderr}`);
+          },
+          {
+            ...PUBLISH_RETRY,
+            label: `${update.packageName}@${update.newVersion}`,
+            // Never retry an already-published conflict — it is handled as a skip below.
+            shouldRetry: (error) =>
+              !ALREADY_PUBLISHED_PATTERN.test(getExecErrorOutput(error)) && classifyPublishError(error) === 'transient',
+          },
+        );
+
+        result.attempts = attempts;
         result.success = true;
         if (!dryRun) {
           success(`Published ${update.packageName}@${update.newVersion} to npm`);
@@ -152,7 +173,8 @@ export async function runNpmPublishStage(ctx: PipelineContext): Promise<void> {
         debug(`Publish command failed: ${error}`);
         // If `npm view` and `npm publish` disagreed (rare — usually a transient view
         // failure), treat the conflict as already-published so re-runs of a partially
-        // failed release are idempotent.
+        // failed release are idempotent. This also covers the case where a retried
+        // publish lands but the registry response was lost on the first attempt.
         if (ALREADY_PUBLISHED_PATTERN.test(getExecErrorOutput(error))) {
           result.alreadyPublished = true;
           result.skipped = true;
