@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { StandingPRManifest } from '../../src/standing-pr/standing-pr.js';
 import {
   createReleaseTags,
+  findLatestMergedStandingPR,
   parseManifest,
   publishFromManifest,
   runStandingPRMerge,
@@ -890,6 +891,46 @@ describe('runStandingPRUpdate', () => {
 
       expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ sync: true });
     });
+  });
+});
+
+describe('findLatestMergedStandingPR', () => {
+  it('should pick the most recently merged PR even when an older merge was updated more recently', async () => {
+    const { createOctokit } = await import('../../src/github.js');
+    const { octokit, mocks } = createMockOctokit();
+    // List order is the API's 'updated' sort — late activity (a comment, a label) on the
+    // older merged #42 floats it above the newer merge #77.
+    mocks.pullsList.mockResolvedValue({
+      data: [
+        { number: 42, merged_at: '2024-01-01T00:00:00Z' },
+        { number: 80, merged_at: null },
+        { number: 77, merged_at: '2024-01-02T00:00:00Z' },
+      ],
+    });
+
+    const result = await findLatestMergedStandingPR(
+      octokit as unknown as ReturnType<typeof createOctokit>,
+      'owner',
+      'repo',
+      'release/next',
+    );
+
+    expect(result).toBe(77);
+  });
+
+  it('should return null when no closed PR from the branch was merged', async () => {
+    const { createOctokit } = await import('../../src/github.js');
+    const { octokit, mocks } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [{ number: 80, merged_at: null }] });
+
+    const result = await findLatestMergedStandingPR(
+      octokit as unknown as ReturnType<typeof createOctokit>,
+      'owner',
+      'repo',
+      'release/next',
+    );
+
+    expect(result).toBeNull();
   });
 });
 

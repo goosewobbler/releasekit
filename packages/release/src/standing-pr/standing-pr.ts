@@ -1044,8 +1044,13 @@ export async function findLatestMergedStandingPR(
     per_page: 10,
   });
 
-  const merged = prs.find((pr) => pr.merged_at != null);
-  return merged ? merged.number : null;
+  // 'updated' ordering only guarantees the newest merge is in the page (merging touches
+  // updated_at) — late activity on an older merged PR (a comment, a label) can sort it
+  // above a newer merge. Pick by merged_at, not list position.
+  const merged = prs
+    .filter((pr) => pr.merged_at != null)
+    .sort((a, b) => new Date(b.merged_at as string).getTime() - new Date(a.merged_at as string).getTime());
+  return merged[0]?.number ?? null;
 }
 
 export async function runStandingPRPublish(
