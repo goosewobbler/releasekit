@@ -48,7 +48,7 @@ export function createStandingPRCommand(): Command {
       .description('Publish packages from a merged standing release PR (reads manifest from PR comment)')
       .option(
         '--pr <number>',
-        'PR number of the merged standing release PR. Use when the workflow runs on a push event (auto-detected from pull_request event when omitted)',
+        'PR number of the merged standing release PR. When omitted, falls back to the pull_request event payload, then to the most recently merged standing PR via the GitHub API',
       ),
   ).action(async (opts) => {
     const options: StandingPROptions = {

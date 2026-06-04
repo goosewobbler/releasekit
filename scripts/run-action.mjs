@@ -99,6 +99,10 @@ export function buildStandingPRPublishArgs(input) {
   pushOptionalArg(args, '--config', input.config);
   pushOptionalArg(args, '--project-dir', input.projectDir);
   pushOptionalArg(args, '--npm-auth', input.npmAuth);
+  // Dispatch-funnelled publishes (gh workflow run from standing-pr.yml) run on a
+  // workflow_dispatch event with no pull_request payload, so the merged standing PR's
+  // number has to be carried across the dispatch boundary explicitly.
+  pushOptionalArg(args, '--pr', input.pr);
   pushBooleanFlag(args, '--verbose', input.verbose);
   pushBooleanFlag(args, '--quiet', input.quiet);
 

@@ -14,6 +14,9 @@ uses: goosewobbler/releasekit@v0
 
 - `release` (default): runs the full unified release pipeline.
 - `preview`: runs PR preview comment generation.
+- `gate`: evaluates merged-PR labels and emits should-release/bump/scope outputs.
+- `standing-pr-update`: creates or refreshes the standing release PR.
+- `standing-pr-publish`: publishes from a merged standing release PR's manifest. Resolution order for which PR: the `pr` input, then the `pull_request` event payload, then the most recently merged standing PR via the GitHub API. Pass `pr` explicitly in dispatch funnels (e.g. `workflow_dispatch` routing for npm OIDC trusted publishing) — re-runs of a stale dispatch can otherwise infer a newer standing PR.
 
 ## Requirements
 
@@ -45,7 +48,7 @@ uses: goosewobbler/releasekit@v0
 
 | Input | Default | Description |
 |---|---|---|
-| `mode` | `release` | `release` or `preview` |
+| `mode` | `release` | `release`, `preview`, `gate`, `standing-pr-update`, or `standing-pr-publish` |
 | `config` | - | Path to `releasekit.config.json` |
 | `project-dir` | `.` | Project directory |
 | `dry-run` | `false` | Global dry-run toggle |
@@ -73,7 +76,7 @@ uses: goosewobbler/releasekit@v0
 
 | Input | Default | Description |
 |---|---|---|
-| `pr` | - | PR number override |
+| `pr` | - | PR number override (also used by `standing-pr-publish`) |
 | `repo` | - | `owner/repo` override |
 | `preview-prerelease` | - | Force prerelease preview identifier |
 | `preview-stable` | `false` | Force stable preview |
@@ -182,4 +185,3 @@ jobs:
   - moving major alias like `v1`
 - Consumers should reference `@v1`.
 - Breaking changes publish under a new major alias (`v2`).
-
