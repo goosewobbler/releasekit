@@ -75,7 +75,7 @@ describe('Integration: single package', () => {
   });
 
   describe('Breaking change -> major version bump', () => {
-    it('generates correct changelog entry with breaking marker', () => {
+    it('should generate correct changelog entry with breaking marker', () => {
       const versionOutput = {
         dryRun: true,
         updates: [
@@ -110,7 +110,7 @@ describe('Integration: single package', () => {
   });
 
   describe('Scoped feature -> changelog with scope', () => {
-    it('includes scope in changelog entry', () => {
+    it('should include scope in changelog entry', () => {
       const versionOutput = {
         dryRun: true,
         updates: [

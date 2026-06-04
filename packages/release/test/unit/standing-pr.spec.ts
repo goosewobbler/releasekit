@@ -130,14 +130,14 @@ describe('createReleaseTags', () => {
     vi.resetAllMocks();
   });
 
-  it('is a no-op for an empty tag list', async () => {
+  it('should be a no-op for an empty tag list', async () => {
     const { execSync, execFileSync } = await import('node:child_process');
     createReleaseTags([], '/tmp/test');
     expect(execSync).not.toHaveBeenCalled();
     expect(execFileSync).not.toHaveBeenCalled();
   });
 
-  it('creates a tag when none exists', async () => {
+  it('should create a tag when none exists', async () => {
     const { execFileSync } = await import('node:child_process');
     // git rev-parse HEAD
     vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
@@ -157,7 +157,7 @@ describe('createReleaseTags', () => {
     );
   });
 
-  it('skips creation when the tag already points at HEAD', async () => {
+  it('should skip creation when the tag already points at HEAD', async () => {
     const { execFileSync } = await import('node:child_process');
     vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
     // tag exists at HEAD
@@ -170,7 +170,7 @@ describe('createReleaseTags', () => {
     expect(execFileSync).not.toHaveBeenCalledWith('git', expect.arrayContaining(['tag', '-a']), expect.anything());
   });
 
-  it('does not recreate a tag that points at a different commit', async () => {
+  it('should not recreate a tag that points at a different commit', async () => {
     const { execFileSync } = await import('node:child_process');
     vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
     vi.mocked(execFileSync).mockReturnValueOnce('othersha\n');
@@ -180,7 +180,7 @@ describe('createReleaseTags', () => {
     expect(execFileSync).not.toHaveBeenCalledWith('git', expect.arrayContaining(['tag', '-a']), expect.anything());
   });
 
-  it('processes multiple tags independently', async () => {
+  it('should process multiple tags independently', async () => {
     const { execFileSync } = await import('node:child_process');
     // git rev-parse HEAD
     vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
@@ -205,7 +205,7 @@ describe('createReleaseTags', () => {
     expect(tagCalls).toHaveLength(1);
   });
 
-  it('does not throw when tag creation fails', async () => {
+  it('should not throw when tag creation fails', async () => {
     const { execFileSync } = await import('node:child_process');
     vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
     vi.mocked(execFileSync).mockImplementationOnce(() => {
@@ -218,7 +218,7 @@ describe('createReleaseTags', () => {
     expect(() => createReleaseTags(['v1.2.3'], '/tmp/test')).not.toThrow();
   });
 
-  it('does not throw when HEAD lookup fails', async () => {
+  it('should not throw when HEAD lookup fails', async () => {
     const { execFileSync } = await import('node:child_process');
     vi.mocked(execFileSync).mockImplementationOnce(() => {
       throw new Error('fatal: not a git repository');
@@ -610,7 +610,7 @@ describe('runStandingPRUpdate', () => {
       return (args: { state?: string }) => Promise.resolve({ data: args.state === 'closed' ? merged : [] });
     }
 
-    it('includes the warning when the latest merged standing PR has an unresolved failure', async () => {
+    it('should include the warning when the latest merged standing PR has an unresolved failure', async () => {
       const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
       const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '0.25.0' }]);
       vi.mocked(runVersionStep)
@@ -636,7 +636,7 @@ describe('runStandingPRUpdate', () => {
       expect(createCall?.body).toContain('#7');
     });
 
-    it('omits the warning when the latest merged standing PR failure is resolved', async () => {
+    it('should omit the warning when the latest merged standing PR failure is resolved', async () => {
       const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
       const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '0.25.0' }]);
       vi.mocked(runVersionStep)
@@ -665,7 +665,7 @@ describe('runStandingPRUpdate', () => {
       expect(createCall?.body).not.toContain('partially published');
     });
 
-    it('omits the warning when there is no merged standing PR', async () => {
+    it('should omit the warning when there is no merged standing PR', async () => {
       const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
       const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '0.25.0' }]);
       vi.mocked(runVersionStep)

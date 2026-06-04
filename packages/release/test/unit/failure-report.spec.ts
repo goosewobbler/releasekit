@@ -51,7 +51,7 @@ function publishOutputFor(npm: PublishResult[]): PublishOutput {
 }
 
 describe('buildLedger', () => {
-  it('distinguishes published / skipped / failed / not-attempted', () => {
+  it('should distinguish published / skipped / failed / not-attempted', () => {
     const versionOutput = versionOutputFor([
       { name: '@scope/a', version: '1.0.0' },
       { name: '@scope/b', version: '1.0.0' },
@@ -81,7 +81,7 @@ describe('buildLedger', () => {
     ]);
   });
 
-  it('excludes the root lockstep bump from the ledger', () => {
+  it('should exclude the root lockstep bump from the ledger', () => {
     const versionOutput = versionOutputFor([{ name: '@scope/a', version: '2.0.0' }], { strategy: 'sync' });
     versionOutput.updates.push({
       packageName: 'root',
@@ -93,7 +93,7 @@ describe('buildLedger', () => {
     expect(ledger.map((e) => e.packageName)).toEqual(['@scope/a']);
   });
 
-  it('keeps the most significant outcome when a package appears on multiple registries', () => {
+  it('should keep the most significant outcome when a package appears on multiple registries', () => {
     const versionOutput = versionOutputFor([{ name: '@scope/a', version: '1.0.0' }]);
     const publishOutput = publishOutputFor([
       npmResult({ packageName: '@scope/a', version: '1.0.0', success: true, alreadyPublished: true }),
@@ -116,7 +116,7 @@ describe('renderFailureReport', () => {
     npmResult({ packageName: '@scope/b', version: '0.24.0', success: false, reason: 'npm 403' }),
   ]);
 
-  it('starts with the distinct marker and an unresolved status line', () => {
+  it('should start with the distinct marker and an unresolved status line', () => {
     const body = renderFailureReport({
       versionOutput,
       publishOutput,
@@ -128,7 +128,7 @@ describe('renderFailureReport', () => {
     expect(parseFailureReportStatus(body)).toBe('unresolved');
   });
 
-  it('embeds machine-readable headline data that round-trips independent of the prose', () => {
+  it('should embed machine-readable headline data that round-trips independent of the prose', () => {
     const body = renderFailureReport({
       versionOutput,
       publishOutput,
@@ -142,14 +142,14 @@ describe('renderFailureReport', () => {
     expect(parseFailureReportData(copyEdited)).toEqual({ label: 'v0.24.0', published: 1, total: 2 });
   });
 
-  it('returns null headline data for non-report bodies and malformed data comments', () => {
+  it('should return null headline data for non-report bodies and malformed data comments', () => {
     expect(parseFailureReportData('not a report')).toBeNull();
     expect(
       parseFailureReportData(`${FAILURE_MARKER}\n<!-- releasekit-publish-failure-data: {bad json} -->`),
     ).toBeNull();
   });
 
-  it('renders the per-package ledger with status icons and the published fraction', () => {
+  it('should render the per-package ledger with status icons and the published fraction', () => {
     const body = renderFailureReport({
       versionOutput,
       publishOutput,
@@ -162,7 +162,7 @@ describe('renderFailureReport', () => {
     expect(body).toContain('| `@scope/b` | 0.24.0 | ❌ failed | npm 403 |');
   });
 
-  it('includes the failed stage, error message, and the safe-retry note', () => {
+  it('should include the failed stage, error message, and the safe-retry note', () => {
     const body = renderFailureReport({
       versionOutput,
       publishOutput,
@@ -175,7 +175,7 @@ describe('renderFailureReport', () => {
     expect(body).toContain('Retrying is safe');
   });
 
-  it('gives standing-pr recovery instructions with the PR number', () => {
+  it('should give standing-pr recovery instructions with the PR number', () => {
     const body = renderFailureReport({
       versionOutput,
       publishOutput,
@@ -187,7 +187,7 @@ describe('renderFailureReport', () => {
     expect(body).not.toContain('Re-run failed jobs');
   });
 
-  it('mentions the release:retry label only when it is available', () => {
+  it('should mention the release:retry label only when it is available', () => {
     const withRetry = renderFailureReport({
       versionOutput,
       publishOutput,
@@ -207,7 +207,7 @@ describe('renderFailureReport', () => {
     expect(withoutRetry).not.toContain('release:retry');
   });
 
-  it('makes the release:retry label the primary recovery path when available', () => {
+  it('should make the release:retry label the primary recovery path when available', () => {
     const body = renderFailureReport({
       versionOutput,
       publishOutput,
@@ -226,7 +226,7 @@ describe('renderFailureReport', () => {
     expect(body).toContain('#42');
   });
 
-  it('gives direct-mode recovery instructions (re-run failed jobs)', () => {
+  it('should give direct-mode recovery instructions (re-run failed jobs)', () => {
     const body = renderFailureReport({
       versionOutput,
       publishOutput,
@@ -240,7 +240,7 @@ describe('renderFailureReport', () => {
 });
 
 describe('renderResolvedReport', () => {
-  it('keeps the marker and encodes resolved status', () => {
+  it('should keep the marker and encode resolved status', () => {
     const versionOutput = versionOutputFor([{ name: '@scope/a', version: '0.24.0' }]);
     const body = renderResolvedReport(versionOutput);
     expect(body.startsWith(FAILURE_MARKER)).toBe(true);
@@ -250,17 +250,17 @@ describe('renderResolvedReport', () => {
 });
 
 describe('parseFailureReportStatus', () => {
-  it('returns null for a non-report body', () => {
+  it('should return null for a non-report body', () => {
     expect(parseFailureReportStatus('just a normal comment')).toBeNull();
   });
 
-  it('defaults to unresolved when the status line is missing', () => {
+  it('should default to unresolved when the status line is missing', () => {
     expect(parseFailureReportStatus(`${FAILURE_MARKER}\n\n## something`)).toBe('unresolved');
   });
 });
 
 describe('renderSupersedeWarning', () => {
-  it('states the partial-publish fraction and both recovery paths', () => {
+  it('should state the partial-publish fraction and both recovery paths', () => {
     const lines = renderSupersedeWarning({
       previousLabel: 'v0.24.0',
       published: 2,
@@ -274,7 +274,7 @@ describe('renderSupersedeWarning', () => {
     expect(text).toContain('supersedes it');
   });
 
-  it('references the release:retry label as the primary reconcile path when available', () => {
+  it('should reference the release:retry label as the primary reconcile path when available', () => {
     const text = renderSupersedeWarning({
       previousLabel: 'v0.24.0',
       published: 2,
@@ -286,7 +286,7 @@ describe('renderSupersedeWarning', () => {
     expect(text).toContain('supersedes it');
   });
 
-  it('falls back to the dispatch instruction when the label is not available', () => {
+  it('should fall back to the dispatch instruction when the label is not available', () => {
     const text = renderSupersedeWarning({
       previousLabel: 'v0.24.0',
       published: 2,

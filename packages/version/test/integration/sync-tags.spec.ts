@@ -50,7 +50,7 @@ describe('sync strategy — JSON tag output', () => {
     cleanupTempDir(tempDir);
   });
 
-  it('produces per-package tags when packageSpecificTags is true', () => {
+  it('should produce per-package tags when packageSpecificTags is true', () => {
     writeReleaseKitConfig(tempDir, {
       preset: 'angular',
       packages: ['packages/pkg-a', 'packages/pkg-b'],
@@ -74,7 +74,7 @@ describe('sync strategy — JSON tag output', () => {
     expect(output.tags).toHaveLength(2);
   });
 
-  it('produces a single root tag when packageSpecificTags is false', () => {
+  it('should produce a single root tag when packageSpecificTags is false', () => {
     writeReleaseKitConfig(tempDir, {
       preset: 'angular',
       packages: ['packages/pkg-a', 'packages/pkg-b'],

@@ -83,7 +83,7 @@ describe('Pipeline: render snapshot', () => {
     vi.mocked(fs.writeFileSync).mockReturnValue(undefined);
   });
 
-  it('renders Breaking first, scope groups, and leadIn phrases', async () => {
+  it('should render Breaking first, scope groups, and leadIn phrases', async () => {
     const { createProvider } = await import('../../src/llm/index.js');
     const mockProvider: LLMProvider = {
       name: 'mock',

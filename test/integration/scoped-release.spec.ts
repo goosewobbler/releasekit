@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 describe('Integration: scoped release (wdio-style)', () => {
   describe('scope:spy targeting @test/native-spy only', () => {
-    it('generates changelog only for targeted package', () => {
+    it('should generate changelog only for targeted package', () => {
       const versionOutput = {
         dryRun: true,
         updates: [
@@ -41,7 +41,7 @@ describe('Integration: scoped release (wdio-style)', () => {
   });
 
   describe('scope:electron targeting @test/electron-* (multiple packages)', () => {
-    it('generates per-package changelog entries for electron scope', () => {
+    it('should generate per-package changelog entries for electron scope', () => {
       const versionOutput = {
         dryRun: true,
         updates: [
@@ -92,7 +92,7 @@ describe('Integration: scoped release (wdio-style)', () => {
   });
 
   describe('prerelease update for tauri-service (3.x prerelease range)', () => {
-    it('generates changelog for prerelease version increment', () => {
+    it('should generate changelog for prerelease version increment', () => {
       const versionOutput = {
         dryRun: true,
         updates: [
@@ -127,7 +127,7 @@ describe('Integration: scoped release (wdio-style)', () => {
   });
 
   describe('stable graduation for tauri-service', () => {
-    it('generates changelog for prerelease-to-stable graduation', () => {
+    it('should generate changelog for prerelease-to-stable graduation', () => {
       const versionOutput = {
         dryRun: true,
         updates: [
