@@ -6,7 +6,9 @@
     "tagTemplate": "${packageName}@v${version}",
     "prereleaseIdentifier": "next",
     "mismatchStrategy": "prefer-package",
-    "packages": ["packages/*"]
+    "packages": [
+      "packages/*"
+    ]
   },
   "ci": {
     "releaseTrigger": "label",

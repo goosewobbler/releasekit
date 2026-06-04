@@ -28,6 +28,7 @@ import {
   addTag,
   setCommitMessage,
   setPackageUpdateTag,
+  setVersioningStrategy,
 } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { calculateVersion } from './versionCalculator.js';
@@ -100,6 +101,7 @@ function updateCargoFiles(packageDir: string, version: string, cargoConfig: Conf
 export function createSyncStrategy(config: Config): StrategyFunction {
   return async (packages: PackagesWithRoot): Promise<void> => {
     try {
+      setVersioningStrategy('sync');
       const {
         versionPrefix,
         tagTemplate,
@@ -213,7 +215,9 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         if (packages.root) {
           const rootPkgPath = path.join(packages.root, 'package.json');
           if (fs.existsSync(rootPkgPath)) {
-            updatePackageVersion(rootPkgPath, nextVersion, dryRun);
+            // Mark as root so consumers (preview, standing PR) can exclude this lockstep
+            // bump from package counts — it isn't a publishable package.
+            updatePackageVersion(rootPkgPath, nextVersion, dryRun, true);
             files.push(rootPkgPath);
             updatedPackages.push('root');
             processedPaths.add(rootPkgPath);
@@ -466,6 +470,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
 export function createSingleStrategy(config: Config): StrategyFunction {
   return async (packages: PackagesWithRoot): Promise<void> => {
     try {
+      setVersioningStrategy('single');
       const {
         mainPackage,
         versionPrefix,
@@ -693,6 +698,7 @@ export function createAsyncStrategy(config: Config): StrategyFunction {
 
   return async (packages: PackagesWithRoot, targets: string[] = []): Promise<void> => {
     try {
+      setVersioningStrategy('async');
       // Apply additional filtering if targets are specified at runtime
       let packagesToProcess = packages.packages;
       if (targets.length > 0) {

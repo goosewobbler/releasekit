@@ -12,6 +12,7 @@ import {
   recordPendingWrite,
   setCommitMessage,
   setPackageUpdateTag,
+  setVersioningStrategy,
 } from '../../../src/utils/jsonOutput.js';
 
 vi.mock('node:fs');
@@ -81,6 +82,37 @@ describe('JSON Output Utilities', () => {
       // The internal data should remain unchanged
       const data2 = getJsonData();
       expect(data2.updates).toHaveLength(1);
+    });
+
+    it('should record the versioning strategy and reset it on enableJsonOutput', () => {
+      enableJsonOutput();
+      expect(getJsonData().strategy).toBeUndefined();
+
+      setVersioningStrategy('sync');
+      expect(getJsonData().strategy).toBe('sync');
+
+      enableJsonOutput();
+      expect(getJsonData().strategy).toBeUndefined();
+    });
+
+    it('should mark root updates with isRoot and omit the field otherwise', () => {
+      enableJsonOutput();
+      addPackageUpdate('my-monorepo', '1.0.0', '/path/to/package.json', true);
+      addPackageUpdate('test-package', '1.0.0', '/path/to/packages/a/package.json', false);
+
+      const data = getJsonData();
+      expect(data.updates[0]).toEqual({
+        packageName: 'my-monorepo',
+        newVersion: '1.0.0',
+        filePath: '/path/to/package.json',
+        isRoot: true,
+      });
+      // isRoot is omitted (not false) so pre-existing consumers see an unchanged shape
+      expect(data.updates[1]).toEqual({
+        packageName: 'test-package',
+        newVersion: '1.0.0',
+        filePath: '/path/to/packages/a/package.json',
+      });
     });
   });
 

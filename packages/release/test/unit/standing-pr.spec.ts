@@ -409,6 +409,74 @@ describe('runStandingPRUpdate', () => {
     expect(mocks.pullsCreate).toHaveBeenCalled();
   });
 
+  it('should default the PR title to the release tag in sync mode', async () => {
+    const { loadConfig } = await import('@releasekit/config');
+    const configWithoutTitle = {
+      ...defaultConfig,
+      ci: { ...defaultConfig.ci, standingPr: { ...defaultConfig.ci.standingPr, title: undefined } },
+    };
+    vi.mocked(loadConfig).mockReturnValue(configWithoutTitle as unknown as ReturnType<typeof loadConfig>);
+
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([]),
+      strategy: 'sync',
+      updates: [
+        { packageName: 'my-monorepo', newVersion: '1.2.3', filePath: 'package.json', isRoot: true },
+        { packageName: '@scope/core', newVersion: '1.2.3', filePath: 'packages/core/package.json' },
+      ],
+      tags: ['v1.2.3'],
+    };
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const { createOctokit } = await import('../../src/github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [] });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(mocks.pullsCreate).toHaveBeenCalledWith(expect.objectContaining({ title: 'chore: release v1.2.3' }));
+  });
+
+  it('should exclude the root lockstep bump from ${count} and the PR body publish table', async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([]),
+      strategy: 'sync',
+      updates: [
+        { packageName: 'my-monorepo', newVersion: '1.2.3', filePath: 'package.json', isRoot: true },
+        { packageName: '@scope/core', newVersion: '1.2.3', filePath: 'packages/core/package.json' },
+        { packageName: '@scope/utils', newVersion: '1.2.3', filePath: 'packages/utils/package.json' },
+      ],
+      tags: ['v1.2.3'],
+    };
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const { createOctokit } = await import('../../src/github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [] });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    // Configured title template counts publishable packages only (root excluded)
+    expect(mocks.pullsCreate).toHaveBeenCalledWith(expect.objectContaining({ title: 'chore: release 2 package(s)' }));
+
+    // Sync body leads with the version and lists bare package names, root excluded
+    const createCall = mocks.pullsCreate.mock.calls[0]?.[0] as { body?: string } | undefined;
+    expect(createCall?.body).toContain('Merging this PR will publish **v1.2.3**:');
+    expect(createCall?.body).toContain('- `@scope/core`');
+    expect(createCall?.body).toContain('- `@scope/utils`');
+    expect(createCall?.body).not.toContain('my-monorepo');
+  });
+
   it('should include a ### Changelog section in the PR body with changelog entries', async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = {

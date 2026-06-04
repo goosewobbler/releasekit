@@ -6,6 +6,7 @@ import { createOctokit, fetchPRLabels, findMergedPRsForCommit } from './github.j
 import { DEFAULT_LABELS, detectLabelConflicts } from './label-utils.js';
 import { runNotesStep, runPublishStep, runVersionStep } from './steps.js';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
+import { publishableUpdates } from './version-display.js';
 
 export function resolveScopeToTarget(scopeName: string, scopeLabels: Record<string, string>): string {
   const prefixed = `scope:${scopeName}`;
@@ -216,11 +217,11 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
     return null;
   }
 
-  // Apply minChanges threshold before modifying any files
-  if (releaseConfig?.ci?.minChanges !== undefined && versionOutput.updates.length < releaseConfig.ci.minChanges) {
-    info(
-      `Skipping release: ${versionOutput.updates.length} package(s) to update, minimum is ${releaseConfig.ci.minChanges}`,
-    );
+  // Apply minChanges threshold before modifying any files. Counts publishable packages only —
+  // the root lockstep bump (sync mode) would otherwise inflate the count by one.
+  const publishableCount = publishableUpdates(versionOutput).length;
+  if (releaseConfig?.ci?.minChanges !== undefined && publishableCount < releaseConfig.ci.minChanges) {
+    info(`Skipping release: ${publishableCount} package(s) to update, minimum is ${releaseConfig.ci.minChanges}`);
     return null;
   }
 

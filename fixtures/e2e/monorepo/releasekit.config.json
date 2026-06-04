@@ -6,7 +6,9 @@
   "version": {
     "preset": "conventional-commits",
     "sync": false,
-    "packages": ["packages/*"]
+    "packages": [
+      "packages/*"
+    ]
   },
   "notes": {
     "updateStrategy": "prepend"

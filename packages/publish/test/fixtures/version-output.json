@@ -29,5 +29,8 @@
     }
   ],
   "commitMessage": "chore: release @releasekit/version@0.2.0 [skip ci]",
-  "tags": ["@releasekit/version@v0.2.0", "@releasekit/notes@v0.2.0"]
+  "tags": [
+    "@releasekit/version@v0.2.0",
+    "@releasekit/notes@v0.2.0"
+  ]
 }

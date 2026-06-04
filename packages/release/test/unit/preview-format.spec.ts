@@ -689,6 +689,116 @@ describe('formatPreviewComment', () => {
     });
   });
 
+  // --- Sync mode rendering ---
+
+  describe('sync mode rendering', () => {
+    const syncVersionOutput: VersionOutput = {
+      dryRun: true,
+      strategy: 'sync',
+      updates: [
+        { packageName: 'my-monorepo', newVersion: '0.24.0', filePath: 'package.json', isRoot: true },
+        { packageName: '@scope/version', newVersion: '0.24.0', filePath: 'packages/version/package.json' },
+        { packageName: '@scope/notes', newVersion: '0.24.0', filePath: 'packages/notes/package.json' },
+        { packageName: '@scope/publish', newVersion: '0.24.0', filePath: 'packages/publish/package.json' },
+        { packageName: '@scope/release', newVersion: '0.24.0', filePath: 'packages/release/package.json' },
+      ],
+      changelogs: [
+        {
+          packageName: 'monorepo',
+          version: '0.24.0',
+          previousVersion: 'v0.23.0',
+          revisionRange: 'release/v0.23.0..HEAD',
+          repoUrl: null,
+          entries: [{ type: 'added', description: 'A new feature' }],
+        },
+      ],
+      tags: ['v0.24.0'],
+    };
+    const syncReleaseOutput: ReleaseOutput = { versionOutput: syncVersionOutput, notesGenerated: false };
+
+    function syncSnapshot(): StandingPRSnapshot {
+      const snapshot = snapshotFor([]);
+      snapshot.manifest.versionOutput = syncVersionOutput;
+      return snapshot;
+    }
+
+    it('should show the version range in the summary instead of a package count', () => {
+      const result = formatPreviewComment(syncReleaseOutput);
+      expect(result).toContain('<summary><b>Release Preview</b> — v0.23.0 → v0.24.0</summary>');
+      expect(result).not.toContain('5 packages');
+    });
+
+    it('should show only the next version in the summary when there is no previous version', () => {
+      const noPrev: ReleaseOutput = {
+        versionOutput: {
+          ...syncVersionOutput,
+          changelogs: [{ ...syncVersionOutput.changelogs[0], previousVersion: null }],
+        },
+        notesGenerated: false,
+      };
+      const result = formatPreviewComment(noPrev);
+      expect(result).toContain('<summary><b>Release Preview</b> — v0.24.0</summary>');
+    });
+
+    it('should list sync-bumped packages by bare name under an all-packages heading, excluding the root', () => {
+      const result = formatPreviewComment(syncReleaseOutput);
+      expect(result).toContain('**All packages → 0.24.0** (sync versioning)');
+      expect(result).toContain('- `@scope/version`');
+      expect(result).toContain('- `@scope/release`');
+      // Root lockstep bump is not a publishable package
+      expect(result).not.toContain('my-monorepo');
+      // Version appears once in the heading, not per item
+      expect(result).not.toContain('`@scope/version` → 0.24.0');
+    });
+
+    it('should fall back to an "Also bumped" heading when some packages have their own changelogs', () => {
+      const withPackageChangelog: ReleaseOutput = {
+        versionOutput: {
+          ...syncVersionOutput,
+          changelogs: [
+            ...syncVersionOutput.changelogs,
+            {
+              packageName: '@scope/version',
+              version: '0.24.0',
+              previousVersion: 'v0.23.0',
+              revisionRange: 'release/v0.23.0..HEAD',
+              repoUrl: null,
+              entries: [{ type: 'fixed', description: 'A package-specific fix' }],
+            },
+          ],
+        },
+        notesGenerated: false,
+      };
+      const result = formatPreviewComment(withPackageChangelog);
+      // @scope/version renders its own changelog above, so the list below is not "all" packages
+      expect(result).toContain('**Also bumped → 0.24.0** (sync versioning)');
+      expect(result).not.toContain('**All packages');
+      expect(result).toContain('- `@scope/notes`');
+      expect(result).not.toContain('- `@scope/version`');
+    });
+
+    it('should lead the standing PR snapshot line with the queued version and publishable count', () => {
+      const result = formatPreviewComment(null, { strategy: 'standing-pr', standingPrSnapshot: syncSnapshot() });
+      expect(result).toContain('v0.24.0 queued (4 packages)');
+      expect(result).not.toContain('1 package queued');
+    });
+
+    it('should keep the count-based rendering when the manifest has no strategy field (pre-strategy data)', () => {
+      const legacyOutput: VersionOutput = { ...syncVersionOutput, strategy: undefined };
+      const snapshot = snapshotFor([]);
+      snapshot.manifest.versionOutput = legacyOutput;
+      const snapshotResult = formatPreviewComment(null, { strategy: 'standing-pr', standingPrSnapshot: snapshot });
+      expect(snapshotResult).toContain('1 package queued');
+
+      const summaryResult = formatPreviewComment(
+        { versionOutput: legacyOutput, notesGenerated: false },
+        { strategy: 'direct' },
+      );
+      expect(summaryResult).toContain('<summary><b>Release Preview</b> — 5 packages</summary>');
+      expect(summaryResult).toContain('**Also bumped** (sync versioning)');
+    });
+  });
+
   // --- Label context banners ---
 
   describe('label context banners', () => {

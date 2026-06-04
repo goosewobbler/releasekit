@@ -4,32 +4,65 @@
   "remoteCache": {
     "enabled": true
   },
-  "globalEnv": ["TURBO_TOKEN", "TURBO_TEAM"],
+  "globalEnv": [
+    "TURBO_TOKEN",
+    "TURBO_TEAM"
+  ],
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "inputs": ["src/**", "tsconfig.json", "package.json"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "src/**",
+        "tsconfig.json",
+        "package.json"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
     "test": {
-      "dependsOn": ["^build"],
-      "outputs": ["coverage/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "coverage/**"
+      ]
     },
     "test:unit": {
-      "dependsOn": ["^build"],
-      "outputs": ["coverage/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "coverage/**"
+      ]
     },
     "test:coverage": {
-      "dependsOn": ["^build"],
-      "outputs": ["coverage/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "coverage/**"
+      ]
     },
     "lint": {
       "dependsOn": [],
-      "inputs": ["src/**", "test/**", "*.config.ts", "tsconfig.json", "package.json"],
-      "outputs": [".eslintcache"]
+      "inputs": [
+        "src/**",
+        "test/**",
+        "*.config.ts",
+        "tsconfig.json",
+        "package.json"
+      ],
+      "outputs": [
+        ".eslintcache"
+      ]
     },
     "typecheck": {
-      "dependsOn": ["^build"],
+      "dependsOn": [
+        "^build"
+      ],
       "outputs": []
     },
     "clean": {

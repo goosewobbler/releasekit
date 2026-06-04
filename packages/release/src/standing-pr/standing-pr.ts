@@ -11,6 +11,7 @@ import { createOctokit } from '../github.js';
 import { DEFAULT_LABELS } from '../label-utils.js';
 import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
+import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
 import { postStandingPRStatusSafe } from './status.js';
 
 const MANIFEST_MARKER = '<!-- releasekit-manifest -->';
@@ -315,17 +316,28 @@ function deleteReleaseBranch(releaseBranch: string, cwd: string): void {
 }
 
 function renderPrBody(versionOutput: VersionOutput): string {
-  const lines: string[] = [
-    '## Release',
-    '',
-    'Merging this PR will publish the following packages:',
-    '',
-    '| Package | Version |',
-    '|---------|---------|',
-  ];
+  const lines: string[] = ['## Release', ''];
 
-  for (const update of versionOutput.updates) {
-    lines.push(`| \`${update.packageName}\` | ${update.newVersion} |`);
+  // The root lockstep bump (sync mode) is never published — keep it out of the package list.
+  const updates = publishableUpdates(versionOutput);
+
+  if (versionOutput.strategy === 'sync') {
+    // Sync releases move as one unit — lead with the version; a per-row version column
+    // would repeat the same value for every package.
+    lines.push(`Merging this PR will publish **${syncVersionDisplay(versionOutput)}**:`, '');
+    for (const update of updates) {
+      lines.push(`- \`${update.packageName}\``);
+    }
+  } else {
+    lines.push(
+      'Merging this PR will publish the following packages:',
+      '',
+      '| Package | Version |',
+      '|---------|---------|',
+    );
+    for (const update of updates) {
+      lines.push(`| \`${update.packageName}\` | ${update.newVersion} |`);
+    }
   }
 
   const changelog = renderChangelogSection(versionOutput);
@@ -665,19 +677,20 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     return { action: 'noop' };
   }
 
-  // minPackages gate: close existing PR and noop if package count is below threshold
+  // minPackages gate: close existing PR and noop if package count is below threshold.
+  // Counts publishable packages only — the root lockstep bump (sync mode) would otherwise
+  // inflate the count by one.
   const minPackages = standingPrConfig?.minPackages;
-  if (minPackages !== undefined && versionOutputDry.updates.length < minPackages) {
-    info(
-      `Package count (${versionOutputDry.updates.length}) is below minPackages threshold (${minPackages}), skipping`,
-    );
+  const publishableCount = publishableUpdates(versionOutputDry).length;
+  if (minPackages !== undefined && publishableCount < minPackages) {
+    info(`Package count (${publishableCount}) is below minPackages threshold (${minPackages}), skipping`);
     if (githubContext?.token && existingStandingPr) {
       const octokit = createOctokit(githubContext.token);
       await octokit.rest.issues.createComment({
         owner: githubContext.owner,
         repo: githubContext.repo,
         issue_number: existingStandingPr.number,
-        body: `Not enough packages with releasable changes (${versionOutputDry.updates.length} of ${minPackages} required). Closing until the threshold is reached.`,
+        body: `Not enough packages with releasable changes (${publishableCount} of ${minPackages} required). Closing until the threshold is reached.`,
       });
       await octokit.rest.pulls.update({
         owner: githubContext.owner,
@@ -727,14 +740,21 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const octokit = createOctokit(githubContext.token);
   const { owner, repo } = githubContext;
 
-  // Build PR title and labels
-  const count = versionOutput.updates.length;
-  const firstUpdate = versionOutput.updates[0];
+  // Build PR title and labels. ${count} and ${version} exclude the root lockstep bump —
+  // it isn't a publishable package. Sync releases move as one unit, so the sync default
+  // leads with the version; both defaults start with 'chore: release' so they match the
+  // default skip pattern on squash merge.
+  const countableUpdates = publishableUpdates(versionOutput);
+  const count = countableUpdates.length;
+  const firstUpdate = countableUpdates[0];
   /* biome-ignore lint/suspicious/noTemplateCurlyInString: template string uses config variable */
-  const titleTemplate = standingPrConfig?.title ?? 'chore: release ${count} package(s)';
+  const defaultTitle =
+    versionOutput.strategy === 'sync' ? 'chore: release ${tag}' : 'chore: release ${count} package(s)';
+  const titleTemplate = standingPrConfig?.title ?? defaultTitle;
   const title = titleTemplate
     .replace(/\$\{count\}/g, String(count))
-    .replace(/\$\{version\}/g, firstUpdate?.newVersion ?? '');
+    .replace(/\$\{version\}/g, firstUpdate?.newVersion ?? '')
+    .replace(/\$\{tag\}/g, syncVersionDisplay(versionOutput));
 
   const labels = standingPrConfig?.labels ?? ['release'];
 
@@ -933,7 +953,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     );
   }
 
-  info(`Publishing from manifest: ${manifest.versionOutput.updates.length} package(s)`);
+  info(`Publishing from manifest: ${publishableUpdates(manifest.versionOutput).length} package(s)`);
 
   // Regenerate LLM-enhanced release notes against the merged commit set. The standing-PR update
   // intentionally skipped this so the standing-PR workflow doesn't depend on LLM availability.

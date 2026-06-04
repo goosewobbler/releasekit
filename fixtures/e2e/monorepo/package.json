@@ -4,5 +4,7 @@
   "private": true,
   "description": "Test monorepo for E2E",
   "license": "MIT",
-  "workspaces": ["packages/*"]
+  "workspaces": [
+    "packages/*"
+  ]
 }
