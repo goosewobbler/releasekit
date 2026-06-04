@@ -49,11 +49,11 @@
   },
   "lint-staged": {
     "**/*.ts": [
-      "biome check --write",
+      "biome check --write --no-errors-on-unmatched --files-ignore-unknown=true",
       "eslint --fix --cache"
     ],
-    "**/*.{md,json}": [
-      "biome format --write"
+    "**/*.{md,json,jsonc}": [
+      "biome format --write --no-errors-on-unmatched --files-ignore-unknown=true"
     ]
   }
 }
