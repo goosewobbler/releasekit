@@ -751,6 +751,32 @@ describe('formatPreviewComment', () => {
       expect(result).not.toContain('`@scope/version` → 0.24.0');
     });
 
+    it('should fall back to an "Also bumped" heading when some packages have their own changelogs', () => {
+      const withPackageChangelog: ReleaseOutput = {
+        versionOutput: {
+          ...syncVersionOutput,
+          changelogs: [
+            ...syncVersionOutput.changelogs,
+            {
+              packageName: '@scope/version',
+              version: '0.24.0',
+              previousVersion: 'v0.23.0',
+              revisionRange: 'release/v0.23.0..HEAD',
+              repoUrl: null,
+              entries: [{ type: 'fixed', description: 'A package-specific fix' }],
+            },
+          ],
+        },
+        notesGenerated: false,
+      };
+      const result = formatPreviewComment(withPackageChangelog);
+      // @scope/version renders its own changelog above, so the list below is not "all" packages
+      expect(result).toContain('**Also bumped → 0.24.0** (sync versioning)');
+      expect(result).not.toContain('**All packages');
+      expect(result).toContain('- `@scope/notes`');
+      expect(result).not.toContain('- `@scope/version`');
+    });
+
     it('should lead the standing PR snapshot line with the queued version and publishable count', () => {
       const result = formatPreviewComment(null, { strategy: 'standing-pr', standingPrSnapshot: syncSnapshot() });
       expect(result).toContain('v0.24.0 queued (4 packages)');

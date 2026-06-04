@@ -4,7 +4,7 @@ import { formatDuration } from '../duration.js';
 import { MARKER } from '../github.js';
 import type { StandingPRSnapshot } from '../standing-pr/standing-pr.js';
 import type { ReleaseOutput } from '../types.js';
-import { syncVersionDisplay, syncVersionRange } from '../version-display.js';
+import { publishableUpdates, syncVersionDisplay, syncVersionRange } from '../version-display.js';
 import type { MergedRow } from './merge.js';
 
 export type ReleaseStrategy = 'manual' | 'direct' | 'standing-pr';
@@ -332,7 +332,11 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
         // package, just the workspace root version tracking the release.
         const syncListed = syncBumpedOnly.filter((u) => !u.isRoot);
         if (syncListed.length > 0) {
-          lines.push(`**All packages → ${syncListed[0]?.newVersion}** (sync versioning)`, '');
+          // Claim "All packages" only when the list covers every publishable package —
+          // packages with their own changelog entries render above and drop out of this list.
+          const coversAll = syncListed.length === publishableUpdates(versionOutput).length;
+          const heading = coversAll ? 'All packages' : 'Also bumped';
+          lines.push(`**${heading} → ${syncListed[0]?.newVersion}** (sync versioning)`, '');
           for (const u of syncListed) lines.push(`- \`${u.packageName}\``);
           lines.push('');
         }
@@ -364,7 +368,7 @@ function renderStandingPRSnapshot(snapshot: StandingPRSnapshot): string[] {
     // Sync mode emits a single aggregated changelog, so counting changelogs would always say
     // "1 package" — lead with the queued version instead, with the real package count
     // (excluding the root lockstep bump) as detail.
-    const pkgCount = versionOutput.updates.filter((u) => !u.isRoot).length;
+    const pkgCount = publishableUpdates(versionOutput).length;
     const pkgPart = pkgCount > 0 ? ` (${pkgCount} ${pkgCount === 1 ? 'package' : 'packages'})` : '';
     queuedSummary = `${syncVersionDisplay(versionOutput)} queued${pkgPart}`;
   } else {
