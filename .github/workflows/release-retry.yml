@@ -18,12 +18,14 @@ on:
   pull_request:
     types: [labeled]
 
-# Only act on the retry label. Other label events (bump:*, scope:*, etc.) are ignored. The label
-# name is the default `release:retry`; the validation step reads the configured name from
-# releasekit.config.json so a custom label still works, but the cheap fast-path guard below avoids
-# spinning up a runner for unrelated label events.
+# Only act on the retry label. Other label events (bump:*, scope:*, etc.) are ignored. The
+# job-level guard is necessarily hardcoded to the default `release:retry` — workflow `if`
+# expressions can't read releasekit.config.json. If you rename the label via ci.labels.retry,
+# update the guard below to match; the validation step re-checks the configured name as the
+# authoritative source either way.
 permissions:
   actions: write
+  contents: read # checkout of the config file below; an explicit permissions block zeroes everything unlisted
   pull-requests: write
 
 jobs:

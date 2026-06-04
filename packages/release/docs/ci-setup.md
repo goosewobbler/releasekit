@@ -458,7 +458,7 @@ Result: the standing PR is up-to-date by the time the workflow exits — no stal
 
 #### Retrying a failed publish
 
-If a standing-PR publish fails partway through (some packages on the registry, no tags/GitHub release), add the **`release:retry`** label to the **merged** standing PR (configurable via `ci.labels.retry`). The `release-retry.yml` workflow:
+If a standing-PR publish fails partway through (some packages on the registry, no tags/GitHub release), add the **`release:retry`** label to the **merged** standing PR (configurable via `ci.labels.retry` — note the workflow's job-level `if` guard hardcodes the default name, so a renamed label requires updating that guard too). The `release-retry.yml` workflow:
 
 1. Validates the PR is a merged standing PR (head is the configured release branch).
 2. Dispatches the manifest-driven publish in `release.yml` for that PR — idempotent, so it re-publishes only the packages that did not land, then pushes tags and creates GitHub releases.
