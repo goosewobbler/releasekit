@@ -193,7 +193,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Run releasekit
         uses: goosewobbler/releasekit@v1

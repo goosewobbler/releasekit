@@ -147,7 +147,7 @@ Paths are resolved relative to the project root (the directory containing `relea
 
 **Cause:** A short-lived registry or network blip — HTTP 5xx, `ETIMEDOUT`, `ECONNRESET`, `EAI_AGAIN`, or a `429` rate-limit response — interrupted the publish.
 
-**Fix:** No action required when it recovers. releasekit auto-retries transient errors per package up to **2 times** (3 attempts total) with exponential backoff before failing. The attempt count is recorded in the per-package publish result. Permanent errors (auth, missing scope/package, validation) are **not** retried and still fail fast. If the retries are exhausted, the final error shown is the real registry error — check the registry status page, then re-run the release. Re-running is safe: a version that already landed is detected and skipped rather than re-published.
+**Fix:** No action required when it recovers. releasekit auto-retries transient errors per package up to **2 times** (3 attempts total) with exponential backoff before failing. The attempt count is recorded in the per-package publish result. Permanent errors (auth, missing scope/package, validation) are **not** retried and still fail fast. If the retries are exhausted, the final error shown is the real registry error — check the registry status page, then re-run the release. Re-running is safe: a version that already landed is detected and skipped rather than re-published. If the failure left a release partially published, see [Recovering from a failed publish](#recovering-from-a-failed-publish).
 
 ---
 

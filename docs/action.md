@@ -125,7 +125,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: "24"
           registry-url: https://registry.npmjs.org
       - id: rk
         uses: goosewobbler/releasekit@v0
