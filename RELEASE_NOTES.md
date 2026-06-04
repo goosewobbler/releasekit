@@ -1,14 +1,20 @@
-## `monorepo` @ 0.23.0
+
+
+## `monorepo` @ 0.25.0
+
+### New:
+- Release PRs can now be retried by commenting with the release:retry label. (#245)
+- Release PRs now display a report when only some packages fail to publish. (#243)
+- Publish operations now automatically retry on transient registry errors. (#244)
 
 ### Fixed:
+- **Tooling**: Fixed lint-staged to handle unprocessable file paths and process .jsonc files. (#251)
+- Fixed config discovery to properly parse and load .jsonc configuration files. (#247)
+- Added --reconcile flag to bypass skip-pattern guards for standing PRs. (#246)
 
-- Fixed an issue where baseline tags were incorrectly appearing in GitHub Releases.
+### Documentation:
+- Added CLI reference documentation. (#256)
+- Documented .jsonc configuration file support in README.
 
-### Developer:
+**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/0.24.0...0.25.0
 
-- **Code Quality**: Extracted deriveBaselineTagPrefix and displayTag as reusable utilities for version tag handling.
-- **Dependencies**: Updated 3 development dependencies to their latest versions.
-- **Dependencies**: Updated 5 production dependencies to their latest versions.
-- **CI**: Upgraded the Claude Code GitHub Action from v1.0.111 to v1.0.119.
-
-**Full Changelog**: https://github.com/goosewobbler/releasekit/compare/0.22.0...0.23.0
