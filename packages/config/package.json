@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@releasekit/core": "workspace:*",
+    "jsonc-parser": "catalog:",
     "minimatch": "catalog:",
     "smol-toml": "catalog:",
     "zod": "catalog:"

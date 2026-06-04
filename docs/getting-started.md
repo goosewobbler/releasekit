@@ -40,6 +40,8 @@ releasekit init
 
 Or create it manually. The minimal config for a single-package npm project:
 
+> Comments (`//` and `/* … */`) and trailing commas are supported. Name the file `releasekit.config.jsonc` if you want your editor to accept comments without warnings — both filenames are auto-discovered.
+
 ```json
 {
   "$schema": "https://goosewobbler.github.io/releasekit/schema.json",

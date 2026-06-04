@@ -87,6 +87,31 @@ describe('loadConfig', () => {
     expect(result.git?.remote).toBe('origin');
   });
 
+  it('should discover releasekit.config.jsonc when no .json file exists', () => {
+    mockedFs.existsSync.mockImplementation((p) => String(p).endsWith('releasekit.config.jsonc'));
+    mockedFs.readFileSync.mockReturnValue(`{
+      // standing-pr config
+      "$schema": "https://goosewobbler.github.io/releasekit/schema.json",
+      "git": { "pushMethod": "ssh" }
+    }`);
+
+    const result = loadConfig();
+    expect(result.git?.pushMethod).toBe('ssh');
+    expect(mockedFs.existsSync).toHaveBeenCalledWith(expect.stringContaining('releasekit.config.jsonc'));
+  });
+
+  it('should prefer releasekit.config.json over .jsonc when both exist', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockImplementation((p) =>
+      String(p).endsWith('releasekit.config.json')
+        ? JSON.stringify({ git: { remote: 'from-json' } })
+        : JSON.stringify({ git: { remote: 'from-jsonc' } }),
+    );
+
+    const result = loadConfig();
+    expect(result.git?.remote).toBe('from-json');
+  });
+
   it('should substitute environment variables', () => {
     vi.stubEnv('TEST_REMOTE', 'test-origin');
     mockedFs.existsSync.mockReturnValue(true);
