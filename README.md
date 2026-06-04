@@ -9,7 +9,7 @@ Versioning, changelogs, and publishing for JavaScript and Rust monorepos — dri
 
 ## Why ReleaseKit
 
-- **One config, two ecosystems** — JavaScript and Rust packages release from the same `releasekit.config.json` (or `.jsonc` with comments), including mixed monorepos.
+- **One config, two ecosystems** — JavaScript and Rust packages release from the same `releasekit.config.json`, including mixed monorepos.
 - **Composable, not opinionated** — three independent CLIs (`version`, `notes`, `publish`) you can pipe together, or a unified `release` command if you want the full pipeline.
 - **CI-native** — JSON output, OIDC publishing, PR preview comments, and label- or commit-driven triggers without bolting on extra tools.
 
@@ -99,7 +99,7 @@ See [docs/action.md](./docs/action.md) for the `preview` mode, full input/output
 
 ## Configuration
 
-ReleaseKit reads `releasekit.config.json` (or `releasekit.config.jsonc` — comments and trailing commas are supported in both) at the project root. All configuration is optional — sensible defaults apply. A typical config:
+ReleaseKit reads `releasekit.config.json` or `releasekit.config.jsonc` (comments and trailing commas supported) at the project root. All configuration is optional — sensible defaults apply. A typical config:
 
 ```json
 {
@@ -125,7 +125,7 @@ See the [package docs](#documentation) for the full option reference.
 - [Migration](./docs/migration.md) — from semantic-release or changesets
 
 **Reference**
-- [Configuration](./docs/configuration.md) — full config reference (all `releasekit.config.json` / `.jsonc` options)
+- [Configuration](./docs/configuration.md) — full config reference (all `releasekit.config.json` options)
 - [GitHub Action](./docs/action.md) — `goosewobbler/releasekit` action inputs, outputs, and rollout
 - [@releasekit/release](./packages/release/README.md) — unified pipeline, CI automation, programmatic API
 - [@releasekit/version](./packages/version/README.md) — versioning strategies, JSON output
