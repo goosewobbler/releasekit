@@ -91,6 +91,9 @@ export function evaluatePR(
       target,
       stable: false,
       reason: `standing-pr strategy: no ${labelConfig.immediate} label — changes accumulate in the standing release PR`,
+      // Deliberately forced false even when bump/scope labels are present: this field drives
+      // shouldNotifyPR, and a feeder PR's advisory labels are not release intent here. Don't
+      // read it as "has release labels".
       hasReleaseIntent: false,
     };
   }

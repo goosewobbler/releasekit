@@ -403,6 +403,30 @@ describe('Gate', () => {
       expect(result.shouldRelease).toBe(false);
       expect(result.blocked).toBe(true);
     });
+
+    it('should stay neutral for a feeder PR in commit trigger mode', async () => {
+      mockLoadReleaseKitConfig.mockReturnValue(standingPrConfig({ releaseTrigger: 'commit' }));
+      mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
+      mockFetchPRLabels.mockResolvedValue(['enhancement']);
+
+      const result = await runGate();
+
+      // Without the standing-pr guard, commit mode releases every merge — a feeder PR
+      // slipping through here would direct-release on every push.
+      expect(result.shouldRelease).toBe(false);
+      expect(result.reason).toContain('standing release PR');
+      expect(mockPostOrUpdateComment).not.toHaveBeenCalled();
+    });
+
+    it('should release on the immediate label alone in commit trigger mode (no bump label required)', async () => {
+      mockLoadReleaseKitConfig.mockReturnValue(standingPrConfig({ releaseTrigger: 'commit' }));
+      mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
+      mockFetchPRLabels.mockResolvedValue(['release:immediate']);
+
+      const result = await runGate();
+
+      expect(result.shouldRelease).toBe(true);
+    });
   });
 
   it('should return shouldRelease: false with reason when no GitHub context', async () => {
