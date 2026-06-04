@@ -49,14 +49,6 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
   const releaseKitConfig = await loadReleaseKitConfig({ cwd: options.projectDir, configPath: options.config });
   const ciConfig = releaseKitConfig.ci;
 
-  // Strategy guard - gate only works with direct/manual strategies
-  const releaseStrategy = ciConfig?.releaseStrategy ?? 'direct';
-  if (releaseStrategy === 'standing-pr') {
-    throw new Error(
-      "Gate mode is not compatible with releaseStrategy: 'standing-pr'. Use 'releasekit standing-pr update' instead — see docs/ci-setup.md.",
-    );
-  }
-
   // Check GitHub context (sha serves as a proxy for "are we in GitHub Actions?")
   const githubContext = getGitHubContext();
   if (!githubContext?.sha) {
