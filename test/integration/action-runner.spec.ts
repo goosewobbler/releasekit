@@ -8,6 +8,7 @@ import {
   buildPreviewArgs,
   buildReleaseArgs,
   buildReleaseSummary,
+  buildStandingPRPublishArgs,
   parseInputs,
   parseReleaseOutput,
   runAction,
@@ -147,6 +148,40 @@ describe('action runner', () => {
         '--dry-run',
       ]),
     );
+  });
+
+  it('should build standing-pr publish args with --pr', () => {
+    const args = buildStandingPRPublishArgs({
+      config: 'releasekit.config.json',
+      projectDir: '.',
+      npmAuth: 'oidc',
+      pr: '123',
+    });
+
+    expect(args).toEqual(
+      expect.arrayContaining([
+        'standing-pr',
+        'publish',
+        '--json',
+        '--config',
+        'releasekit.config.json',
+        '--project-dir',
+        '.',
+        '--npm-auth',
+        'oidc',
+        '--pr',
+        '123',
+      ]),
+    );
+  });
+
+  it('should omit --pr from standing-pr publish args when not provided', () => {
+    const args = buildStandingPRPublishArgs({
+      projectDir: '.',
+    });
+
+    expect(args).not.toContain('--pr');
+    expect(args).toEqual(expect.arrayContaining(['standing-pr', 'publish', '--json']));
   });
 
   it('should parse action env inputs', () => {

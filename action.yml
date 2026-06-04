@@ -98,7 +98,7 @@ inputs:
     required: false
 
   pr:
-    description: Pull request number (preview mode)
+    description: Pull request number (preview mode; standing-pr-publish mode when not triggered by a pull_request event)
     required: false
   repo:
     description: Repository in owner/repo format (preview mode)

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { StandingPRManifest } from '../../src/standing-pr/standing-pr.js';
 import {
   createReleaseTags,
+  findLatestMergedStandingPR,
   parseManifest,
   publishFromManifest,
   runStandingPRMerge,
@@ -893,6 +894,46 @@ describe('runStandingPRUpdate', () => {
   });
 });
 
+describe('findLatestMergedStandingPR', () => {
+  it('should pick the most recently merged PR even when an older merge was updated more recently', async () => {
+    const { createOctokit } = await import('../../src/github.js');
+    const { octokit, mocks } = createMockOctokit();
+    // List order is the API's 'updated' sort — late activity (a comment, a label) on the
+    // older merged #42 floats it above the newer merge #77.
+    mocks.pullsList.mockResolvedValue({
+      data: [
+        { number: 42, merged_at: '2024-01-01T00:00:00Z' },
+        { number: 80, merged_at: null },
+        { number: 77, merged_at: '2024-01-02T00:00:00Z' },
+      ],
+    });
+
+    const result = await findLatestMergedStandingPR(
+      octokit as unknown as ReturnType<typeof createOctokit>,
+      'owner',
+      'repo',
+      'release/next',
+    );
+
+    expect(result).toBe(77);
+  });
+
+  it('should return null when no closed PR from the branch was merged', async () => {
+    const { createOctokit } = await import('../../src/github.js');
+    const { octokit, mocks } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [{ number: 80, merged_at: null }] });
+
+    const result = await findLatestMergedStandingPR(
+      octokit as unknown as ReturnType<typeof createOctokit>,
+      'owner',
+      'repo',
+      'release/next',
+    );
+
+    expect(result).toBeNull();
+  });
+});
+
 describe('runStandingPRPublish', () => {
   const originalEnv = { ...process.env };
 
@@ -918,8 +959,65 @@ describe('runStandingPRPublish', () => {
     process.env = { ...originalEnv };
   });
 
-  it('should return null when GITHUB_EVENT_PATH is not set', async () => {
+  it('should infer the latest merged standing PR from the API when GITHUB_EVENT_PATH is not set', async () => {
     delete process.env.GITHUB_EVENT_PATH;
+
+    const { createOctokit } = await import('../../src/github.js');
+    const { octokit, mocks } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({
+      data: [
+        { number: 80, merged_at: null },
+        { number: 77, merged_at: '2024-01-02T00:00:00Z' },
+      ],
+    });
+    // No manifest comment on the inferred PR — the publish attempt throwing proves the
+    // inference resolved #77 and proceeded to publishFromManifest.
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await expect(
+      runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/manifest not found/);
+
+    expect(mocks.pullsList).toHaveBeenCalledWith(
+      expect.objectContaining({ head: 'owner:release/next', state: 'closed' }),
+    );
+  });
+
+  it('should fall back to API inference when the event payload has no pull_request (workflow_dispatch)', async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ inputs: {} }));
+
+    const { createOctokit } = await import('../../src/github.js');
+    const { octokit, mocks } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [{ number: 42, merged_at: '2024-01-02T00:00:00Z' }] });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await expect(
+      runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/manifest not found/);
+  });
+
+  it('should return null when API inference finds no merged standing PR', async () => {
+    delete process.env.GITHUB_EVENT_PATH;
+
+    const { createOctokit } = await import('../../src/github.js');
+    const { octokit, mocks } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [{ number: 80, merged_at: null }] });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    const result = await runStandingPRPublish({
+      projectDir: '/test',
+      verbose: false,
+      quiet: false,
+      json: false,
+    });
+
+    expect(result).toBeNull();
+  });
+
+  it('should return null when inference is needed but no GitHub token is available', async () => {
+    delete process.env.GITHUB_EVENT_PATH;
+    delete process.env.GITHUB_TOKEN;
 
     const result = await runStandingPRPublish({
       projectDir: '/test',

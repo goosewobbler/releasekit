@@ -1023,56 +1023,106 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   };
 }
 
+/**
+ * Find the most recently merged PR whose head is the standing release branch.
+ * Inference fallback for dispatch-funnelled publishes — explicit `--pr` is preferred
+ * because a re-run of a stale dispatch can land after a newer standing PR has merged.
+ */
+export async function findLatestMergedStandingPR(
+  octokit: OctokitInstance,
+  owner: string,
+  repo: string,
+  branch: string,
+): Promise<number | null> {
+  const { data: prs } = await octokit.rest.pulls.list({
+    owner,
+    repo,
+    head: `${owner}:${branch}`,
+    state: 'closed',
+    sort: 'updated',
+    direction: 'desc',
+    per_page: 10,
+  });
+
+  // 'updated' ordering only guarantees the newest merge is in the page (merging touches
+  // updated_at) — late activity on an older merged PR (a comment, a label) can sort it
+  // above a newer merge. Pick by merged_at, not list position.
+  const merged = prs
+    .filter((pr) => pr.merged_at != null)
+    .sort((a, b) => new Date(b.merged_at as string).getTime() - new Date(a.merged_at as string).getTime());
+  return merged[0]?.number ?? null;
+}
+
 export async function runStandingPRPublish(
   options: StandingPROptions,
   explicitPrNumber?: number,
 ): Promise<ReleaseOutput | null> {
-  // Push-event path: caller (workflow) detected the standing-PR merge and passed the PR number.
+  // Resolution order: explicit --pr, then the pull_request event payload, then the most
+  // recently merged standing PR via the API. The API fallback covers dispatch-funnelled
+  // workflows (workflow_dispatch has no pull_request payload).
   if (explicitPrNumber !== undefined) {
     return publishFromManifest(explicitPrNumber, options);
   }
 
   const cwd = options.projectDir;
 
-  // Pull-request-event path: parse the event payload to find the merged PR.
-  const eventPath = process.env.GITHUB_EVENT_PATH;
-  if (!eventPath) {
-    error('GITHUB_EVENT_PATH not set and no --pr provided — cannot determine standing PR to publish');
-    return null;
-  }
-
-  let event: { pull_request?: { head?: { ref?: string }; number?: number; merged?: boolean } };
-  try {
-    event = JSON.parse(fs.readFileSync(eventPath, 'utf-8'));
-  } catch (err) {
-    error(`Failed to read GitHub event: ${err instanceof Error ? err.message : String(err)}`);
-    return null;
-  }
-
   const releaseKitConfig = loadReleaseKitConfig({ cwd, configPath: options.config });
   const standingPrConfig = releaseKitConfig.ci?.standingPr;
   const releaseBranch = standingPrConfig?.branch ?? 'release/next';
 
-  const headRef = event.pull_request?.head?.ref;
-  const merged = event.pull_request?.merged;
-  const prNumber = event.pull_request?.number;
+  // Pull-request-event path: parse the event payload to find the merged PR.
+  const eventPath = process.env.GITHUB_EVENT_PATH;
+  let event: { pull_request?: { head?: { ref?: string }; number?: number; merged?: boolean } } | undefined;
+  if (eventPath) {
+    try {
+      event = JSON.parse(fs.readFileSync(eventPath, 'utf-8'));
+    } catch (err) {
+      error(`Failed to read GitHub event: ${err instanceof Error ? err.message : String(err)}`);
+      return null;
+    }
+  }
 
-  if (!headRef || headRef !== releaseBranch) {
-    info(`Skipping: merged PR head ref '${headRef}' does not match release branch '${releaseBranch}'`);
+  if (event?.pull_request) {
+    const headRef = event.pull_request.head?.ref;
+    const merged = event.pull_request.merged;
+    const prNumber = event.pull_request.number;
+
+    if (!headRef || headRef !== releaseBranch) {
+      info(`Skipping: merged PR head ref '${headRef}' does not match release branch '${releaseBranch}'`);
+      return null;
+    }
+
+    if (!merged) {
+      info('Skipping: PR was not merged');
+      return null;
+    }
+
+    if (!prNumber) {
+      error('Could not determine PR number from GitHub event');
+      return null;
+    }
+
+    return publishFromManifest(prNumber, options);
+  }
+
+  // No pull_request context — infer the merged standing PR from the API.
+  const githubContext = getGitHubContext();
+  if (!githubContext?.token) {
+    error('No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available — pass --pr explicitly');
     return null;
   }
 
-  if (!merged) {
-    info('Skipping: PR was not merged');
+  const octokit = createOctokit(githubContext.token);
+  const inferred = await findLatestMergedStandingPR(octokit, githubContext.owner, githubContext.repo, releaseBranch);
+  if (inferred === null) {
+    error(`No merged standing release PR found for branch '${releaseBranch}' — pass --pr explicitly`);
     return null;
   }
 
-  if (!prNumber) {
-    error('Could not determine PR number from GitHub event');
-    return null;
-  }
-
-  return publishFromManifest(prNumber, options);
+  info(
+    `Inferred standing PR #${inferred} (most recently merged '${releaseBranch}' PR) — pass --pr to target a specific PR`,
+  );
+  return publishFromManifest(inferred, options);
 }
 
 export async function runStandingPRMerge(
