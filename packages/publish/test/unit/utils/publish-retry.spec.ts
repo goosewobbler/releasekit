@@ -52,6 +52,18 @@ describe('classifyPublishError', () => {
       // 403 is a status code, but auth failures must not be retried.
       expect(classifyPublishError(new Error('npm ERR! 403 Forbidden - authentication failed'))).toBe('permanent');
     });
+
+    it('does not treat "invalid" inside raw socket errors as permanent', () => {
+      // Node can phrase transient socket failures with the word "invalid" —
+      // these must remain transient or retries would be suppressed.
+      expect(classifyPublishError(new Error('read ECONNRESET, invalid argument'))).toBe('transient');
+      expect(classifyPublishError(new Error('write EPIPE, invalid argument'))).toBe('transient');
+    });
+
+    it('still classifies validation-context "invalid" messages as permanent', () => {
+      expect(classifyPublishError(new Error('npm ERR! Invalid tag name "latest@"'))).toBe('permanent');
+      expect(classifyPublishError(new Error('Invalid version: "1.0.0.0" is not valid semver'))).toBe('permanent');
+    });
   });
 });
 
@@ -99,6 +111,16 @@ describe('withPublishRetry', () => {
 
     expect(fn).toHaveBeenCalledTimes(1);
     expect(noSleep).not.toHaveBeenCalled();
+  });
+
+  it('reports every attempt via onAttempt, including when all attempts fail', async () => {
+    const fn = vi.fn().mockRejectedValue(new Error('ETIMEDOUT'));
+    const onAttempt = vi.fn();
+
+    await expect(withPublishRetry(fn, { ...opts, onAttempt })).rejects.toThrow('ETIMEDOUT');
+
+    // The thrown error carries no count — onAttempt is how callers record it.
+    expect(onAttempt.mock.calls.map(([n]) => n)).toEqual([1, 2, 3]);
   });
 
   it('uses exponential backoff between retries', async () => {

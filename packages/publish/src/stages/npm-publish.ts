@@ -141,7 +141,7 @@ export async function runNpmPublishStage(ctx: PipelineContext): Promise<void> {
         // already-published conflict is detected inside the retried function and
         // surfaced as a non-retryable skip, so a retry of a "publish landed but the
         // response was lost" case resolves as a skip rather than a duplicate publish.
-        const { attempts } = await withPublishRetry(
+        await withPublishRetry(
           async () => {
             const publishResult = await execCommand(pubFile, pubArgs, {
               cwd: pkgDir, // Always publish from the package directory for reliability
@@ -160,10 +160,14 @@ export async function runNpmPublishStage(ctx: PipelineContext): Promise<void> {
             // Never retry an already-published conflict — it is handled as a skip below.
             shouldRetry: (error) =>
               !ALREADY_PUBLISHED_PATTERN.test(getExecErrorOutput(error)) && classifyPublishError(error) === 'transient',
+            // Recorded via callback (not the return value) so the failure paths
+            // below — including exhaustion — still carry the attempt count.
+            onAttempt: (attempt) => {
+              result.attempts = attempt;
+            },
           },
         );
 
-        result.attempts = attempts;
         result.success = true;
         if (!dryRun) {
           success(`Published ${update.packageName}@${update.newVersion} to npm`);

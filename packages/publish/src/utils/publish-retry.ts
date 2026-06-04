@@ -18,7 +18,9 @@ const PERMANENT_PATTERNS: RegExp[] = [
   /unauthorized|forbidden|authentication failed|not authorized/i,
   /\bE404\b|\b404\b|not found/i, // missing package/scope
   /you do not have permission|requires you to be logged in/i,
-  /invalid|validation|malformed|missing required|illegal|ERR! code E\d{3}.*invalid/i,
+  // A bare `invalid` would also match transient socket errors like
+  // "read ECONNRESET, invalid argument" — require a validation-context noun.
+  /\binvalid\b.*(?:package|tag|name|token|scope|field|format|version|semver)|validation|malformed|missing required|illegal|ERR! code E\d{3}.*invalid/i,
 ];
 
 // Transient failures: worth retrying once the registry recovers.
@@ -67,6 +69,12 @@ export interface PublishRetryOptions {
   shouldRetry?: (error: unknown) => boolean;
   /** Label for the package/operation, used in retry log lines. */
   label?: string;
+  /**
+   * Called at the start of every attempt with the attempt number. The thrown
+   * error carries no attempt count, so callers use this to record attempts on
+   * the per-package result even when all attempts fail.
+   */
+  onAttempt?: (attempt: number) => void;
 }
 
 export interface PublishRetryResult<T> {
@@ -99,6 +107,7 @@ export async function withPublishRetry<T>(
   let delay = options.initialDelay;
 
   for (let attempt = 1; attempt <= options.maxAttempts; attempt++) {
+    options.onAttempt?.(attempt);
     try {
       const value = await fn();
       return { value, attempts: attempt };

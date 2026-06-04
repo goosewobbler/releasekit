@@ -375,6 +375,8 @@ describe('npm-publish stage', () => {
       expect(String(error)).toContain('503');
       expect(publishCalls).toBe(3); // initial + 2 retries
       expect(ctx.output.npm[0]?.success).toBe(false);
+      // The failed result still records how many attempts were made.
+      expect(ctx.output.npm[0]?.attempts).toBe(3);
     } finally {
       vi.useRealTimers();
     }
