@@ -99,7 +99,7 @@ See [docs/action.md](./docs/action.md) for the `preview` mode, full input/output
 
 ## Configuration
 
-ReleaseKit reads `releasekit.config.json` at the project root. All configuration is optional — sensible defaults apply. A typical config:
+ReleaseKit reads `releasekit.config.json` or `releasekit.config.jsonc` (comments and trailing commas supported) at the project root. All configuration is optional — sensible defaults apply. A typical config:
 
 ```json
 {
