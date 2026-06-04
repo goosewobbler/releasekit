@@ -64,7 +64,7 @@ describe('formatDuration', () => {
     expect(formatDuration(30_000)).toBe('30s');
   });
 
-  it('rounds up partial seconds', () => {
+  it('should round up partial seconds', () => {
     expect(formatDuration(500)).toBe('1s');
   });
 });

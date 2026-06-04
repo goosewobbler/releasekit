@@ -263,7 +263,7 @@ describe('Pipeline: skipReleaseNotes / skipChangelogs flags', () => {
     vi.mocked(fs.writeFileSync).mockReturnValue(undefined);
   });
 
-  it('skipReleaseNotes:true should not write RELEASE_NOTES.md and should not invoke the LLM', async () => {
+  it('should not write RELEASE_NOTES.md and should not invoke the LLM when skipReleaseNotes:true', async () => {
     const { createProvider } = await import('../../src/llm/index.js');
     vi.mocked(createProvider).mockClear();
 
@@ -284,7 +284,7 @@ describe('Pipeline: skipReleaseNotes / skipChangelogs flags', () => {
     expect(result.releaseNotes).toBeUndefined();
   });
 
-  it('skipChangelogs:true should skip CHANGELOG.md but still write RELEASE_NOTES.md', async () => {
+  it('should skip CHANGELOG.md but still write RELEASE_NOTES.md when skipChangelogs:true', async () => {
     const { createProvider } = await import('../../src/llm/index.js');
     vi.mocked(createProvider).mockClear();
 
@@ -299,7 +299,7 @@ describe('Pipeline: skipReleaseNotes / skipChangelogs flags', () => {
     expect(result.files).toContain('RELEASE_NOTES.md');
   });
 
-  it('both flags omitted preserves existing behaviour (changelog + release notes both written)', async () => {
+  it('should preserve existing behaviour with both flags omitted (changelog + release notes both written)', async () => {
     const { runPipeline } = await import('../../src/core/pipeline.js');
     const config: Config = {
       changelog: { mode: 'root', file: 'CHANGELOG.md' },

@@ -78,7 +78,7 @@ const versionOutput = versionOutputFor([
 ]);
 
 describe('postFailureReport', () => {
-  it('creates a new marker comment when none exists', async () => {
+  it('should create a new marker comment when none exists', async () => {
     const { octokit, createComment } = mockOctokit([]);
     await postFailureReport(
       { octokit, owner: 'o', repo: 'r', mode: 'standing-pr', prNumber: 42, standingPrNumber: 42 },
@@ -91,7 +91,7 @@ describe('postFailureReport', () => {
     expect(body).toContain('1/2 package(s) published');
   });
 
-  it('updates the existing report on a repeated failure (idempotent — does not stack)', async () => {
+  it('should update the existing report on a repeated failure (idempotent — does not stack)', async () => {
     const existing = renderFailureReport({
       versionOutput,
       publishOutput: publishOutputFor([]),
@@ -110,7 +110,7 @@ describe('postFailureReport', () => {
     expect(updateComment.mock.calls[0]?.[0]?.comment_id).toBe(7);
   });
 
-  it('writes to the step summary when no PR is available (manual dispatch)', async () => {
+  it('should write to the step summary when no PR is available (manual dispatch)', async () => {
     const tmp = `${process.env.RUNNER_TEMP ?? '/tmp'}/rk-step-summary-${Date.now()}.md`;
     const fs = await import('node:fs');
     process.env.GITHUB_STEP_SUMMARY = tmp;
@@ -134,7 +134,7 @@ describe('postFailureReport', () => {
 });
 
 describe('resolveFailureReportIfPresent', () => {
-  it('flips an existing report to resolved', async () => {
+  it('should flip an existing report to resolved', async () => {
     const existing = renderFailureReport({
       versionOutput,
       publishOutput: publishOutputFor([]),
@@ -149,7 +149,7 @@ describe('resolveFailureReportIfPresent', () => {
     expect(body).toContain('recovered');
   });
 
-  it('is a no-op when there is no existing report', async () => {
+  it('should be a no-op when there is no existing report', async () => {
     const { octokit, updateComment, createComment } = mockOctokit([]);
     await resolveFailureReportIfPresent(octokit, 'o', 'r', 42, versionOutput);
     expect(updateComment).not.toHaveBeenCalled();
@@ -158,7 +158,7 @@ describe('resolveFailureReportIfPresent', () => {
 });
 
 describe('detectUnresolvedFailure', () => {
-  it('detects an unresolved failure and recovers the headline numbers', async () => {
+  it('should detect an unresolved failure and recover the headline numbers', async () => {
     const report = renderFailureReport({
       versionOutput,
       publishOutput: publishOutputFor([
@@ -181,13 +181,13 @@ describe('detectUnresolvedFailure', () => {
     expect(result).toEqual({ previousLabel: 'v0.24.0', published: 1, total: 2, prNumber: 42 });
   });
 
-  it('returns null once the report is resolved', async () => {
+  it('should return null once the report is resolved', async () => {
     const resolved = renderResolvedReport(versionOutput);
     const { octokit } = mockOctokit([{ id: 9, body: resolved }]);
     expect(await detectUnresolvedFailure(octokit, 'o', 'r', 42)).toBeNull();
   });
 
-  it('returns null when there is no failure report', async () => {
+  it('should return null when there is no failure report', async () => {
     const { octokit } = mockOctokit([{ id: 1, body: 'unrelated comment' }]);
     expect(await detectUnresolvedFailure(octokit, 'o', 'r', 42)).toBeNull();
   });
@@ -202,7 +202,7 @@ describe('detectUnresolvedFailure env hygiene', () => {
     if (savedSummary === undefined) delete process.env.GITHUB_STEP_SUMMARY;
     else process.env.GITHUB_STEP_SUMMARY = savedSummary;
   });
-  it('placeholder to anchor the env reset hooks', () => {
+  it('should act as a placeholder to anchor the env reset hooks', () => {
     expect(true).toBe(true);
   });
 });

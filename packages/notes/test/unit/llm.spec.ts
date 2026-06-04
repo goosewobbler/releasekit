@@ -690,7 +690,7 @@ describe('capabilities: schema options gating', () => {
     };
   }
 
-  it('passes schema and toolName to enhanceAndCategorize when structuredOutputs is true', async () => {
+  it('should pass schema and toolName to enhanceAndCategorize when structuredOutputs is true', async () => {
     let captured: CompleteOptions | undefined;
     const provider = makeCapabilityProvider(true, threeEntryResponse, (o) => (captured = o));
     await enhanceAndCategorize(provider, sampleEntries, llmContext);
@@ -698,14 +698,14 @@ describe('capabilities: schema options gating', () => {
     expect(captured?.toolName).toBe('emit_release_notes');
   });
 
-  it('omits schema options from enhanceAndCategorize when structuredOutputs is false', async () => {
+  it('should omit schema options from enhanceAndCategorize when structuredOutputs is false', async () => {
     let captured: CompleteOptions | undefined;
     const provider = makeCapabilityProvider(false, threeEntryResponse, (o) => (captured = o));
     await enhanceAndCategorize(provider, sampleEntries, llmContext);
     expect(captured).toBeUndefined();
   });
 
-  it('passes schema and toolName to categorizeEntries when structuredOutputs is true', async () => {
+  it('should pass schema and toolName to categorizeEntries when structuredOutputs is true', async () => {
     let captured: CompleteOptions | undefined;
     const provider = makeCapabilityProvider(true, threeEntryCategorizeResponse, (o) => (captured = o));
     await categorizeEntries(provider, sampleEntries, llmContext);
@@ -713,7 +713,7 @@ describe('capabilities: schema options gating', () => {
     expect(captured?.toolName).toBe('categorize_entries');
   });
 
-  it('omits schema options from categorizeEntries when structuredOutputs is false', async () => {
+  it('should omit schema options from categorizeEntries when structuredOutputs is false', async () => {
     let captured: CompleteOptions | undefined;
     const provider = makeCapabilityProvider(false, threeEntryCategorizeResponse, (o) => (captured = o));
     await categorizeEntries(provider, sampleEntries, llmContext);

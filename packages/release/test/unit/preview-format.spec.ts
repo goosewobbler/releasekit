@@ -1047,7 +1047,7 @@ describe('formatPreviewComment', () => {
       '',
     ];
 
-    it('renders the warning above the standing PR snapshot when present', () => {
+    it('should render the warning above the standing PR snapshot when present', () => {
       const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
       const result = formatPreviewComment(releaseOutput, {
         strategy: 'standing-pr',
@@ -1060,7 +1060,7 @@ describe('formatPreviewComment', () => {
       expect(result.indexOf('partially published')).toBeLessThan(result.indexOf('**Standing release PR:**'));
     });
 
-    it('omits the warning when none is supplied (failure cleared / never occurred)', () => {
+    it('should omit the warning when none is supplied (failure cleared / never occurred)', () => {
       const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
       const result = formatPreviewComment(releaseOutput, {
         strategy: 'standing-pr',
@@ -1069,7 +1069,7 @@ describe('formatPreviewComment', () => {
       expect(result).not.toContain('partially published');
     });
 
-    it('suppresses the warning outside standing-pr strategy (defensive)', () => {
+    it('should suppress the warning outside standing-pr strategy (defensive)', () => {
       const result = formatPreviewComment(releaseOutput, {
         strategy: 'direct',
         supersedeWarning: warning,

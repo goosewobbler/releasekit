@@ -16,11 +16,11 @@ describe('classifyPublishError', () => {
       ['socket hang up', 'request to crates.io failed: socket hang up'],
     ];
 
-    it.each(transient)('classifies %s as transient', (_label, message) => {
+    it.each(transient)('should classify %s as transient', (_label, message) => {
       expect(classifyPublishError(new Error(message))).toBe('transient');
     });
 
-    it('reads stdout/stderr from exec-style errors', () => {
+    it('should read stdout/stderr from exec-style errors', () => {
       const error = Object.assign(new Error('Command failed: npm publish'), {
         stdout: '',
         stderr: 'npm ERR! 503 Service Unavailable',
@@ -40,27 +40,27 @@ describe('classifyPublishError', () => {
       ['validation', 'npm ERR! Invalid package name'],
     ];
 
-    it.each(permanent)('classifies %s as permanent', (_label, message) => {
+    it.each(permanent)('should classify %s as permanent', (_label, message) => {
       expect(classifyPublishError(new Error(message))).toBe('permanent');
     });
 
-    it('treats unknown errors as permanent (fail-fast default)', () => {
+    it('should treat unknown errors as permanent (fail-fast default)', () => {
       expect(classifyPublishError(new Error('failed to verify package tarball'))).toBe('permanent');
     });
 
-    it('prefers permanent when an auth error also mentions a status code', () => {
+    it('should prefer permanent when an auth error also mentions a status code', () => {
       // 403 is a status code, but auth failures must not be retried.
       expect(classifyPublishError(new Error('npm ERR! 403 Forbidden - authentication failed'))).toBe('permanent');
     });
 
-    it('does not treat "invalid" inside raw socket errors as permanent', () => {
+    it('should not treat "invalid" inside raw socket errors as permanent', () => {
       // Node can phrase transient socket failures with the word "invalid" —
       // these must remain transient or retries would be suppressed.
       expect(classifyPublishError(new Error('read ECONNRESET, invalid argument'))).toBe('transient');
       expect(classifyPublishError(new Error('write EPIPE, invalid argument'))).toBe('transient');
     });
 
-    it('still classifies validation-context "invalid" messages as permanent', () => {
+    it('should still classify validation-context "invalid" messages as permanent', () => {
       expect(classifyPublishError(new Error('npm ERR! Invalid tag name "latest@"'))).toBe('permanent');
       expect(classifyPublishError(new Error('Invalid version: "1.0.0.0" is not valid semver'))).toBe('permanent');
     });
@@ -75,7 +75,7 @@ describe('withPublishRetry', () => {
     noSleep.mockClear();
   });
 
-  it('returns the result and attempts=1 on first success', async () => {
+  it('should return the result and attempts=1 on first success', async () => {
     const fn = vi.fn().mockResolvedValue('ok');
 
     const result = await withPublishRetry(fn, opts);
@@ -85,7 +85,7 @@ describe('withPublishRetry', () => {
     expect(noSleep).not.toHaveBeenCalled();
   });
 
-  it('retries a transient failure and succeeds, reporting attempt count', async () => {
+  it('should retry a transient failure and succeed, reporting attempt count', async () => {
     const fn = vi.fn().mockRejectedValueOnce(new Error('503 Service Unavailable')).mockResolvedValue('recovered');
 
     const result = await withPublishRetry(fn, opts);
@@ -94,7 +94,7 @@ describe('withPublishRetry', () => {
     expect(fn).toHaveBeenCalledTimes(2);
   });
 
-  it('exhausts retries on persistent transient failure and rethrows the real error', async () => {
+  it('should exhaust retries on persistent transient failure and rethrow the real error', async () => {
     const realError = new Error('ETIMEDOUT');
     const fn = vi.fn().mockRejectedValue(realError);
 
@@ -104,7 +104,7 @@ describe('withPublishRetry', () => {
     expect(fn).toHaveBeenCalledTimes(6);
   });
 
-  it('does not retry a permanent failure (fail-fast, zero retries)', async () => {
+  it('should not retry a permanent failure (fail-fast, zero retries)', async () => {
     const fn = vi.fn().mockRejectedValue(new Error('npm ERR! code ENEEDAUTH'));
 
     await expect(withPublishRetry(fn, opts)).rejects.toThrow('ENEEDAUTH');
@@ -113,7 +113,7 @@ describe('withPublishRetry', () => {
     expect(noSleep).not.toHaveBeenCalled();
   });
 
-  it('reports every attempt via onAttempt, including when all attempts fail', async () => {
+  it('should report every attempt via onAttempt, including when all attempts fail', async () => {
     const fn = vi.fn().mockRejectedValue(new Error('ETIMEDOUT'));
     const onAttempt = vi.fn();
 
@@ -123,7 +123,7 @@ describe('withPublishRetry', () => {
     expect(onAttempt.mock.calls.map(([n]) => n)).toEqual([1, 2, 3]);
   });
 
-  it('uses exponential backoff between retries', async () => {
+  it('should use exponential backoff between retries', async () => {
     const sleep = vi.fn().mockResolvedValue(undefined);
     const fn = vi.fn().mockRejectedValue(new Error('ECONNRESET'));
 
@@ -133,7 +133,7 @@ describe('withPublishRetry', () => {
     expect(sleep.mock.calls).toEqual([[1000], [2000]]);
   });
 
-  it('honours a custom shouldRetry predicate', async () => {
+  it('should honour a custom shouldRetry predicate', async () => {
     const fn = vi.fn().mockRejectedValue(new Error('503 Service Unavailable'));
     const shouldRetry = vi.fn().mockReturnValue(false);
 

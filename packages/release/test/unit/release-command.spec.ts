@@ -105,7 +105,7 @@ describe('createReleaseCommand', () => {
       ['--skip-git', 'skipGit'],
       ['--skip-github-release', 'skipGithubRelease'],
       ['--skip-verification', 'skipVerification'],
-    ] as const)('%s sets %s: true', async (flag, key) => {
+    ] as const)('should make %s set %s: true', async (flag, key) => {
       await createReleaseCommand().parseAsync(['node', 'test', flag]);
       expect(capturedOptions()[key]).toBe(true);
     });

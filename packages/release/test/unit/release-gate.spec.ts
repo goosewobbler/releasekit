@@ -141,7 +141,7 @@ describe('evaluatePR — commit mode', () => {
     expect(result.shouldRelease).toBe(true);
   });
 
-  it('blocks on channel:stable + channel:prerelease conflict in commit mode', () => {
+  it('should block on channel:stable + channel:prerelease conflict in commit mode', () => {
     const result = evaluatePR(1, ['channel:stable', 'channel:prerelease'], DEFAULT_LABELS, commitMode);
     expect(result.blocked).toBe(true);
   });

@@ -300,7 +300,7 @@ describe('loadCIConfig', () => {
     vi.clearAllMocks();
   });
 
-  it('returns CI config from loaded config', () => {
+  it('should return CI config from loaded config', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(
       JSON.stringify({
@@ -313,7 +313,7 @@ describe('loadCIConfig', () => {
     expect(result?.autoRelease).toBe(true);
   });
 
-  it('returns undefined when no CI config', () => {
+  it('should return undefined when no CI config', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue('{}');
 
