@@ -141,7 +141,7 @@ describe('Package Management Module', () => {
         `Updated package.json at ${mockPackagePath} to version ${newVersion}`,
         'success',
       );
-      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', newVersion, mockPackagePath);
+      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', newVersion, mockPackagePath, false);
     });
 
     it('should not write to disk when dryRun is true', () => {
@@ -159,7 +159,7 @@ describe('Package Management Module', () => {
       );
 
       // Should still track the update and log
-      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', newVersion, mockPackagePath);
+      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', newVersion, mockPackagePath, false);
       expect(logging.log).toHaveBeenCalledWith(
         `[DRY RUN] Would update package.json at ${mockPackagePath} to version ${newVersion}`,
         'success',
@@ -175,7 +175,7 @@ describe('Package Management Module', () => {
         mockPackagePath,
         `${JSON.stringify({ ...mockPackageContent, version: newVersion }, null, 2)}\n`,
       );
-      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', newVersion, mockPackagePath);
+      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', newVersion, mockPackagePath, false);
     });
 
     it('should handle errors when updating package version', () => {

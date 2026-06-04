@@ -18,6 +18,7 @@ const _pendingWrites: Array<{ path: string; content: string }> = [];
 // Store collected information for JSON output
 const _jsonData: VersionOutput = {
   dryRun: false,
+  strategy: undefined,
   updates: [],
   changelogs: [],
   sharedEntries: undefined,
@@ -32,6 +33,7 @@ const _jsonData: VersionOutput = {
 export function enableJsonOutput(dryRun = false): void {
   _jsonOutputMode = true;
   _jsonData.dryRun = dryRun;
+  _jsonData.strategy = undefined;
   _jsonData.updates = [];
   _jsonData.changelogs = [];
   _jsonData.sharedEntries = undefined;
@@ -78,15 +80,26 @@ export function isJsonOutputMode(): boolean {
 }
 
 /**
- * Add a package update to the JSON output
+ * Record which versioning strategy is producing this output so consumers
+ * (preview, standing PR) can render sync releases as a single versioned unit.
  */
-export function addPackageUpdate(packageName: string, newVersion: string, filePath: string): void {
+export function setVersioningStrategy(strategy: 'sync' | 'single' | 'async'): void {
+  if (!_jsonOutputMode) return;
+  _jsonData.strategy = strategy;
+}
+
+/**
+ * Add a package update to the JSON output
+ * @param isRoot True when this is the workspace-root package.json bumped in lockstep (sync mode)
+ */
+export function addPackageUpdate(packageName: string, newVersion: string, filePath: string, isRoot?: boolean): void {
   if (!_jsonOutputMode) return;
 
   _jsonData.updates.push({
     packageName,
     newVersion,
     filePath,
+    ...(isRoot ? { isRoot } : {}),
   });
 }
 

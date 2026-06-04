@@ -545,7 +545,8 @@ describe('CIConfigSchema', () => {
   it('should apply standingPr defaults when provided as empty object', () => {
     const result = CIConfigSchema.parse({ standingPr: {} });
     expect(result.standingPr?.branch).toBe('release/next');
-    expect(result.standingPr?.title).toBe('chore: release ${count} package(s)');
+    // No schema default — the title default is strategy-dependent, resolved at use site
+    expect(result.standingPr?.title).toBeUndefined();
     expect(result.standingPr?.labels).toEqual(['release']);
     expect(result.standingPr?.deleteBranchOnMerge).toBe(true);
   });

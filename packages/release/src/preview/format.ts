@@ -4,6 +4,7 @@ import { formatDuration } from '../duration.js';
 import { MARKER } from '../github.js';
 import type { StandingPRSnapshot } from '../standing-pr/standing-pr.js';
 import type { ReleaseOutput } from '../types.js';
+import { syncVersionDisplay, syncVersionRange } from '../version-display.js';
 import type { MergedRow } from './merge.js';
 
 export type ReleaseStrategy = 'manual' | 'direct' | 'standing-pr';
@@ -276,11 +277,19 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
   }
 
   const { versionOutput } = result;
+  const isSync = versionOutput.strategy === 'sync';
   const pkgCount = versionOutput.updates.length;
-  const pkgSummary =
-    pkgCount === 1
-      ? `${versionOutput.updates[0]?.packageName} ${versionOutput.updates[0]?.newVersion}`
-      : `${pkgCount} packages`;
+  // Sync releases move as one unit — lead with the version range rather than a package
+  // count (which would misleadingly include the root lockstep bump).
+  let pkgSummary: string;
+  if (isSync) {
+    pkgSummary = syncVersionRange(versionOutput);
+  } else {
+    pkgSummary =
+      pkgCount === 1
+        ? `${versionOutput.updates[0]?.packageName} ${versionOutput.updates[0]?.newVersion}`
+        : `${pkgCount} packages`;
+  }
 
   lines.push('<details>', `<summary><b>Release Preview</b> — ${pkgSummary}</summary>`, '');
   lines.push(...banner);
@@ -317,10 +326,22 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
 
     // List sync-bumped packages that have no individual commits so they aren't invisible
     if (syncBumpedOnly.length > 0) {
-      if (hasPackageChangelogs || sharedEntries) lines.push('**Also bumped** (sync versioning)', '');
-      else lines.push('**Bumped** (sync versioning — no individual changes)', '');
-      for (const u of syncBumpedOnly) lines.push(`- \`${u.packageName}\` → ${u.newVersion}`);
-      lines.push('');
+      if (isSync) {
+        // Sync mode: every package moves to the same version — say that once in the heading
+        // and list bare names. The root lockstep bump is excluded: it isn't a publishable
+        // package, just the workspace root version tracking the release.
+        const syncListed = syncBumpedOnly.filter((u) => !u.isRoot);
+        if (syncListed.length > 0) {
+          lines.push(`**All packages → ${syncListed[0]?.newVersion}** (sync versioning)`, '');
+          for (const u of syncListed) lines.push(`- \`${u.packageName}\``);
+          lines.push('');
+        }
+      } else {
+        if (hasPackageChangelogs || sharedEntries) lines.push('**Also bumped** (sync versioning)', '');
+        else lines.push('**Bumped** (sync versioning — no individual changes)', '');
+        for (const u of syncBumpedOnly) lines.push(`- \`${u.packageName}\` → ${u.newVersion}`);
+        lines.push('');
+      }
     }
   }
 
@@ -333,15 +354,28 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
 }
 
 function renderStandingPRSnapshot(snapshot: StandingPRSnapshot): string[] {
-  const pkgCount = snapshot.manifest.versionOutput.changelogs.filter(
-    (cl) => cl.entries.length > 0 || cl.version !== cl.previousVersion,
-  ).length;
+  const versionOutput = snapshot.manifest.versionOutput;
   const gateBadge = snapshot.gateState === 'pending' ? `⏳ ${snapshot.gateReason ?? 'pending'}` : '✅ ready to merge';
   const ageMs = Math.max(0, Date.now() - new Date(snapshot.openedAt).getTime());
   const ageStr = formatDuration(ageMs);
-  const pkgWord = pkgCount === 1 ? 'package' : 'packages';
+
+  let queuedSummary: string;
+  if (versionOutput.strategy === 'sync') {
+    // Sync mode emits a single aggregated changelog, so counting changelogs would always say
+    // "1 package" — lead with the queued version instead, with the real package count
+    // (excluding the root lockstep bump) as detail.
+    const pkgCount = versionOutput.updates.filter((u) => !u.isRoot).length;
+    const pkgPart = pkgCount > 0 ? ` (${pkgCount} ${pkgCount === 1 ? 'package' : 'packages'})` : '';
+    queuedSummary = `${syncVersionDisplay(versionOutput)} queued${pkgPart}`;
+  } else {
+    const pkgCount = versionOutput.changelogs.filter(
+      (cl) => cl.entries.length > 0 || cl.version !== cl.previousVersion,
+    ).length;
+    queuedSummary = `${pkgCount} ${pkgCount === 1 ? 'package' : 'packages'} queued`;
+  }
+
   return [
-    `**Standing release PR:** [#${snapshot.number}](${snapshot.url}) · ${pkgCount} ${pkgWord} queued · open ${ageStr} · ${gateBadge}`,
+    `**Standing release PR:** [#${snapshot.number}](${snapshot.url}) · ${queuedSummary} · open ${ageStr} · ${gateBadge}`,
     '',
   ];
 }

@@ -209,7 +209,7 @@ describe('Version Strategies', () => {
       );
 
       // Check root package update
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined);
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined, true);
 
       // Check workspace packages update
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0', undefined);
@@ -254,7 +254,7 @@ describe('Version Strategies', () => {
       );
 
       // Still updates all packages
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined);
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined, true);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0', undefined);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageBPath, '1.1.0', undefined);
     });
@@ -487,7 +487,7 @@ describe('Version Strategies', () => {
       await syncStrategy(mockPackages);
 
       // Verify package-b was skipped
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined);
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined, true);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0', undefined);
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(packageBPath, '1.1.0', undefined);
     });

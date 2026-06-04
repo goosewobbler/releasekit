@@ -35,6 +35,12 @@ export interface VersionPackageChangelog {
  */
 export interface VersionOutput {
   dryRun: boolean;
+  /**
+   * Which versioning strategy produced this output. Lets consumers (preview, standing PR)
+   * render sync releases as a single versioned unit instead of a package count. Optional
+   * for backwards compatibility with manifests produced before this field existed.
+   */
+  strategy?: 'sync' | 'single' | 'async';
   updates: VersionPackageUpdate[];
   changelogs: VersionPackageChangelog[];
   /**
@@ -63,4 +69,10 @@ export interface VersionPackageUpdate {
   filePath: string;
   /** Per-package git tag. Set only when each package has its own tag (async mode or sync+packageSpecificTags). Absent in sync mode with a single shared tag. */
   tag?: string;
+  /**
+   * True when this update is the workspace-root package.json, bumped only to keep the root
+   * version in lockstep (sync mode). Root updates are not publishable packages — consumers
+   * should exclude them from package counts and package lists.
+   */
+  isRoot?: boolean;
 }

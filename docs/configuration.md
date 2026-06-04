@@ -71,8 +71,8 @@ Array of objects with the following properties:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `pattern` | string | — | |
-| `releaseType` | `"major"` \| `"minor"` \| `"patch"` \| `"prerelease"` | — | |
+| `pattern` | string | — |  |
+| `releaseType` | `"major"` \| `"minor"` \| `"patch"` \| `"prerelease"` | — |  |
 
 ### `version.cargo`
 
@@ -246,9 +246,9 @@ Array of category objects used for commit categorization. Each item has:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `name` | string | — | |
-| `description` | string | — | |
-| `scopes` | `string[]` | — | |
+| `name` | string | — |  |
+| `description` | string | — |  |
+| `scopes` | `string[]` | — |  |
 
 #### `notes.releaseNotes.llm.scopes`
 
@@ -256,16 +256,16 @@ Scope validation configuration.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `mode` | `"restricted"` \| `"packages"` \| `"none"` \| `"unrestricted"` | `"unrestricted"` | |
+| `mode` | `"restricted"` \| `"packages"` \| `"none"` \| `"unrestricted"` | `"unrestricted"` |  |
 
 **`notes.releaseNotes.llm.scopes.rules`**
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `allowed` | `string[]` | — | |
-| `caseSensitive` | boolean | `false` | |
-| `invalidScopeAction` | `"remove"` \| `"keep"` \| `"fallback"` | `"remove"` | |
-| `fallbackScope` | string | — | |
+| `allowed` | `string[]` | — |  |
+| `caseSensitive` | boolean | `false` |  |
+| `invalidScopeAction` | `"remove"` \| `"keep"` \| `"fallback"` | `"remove"` |  |
+| `fallbackScope` | string | — |  |
 
 #### `notes.releaseNotes.llm.retry`
 
@@ -324,7 +324,7 @@ Configuration for the standing release PR feature (ci.releaseStrategy: 'standing
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `branch` | string | `"release/next"` | Branch name for the standing release PR. |
-| `title` | string | `"chore: release ${count} package(s)"` | PR title template. Variables: ${count} (package count), ${version} (for single-package repos). Must start with 'chore: release' to match the default skip pattern on squash merge. |
+| `title` | string | — | PR title template. Variables: ${count} (publishable package count), ${version} (raw version), ${tag} (version with tag prefix). Must start with 'chore: release' to match the default skip pattern on squash merge. Default depends on the versioning strategy: 'chore: release ${tag}' in sync mode, 'chore: release ${count} package(s)' otherwise. |
 | `labels` | `string[]` | `["release"]` | Labels to apply to the standing release PR. |
 | `deleteBranchOnMerge` | boolean | `true` | Whether to auto-delete the release branch after the PR is merged. |
 | `mergeMethod` | `"merge"` \| `"squash"` \| `"rebase"` | `"merge"` | Merge method to use when merging the standing release PR via CLI. |

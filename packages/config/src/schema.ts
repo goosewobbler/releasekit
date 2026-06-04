@@ -324,9 +324,14 @@ export const CILabelsConfigSchema = z.object({
 export const StandingPrConfigSchema = z.object({
   /** Branch name for the release PR. Default: 'release/next' */
   branch: z.string().default('release/next'),
-  /** Title template for the release PR. Variables: ${count}, ${version}. Must start with 'chore: release' to match default skip pattern on merge. */
-  /* biome-ignore lint/suspicious/noTemplateCurlyInString: default template value */
-  title: z.string().default('chore: release ${count} package(s)'),
+  /**
+   * Title template for the release PR. Variables: ${count} (publishable package count),
+   * ${version} (raw version), ${tag} (version with tag prefix). Must start with 'chore: release'
+   * to match default skip pattern on merge. When unset, the default depends on the versioning
+   * strategy: 'chore: release ${tag}' in sync mode (the repo releases as one versioned unit),
+   * 'chore: release ${count} package(s)' otherwise.
+   */
+  title: z.string().optional(),
   /** Labels to apply to the standing release PR */
   labels: z.array(z.string()).default(['release']),
   /** Whether to auto-delete the release branch after PR merge. Default: true */
