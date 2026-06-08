@@ -6,10 +6,14 @@ vi.mock('@releasekit/core');
 vi.mock('@releasekit/notes', () => ({
   detectMonorepo: vi.fn(),
 }));
+vi.mock('../../src/commands/labels-command.js', () => ({
+  runLabelsSync: vi.fn(),
+}));
 
-import { EXIT_CODES } from '@releasekit/core';
+import { EXIT_CODES, info } from '@releasekit/core';
 import { detectMonorepo } from '@releasekit/notes';
 import { createInitCommand } from '../../src/commands/init-command.js';
+import { runLabelsSync } from '../../src/commands/labels-command.js';
 
 function parseInit(args: string[] = []) {
   return createInitCommand().parseAsync(['node', 'init', ...args]);
@@ -121,6 +125,53 @@ describe('createInitCommand', () => {
       await parseInit(['--force']);
 
       expect(vi.mocked(fs.writeFileSync)).toHaveBeenCalled();
+    });
+  });
+
+  describe('next steps', () => {
+    it('should print a next-steps epilogue mentioning labels sync', async () => {
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      vi.mocked(fs.readFileSync).mockReturnValue('{"name":"my-pkg"}' as never);
+      vi.mocked(fs.writeFileSync).mockImplementation(() => undefined);
+      vi.mocked(detectMonorepo).mockReturnValue({ isMonorepo: false, packagesPath: '' });
+
+      await parseInit();
+
+      const printed = vi
+        .mocked(info)
+        .mock.calls.map((c) => String(c[0]))
+        .join('\n');
+      expect(printed).toMatch(/labels sync/);
+      expect(printed).toMatch(/--dry-run/);
+      expect(vi.mocked(runLabelsSync)).not.toHaveBeenCalled();
+    });
+
+    it('should run labels sync when --labels is passed', async () => {
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      vi.mocked(fs.readFileSync).mockReturnValue('{"name":"my-pkg"}' as never);
+      vi.mocked(fs.writeFileSync).mockImplementation(() => undefined);
+      vi.mocked(detectMonorepo).mockReturnValue({ isMonorepo: false, packagesPath: '' });
+      vi.mocked(runLabelsSync).mockResolvedValue(undefined);
+
+      await parseInit(['--labels']);
+
+      expect(vi.mocked(runLabelsSync)).toHaveBeenCalled();
+    });
+
+    it('should fall back to the epilogue when --labels sync fails', async () => {
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      vi.mocked(fs.readFileSync).mockReturnValue('{"name":"my-pkg"}' as never);
+      vi.mocked(fs.writeFileSync).mockImplementation(() => undefined);
+      vi.mocked(detectMonorepo).mockReturnValue({ isMonorepo: false, packagesPath: '' });
+      vi.mocked(runLabelsSync).mockRejectedValue(new Error('no token'));
+
+      await parseInit(['--labels']);
+
+      const printed = vi
+        .mocked(info)
+        .mock.calls.map((c) => String(c[0]))
+        .join('\n');
+      expect(printed).toMatch(/labels sync/);
     });
   });
 });

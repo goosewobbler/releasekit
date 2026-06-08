@@ -53,6 +53,18 @@ describe('createDispatcherProgram', () => {
     expect(cmd).toBeDefined();
   });
 
+  it('should register the labels command', () => {
+    const program = createDispatcherProgram();
+    const cmd = program.commands.find((c) => c.name() === 'labels');
+    expect(cmd).toBeDefined();
+  });
+
+  it('should register the init command', () => {
+    const program = createDispatcherProgram();
+    const cmd = program.commands.find((c) => c.name() === 'init');
+    expect(cmd).toBeDefined();
+  });
+
   it('should have preview as the default command', () => {
     const program = createDispatcherProgram();
     expect((program as unknown as { _defaultCommandName: string })._defaultCommandName).toBe('preview');
