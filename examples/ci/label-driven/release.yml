@@ -43,6 +43,12 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # setup-node's registry-url writes a .npmrc with `_authToken=${NODE_AUTH_TOKEN}`.
+      # With OIDC that var is empty, so npm fails ENEEDAUTH instead of the OIDC exchange.
+      # Remove it before publishing. (Drop this step if you publish with NODE_AUTH_TOKEN.)
+      - name: Remove token-based .npmrc so OIDC can take over
+        run: rm -f .npmrc
+
       - run: pnpm exec releasekit release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
