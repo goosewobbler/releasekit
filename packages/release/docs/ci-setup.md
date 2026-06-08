@@ -36,9 +36,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: pnpm/action-setup@v5
+
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
+          cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
@@ -50,7 +53,7 @@ jobs:
           # For token-based publishing: NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 ```
 
-> **Using npm?** Replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
+> **Using npm?** Drop the `pnpm/action-setup` step, set `cache: npm` on `setup-node`, and replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
 
 ---
 
@@ -68,6 +71,16 @@ Only release when a PR is merged with a release label. Conventional commits dete
 | `channel:stable` | Graduate a prerelease to stable |
 | `channel:prerelease` | Create a prerelease (requires bump:* label) |
 | `release:skip` | Suppress release on this PR |
+
+#### Create the labels
+
+The labels above aren't created automatically. Create them — plus any `scope:*` and standing-PR labels your config adds — with:
+
+```bash
+releasekit labels sync
+```
+
+In CI, add `--check`: it exits non-zero on a missing label, catching the silent failure where a mistyped `bump:minor` just skips the release. See the [CLI reference](../../../docs/cli.md#releasekit-labels).
 
 #### Label combinations
 
@@ -112,9 +125,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: pnpm/action-setup@v5
+
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
+          cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
@@ -124,7 +140,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-> **Using npm?** Replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
+> **Using npm?** Drop the `pnpm/action-setup` step, set `cache: npm` on `setup-node`, and replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
 
 Configure the trigger in `releasekit.config.json`:
 
@@ -205,9 +221,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: pnpm/action-setup@v5
+
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
+          cache: pnpm
 
       - run: pnpm install --frozen-lockfile
 
@@ -216,7 +235,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-> **Using npm?** Replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
+> **Using npm?** Drop the `pnpm/action-setup` step, set `cache: npm` on `setup-node`, and replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
 
 A ready-to-use template is available at [`templates/workflows/release-preview.yml`](../../../templates/workflows/release-preview.yml).
 
@@ -334,9 +353,12 @@ jobs:
           fetch-depth: 0
           token: ${{ github.token }}
 
+      - uses: pnpm/action-setup@v5
+
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
+          cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
@@ -371,9 +393,12 @@ jobs:
           fetch-depth: 0
           token: ${{ github.token }}
 
+      - uses: pnpm/action-setup@v5
+
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
+          cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
@@ -410,9 +435,12 @@ jobs:
           token: ${{ github.token }}
           ref: main  # the standing PR's branch is deleted on merge; publish from main
 
+      - uses: pnpm/action-setup@v5
+
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
+          cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
@@ -436,7 +464,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 ```
 
-> **Using npm?** Replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
+> **Using npm?** Drop the `pnpm/action-setup` step, set `cache: npm` on `setup-node`, and replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
 
 ### How it works
 
@@ -570,10 +598,15 @@ permissions:
   id-token: write    # grants the OIDC token
 
 steps:
+  - uses: pnpm/action-setup@v5
+
   - uses: actions/setup-node@v6
     with:
       node-version: '24'
+      cache: pnpm
       registry-url: 'https://registry.npmjs.org'
+
+  - run: pnpm install --frozen-lockfile
 
   - run: pnpm exec releasekit release
     env:
@@ -613,9 +646,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: pnpm/action-setup@v5
+
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
+          cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
@@ -625,7 +661,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-> **Using npm?** Replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
+> **Using npm?** Drop the `pnpm/action-setup` step, set `cache: npm` on `setup-node`, and replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
 
 ---
 

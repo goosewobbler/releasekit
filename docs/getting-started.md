@@ -169,9 +169,11 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - uses: pnpm/action-setup@v5
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
+          cache: pnpm
           registry-url: 'https://registry.npmjs.org'
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec releasekit release
@@ -179,7 +181,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-> **Using npm?** Replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
+> **Using npm?** Drop the `pnpm/action-setup` step, set `cache: npm` on `setup-node`, and replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
+
+If you use the [label-based trigger](../packages/release/docs/ci-setup.md#label-based-trigger), create the required `bump:*`, `channel:*`, and `release:skip` labels with `releasekit labels sync` — see [Create the labels](../packages/release/docs/ci-setup.md#create-the-labels).
 
 ---
 
