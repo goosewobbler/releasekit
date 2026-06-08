@@ -16,7 +16,7 @@
  * job, which must start with pnpm ABSENT to catch a missing pnpm/action-setup).
  */
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -173,13 +173,23 @@ function main(): void {
 
   if (seedLockfile) {
     // Generate pnpm-lock.yaml so the example's verbatim `pnpm install
-    // --frozen-lockfile` has a lockfile to honour in the smoke job.
-    execFileSync('pnpm', ['install', '--lockfile-only', '--ignore-scripts'], {
+    // --frozen-lockfile` has a lockfile to honour in the smoke job. The fixture
+    // lives under .smoke-fixtures/, inside the monorepo; without
+    // --ignore-workspace, pnpm walks up to pnpm-workspace.yaml, treats the
+    // fixture as a workspace project, and writes its lockfile against the
+    // monorepo root (no fixture-local pnpm-lock.yaml ever appears).
+    execFileSync('pnpm', ['install', '--lockfile-only', '--ignore-scripts', '--ignore-workspace'], {
       cwd: outDir,
       stdio: 'inherit',
     });
     git(outDir, 'add', '-A');
-    git(outDir, 'commit', '-q', '-m', 'chore: seed lockfile');
+    // Skip the commit when nothing is staged — pnpm's resolution can land on
+    // the existing lockfile shape with no fixture-local changes to record.
+    // `git diff --cached --quiet` exits 1 when there ARE staged changes.
+    const hasStagedChanges = spawnSync('git', ['diff', '--cached', '--quiet'], { cwd: outDir }).status !== 0;
+    if (hasStagedChanges) {
+      git(outDir, 'commit', '-q', '-m', 'chore: seed lockfile');
+    }
   }
 
   console.log(`Built ${scenario.fixture} fixture for "${scenarioId}" at ${outDir}`);
