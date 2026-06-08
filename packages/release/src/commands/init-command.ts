@@ -73,7 +73,6 @@ export function createInitCommand(): Command {
         if (options.labels) {
           try {
             await runLabelsSync({ config: undefined, projectDir: process.cwd() });
-            return;
           } catch (err) {
             error(`Could not sync labels: ${err instanceof Error ? err.message : String(err)}`);
             info('Run `releasekit labels sync` once a GitHub token is available.');

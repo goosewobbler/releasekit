@@ -82,7 +82,9 @@ export function deriveLabelDefinitions(ciConfig: CIConfig | undefined): LabelDef
 }
 
 /**
- * Fetch all label names currently defined in the repo (paginated, case-preserving).
+ * Fetch all label names currently defined in the repo (paginated). Returns a Set of lowercased
+ * names so callers can do case-insensitive comparisons; GitHub's `createLabel` API uses
+ * case-insensitive uniqueness, so `bump:minor` and `Bump:Minor` are the same label.
  */
 async function listRepoLabelNames(octokit: Octokit, owner: string, repo: string): Promise<Set<string>> {
   const names = new Set<string>();
@@ -93,7 +95,7 @@ async function listRepoLabelNames(octokit: Octokit, owner: string, repo: string)
   });
   for await (const response of iterator) {
     for (const label of response.data) {
-      names.add(label.name);
+      names.add(label.name.toLowerCase());
     }
   }
   return names;
@@ -156,7 +158,7 @@ export async function checkLabels(
   const missing: string[] = [];
   const present: string[] = [];
   for (const def of definitions) {
-    if (existing.has(def.name)) {
+    if (existing.has(def.name.toLowerCase())) {
       present.push(def.name);
     } else {
       missing.push(def.name);
