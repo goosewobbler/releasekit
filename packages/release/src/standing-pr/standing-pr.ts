@@ -11,6 +11,7 @@ import { renderSupersedeWarning } from '../failure-report/failure-report.js';
 import { detectUnresolvedFailure, postFailureReport, resolveFailureReportIfPresent } from '../failure-report/post.js';
 import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from '../git.js';
 import { createOctokit } from '../github.js';
+import { deriveLabelDefinitions, syncLabels } from '../label-definitions.js';
 import { DEFAULT_LABELS } from '../label-utils.js';
 import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
@@ -841,25 +842,22 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     info(`Created standing PR #${prNumber}`);
   }
 
-  // Apply labels — preserve any maintainer-added labels (e.g. bump:major, scope:foo) by
-  // taking the union of currently-applied labels and the configured set. Without this,
-  // every update would wipe maintainer overrides.
+  // Ensure the full ReleaseKit label set (bump/channel/release/scope + standing-PR labels)
+  // exists in the repo, from the single shared label-definitions source. This subsumes the
+  // previous ad-hoc createLabel blocks for the standing-PR labels and the retry label, and
+  // gives standing-pr consumers full label setup for free. The retry label is created here but
+  // NOT applied to the PR — a maintainer applies it on demand after merge to retry a failed
+  // publish (issue #245). Best-effort: a sync failure must not block the standing-PR update.
+  try {
+    await syncLabels(octokit, owner, repo, deriveLabelDefinitions(ciConfig));
+  } catch (err) {
+    warn(`Could not ensure ReleaseKit labels exist: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // Apply the standing-PR labels — preserve any maintainer-added labels (e.g. bump:major,
+  // scope:foo) by taking the union of currently-applied labels and the configured set. Without
+  // this, every update would wipe maintainer overrides.
   if (labels.length > 0) {
-    // Ensure each configured label exists in the repo with a description. createLabel
-    // throws 422 if the label already exists — that's expected and ignored.
-    for (const label of labels) {
-      try {
-        await octokit.rest.issues.createLabel({
-          owner,
-          repo,
-          name: label,
-          color: 'ededed',
-          description: 'ReleaseKit: marks this PR for automated release',
-        });
-      } catch {
-        // Label already exists — no action needed.
-      }
-    }
     try {
       const currentLabels = existingStandingPr?.labels ?? [];
       const mergedLabels = [...new Set([...currentLabels, ...labels])];
@@ -872,23 +870,6 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     } catch {
       warn('Failed to apply labels to standing PR');
     }
-  }
-
-  // Ensure the retry label exists in the repo (with a description) so a maintainer can apply it
-  // to this PR after merge to retry a failed publish (issue #245). It is NOT applied here — the
-  // maintainer applies it on demand, and the release-retry workflow removes it after each retry.
-  // createLabel throws 422 if it already exists; that's expected and ignored.
-  const retryLabel = ciConfig?.labels?.retry ?? DEFAULT_LABELS.retry;
-  try {
-    await octokit.rest.issues.createLabel({
-      owner,
-      repo,
-      name: retryLabel,
-      color: 'ededed',
-      description: 'ReleaseKit: retry a failed publish on this merged standing PR',
-    });
-  } catch {
-    // Label already exists — no action needed.
   }
 
   // Find existing manifest to preserve firstUpdatedAt across updates

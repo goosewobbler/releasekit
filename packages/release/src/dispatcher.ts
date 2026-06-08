@@ -7,6 +7,7 @@ import { createPublishCommand } from '@releasekit/publish';
 import { createVersionCommand } from '@releasekit/version';
 import { Command } from 'commander';
 import { createInitCommand } from './commands/init-command.js';
+import { createLabelsCommand } from './commands/labels-command.js';
 import { createPreviewCommand } from './commands/preview-command.js';
 import { createReleaseCommand } from './commands/release-command.js';
 import { createStandingPRCommand } from './commands/standing-pr-command.js';
@@ -20,6 +21,7 @@ export function createDispatcherProgram(): Command {
   program.addCommand(createReleaseCommand());
   program.addCommand(createStandingPRCommand());
   program.addCommand(createInitCommand());
+  program.addCommand(createLabelsCommand());
   program.addCommand(createVersionCommand());
   program.addCommand(createNotesCommand());
   program.addCommand(createPublishCommand());

@@ -124,16 +124,46 @@ releasekit standing-pr merge --publish
 
 ---
 
+## `releasekit labels`
+
+Create and reconcile the GitHub labels ReleaseKit relies on (`bump:*`, `channel:*`, `release:*`, configured `scope:*`, and the standing-PR labels). The label names honour `ci.labels` renames and `ci.scopeLabels`; descriptions and colours are canonical.
+
+The repository is resolved from `--repo`, then `GITHUB_REPOSITORY`, then the `origin` git remote. The token is read from `GITHUB_TOKEN`, then `GH_TOKEN`.
+
+### `releasekit labels sync`
+
+Idempotently create every config-implied label that is missing from the repo. Existing labels are left untouched (a 422 "already exists" is ignored).
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-c, --config <path>` | string | auto-discovered | Path to config file |
+| `--project-dir <path>` | string | `cwd` | Project directory |
+| `--repo <owner/repo>` | string | auto | Repository (auto-detected from `GITHUB_REPOSITORY` or the `origin` remote) |
+| `--check` | boolean | `false` | Report missing/misnamed labels and exit non-zero **without** making any changes |
+
+`--check` makes no mutations and exits non-zero when any label is missing — wire it into CI to catch the silent typo'd-label failure mode (a mistyped `bump:minor` means nothing releases, with no error).
+
+```bash
+releasekit labels sync
+releasekit labels sync --check   # CI guard: non-zero exit if labels are missing
+```
+
+---
+
 ## `releasekit init`
 
-Create a default `releasekit.config.json`. Detects whether the project is a monorepo to choose the changelog mode.
+Create a default `releasekit.config.json`. Detects whether the project is a monorepo to choose the changelog mode. After writing the config it prints a next-steps checklist (run `labels sync`, do a `--dry-run`, link the CI guide).
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `-f, --force` | boolean | `false` | Overwrite existing config |
+| `--labels` | boolean | `false` | Also run `labels sync` to create the required GitHub labels (requires a GitHub token) |
+
+`init` stays a local generator: it never touches the remote unless `--labels` is passed (and even then it falls back to the printed instructions if no token is available).
 
 ```bash
 releasekit init
+releasekit init --labels   # also create the GitHub labels (needs GITHUB_TOKEN)
 ```
 
 ---
