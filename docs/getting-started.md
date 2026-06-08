@@ -4,7 +4,7 @@ This guide walks through installing ReleaseKit, verifying your setup with a dry 
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 22+
 - A git repository using [Conventional Commits](https://www.conventionalcommits.org/)
 - At least one git tag marking a previous release (e.g. `v0.0.0`), or no tags at all for a first release
 
