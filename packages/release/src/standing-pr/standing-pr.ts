@@ -842,12 +842,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     info(`Created standing PR #${prNumber}`);
   }
 
-  // Ensure the full ReleaseKit label set (bump/channel/release/scope + standing-PR labels)
-  // exists in the repo, from the single shared label-definitions source. This subsumes the
-  // previous ad-hoc createLabel blocks for the standing-PR labels and the retry label, and
-  // gives standing-pr consumers full label setup for free. The retry label is created here but
-  // NOT applied to the PR — a maintainer applies it on demand after merge to retry a failed
-  // publish (issue #245). Best-effort: a sync failure must not block the standing-PR update.
+  // Ensure the full ReleaseKit label set exists in the repo from the shared definitions. The
+  // retry label is created but NOT applied — a maintainer applies it on demand after merge to
+  // retry a failed publish (issue #245). Best-effort: a sync failure must not block the update.
   try {
     await syncLabels(octokit, owner, repo, deriveLabelDefinitions(ciConfig));
   } catch (err) {

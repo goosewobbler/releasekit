@@ -4,8 +4,7 @@ import { DEFAULT_LABELS } from './label-utils.js';
 
 /**
  * Canonical definition of a label ReleaseKit relies on. `name` honours `ci.labels` renames
- * and `ci.scopeLabels` keys; `color`/`description` are fixed canonical values applied on
- * create. The colours are grouped by family so the label picker reads coherently.
+ * and `ci.scopeLabels` keys; `color`/`description` are fixed canonical values applied on create.
  */
 export interface LabelDefinition {
   name: string;
