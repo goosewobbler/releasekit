@@ -117,7 +117,7 @@ function smokeJob(scenario: Scenario): Record<string, unknown> {
       // the root where setup-node's `cache: pnpm` expects it, and the dry run
       // sees the conventional commits + baseline tag.
       name: 'Restore fixture into workspace',
-      run: 'git clone --quiet "$RUNNER_TEMP/fixture/fixture.bundle" .',
+      run: `git clone --quiet "$RUNNER_TEMP/fixture/${scenario.id}.bundle" .`,
     },
   ];
 
