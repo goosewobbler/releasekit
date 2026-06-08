@@ -35,15 +35,7 @@ One workflow file (`standing-pr.yml`) carries three jobs:
 
 ## Correctness notes
 
-- **pnpm before setup-node** in every job (hosted runners lack pnpm).
-- **`fetch-depth: 0`** everywhere — releasekit walks full history.
-- The `permissions` block lists all four scopes the jobs need
-  (`contents`/`pull-requests`/`id-token`/`statuses`); an explicit block zeroes
-  anything unlisted.
-- The `pull_request` trigger subscribes to **both** `closed` and `labeled`. The
-  `publish` job guards on `action == 'closed'` so that a label added to an
-  already-merged PR can't re-trigger a publish; only `retry-publish` reacts to
-  `labeled`.
-- `retry-publish` checks out `ref: main` because `release/next` is deleted on
-  merge, then removes the `release:retry` label so each application is exactly
-  one retry.
+Shared [correctness rules](../../README.md#cross-cutting-correctness-rules) apply (the `permissions` block lists all four scopes the three jobs need). Scenario-specific:
+
+- The `pull_request` trigger subscribes to **both** `closed` and `labeled`. The `publish` job guards on `action == 'closed'` so a label on an already-merged PR can't re-trigger a publish; only `retry-publish` reacts to `labeled`.
+- `retry-publish` checks out `ref: main` (since `release/next` is deleted on merge), then removes the `release:retry` label so each application is exactly one retry.

@@ -28,13 +28,7 @@ automatically.
 
 ## Correctness notes
 
-- **Two runtimes to install.** Hosted runners ship neither pnpm nor the Rust
-  toolchain. `pnpm/action-setup@v5` (before setup-node) handles pnpm;
-  `dtolnay/rust-toolchain@stable` provides `cargo`. Omitting the latter yields
-  `cargo: command not found` at the publish stage.
-- **Delete `.npmrc`** before publishing so npm OIDC isn't shadowed by an empty
-  token (see [`oidc`](../oidc) for why).
-- **`fetch-depth: 0`** for full history.
-- crates.io index propagation is slower than npm; releasekit polls after each
-  publish (configurable under `publish.verify.cargo`) and skips already-published
-  versions, so re-running a partially failed release is safe.
+Rust-specific (shared [correctness rules](../../README.md#cross-cutting-correctness-rules) apply too, including the OIDC `.npmrc` step):
+
+- **A second runtime.** Beyond pnpm, hosted runners ship no Rust toolchain — `dtolnay/rust-toolchain@stable` provides `cargo`, else the publish stage hits `cargo: command not found`.
+- crates.io index propagation lags npm; releasekit polls after each publish (`publish.verify.cargo`) and skips already-published versions, so re-running a partially failed release is safe.

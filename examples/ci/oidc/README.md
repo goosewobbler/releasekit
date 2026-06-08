@@ -27,13 +27,7 @@ automatically; `publish.npm.auth: "oidc"` here forces it.
 
 ## Correctness notes
 
-- **`id-token: write` is mandatory.** Without it there is no OIDC token and the
-  publish falls back to needing a token it doesn't have.
-- **Delete `.npmrc` before publishing.** `actions/setup-node` with `registry-url`
-  writes a project `.npmrc` containing `_authToken=${NODE_AUTH_TOKEN}`. With OIDC
-  there is no `NODE_AUTH_TOKEN`, so npm resolves it to an **empty** token and
-  fails with `ENEEDAUTH` instead of performing the OIDC exchange. The
-  `rm -f .npmrc` step removes it. (We still pass `registry-url` so pnpm's cache
-  and the registry default are set; only the auth line is the problem.)
-- **pnpm before setup-node** (hosted runners lack pnpm).
-- **`fetch-depth: 0`** for full history.
+OIDC-specific (the shared [correctness rules](../../README.md#cross-cutting-correctness-rules) apply too):
+
+- **`id-token: write` is mandatory** — it's what mints the OIDC token.
+- **Delete `.npmrc` before publishing.** `setup-node` with `registry-url` writes `_authToken=${NODE_AUTH_TOKEN}`; under OIDC that token is empty, so npm fails `ENEEDAUTH` instead of doing the OIDC exchange. `registry-url` still stays (it sets the cache + registry default — only the auth line is the problem).

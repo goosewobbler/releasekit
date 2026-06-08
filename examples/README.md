@@ -33,9 +33,7 @@ wrong in hand-written workflows:
   to compute the bump.
 - **Explicit `permissions:` blocks are zero-by-default.** Naming any scope
   removes every scope you didn't name, so each workflow lists exactly what its
-  jobs need (`contents: write` for tags/releases, `id-token: write` for OIDC,
-  `pull-requests: *` where labels/PRs are read or written, `statuses: write` for
-  the standing-PR status check).
+  jobs need (e.g. `contents: write` for tags/releases, `id-token: write` for OIDC).
 - **OIDC needs `.npmrc` removed.** `setup-node` with `registry-url` writes an
   `.npmrc` with `_authToken=${NODE_AUTH_TOKEN}`; with OIDC that token is empty
   and npm fails `ENEEDAUTH`. The OIDC-publishing examples `rm -f .npmrc` first.

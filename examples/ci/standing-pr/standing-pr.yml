@@ -110,13 +110,11 @@ jobs:
 
   retry-publish:
     name: Retry Publish
-    # Maintainer-invoked retry after a partial-publish failure: apply
-    # `release:retry` to the MERGED standing PR (label events fire on closed PRs).
-    # Publishing is idempotent — already-published versions are skipped and tags /
-    # GitHub releases are created only after a clean publish — so the retry
-    # finishes exactly what the failed run left undone. The label name is
-    # hardcoded here (workflow `if` can't read config); if you change
-    # ci.labels.retry, update this guard too.
+    # Maintainer-invoked retry after a partial-publish failure: apply `release:retry`
+    # to the MERGED standing PR (label events fire on closed PRs). Publishing is
+    # idempotent, so the retry finishes whatever the failed run left undone. The label
+    # name is hardcoded (workflow `if` can't read config) — update it if you change
+    # ci.labels.retry.
     if: >
       github.event_name == 'pull_request' &&
       github.event.action == 'labeled' &&

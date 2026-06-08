@@ -41,13 +41,4 @@ There are **two** gates, and they must agree:
    authoritative decision. The workflow gate is just there to avoid spinning up
    a runner for PRs that obviously won't release.
 
-## Correctness notes
-
-- **pnpm before setup-node** (hosted runners lack pnpm).
-- **`fetch-depth: 0`** for full history.
-- The `permissions` block lists `pull-requests: read` because the gate inspects
-  the merged PR's labels; `contents: write` and `id-token: write` are for
-  tagging/releases and OIDC respectively.
-- Trigger is `pull_request: [closed]` (not `push`), because the label lives on
-  the PR. The `merged == true` check excludes PRs that were closed without
-  merging.
+The trigger is `pull_request: [closed]` with a `merged == true` guard — the label lives on the PR, not a push. Shared [correctness rules](../../README.md#cross-cutting-correctness-rules) apply.
