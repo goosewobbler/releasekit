@@ -76,16 +76,16 @@ Versioning configuration.
 | `prereleaseIdentifier` | string | — | Identifier for prerelease versions (e.g., 'alpha', 'beta') |
 | `baseBranch` | string | — | Base branch for versioning |
 | `strictReachable` | boolean | `false` | Only use reachable tags |
-| `zeroMajor` | `"spec"` \| `"strict"` | `"spec"` | How commit-inferred breaking changes are handled while the project is still pre-1.0 (current major is 0). 'spec' (default): a breaking change bumps the 0.x minor (0.24.0 → 0.25.0), per semver §4 and npm caret/Cargo/changesets conventions. 'strict': a breaking change always bumps to the next major even pre-1.0 (0.24.0 → 1.0.0), the semantic-release convention. Only affects the commit-inferred path; explicit overrides (--bump major, bump:major, release:immediate + bump:major) always graduate to 1.0.0 regardless. |
+| `zeroMajor` | `"spec"` \| `"strict"` | `"spec"` | Pre-1.0 handling of commit-inferred breaking changes. 'spec' (default): bump the 0.x minor (0.24.0 → 0.25.0), per semver §4. 'strict': bump the next major (→ 1.0.0). Inferred path only — explicit overrides (--bump major, bump:major) always graduate to 1.0.0. |
 
 ### `version.zeroMajor`
 
-Controls how a **commit-inferred** breaking change (`feat!:` / `BREAKING CHANGE:`) is bumped while the project is still pre-1.0 (current major version is `0`).
+How a **commit-inferred** breaking change (`feat!:` / `BREAKING CHANGE:`) bumps a pre-1.0 version (current major `0`):
 
-- `"spec"` (default): the breaking change bumps the **0.x minor** (e.g. `0.24.0` → `0.25.0`). This follows semver §4 — "major version zero is for initial development; anything MAY change at any time" — and matches npm caret semantics (`^0.24.0` already excludes `0.25.0`) as well as Cargo and changesets.
-- `"strict"`: the breaking change always bumps to the **next major**, even pre-1.0 (e.g. `0.24.0` → `1.0.0`), matching the semantic-release convention.
+- `"spec"` (default): bumps the 0.x minor — `0.24.0` → `0.25.0`. Per [semver §4](https://semver.org/#spec-item-4); also matches npm caret (`^0.24.0` excludes `0.25.0`), Cargo, and changesets.
+- `"strict"`: bumps the next major — `0.24.0` → `1.0.0` (the semantic-release convention).
 
-Only the commit-inferred path consults this setting. Explicit overrides always graduate to `1.0.0` regardless of `zeroMajor`: `--bump major`, the `bump:major` label on the standing PR, or `release:immediate` + `bump:major` on a feeder PR. Graduating to 1.0 therefore stays a deliberate, opt-in act.
+Inferred path only. Explicit overrides (`--bump major`, `bump:major` on the standing PR, `release:immediate` + `bump:major` on a feeder PR) always graduate to `1.0.0` — cutting 1.0 stays a deliberate act.
 
 **`version.branchPatterns`** — Branch name patterns for version determination.
 

@@ -84,15 +84,7 @@ Git tags mark what was last released. Conventional commits between the last tag 
 
 ### Pre-1.0 breaking changes
 
-While a project is still pre-1.0 (current major version is `0`), a **commit-inferred** breaking change (`feat!:` / `BREAKING CHANGE:`) bumps the **0.x minor** — `0.24.0 → 0.25.0`, not `1.0.0`. This is semver §4 ("major version zero is for initial development; anything MAY change at any time"), and it matches npm caret semantics (`^0.24.0` already excludes `0.25.0`), Cargo, and changesets. The accidental, irreversible jump to `1.0.0` over-signals "first stable API," a semantic the maintainer never declared.
-
-To deliberately cut `1.0.0` while pre-1.0, use an **explicit** override — these always graduate, regardless of conventional commits:
-
-- `--bump major` on the CLI;
-- the `bump:major` label on the standing PR (or `release:immediate` + `bump:major` on a feeder PR to ship one PR directly);
-- `version.zeroMajor: "strict"` to restore the old "breaking always → next major" behavior for the inferred path.
-
-`feat` (non-breaking) still bumps the minor pre-1.0 (`0.24.0 → 0.25.0`); only the breaking → major jump is corrected. See [`version.zeroMajor`](../docs/configuration.md#versionzeromajor).
+Pre-1.0 (current major `0`), a commit-inferred breaking change bumps the 0.x minor (`0.24.0 → 0.25.0`), not `1.0.0` — it never auto-graduates the project to a stable API. To cut `1.0.0` deliberately, use an explicit `bump:major` (or `--bump major`); see [`version.zeroMajor`](configuration.md#versionzeromajor) for the rule and the `strict` opt-out.
 
 ---
 

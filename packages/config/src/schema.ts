@@ -67,19 +67,9 @@ export const VersionConfigSchema = z.object({
   prereleaseIdentifier: z.string().optional(),
   strictReachable: z.boolean().default(false),
   /**
-   * How commit-inferred breaking changes are handled while the project is still pre-1.0
-   * (current major version is 0).
-   *
-   * - 'spec' (default): a breaking change (`feat!:` / `BREAKING CHANGE:`) bumps the 0.x minor
-   *   (e.g. 0.24.0 -> 0.25.0), per semver §4 — "major version zero is for initial development;
-   *   anything MAY change at any time." This also matches npm caret semantics (`^0.24.0` already
-   *   excludes 0.25.0) and how Cargo/changesets treat 0.x.
-   * - 'strict': a breaking change always bumps to the next major even pre-1.0
-   *   (e.g. 0.24.0 -> 1.0.0), the semantic-release convention.
-   *
-   * Only affects the commit-inferred bump path. Explicit overrides (`--bump major`,
-   * `bump:major`, `release:immediate` + `bump:major`) always graduate to 1.0.0 regardless
-   * of this setting — graduating to 1.0 stays a deliberate, opt-in act.
+   * Pre-1.0 handling of commit-inferred breaking changes. 'spec' (default) keeps them on the 0.x
+   * minor; 'strict' graduates to the next major. Inferred path only — explicit overrides always
+   * graduate. Full reference: docs/configuration.md#versionzeromajor.
    */
   zeroMajor: z.enum(['spec', 'strict']).default('spec'),
   cargo: VersionCargoConfigSchema.optional(),

@@ -358,23 +358,14 @@ export async function calculateVersion(config: Config, options: VersionOptions):
 
       log(`Release type from commits: ${releaseTypeFromCommits}`, 'debug');
 
-      // Pre-1.0 0.x-awareness for the COMMIT-INFERRED path only.
-      // `conventional-recommended-bump` returns `major` for any breaking change without ever
-      // looking at the current version, so a `feat!:` on 0.24.0 would otherwise jump to 1.0.0.
-      // Per semver §4 (and npm caret / Cargo / changesets), a breaking change pre-1.0 belongs on
-      // the 0.x minor (0.24.0 -> 0.25.0), since `^0.24.0` already excludes 0.25.0. We downgrade
-      // the inferred major to minor; the prerelease flow then turns that minor + identifier into a
-      // preminor inside bumpVersion (0.24.0 -> 0.25.0-next.0). We deliberately do NOT downgrade
-      // inferred minor (feat) -> patch — feat->minor pre-1.0 is a defensible convention and
-      // non-destructive either way, whereas the 1.0.0 jump is irreversible. (The bumper only ever
-      // emits major/minor/patch, so major is the only magnitude that can need downgrading here.)
-      // Explicit overrides (specifiedType / --bump major / bump:major) take the branch above and
-      // are intentionally untouched, so graduating to 1.0.0 stays a deliberate, opt-in act.
-      // zeroMajor: 'spec' (default) applies the downgrade; 'strict' preserves breaking->major.
-      // See https://github.com/goosewobbler/releasekit/issues/274.
+      // The bumper returns 'major' for a breaking change without consulting the current version,
+      // so pre-1.0 it would jump 0.x straight to 1.0.0. Keep inferred breaking changes on the 0.x
+      // minor instead (rationale + the zeroMajor escape hatch: docs/configuration.md, issue #274).
+      // Inferred-only: the explicit-override branch above is intentionally left to graduate to 1.0.
+      // Only 'major' needs downgrading — the bumper never emits a pre-type here.
       let effectiveReleaseType = releaseTypeFromCommits;
-      const currentMajor = semver.parse(currentVersion)?.major;
-      if ((config.zeroMajor ?? 'spec') === 'spec' && currentMajor === 0 && releaseTypeFromCommits === 'major') {
+      const isPre1 = semver.parse(currentVersion)?.major === 0;
+      if ((config.zeroMajor ?? 'spec') === 'spec' && isPre1 && releaseTypeFromCommits === 'major') {
         effectiveReleaseType = 'minor';
         log("Pre-1.0 breaking change: downgrading inferred 'major' to 'minor' (zeroMajor: 'spec')", 'info');
       }

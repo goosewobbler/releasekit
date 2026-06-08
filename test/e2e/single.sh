@@ -52,10 +52,7 @@ if [[ -z "$version" ]]; then
 fi
 assert_version "0.2.0" "$version"
 
-# Test 3: inferred breaking change pre-1.0 → minor bump (NOT 1.0.0)
-# Per semver §4, a breaking change on a 0.x version stays on the 0.x minor
-# (0.1.0 → 0.2.0); auto-jumping to 1.0.0 would over-signal stability. Governed
-# by version.zeroMajor (default "spec").
+# Test 3: inferred breaking change pre-1.0 stays on the 0.x minor (0.1.0 → 0.2.0, not 1.0.0).
 echo ""
 echo "--- Test: inferred breaking change pre-1.0 → minor bump ---"
 create_git_repo
@@ -75,10 +72,9 @@ if [[ -z "$version" ]]; then
 fi
 assert_version "0.2.0" "$version"
 
-# Test 3b: explicit --bump major still deliberately graduates a 0.x project to 1.0.0.
-# The override path is untouched by the zeroMajor downgrade — cutting 1.0 stays opt-in.
-# Uses a tagged (established) repo: explicit bumps on a tagless first release return the
-# package.json version as-is, so the tag is what makes this a real graduation scenario.
+# Test 3b: explicit --bump major still graduates a 0.x project to 1.0.0 (override path untouched).
+# Tag the repo: an explicit bump on a tagless first release returns the package.json version
+# as-is, so the tag is what makes this a real graduation scenario rather than a first release.
 echo ""
 echo "--- Test: explicit --bump major on an established 0.x repo → 1.0.0 (deliberate graduation) ---"
 create_git_repo
