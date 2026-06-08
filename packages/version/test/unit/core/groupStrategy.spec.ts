@@ -119,6 +119,44 @@ describe('createGroupStrategy', () => {
       expect(jsonOutput.setPackageUpdateGroup).toHaveBeenCalledWith('@wdio/native-spy', 'native');
     });
 
+    it('should warn about divergence when a releasing fixed group excludes a member', async () => {
+      const core = mkPackage('@wdio/native-core', '2.3.0');
+      const utils = mkPackage('@wdio/native-utils', '2.3.0');
+      const spy = mkPackage('@wdio/native-spy', '2.3.0');
+
+      // core changes; spy is excluded via config.skip, so the group releases without it.
+      vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
+        opts.name === '@wdio/native-core' ? '2.3.1' : '',
+      );
+
+      const strategy = createGroupStrategy(
+        baseConfig({ skip: ['@wdio/native-spy'], groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
+      );
+      await strategy(workspace([core, utils, spy]));
+
+      expect(logging.log).toHaveBeenCalledWith(
+        expect.stringContaining('will release without: @wdio/native-spy'),
+        'warning',
+      );
+    });
+
+    it('should NOT warn about divergence when the fixed group has no releasable changes', async () => {
+      const core = mkPackage('@wdio/native-core', '2.3.0');
+      const utils = mkPackage('@wdio/native-utils', '2.3.0');
+      const spy = mkPackage('@wdio/native-spy', '2.3.0');
+
+      // Nothing changes. spy is excluded via config.skip, but since the group does not release,
+      // the divergence warning must not fire (it would only confuse — nothing is being released).
+      vi.mocked(calculator.calculateVersion).mockResolvedValue('');
+
+      const strategy = createGroupStrategy(
+        baseConfig({ skip: ['@wdio/native-spy'], groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
+      );
+      await strategy(workspace([core, utils, spy]));
+
+      expect(logging.log).not.toHaveBeenCalledWith(expect.stringContaining('will release without'), 'warning');
+    });
+
     it('should take the largest bump across members for the shared group version', async () => {
       const core = mkPackage('@wdio/native-core', '2.3.0');
       const utils = mkPackage('@wdio/native-utils', '2.3.0');
