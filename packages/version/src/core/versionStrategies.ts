@@ -496,6 +496,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
 
       const pkgPath = pkg.dir;
       const formattedPrefix = formatVersionPrefix(versionPrefix || 'v');
+      const baselineTagPrefix = deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, packageName);
 
       // Try to get the latest tag specific to this package first
       let latestTagResult = await getLatestTagForPackage(packageName, formattedPrefix, {
@@ -503,15 +504,16 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         packageSpecificTags: config.packageSpecificTags,
       });
 
-      // Fallback to global tag if no package-specific tag exists
+      // Fallback to global tag if no package-specific tag exists. When baselineTagTemplate is
+      // set, scope the global scan to baseline tags so the fallback doesn't surface a
+      // consumer-facing tag and have displayTag rewrite it.
       if (!latestTagResult) {
-        const globalTagResult = await getLatestTag();
+        const globalTagResult = await getLatestTag(baselineTagPrefix);
         latestTagResult = globalTagResult || '';
       }
 
       // At this point, latestTagResult is guaranteed to be a string (possibly empty)
       const latestTag = latestTagResult;
-      const baselineTagPrefix = deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, packageName);
 
       let nextVersion: string | undefined;
 

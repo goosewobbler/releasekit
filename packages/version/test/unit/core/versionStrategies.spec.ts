@@ -25,28 +25,33 @@ vi.mock('../../../src/core/versionCalculator.js');
 vi.mock('../../../src/package/packageManagement.js');
 vi.mock('../../../src/utils/jsonOutput.js');
 vi.mock('../../../src/changelog/commitParser.js');
-vi.mock('../../../src/utils/formatting.js', () => ({
-  formatVersionPrefix: vi.fn().mockReturnValue('v'),
-  formatTag: vi
-    .fn()
-    .mockImplementation((version, _prefix, packageName) =>
-      packageName ? `${packageName}@v${version}` : `v${version}`,
-    ),
-  formatCommitMessage: vi.fn().mockImplementation((template, version, packageName) => {
-    return template.replace(/\$\{version\}/g, version).replace(/\$\{packageName\}/g, packageName || '');
-  }),
-  deriveBaselineTagPrefix: vi.fn().mockImplementation((template, formattedPrefix, packageName) => {
-    if (!template) return undefined;
-    return template
-      .split('${' + 'version}')[0]
-      .replace(/\$\{prefix\}/g, formattedPrefix)
-      .replace(/\$\{packageName\}/g, packageName ?? '');
-  }),
-  displayTag: vi.fn().mockImplementation((tag, baselineTagPrefix, formattedPrefix) => {
-    if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) return tag;
-    return `${formattedPrefix}${tag.slice(baselineTagPrefix.length)}`;
-  }),
-}));
+vi.mock('../../../src/utils/formatting.js', () => {
+  const sanitizePackageName = (name: string) => (name.startsWith('@') ? name.slice(1).replace(/\//g, '-') : name);
+  return {
+    formatVersionPrefix: vi.fn().mockReturnValue('v'),
+    formatTag: vi
+      .fn()
+      .mockImplementation((version, _prefix, packageName) =>
+        packageName ? `${packageName}@v${version}` : `v${version}`,
+      ),
+    formatCommitMessage: vi.fn().mockImplementation((template, version, packageName) => {
+      return template
+        .replace(/\$\{version\}/g, version)
+        .replace(/\$\{packageName\}/g, packageName ? sanitizePackageName(packageName) : '');
+    }),
+    deriveBaselineTagPrefix: vi.fn().mockImplementation((template, formattedPrefix, packageName) => {
+      if (!template) return undefined;
+      return template
+        .split('${' + 'version}')[0]
+        .replace(/\$\{prefix\}/g, formattedPrefix)
+        .replace(/\$\{packageName\}/g, packageName ? sanitizePackageName(packageName) : '');
+    }),
+    displayTag: vi.fn().mockImplementation((tag, baselineTagPrefix, formattedPrefix) => {
+      if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) return tag;
+      return `${formattedPrefix}${tag.slice(baselineTagPrefix.length)}`;
+    }),
+  };
+});
 vi.mock('../../../src/package/packageProcessor.js');
 vi.mock('node:fs');
 vi.mock('node:path');
@@ -106,10 +111,11 @@ describe('Version Strategies', () => {
     vi.mocked(formatting.deriveBaselineTagPrefix, { partial: true }).mockImplementation(
       (template, formattedPrefix, packageName) => {
         if (!template) return undefined;
+        const sanitizePackageName = (name: string) => (name.startsWith('@') ? name.slice(1).replace(/\//g, '-') : name);
         return template
           .split('${' + 'version}')[0]
           .replace(/\$\{prefix\}/g, formattedPrefix)
-          .replace(/\$\{packageName\}/g, packageName ?? '');
+          .replace(/\$\{packageName\}/g, packageName ? sanitizePackageName(packageName) : '');
       },
     );
     vi.mocked(formatting.displayTag, { partial: true }).mockImplementation(
