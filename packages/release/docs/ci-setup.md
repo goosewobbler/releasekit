@@ -74,25 +74,13 @@ Only release when a PR is merged with a release label. Conventional commits dete
 
 #### Create the labels
 
-> **Interim manual step.** These labels must exist in the repository before they can be applied to a PR — they are not created automatically (outside standing-pr mode, which ensures only its own two labels). Until [`releasekit labels sync`](https://github.com/goosewobbler/releasekit/issues/262) lands, create them once with the [`gh` CLI](https://cli.github.com/):
+These labels must exist in the repository before they can be applied to a PR (they are not created automatically outside standing-pr mode). Run `releasekit labels sync` — it creates every label your config implies (bump / channel / release, any configured `scope:*`, and the standing-PR labels), honouring `ci.labels` renames:
 
 ```bash
-gh label create bump:patch        --color FBCA04 --description "Release: bump patch version"
-gh label create bump:minor        --color FBCA04 --description "Release: bump minor version"
-gh label create bump:major        --color FBCA04 --description "Release: bump major version"
-gh label create channel:stable    --color 0E8A16 --description "Release: graduate a prerelease to stable"
-gh label create channel:prerelease --color D4C5F9 --description "Release: create/increment a prerelease (with a bump:* label)"
-gh label create release:skip       --color E4E669 --description "Release: suppress release on this PR"
+releasekit labels sync
 ```
 
-Add `--force` to any line to overwrite an existing label of the same name. If you customise the names in `ci.labels`, create labels matching your config instead of the defaults above.
-
-If you use [standing-pr mode](#standing-release-pr), also create the two labels that drive its bypass and recovery flows:
-
-```bash
-gh label create release:immediate --color 5319E7 --description "Release: ship this PR directly, bypassing the standing PR"
-gh label create release:retry     --color B60205 --description "Release: retry a failed publish on the merged standing PR"
-```
+Wire `releasekit labels sync --check` into CI to fail fast when a required label is missing — otherwise a mistyped `bump:minor` silently fails to release. See the [CLI reference](../../../docs/cli.md#releasekit-labels) for details.
 
 #### Label combinations
 

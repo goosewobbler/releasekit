@@ -183,7 +183,7 @@ jobs:
 
 > **Using npm?** Drop the `pnpm/action-setup` step, set `cache: npm` on `setup-node`, and replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
 
-If you use the [label-based trigger](../packages/release/docs/ci-setup.md#label-based-trigger), also create the required `bump:*`, `channel:*`, and `release:skip` labels — see [Create the labels](../packages/release/docs/ci-setup.md#create-the-labels) for a copy-pasteable `gh label create` block.
+If you use the [label-based trigger](../packages/release/docs/ci-setup.md#label-based-trigger), create the required `bump:*`, `channel:*`, and `release:skip` labels with `releasekit labels sync` — see [Create the labels](../packages/release/docs/ci-setup.md#create-the-labels).
 
 ---
 
