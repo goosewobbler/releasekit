@@ -179,12 +179,10 @@ function renderVersion(prop: SchemaProperty): void {
       '',
     );
     emit(
-      '> **Member adoption (read this loudly).** A member below the group baseline — a never-released',
-      '> package whose `package.json` says `1.0.0`, or an existing package at an older version — *adopts*',
-      '> the group version on its next release (e.g. joining a family at `2.3.0` releases at `2.4.0`,',
-      '> skipping its own `1.x` line). This deliberately overrides the per-package "initial version from',
-      '> package.json" rule. When the jump skips versions, the version step warns; time group migrations',
-      '> to a real breaking change in the family so the alignment coincides with an honest major.',
+      '> **Member adoption.** A member below the group baseline — never released, or at an older version',
+      '> than the family — adopts the group version on its next release (joining a family at `2.3.0`',
+      '> releases at `2.4.0`, skipping its own `1.x` line), overriding the per-package "initial version',
+      '> from `package.json`" rule. The version step warns when the jump skips versions.',
       '',
     );
     emit(

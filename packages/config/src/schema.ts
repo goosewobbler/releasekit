@@ -36,12 +36,8 @@ export const VersionGroupSchema = z.object({
    * The same matching rules as `version.packages` apply.
    */
   packages: z.array(z.string()).min(1),
-  /**
-   * - `fixed`: any releasable change in any member releases ALL members at the shared group version
-   *   (`bump(max(member baselines))`).
-   * - `linked`: only members with releasable changes release, but every releasing member shares the
-   *   same computed version.
-   */
+  /** `fixed`: all members release together at the group version. `linked`: only changed members
+   *  release, all at the same version. See the version.groups reference for the full semantics. */
   sync: z.enum(['fixed', 'linked']),
 });
 
