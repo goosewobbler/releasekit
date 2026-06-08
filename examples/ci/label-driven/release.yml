@@ -1,0 +1,49 @@
+# Copy to: .github/workflows/release.yml
+#
+# Label-driven release: a merged PR only releases when it carries a `bump:*`
+# label. Conventional commits still determine the changelog; the label is the
+# gate that decides whether (and at what magnitude) to release.
+#
+# The gate below is a workflow-level guard, so the label names are hardcoded to
+# releasekit's defaults. `releasekit release` re-reads ci.labels from config and
+# is the authoritative check — keep the two in sync if you customise the names.
+name: Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+  id-token: write # npm OIDC trusted publishing
+  pull-requests: read # gate reads the merged PR's labels
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    # Gate: only run for a merged PR that carries a bump:* label.
+    if: >
+      github.event.pull_request.merged == true &&
+      (contains(github.event.pull_request.labels.*.name, 'bump:patch') ||
+       contains(github.event.pull_request.labels.*.name, 'bump:minor') ||
+       contains(github.event.pull_request.labels.*.name, 'bump:major'))
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm exec releasekit release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # only if not using OIDC

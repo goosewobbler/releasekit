@@ -121,6 +121,7 @@ See the [package docs](#documentation) for the full option reference.
 - [Getting Started](./docs/getting-started.md) — install, first dry run, first release, CI setup
 - [Architecture](./docs/architecture.md) — pipeline design, mental model, release strategies
 - [CI setup](./packages/release/docs/ci-setup.md) — GitHub Actions workflows, OIDC, PR preview, prerelease
+- [CI examples](./examples) — runnable, CI-validated workflow + config scenarios (minimal, label-driven, standing-PR, OIDC, monorepo-rust, prerelease)
 - [Rust / Cargo](./docs/rust.md) — Rust crate versioning and crates.io publishing
 - [Migration](./docs/migration.md) — from semantic-release or changesets
 
