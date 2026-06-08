@@ -126,18 +126,28 @@ jobs:
     name: Unit Tests
     needs: [detect-changes, build]
     if: needs.detect-changes.outputs.has_changes == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['22', '24']
     uses: ./.github/workflows/_ci-unit.reusable.yml
     with:
       os: ubuntu-latest
       cache_key: ${{ needs.build.outputs.cache_key }}
+      node-version: ${{ matrix.node-version }}
 
   integration-tests:
     name: Integration Tests
     needs: [detect-changes, build]
     if: needs.detect-changes.outputs.run_integration == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['22', '24']
     uses: ./.github/workflows/_ci-integration.reusable.yml
     with:
       cache_key: ${{ needs.build.outputs.cache_key }}
+      node-version: ${{ matrix.node-version }}
 
   package-tests:
     name: Package Tests

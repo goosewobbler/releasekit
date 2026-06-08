@@ -6,13 +6,17 @@ on:
       cache_key:
         required: true
         type: string
+      node-version:
+        required: false
+        type: string
+        default: '24'
 
 env:
   TURBO_TELEMETRY_DISABLED: 1
 
 jobs:
   integration-tests:
-    name: Integration Tests
+    name: Integration Tests [node ${{ inputs.node-version }}]
     runs-on: ubuntu-latest
 
     steps:
@@ -21,6 +25,8 @@ jobs:
 
       - name: Setup Development Environment
         uses: ./.github/workflows/actions/setup-workspace
+        with:
+          node-version: ${{ inputs.node-version }}
 
       - name: Download build artifacts
         uses: ./.github/workflows/actions/download-archive
