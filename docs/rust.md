@@ -191,13 +191,9 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - uses: pnpm/action-setup@v5
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: pnpm
-
+      # No pnpm/Node setup needed: the bundled goosewobbler/releasekit action brings
+      # its own runtime, and a Rust-only repo has no pnpm-lock.yaml (setting cache: pnpm
+      # would fail with "Dependencies lock file is not found").
       - name: Run releasekit
         uses: goosewobbler/releasekit@v1
         env:
