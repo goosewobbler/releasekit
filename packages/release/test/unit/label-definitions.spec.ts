@@ -107,6 +107,25 @@ function mockOctokitForCreate(failures: Record<string, number> = {}) {
   return { rest: { issues: { createLabel } }, _createLabel: createLabel };
 }
 
+function mockOctokitForCreateWithErrorBody(failures: Record<string, { status: number; errors?: { code: string }[] }>) {
+  const createLabel = vi.fn(async ({ name }: { name: string }) => {
+    const failure = failures[name];
+    if (failure) {
+      const err = new Error(`HTTP ${failure.status}`) as Error & {
+        status: number;
+        response?: { data: { errors?: { code: string }[] } };
+      };
+      err.status = failure.status;
+      if (failure.errors) {
+        err.response = { data: { errors: failure.errors } };
+      }
+      throw err;
+    }
+    return { data: {} };
+  });
+  return { rest: { issues: { createLabel } }, _createLabel: createLabel };
+}
+
 describe('syncLabels', () => {
   it('should create every definition that does not already exist', async () => {
     const octokit = mockOctokitForCreate();
@@ -122,8 +141,10 @@ describe('syncLabels', () => {
     expect(octokit._createLabel).toHaveBeenCalledTimes(2);
   });
 
-  it('should treat a 422 as already-existing and not as a failure (idempotent)', async () => {
-    const octokit = mockOctokitForCreate({ 'bump:minor': 422 });
+  it('should treat a 422 with already_exists error code as idempotent', async () => {
+    const octokit = mockOctokitForCreateWithErrorBody({
+      'bump:minor': { status: 422, errors: [{ code: 'already_exists' }] },
+    });
     const defs: LabelDefinition[] = [
       { name: 'bump:minor', color: '0e8a16', description: 'x' },
       { name: 'release:skip', color: 'd93f0b', description: 'y' },
@@ -133,6 +154,31 @@ describe('syncLabels', () => {
 
     expect(result.existing).toEqual(['bump:minor']);
     expect(result.created).toEqual(['release:skip']);
+  });
+
+  it('should rethrow 422 validation errors (e.g. label name too long) so the caller sees the real failure', async () => {
+    const octokit = mockOctokitForCreateWithErrorBody({
+      'scope:very-long-feature-area-name-that-exceeds-the-limit': {
+        status: 422,
+        errors: [{ code: 'invalid' }],
+      },
+    });
+    const defs: LabelDefinition[] = [
+      {
+        name: 'scope:very-long-feature-area-name-that-exceeds-the-limit',
+        color: '5319e7',
+        description: 'x',
+      },
+    ];
+
+    await expect(syncLabels(octokit as never, 'owner', 'repo', defs)).rejects.toThrow('HTTP 422');
+  });
+
+  it('should rethrow 422 errors without a structured body as a real failure', async () => {
+    const octokit = mockOctokitForCreate({ 'bump:minor': 422 });
+    const defs: LabelDefinition[] = [{ name: 'bump:minor', color: '0e8a16', description: 'x' }];
+
+    await expect(syncLabels(octokit as never, 'owner', 'repo', defs)).rejects.toThrow('HTTP 422');
   });
 
   it('should rethrow non-422 errors (e.g. auth/rate-limit)', async () => {

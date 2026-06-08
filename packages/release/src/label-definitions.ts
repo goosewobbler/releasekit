@@ -170,5 +170,10 @@ export async function checkLabels(
 function isAlreadyExistsError(err: unknown): boolean {
   if (typeof err !== 'object' || err === null) return false;
   const status = (err as { status?: number }).status;
-  return status === 422;
+  if (status !== 422) return false;
+  // A 422 for "already exists" carries errors[0].code === 'already_exists'.
+  // Other 422s (label name too long, disallowed characters, etc.) are real
+  // validation failures and must surface to the caller.
+  const errors = (err as { response?: { data?: { errors?: { code?: string }[] } } }).response?.data?.errors;
+  return Array.isArray(errors) && errors.some((e) => e?.code === 'already_exists');
 }

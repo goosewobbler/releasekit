@@ -24,8 +24,17 @@ function mockOctokit(existingLabels: string[] = [], failures: Record<string, num
   const createLabel = vi.fn(async ({ name }: { name: string }) => {
     const status = failures[name];
     if (status) {
-      const err = new Error(`HTTP ${status}`) as Error & { status: number };
+      const err = new Error(`HTTP ${status}`) as Error & {
+        status: number;
+        response?: { data: { errors?: { code: string }[] } };
+      };
       err.status = status;
+      // GitHub's 422 for "already exists" carries errors[0].code === 'already_exists';
+      // other 422s are real validation failures and must surface. Mock both as 422-with-body
+      // so the test exercises the existing/regression path the same way the real API would.
+      if (status === 422) {
+        err.response = { data: { errors: [{ code: 'already_exists' }] } };
+      }
       throw err;
     }
     return { data: {} };
