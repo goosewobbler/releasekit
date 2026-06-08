@@ -32,6 +32,9 @@ CLI: `gh workflow run prerelease.yml -f identifier=rc`.
 
 - **pnpm before setup-node** (hosted runners lack pnpm).
 - **`fetch-depth: 0`** for full history.
-- The workflow input `identifier` is interpolated into `--prerelease
-  ${{ inputs.identifier }}`. The dispatch input is constrained by its `default`
-  in the UI; treat dispatch inputs as trusted-maintainer-only.
+- The workflow input `identifier` is passed via the `PRERELEASE_IDENTIFIER`
+  env var and referenced as `"$PRERELEASE_IDENTIFIER"` in the shell — never
+  via inline `${{ inputs.identifier }}` interpolation. A value like
+  `beta; rm -rf .` would otherwise be executed by the shell. The dispatch
+  input is also constrained by its `default` in the UI; treat dispatch
+  inputs as trusted-maintainer-only regardless.

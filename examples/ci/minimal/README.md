@@ -32,3 +32,8 @@ the command exits 0 and the workflow is a no-op.
   the bump.
 - **The `permissions` block is explicit.** Declaring any scope zeroes all the
   others, so `contents: write` is listed even though the default token has it.
+- **`.npmrc` is removed before publishing under OIDC.** `actions/setup-node`
+  with `registry-url` writes a `.npmrc` containing
+  `_authToken=${NODE_AUTH_TOKEN}`; with OIDC that variable is empty, so npm
+  exits `ENEEDAUTH` instead of performing the OIDC exchange. Drop the
+  `rm -f .npmrc` step if you switch to `NODE_AUTH_TOKEN`/token auth.
