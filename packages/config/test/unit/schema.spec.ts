@@ -580,6 +580,27 @@ describe('CIConfigSchema', () => {
     expect(result.labels.patch).toBe('bump:patch');
   });
 
+  it('should parse scopeLabels as a string-to-string map', () => {
+    const result = CIConfigSchema.parse({
+      scopeLabels: {
+        'scope:all': '@releasekit/*',
+        'scope:cli': 'packages/release',
+      },
+    });
+    expect(result.scopeLabels).toEqual({
+      'scope:all': '@releasekit/*',
+      'scope:cli': 'packages/release',
+    });
+  });
+
+  it('should leave scopeLabels undefined when omitted', () => {
+    expect(CIConfigSchema.parse({}).scopeLabels).toBeUndefined();
+  });
+
+  it('should reject non-string scopeLabels values', () => {
+    expect(() => CIConfigSchema.parse({ scopeLabels: { 'scope:all': 123 } })).toThrow();
+  });
+
   it('should return undefined for standingPr when omitted', () => {
     const result = CIConfigSchema.parse({});
     expect(result.standingPr).toBeUndefined();

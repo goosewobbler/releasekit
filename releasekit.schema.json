@@ -236,10 +236,6 @@
           "type": "string",
           "description": "Identifier for prerelease versions (e.g., 'alpha', 'beta')"
         },
-        "baseBranch": {
-          "type": "string",
-          "description": "Base branch for versioning"
-        },
         "strictReachable": {
           "type": "boolean",
           "default": false,
@@ -797,25 +793,101 @@
                       "properties": {
                         "instructions": {
                           "type": "object",
-                          "additionalProperties": {
-                            "type": "string"
-                          },
-                          "description": "Per-task instruction overrides"
-                        },
-                        "templates": {
-                          "type": "object",
-                          "additionalProperties": {
-                            "type": "string"
-                          },
-                          "description": "Per-task prompt template overrides"
+                          "additionalProperties": false,
+                          "description": "Per-task instruction overrides appended to the built-in prompts.",
+                          "properties": {
+                            "enhance": {
+                              "type": "string",
+                              "description": "Instruction override for the enhance task"
+                            },
+                            "categorize": {
+                              "type": "string",
+                              "description": "Instruction override for the categorize task"
+                            },
+                            "enhanceAndCategorize": {
+                              "type": "string",
+                              "description": "Instruction override for the combined enhance + categorize task"
+                            },
+                            "summarize": {
+                              "type": "string",
+                              "description": "Instruction override for the summarize task"
+                            },
+                            "releaseNotes": {
+                              "type": "string",
+                              "description": "Instruction override for the release-notes task"
+                            }
+                          }
                         }
                       }
+                    },
+                    "examples": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 5,
+                      "default": 3,
+                      "description": "Number of few-shot examples to include in LLM prompts (0–5)."
+                    },
+                    "context": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "description": "Additional context sources for the LLM.",
+                      "properties": {
+                        "pullRequests": {
+                          "type": "boolean",
+                          "default": true,
+                          "description": "Include linked pull request titles/bodies as context."
+                        }
+                      }
+                    },
+                    "categoryOrder": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Explicit ordering of categories in the output. Categories not listed retain their configured order after the listed ones."
                     }
                   },
                   "required": [
                     "provider",
                     "model"
                   ]
+                },
+                "links": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "description": "Extra links to append to the release notes.",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "label": {
+                            "type": "string",
+                            "description": "Link text"
+                          },
+                          "url": {
+                            "type": "string",
+                            "description": "Link URL"
+                          }
+                        },
+                        "required": [
+                          "label",
+                          "url"
+                        ]
+                      },
+                      "description": "Static list of links to append."
+                    },
+                    "fromPRBodyMarker": {
+                      "type": "string",
+                      "description": "Marker string in PR bodies; content after it is extracted and appended as links."
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Heading for the links section."
+                    }
+                  }
                 }
               }
             }
@@ -927,6 +999,13 @@
               "description": "Label to force a patch bump"
             }
           }
+        },
+        "scopeLabels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Map of scope labels to package patterns. When a PR has a label matching a key, only packages matching the corresponding pattern are released."
         },
         "standingPr": {
           "type": "object",
