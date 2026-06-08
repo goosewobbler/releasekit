@@ -74,13 +74,13 @@ Only release when a PR is merged with a release label. Conventional commits dete
 
 #### Create the labels
 
-These labels must exist in the repository before they can be applied to a PR (they are not created automatically outside standing-pr mode). Run `releasekit labels sync` — it creates every label your config implies (bump / channel / release, any configured `scope:*`, and the standing-PR labels), honouring `ci.labels` renames:
+These labels must exist in the repository before they can be applied to a PR (they are not created automatically outside standing-pr mode). Create every label your config implies — bump / channel / release, any configured `scope:*`, and the standing-PR labels, honouring `ci.labels` renames — with:
 
 ```bash
 releasekit labels sync
 ```
 
-Wire `releasekit labels sync --check` into CI to fail fast when a required label is missing — otherwise a mistyped `bump:minor` silently fails to release. See the [CLI reference](../../../docs/cli.md#releasekit-labels) for details.
+Wire `--check` into CI to fail fast when a required label is missing — otherwise a mistyped `bump:minor` silently fails to release. See the [CLI reference](../../../docs/cli.md#releasekit-labels) for details.
 
 #### Label combinations
 
