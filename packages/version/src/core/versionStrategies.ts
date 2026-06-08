@@ -752,13 +752,13 @@ export function createAsyncStrategy(config: Config): StrategyFunction {
  * The CLI will override this based on resolved packages.
  */
 export function createStrategy(config: Config): StrategyFunction {
-  // Explicit `version.groups` routes through the unified group engine. `sync: true` keeps using
-  // createSyncStrategy for back-compat (see hasExplicitGroups docs).
-  if (hasExplicitGroups(config)) {
-    return createGroupStrategy(config);
-  }
+  // `sync: true` takes precedence over explicit groups (back-compat). Explicit `version.groups`
+  // routes through the unified group engine only when sync is off.
   if (config.sync) {
     return createSyncStrategy(config);
+  }
+  if (hasExplicitGroups(config)) {
+    return createGroupStrategy(config);
   }
 
   // Default to async strategy - the CLI will determine the actual strategy

@@ -253,18 +253,20 @@ function releaseGroup(group: ResolvedGroup, computation: GroupComputation, confi
     // Adoption: a member below the group version jumps to it. Warn loudly when the jump skips
     // versions — i.e. the group version is strictly beyond what a single major bump of this member
     // would have produced — so adopters time the migration to a real breaking change. An unchanged
-    // member that is nonetheless released (fixed group) also warns, since it gains a version with
-    // no semver event of its own behind it.
+    // member that is nonetheless released (fixed group) is the routine lockstep case: just log it at
+    // info level, since it doesn't skip any versions for that member.
     if (semver.valid(plan.baseline) && semver.lt(plan.baseline, groupVersion)) {
       const singleMajorBump = semver.inc(plan.baseline, 'major') ?? plan.baseline;
       const jumpsMoreThanOneBump = semver.gt(groupVersion, singleMajorBump);
-      if (jumpsMoreThanOneBump || !plan.changed) {
+      if (jumpsMoreThanOneBump) {
         log(
           `Group "${group.name}": ${name} adopts group version ${groupVersion} (was ${plan.baseline}). ` +
             'This skips intermediate versions with no semver event behind the jump — time group ' +
             'migrations to a real breaking change in the family.',
           'warning',
         );
+      } else if (!plan.changed) {
+        log(`Group "${group.name}": ${name} rides along to ${groupVersion} (was ${plan.baseline}).`, 'info');
       }
     }
 
@@ -343,6 +345,22 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
       for (const group of resolution.groups) {
         const members = group.members.filter(targetFilter).filter((p) => shouldProcess(p, config));
         if (members.length === 0) continue;
+
+        // `config.skip` and the target filter both remove members from `members`, so a fixed group
+        // can release with a subset of its declared members — leaving the group at divergent
+        // versions. Warn so the divergence is intentional, not a surprise.
+        if (group.sync === 'fixed') {
+          const released = new Set(members.map((m) => m.packageJson.name));
+          const notInRelease = group.members.map((m) => m.packageJson.name).filter((name) => !released.has(name));
+          if (notInRelease.length > 0) {
+            log(
+              `Group "${group.name}" is fixed but will release without: ${notInRelease.join(', ')}. ` +
+                'They were excluded by config.skip or --target, so the group will end up at divergent versions. ' +
+                'Remove the package from config.skip (or include it via --target) to keep the group atomic.',
+              'warning',
+            );
+          }
+        }
 
         const plans = await Promise.all(members.map((pkg) => planMember(config, pkg, formattedPrefix, globalTag)));
         const computation = computeGroup(group, plans);
