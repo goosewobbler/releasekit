@@ -62,6 +62,14 @@ const BUMP_RANK: Record<string, number> = {
   prerelease: 0,
 };
 
+/** Aggregate-bump type for a group rank. Rank 0 is "prerelease-increment" — a special case handled in computeGroup because `semver.inc` with a stable release type would graduate the group to a stable release. */
+const RANK_TO_TYPE: Record<number, 'patch' | 'minor' | 'major' | 'prerelease'> = {
+  0: 'prerelease',
+  1: 'patch',
+  2: 'minor',
+  3: 'major',
+};
+
 interface MemberPlan {
   pkg: Package;
   /** Resolved current version (baseline) for this member. */
@@ -134,12 +142,6 @@ function memberBumpRank(plan: MemberPlan): number {
   return BUMP_RANK[diff] ?? BUMP_RANK.patch;
 }
 
-const RANK_TO_TYPE: Record<number, 'patch' | 'minor' | 'major'> = {
-  1: 'patch',
-  2: 'minor',
-  3: 'major',
-};
-
 interface GroupComputation {
   /** The shared version every releasing member is written to. */
   groupVersion: string;
@@ -152,7 +154,7 @@ interface GroupComputation {
 /**
  * Compute the group version and the set of releasing members from each member's independent plan.
  */
-function computeGroup(group: ResolvedGroup, plans: MemberPlan[]): GroupComputation {
+function computeGroup(group: ResolvedGroup, plans: MemberPlan[], config: Config): GroupComputation {
   const changedPlans = plans.filter((p) => p.changed);
   if (changedPlans.length === 0) {
     return { groupVersion: '', releasing: [], hasChange: false };
@@ -162,10 +164,17 @@ function computeGroup(group: ResolvedGroup, plans: MemberPlan[]): GroupComputati
   const maxRank = Math.max(...changedPlans.map(memberBumpRank));
   const bumpType = RANK_TO_TYPE[maxRank] ?? 'patch';
 
-  // Apply the aggregate bump once to the highest baseline in the group. semver.inc handles the
-  // stable case; prerelease groups fall back to each member's own computed next version where the
-  // bumped value would be lower than the maximum already-computed member version.
-  let groupVersion = semver.inc(maxBaseline, bumpType) ?? maxBaseline;
+  // Apply the aggregate bump once to the highest baseline in the group. For prerelease rank
+  // (all changed members are on a prerelease family), pass the identifier so semver.inc
+  // increments within the prerelease instead of graduating to a stable release. Members whose
+  // own bump already produced a higher version still pull the group version up via the
+  // never-regress guard below.
+  let groupVersion =
+    bumpType === 'prerelease'
+      ? config.prereleaseIdentifier
+        ? (semver.inc(maxBaseline, 'prerelease', config.prereleaseIdentifier) ?? maxBaseline)
+        : maxBaseline
+      : (semver.inc(maxBaseline, bumpType) ?? maxBaseline);
 
   // Never let the group version regress below any member's independently-computed next version
   // (covers prerelease increments and members whose own bump already exceeded the aggregate).
@@ -363,7 +372,7 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
         }
 
         const plans = await Promise.all(members.map((pkg) => planMember(config, pkg, formattedPrefix, globalTag)));
-        const computation = computeGroup(group, plans);
+        const computation = computeGroup(group, plans, config);
 
         if (!computation.hasChange) {
           log(`Group "${group.name}": no releasable changes, skipping.`, 'info');
