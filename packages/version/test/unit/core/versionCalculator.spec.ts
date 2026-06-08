@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { Bumper, type BumperRecommendationResult } from 'conventional-recommended-bump';
+import type { ReleaseType } from 'semver';
 import semver from 'semver';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { calculateVersion } from '../../../src/core/versionCalculator.js';
@@ -867,6 +868,116 @@ describe('Version Calculator', () => {
       const version = await calculateVersion(defaultConfig as Config, options);
 
       expect(version).toBe('0.0.1');
+    });
+  });
+
+  describe('Pre-1.0 breaking changes (zeroMajor)', () => {
+    // Helper: drive the commit-inferred path with a given inferred release type and current version.
+    function setupInferred(releaseType: ReleaseType, currentVersion: string): void {
+      vi.spyOn(Bumper.prototype, 'bump').mockResolvedValue({
+        releaseType,
+      } as unknown as BumperRecommendationResult);
+      vi.spyOn(versionUtils, 'getBestVersionSource').mockResolvedValue({
+        source: 'git',
+        version: `v${currentVersion}`,
+        reason: 'Git tag exists',
+      });
+    }
+
+    it('should bump the 0.x minor for an inferred breaking change under the default (0.24.0 -> 0.25.0)', async () => {
+      setupInferred('major', '0.24.0');
+      const bumpSpy = vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('0.25.0');
+
+      const version = await calculateVersion(defaultConfig as Config, {
+        latestTag: 'v0.24.0',
+        versionPrefix: 'v',
+      });
+
+      // The inferred 'major' is downgraded to 'minor' before bumpVersion is called.
+      expect(bumpSpy).toHaveBeenCalledWith('0.24.0', 'minor', undefined);
+      expect(version).toBe('0.25.0');
+    });
+
+    it('should bump to the next major for an inferred breaking change at/after 1.0.0 (1.2.0 -> 2.0.0)', async () => {
+      setupInferred('major', '1.2.0');
+      const bumpSpy = vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('2.0.0');
+
+      const version = await calculateVersion(defaultConfig as Config, {
+        latestTag: 'v1.2.0',
+        versionPrefix: 'v',
+      });
+
+      // major >= 1 is unaffected by the downgrade.
+      expect(bumpSpy).toHaveBeenCalledWith('1.2.0', 'major', undefined);
+      expect(version).toBe('2.0.0');
+    });
+
+    it("should bump to 1.0.0 for an inferred breaking change pre-1.0 when zeroMajor is 'strict'", async () => {
+      setupInferred('major', '0.24.0');
+      const bumpSpy = vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.0.0');
+
+      const config = { ...defaultConfig, zeroMajor: 'strict' } as Config;
+      const version = await calculateVersion(config, {
+        latestTag: 'v0.24.0',
+        versionPrefix: 'v',
+      });
+
+      // strict preserves the current/semantic-release behavior: breaking -> major even pre-1.0.
+      expect(bumpSpy).toHaveBeenCalledWith('0.24.0', 'major', undefined);
+      expect(version).toBe('1.0.0');
+    });
+
+    it('should NOT downgrade an explicit major bump pre-1.0 (specifiedType: major on 0.24.0 -> 1.0.0)', async () => {
+      // The explicit (specifiedType) branch must stay untouched by the fix and the config.
+      vi.spyOn(versionUtils, 'getBestVersionSource').mockResolvedValue({
+        source: 'git',
+        version: 'v0.24.0',
+        reason: 'Git tag exists',
+      });
+      const bumpSpy = vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.0.0');
+
+      const version = await calculateVersion(defaultConfig as Config, {
+        latestTag: 'v0.24.0',
+        type: 'major',
+        versionPrefix: 'v',
+      });
+
+      expect(bumpSpy).toHaveBeenCalledWith('0.24.0', 'major', undefined);
+      expect(version).toBe('1.0.0');
+    });
+
+    it('should leave an inferred feat (minor) untouched pre-1.0 (0.24.0 -> 0.25.0, not 0.24.1)', async () => {
+      setupInferred('minor', '0.24.0');
+      const bumpSpy = vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('0.25.0');
+
+      const version = await calculateVersion(defaultConfig as Config, {
+        latestTag: 'v0.24.0',
+        versionPrefix: 'v',
+      });
+
+      // Decision: feat->minor is NOT downgraded to patch pre-1.0; only the irreversible
+      // breaking->major (1.0.0) jump is corrected.
+      expect(bumpSpy).toHaveBeenCalledWith('0.24.0', 'minor', undefined);
+      expect(version).toBe('0.25.0');
+    });
+
+    it('should downgrade an inferred premajor to preminor pre-1.0 in the prerelease flow (0.24.0 -> 0.25.0-next.0)', async () => {
+      // conventional-recommended-bump returns 'major' for a breaking change; the prerelease
+      // flow is driven by config.isPrerelease, which makes bumpVersion produce a pre-version.
+      // Either way the magnitude is downgraded: breaking pre-1.0 stays on the 0.x minor.
+      setupInferred('major', '0.24.0');
+      const bumpSpy = vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('0.25.0-next.0');
+
+      const config = { ...defaultConfig, isPrerelease: true, prereleaseIdentifier: 'next' } as Config;
+      const version = await calculateVersion(config, {
+        latestTag: 'v0.24.0',
+        versionPrefix: 'v',
+      });
+
+      // 'major' downgraded to 'minor'; the prerelease identifier is threaded through so
+      // bumpVersion emits the preminor-shaped 0.25.0-next.0.
+      expect(bumpSpy).toHaveBeenCalledWith('0.24.0', 'minor', 'next');
+      expect(version).toBe('0.25.0-next.0');
     });
   });
 

@@ -75,6 +75,10 @@ export interface Config extends VersionConfigBase {
   baseRef?: string;
   mismatchStrategy?: 'error' | 'warn' | 'ignore' | 'prefer-package' | 'prefer-git';
   strictReachable?: boolean;
+  /** Pre-1.0 handling of commit-inferred breaking changes. 'spec' (default) keeps breaking
+   *  changes on the 0.x minor; 'strict' graduates them to 1.0.0. Only the inferred path
+   *  consults this — explicit overrides always graduate. See VersionConfig.zeroMajor. */
+  zeroMajor?: 'spec' | 'strict';
   cargo?: {
     enabled?: boolean;
     paths?: string[];
@@ -158,6 +162,7 @@ export function toVersionConfig(config: VersionConfig | undefined, gitConfig?: G
     })),
     defaultReleaseType: config.defaultReleaseType as ReleaseType | undefined,
     mismatchStrategy: config.mismatchStrategy,
+    zeroMajor: config.zeroMajor,
     versionPrefix: config.versionPrefix ?? '',
     prereleaseIdentifier: config.prereleaseIdentifier,
     baseBranch: gitConfig?.branch,

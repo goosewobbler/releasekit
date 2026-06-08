@@ -357,11 +357,38 @@ export async function calculateVersion(config: Config, options: VersionOptions):
       }
 
       log(`Release type from commits: ${releaseTypeFromCommits}`, 'debug');
-      const isPrereleaseBumpType = ['prerelease', 'premajor', 'preminor', 'prepatch'].includes(releaseTypeFromCommits);
+
+      // Pre-1.0 0.x-awareness for the COMMIT-INFERRED path only.
+      // `conventional-recommended-bump` returns `major` for any breaking change without ever
+      // looking at the current version, so a `feat!:` on 0.24.0 would otherwise jump to 1.0.0.
+      // Per semver §4 (and npm caret / Cargo / changesets), a breaking change pre-1.0 belongs on
+      // the 0.x minor (0.24.0 -> 0.25.0), since `^0.24.0` already excludes 0.25.0. We only
+      // downgrade the major->minor magnitude (and premajor->preminor for the prerelease flow);
+      // we deliberately do NOT downgrade inferred minor (feat) -> patch — feat->minor pre-1.0 is a
+      // defensible convention and non-destructive either way, whereas the 1.0.0 jump is irreversible.
+      // Explicit overrides (specifiedType / --bump major / bump:major) take the branch above and
+      // are intentionally untouched, so graduating to 1.0.0 stays a deliberate, opt-in act.
+      // zeroMajor: 'spec' (default) applies the downgrade; 'strict' preserves breaking->major.
+      // See https://github.com/goosewobbler/releasekit/issues/274.
+      let effectiveReleaseType = releaseTypeFromCommits;
+      const currentMajor = semver.parse(currentVersion)?.major;
+      if (
+        (config.zeroMajor ?? 'spec') === 'spec' &&
+        currentMajor === 0 &&
+        (releaseTypeFromCommits === 'major' || releaseTypeFromCommits === 'premajor')
+      ) {
+        effectiveReleaseType = releaseTypeFromCommits === 'premajor' ? 'preminor' : 'minor';
+        log(
+          `Pre-1.0 breaking change: downgrading inferred '${releaseTypeFromCommits}' to '${effectiveReleaseType}' (zeroMajor: 'spec')`,
+          'info',
+        );
+      }
+
+      const isPrereleaseBumpType = ['prerelease', 'premajor', 'preminor', 'prepatch'].includes(effectiveReleaseType);
       log(`Is prerelease bump type: ${isPrereleaseBumpType}`, 'debug');
       const prereleaseId = config.isPrerelease || isPrereleaseBumpType ? normalizedPrereleaseId : undefined;
       log(`Prerelease ID: ${prereleaseId}`, 'debug');
-      const result = bumpVersion(currentVersion, releaseTypeFromCommits, prereleaseId);
+      const result = bumpVersion(currentVersion, effectiveReleaseType, prereleaseId);
       log(`Conventional commits version: ${result}`, 'debug');
       return result;
     } catch (error) {

@@ -141,6 +141,21 @@ function renderVersion(prop: SchemaProperty): void {
   emit(propsTable(topProps));
   emitBlank();
 
+  emit('### `version.zeroMajor`', '');
+  emit(
+    'Controls how a **commit-inferred** breaking change (`feat!:` / `BREAKING CHANGE:`) is bumped while the project is still pre-1.0 (current major version is `0`).',
+    '',
+  );
+  emit(
+    '- `"spec"` (default): the breaking change bumps the **0.x minor** (e.g. `0.24.0` → `0.25.0`). This follows semver §4 — "major version zero is for initial development; anything MAY change at any time" — and matches npm caret semantics (`^0.24.0` already excludes `0.25.0`) as well as Cargo and changesets.',
+    '- `"strict"`: the breaking change always bumps to the **next major**, even pre-1.0 (e.g. `0.24.0` → `1.0.0`), matching the semantic-release convention.',
+    '',
+  );
+  emit(
+    'Only the commit-inferred path consults this setting. Explicit overrides always graduate to `1.0.0` regardless of `zeroMajor`: `--bump major`, the `bump:major` label on the standing PR, or `release:immediate` + `bump:major` on a feeder PR. Graduating to 1.0 therefore stays a deliberate, opt-in act.',
+    '',
+  );
+
   const bp = prop.properties?.branchPatterns;
   if (bp?.items?.properties) {
     emit(`**\`version.branchPatterns\`** — ${ensurePeriod(bp.description)}`, '');

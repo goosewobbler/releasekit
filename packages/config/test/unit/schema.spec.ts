@@ -99,6 +99,16 @@ describe('VersionConfigSchema', () => {
     expect(result.versionStrategy).toBe('commitMessage');
     expect(result.mismatchStrategy).toBe('warn');
     expect(result.versionPrefix).toBe('');
+    expect(result.zeroMajor).toBe('spec');
+  });
+
+  it("should accept zeroMajor: 'strict'", () => {
+    const result = VersionConfigSchema.parse({ zeroMajor: 'strict' });
+    expect(result.zeroMajor).toBe('strict');
+  });
+
+  it('should reject an unknown zeroMajor value', () => {
+    expect(() => VersionConfigSchema.parse({ zeroMajor: 'always' })).toThrow();
   });
 
   it('should accept branchPatterns', () => {
