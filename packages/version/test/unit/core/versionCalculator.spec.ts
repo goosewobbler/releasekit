@@ -961,10 +961,10 @@ describe('Version Calculator', () => {
       expect(version).toBe('0.25.0');
     });
 
-    it('should downgrade an inferred premajor to preminor pre-1.0 in the prerelease flow (0.24.0 -> 0.25.0-next.0)', async () => {
+    it('should downgrade an inferred breaking change to minor pre-1.0 in the prerelease flow (0.24.0 -> 0.25.0-next.0)', async () => {
       // conventional-recommended-bump returns 'major' for a breaking change; the prerelease
-      // flow is driven by config.isPrerelease, which makes bumpVersion produce a pre-version.
-      // Either way the magnitude is downgraded: breaking pre-1.0 stays on the 0.x minor.
+      // flow is driven by config.isPrerelease, which makes bumpVersion turn the downgraded
+      // 'minor' + identifier into the preminor-shaped 0.25.0-next.0.
       setupInferred('major', '0.24.0');
       const bumpSpy = vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('0.25.0-next.0');
 
