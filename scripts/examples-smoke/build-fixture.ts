@@ -17,7 +17,7 @@
  */
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SCENARIOS } from './scenarios.js';
@@ -85,11 +85,20 @@ function writeRootPackageJson(
   tarballNames: Record<string, string>,
 ): void {
   const { deps, overrides } = tarballDeps(tarballNames);
+  // Read the repo's pinned pnpm so the fixture's `packageManager` field matches
+  // what the smoke job's pnpm/action-setup@v5 will resolve. The hash suffix
+  // would be wrong on a different machine, so we keep just the `pnpm@X.Y.Z`
+  // portion and let the action pick the latest patch.
+  const repoPkg = JSON.parse(readFileSync(join(rootDir, 'package.json'), 'utf-8')) as {
+    packageManager?: string;
+  };
+  const packageManager = repoPkg.packageManager?.split('+')[0];
   writeJson(join(out, 'package.json'), {
     name,
     version: '1.0.0',
     private: true,
     type: 'module',
+    ...(packageManager ? { packageManager } : {}),
     ...extra,
     dependencies: {
       ...deps,
