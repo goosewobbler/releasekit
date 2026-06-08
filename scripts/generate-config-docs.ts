@@ -136,7 +136,7 @@ function renderVersion(prop: SchemaProperty): void {
   emit(ensurePeriod(prop.description), '');
 
   const topProps = Object.fromEntries(
-    Object.entries(prop.properties ?? {}).filter(([k]) => k !== 'cargo' && k !== 'branchPatterns'),
+    Object.entries(prop.properties ?? {}).filter(([k]) => k !== 'cargo' && k !== 'branchPatterns' && k !== 'groups'),
   );
   emit(propsTable(topProps));
   emitBlank();
@@ -162,6 +162,55 @@ function renderVersion(prop: SchemaProperty): void {
     emit('Array of objects with the following properties:', '');
     emit(propsTable(bp.items.properties));
     emitBlank();
+  }
+
+  const groups = prop.properties?.groups;
+  const groupItem = typeof groups?.additionalProperties === 'object' ? groups.additionalProperties : undefined;
+  if (groups) {
+    emit('### `version.groups`', '');
+    emit(
+      'Named version groups let a co-evolving family of packages version together while the rest',
+      'of the monorepo versions independently. Each entry under `groups` is a group name mapping to',
+      '`{ packages, sync }`, where `packages` is a list of patterns (same matching as',
+      '`version.packages`) and `sync` is one of:',
+      '',
+    );
+    if (groupItem?.properties) {
+      emit(propsTable(groupItem.properties));
+    }
+    emitBlank();
+    emit(
+      '- **`fixed`** — any releasable change in *any* member releases **all** members at the shared',
+      '  group version, computed as `bump(max(member baselines))`. This is the changesets `fixed`',
+      '  semantics. The global `version.sync: true` flag is exactly this, applied to one implicit',
+      '  group of every package — there is one mechanism, not two.',
+      '- **`linked`** — only members with a releasable change release, but every releasing member',
+      '  shares the same computed version. Unchanged members are left untouched (no empty re-release).',
+      '',
+    );
+    emit(
+      '**Group baseline** is the highest member version found in tags / manifests; the group bumps',
+      'from there.',
+      '',
+    );
+    emit(
+      '> **Member adoption.** A member below the group baseline — never released, or at an older version',
+      '> than the family — adopts the group version on its next release (joining a family at `2.3.0`',
+      '> releases at `2.4.0`, skipping its own `1.x` line), overriding the per-package "initial version',
+      '> from `package.json`" rule. The version step warns when the jump skips versions.',
+      '',
+    );
+    emit(
+      '**`--target` and fixed groups.** Targeting a strict subset of a `fixed` group expands to the',
+      'whole group (a fixed group never silently splits). `linked` groups and ungrouped packages honor',
+      'targets as-is.',
+      '',
+    );
+    emit(
+      '**Workspace pins.** Intra-group `workspace:*` dependencies resolve to the group version within a',
+      'run, so a fixed group publishes internally consistent.',
+      '',
+    );
   }
 
   const cargo = prop.properties?.cargo;

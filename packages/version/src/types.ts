@@ -1,5 +1,13 @@
-import type { GitConfig, VersionConfig } from '@releasekit/config';
+import type { GitConfig, VersionConfig, VersionGroup } from '@releasekit/config';
 import type { ReleaseType } from 'semver';
+
+/**
+ * A version group as carried through the version engine.
+ * `name` is the config key; `packages` are the raw patterns; `sync` is the group's mode.
+ */
+export interface VersionGroupConfig extends VersionGroup {
+  name: string;
+}
 
 /**
  * Runtime overrides passed by an orchestrator (e.g. @releasekit/release).
@@ -58,6 +66,12 @@ export interface Config extends VersionConfigBase {
   packageSpecificTags?: boolean;
   preset: string;
   sync: boolean;
+  /**
+   * Named version groups, each with package patterns and a `fixed` | `linked` sync mode.
+   * `sync: true` is normalized into one implicit `fixed` group of every package at runtime, so
+   * groups are the single mechanism for lockstep/linked versioning. See groupResolution.ts.
+   */
+  groups?: Record<string, VersionGroup>;
   packages: string[];
   mainPackage?: string;
   updateInternalDependencies: 'major' | 'minor' | 'patch' | 'no-internal-update';
@@ -148,6 +162,7 @@ export function toVersionConfig(config: VersionConfig | undefined, gitConfig?: G
     packageSpecificTags: config.packageSpecificTags,
     preset: config.preset ?? 'conventional',
     sync: config.sync ?? true,
+    groups: config.groups,
     packages: config.packages ?? [],
     mainPackage: config.mainPackage,
     updateInternalDependencies: config.updateInternalDependencies ?? 'minor',

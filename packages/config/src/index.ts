@@ -43,5 +43,6 @@ export {
   type VerifyConfig,
   type VerifyRegistryConfig,
   type VersionConfig,
+  type VersionGroup,
 } from './schema.js';
 export { loadAuth, saveAuth, substituteInObject, substituteVariables } from './substitute.js';

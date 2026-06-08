@@ -68,8 +68,13 @@ export function createVersionCommand(): Command {
         log(`Config packages: ${JSON.stringify(config.packages)}`, 'debug');
         log(`Config sync: ${config.sync}`, 'debug');
 
+        const hasGroups = config.groups && Object.keys(config.groups).length > 0;
         const effectiveSync = options.sync || config.sync;
-        if (effectiveSync) {
+        if (hasGroups && !effectiveSync) {
+          log('Using version-groups strategy.', 'info');
+          engine.setStrategy('group');
+          await engine.run(pkgsResult, cliTargets);
+        } else if (effectiveSync) {
           log('Using sync versioning strategy.', 'info');
           engine.setStrategy('sync');
           await engine.run(pkgsResult);

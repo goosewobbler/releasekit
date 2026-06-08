@@ -142,6 +142,38 @@ describe('VersionConfigSchema', () => {
     expect(result.cargo?.enabled).toBe(true);
     expect(result.cargo?.paths).toEqual(['crates/core', 'crates/cli']);
   });
+
+  it('should accept version groups with fixed and linked sync modes', () => {
+    const result = VersionConfigSchema.parse({
+      sync: false,
+      groups: {
+        native: { packages: ['@wdio/native-*'], sync: 'linked' },
+        ui: { packages: ['@app/ui', '@app/ui-icons'], sync: 'fixed' },
+      },
+    });
+    expect(result.groups?.native).toEqual({ packages: ['@wdio/native-*'], sync: 'linked' });
+    expect(result.groups?.ui.sync).toBe('fixed');
+  });
+
+  it('should reject a group with an empty packages list', () => {
+    expect(() =>
+      VersionConfigSchema.parse({
+        groups: { native: { packages: [], sync: 'fixed' } },
+      }),
+    ).toThrow();
+  });
+
+  it('should reject a group with an invalid sync mode', () => {
+    expect(() =>
+      VersionConfigSchema.parse({
+        groups: { native: { packages: ['@wdio/native-*'], sync: 'independent' } },
+      }),
+    ).toThrow();
+  });
+
+  it('should leave groups undefined when not specified', () => {
+    expect(VersionConfigSchema.parse({}).groups).toBeUndefined();
+  });
 });
 
 describe('NpmConfigSchema', () => {

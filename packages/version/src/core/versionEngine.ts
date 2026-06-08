@@ -209,6 +209,13 @@ export class VersionEngine {
         mergedPackages.root = workspaceRoot;
       }
 
+      // When explicit version groups are configured, do NOT pre-filter by runtime targets here.
+      // The group strategy needs the full group membership to expand a `--target` that hits a
+      // strict subset of a fixed group up to the whole group — pruning non-targeted members at
+      // discovery time would silently split the group. The strategy applies group-aware target
+      // filtering itself. (config.packages filtering still applies — it scopes the universe.)
+      const deferTargetsToGroups = Object.keys(this.config.groups ?? {}).length > 0;
+
       // Filter packages based on config.packages if specified
       if (this.config.packages && this.config.packages.length > 0) {
         const originalCount = mergedPackages.packages.length;
@@ -230,7 +237,7 @@ export class VersionEngine {
         if (filteredPackages.length === 0) {
           log('Warning: No packages matched the specified patterns in config.packages', 'warning');
         }
-      } else if (this.runtimeTargets.length > 0) {
+      } else if (this.runtimeTargets.length > 0 && !deferTargetsToGroups) {
         // If no config.packages but runtime targets specified, use targets as primary filter
         const originalCount = mergedPackages.packages.length;
         mergedPackages.packages = mergedPackages.packages.filter((pkg) =>
@@ -243,7 +250,7 @@ export class VersionEngine {
       }
 
       // Apply runtime targets as secondary filter (after config.packages)
-      if (this.runtimeTargets.length > 0 && mergedPackages.packages.length > 0) {
+      if (this.runtimeTargets.length > 0 && mergedPackages.packages.length > 0 && !deferTargetsToGroups) {
         const beforeCount = mergedPackages.packages.length;
         mergedPackages.packages = mergedPackages.packages.filter((pkg) =>
           shouldMatchPackageTargets(pkg.packageJson.name, this.runtimeTargets),

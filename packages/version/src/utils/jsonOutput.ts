@@ -83,7 +83,7 @@ export function isJsonOutputMode(): boolean {
  * Record which versioning strategy is producing this output so consumers
  * (preview, standing PR) can render sync releases as a single versioned unit.
  */
-export function setVersioningStrategy(strategy: 'sync' | 'single' | 'async'): void {
+export function setVersioningStrategy(strategy: 'sync' | 'single' | 'async' | 'group'): void {
   if (!_jsonOutputMode) return;
   _jsonData.strategy = strategy;
 }
@@ -111,6 +111,17 @@ export function setPackageUpdateTag(packageName: string, tag: string): void {
   if (!_jsonOutputMode) return;
   const update = _jsonData.updates.find((u) => u.packageName === packageName);
   if (update) update.tag = tag;
+}
+
+/**
+ * Tag a package update with the version group it was released as part of.
+ * Lets CI surfaces treat a fixed group atomically. Called by the group strategy after the
+ * package.json update has been recorded.
+ */
+export function setPackageUpdateGroup(packageName: string, group: string): void {
+  if (!_jsonOutputMode) return;
+  const update = _jsonData.updates.find((u) => u.packageName === packageName);
+  if (update) update.group = group;
 }
 
 /**

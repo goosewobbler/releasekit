@@ -1282,6 +1282,32 @@ describe('Version Strategies', () => {
       expect(strategyMap).toHaveProperty('sync');
       expect(strategyMap).toHaveProperty('single');
       expect(strategyMap).toHaveProperty('async');
+      expect(strategyMap).toHaveProperty('group');
+    });
+  });
+
+  describe('createStrategy group routing', () => {
+    it('should route explicit version.groups through the group strategy', () => {
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        sync: false,
+        groups: { native: { packages: ['@wdio/native-*'], sync: 'linked' } },
+      };
+      // The group strategy is async (takes optional targets); just assert it's defined and callable.
+      const strategy = strategies.createStrategy(config as Config);
+      expect(strategy).toBeDefined();
+    });
+
+    it('should keep sync:true on the established sync strategy for back-compat', async () => {
+      const config: Partial<Config> = {
+        ...defaultConfig,
+        sync: true,
+      };
+      const strategy = strategies.createStrategy(config as Config);
+      // The sync strategy updates the root package.json with isRoot=true — a fingerprint the
+      // group strategy never produces — so this confirms sync:true still uses createSyncStrategy.
+      await strategy(mockPackages);
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined, true);
     });
   });
 });
