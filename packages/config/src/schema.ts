@@ -66,11 +66,7 @@ export const VersionConfigSchema = z.object({
   versionPrefix: z.string().default(''),
   prereleaseIdentifier: z.string().optional(),
   strictReachable: z.boolean().default(false),
-  /**
-   * Pre-1.0 handling of commit-inferred breaking changes. 'spec' (default) keeps them on the 0.x
-   * minor; 'strict' graduates to the next major. Inferred path only — explicit overrides always
-   * graduate. Full reference: docs/configuration.md#versionzeromajor.
-   */
+  /** Pre-1.0 inferred-breaking bump policy ('spec' | 'strict'). See docs/configuration.md#versionzeromajor. */
   zeroMajor: z.enum(['spec', 'strict']).default('spec'),
   cargo: VersionCargoConfigSchema.optional(),
 });

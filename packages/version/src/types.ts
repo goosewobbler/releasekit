@@ -75,9 +75,7 @@ export interface Config extends VersionConfigBase {
   baseRef?: string;
   mismatchStrategy?: 'error' | 'warn' | 'ignore' | 'prefer-package' | 'prefer-git';
   strictReachable?: boolean;
-  /** Pre-1.0 handling of commit-inferred breaking changes. 'spec' (default) keeps breaking
-   *  changes on the 0.x minor; 'strict' graduates them to 1.0.0. Only the inferred path
-   *  consults this — explicit overrides always graduate. See VersionConfig.zeroMajor. */
+  /** Pre-1.0 inferred-breaking bump policy ('spec' | 'strict'). See docs/configuration.md#versionzeromajor. */
   zeroMajor?: 'spec' | 'strict';
   cargo?: {
     enabled?: boolean;

@@ -72,9 +72,9 @@ if [[ -z "$version" ]]; then
 fi
 assert_version "0.2.0" "$version"
 
-# Test 3b: explicit --bump major still graduates a 0.x project to 1.0.0 (override path untouched).
-# Tag the repo: an explicit bump on a tagless first release returns the package.json version
-# as-is, so the tag is what makes this a real graduation scenario rather than a first release.
+# Test 4: explicit --bump major still graduates a 0.x project to 1.0.0 (override path untouched).
+# The repo is tagged on purpose: an explicit bump on a *tagless* first release returns the
+# package.json version as-is, so the tag is what makes this a real graduation rather than a first release.
 echo ""
 echo "--- Test: explicit --bump major on an established 0.x repo → 1.0.0 (deliberate graduation) ---"
 create_git_repo
