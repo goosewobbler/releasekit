@@ -1,0 +1,82 @@
+# Validates the runnable examples in examples/ so they cannot rot silently.
+#   1. actionlint over every example workflow YAML.
+#   2. JSON Schema validation of every example releasekit.config.json against
+#      the repo's releasekit.schema.json.
+#
+# NOTE: actionlint is a STATIC linter and does NOT know what tools a hosted
+# runner ships. A workflow that calls pnpm without a pnpm/action-setup step (or
+# cargo without a rust-toolchain step) lints clean and only fails at runtime.
+# Catching that needs an execution smoke-test — tracked as a follow-up.
+# See issues #259 and #263.
+name: Examples Validate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'examples/**'
+      - 'releasekit.schema.json'
+      - '.github/workflows/examples-validate.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'examples/**'
+      - 'releasekit.schema.json'
+      - '.github/workflows/examples-validate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    name: actionlint (examples)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run actionlint over example workflows
+        run: |
+          # actionlint's auto-detection only scans .github/workflows. The example
+          # workflows live under examples/, so download the binary and point it at
+          # each file explicitly. Pin the installer ref and the version so a new
+          # actionlint release can't fail this job out of band.
+          ACTIONLINT_VERSION=1.7.12
+          bash <(curl -sSf "https://raw.githubusercontent.com/rhysd/actionlint/v${ACTIONLINT_VERSION}/scripts/download-actionlint.bash") "$ACTIONLINT_VERSION"
+          shopt -s globstar nullglob
+          files=(examples/**/*.yml examples/**/*.yaml)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No example workflows found under examples/ — nothing to lint."
+            exit 0
+          fi
+          ./actionlint -color "${files[@]}"
+
+  config-schema:
+    name: config schema (examples)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Validate each example config against releasekit.schema.json
+        run: |
+          shopt -s globstar nullglob
+          configs=(examples/**/releasekit.config.json)
+          if [ ${#configs[@]} -eq 0 ]; then
+            echo "No example configs found — nothing to validate."
+            exit 0
+          fi
+          # ajv-cli@5 bundles ajv@8; --spec=draft7 matches the schema's declared draft.
+          # strict=false: the schema uses a string "default" on a boolean-enum field,
+          # which ajv's strict mode rejects as a meta-schema warning, not a data error.
+          for cfg in "${configs[@]}"; do
+            echo "::group::$cfg"
+            npx --yes ajv-cli@5 validate \
+              --spec=draft7 \
+              --strict=false \
+              -s releasekit.schema.json \
+              -d "$cfg"
+            echo "::endgroup::"
+          done

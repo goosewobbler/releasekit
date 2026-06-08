@@ -1,0 +1,26 @@
+{
+  "$schema": "https://goosewobbler.github.io/releasekit/schema.json",
+  "git": {
+    "branch": "main"
+  },
+  "version": {
+    "preset": "angular",
+    "sync": true
+  },
+  "publish": {
+    "npm": {
+      "enabled": true,
+      "access": "public"
+    }
+  },
+  "ci": {
+    "releaseStrategy": "standing-pr",
+    "standingPr": {
+      "branch": "release/next",
+      "mergeMethod": "squash"
+    },
+    "labels": {
+      "retry": "release:retry"
+    }
+  }
+}

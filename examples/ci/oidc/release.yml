@@ -1,0 +1,49 @@
+# Copy to: .github/workflows/release.yml
+#
+# npm OIDC trusted publishing: no NPM_TOKEN secret. The runner exchanges a
+# GitHub-issued OIDC token for a short-lived npm token at publish time.
+#
+# Requirements:
+#   - npm >= 9.5.0 (Node 24 ships a newer npm, so setup-node@v6 is fine).
+#   - Each package has an npm "Automation" trusted publisher configured:
+#     npmjs.com -> package Settings -> Trusted publishing -> add a GitHub
+#     Actions publisher for THIS repo and THIS workflow filename.
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  id-token: write # REQUIRED for OIDC — this is what mints the OIDC token
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: pnpm install --frozen-lockfile
+
+      # setup-node with registry-url writes a project .npmrc containing
+      # `_authToken=${NODE_AUTH_TOKEN}`. With OIDC there is no NODE_AUTH_TOKEN,
+      # so npm resolves it to an EMPTY token and fails with ENEEDAUTH instead of
+      # falling through to the OIDC exchange. Remove the file before publishing.
+      - name: Remove token-based .npmrc so OIDC can take over
+        run: rm -f .npmrc
+
+      - run: pnpm exec releasekit release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # No NPM_TOKEN / NODE_AUTH_TOKEN — OIDC provides auth.

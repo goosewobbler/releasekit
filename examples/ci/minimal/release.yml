@@ -1,0 +1,48 @@
+# Copy to: .github/workflows/release.yml
+#
+# Minimal release: every push to main runs `releasekit release`.
+# If there are no releasable commits the command exits 0 and does nothing.
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+# An explicit permissions block zeroes every scope that is not listed, so
+# `contents: write` (tags + GitHub Releases) must be named even though the
+# default token would otherwise have it.
+permissions:
+  contents: write
+  id-token: write # npm OIDC trusted publishing — drop if you publish with NPM_TOKEN
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # releasekit walks full history to determine the bump
+
+      # Hosted runners do NOT ship pnpm. This step must come BEFORE setup-node
+      # so that setup-node's `cache: pnpm` can find the pnpm binary.
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: pnpm install --frozen-lockfile
+
+      # setup-node's registry-url writes a .npmrc with `_authToken=${NODE_AUTH_TOKEN}`.
+      # With OIDC that var is empty, so npm fails ENEEDAUTH instead of the OIDC exchange.
+      # Remove it before publishing. (Drop this step if you publish with NODE_AUTH_TOKEN.)
+      - name: Remove token-based .npmrc so OIDC can take over
+        run: rm -f .npmrc
+
+      - run: pnpm exec releasekit release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Token-based npm auth instead of OIDC? Uncomment:
+          # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

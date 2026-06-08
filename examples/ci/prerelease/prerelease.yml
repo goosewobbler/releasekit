@@ -1,0 +1,50 @@
+# Copy to: .github/workflows/prerelease.yml
+#
+# Manual prerelease: a maintainer dispatches this workflow and picks a
+# prerelease identifier (e.g. beta, rc). releasekit produces versions like
+# 1.4.0-beta.0 and publishes them under a matching npm dist-tag.
+name: Prerelease
+
+on:
+  workflow_dispatch:
+    inputs:
+      identifier:
+        description: 'Prerelease identifier (e.g. beta, rc, next)'
+        required: true
+        default: 'beta'
+
+permissions:
+  contents: write
+  id-token: write # npm OIDC trusted publishing
+
+jobs:
+  prerelease:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: pnpm install --frozen-lockfile
+
+      # setup-node's registry-url writes a .npmrc with `_authToken=${NODE_AUTH_TOKEN}`.
+      # With OIDC that var is empty, so npm fails ENEEDAUTH instead of the OIDC exchange.
+      # Remove it before publishing. (Drop this step if you publish with NODE_AUTH_TOKEN.)
+      - name: Remove token-based .npmrc so OIDC can take over
+        run: rm -f .npmrc
+
+      # Pass the dispatch input via env, not inline interpolation — a value like
+      # `beta; rm -rf .` would otherwise be executed by the shell.
+      - run: pnpm exec releasekit release --prerelease "$PRERELEASE_IDENTIFIER"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRERELEASE_IDENTIFIER: ${{ inputs.identifier }}
+          # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # only if not using OIDC
