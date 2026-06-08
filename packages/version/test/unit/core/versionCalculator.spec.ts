@@ -255,6 +255,8 @@ describe('Version Calculator', () => {
       const version = await calculateVersion(defaultConfig as Config, options);
 
       expect(version).toBe('0.1.0');
+      // First-release early-return must not call bumpVersion.
+      expect(versionUtils.bumpVersion).not.toHaveBeenCalled();
     });
 
     it('should increment version based on specified type', async () => {
@@ -895,53 +897,6 @@ describe('Version Calculator', () => {
 
       const version = await calculateVersion(config as Config, options);
       expect(version).toBe('1.0.0');
-    });
-
-    it('should throw error if package.json does not exist', async () => {
-      // Mock fs.existsSync to return false for both package.json and Cargo.toml
-      vi.spyOn(fs, 'existsSync').mockReturnValue(false);
-
-      // Set up mock to throw when called
-      getPackageVersionFallback.mockImplementationOnce(() => {
-        throw new Error(
-          'Neither package.json nor Cargo.toml found. Checked paths: undefined/package.json, undefined/Cargo.toml',
-        );
-      });
-
-      expect(() => {
-        getPackageVersionFallback(undefined, 'test-package', 'minor', undefined, '0.1.0');
-      }).toThrow('Neither package.json nor Cargo.toml found');
-    });
-
-    it('should use initialVersion if package.json has no version property', async () => {
-      // Mock package.json with no version
-      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
-      vi.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify({}));
-
-      // Set up mock to return the initialVersion
-      getPackageVersionFallback.mockReturnValueOnce('0.1.0');
-
-      const version = getPackageVersionFallback(undefined, 'test-package', 'minor', undefined, '0.1.0');
-
-      expect(version).toBe('0.1.0');
-    });
-
-    it('should throw error if package.json read fails', async () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
-      vi.spyOn(fs, 'readFileSync').mockImplementation(() => {
-        throw new Error('Failed to read file');
-      });
-
-      // Set up mock to throw when called
-      getPackageVersionFallback.mockImplementationOnce(() => {
-        throw new Error(
-          'Neither package.json nor Cargo.toml found. Checked paths: undefined/package.json, undefined/Cargo.toml',
-        );
-      });
-
-      expect(() => {
-        getPackageVersionFallback(undefined, 'test-package', 'minor', undefined, '0.1.0');
-      }).toThrow('Neither package.json nor Cargo.toml found');
     });
   });
 
