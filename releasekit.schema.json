@@ -869,6 +869,7 @@
                           },
                           "url": {
                             "type": "string",
+                            "format": "uri",
                             "description": "Link URL"
                           }
                         },
