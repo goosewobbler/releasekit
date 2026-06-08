@@ -52,9 +52,9 @@ if [[ -z "$version" ]]; then
 fi
 assert_version "0.2.0" "$version"
 
-# Test 3: breaking change → major bump
+# Test 3: inferred breaking change pre-1.0 stays on the 0.x minor (0.1.0 → 0.2.0, not 1.0.0).
 echo ""
-echo "--- Test: breaking change → major bump ---"
+echo "--- Test: inferred breaking change pre-1.0 → minor bump ---"
 create_git_repo
 create_package_json "test-single-package" "0.1.0"
 create_releasekit_config '{"version":{"preset":"conventionalcommits","packages":["./"]}}'
@@ -63,6 +63,29 @@ git_commit "feat!: breaking API change"
 
 set +e
 output=$(run_cli_json releasekit release --dry-run --json --project-dir "$REPO_DIR")
+set -e
+version=$(get_version_from_json "$output")
+if [[ -z "$version" ]]; then
+  echo "FAIL: Could not parse JSON output"
+  echo "Output: $output"
+  exit 1
+fi
+assert_version "0.2.0" "$version"
+
+# Test 4: explicit --bump major still graduates a 0.x project to 1.0.0 (override path untouched).
+# The repo is tagged on purpose: an explicit bump on a *tagless* first release returns the
+# package.json version as-is, so the tag is what makes this a real graduation rather than a first release.
+echo ""
+echo "--- Test: explicit --bump major on an established 0.x repo → 1.0.0 (deliberate graduation) ---"
+create_git_repo
+create_package_json "test-single-package" "0.1.0"
+create_releasekit_config '{"version":{"preset":"conventionalcommits","versionPrefix":"v","packages":["./"]}}'
+git_commit "chore: initial commit"
+git tag "v0.1.0"
+git_commit "feat!: breaking API change"
+
+set +e
+output=$(run_cli_json releasekit release --dry-run --json --bump major --project-dir "$REPO_DIR")
 set -e
 version=$(get_version_from_json "$output")
 if [[ -z "$version" ]]; then

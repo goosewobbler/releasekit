@@ -66,6 +66,8 @@ export const VersionConfigSchema = z.object({
   versionPrefix: z.string().default(''),
   prereleaseIdentifier: z.string().optional(),
   strictReachable: z.boolean().default(false),
+  /** Pre-1.0 inferred-breaking bump policy ('spec' | 'strict'). See docs/configuration.md#versionzeromajor. */
+  zeroMajor: z.enum(['spec', 'strict']).default('spec'),
   cargo: VersionCargoConfigSchema.optional(),
 });
 

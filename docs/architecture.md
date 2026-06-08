@@ -82,6 +82,10 @@ Git tags mark what was last released. Conventional commits between the last tag 
 - Deleting or moving a tag manually changes what ReleaseKit sees as the baseline.
 - `version.packageSpecificTags: true` creates per-package tags (e.g. `@scope/core@1.2.3`) instead of a single repo-wide tag.
 
+### Pre-1.0 breaking changes
+
+Pre-1.0 (current major `0`), a commit-inferred breaking change bumps the 0.x minor (`0.24.0 → 0.25.0`), not `1.0.0` — it never auto-graduates the project to a stable API. To cut `1.0.0` deliberately, use an explicit `bump:major` (or `--bump major`); see [`version.zeroMajor`](configuration.md#versionzeromajor) for the rule and the `strict` opt-out.
+
 ---
 
 ## Release strategies

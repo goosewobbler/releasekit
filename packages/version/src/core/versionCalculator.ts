@@ -357,11 +357,24 @@ export async function calculateVersion(config: Config, options: VersionOptions):
       }
 
       log(`Release type from commits: ${releaseTypeFromCommits}`, 'debug');
-      const isPrereleaseBumpType = ['prerelease', 'premajor', 'preminor', 'prepatch'].includes(releaseTypeFromCommits);
+
+      // The bumper returns 'major' for a breaking change without consulting the current version,
+      // so pre-1.0 it would jump 0.x straight to 1.0.0. Keep inferred breaking changes on the 0.x
+      // minor instead (rationale + the zeroMajor escape hatch: docs/configuration.md, issue #274).
+      // Inferred-only: the explicit-override branch above is intentionally left to graduate to 1.0.
+      // Only 'major' needs downgrading — the bumper never emits a pre-type here.
+      let effectiveReleaseType = releaseTypeFromCommits;
+      const isPre1 = semver.parse(currentVersion)?.major === 0;
+      if ((config.zeroMajor ?? 'spec') === 'spec' && isPre1 && releaseTypeFromCommits === 'major') {
+        effectiveReleaseType = 'minor';
+        log("Pre-1.0 breaking change: downgrading inferred 'major' to 'minor' (zeroMajor: 'spec')", 'info');
+      }
+
+      const isPrereleaseBumpType = ['prerelease', 'premajor', 'preminor', 'prepatch'].includes(effectiveReleaseType);
       log(`Is prerelease bump type: ${isPrereleaseBumpType}`, 'debug');
       const prereleaseId = config.isPrerelease || isPrereleaseBumpType ? normalizedPrereleaseId : undefined;
       log(`Prerelease ID: ${prereleaseId}`, 'debug');
-      const result = bumpVersion(currentVersion, releaseTypeFromCommits, prereleaseId);
+      const result = bumpVersion(currentVersion, effectiveReleaseType, prereleaseId);
       log(`Conventional commits version: ${result}`, 'debug');
       return result;
     } catch (error) {

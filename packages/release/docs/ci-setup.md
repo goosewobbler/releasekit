@@ -487,6 +487,8 @@ The `standing-pr update` workflow **preserves maintainer-added labels across run
 
 **Why this design**: labels live in one canonical place. There's no question about which feeder PR's bump label "wins" when multiple PRs disagree — there is only the standing PR. Provenance is GitHub's own audit log (`gh pr view <n> --json events`).
 
+> **Graduating to 1.0.0 is opt-in.** Pre-1.0, a conventional breaking change auto-bumps the 0.x minor, not `1.0.0` (see [`version.zeroMajor`](../../../docs/configuration.md#versionzeromajor)). To cut `1.0.0`, add the **`bump:major`** label to the standing PR — an explicit override always graduates.
+
 #### Bypassing the standing PR for one merge
 
 To ship a single PR directly without queueing it, label it **`release:immediate`** (configurable via `ci.labels.immediate`). Companion labels work normally:

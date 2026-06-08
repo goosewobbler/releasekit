@@ -75,6 +75,8 @@ export interface Config extends VersionConfigBase {
   baseRef?: string;
   mismatchStrategy?: 'error' | 'warn' | 'ignore' | 'prefer-package' | 'prefer-git';
   strictReachable?: boolean;
+  /** Pre-1.0 inferred-breaking bump policy ('spec' | 'strict'). See docs/configuration.md#versionzeromajor. */
+  zeroMajor?: 'spec' | 'strict';
   cargo?: {
     enabled?: boolean;
     paths?: string[];
@@ -158,6 +160,7 @@ export function toVersionConfig(config: VersionConfig | undefined, gitConfig?: G
     })),
     defaultReleaseType: config.defaultReleaseType as ReleaseType | undefined,
     mismatchStrategy: config.mismatchStrategy,
+    zeroMajor: config.zeroMajor,
     versionPrefix: config.versionPrefix ?? '',
     prereleaseIdentifier: config.prereleaseIdentifier,
     baseBranch: gitConfig?.branch,
