@@ -31,15 +31,19 @@ import {
   setVersioningStrategy,
 } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
+import { hasExplicitGroups } from './groupResolution.js';
+import { createGroupStrategy } from './groupStrategy.js';
 import { calculateVersion } from './versionCalculator.js';
 import type { PackagesWithRoot } from './versionEngine.js';
 
 type ChangelogEntry = VersionChangelogEntry;
 
 /**
- * Available strategy types
+ * Available strategy types.
+ * `group` is the version-groups engine (fixed/linked) and the implicit all-packages group that
+ * `version.sync: true` desugars to.
  */
-export type StrategyType = 'sync' | 'single' | 'async';
+export type StrategyType = 'sync' | 'single' | 'async' | 'group';
 
 /**
  * Strategy function type
@@ -748,6 +752,11 @@ export function createAsyncStrategy(config: Config): StrategyFunction {
  * The CLI will override this based on resolved packages.
  */
 export function createStrategy(config: Config): StrategyFunction {
+  // Explicit `version.groups` routes through the unified group engine. `sync: true` keeps using
+  // createSyncStrategy for back-compat (see hasExplicitGroups docs).
+  if (hasExplicitGroups(config)) {
+    return createGroupStrategy(config);
+  }
   if (config.sync) {
     return createSyncStrategy(config);
   }
@@ -765,5 +774,6 @@ export function createStrategyMap(config: Config): Record<StrategyType, Strategy
     sync: createSyncStrategy(config),
     single: createSingleStrategy(config),
     async: createAsyncStrategy(config),
+    group: createGroupStrategy(config),
   };
 }

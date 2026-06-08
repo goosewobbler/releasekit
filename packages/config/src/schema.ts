@@ -30,6 +30,21 @@ export const VersionCargoConfigSchema = z.object({
   paths: z.array(z.string()).optional(),
 });
 
+export const VersionGroupSchema = z.object({
+  /**
+   * Package patterns (exact names, `@scope/*`, or globs) whose matched packages form this group.
+   * The same matching rules as `version.packages` apply.
+   */
+  packages: z.array(z.string()).min(1),
+  /**
+   * - `fixed`: any releasable change in any member releases ALL members at the shared group version
+   *   (`bump(max(member baselines))`).
+   * - `linked`: only members with releasable changes release, but every releasing member shares the
+   *   same computed version.
+   */
+  sync: z.enum(['fixed', 'linked']),
+});
+
 export const VersionConfigSchema = z.object({
   tagTemplate: z.string().default('v{version}'),
   /**
@@ -53,7 +68,21 @@ export const VersionConfigSchema = z.object({
     .optional(),
   packageSpecificTags: z.boolean().default(false),
   preset: z.string().default('conventional'),
+  /**
+   * Global lockstep versioning. `true` is sugar for one implicit `fixed` group of every package
+   * (all packages version together) — it shares the exact same mechanism as `version.groups`.
+   * When `version.groups` is set, `sync` should be `false`; an explicit `sync: true` alongside
+   * groups is treated as the implicit all-packages fixed group taking precedence and is reported
+   * as a config conflict.
+   */
   sync: z.boolean().default(true),
+  /**
+   * Named version groups, each binding a set of package patterns to a `fixed` or `linked` sync
+   * mode. Packages not matched by any group version independently (per-package). A package may
+   * belong to at most one group; overlapping patterns that assign a package to two groups are a
+   * config error. See the `version.groups` reference for fixed vs linked semantics.
+   */
+  groups: z.record(z.string(), VersionGroupSchema).optional(),
   packages: z.array(z.string()).default([]),
   mainPackage: z.string().optional(),
   updateInternalDependencies: z.enum(['major', 'minor', 'patch', 'no-internal-update']).default('minor'),
@@ -415,6 +444,7 @@ export type StandingPrConfig = z.infer<typeof StandingPrConfigSchema>;
 export type GitConfig = z.infer<typeof GitConfigSchema>;
 export type MonorepoConfig = z.infer<typeof MonorepoConfigSchema>;
 export type VersionConfig = z.infer<typeof VersionConfigSchema>;
+export type VersionGroup = z.infer<typeof VersionGroupSchema>;
 export type NpmConfig = z.infer<typeof NpmConfigSchema>;
 export type CargoPublishConfig = z.infer<typeof CargoPublishConfigSchema>;
 export type PublishGitConfig = z.infer<typeof PublishGitConfigSchema>;

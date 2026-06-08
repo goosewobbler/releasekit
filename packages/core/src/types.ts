@@ -39,8 +39,12 @@ export interface VersionOutput {
    * Which versioning strategy produced this output. Lets consumers (preview, standing PR)
    * render sync releases as a single versioned unit instead of a package count. Optional
    * for backwards compatibility with manifests produced before this field existed.
+   *
+   * `'group'` is the version-groups engine (fixed/linked, and the implicit all-packages fixed
+   * group that `version.sync: true` desugars to). `'sync'` remains for the legacy lockstep
+   * strategy so existing consumers keep working unchanged.
    */
-  strategy?: 'sync' | 'single' | 'async';
+  strategy?: 'sync' | 'single' | 'async' | 'group';
   updates: VersionPackageUpdate[];
   changelogs: VersionPackageChangelog[];
   /**
@@ -75,4 +79,11 @@ export interface VersionPackageUpdate {
    * should exclude them from package counts and package lists.
    */
   isRoot?: boolean;
+  /**
+   * Name of the version group this package was released as part of (from `version.groups`, or
+   * the implicit all-packages group that `version.sync: true` desugars to). Absent for packages
+   * versioned independently. CI surfaces can use this to treat a fixed group atomically (e.g.
+   * expand a scope label that matches part of a group to the whole group).
+   */
+  group?: string;
 }

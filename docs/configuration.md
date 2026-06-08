@@ -63,7 +63,7 @@ Versioning configuration.
 | `baselineTagTemplate` | string | — | Optional secondary tag template for an internal 'baseline' marker that records the release commit on the source branch. Use this when tagTemplate resolves to a tag that gets force-moved off the source branch by a downstream step (e.g. a GitHub Action distributing built artifacts at the version tag) — the baseline tag stays on the release commit so future version-bump and changelog calculations can still find the previous release. Must contain a ${version} placeholder so the baseline prefix can be derived. Supports the same variables as tagTemplate. Example: "release/${prefix}${version}" produces "release/v1.2.3". |
 | `packageSpecificTags` | boolean | `false` | Enable package-specific tagging |
 | `preset` | string | `"conventional"` | Commit convention preset |
-| `sync` | boolean | `true` | Sync versions across packages |
+| `sync` | boolean | `true` | Global lockstep versioning. true is sugar for one implicit fixed group of every package — it shares the same mechanism as version.groups. Set to false when using version.groups; sync: true alongside groups is treated as the implicit all-packages fixed group taking precedence (a config conflict, warned about at runtime). |
 | `packages` | `string[]` | `[]` | Packages to include in versioning |
 | `mainPackage` | string | — | Package to use for version determination |
 | `updateInternalDependencies` | `"major"` \| `"minor"` \| `"patch"` \| `"no-internal-update"` | `"minor"` | How to bump internal dependencies |
@@ -85,6 +85,42 @@ Array of objects with the following properties:
 |-----|------|---------|-------------|
 | `pattern` | string | — |  |
 | `releaseType` | `"major"` \| `"minor"` \| `"patch"` \| `"prerelease"` | — |  |
+
+### `version.groups`
+
+Named version groups let a co-evolving family of packages version together while the rest
+of the monorepo versions independently. Each entry under `groups` is a group name mapping to
+`{ packages, sync }`, where `packages` is a list of patterns (same matching as
+`version.packages`) and `sync` is one of:
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `packages` | `string[]` | — | Package patterns (exact names, @scope/*, or globs) whose matched packages form this group. Same matching rules as version.packages. |
+| `sync` | `"fixed"` \| `"linked"` | — | fixed: all members release together at the shared group version. linked: only changed members release, all at the same computed version. |
+
+- **`fixed`** — any releasable change in *any* member releases **all** members at the shared
+  group version, computed as `bump(max(member baselines))`. This is the changesets `fixed`
+  semantics. The global `version.sync: true` flag is exactly this, applied to one implicit
+  group of every package — there is one mechanism, not two.
+- **`linked`** — only members with a releasable change release, but every releasing member
+  shares the same computed version. Unchanged members are left untouched (no empty re-release).
+
+**Group baseline** is the highest member version found in tags / manifests; the group bumps
+from there.
+
+> **Member adoption (read this loudly).** A member below the group baseline — a never-released
+> package whose `package.json` says `1.0.0`, or an existing package at an older version — *adopts*
+> the group version on its next release (e.g. joining a family at `2.3.0` releases at `2.4.0`,
+> skipping its own `1.x` line). This deliberately overrides the per-package "initial version from
+> package.json" rule. When the jump skips versions, the version step warns; time group migrations
+> to a real breaking change in the family so the alignment coincides with an honest major.
+
+**`--target` and fixed groups.** Targeting a strict subset of a `fixed` group expands to the
+whole group (a fixed group never silently splits). `linked` groups and ungrouped packages honor
+targets as-is.
+
+**Workspace pins.** Intra-group `workspace:*` dependencies resolve to the group version within a
+run, so a fixed group publishes internally consistent.
 
 ### `version.cargo`
 

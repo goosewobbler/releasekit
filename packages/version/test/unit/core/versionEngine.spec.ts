@@ -369,6 +369,35 @@ describe('Version Engine', () => {
       expect(result.packages[0].packageJson.name).toBe('package-b');
       expect(log).toHaveBeenCalledWith('Runtime targets filter: 2 → 1 packages', 'info');
     });
+
+    it('should NOT pre-filter by runtime targets when version groups are configured', async () => {
+      // Group-aware target expansion happens in the group strategy; pre-filtering here would
+      // prune non-targeted members of a fixed group and silently split it.
+      const configWithGroups = {
+        ...defaultConfig,
+        sync: false,
+        groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' as const } },
+      } as Config;
+      const engine = new VersionEngine(configWithGroups, { targets: ['@wdio/native-core'] });
+
+      vi.mocked(getPackagesSync, { partial: true }).mockReturnValue({
+        packages: [
+          { packageJson: { name: '@wdio/native-core', version: '2.3.0' }, dir: '/ws/core', relativeDir: 'core' },
+          { packageJson: { name: '@wdio/native-utils', version: '2.3.0' }, dir: '/ws/utils', relativeDir: 'utils' },
+        ],
+        root: '/ws',
+        tool: 'pnpm' as any,
+        rootDir: '/ws',
+      });
+
+      const result = await engine.getWorkspacePackages();
+
+      // Both members survive discovery despite only one being targeted.
+      expect(result.packages.map((p) => p.packageJson.name).sort()).toEqual([
+        '@wdio/native-core',
+        '@wdio/native-utils',
+      ]);
+    });
   });
 
   describe('Run method', () => {
