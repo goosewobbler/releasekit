@@ -93,8 +93,11 @@ export async function runPipeline(
       await runGitPushStage(ctx);
     }
 
-    // Stage 8: GitHub release — only if the tag was actually pushed (or git is entirely skipped)
-    if (!options.skipGithubRelease && (options.skipGit || ctx.output.git.pushed)) {
+    // Stage 8: GitHub release — only if the tag was actually pushed. Also allow release when
+    // git push was intentionally disabled in config (user manages push externally) or when
+    // git is entirely skipped via CLI — otherwise the GitHub release stage would silently
+    // disappear.
+    if (!options.skipGithubRelease && (options.skipGit || ctx.output.git.pushed || !ctx.config.git.push)) {
       await runGithubReleaseStage(ctx);
     }
   } catch (error) {
