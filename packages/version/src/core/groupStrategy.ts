@@ -355,9 +355,18 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
         const members = group.members.filter(targetFilter).filter((p) => shouldProcess(p, config));
         if (members.length === 0) continue;
 
+        const plans = await Promise.all(members.map((pkg) => planMember(config, pkg, formattedPrefix, globalTag)));
+        const computation = computeGroup(group, plans, config);
+
+        if (!computation.hasChange) {
+          log(`Group "${group.name}": no releasable changes, skipping.`, 'info');
+          continue;
+        }
+
         // `config.skip` and the target filter both remove members from `members`, so a fixed group
         // can release with a subset of its declared members — leaving the group at divergent
-        // versions. Warn so the divergence is intentional, not a surprise.
+        // versions. Warn so the divergence is intentional, not a surprise. Only relevant once the
+        // group is actually releasing (past the no-change guard above).
         if (group.sync === 'fixed') {
           const released = new Set(members.map((m) => m.packageJson.name));
           const notInRelease = group.members.map((m) => m.packageJson.name).filter((name) => !released.has(name));
@@ -369,14 +378,6 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
               'warning',
             );
           }
-        }
-
-        const plans = await Promise.all(members.map((pkg) => planMember(config, pkg, formattedPrefix, globalTag)));
-        const computation = computeGroup(group, plans, config);
-
-        if (!computation.hasChange) {
-          log(`Group "${group.name}": no releasable changes, skipping.`, 'info');
-          continue;
         }
 
         log(
