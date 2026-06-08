@@ -191,9 +191,12 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      - uses: pnpm/action-setup@v5
+
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
+          cache: pnpm
 
       - name: Run releasekit
         uses: goosewobbler/releasekit@v1
