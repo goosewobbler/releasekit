@@ -1,19 +1,11 @@
 /**
  * Scenario manifest for the examples execution smoke-test (issue #276).
  *
- * This is deliberately METADATA, not a mirror of the example workflows' steps.
- * It names, per scenario:
- *   - which example workflow file + job's setup steps to EXTRACT (so the smoke
- *     test runs the real shipped steps and cannot drift — a future change to the
- *     example flows straight through the generator);
- *   - which shipped releasekit.config.json the throwaway fixture uses;
- *   - the fixture shape (npm-only or npm+cargo) the example assumes;
- *   - the releasekit invocation to probe the environment with (always --dry-run,
- *     so publish / the OIDC exchange never fire — see the README residual-gap note).
- *
- * The setup steps themselves are never written here; they are read out of the
- * example YAML at generation time. Drift is impossible to merge because CI runs
- * the generator with --check and fails on any diff.
+ * Deliberately METADATA, not a mirror of the example steps: it names which
+ * example workflow/job to EXTRACT setup steps from, which shipped config the
+ * fixture uses, the fixture shape, and the (always `--dry-run`) releasekit
+ * invocation. The steps themselves are read out of the example YAML at
+ * generation time, so they can't drift — CI runs the generator with `--check`.
  */
 
 export interface Scenario {
@@ -22,21 +14,16 @@ export interface Scenario {
   /** Example workflow file, relative to examples/ci/<id>/. */
   workflow: string;
   /**
-   * Job whose setup steps to extract. The terminal `releasekit ...` step and the
-   * example's own `actions/checkout` are dropped by the extractor; everything in
-   * between (pnpm/action-setup, setup-node, rust-toolchain, pnpm install, rm -f
-   * .npmrc, git config, ...) is kept verbatim.
+   * Job whose setup steps to extract. The extractor drops the terminal
+   * `releasekit ...` step and the example's `actions/checkout`; everything
+   * between is kept verbatim.
    */
   job: string;
   /** Shipped config copied into the throwaway fixture. */
   config: string;
   /** Fixture layout the example assumes. */
   fixture: 'npm-single' | 'npm-monorepo' | 'npm-cargo-monorepo';
-  /**
-   * releasekit subcommand + flags appended after `--dry-run`. The example's own
-   * terminal step is replaced with this so publish/event/secret paths stay out of
-   * scope while the real setup is still exercised.
-   */
+  /** releasekit subcommand + flags (always including `--dry-run`) that replaces the example's terminal step. */
   releaseArgs: string[];
   /** One-line note shown in the job log explaining what this scenario proves. */
   proves: string;
@@ -94,9 +81,8 @@ export const SCENARIOS: Scenario[] = [
     job: 'update',
     config: 'releasekit.config.json',
     fixture: 'npm-single',
-    // standing-pr update mutates a real PR via the GitHub API (out of scope). We
-    // extract its setup and probe the environment with a plain dry-run release so
-    // the missing-tool class is still covered without the API-mutating path.
+    // standing-pr update mutates a real PR via the GitHub API (out of scope), so probe the
+    // environment with a plain dry-run release instead of the real `standing-pr update`.
     releaseArgs: ['release', '--dry-run'],
     proves: 'standing-pr update setup resolves; the PR-mutating API path stays out of scope.',
   },
