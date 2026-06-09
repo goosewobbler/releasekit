@@ -74,7 +74,6 @@ Versioning configuration.
 | `mismatchStrategy` | `"error"` \| `"warn"` \| `"ignore"` \| `"prefer-package"` \| `"prefer-git"` | `"warn"` | How to handle version mismatches |
 | `versionPrefix` | string | `""` | Prefix for version tags |
 | `prereleaseIdentifier` | string | — | Identifier for prerelease versions (e.g., 'alpha', 'beta') |
-| `baseBranch` | string | — | Base branch for versioning |
 | `strictReachable` | boolean | `false` | Only use reachable tags |
 | `zeroMajor` | `"spec"` \| `"strict"` | `"spec"` | Pre-1.0 handling of commit-inferred breaking changes. 'spec' (default): bump the 0.x minor (0.24.0 → 0.25.0), per semver §4. 'strict': bump the next major (→ 1.0.0). Inferred path only — explicit overrides (--bump major, bump:major) always graduate to 1.0.0. |
 
@@ -255,6 +254,7 @@ Set to `false` to disable.
 |-----|------|---------|-------------|
 | `mode` | `"root"` \| `"packages"` \| `"both"` | — | Where to write release notes file. Omit to skip file output (LLM still runs if configured). |
 | `file` | string | — | Release notes file name override (default: RELEASE_NOTES.md) |
+| `links` | object | — | Extra links to append to the release notes. |
 
 **`notes.releaseNotes.templates`** — Template configuration for release notes.
 
@@ -276,6 +276,9 @@ LLM configuration for release notes.
 | `apiKey` | string | — | API key |
 | `concurrency` | integer | — | Concurrent LLM requests |
 | `style` | string | — | Writing style for LLM |
+| `examples` | integer | `3` | Number of few-shot examples to include in LLM prompts (0–5). |
+| `context` | object | — | Additional context sources for the LLM. |
+| `categoryOrder` | `string[]` | — | Explicit ordering of categories in the output. Categories not listed retain their configured order after the listed ones. |
 
 #### `notes.releaseNotes.llm.options`
 
@@ -340,8 +343,7 @@ Override built-in prompt instructions per task.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `instructions` | object | — | Per-task instruction overrides |
-| `templates` | object | — | Per-task prompt template overrides |
+| `instructions` | object | — | Per-task instruction overrides appended to the built-in prompts. |
 
 ---
 
@@ -358,6 +360,7 @@ CI automation configuration for release triggers, PR previews, and label managem
 | `autoRelease` | boolean | `false` | Automatically trigger a release when CI conditions are met, without manual intervention. |
 | `skipPatterns` | `string[]` | `["chore: release "]` | Commit message prefixes that suppress a release. The default matches the release commit template to prevent release loops. |
 | `minChanges` | integer | `1` | Minimum number of packages with releasable changes required to trigger a release. |
+| `scopeLabels` | object | — | Map of scope labels to package patterns. When a PR has a label matching a key, only packages matching the corresponding pattern are released. |
 
 ### `ci.labels`
 
