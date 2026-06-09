@@ -32,6 +32,8 @@
     "clean": "turbo run clean && rm -rf node_modules",
     "clean:cache": "turbo daemon stop && rm -rf .turbo .eslintcache",
     "docs:config": "tsx scripts/generate-config-docs.ts",
+    "examples:smoke:generate": "tsx scripts/examples-smoke/generate-smoke-workflow.ts",
+    "examples:smoke:check": "tsx scripts/examples-smoke/generate-smoke-workflow.ts --check",
     "prepare": "husky"
   },
   "devDependencies": {
@@ -45,7 +47,8 @@
     "tsup": "catalog:",
     "tsx": "catalog:",
     "turbo": "2.9.16",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "yaml": "catalog:"
   },
   "lint-staged": {
     "**/*.ts": [
