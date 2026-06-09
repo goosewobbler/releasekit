@@ -31,6 +31,8 @@
     "typecheck": "turbo run typecheck",
     "clean": "turbo run clean && rm -rf node_modules",
     "clean:cache": "turbo daemon stop && rm -rf .turbo .eslintcache",
+    "schema:gen": "tsx scripts/generate-schema.ts",
+    "schema:check": "tsx scripts/generate-schema.ts --check",
     "docs:config": "tsx scripts/generate-config-docs.ts",
     "examples:smoke:generate": "tsx scripts/examples-smoke/generate-smoke-workflow.ts",
     "examples:smoke:check": "tsx scripts/examples-smoke/generate-smoke-workflow.ts --check",
@@ -48,7 +50,8 @@
     "tsx": "catalog:",
     "turbo": "2.9.16",
     "typescript": "catalog:",
-    "yaml": "catalog:"
+    "yaml": "catalog:",
+    "zod": "catalog:"
   },
   "lint-staged": {
     "**/*.ts": [

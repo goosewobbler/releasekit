@@ -61,8 +61,8 @@ Fresh worktrees need `pnpm install` first. If you change dependencies, run `pnpm
 
 ## Documentation Rules
 
-- **`docs/configuration.md` is generated** — never hand-edit. The source of truth is the hand-maintained `releasekit.schema.json`; regenerate with `pnpm docs:config`. Prose sections live in `scripts/generate-config-docs.ts`.
-- The Zod schemas in `packages/config/src/schema.ts` and `releasekit.schema.json` must be kept in sync manually.
+- **`releasekit.schema.json` is generated from the Zod schema** (`packages/config/src/schema.ts`) via `pnpm schema:gen` — never hand-edit it. Field descriptions live in the Zod schema as `.describe('...')` calls; that text is the single source of truth and flows Zod → `releasekit.schema.json` → `docs/configuration.md`. `pnpm schema:check` enforces that the committed JSON Schema matches the Zod schema, and runs in CI (the `lint` job), so the two can never drift. To add or change a config field, edit the Zod schema, then run `pnpm schema:gen && pnpm docs:config`.
+- **`docs/configuration.md` is generated** — never hand-edit. Regenerate with `pnpm docs:config` (reads the generated `releasekit.schema.json`). Prose sections live in `scripts/generate-config-docs.ts`.
 - CLI flags are documented in `docs/cli.md` — update it when adding/changing flags; derive descriptions from the commander definitions, never invent.
 - `packages/release/docs/ci-setup.md` embeds copy-pasteable workflow templates; keep them internally consistent (node version, auth notes) when editing any one of them.
 
