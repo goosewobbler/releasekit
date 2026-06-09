@@ -113,6 +113,19 @@ function buildNpmSingle(out: string, tarballNames: Record<string, string>): void
   writeRootPackageJson(out, 'smoke-consumer', {}, tarballNames);
 }
 
+function buildNpmMonorepo(out: string, tarballNames: Record<string, string>): void {
+  writeRootPackageJson(out, 'smoke-consumer-root', {}, tarballNames);
+  writeFileSync(join(out, 'pnpm-workspace.yaml'), "packages:\n  - 'packages/*'\n");
+
+  // A single member package so releasekit has a workspace to walk. Names/paths
+  // follow the smoke consumer's monorepo shape; the example's releasekit.config
+  // is what actually decides which packages to release.
+  for (const [dir, pkgName] of [['packages/js-lib', '@smoke/js-lib']] as const) {
+    mkdirSync(join(out, dir), { recursive: true });
+    writeJson(join(out, dir, 'package.json'), { name: pkgName, version: '1.0.0' });
+  }
+}
+
 function buildNpmCargoMonorepo(out: string, tarballNames: Record<string, string>): void {
   writeRootPackageJson(out, 'smoke-consumer-root', {}, tarballNames);
   writeFileSync(join(out, 'pnpm-workspace.yaml'), "packages:\n  - 'packages/*'\n");
@@ -159,10 +172,22 @@ function main(): void {
     tarballNames[pkg] = name;
   }
 
-  if (scenario.fixture === 'npm-cargo-monorepo') {
-    buildNpmCargoMonorepo(outDir, tarballNames);
-  } else {
-    buildNpmSingle(outDir, tarballNames);
+  switch (scenario.fixture) {
+    case 'npm-single':
+      buildNpmSingle(outDir, tarballNames);
+      break;
+    case 'npm-monorepo':
+      buildNpmMonorepo(outDir, tarballNames);
+      break;
+    case 'npm-cargo-monorepo':
+      buildNpmCargoMonorepo(outDir, tarballNames);
+      break;
+    default: {
+      // Exhaustiveness check: adding a new fixture kind to scenarios.ts fails to
+      // compile here until build-fixture.ts is taught how to build it.
+      const _exhaustive: never = scenario.fixture;
+      throw new Error(`Unhandled fixture kind: ${String(_exhaustive)}`);
+    }
   }
 
   // Drop in the SHIPPED config for this scenario — this is what makes the dry run

@@ -57,6 +57,15 @@ function isOutOfScopeApiStep(step: Step): boolean {
   return typeof step.run === 'string' && /\bgh\s+api\b/.test(step.run);
 }
 
+/**
+ * An env value that's safe to replay in a dry-run smoke job. A reference to
+ * `secrets.*` (e.g. `NPM_TOKEN`, `GITHUB_TOKEN`) is a real auth credential that
+ * the smoke job has no need of; GHA expressions and literals are fine.
+ */
+function isSecretReferencingEnvValue(value: unknown): boolean {
+  return typeof value === 'string' && /\$\{\{\s*secrets\./.test(value);
+}
+
 /** Extract the setup steps to replay: everything up to (and excluding) the releasekit invocation. */
 function extractSetupSteps(scenario: Scenario): Step[] {
   const file = join(rootDir, 'examples', 'ci', scenario.id, scenario.workflow);
@@ -69,9 +78,22 @@ function extractSetupSteps(scenario: Scenario): Step[] {
   for (const step of job.steps) {
     if (isReleasekitRun(step)) break; // setup is everything before the release call
     if (isCheckout(step) || isOutOfScopeApiStep(step)) continue;
-    // Strip env that points at secrets/tokens the dry run neither has nor needs.
+    // Strip only envs that would fail or do harm in a dry run: references to
+    // `secrets.*`. Keep diagnostic toggles (LOG_LEVEL, RUST_BACKTRACE, ...) and
+    // plain literals — the smoke job's value is the missing-tool signal, not
+    // the secret-bearing env.
     const cleaned: Step = { ...step };
-    delete cleaned.env;
+    if (cleaned.env && typeof cleaned.env === 'object') {
+      const filtered: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(cleaned.env as Record<string, unknown>)) {
+        if (!isSecretReferencingEnvValue(v)) filtered[k] = v;
+      }
+      if (Object.keys(filtered).length > 0) {
+        cleaned.env = filtered;
+      } else {
+        delete cleaned.env;
+      }
+    }
     setup.push(cleaned);
   }
   if (setup.length === 0) {
