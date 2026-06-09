@@ -29,6 +29,11 @@ describe('generate-schema', () => {
     it('should declare additionalProperties on every object node (no silent leniency)', () => {
       const schema = buildSchema();
       const stack: unknown[] = [schema];
+      // Collect violations as we walk the tree, then fail in a single top-level
+      // assertion. `expect` inside an `if` is flagged by vitest/no-conditional-expect
+      // and would also short-circuit on the first failure instead of surfacing all
+      // of them.
+      const violations: string[] = [];
       let objectsChecked = 0;
       while (stack.length > 0) {
         const node = stack.pop();
@@ -36,17 +41,20 @@ describe('generate-schema', () => {
         const obj = node as Record<string, unknown>;
         if (obj.type === 'object') {
           objectsChecked++;
-          // Either `false` (closed object) or an object schema (z.record value type).
-          // A bare `true` or an undeclared key would regress to the old hand-maintained
-          // schema's silent acceptance of unknown keys.
-          expect(
-            obj.additionalProperties,
-            `object node should declare additionalProperties: ${JSON.stringify(obj.properties ? Object.keys(obj.properties) : obj)}`,
-          ).toBeDefined();
-          expect(obj.additionalProperties).not.toBe(true);
+          if (obj.additionalProperties === undefined) {
+            // Either `false` (closed object) or an object schema (z.record value type).
+            // A bare `true` or an undeclared key would regress to the old
+            // hand-maintained schema's silent acceptance of unknown keys.
+            violations.push(
+              `object node missing additionalProperties: ${JSON.stringify(obj.properties ? Object.keys(obj.properties) : obj)}`,
+            );
+          } else if (obj.additionalProperties === true) {
+            violations.push('object node has additionalProperties: true (silent leniency)');
+          }
         }
         for (const value of Object.values(obj)) stack.push(value);
       }
+      expect(violations).toEqual([]);
       expect(objectsChecked).toBeGreaterThan(10);
     });
 
