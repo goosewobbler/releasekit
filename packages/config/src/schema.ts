@@ -271,6 +271,10 @@ export const LLMOptionsSchema = z.object({
 
 export const LLMRetryConfigSchema = z.object({
   maxAttempts: z.number().int().positive().optional().describe('Maximum number of attempts'),
+  // `.int()` here matches the generated JSON Schema (`type: integer`, `minimum`),
+  // and closes a pre-generator gap where the Zod runtime accepted floats. Keep
+  // these in sync with scripts/generate-schema.ts — relaxing one without the
+  // other re-introduces the divergence.
   initialDelay: z.number().int().nonnegative().optional().describe('Initial delay in ms'),
   maxDelay: z.number().int().positive().optional().describe('Maximum delay in ms'),
   backoffFactor: z.number().positive().optional().describe('Delay multiplier per attempt'),

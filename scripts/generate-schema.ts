@@ -22,9 +22,10 @@
  *   ($schema URL), ajv (draft-7, strict=false), and docs:config consumers.
  */
 
-import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { ReleaseKitConfigSchema } from '../packages/config/src/schema.ts';
@@ -224,6 +225,52 @@ export function serialiseSchema(): string {
   return `${JSON.stringify(buildSchema(), null, 2)}\n`;
 }
 
+/**
+ * Print a unified diff between two strings to stderr. Inlined here so the
+ * --check failure stays diagnostic in CI, where the working tree is clean
+ * and `git diff` against the file produces no output (the file on disk
+ * was never regenerated).
+ *
+ * Uses the host's `diff` binary via two temp files. `diff` is a no-op on
+ * Windows, so the function falls back to a line-by-line diff if the binary
+ * is missing or fails.
+ */
+function printUnifiedDiff(before: string, after: string, label: string): void {
+  const dir = mkdtempSync(join(tmpdir(), 'schema-check-'));
+  const beforePath = join(dir, 'before.json');
+  const afterPath = join(dir, 'after.json');
+  try {
+    writeFileSync(beforePath, before);
+    writeFileSync(afterPath, after);
+    const result = spawnSync(
+      'diff',
+      ['-u', `--label=${label} (committed)`, `--label=${label} (generated)`, beforePath, afterPath],
+      { encoding: 'utf8' },
+    );
+    if (result.stdout) process.stderr.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+    if (result.status === 127 || result.error) {
+      // `diff` not on PATH — fall back to a line-by-line diff. Good enough
+      // for diagnostic output on a (typically small) schema file.
+      printLineDiffFallback(before, after, label);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+function printLineDiffFallback(before: string, after: string, label: string): void {
+  process.stderr.write(`--- ${label} (committed)\n+++ ${label} (generated)\n`);
+  const beforeLines = before.split('\n');
+  const afterLines = after.split('\n');
+  for (let i = 0; i < Math.max(beforeLines.length, afterLines.length); i++) {
+    if (beforeLines[i] !== afterLines[i]) {
+      if (beforeLines[i] !== undefined) process.stderr.write(`- ${beforeLines[i]}\n`);
+      if (afterLines[i] !== undefined) process.stderr.write(`+ ${afterLines[i]}\n`);
+    }
+  }
+}
+
 function main(): void {
   const checkMode = process.argv.includes('--check');
   const generated = serialiseSchema();
@@ -239,12 +286,12 @@ function main(): void {
       console.error(
         'releasekit.schema.json is out of date with the Zod schema.\n' + 'Run `pnpm schema:gen` and commit the result.',
       );
-      // Show what changed so the failure is actionable in CI logs.
-      try {
-        execFileSync('git', ['--no-pager', 'diff', '--no-color', SCHEMA_PATH], { cwd: ROOT, stdio: 'inherit' });
-      } catch {
-        // git unavailable or file untracked — the message above is enough.
-      }
+      // Print a unified diff between the committed file and the freshly
+      // generated content. `git diff` is useless here: in a CI clean checkout
+      // the on-disk file matches HEAD (the file was never regenerated), so the
+      // diff against the working tree is empty. Diffing the two strings inline
+      // surfaces the actual drift.
+      printUnifiedDiff(current, generated, SCHEMA_PATH);
       process.exit(1);
     }
     console.log('releasekit.schema.json is up to date.');
