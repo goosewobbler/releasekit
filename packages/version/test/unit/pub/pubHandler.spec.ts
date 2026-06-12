@@ -154,6 +154,12 @@ describe('Pub Handler', () => {
       expect(() => updatePubVersion(mockPubspecPath, '2.0.0')).toThrow('No package name found in');
     });
 
+    it('should throw if pubspec.yaml has no version field', () => {
+      vi.mocked(fs.readFileSync, { partial: true }).mockReturnValue('name: test_package\n');
+
+      expect(() => updatePubVersion(mockPubspecPath, '2.0.0')).toThrow('No version field found in');
+    });
+
     it('should handle errors when updating pubspec.yaml', () => {
       vi.mocked(fs.readFileSync, { partial: true }).mockImplementation(() => {
         throw new Error('Read error');

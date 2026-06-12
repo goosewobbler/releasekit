@@ -122,12 +122,14 @@ function findPubPackages(
   _cwd: string,
 ): PubPackageInfo[] {
   const packages: PubPackageInfo[] = [];
+  const seen = new Set<string>();
 
   for (const update of updates) {
     const pubspecPath = path.join(update.dir, 'pubspec.yaml');
-    if (!fs.existsSync(pubspecPath)) {
+    if (!fs.existsSync(pubspecPath) || seen.has(pubspecPath)) {
       continue;
     }
+    seen.add(pubspecPath);
 
     try {
       const pubspec = parsePubspec(pubspecPath);

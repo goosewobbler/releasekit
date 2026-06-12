@@ -53,8 +53,13 @@ export function updatePubVersion(pubspecPath: string, version: string, dryRun = 
       throw new Error(`No package name found in ${pubspecPath}`);
     }
 
-    // Replace the version line, preserving all other content and formatting
+    // Replace the entire version line. Flutter build numbers (e.g. `1.0.0+1`) are
+    // intentionally dropped — ReleaseKit manages the SemVer portion only.
     const updatedContent = content.replace(/^(version:\s*).*$/m, `$1${version}`);
+
+    if (updatedContent === content && !/^version:\s*/m.test(content)) {
+      throw new Error(`No version field found in ${pubspecPath}`);
+    }
 
     if (dryRun) {
       recordPendingWrite(pubspecPath, updatedContent);
