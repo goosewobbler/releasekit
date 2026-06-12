@@ -40,6 +40,11 @@ export const VersionCargoConfigSchema = z.object({
   paths: z.array(z.string()).optional().describe('Directories to search for Cargo.toml files'),
 });
 
+export const VersionPubConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  paths: z.array(z.string()).optional(),
+});
+
 export const VersionGroupSchema = z.object({
   packages: z
     .array(z.string())
@@ -118,6 +123,7 @@ export const VersionConfigSchema = z.object({
       "Pre-1.0 handling of commit-inferred breaking changes. 'spec' (default): bump the 0.x minor (0.24.0 → 0.25.0), per semver §4. 'strict': bump the next major (→ 1.0.0). Inferred path only — explicit overrides (--bump major, bump:major) always graduate to 1.0.0.",
     ),
   cargo: VersionCargoConfigSchema.optional().describe('Cargo/Rust configuration'),
+  pub: VersionPubConfigSchema.optional().describe('Dart/Flutter pub configuration'),
 });
 
 export const NpmConfigSchema = z.object({
@@ -135,6 +141,11 @@ export const CargoPublishConfigSchema = z.object({
   noVerify: z.boolean().default(false).describe('Skip verification before publish'),
   publishOrder: z.array(z.string()).default([]).describe('Order in which to publish packages'),
   clean: z.boolean().default(false).describe('Clean before publishing'),
+});
+
+export const PubPublishConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  publishOrder: z.array(z.string()).default([]),
 });
 
 export const PublishGitConfigSchema = z.object({
@@ -195,6 +206,12 @@ export const VerifyConfigSchema = z.object({
     initialDelay: 30000,
     backoffMultiplier: 2,
   }),
+  pub: VerifyRegistryConfigSchema.default({
+    enabled: true,
+    maxAttempts: 10,
+    initialDelay: 30000,
+    backoffMultiplier: 2,
+  }),
 });
 
 export const PublishConfigSchema = z.object({
@@ -214,6 +231,10 @@ export const PublishConfigSchema = z.object({
     publishOrder: [],
     clean: false,
   }).describe('Cargo publishing configuration'),
+  pub: PubPublishConfigSchema.default({
+    enabled: false,
+    publishOrder: [],
+  }).describe('Dart/Flutter publishing configuration via pub'),
   githubRelease: GitHubReleaseConfigSchema.default({
     enabled: true,
     draft: true,
@@ -232,6 +253,12 @@ export const PublishConfigSchema = z.object({
       backoffMultiplier: 2,
     },
     cargo: {
+      enabled: true,
+      maxAttempts: 10,
+      initialDelay: 30000,
+      backoffMultiplier: 2,
+    },
+    pub: {
       enabled: true,
       maxAttempts: 10,
       initialDelay: 30000,
@@ -576,6 +603,7 @@ export type VersionConfig = z.infer<typeof VersionConfigSchema>;
 export type VersionGroup = z.infer<typeof VersionGroupSchema>;
 export type NpmConfig = z.infer<typeof NpmConfigSchema>;
 export type CargoPublishConfig = z.infer<typeof CargoPublishConfigSchema>;
+export type PubPublishConfig = z.infer<typeof PubPublishConfigSchema>;
 export type PublishGitConfig = z.infer<typeof PublishGitConfigSchema>;
 export type GitHubReleaseConfig = z.infer<typeof GitHubReleaseConfigSchema>;
 export type VerifyConfig = z.infer<typeof VerifyConfigSchema>;

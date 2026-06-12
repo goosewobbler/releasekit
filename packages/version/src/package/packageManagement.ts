@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { isCargoToml, updateCargoVersion } from '../cargo/cargoHandler.js';
+import { isPubspecYaml, updatePubVersion } from '../pub/pubHandler.js';
 import type { PkgJson } from '../types.js';
 import { addPackageUpdate, recordPendingWrite } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
@@ -117,6 +118,12 @@ export function updatePackageVersion(packagePath: string, version: string, dryRu
   // Handle Cargo.toml files separately
   if (isCargoToml(packagePath)) {
     updateCargoVersion(packagePath, version, dryRun);
+    return;
+  }
+
+  // Handle pubspec.yaml files separately
+  if (isPubspecYaml(packagePath)) {
+    updatePubVersion(packagePath, version, dryRun);
     return;
   }
 

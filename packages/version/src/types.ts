@@ -95,6 +95,10 @@ export interface Config extends VersionConfigBase {
     enabled?: boolean;
     paths?: string[];
   };
+  pub?: {
+    enabled?: boolean;
+    paths?: string[];
+  };
 }
 
 export interface BranchPattern {
@@ -180,5 +184,6 @@ export function toVersionConfig(config: VersionConfig | undefined, gitConfig?: G
     prereleaseIdentifier: config.prereleaseIdentifier,
     baseBranch: gitConfig?.branch,
     cargo: config.cargo,
+    pub: config.pub,
   };
 }

@@ -11,7 +11,7 @@ export function createPublishCommand(): Command {
     .description('Publish packages to registries with git tagging and GitHub releases')
     .option('--input <path>', 'Path to version output JSON (default: stdin)')
     .option('--config <path>', 'Path to releasekit config')
-    .option('--registry <type>', 'Registry to publish to (npm, cargo, all)', 'all')
+    .option('--registry <type>', 'Registry to publish to (npm, cargo, pub, all)', 'all')
     .option('--npm-auth <method>', 'NPM auth method (oidc, token, auto)', 'auto')
     .option('--dry-run', 'Simulate all operations', false)
     .option('--skip-git', 'Skip git commit/tag/push', false)

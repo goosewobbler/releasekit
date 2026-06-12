@@ -254,6 +254,14 @@ function renderPublish(prop: SchemaProperty): void {
     emitBlank();
   }
 
+  const pub = prop.properties?.pub;
+  if (pub) {
+    emit('### `publish.pub`', '');
+    emit(ensurePeriod(pub.description), '');
+    emit(propsTable(pub.properties ?? {}));
+    emitBlank();
+  }
+
   const gh = prop.properties?.githubRelease;
   if (gh) {
     emit('### `publish.githubRelease`', '');
@@ -279,6 +287,13 @@ function renderPublish(prop: SchemaProperty): void {
     if (verifyCargo) {
       emit('#### `publish.verify.cargo`', '');
       emit(propsTable(verifyCargo.properties ?? {}));
+      emitBlank();
+    }
+
+    const verifyPub = verify.properties?.pub;
+    if (verifyPub) {
+      emit('#### `publish.verify.pub`', '');
+      emit(propsTable(verifyPub.properties ?? {}));
       emitBlank();
     }
   }

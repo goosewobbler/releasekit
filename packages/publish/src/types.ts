@@ -19,6 +19,11 @@ export interface CargoConfig {
   clean: boolean;
 }
 
+export interface PubConfig {
+  enabled: boolean;
+  publishOrder: string[];
+}
+
 export interface GitConfig {
   push: boolean;
   pushMethod: 'auto' | 'ssh' | 'https';
@@ -51,11 +56,13 @@ export interface VerifyRegistryConfig {
 export interface VerifyConfig {
   npm: VerifyRegistryConfig;
   cargo: VerifyRegistryConfig;
+  pub: VerifyRegistryConfig;
 }
 
 export interface PublishConfig {
   npm: NpmConfig;
   cargo: CargoConfig;
+  pub: PubConfig;
   git: GitConfig;
   githubRelease: GitHubReleaseConfig;
   verify: VerifyConfig;
@@ -64,7 +71,7 @@ export interface PublishConfig {
 export interface PublishCliOptions {
   input?: string;
   config?: string;
-  registry: 'npm' | 'cargo' | 'all';
+  registry: 'npm' | 'cargo' | 'pub' | 'all';
   npmAuth: 'auto' | 'oidc' | 'token';
   dryRun: boolean;
   skipGit: boolean;
@@ -83,7 +90,7 @@ export interface PublishCliOptions {
 export interface PublishResult {
   packageName: string;
   version: string;
-  registry: 'npm' | 'cargo';
+  registry: 'npm' | 'cargo' | 'pub';
   success: boolean;
   skipped: boolean;
   reason?: string;
@@ -100,7 +107,7 @@ export interface PublishResult {
 export interface VerificationResult {
   packageName: string;
   version: string;
-  registry: 'npm' | 'cargo';
+  registry: 'npm' | 'cargo' | 'pub';
   verified: boolean;
   attempts: number;
 }
@@ -125,6 +132,7 @@ export interface PublishOutput {
   git: GitResult;
   npm: PublishResult[];
   cargo: PublishResult[];
+  pub: PublishResult[];
   verification: VerificationResult[];
   githubReleases: GitHubReleaseResult[];
   publishSucceeded: boolean;
@@ -160,6 +168,10 @@ export function getDefaultConfig(): PublishConfig {
       publishOrder: [],
       clean: false,
     },
+    pub: {
+      enabled: false,
+      publishOrder: [],
+    },
     git: {
       push: true,
       pushMethod: 'auto',
@@ -191,6 +203,12 @@ export function getDefaultConfig(): PublishConfig {
         initialDelay: 30000,
         backoffMultiplier: 2,
       },
+      pub: {
+        enabled: true,
+        maxAttempts: 10,
+        initialDelay: 30000,
+        backoffMultiplier: 2,
+      },
     },
   };
 }
@@ -215,6 +233,10 @@ export function toPublishConfig(config: BasePublishConfig | undefined): PublishC
       noVerify: config.cargo?.noVerify ?? defaults.cargo.noVerify,
       publishOrder: config.cargo?.publishOrder ?? defaults.cargo.publishOrder,
       clean: config.cargo?.clean ?? defaults.cargo.clean,
+    },
+    pub: {
+      enabled: config.pub?.enabled ?? defaults.pub.enabled,
+      publishOrder: config.pub?.publishOrder ?? defaults.pub.publishOrder,
     },
     git: config.git
       ? {
@@ -247,6 +269,12 @@ export function toPublishConfig(config: BasePublishConfig | undefined): PublishC
         maxAttempts: config.verify?.cargo?.maxAttempts ?? defaults.verify.cargo.maxAttempts,
         initialDelay: config.verify?.cargo?.initialDelay ?? defaults.verify.cargo.initialDelay,
         backoffMultiplier: config.verify?.cargo?.backoffMultiplier ?? defaults.verify.cargo.backoffMultiplier,
+      },
+      pub: {
+        enabled: config.verify?.pub?.enabled ?? defaults.verify.pub.enabled,
+        maxAttempts: config.verify?.pub?.maxAttempts ?? defaults.verify.pub.maxAttempts,
+        initialDelay: config.verify?.pub?.initialDelay ?? defaults.verify.pub.initialDelay,
+        backoffMultiplier: config.verify?.pub?.backoffMultiplier ?? defaults.verify.pub.backoffMultiplier,
       },
     },
   };

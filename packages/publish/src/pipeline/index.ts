@@ -6,6 +6,7 @@ import { preparePushSetup, pushPackageTag, runGitPushStage } from '../stages/git
 import { runGithubReleaseStage } from '../stages/github-release.js';
 import { runNpmPublishStage } from '../stages/npm-publish.js';
 import { runPrepareStage } from '../stages/prepare.js';
+import { runPubPublishStage } from '../stages/pub-publish.js';
 import { runVerifyStage } from '../stages/verify.js';
 import type { PipelineContext, PublishCliOptions, PublishConfig, PublishOutput } from '../types.js';
 import { detectPackageManager } from '../utils/package-manager.js';
@@ -21,6 +22,8 @@ function inferStageName(error: unknown): string {
       NPM_AUTH_ERROR: 'npm-publish',
       CARGO_PUBLISH_ERROR: 'cargo-publish',
       CARGO_AUTH_ERROR: 'cargo-publish',
+      PUB_PUBLISH_ERROR: 'pub-publish',
+      PUBSPEC_YAML_ERROR: 'prepare',
       VERIFICATION_FAILED: 'verify',
       GIT_PUSH_ERROR: 'git-push',
       GITHUB_RELEASE_ERROR: 'github-release',
@@ -49,6 +52,7 @@ export async function runPipeline(
       git: { committed: false, tags: [], pushed: false },
       npm: [],
       cargo: [],
+      pub: [],
       verification: [],
       githubReleases: [],
       publishSucceeded: false,
@@ -86,6 +90,9 @@ export async function runPipeline(
         if (options.registry === 'all' || options.registry === 'cargo') {
           await runCargoPublishStage(ctx);
         }
+        if (options.registry === 'all' || options.registry === 'pub') {
+          await runPubPublishStage(ctx);
+        }
       } else if (!options.skipPublish) {
         // Per-package mode: for each update, publish → verify → push its tag.
         // Uses a single-update context so existing stage logic is fully reused.
@@ -101,6 +108,7 @@ export async function runPipeline(
               git: ctx.output.git, // shared so pushPackageTag accumulates into ctx.output.git
               npm: [],
               cargo: [],
+              pub: [],
               verification: [],
               githubReleases: [],
               publishSucceeded: false,
@@ -115,6 +123,10 @@ export async function runPipeline(
             await runCargoPublishStage(singleCtx);
             ctx.output.cargo.push(...singleCtx.output.cargo);
           }
+          if (options.registry === 'all' || options.registry === 'pub') {
+            await runPubPublishStage(singleCtx);
+            ctx.output.pub.push(...singleCtx.output.pub);
+          }
 
           if (!options.skipVerification) {
             await runVerifyStage(singleCtx);
@@ -123,7 +135,9 @@ export async function runPipeline(
 
           // Compute publish success for this package before pushing its tag
           singleCtx.output.publishSucceeded =
-            singleCtx.output.npm.every((r) => r.success) && singleCtx.output.cargo.every((r) => r.success);
+            singleCtx.output.npm.every((r) => r.success) &&
+            singleCtx.output.cargo.every((r) => r.success) &&
+            singleCtx.output.pub.every((r) => r.success);
 
           // Push tag after publish/verify — only push if publish succeeded (commit is ready regardless).
           if (!options.skipGit && update.tag && singleCtx.output.publishSucceeded) {
@@ -136,7 +150,9 @@ export async function runPipeline(
       // Only relevant for batch mode; per-package mode sets publishSucceeded per-loop but doesn't accumulate.
       if (!perPackageMode) {
         ctx.output.publishSucceeded =
-          ctx.output.npm.every((r) => r.success) && ctx.output.cargo.every((r) => r.success);
+          ctx.output.npm.every((r) => r.success) &&
+          ctx.output.cargo.every((r) => r.success) &&
+          ctx.output.pub.every((r) => r.success);
       } else {
         // In per-package mode every singleCtx succeeded (stages throw on failure), so the overall run succeeded.
         ctx.output.publishSucceeded = true;

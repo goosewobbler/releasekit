@@ -344,6 +344,39 @@ export class PackageProcessor {
         log(`Cargo disabled for ${name}`, 'debug');
       }
 
+      // Check if Dart/pubspec.yaml handling is enabled (default to true if not specified)
+      const pubEnabled = this.fullConfig.pub?.enabled !== false;
+      log(`Pub enabled for ${name}: ${pubEnabled}, config: ${JSON.stringify(this.fullConfig.pub)}`, 'debug');
+
+      if (pubEnabled) {
+        const dartPaths = this.fullConfig.pub?.paths;
+        log(`Pub paths config for ${name}: ${JSON.stringify(dartPaths)}`, 'debug');
+
+        if (dartPaths && dartPaths.length > 0) {
+          for (const dartPath of dartPaths) {
+            const resolvedPubspecPath = path.resolve(pkgPath, dartPath, 'pubspec.yaml');
+            log(`Checking pub path for ${name}: ${resolvedPubspecPath}`, 'debug');
+            if (fs.existsSync(resolvedPubspecPath)) {
+              log(`Found pubspec.yaml for ${name} at ${resolvedPubspecPath}, updating...`, 'debug');
+              updatePackageVersion(resolvedPubspecPath, nextVersion, this.dryRun);
+            } else {
+              log(`pubspec.yaml not found at ${resolvedPubspecPath}`, 'debug');
+            }
+          }
+        } else {
+          const pubspecPath = path.join(pkgPath, 'pubspec.yaml');
+          log(`Checking default pub path for ${name}: ${pubspecPath}`, 'debug');
+          if (fs.existsSync(pubspecPath)) {
+            log(`Found pubspec.yaml for ${name} at ${pubspecPath}, updating...`, 'debug');
+            updatePackageVersion(pubspecPath, nextVersion, this.dryRun);
+          } else {
+            log(`pubspec.yaml not found for ${name} at ${pubspecPath}`, 'debug');
+          }
+        }
+      } else {
+        log(`Pub disabled for ${name}`, 'debug');
+      }
+
       // Create package-specific tag (using the updated formatTag function with package name)
       const packageTag = formatTag(
         nextVersion,

@@ -258,7 +258,7 @@ Publish packages to registries with git tagging and GitHub releases. Reads a ver
 |---|---|---|---|
 | `--input <path>` | string | stdin | Path to version output JSON |
 | `--config <path>` | string | auto-discovered | Path to releasekit config |
-| `--registry <type>` | `npm` \| `cargo` \| `all` | `all` | Registry to publish to |
+| `--registry <type>` | `npm` \| `cargo` \| `pub` \| `all` | `all` | Registry to publish to |
 | `--npm-auth <method>` | `oidc` \| `token` \| `auto` | `auto` | NPM auth method |
 | `--dry-run` | boolean | `false` | Simulate all operations |
 | `--skip-git` | boolean | `false` | Skip git commit/tag/push |

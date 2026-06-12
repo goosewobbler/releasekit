@@ -76,6 +76,7 @@ Versioning configuration.
 | `prereleaseIdentifier` | string | — | Identifier for prerelease versions (e.g., 'alpha', 'beta') |
 | `strictReachable` | boolean | `false` | Only use reachable tags |
 | `zeroMajor` | `"spec"` \| `"strict"` | `"spec"` | Pre-1.0 handling of commit-inferred breaking changes. 'spec' (default): bump the 0.x minor (0.24.0 → 0.25.0), per semver §4. 'strict': bump the next major (→ 1.0.0). Inferred path only — explicit overrides (--bump major, bump:major) always graduate to 1.0.0. |
+| `pub` | object | — | Dart/Flutter pub configuration |
 
 ### `version.zeroMajor`
 
@@ -183,6 +184,15 @@ Cargo publishing configuration.
 | `publishOrder` | `string[]` | `[]` | Order in which to publish packages |
 | `clean` | boolean | `false` | Clean before publishing |
 
+### `publish.pub`
+
+Dart/Flutter publishing configuration via pub.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `enabled` | boolean | `false` | Enable Dart publishing to pub.dev |
+| `publishOrder` | `string[]` | `[]` | Order in which to publish Dart packages |
+
 ### `publish.githubRelease`
 
 GitHub Release configuration.
@@ -216,6 +226,15 @@ Registry verification configuration.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `enabled` | boolean | `true` | Verify Cargo publish |
+| `maxAttempts` | integer | `10` | Maximum verification attempts |
+| `initialDelay` | integer | `30000` | Initial delay in milliseconds |
+| `backoffMultiplier` | number | `2` | Exponential backoff multiplier |
+
+#### `publish.verify.pub`
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `enabled` | boolean | `true` | Verify Dart pub publish |
 | `maxAttempts` | integer | `10` | Maximum verification attempts |
 | `initialDelay` | integer | `30000` | Initial delay in milliseconds |
 | `backoffMultiplier` | number | `2` | Exponential backoff multiplier |
