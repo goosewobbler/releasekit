@@ -282,6 +282,33 @@ describe('pub-publish stage', () => {
     expect(cwds[1]).toContain('pkg_a');
   });
 
+  it('should wrap dart pub token add failures as PUB_AUTH_ERROR', async () => {
+    const { execCommand, hasPubTokenAuth } = await Promise.all([
+      import('../../../src/utils/exec.js'),
+      import('../../../src/utils/auth.js'),
+    ]).then(([exec, auth]) => ({ execCommand: exec.execCommand, hasPubTokenAuth: auth.hasPubTokenAuth }));
+
+    vi.mocked(hasPubTokenAuth).mockReturnValue(true);
+    vi.mocked(execCommand).mockImplementation((cmd, args) => {
+      if (cmd === 'dart' && (args as string[]).includes('token')) {
+        return Promise.reject(new Error('dart: command not found'));
+      }
+      return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 });
+    });
+
+    const dir = createTmpDir();
+    const pkgDir = path.join(dir, 'packages', 'my_package');
+    fs.mkdirSync(pkgDir, { recursive: true });
+    writePubspec(pkgDir, 'my_package');
+
+    const ctx = createContext(dir);
+
+    await expect(runPubPublishStage(ctx)).rejects.toMatchObject({ code: 'PUB_AUTH_ERROR' });
+
+    const publishCalls = vi.mocked(execCommand).mock.calls.filter((c) => (c[1] as string[]).includes('publish'));
+    expect(publishCalls).toHaveLength(0);
+  });
+
   it('should throw and record failure result when publish fails', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     vi.mocked(execCommand).mockRejectedValue(new Error('publish failed: connection timeout'));

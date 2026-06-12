@@ -53,11 +53,16 @@ export function updatePubVersion(pubspecPath: string, version: string, dryRun = 
       throw new Error(`No package name found in ${pubspecPath}`);
     }
 
-    // Replace the entire version line. Flutter build numbers (e.g. `1.0.0+1`) are
-    // intentionally dropped — ReleaseKit manages the SemVer portion only.
-    const updatedContent = content.replace(/^(version:\s*)\S+(\s+#.*)?$/m, `$1${version}$2`);
+    // Replace the version line, preserving an optional inline comment and tolerating
+    // trailing whitespace. Flutter build numbers (e.g. `1.0.0+1`) are intentionally
+    // dropped — ReleaseKit manages the SemVer portion only.
+    const updatedContent = content.replace(/^(version:[ \t]*)\S.*?([ \t]*#[^\n]*)?[ \t]*$/m, `$1${version}$2`);
 
-    if (updatedContent === content && !pubspec.version) {
+    // A no-op replacement is only legitimate when the file is already at the target
+    // version. Otherwise either there is no version field, or the parser found one the
+    // regex could not rewrite (an unusually-formatted line) — refuse rather than record
+    // a bump that never touched the file and let a stale version reach pub.dev.
+    if (updatedContent === content && pubspec.version !== version) {
       throw new Error(`No version field found in ${pubspecPath}`);
     }
 

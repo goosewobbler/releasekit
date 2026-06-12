@@ -171,6 +171,36 @@ describe('Pub Handler', () => {
       expect(() => updatePubVersion(mockPubspecPath, '2.0.0')).toThrow('No version field found in');
     });
 
+    it('should update a version line with trailing whitespace instead of silently no-opping', () => {
+      vi.mocked(fs.readFileSync, { partial: true }).mockReturnValue('name: test_package\nversion: 1.0.0  \n');
+      vi.mocked(jsonOutput.addPackageUpdate, { partial: true }).mockImplementation(() => {});
+
+      updatePubVersion(mockPubspecPath, '2.0.0');
+
+      const [, writtenContent] = vi.mocked(fs.writeFileSync).mock.calls[0] as [string, string];
+      expect(writtenContent).toContain('version: 2.0.0');
+      expect(writtenContent).not.toContain('1.0.0');
+    });
+
+    it('should preserve an inline comment on the version line', () => {
+      vi.mocked(fs.readFileSync, { partial: true }).mockReturnValue('name: test_package\nversion: 1.0.0 # current\n');
+      vi.mocked(jsonOutput.addPackageUpdate, { partial: true }).mockImplementation(() => {});
+
+      updatePubVersion(mockPubspecPath, '2.0.0');
+
+      const [, writtenContent] = vi.mocked(fs.writeFileSync).mock.calls[0] as [string, string];
+      expect(writtenContent).toContain('version: 2.0.0 # current');
+    });
+
+    it('should not throw when the file is already at the target version', () => {
+      vi.mocked(fs.readFileSync, { partial: true }).mockReturnValue('name: test_package\nversion: 2.0.0\n');
+      vi.mocked(parsePubspec, { partial: true }).mockReturnValue({ name: 'test_package', version: '2.0.0' });
+      vi.mocked(jsonOutput.addPackageUpdate, { partial: true }).mockImplementation(() => {});
+
+      expect(() => updatePubVersion(mockPubspecPath, '2.0.0')).not.toThrow();
+      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test_package', '2.0.0', mockPubspecPath);
+    });
+
     it('should handle errors when updating pubspec.yaml', () => {
       vi.mocked(fs.readFileSync, { partial: true }).mockImplementation(() => {
         throw new Error('Read error');

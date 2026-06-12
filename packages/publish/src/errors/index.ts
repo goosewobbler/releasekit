@@ -46,6 +46,7 @@ export enum PublishErrorCode {
   CARGO_PUBLISH_ERROR = 'CARGO_PUBLISH_ERROR',
   CARGO_AUTH_ERROR = 'CARGO_AUTH_ERROR',
   PUB_PUBLISH_ERROR = 'PUB_PUBLISH_ERROR',
+  PUB_AUTH_ERROR = 'PUB_AUTH_ERROR',
   PUBSPEC_YAML_ERROR = 'PUBSPEC_YAML_ERROR',
   VERIFICATION_FAILED = 'VERIFICATION_FAILED',
   GITHUB_RELEASE_ERROR = 'GITHUB_RELEASE_ERROR',
@@ -67,6 +68,7 @@ export function createPublishError(code: PublishErrorCode, details?: string): Pu
     [PublishErrorCode.CARGO_PUBLISH_ERROR]: 'Failed to publish to crates.io',
     [PublishErrorCode.CARGO_AUTH_ERROR]: 'Cargo authentication failed',
     [PublishErrorCode.PUB_PUBLISH_ERROR]: 'Failed to publish to pub.dev',
+    [PublishErrorCode.PUB_AUTH_ERROR]: 'Pub.dev authentication failed',
 
     [PublishErrorCode.PUBSPEC_YAML_ERROR]: 'Failed to update pubspec.yaml',
     [PublishErrorCode.VERIFICATION_FAILED]: 'Package verification failed',
@@ -129,6 +131,11 @@ export function createPublishError(code: PublishErrorCode, details?: string): Pu
       'Ensure pubspec.yaml metadata is complete (description, homepage, etc.)',
       'Configure automated publishing via OIDC at https://pub.dev/publishers',
       'Or set PUB_TOKEN environment variable for token-based auth',
+    ],
+    [PublishErrorCode.PUB_AUTH_ERROR]: [
+      'Set the PUB_TOKEN environment variable for token-based auth',
+      'Configure automated publishing via OIDC at https://pub.dev/publishers',
+      'Ensure the Dart SDK is installed and `dart pub token add` can run',
     ],
     [PublishErrorCode.PUBSPEC_YAML_ERROR]: [
       'Ensure pubspec.yaml exists and is valid YAML',

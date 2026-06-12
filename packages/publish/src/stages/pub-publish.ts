@@ -34,13 +34,19 @@ export async function runPubPublishStage(ctx: PipelineContext): Promise<void> {
     return;
   }
 
-  // If PUB_TOKEN is set, configure it before publishing; otherwise assume OIDC automated publishing
+  // If PUB_TOKEN is set, configure it before publishing; otherwise assume OIDC automated publishing.
+  // Wrap the token setup so a failure here is attributed to auth (with remediation hints) rather
+  // than surfacing as a raw exec error against an unknown stage.
   if (hasPubTokenAuth() && !dryRun) {
-    await execCommand('dart', ['pub', 'token', 'add', 'https://pub.dev', '--env-var', 'PUB_TOKEN'], {
-      cwd,
-      dryRun: false,
-      label: 'dart pub token add',
-    });
+    try {
+      await execCommand('dart', ['pub', 'token', 'add', 'https://pub.dev', '--env-var', 'PUB_TOKEN'], {
+        cwd,
+        dryRun: false,
+        label: 'dart pub token add',
+      });
+    } catch (error) {
+      throw createPublishError(PublishErrorCode.PUB_AUTH_ERROR, error instanceof Error ? error.message : String(error));
+    }
   }
 
   // Apply explicit publish order if configured
