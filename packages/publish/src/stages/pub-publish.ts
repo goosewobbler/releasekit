@@ -23,15 +23,6 @@ export async function runPubPublishStage(ctx: PipelineContext): Promise<void> {
     return;
   }
 
-  // If PUB_TOKEN is set, configure it before publishing; otherwise assume OIDC automated publishing
-  if (hasPubTokenAuth() && !dryRun) {
-    await execCommand('dart', ['pub', 'token', 'add', 'https://pub.dev', '--env-var', 'PUB_TOKEN'], {
-      cwd,
-      dryRun: false,
-      label: 'dart pub token add',
-    });
-  }
-
   // Find Dart packages to publish
   const packages = findPubPackages(
     input.updates.map((u) => ({ dir: path.dirname(path.resolve(cwd, u.filePath)), ...u })),
@@ -41,6 +32,15 @@ export async function runPubPublishStage(ctx: PipelineContext): Promise<void> {
   if (packages.length === 0) {
     debug('No Dart packages found to publish');
     return;
+  }
+
+  // If PUB_TOKEN is set, configure it before publishing; otherwise assume OIDC automated publishing
+  if (hasPubTokenAuth() && !dryRun) {
+    await execCommand('dart', ['pub', 'token', 'add', 'https://pub.dev', '--env-var', 'PUB_TOKEN'], {
+      cwd,
+      dryRun: false,
+      label: 'dart pub token add',
+    });
   }
 
   // Apply explicit publish order if configured

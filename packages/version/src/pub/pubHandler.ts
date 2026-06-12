@@ -55,7 +55,7 @@ export function updatePubVersion(pubspecPath: string, version: string, dryRun = 
 
     // Replace the entire version line. Flutter build numbers (e.g. `1.0.0+1`) are
     // intentionally dropped — ReleaseKit manages the SemVer portion only.
-    const updatedContent = content.replace(/^(version:\s*).*$/m, `$1${version}`);
+    const updatedContent = content.replace(/^(version:\s*)\S+(\s+#.*)?$/m, `$1${version}$2`);
 
     if (updatedContent === content && !/^version:\s*/m.test(content)) {
       throw new Error(`No version field found in ${pubspecPath}`);
