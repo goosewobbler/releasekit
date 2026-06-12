@@ -57,7 +57,7 @@ export function updatePubVersion(pubspecPath: string, version: string, dryRun = 
     // intentionally dropped — ReleaseKit manages the SemVer portion only.
     const updatedContent = content.replace(/^(version:\s*)\S+(\s+#.*)?$/m, `$1${version}$2`);
 
-    if (updatedContent === content && !/^version:\s*/m.test(content)) {
+    if (updatedContent === content && !pubspec.version) {
       throw new Error(`No version field found in ${pubspecPath}`);
     }
 
