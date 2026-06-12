@@ -188,7 +188,8 @@
             "additionalProperties": false,
             "properties": {
               "pattern": {
-                "type": "string"
+                "type": "string",
+                "description": "Glob or regex matched against the branch name (e.g. 'release/*')"
               },
               "releaseType": {
                 "type": "string",
@@ -197,7 +198,8 @@
                   "minor",
                   "patch",
                   "prerelease"
-                ]
+                ],
+                "description": "Version bump type applied when this pattern matches"
               }
             },
             "required": [
@@ -752,16 +754,19 @@
                         "additionalProperties": false,
                         "properties": {
                           "name": {
-                            "type": "string"
+                            "type": "string",
+                            "description": "Category label shown in release notes (e.g. 'Features')"
                           },
                           "description": {
-                            "type": "string"
+                            "type": "string",
+                            "description": "LLM instruction describing what commits belong in this category"
                           },
                           "scopes": {
                             "type": "array",
                             "items": {
                               "type": "string"
-                            }
+                            },
+                            "description": "Conventional commit scopes assigned to this category"
                           }
                         },
                         "required": [
@@ -786,7 +791,8 @@
                             "none",
                             "unrestricted"
                           ],
-                          "default": "unrestricted"
+                          "default": "unrestricted",
+                          "description": "Scope allowlist source: 'restricted' uses rules.allowed, 'packages' derives scopes from workspace package names, 'none' strips all scopes, 'unrestricted' allows any scope"
                         },
                         "rules": {
                           "type": "object",
@@ -796,11 +802,13 @@
                               "type": "array",
                               "items": {
                                 "type": "string"
-                              }
+                              },
+                              "description": "Explicit list of valid scope names; commits with unlisted scopes trigger invalidScopeAction"
                             },
                             "caseSensitive": {
                               "type": "boolean",
-                              "default": false
+                              "default": false,
+                              "description": "Whether scope comparison is case-sensitive"
                             },
                             "invalidScopeAction": {
                               "type": "string",
@@ -809,12 +817,15 @@
                                 "keep",
                                 "fallback"
                               ],
-                              "default": "remove"
+                              "default": "remove",
+                              "description": "Action for commits whose scope is not in the allowed list: 'remove' strips the scope, 'keep' leaves it, 'fallback' substitutes fallbackScope"
                             },
                             "fallbackScope": {
-                              "type": "string"
+                              "type": "string",
+                              "description": "Scope substituted when invalidScopeAction is 'fallback'"
                             }
-                          }
+                          },
+                          "description": "Scope validation and transformation rules"
                         }
                       }
                     },

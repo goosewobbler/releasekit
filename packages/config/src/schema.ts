@@ -29,8 +29,10 @@ export const MonorepoConfigSchema = z.object({
 });
 
 export const BranchPatternSchema = z.object({
-  pattern: z.string(),
-  releaseType: z.enum(['major', 'minor', 'patch', 'prerelease']),
+  pattern: z.string().describe("Glob or regex matched against the branch name (e.g. 'release/*')"),
+  releaseType: z
+    .enum(['major', 'minor', 'patch', 'prerelease'])
+    .describe('Version bump type applied when this pattern matches'),
 });
 
 export const VersionCargoConfigSchema = z.object({
@@ -289,21 +291,34 @@ export const LLMTasksConfigSchema = z.object({
 });
 
 export const LLMCategorySchema = z.object({
-  name: z.string(),
-  description: z.string(),
-  scopes: z.array(z.string()).optional(),
+  name: z.string().describe("Category label shown in release notes (e.g. 'Features')"),
+  description: z.string().describe('LLM instruction describing what commits belong in this category'),
+  scopes: z.array(z.string()).optional().describe('Conventional commit scopes assigned to this category'),
 });
 
 export const ScopeRulesSchema = z.object({
-  allowed: z.array(z.string()).optional(),
-  caseSensitive: z.boolean().default(false),
-  invalidScopeAction: z.enum(['remove', 'keep', 'fallback']).default('remove'),
-  fallbackScope: z.string().optional(),
+  allowed: z
+    .array(z.string())
+    .optional()
+    .describe('Explicit list of valid scope names; commits with unlisted scopes trigger invalidScopeAction'),
+  caseSensitive: z.boolean().default(false).describe('Whether scope comparison is case-sensitive'),
+  invalidScopeAction: z
+    .enum(['remove', 'keep', 'fallback'])
+    .default('remove')
+    .describe(
+      "Action for commits whose scope is not in the allowed list: 'remove' strips the scope, 'keep' leaves it, 'fallback' substitutes fallbackScope",
+    ),
+  fallbackScope: z.string().optional().describe("Scope substituted when invalidScopeAction is 'fallback'"),
 });
 
 export const ScopeConfigSchema = z.object({
-  mode: z.enum(['restricted', 'packages', 'none', 'unrestricted']).default('unrestricted'),
-  rules: ScopeRulesSchema.optional(),
+  mode: z
+    .enum(['restricted', 'packages', 'none', 'unrestricted'])
+    .default('unrestricted')
+    .describe(
+      "Scope allowlist source: 'restricted' uses rules.allowed, 'packages' derives scopes from workspace package names, 'none' strips all scopes, 'unrestricted' allows any scope",
+    ),
+  rules: ScopeRulesSchema.optional().describe('Scope validation and transformation rules'),
 });
 
 export const LLMPromptOverridesSchema = z.object({
