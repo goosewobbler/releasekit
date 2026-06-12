@@ -134,7 +134,7 @@ function findPubPackages(
 
     try {
       const pubspec = parsePubspec(pubspecPath);
-      if (!pubspec.name) {
+      if (!pubspec.name || pubspec.publish_to === 'none') {
         continue;
       }
 

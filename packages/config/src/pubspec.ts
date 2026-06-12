@@ -5,6 +5,7 @@ import * as yaml from 'yaml';
 export interface PubspecManifest {
   name?: string;
   version?: string;
+  publish_to?: string;
   environment?: Record<string, unknown>;
   [key: string]: unknown;
 }
