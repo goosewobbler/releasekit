@@ -12,14 +12,17 @@
  *   pnpm test:harness           # Run preview mode (default)
  *   pnpm test:harness:preview   # Run preview mode explicitly
  *   pnpm test:harness:release   # Run release mode with patch bump
+ *   pnpm test:harness:multi     # Run release mode with npm + cargo, verify both manifests bumped
  *
  * The harness defaults to running in "CI simulation" mode where:
  * - Only the test project's node_modules are available in NODE_PATH
  * - This mimics the actual CI environment where the action's node_modules aren't available
  */
+import fs from 'node:fs';
+import path from 'node:path';
 import { getRemoteRefs, verifyTags, verifyVersionCommit } from './mock-git.mjs';
 import { parseInputs, runActionLocal } from './run-action-local.mjs';
-import { cleanupTestProject, createTestProject } from './test-project.mjs';
+import { cleanupTestProject, createMultiRegistryTestProject, createTestProject } from './test-project.mjs';
 
 const args = process.argv.slice(2);
 const mode = args[0] || 'preview';
@@ -38,6 +41,66 @@ console.log('');
 
 let projectDir;
 try {
+  if (mode === 'release-multi') {
+    const testProject = createMultiRegistryTestProject();
+    projectDir = testProject.projectDir;
+
+    console.log(`\n--- Running release-multi mode ---`);
+
+    const envVars = {
+      INPUT_MODE: 'release',
+      INPUT_PROJECT_DIR: testProject.projectDir,
+      INPUT_CONFIG: 'releasekit.config.json',
+      INPUT_SKIP_PUBLISH: 'true',
+      INPUT_SKIP_GITHUB_RELEASE: 'true',
+      INPUT_SKIP_VERIFICATION: 'true',
+      INPUT_SKIP_GIT: 'true',
+      INPUT_VERBOSE: 'true',
+      INPUT_BUMP: 'patch',
+    };
+
+    const result = runActionLocal(envVars);
+
+    console.log('\n--- Action Output ---');
+    console.log('Exit code:', result.status);
+    if (result.stdout) {
+      console.log('\nSTDOUT:');
+      console.log(result.stdout);
+    }
+    if (result.stderr) {
+      console.log('\nSTDERR:');
+      console.log(result.stderr);
+    }
+
+    if (result.status !== 0) {
+      console.error(`\n❌ release-multi failed with exit code ${result.status}`);
+      process.exit(1);
+    }
+
+    console.log('\n--- Verifying Multi-Registry Version Bumps ---');
+    const expectedVersion = '1.0.1';
+    for (const pkgSlug of testProject.packages) {
+      const pkgDir = path.join(testProject.projectDir, 'packages', pkgSlug);
+
+      const pkgJsonPath = path.join(pkgDir, 'package.json');
+      const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
+      if (pkgJson.version !== expectedVersion) {
+        throw new Error(`${pkgSlug} package.json: expected ${expectedVersion}, got ${pkgJson.version}`);
+      }
+
+      const cargoTomlPath = path.join(pkgDir, 'Cargo.toml');
+      const cargoContent = fs.readFileSync(cargoTomlPath, 'utf-8');
+      const cargoVersionMatch = cargoContent.match(/^version = "([^"]+)"/m);
+      const cargoVersion = cargoVersionMatch?.[1];
+      if (cargoVersion !== expectedVersion) {
+        throw new Error(`${pkgSlug} Cargo.toml: expected ${expectedVersion}, got ${cargoVersion}`);
+      }
+
+      console.log(`✓ ${pkgSlug}: package.json=${pkgJson.version}, Cargo.toml=${cargoVersion}`);
+    }
+
+    console.log(`\n✅ release-multi completed successfully`);
+  } else {
   const testProject = createTestProject();
   projectDir = testProject.projectDir;
 
@@ -132,6 +195,7 @@ try {
   }
 
   console.log(`\n✅ ${mode} completed successfully`);
+  } // end else
 } finally {
   if (projectDir && options.cleanup !== 'false') {
     console.log(`\n--- Cleanup ---`);

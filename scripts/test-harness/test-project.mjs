@@ -135,3 +135,107 @@ export function cleanupTestProject(projectDir) {
     console.log(`Cleaned up: ${projectDir}`);
   }
 }
+
+export function createMultiRegistryTestProject(_options = {}) {
+  const timestamp = Date.now();
+  const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), `${TEST_PREFIX}-multi-${timestamp}`));
+
+  console.log(`Creating multi-registry test project at: ${projectDir}`);
+
+  const remotePath = path.join(projectDir, 'test-remote.git');
+  createBareRemote(remotePath);
+
+  createMultiRegistryMonorepoStructure(projectDir);
+  initGitRepo(projectDir, remotePath);
+
+  const commits = [
+    'feat(pkg-a): add initial feature',
+    'fix(pkg-b): fix a bug',
+    'docs: update README',
+    'feat(pkg-c): add new feature',
+    'fix(pkg-a): fix another bug',
+    'feat(pkg-b): add feature to pkg-b',
+    'style: format code',
+    'refactor(pkg-c): refactor code',
+    'test(pkg-a): add tests',
+    'chore: update dependencies',
+  ];
+
+  for (const msg of commits) {
+    addConventionalCommit(projectDir, msg);
+  }
+
+  console.log(`Multi-registry test project created with ${commits.length} commits`);
+
+  return {
+    projectDir,
+    remotePath,
+    packages: ['pkg-a', 'pkg-b', 'pkg-c'],
+  };
+}
+
+function createMultiRegistryMonorepoStructure(projectDir) {
+  const rootPackageJson = {
+    name: 'test-monorepo',
+    version: '1.0.0',
+    private: true,
+    scripts: {
+      test: 'echo "test"',
+    },
+  };
+
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify(rootPackageJson, null, 2));
+  fs.writeFileSync(path.join(projectDir, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/*"\n');
+
+  const pkgNames = ['pkg-a', 'pkg-b', 'pkg-c'];
+  const members = pkgNames.map((n) => `    "packages/${n}"`).join(',\n');
+  fs.writeFileSync(path.join(projectDir, 'Cargo.toml'), `[workspace]\nmembers = [\n${members}\n]\nresolver = "2"\n`);
+
+  const packagesDir = path.join(projectDir, 'packages');
+  fs.mkdirSync(packagesDir, { recursive: true });
+
+  const packages = [
+    { name: '@test/pkg-a', slug: 'pkg-a', version: '1.0.0', description: 'Test package A' },
+    { name: '@test/pkg-b', slug: 'pkg-b', version: '1.0.0', description: 'Test package B' },
+    { name: '@test/pkg-c', slug: 'pkg-c', version: '1.0.0', description: 'Test package C' },
+  ];
+
+  for (const pkg of packages) {
+    const pkgDir = path.join(packagesDir, pkg.slug);
+    fs.mkdirSync(pkgDir, { recursive: true });
+
+    fs.writeFileSync(
+      path.join(pkgDir, 'package.json'),
+      JSON.stringify(
+        {
+          name: pkg.name,
+          version: pkg.version,
+          description: pkg.description,
+          main: './dist/index.js',
+          scripts: { build: 'echo "build"' },
+        },
+        null,
+        2,
+      ),
+    );
+
+    fs.writeFileSync(
+      path.join(pkgDir, 'Cargo.toml'),
+      `[package]\nname = "${pkg.slug}"\nversion = "${pkg.version}"\nedition = "2021"\n`,
+    );
+
+    fs.mkdirSync(path.join(pkgDir, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(pkgDir, 'src', 'index.js'), 'export const hello = "world";\n');
+  }
+
+  const releasekitConfig = {
+    version: {
+      preset: 'angular',
+      packages: ['packages/*'],
+    },
+  };
+
+  fs.writeFileSync(path.join(projectDir, 'releasekit.config.json'), JSON.stringify(releasekitConfig, null, 2));
+
+  installDependencies(projectDir);
+}
