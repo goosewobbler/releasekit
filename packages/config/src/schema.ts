@@ -182,15 +182,6 @@ export const VerifyRegistryCargoConfigSchema = z.object({
   backoffMultiplier: z.number().positive().default(2).describe('Exponential backoff multiplier'),
 });
 
-// Shared shape for both registries; the npm/cargo variants differ only in defaults
-// and per-field descriptions (so the generated docs read naturally for each).
-export const VerifyRegistryConfigSchema = z.object({
-  enabled: z.boolean().default(true),
-  maxAttempts: z.number().int().positive().default(5),
-  initialDelay: z.number().int().positive().default(15000),
-  backoffMultiplier: z.number().positive().default(2),
-});
-
 export const VerifyConfigSchema = z.object({
   npm: VerifyRegistryNpmConfigSchema.default({
     enabled: true,
@@ -587,7 +578,6 @@ export type NpmConfig = z.infer<typeof NpmConfigSchema>;
 export type CargoPublishConfig = z.infer<typeof CargoPublishConfigSchema>;
 export type PublishGitConfig = z.infer<typeof PublishGitConfigSchema>;
 export type GitHubReleaseConfig = z.infer<typeof GitHubReleaseConfigSchema>;
-export type VerifyRegistryConfig = z.infer<typeof VerifyRegistryConfigSchema>;
 export type VerifyConfig = z.infer<typeof VerifyConfigSchema>;
 export type PublishConfig = z.infer<typeof PublishConfigSchema>;
 export type LocationMode = z.infer<typeof LocationModeSchema>;
