@@ -145,8 +145,11 @@ function findPubPackages(
         pubspecPath,
         command: detectPubCommand(pubspec.environment as Record<string, unknown> | undefined),
       });
-    } catch {
-      // Skip unparseable pubspec.yaml
+    } catch (error) {
+      throw createPublishError(
+        PublishErrorCode.PUBSPEC_YAML_ERROR,
+        `${pubspecPath}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
