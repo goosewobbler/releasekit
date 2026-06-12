@@ -193,6 +193,13 @@ export const VerifyRegistryCargoConfigSchema = z.object({
   backoffMultiplier: z.number().positive().default(2).describe('Exponential backoff multiplier'),
 });
 
+export const VerifyRegistryPubConfigSchema = z.object({
+  enabled: z.boolean().default(true).describe('Verify Dart pub publish'),
+  maxAttempts: z.number().int().positive().default(10).describe('Maximum verification attempts'),
+  initialDelay: z.number().int().positive().default(30000).describe('Initial delay in milliseconds'),
+  backoffMultiplier: z.number().positive().default(2).describe('Exponential backoff multiplier'),
+});
+
 export const VerifyConfigSchema = z.object({
   npm: VerifyRegistryNpmConfigSchema.default({
     enabled: true,
@@ -206,7 +213,7 @@ export const VerifyConfigSchema = z.object({
     initialDelay: 30000,
     backoffMultiplier: 2,
   }),
-  pub: VerifyRegistryConfigSchema.default({
+  pub: VerifyRegistryPubConfigSchema.default({
     enabled: true,
     maxAttempts: 10,
     initialDelay: 30000,

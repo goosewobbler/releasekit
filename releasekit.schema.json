@@ -2,7 +2,6 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://goosewobbler.github.io/releasekit/schema.json",
   "title": "ReleaseKit Configuration",
-  "description": "Configuration schema for ReleaseKit - Automated versioning, changelog generation, and publishing",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -12,7 +11,6 @@
     },
     "git": {
       "type": "object",
-      "description": "Git configuration",
       "additionalProperties": false,
       "properties": {
         "remote": {
@@ -47,11 +45,11 @@
           "type": "boolean",
           "description": "Skip Git hooks when committing"
         }
-      }
+      },
+      "description": "Git configuration"
     },
     "monorepo": {
       "type": "object",
-      "description": "Monorepo configuration",
       "additionalProperties": false,
       "properties": {
         "mode": {
@@ -75,11 +73,11 @@
           "type": "string",
           "description": "Main package name for versioning"
         }
-      }
+      },
+      "description": "Monorepo configuration"
     },
     "version": {
       "type": "object",
-      "description": "Versioning configuration",
       "additionalProperties": false,
       "properties": {
         "tagTemplate": {
@@ -90,7 +88,7 @@
         "baselineTagTemplate": {
           "type": "string",
           "pattern": ".*\\$\\{version\\}.*",
-          "description": "Optional secondary tag template for an internal 'baseline' marker that records the release commit on the source branch. Use this when tagTemplate resolves to a tag that gets force-moved off the source branch by a downstream step (e.g. a GitHub Action distributing built artifacts at the version tag) \u2014 the baseline tag stays on the release commit so future version-bump and changelog calculations can still find the previous release. Must contain a ${version} placeholder so the baseline prefix can be derived. Supports the same variables as tagTemplate. Example: \"release/${prefix}${version}\" produces \"release/v1.2.3\"."
+          "description": "Optional secondary tag template for an internal 'baseline' marker that records the release commit on the source branch. Use this when tagTemplate resolves to a tag that gets force-moved off the source branch by a downstream step (e.g. a GitHub Action distributing built artifacts at the version tag) — the baseline tag stays on the release commit so future version-bump and changelog calculations can still find the previous release. Must contain a ${version} placeholder so the baseline prefix can be derived. Supports the same variables as tagTemplate. Example: \"release/${prefix}${version}\" produces \"release/v1.2.3\"."
         },
         "packageSpecificTags": {
           "type": "boolean",
@@ -105,21 +103,20 @@
         "sync": {
           "type": "boolean",
           "default": true,
-          "description": "Global lockstep versioning. true is sugar for one implicit fixed group of every package \u2014 it shares the same mechanism as version.groups. Set to false when using version.groups; sync: true alongside groups is treated as the implicit all-packages fixed group taking precedence (a config conflict, warned about at runtime)."
+          "description": "Global lockstep versioning. true is sugar for one implicit fixed group of every package — it shares the same mechanism as version.groups. Set to false when using version.groups; sync: true alongside groups is treated as the implicit all-packages fixed group taking precedence (a config conflict, warned about at runtime)."
         },
         "groups": {
           "type": "object",
-          "description": "Named version groups. Each group binds a set of package patterns to a fixed or linked sync mode. fixed: any releasable change in any member releases ALL members at the shared group version (bump(max(member baselines))). linked: only members with releasable changes release, but every releasing member shares the same computed version. Packages not matched by any group version independently. A package may belong to at most one group. Set version.sync to false when using groups.",
           "additionalProperties": {
             "type": "object",
             "additionalProperties": false,
             "properties": {
               "packages": {
                 "type": "array",
+                "minItems": 1,
                 "items": {
                   "type": "string"
                 },
-                "minItems": 1,
                 "description": "Package patterns (exact names, @scope/*, or globs) whose matched packages form this group. Same matching rules as version.packages."
               },
               "sync": {
@@ -135,14 +132,18 @@
               "packages",
               "sync"
             ]
+          },
+          "description": "Named version groups. Each group binds a set of package patterns to a fixed or linked sync mode. fixed: any releasable change in any member releases ALL members at the shared group version (bump(max(member baselines))). linked: only members with releasable changes release, but every releasing member shares the same computed version. Packages not matched by any group version independently. A package may belong to at most one group. Set version.sync to false when using groups.",
+          "propertyNames": {
+            "type": "string"
           }
         },
         "packages": {
           "type": "array",
+          "default": [],
           "items": {
             "type": "string"
           },
-          "default": [],
           "description": "Packages to include in versioning"
         },
         "mainPackage": {
@@ -184,9 +185,11 @@
           "type": "array",
           "items": {
             "type": "object",
+            "additionalProperties": false,
             "properties": {
               "pattern": {
-                "type": "string"
+                "type": "string",
+                "description": "Glob or regex matched against the branch name (e.g. 'release/*')"
               },
               "releaseType": {
                 "type": "string",
@@ -195,7 +198,8 @@
                   "minor",
                   "patch",
                   "prerelease"
-                ]
+                ],
+                "description": "Version bump type applied when this pattern matches"
               }
             },
             "required": [
@@ -248,11 +252,10 @@
             "strict"
           ],
           "default": "spec",
-          "description": "Pre-1.0 handling of commit-inferred breaking changes. 'spec' (default): bump the 0.x minor (0.24.0 \u2192 0.25.0), per semver \u00a74. 'strict': bump the next major (\u2192 1.0.0). Inferred path only \u2014 explicit overrides (--bump major, bump:major) always graduate to 1.0.0."
+          "description": "Pre-1.0 handling of commit-inferred breaking changes. 'spec' (default): bump the 0.x minor (0.24.0 → 0.25.0), per semver §4. 'strict': bump the next major (→ 1.0.0). Inferred path only — explicit overrides (--bump major, bump:major) always graduate to 1.0.0."
         },
         "cargo": {
           "type": "object",
-          "description": "Cargo/Rust configuration",
           "additionalProperties": false,
           "properties": {
             "enabled": {
@@ -267,37 +270,36 @@
               },
               "description": "Directories to search for Cargo.toml files"
             }
-          }
+          },
+          "description": "Cargo/Rust configuration"
         },
         "pub": {
           "type": "object",
-          "description": "Dart/Flutter pub configuration",
           "additionalProperties": false,
           "properties": {
             "enabled": {
               "type": "boolean",
-              "default": true,
-              "description": "Enable pubspec.yaml version handling"
+              "default": true
             },
             "paths": {
               "type": "array",
               "items": {
                 "type": "string"
-              },
-              "description": "Directories to search for pubspec.yaml files"
+              }
             }
-          }
+          },
+          "description": "Dart/Flutter pub configuration"
         }
-      }
+      },
+      "description": "Versioning configuration"
     },
     "publish": {
       "type": "object",
-      "description": "Publishing configuration",
       "additionalProperties": false,
       "properties": {
         "git": {
           "type": "object",
-          "description": "Git publishing options",
+          "additionalProperties": false,
           "properties": {
             "push": {
               "type": "boolean",
@@ -329,11 +331,11 @@
               "type": "boolean",
               "description": "Skip Git hooks when committing"
             }
-          }
+          },
+          "description": "Git publishing options"
         },
         "npm": {
           "type": "object",
-          "description": "NPM publishing configuration",
           "additionalProperties": false,
           "properties": {
             "enabled": {
@@ -372,12 +374,12 @@
             },
             "copyFiles": {
               "type": "array",
-              "items": {
-                "type": "string"
-              },
               "default": [
                 "LICENSE"
               ],
+              "items": {
+                "type": "string"
+              },
               "description": "Files to copy to package before publishing"
             },
             "tag": {
@@ -385,11 +387,11 @@
               "default": "latest",
               "description": "NPM dist tag"
             }
-          }
+          },
+          "description": "NPM publishing configuration"
         },
         "cargo": {
           "type": "object",
-          "description": "Cargo publishing configuration",
           "additionalProperties": false,
           "properties": {
             "enabled": {
@@ -404,10 +406,10 @@
             },
             "publishOrder": {
               "type": "array",
+              "default": [],
               "items": {
                 "type": "string"
               },
-              "default": [],
               "description": "Order in which to publish packages"
             },
             "clean": {
@@ -415,11 +417,29 @@
               "default": false,
               "description": "Clean before publishing"
             }
-          }
+          },
+          "description": "Cargo publishing configuration"
+        },
+        "pub": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "publishOrder": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "Dart/Flutter publishing configuration via pub"
         },
         "githubRelease": {
           "type": "object",
-          "description": "GitHub Release configuration",
           "additionalProperties": false,
           "properties": {
             "enabled": {
@@ -438,6 +458,7 @@
               "description": "Create separate release per package"
             },
             "prerelease": {
+              "default": "auto",
               "oneOf": [
                 {
                   "type": "boolean"
@@ -449,7 +470,6 @@
                   ]
                 }
               ],
-              "default": "auto",
               "description": "Mark as prerelease"
             },
             "body": {
@@ -468,12 +488,20 @@
               "type": "string",
               "default": "${packageName}: ${version}",
               "description": "Template for the GitHub release title when a package name is resolved. Available variables: ${packageName} (original scoped name, e.g. '@scope/pkg'), ${version} (e.g. 'v1.0.0'). Version-only tags always use the tag string directly."
+            },
+            "skipPackages": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "description": "Package names to exclude from GitHub release creation"
             }
-          }
+          },
+          "description": "GitHub Release configuration"
         },
         "verify": {
           "type": "object",
-          "description": "Registry verification configuration",
           "additionalProperties": false,
           "properties": {
             "npm": {
@@ -563,33 +591,14 @@
                 }
               }
             }
-          }
-        },
-        "pub": {
-          "type": "object",
-          "description": "Dart/Flutter publishing configuration via pub",
-          "additionalProperties": false,
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "default": false,
-              "description": "Enable Dart publishing to pub.dev"
-            },
-            "publishOrder": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "default": [],
-              "description": "Order in which to publish Dart packages"
-            }
-          }
+          },
+          "description": "Registry verification configuration"
         }
-      }
+      },
+      "description": "Publishing configuration"
     },
     "notes": {
       "type": "object",
-      "description": "Changelog and release notes configuration",
       "additionalProperties": false,
       "properties": {
         "changelog": {
@@ -603,7 +612,6 @@
             },
             {
               "type": "object",
-              "description": "Changelog file configuration",
               "additionalProperties": false,
               "properties": {
                 "mode": {
@@ -621,7 +629,6 @@
                 },
                 "templates": {
                   "type": "object",
-                  "description": "Template configuration for changelog",
                   "additionalProperties": false,
                   "properties": {
                     "path": {
@@ -637,9 +644,11 @@
                       ],
                       "description": "Template engine"
                     }
-                  }
+                  },
+                  "description": "Template configuration for changelog"
                 }
-              }
+              },
+              "description": "Changelog file configuration"
             }
           ]
         },
@@ -654,7 +663,6 @@
             },
             {
               "type": "object",
-              "description": "Release notes configuration",
               "additionalProperties": false,
               "properties": {
                 "mode": {
@@ -672,7 +680,6 @@
                 },
                 "templates": {
                   "type": "object",
-                  "description": "Template configuration for release notes",
                   "additionalProperties": false,
                   "properties": {
                     "path": {
@@ -688,11 +695,11 @@
                       ],
                       "description": "Template engine"
                     }
-                  }
+                  },
+                  "description": "Template configuration for release notes"
                 },
                 "llm": {
                   "type": "object",
-                  "description": "LLM configuration for release notes",
                   "additionalProperties": false,
                   "properties": {
                     "provider": {
@@ -734,6 +741,32 @@
                       "minimum": 1,
                       "description": "Concurrent LLM requests"
                     },
+                    "retry": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "maxAttempts": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "description": "Maximum number of attempts"
+                        },
+                        "initialDelay": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Initial delay in ms"
+                        },
+                        "maxDelay": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "description": "Maximum delay in ms"
+                        },
+                        "backoffFactor": {
+                          "type": "number",
+                          "minimum": 1,
+                          "description": "Delay multiplier per attempt"
+                        }
+                      }
+                    },
                     "tasks": {
                       "type": "object",
                       "additionalProperties": false,
@@ -758,21 +791,46 @@
                     },
                     "categories": {
                       "type": "array",
+                      "default": [
+                        {
+                          "name": "Breaking",
+                          "description": "Breaking changes that require user action to upgrade"
+                        },
+                        {
+                          "name": "New",
+                          "description": "New features and capabilities"
+                        },
+                        {
+                          "name": "Changed",
+                          "description": "Changes to existing functionality"
+                        },
+                        {
+                          "name": "Fixed",
+                          "description": "Bug fixes"
+                        },
+                        {
+                          "name": "Developer",
+                          "description": "Internal changes: CI, tooling, dependencies, refactoring"
+                        }
+                      ],
                       "items": {
                         "type": "object",
                         "additionalProperties": false,
                         "properties": {
                           "name": {
-                            "type": "string"
+                            "type": "string",
+                            "description": "Category label shown in release notes (e.g. 'Features')"
                           },
                           "description": {
-                            "type": "string"
+                            "type": "string",
+                            "description": "LLM instruction describing what commits belong in this category"
                           },
                           "scopes": {
                             "type": "array",
                             "items": {
                               "type": "string"
-                            }
+                            },
+                            "description": "Conventional commit scopes assigned to this category"
                           }
                         },
                         "required": [
@@ -797,7 +855,8 @@
                             "none",
                             "unrestricted"
                           ],
-                          "default": "unrestricted"
+                          "default": "unrestricted",
+                          "description": "Scope allowlist source: 'restricted' uses rules.allowed, 'packages' derives scopes from workspace package names, 'none' strips all scopes, 'unrestricted' allows any scope"
                         },
                         "rules": {
                           "type": "object",
@@ -807,11 +866,13 @@
                               "type": "array",
                               "items": {
                                 "type": "string"
-                              }
+                              },
+                              "description": "Explicit list of valid scope names; commits with unlisted scopes trigger invalidScopeAction"
                             },
                             "caseSensitive": {
                               "type": "boolean",
-                              "default": false
+                              "default": false,
+                              "description": "Whether scope comparison is case-sensitive"
                             },
                             "invalidScopeAction": {
                               "type": "string",
@@ -820,38 +881,15 @@
                                 "keep",
                                 "fallback"
                               ],
-                              "default": "remove"
+                              "default": "remove",
+                              "description": "Action for commits whose scope is not in the allowed list: 'remove' strips the scope, 'keep' leaves it, 'fallback' substitutes fallbackScope"
                             },
                             "fallbackScope": {
-                              "type": "string"
+                              "type": "string",
+                              "description": "Scope substituted when invalidScopeAction is 'fallback'"
                             }
-                          }
-                        }
-                      }
-                    },
-                    "retry": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "properties": {
-                        "maxAttempts": {
-                          "type": "integer",
-                          "minimum": 1,
-                          "description": "Maximum number of attempts"
-                        },
-                        "initialDelay": {
-                          "type": "integer",
-                          "minimum": 0,
-                          "description": "Initial delay in ms"
-                        },
-                        "maxDelay": {
-                          "type": "integer",
-                          "minimum": 0,
-                          "description": "Maximum delay in ms"
-                        },
-                        "backoffFactor": {
-                          "type": "number",
-                          "minimum": 1,
-                          "description": "Delay multiplier per attempt"
+                          },
+                          "description": "Scope validation and transformation rules"
                         }
                       }
                     },
@@ -862,7 +900,6 @@
                         "instructions": {
                           "type": "object",
                           "additionalProperties": false,
-                          "description": "Per-task instruction overrides appended to the built-in prompts.",
                           "properties": {
                             "enhance": {
                               "type": "string",
@@ -884,7 +921,8 @@
                               "type": "string",
                               "description": "Instruction override for the release-notes task"
                             }
-                          }
+                          },
+                          "description": "Per-task instruction overrides appended to the built-in prompts."
                         }
                       }
                     },
@@ -893,19 +931,19 @@
                       "minimum": 0,
                       "maximum": 5,
                       "default": 3,
-                      "description": "Number of few-shot examples to include in LLM prompts (0\u20135)."
+                      "description": "Number of few-shot examples to include in LLM prompts (0–5)."
                     },
                     "context": {
                       "type": "object",
                       "additionalProperties": false,
-                      "description": "Additional context sources for the LLM.",
                       "properties": {
                         "pullRequests": {
                           "type": "boolean",
                           "default": true,
                           "description": "Include linked pull request titles/bodies as context."
                         }
-                      }
+                      },
+                      "description": "Additional context sources for the LLM."
                     },
                     "categoryOrder": {
                       "type": "array",
@@ -918,12 +956,12 @@
                   "required": [
                     "provider",
                     "model"
-                  ]
+                  ],
+                  "description": "LLM configuration for release notes"
                 },
                 "links": {
                   "type": "object",
                   "additionalProperties": false,
-                  "description": "Extra links to append to the release notes.",
                   "properties": {
                     "items": {
                       "type": "array",
@@ -956,9 +994,11 @@
                       "type": "string",
                       "description": "Heading for the links section."
                     }
-                  }
+                  },
+                  "description": "Extra links to append to the release notes."
                 }
-              }
+              },
+              "description": "Release notes configuration"
             }
           ]
         },
@@ -970,11 +1010,11 @@
           ],
           "description": "How to update existing changelog files. 'prepend' adds new entries to the top; 'regenerate' rewrites the file from scratch."
         }
-      }
+      },
+      "description": "Changelog and release notes configuration"
     },
     "ci": {
       "type": "object",
-      "description": "CI automation configuration for release triggers, PR previews, and label management",
       "additionalProperties": false,
       "properties": {
         "releaseStrategy": {
@@ -1008,12 +1048,12 @@
         },
         "skipPatterns": {
           "type": "array",
-          "items": {
-            "type": "string"
-          },
           "default": [
             "chore: release "
           ],
+          "items": {
+            "type": "string"
+          },
           "description": "Commit message prefixes that suppress a release. The default matches the release commit template to prevent release loops."
         },
         "minChanges": {
@@ -1024,7 +1064,6 @@
         },
         "labels": {
           "type": "object",
-          "description": "PR label names used for release control. Override to match your repository's label conventions.",
           "additionalProperties": false,
           "properties": {
             "stable": {
@@ -1045,7 +1084,7 @@
             "immediate": {
               "type": "string",
               "default": "release:immediate",
-              "description": "Label to bypass the standing PR for one merge \u2014 triggers a direct release. Standing-pr mode only."
+              "description": "Label to bypass the standing PR for one merge — triggers a direct release. Standing-pr mode only."
             },
             "retry": {
               "type": "string",
@@ -1067,18 +1106,21 @@
               "default": "bump:patch",
               "description": "Label to force a patch bump"
             }
-          }
+          },
+          "description": "PR label names used for release control. Override to match your repository's label conventions."
         },
         "scopeLabels": {
           "type": "object",
           "additionalProperties": {
             "type": "string"
           },
-          "description": "Map of scope labels to package patterns. When a PR has a label matching a key, only packages matching the corresponding pattern are released."
+          "description": "Map of scope labels to package patterns. When a PR has a label matching a key, only packages matching the corresponding pattern are released.",
+          "propertyNames": {
+            "type": "string"
+          }
         },
         "standingPr": {
           "type": "object",
-          "description": "Configuration for the standing release PR feature (ci.releaseStrategy: 'standing-pr').",
           "additionalProperties": false,
           "properties": {
             "branch": {
@@ -1092,12 +1134,12 @@
             },
             "labels": {
               "type": "array",
-              "items": {
-                "type": "string"
-              },
               "default": [
                 "release"
               ],
+              "items": {
+                "type": "string"
+              },
               "description": "Labels to apply to the standing release PR."
             },
             "deleteBranchOnMerge": {
@@ -1124,17 +1166,19 @@
               "minimum": 1,
               "description": "Minimum number of packages with releasable changes required to create or maintain the standing PR. Below this threshold the PR is closed and no new PR is opened."
             }
-          }
+          },
+          "description": "Configuration for the standing release PR feature (ci.releaseStrategy: 'standing-pr')."
         }
-      }
+      },
+      "description": "CI automation configuration for release triggers, PR previews, and label management"
     },
     "release": {
       "type": "object",
-      "description": "Release pipeline automation configuration",
       "additionalProperties": false,
       "properties": {
         "steps": {
           "type": "array",
+          "minItems": 1,
           "items": {
             "type": "string",
             "enum": [
@@ -1142,12 +1186,10 @@
               "publish"
             ]
           },
-          "minItems": 1,
           "description": "Which steps to run by default. Omitting a step is equivalent to --skip-<step>."
         },
         "ci": {
           "type": "object",
-          "description": "CI-specific automation settings",
           "additionalProperties": false,
           "properties": {
             "skipPatterns": {
@@ -1177,9 +1219,12 @@
               ],
               "description": "Set to false to disable changelog generation in CI"
             }
-          }
+          },
+          "description": "CI-specific automation settings"
         }
-      }
+      },
+      "description": "Release pipeline automation configuration"
     }
-  }
+  },
+  "description": "Configuration schema for ReleaseKit - Automated versioning, changelog generation, and publishing"
 }

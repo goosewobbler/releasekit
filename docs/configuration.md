@@ -190,8 +190,8 @@ Dart/Flutter publishing configuration via pub.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `enabled` | boolean | `false` | Enable Dart publishing to pub.dev |
-| `publishOrder` | `string[]` | `[]` | Order in which to publish Dart packages |
+| `enabled` | boolean | `false` |  |
+| `publishOrder` | `string[]` | `[]` |  |
 
 ### `publish.githubRelease`
 
