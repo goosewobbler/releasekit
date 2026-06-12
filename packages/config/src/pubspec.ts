@@ -9,9 +9,9 @@ export interface PubspecManifest {
   [key: string]: unknown;
 }
 
-export function parsePubspec(pubspecPath: string): PubspecManifest {
-  const content = fs.readFileSync(pubspecPath, 'utf-8');
-  return yaml.parse(content) as PubspecManifest;
+export function parsePubspec(pubspecPath: string, content?: string): PubspecManifest {
+  const src = content ?? fs.readFileSync(pubspecPath, 'utf-8');
+  return yaml.parse(src) as PubspecManifest;
 }
 
 export function isPubspecYaml(filePath: string): boolean {

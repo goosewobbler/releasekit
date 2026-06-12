@@ -46,7 +46,7 @@ export function getPubInfo(pubspecPath: string): PubInfo {
 export function updatePubVersion(pubspecPath: string, version: string, dryRun = false): void {
   try {
     const content = fs.readFileSync(pubspecPath, 'utf-8');
-    const pubspec = parsePubspec(pubspecPath);
+    const pubspec = parsePubspec(pubspecPath, content);
     const packageName = pubspec.name;
 
     if (!packageName) {
