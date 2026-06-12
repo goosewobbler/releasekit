@@ -8,17 +8,8 @@ export { parsePubspec };
 export const PUB_DEV_USER_AGENT = 'releasekit/publish (https://github.com/goosewobbler/releasekit)';
 export const PUB_DEV_API_TIMEOUT_MS = 30_000;
 
-export function detectPubCommand(pubspecPath: string): 'dart' | 'flutter' {
-  try {
-    const pubspec = parsePubspec(pubspecPath);
-    const env = pubspec.environment as Record<string, unknown> | undefined;
-    if (env && 'flutter' in env) {
-      return 'flutter';
-    }
-  } catch {
-    // Fall through to default
-  }
-  return 'dart';
+export function detectPubCommand(environment: Record<string, unknown> | undefined): 'dart' | 'flutter' {
+  return environment && 'flutter' in environment ? 'flutter' : 'dart';
 }
 
 export async function isPubPackagePublished(name: string, version: string): Promise<boolean> {

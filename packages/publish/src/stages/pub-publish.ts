@@ -5,7 +5,7 @@ import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext, PublishResult } from '../types.js';
 import { hasPubTokenAuth } from '../utils/auth.js';
 import { execCommand } from '../utils/exec.js';
-import { isPubPackagePublished, parsePubspec } from '../utils/pub.js';
+import { detectPubCommand, isPubPackagePublished, parsePubspec } from '../utils/pub.js';
 import { classifyPublishError, withPublishRetry } from '../utils/publish-retry.js';
 
 const ALREADY_PUBLISHED_PATTERN = /already published|version already exists/i;
@@ -138,13 +138,12 @@ function findPubPackages(
         continue;
       }
 
-      const env = pubspec.environment as Record<string, unknown> | undefined;
       packages.push({
         name: pubspec.name,
         version: update.newVersion,
         dir: update.dir,
         pubspecPath,
-        command: env && 'flutter' in env ? 'flutter' : 'dart',
+        command: detectPubCommand(pubspec.environment as Record<string, unknown> | undefined),
       });
     } catch {
       // Skip unparseable pubspec.yaml
