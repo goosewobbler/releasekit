@@ -36,6 +36,7 @@ function createContext(overrides?: Partial<PipelineContext>): PipelineContext {
     packageManager: 'pnpm',
     output: {
       dryRun: false,
+      publishSucceeded: true,
       git: { committed: false, tags: [], pushed: false },
       npm: [{ packageName: '@test/pkg', version: '1.0.0', registry: 'npm', success: true, skipped: false }],
       cargo: [],
@@ -50,6 +51,7 @@ function createContext(overrides?: Partial<PipelineContext>): PipelineContext {
 function cargoOutput(overrides?: object) {
   return {
     dryRun: false,
+    publishSucceeded: true,
     git: { committed: false, tags: [], pushed: false },
     npm: [],
     cargo: [
@@ -71,6 +73,7 @@ function cargoOutput(overrides?: object) {
 function pubOutput(overrides?: object) {
   return {
     dryRun: false,
+    publishSucceeded: true,
     git: { committed: false, tags: [], pushed: false },
     npm: [],
     cargo: [],
@@ -113,6 +116,7 @@ describe('verify stage', () => {
     const ctx = createContext({
       output: {
         dryRun: false,
+        publishSucceeded: true,
         git: { committed: false, tags: [], pushed: false },
         npm: [
           {
@@ -140,6 +144,7 @@ describe('verify stage', () => {
     const ctx = createContext({
       output: {
         dryRun: false,
+        publishSucceeded: true,
         git: { committed: false, tags: [], pushed: false },
         npm: [
           {
