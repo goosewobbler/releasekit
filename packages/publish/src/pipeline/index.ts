@@ -23,6 +23,7 @@ function inferStageName(error: unknown): string {
       CARGO_PUBLISH_ERROR: 'cargo-publish',
       CARGO_AUTH_ERROR: 'cargo-publish',
       PUB_PUBLISH_ERROR: 'pub-publish',
+      PUB_AUTH_ERROR: 'pub-publish',
       PUBSPEC_YAML_ERROR: 'prepare',
       VERIFICATION_FAILED: 'verify',
       GIT_PUSH_ERROR: 'git-push',
