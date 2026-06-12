@@ -92,8 +92,8 @@ Array of objects with the following properties:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `pattern` | string | — |  |
-| `releaseType` | `"major"` \| `"minor"` \| `"patch"` \| `"prerelease"` | — |  |
+| `pattern` | string | — | Glob or regex matched against the branch name (e.g. 'release/*') |
+| `releaseType` | `"major"` \| `"minor"` \| `"patch"` \| `"prerelease"` | — | Version bump type applied when this pattern matches |
 
 ### `version.groups`
 
@@ -195,6 +195,7 @@ GitHub Release configuration.
 | `prerelease` | boolean \| `"auto"` | `"auto"` | Mark as prerelease |
 | `body` | `"auto"` \| `"releaseNotes"` \| `"changelog"` \| `"generated"` \| `"none"` | `"auto"` | Source for GitHub release body. 'auto': use release notes if enabled, else changelog, else GitHub auto. 'releaseNotes': use LLM-generated release notes. 'changelog': use changelog entries. 'generated': GitHub auto-generated. 'none': no body. |
 | `titleTemplate` | string | `"${packageName}: ${version}"` | Template for the GitHub release title when a package name is resolved. Available variables: ${packageName} (original scoped name, e.g. '@scope/pkg'), ${version} (e.g. 'v1.0.0'). Version-only tags always use the tag string directly. |
+| `skipPackages` | `string[]` | `[]` | Package names to exclude from GitHub release creation |
 
 ### `publish.verify`
 
@@ -305,9 +306,9 @@ Array of category objects used for commit categorization. Each item has:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `name` | string | — |  |
-| `description` | string | — |  |
-| `scopes` | `string[]` | — |  |
+| `name` | string | — | Category label shown in release notes (e.g. 'Features') |
+| `description` | string | — | LLM instruction describing what commits belong in this category |
+| `scopes` | `string[]` | — | Conventional commit scopes assigned to this category |
 
 #### `notes.releaseNotes.llm.scopes`
 
@@ -315,16 +316,16 @@ Scope validation configuration.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `mode` | `"restricted"` \| `"packages"` \| `"none"` \| `"unrestricted"` | `"unrestricted"` |  |
+| `mode` | `"restricted"` \| `"packages"` \| `"none"` \| `"unrestricted"` | `"unrestricted"` | Scope allowlist source: 'restricted' uses rules.allowed, 'packages' derives scopes from workspace package names, 'none' strips all scopes, 'unrestricted' allows any scope |
 
 **`notes.releaseNotes.llm.scopes.rules`**
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `allowed` | `string[]` | — |  |
-| `caseSensitive` | boolean | `false` |  |
-| `invalidScopeAction` | `"remove"` \| `"keep"` \| `"fallback"` | `"remove"` |  |
-| `fallbackScope` | string | — |  |
+| `allowed` | `string[]` | — | Explicit list of valid scope names; commits with unlisted scopes trigger invalidScopeAction |
+| `caseSensitive` | boolean | `false` | Whether scope comparison is case-sensitive |
+| `invalidScopeAction` | `"remove"` \| `"keep"` \| `"fallback"` | `"remove"` | Action for commits whose scope is not in the allowed list: 'remove' strips the scope, 'keep' leaves it, 'fallback' substitutes fallbackScope |
+| `fallbackScope` | string | — | Scope substituted when invalidScopeAction is 'fallback' |
 
 #### `notes.releaseNotes.llm.retry`
 

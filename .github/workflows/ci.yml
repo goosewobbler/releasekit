@@ -101,6 +101,9 @@ jobs:
       - name: Run lint
         run: pnpm lint
 
+      - name: Check generated JSON schema is up to date
+        run: pnpm schema:check
+
   typecheck:
     name: Typecheck
     needs: [detect-changes, build]

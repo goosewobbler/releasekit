@@ -41,7 +41,6 @@ export {
   type StandingPrConfig,
   type TemplateConfig,
   type VerifyConfig,
-  type VerifyRegistryConfig,
   type VersionConfig,
   type VersionGroup,
 } from './schema.js';
