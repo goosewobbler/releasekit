@@ -182,6 +182,27 @@ describe('pub-publish stage', () => {
     expect(ctx.output.pub).toHaveLength(1);
   });
 
+  it('should skip the pub.dev published-check for a custom publish_to but still publish', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    const fetchMock = vi.fn().mockResolvedValue({ status: 404 } as Response);
+    vi.stubGlobal('fetch', fetchMock);
+
+    const dir = createTmpDir();
+    const pkgDir = path.join(dir, 'packages', 'my_package');
+    fs.mkdirSync(pkgDir, { recursive: true });
+    writePubspec(pkgDir, 'my_package', '0.5.0', 'publish_to: https://my-registry.example.com\n');
+
+    const ctx = createContext(dir);
+    await runPubPublishStage(ctx);
+
+    // pub.dev API must not be queried for a custom registry
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    const publishCalls = vi.mocked(execCommand).mock.calls.filter((c) => (c[1] as string[]).includes('publish'));
+    expect(publishCalls).toHaveLength(1);
+    expect(ctx.output.pub[0]?.success).toBe(true);
+  });
+
   it('should skip packages without pubspec.yaml', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const dir = createTmpDir();

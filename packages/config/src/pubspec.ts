@@ -12,7 +12,10 @@ export interface PubspecManifest {
 
 export function parsePubspec(pubspecPath: string, content?: string): PubspecManifest {
   const src = content ?? fs.readFileSync(pubspecPath, 'utf-8');
-  return yaml.parse(src) as PubspecManifest;
+  // yaml.parse returns null for an empty or comment-only document; normalise to an
+  // empty manifest so callers get clear "missing name/version" errors rather than a
+  // cryptic "Cannot read properties of null".
+  return (yaml.parse(src) ?? {}) as PubspecManifest;
 }
 
 export function isPubspecYaml(filePath: string): boolean {

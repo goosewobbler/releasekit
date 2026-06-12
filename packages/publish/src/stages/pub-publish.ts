@@ -10,6 +10,18 @@ import { classifyPublishError, withPublishRetry } from '../utils/publish-retry.j
 
 const ALREADY_PUBLISHED_PATTERN = /already published|version already exists/i;
 
+/** Hosts that mean "publish to pub.dev" (the default when `publish_to` is unset). */
+const PUB_DEV_HOSTS = ['https://pub.dev', 'https://pub.dartlang.org'];
+
+/**
+ * Whether a package's `publish_to` targets pub.dev. `dart pub publish` honours a custom
+ * `publish_to` (a private registry), but the pub.dev REST API checks here only make sense
+ * for pub.dev, so they are skipped for custom servers.
+ */
+function targetsPubDev(publishTo: string | undefined): boolean {
+  return !publishTo || PUB_DEV_HOSTS.includes(publishTo.replace(/\/+$/, ''));
+}
+
 /** Bounded auto-retry for transient registry blips: initial attempt + 2 retries. */
 const PUBLISH_RETRY = { maxAttempts: 3, initialDelay: 1000 } as const;
 
@@ -61,8 +73,8 @@ export async function runPubPublishStage(ctx: PipelineContext): Promise<void> {
       skipped: false,
     };
 
-    // Check if already published via the pub.dev API
-    if (await isPubPackagePublished(pkg.name, pkg.version)) {
+    // Check if already published via the pub.dev API (pub.dev targets only)
+    if (targetsPubDev(pkg.publishTo) && (await isPubPackagePublished(pkg.name, pkg.version))) {
       result.alreadyPublished = true;
       result.skipped = true;
       result.success = true;
@@ -122,6 +134,7 @@ interface PubPackageInfo {
   dir: string;
   pubspecPath: string;
   command: 'dart' | 'flutter';
+  publishTo: string | undefined;
 }
 
 function findPubPackages(
@@ -150,6 +163,7 @@ function findPubPackages(
         dir: update.dir,
         pubspecPath,
         command: detectPubCommand(pubspec.environment as Record<string, unknown> | undefined),
+        publishTo: pubspec.publish_to,
       });
     } catch (error) {
       throw createPublishError(
