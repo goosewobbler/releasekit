@@ -41,8 +41,8 @@ export const VersionCargoConfigSchema = z.object({
 });
 
 export const VersionPubConfigSchema = z.object({
-  enabled: z.boolean().default(true),
-  paths: z.array(z.string()).optional(),
+  enabled: z.boolean().default(true).describe('Enable pubspec.yaml version handling'),
+  paths: z.array(z.string()).optional().describe('Directories to search for pubspec.yaml files'),
 });
 
 export const VersionGroupSchema = z.object({
@@ -144,8 +144,8 @@ export const CargoPublishConfigSchema = z.object({
 });
 
 export const PubPublishConfigSchema = z.object({
-  enabled: z.boolean().default(false),
-  publishOrder: z.array(z.string()).default([]),
+  enabled: z.boolean().default(false).describe('Enable pub.dev publishing'),
+  publishOrder: z.array(z.string()).default([]).describe('Order in which to publish packages'),
 });
 
 export const PublishGitConfigSchema = z.object({

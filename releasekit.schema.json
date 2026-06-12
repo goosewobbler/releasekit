@@ -279,13 +279,15 @@
           "properties": {
             "enabled": {
               "type": "boolean",
-              "default": true
+              "default": true,
+              "description": "Enable pubspec.yaml version handling"
             },
             "paths": {
               "type": "array",
               "items": {
                 "type": "string"
-              }
+              },
+              "description": "Directories to search for pubspec.yaml files"
             }
           },
           "description": "Dart/Flutter pub configuration"
@@ -426,14 +428,16 @@
           "properties": {
             "enabled": {
               "type": "boolean",
-              "default": false
+              "default": false,
+              "description": "Enable pub.dev publishing"
             },
             "publishOrder": {
               "type": "array",
               "default": [],
               "items": {
                 "type": "string"
-              }
+              },
+              "description": "Order in which to publish packages"
             }
           },
           "description": "Dart/Flutter publishing configuration via pub"
