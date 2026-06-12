@@ -73,8 +73,7 @@ try {
     }
 
     if (result.status !== 0) {
-      console.error(`\n❌ release-multi failed with exit code ${result.status}`);
-      process.exit(1);
+      throw new Error(`release-multi failed with exit code ${result.status}`);
     }
 
     console.log('\n--- Verifying Multi-Registry Version Bumps ---');
@@ -101,101 +100,100 @@ try {
 
     console.log(`\n✅ release-multi completed successfully`);
   } else {
-  const testProject = createTestProject();
-  projectDir = testProject.projectDir;
+    const testProject = createTestProject();
+    projectDir = testProject.projectDir;
 
-  console.log(`\n--- Running ${mode} mode with INPUT_* env vars ---`);
+    console.log(`\n--- Running ${mode} mode with INPUT_* env vars ---`);
 
-  const envVars = {
-    INPUT_MODE: mode,
-    INPUT_PROJECT_DIR: testProject.projectDir,
-    INPUT_CONFIG: 'releasekit.config.json',
-    INPUT_DRY_RUN: 'true',
-    INPUT_SKIP_PUBLISH: 'true',
-    INPUT_SKIP_GITHUB_RELEASE: 'true',
-    INPUT_SKIP_VERIFICATION: 'true',
-    INPUT_SKIP_GIT: 'true',
-  };
+    const envVars = {
+      INPUT_MODE: mode,
+      INPUT_PROJECT_DIR: testProject.projectDir,
+      INPUT_CONFIG: 'releasekit.config.json',
+      INPUT_DRY_RUN: 'true',
+      INPUT_SKIP_PUBLISH: 'true',
+      INPUT_SKIP_GITHUB_RELEASE: 'true',
+      INPUT_SKIP_VERIFICATION: 'true',
+      INPUT_SKIP_GIT: 'true',
+    };
 
-  if (mode === 'release') {
-    envVars.INPUT_VERBOSE = 'true';
-    envVars.INPUT_JSON = 'true';
-    if (options.bump) {
-      envVars.INPUT_BUMP = options.bump;
-    }
-  }
-
-  if (mode === 'preview') {
-    envVars.INPUT_PREVIEW_DRY_RUN = 'true';
-  }
-
-  const parsed = parseInputs(envVars);
-  console.log(`Parsed mode from INPUT_MODE: ${parsed.mode}`);
-
-  if (parsed.mode !== mode) {
-    throw new Error(`Expected mode "${mode}" but parsed as "${parsed.mode}"`);
-  }
-  console.log('✓ INPUT_MODE correctly parsed from env vars');
-
-  const result = runActionLocal(envVars);
-
-  console.log('\n--- Action Output ---');
-  console.log('Exit code:', result.status);
-  if (result.stdout) {
-    console.log('\nSTDOUT:');
-    console.log(result.stdout);
-  }
-  if (result.stderr) {
-    console.log('\nSTDERR:');
-    console.log(result.stderr);
-  }
-
-  if (result.status !== 0) {
-    console.error(`\n❌ ${mode} failed with exit code ${result.status}`);
-    process.exit(1);
-  }
-
-  if (mode === 'release') {
-    console.log('\n--- Verifying Release ---');
-
-    try {
-      verifyVersionCommit(projectDir);
-      console.log('✓ Version commit exists');
-    } catch (_e) {
-      console.warn('⚠ Version commit not found (expected for dry-run without --skip-git)');
+    if (mode === 'release') {
+      envVars.INPUT_VERBOSE = 'true';
+      envVars.INPUT_JSON = 'true';
+      if (options.bump) {
+        envVars.INPUT_BUMP = options.bump;
+      }
     }
 
-    const expectedTags = ['pkg-a@1.0.1', 'pkg-b@1.0.1', 'pkg-c@1.0.1'];
-    try {
-      verifyTags(projectDir, expectedTags);
-      console.log('✓ Tags exist:', expectedTags.join(', '));
-    } catch (_e) {
-      console.warn('⚠ Tags not found (expected for dry-run without --skip-git)');
+    if (mode === 'preview') {
+      envVars.INPUT_PREVIEW_DRY_RUN = 'true';
     }
 
-    const remoteRefs = getRemoteRefs(testProject.remotePath);
-    console.log('Remote refs (should be empty - no actual push):');
-    console.log(`  Branches: ${remoteRefs.branches || '(none)'}`);
-    console.log(`  Tags: ${remoteRefs.tags || '(none)'}`);
+    const parsed = parseInputs(envVars);
+    console.log(`Parsed mode from INPUT_MODE: ${parsed.mode}`);
+
+    if (parsed.mode !== mode) {
+      throw new Error(`Expected mode "${mode}" but parsed as "${parsed.mode}"`);
+    }
+    console.log('✓ INPUT_MODE correctly parsed from env vars');
+
+    const result = runActionLocal(envVars);
+
+    console.log('\n--- Action Output ---');
+    console.log('Exit code:', result.status);
+    if (result.stdout) {
+      console.log('\nSTDOUT:');
+      console.log(result.stdout);
+    }
+    if (result.stderr) {
+      console.log('\nSTDERR:');
+      console.log(result.stderr);
+    }
+
+    if (result.status !== 0) {
+      throw new Error(`${mode} failed with exit code ${result.status}`);
+    }
+
+    if (mode === 'release') {
+      console.log('\n--- Verifying Release ---');
+
+      try {
+        verifyVersionCommit(projectDir);
+        console.log('✓ Version commit exists');
+      } catch (_e) {
+        console.warn('⚠ Version commit not found (expected for dry-run without --skip-git)');
+      }
+
+      const expectedTags = ['pkg-a@1.0.1', 'pkg-b@1.0.1', 'pkg-c@1.0.1'];
+      try {
+        verifyTags(projectDir, expectedTags);
+        console.log('✓ Tags exist:', expectedTags.join(', '));
+      } catch (_e) {
+        console.warn('⚠ Tags not found (expected for dry-run without --skip-git)');
+      }
+
+      const remoteRefs = getRemoteRefs(testProject.remotePath);
+      console.log('Remote refs (should be empty - no actual push):');
+      console.log(`  Branches: ${remoteRefs.branches || '(none)'}`);
+      console.log(`  Tags: ${remoteRefs.tags || '(none)'}`);
+    }
+
+    if (mode === 'preview') {
+      console.log('\n--- Verifying Preview ---');
+      if (result.stdout?.includes('releasekit-preview')) {
+        console.log('✓ Preview markdown generated');
+        console.log('\nPreview content (first 500 chars):');
+        console.log(result.stdout.substring(0, 500));
+      } else {
+        console.warn('⚠ No preview markdown found in output');
+      }
+
+      if (result.stdout?.includes('No release label detected')) {
+        console.log('✓ No release label detected message present');
+      }
+    }
+
+    console.log(`\n✅ ${mode} completed successfully`);
   }
-
-  if (mode === 'preview') {
-    console.log('\n--- Verifying Preview ---');
-    if (result.stdout?.includes('releasekit-preview')) {
-      console.log('✓ Preview markdown generated');
-      console.log('\nPreview content (first 500 chars):');
-      console.log(result.stdout.substring(0, 500));
-    } else {
-      console.warn('⚠ No preview markdown found in output');
-    }
-
-    if (result.stdout?.includes('No release label detected')) {
-      console.log('✓ No release label detected message present');
-    }
-  }
-
-  console.log(`\n✅ ${mode} completed successfully`);
-  } // end else
 } finally {
   if (projectDir && options.cleanup !== 'false') {
     console.log(`\n--- Cleanup ---`);
