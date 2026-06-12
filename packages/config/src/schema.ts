@@ -53,7 +53,8 @@ export const VersionGroupSchema = z.object({
 });
 
 export const VersionConfigSchema = z.object({
-  tagTemplate: z.string().default('v{version}').describe(
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional template-placeholder syntax
+  tagTemplate: z.string().default('${prefix}${version}').describe(
     // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting placeholder syntax to the user
     'Template for Git tags. Available variables: ${version} (version number), ${prefix} (versionPrefix value, e.g. \'v\'), ${packageName} (sanitized package name, e.g. \'scope-pkg\'). Example: "${packageName}-${prefix}${version}" produces "scope-pkg-v1.2.3".',
   ),

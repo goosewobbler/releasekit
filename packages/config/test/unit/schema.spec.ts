@@ -90,7 +90,8 @@ describe('BranchPatternSchema', () => {
 describe('VersionConfigSchema', () => {
   it('should apply defaults', () => {
     const result = VersionConfigSchema.parse({});
-    expect(result.tagTemplate).toBe('v{version}');
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: checking the literal default string
+    expect(result.tagTemplate).toBe('${prefix}${version}');
     expect(result.packageSpecificTags).toBe(false);
     expect(result.preset).toBe('conventional');
     expect(result.sync).toBe(true);
