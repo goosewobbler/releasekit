@@ -45,6 +45,9 @@ export enum PublishErrorCode {
   NPM_AUTH_ERROR = 'NPM_AUTH_ERROR',
   CARGO_PUBLISH_ERROR = 'CARGO_PUBLISH_ERROR',
   CARGO_AUTH_ERROR = 'CARGO_AUTH_ERROR',
+  PUB_PUBLISH_ERROR = 'PUB_PUBLISH_ERROR',
+  PUB_AUTH_ERROR = 'PUB_AUTH_ERROR',
+  PUBSPEC_YAML_ERROR = 'PUBSPEC_YAML_ERROR',
   VERIFICATION_FAILED = 'VERIFICATION_FAILED',
   GITHUB_RELEASE_ERROR = 'GITHUB_RELEASE_ERROR',
   FILE_COPY_ERROR = 'FILE_COPY_ERROR',
@@ -64,6 +67,10 @@ export function createPublishError(code: PublishErrorCode, details?: string): Pu
     [PublishErrorCode.NPM_AUTH_ERROR]: 'NPM authentication failed',
     [PublishErrorCode.CARGO_PUBLISH_ERROR]: 'Failed to publish to crates.io',
     [PublishErrorCode.CARGO_AUTH_ERROR]: 'Cargo authentication failed',
+    [PublishErrorCode.PUB_PUBLISH_ERROR]: 'Failed to publish to pub.dev',
+    [PublishErrorCode.PUB_AUTH_ERROR]: 'Pub.dev authentication failed',
+
+    [PublishErrorCode.PUBSPEC_YAML_ERROR]: 'Failed to update pubspec.yaml',
     [PublishErrorCode.VERIFICATION_FAILED]: 'Package verification failed',
     [PublishErrorCode.GITHUB_RELEASE_ERROR]: 'Failed to create GitHub release',
     [PublishErrorCode.FILE_COPY_ERROR]: 'Failed to copy files',
@@ -117,6 +124,22 @@ export function createPublishError(code: PublishErrorCode, details?: string): Pu
     [PublishErrorCode.CARGO_AUTH_ERROR]: [
       'Set CARGO_REGISTRY_TOKEN environment variable',
       'Generate a token at https://crates.io/settings/tokens',
+    ],
+    [PublishErrorCode.PUB_PUBLISH_ERROR]: [
+      'Check pub.dev registry availability',
+      'Verify package name ownership on pub.dev',
+      'Ensure pubspec.yaml metadata is complete (description, homepage, etc.)',
+      'Configure automated publishing via OIDC at https://pub.dev/publishers',
+      'Or set PUB_TOKEN environment variable for token-based auth',
+    ],
+    [PublishErrorCode.PUB_AUTH_ERROR]: [
+      'Set the PUB_TOKEN environment variable for token-based auth',
+      'Configure automated publishing via OIDC at https://pub.dev/publishers',
+      'Ensure the Dart SDK is installed and `dart pub token add` can run',
+    ],
+    [PublishErrorCode.PUBSPEC_YAML_ERROR]: [
+      'Ensure pubspec.yaml exists and is valid YAML',
+      'Check that the name and version fields are present',
     ],
     [PublishErrorCode.VERIFICATION_FAILED]: [
       'Registry propagation may take longer than expected',

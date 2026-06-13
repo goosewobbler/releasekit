@@ -29,6 +29,7 @@
     "jsonc-parser": "catalog:",
     "minimatch": "catalog:",
     "smol-toml": "catalog:",
+    "yaml": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

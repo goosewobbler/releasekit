@@ -14,6 +14,7 @@ export {
 export { deepMerge, mergeGitConfig } from './merge.js';
 export { filterPackagesByConfig } from './packageFiltering.js';
 export { parseJsonc } from './parse.js';
+export { isPubspecYaml, type PubspecManifest, parsePubspec } from './pubspec.js';
 export {
   type CargoPublishConfig,
   type ChangelogConfig,
@@ -31,6 +32,7 @@ export {
   type NpmConfig,
   type PublishConfig,
   type PublishGitConfig,
+  type PubPublishConfig,
   type ReleaseCIConfig,
   type ReleaseConfig,
   type ReleaseKitConfig,

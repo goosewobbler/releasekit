@@ -272,6 +272,25 @@
             }
           },
           "description": "Cargo/Rust configuration"
+        },
+        "pub": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable pubspec.yaml version handling"
+            },
+            "paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Directories to search for pubspec.yaml files"
+            }
+          },
+          "description": "Dart/Flutter pub configuration"
         }
       },
       "description": "Versioning configuration"
@@ -403,6 +422,26 @@
           },
           "description": "Cargo publishing configuration"
         },
+        "pub": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable pub.dev publishing"
+            },
+            "publishOrder": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "description": "Order in which to publish packages"
+            }
+          },
+          "description": "Dart/Flutter publishing configuration via pub"
+        },
         "githubRelease": {
           "type": "object",
           "additionalProperties": false,
@@ -506,6 +545,35 @@
                   "type": "boolean",
                   "default": true,
                   "description": "Verify Cargo publish"
+                },
+                "maxAttempts": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 10,
+                  "description": "Maximum verification attempts"
+                },
+                "initialDelay": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 30000,
+                  "description": "Initial delay in milliseconds"
+                },
+                "backoffMultiplier": {
+                  "type": "number",
+                  "minimum": 1,
+                  "default": 2,
+                  "description": "Exponential backoff multiplier"
+                }
+              }
+            },
+            "pub": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Verify Dart pub publish"
                 },
                 "maxAttempts": {
                   "type": "integer",

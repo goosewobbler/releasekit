@@ -626,6 +626,54 @@ ReleaseKit detects OIDC availability automatically (`npm-auth: auto`). To force 
 
 ---
 
+## pub.dev Publishing (Dart / Flutter)
+
+ReleaseKit publishes Dart and Flutter packages to pub.dev. Set `publish.pub.enabled: true` in your config and, if the repo contains Flutter packages, ReleaseKit detects them automatically from the `environment.flutter` key in `pubspec.yaml`.
+
+### OIDC automated publishing (recommended)
+
+pub.dev supports automated publishing without a token if you configure a publisher on the pub.dev package admin page:
+
+1. Go to the package page on pub.dev → **Admin** → **Automated publishing**.
+2. Enable **GitHub Actions publishing** and set the repository, workflow file, and (optionally) environment.
+3. No secret is required — the workflow gets `id-token: write` permission and pub.dev validates the OIDC token at publish time.
+
+```yaml
+permissions:
+  contents: write
+  id-token: write   # required for pub.dev OIDC publishing
+```
+
+ReleaseKit will run `dart pub publish --force` (or `flutter pub publish --force` for Flutter packages) directly. No credential setup step is needed.
+
+### Token-based publishing
+
+If OIDC is not configured, set the `PUB_TOKEN` environment variable. ReleaseKit will run `dart pub token add https://pub.dev --env-var PUB_TOKEN` before publishing.
+
+```yaml
+- run: pnpm exec releasekit release
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
+```
+
+### Config
+
+```json
+{
+  "publish": {
+    "pub": {
+      "enabled": true,
+      "publishOrder": ["my_core_package", "my_app_package"]
+    }
+  }
+}
+```
+
+`publishOrder` is optional — use it to control the sequence when packages within the same release have inter-dependencies.
+
+---
+
 ## Prerelease Workflow
 
 ```yaml

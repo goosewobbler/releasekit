@@ -74,6 +74,7 @@
     "minimatch": "^10.2.5",
     "semver": "catalog:",
     "smol-toml": "catalog:",
+    "yaml": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
