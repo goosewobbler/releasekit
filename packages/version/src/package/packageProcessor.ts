@@ -194,12 +194,11 @@ export class PackageProcessor {
       // rather than from `latestTag` (the prerelease, which usually holds only the release-prep
       // commit). `latestTag` still drives version calculation above — it must see the prerelease to
       // graduate correctly. With no prior stable tag (first stable release), `changelogBaseTag` is
-      // '' and the range falls through to all commits. (#291)
+      // '' and the range falls through to all commits.
       let changelogBaseTag = latestTag;
       if (hasRealTag && latestTag && isStableVersion(nextVersion) && !isStableTag(latestTag)) {
-        // Mirror where `latestTag` came from: a package-specific prerelease graduates against the
-        // last package-specific stable; a global-fallback prerelease graduates against the last
-        // global stable. Using the wrong series would return '' and over-include all commits.
+        // Follow latestTag's source (package series vs global) — the other lookup returns '' here
+        // and would over-include every commit.
         changelogBaseTag = usedPackageSpecificTag
           ? await getLatestStableTagForPackage(name, this.versionPrefix, {
               tagTemplate: this.tagTemplate,

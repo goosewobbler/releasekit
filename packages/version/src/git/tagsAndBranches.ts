@@ -141,8 +141,7 @@ export async function lastMergeBranchName(branches: string[], baseBranch: string
  * List a package's tags (those matching its tag template), most-recently-created first.
  *
  * Returns an empty array when package-specific tags are disabled (callers fall back to the global
- * tag series) or when nothing matches. Shared by the latest-tag and latest-stable-tag lookups, and
- * by the notes-backfill enumeration (#293).
+ * tag series) or when nothing matches. Shared by the latest-tag and latest-stable-tag lookups.
  */
 export async function listPackageTags(
   packageName: string,
@@ -248,7 +247,7 @@ export async function getLatestTagForPackage(
  * Most recent *stable* (non-prerelease) tag for a package, or '' if none.
  *
  * Used when a prerelease graduates to stable: the changelog should aggregate everything since the
- * last stable release, not since the most recent (prerelease) tag. (#291)
+ * last stable release, not since the most recent (prerelease) tag.
  */
 export async function getLatestStableTagForPackage(
   packageName: string,
@@ -274,7 +273,7 @@ export async function getLatestStableTagForPackage(
 
 /**
  * Most recent *stable* tag across the global (non-package-specific) tag series, or '' if none.
- * Stable counterpart of {@link getLatestTag} for sync/global graduation. (#291)
+ * Stable counterpart of {@link getLatestTag} for sync/global graduation.
  */
 export async function getLatestStableTag(versionPrefix?: string): Promise<string> {
   try {
