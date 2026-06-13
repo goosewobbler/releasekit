@@ -15,6 +15,7 @@ import {
   summarizeEntries,
 } from '../llm/index.js';
 import { type FormatVersionOptions, formatVersion, writeMarkdown } from '../output/markdown.js';
+import { writeVersionedNotes } from '../output/versioned.js';
 import { renderTemplate } from '../templates/index.js';
 import { withRetry } from '../utils/retry.js';
 import type {
@@ -506,6 +507,16 @@ export async function runPipeline(
           releaseNotesConfig.file ?? 'RELEASE_NOTES.md',
         );
         files.push(...monoFiles);
+      }
+
+      if (mode === 'versioned') {
+        const versionedFiles = writeVersionedNotes(
+          contexts,
+          releaseNotesConfig.directory ?? 'release-notes',
+          dryRun,
+          fmtOpts,
+        );
+        files.push(...versionedFiles);
       }
     } catch (error) {
       warn(`Failed to write release notes: ${error instanceof Error ? error.message : String(error)}`);

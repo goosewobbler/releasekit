@@ -281,6 +281,10 @@ export const TemplateConfigSchema = z.object({
 
 export const LocationModeSchema = z.enum(['root', 'packages', 'both']);
 
+// Release notes support an extra 'versioned' mode (one immutable file per version) that the
+// changelog deliberately does not — a changelog is a single cumulative document.
+export const ReleaseNotesModeSchema = z.enum(['root', 'packages', 'both', 'versioned']);
+
 export const ChangelogConfigSchema = z
   .object({
     mode: LocationModeSchema.optional().describe(
@@ -410,10 +414,11 @@ export const LLMConfigSchema = z.object({
 
 export const ReleaseNotesConfigSchema = z
   .object({
-    mode: LocationModeSchema.optional().describe(
-      'Where to write release notes file. Omit to skip file output (LLM still runs if configured).',
+    mode: ReleaseNotesModeSchema.optional().describe(
+      "Where to write release notes. 'root': single rolling file at the repo root. 'packages': one rolling file per package. 'both': root and per-package. 'versioned': one immutable file per version under `directory` (release-notes/<package>/<version>.md, or release-notes/<version>.md for a single package), keeping a browsable per-release history. Omit to skip file output (the LLM still runs if configured).",
     ),
     file: z.string().optional().describe('Release notes file name override (default: RELEASE_NOTES.md)'),
+    directory: z.string().optional().describe("Output directory for 'versioned' mode (default: release-notes)."),
     templates: TemplateConfigSchema.optional().describe('Template configuration for release notes'),
     llm: LLMConfigSchema.optional().describe('LLM configuration for release notes'),
     links: z

@@ -311,3 +311,31 @@ describe('Pipeline: skipReleaseNotes / skipChangelogs flags', () => {
     expect(result.files).toContain('RELEASE_NOTES.md');
   });
 });
+
+describe('Pipeline: versioned release notes mode', () => {
+  beforeEach(() => {
+    vi.mocked(fs.existsSync).mockReturnValue(false);
+    vi.mocked(fs.mkdirSync).mockReturnValue(undefined as never);
+    vi.mocked(fs.writeFileSync).mockReturnValue(undefined);
+  });
+
+  it('should write an immutable per-version file under the release-notes directory', async () => {
+    const { runPipeline } = await import('../../src/core/pipeline.js');
+
+    const config: Config = { changelog: false, releaseNotes: { mode: 'versioned' } };
+    const result = await runPipeline(sampleInput, config, false);
+
+    // sampleInput is a single package → flat release-notes/<version>.md
+    expect(result.files).toContain('release-notes/1.0.0.md');
+    expect(fs.writeFileSync).toHaveBeenCalledWith('release-notes/1.0.0.md', expect.any(String), 'utf-8');
+  });
+
+  it('should honor a custom directory', async () => {
+    const { runPipeline } = await import('../../src/core/pipeline.js');
+
+    const config: Config = { changelog: false, releaseNotes: { mode: 'versioned', directory: 'docs/releases' } };
+    const result = await runPipeline(sampleInput, config, false);
+
+    expect(result.files).toContain('docs/releases/1.0.0.md');
+  });
+});

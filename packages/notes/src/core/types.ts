@@ -176,6 +176,10 @@ export interface LLMConfig {
 
 export type LocationMode = 'root' | 'packages' | 'both';
 
+// Release notes additionally support 'versioned' (one immutable file per version); the changelog
+// does not, since a changelog is a single cumulative document.
+export type ReleaseNotesMode = LocationMode | 'versioned';
+
 export interface ChangelogConfig {
   mode?: LocationMode;
   file?: string;
@@ -189,8 +193,9 @@ export interface LinksConfig {
 }
 
 export interface ReleaseNotesConfig {
-  mode?: LocationMode;
+  mode?: ReleaseNotesMode;
   file?: string;
+  directory?: string;
   templates?: TemplateConfig;
   llm?: LLMConfig;
   links?: LinksConfig;
