@@ -337,6 +337,35 @@ describe('github-release stage', () => {
     expect(args[args.indexOf('--title') + 1]).toBe('@releasekit/version: v0.4.1');
   });
 
+  it('should match a sanitized "name@vX.Y.Z" tag to release notes keyed by scoped package name', async () => {
+    // Regression for #288: tagTemplate "${packageName}@v${version}" sanitizes a scoped name into
+    // the tag (e.g. wdio-tauri-plugin@v1.1.0). Previously neither the raw-"@" nor the sanitized-"-"
+    // branch matched it, so notes silently fell back to GitHub auto-generated notes.
+    const { execCommand } = await import('../../../src/utils/exec.js');
+
+    const ctx = createContext({
+      input: { dryRun: false, updates: [], changelogs: [], tags: ['wdio-tauri-plugin@v1.1.0'] },
+      output: {
+        dryRun: false,
+        git: { committed: true, tags: ['wdio-tauri-plugin@v1.1.0'], pushed: true },
+        npm: [],
+        cargo: [],
+        verification: [],
+        githubReleases: [],
+      },
+      releaseNotes: { '@wdio/tauri-plugin': 'LLM-enhanced release notes' },
+    });
+
+    await runGithubReleaseStage(ctx);
+
+    const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
+    expect(args).toContain('--notes');
+    expect(args[args.indexOf('--notes') + 1]).toBe('LLM-enhanced release notes');
+    expect(args).not.toContain('--generate-notes');
+    // Title resolves via the original (unsanitized) scoped name
+    expect(args[args.indexOf('--title') + 1]).toBe('@wdio/tauri-plugin: v1.1.0');
+  });
+
   it('should always use --generate-notes when body is generated', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const config = getDefaultConfig();

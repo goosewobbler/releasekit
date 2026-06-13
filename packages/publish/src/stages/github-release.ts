@@ -76,20 +76,36 @@ interface TagResolution {
   version: string;
 }
 
-/** Match a tag against a list of package names, handling two formats:
- *  - Raw:       "@scope/pkg@v1.0.0"   (separator: @, no tagTemplate)
- *  - Sanitized: "scope-pkg-v1.0.0"    (separator: -, tagTemplate uses ${packageName})
+/** Match a tag against a list of package names, handling three formats:
+ *  - Raw:           "@scope/pkg@v1.0.0"  (unsanitized name, "@" separator — no tagTemplate)
+ *  - Sanitized "@": "scope-pkg@v1.0.0"   (sanitized name, "@" separator — tagTemplate "${packageName}@v${version}")
+ *  - Sanitized "-": "scope-pkg-v1.0.0"   (sanitized name, "-" separator — tagTemplate "${packageName}-${version}")
  *
+ *  Checked in that order; for unscoped names the sanitized-"@" form collapses to the raw form.
  *  Sorts by sanitized name length (longest first) to resolve prefix ambiguity.
  */
 function resolveTagPackage(tag: string, packageNames: string[]): TagResolution | null {
   const sorted = [...packageNames].sort((a, b) => sanitizePackageName(b).length - sanitizePackageName(a).length);
   for (const packageName of sorted) {
+    // Raw, unsanitized name: "@scope/pkg@v1.0.0"
     const atPrefix = `${packageName}@`;
     if (tag.startsWith(atPrefix)) {
       return { packageName, version: tag.slice(atPrefix.length) };
     }
-    const dashPrefix = `${sanitizePackageName(packageName)}-`;
+    const sanitized = sanitizePackageName(packageName);
+    // Sanitized name + "@" separator: "scope-pkg@v1.0.0". Produced when `tagTemplate` is
+    // "${packageName}@v${version}" and the name is scoped — the template sanitizes the name into
+    // the tag, so neither the raw-"@" nor the sanitized-"-" branch matches it. (For unscoped names
+    // `sanitized` equals `packageName`, so this collapses to `atPrefix` above.)
+    const sanitizedAtPrefix = `${sanitized}@`;
+    if (sanitizedAtPrefix !== atPrefix && tag.startsWith(sanitizedAtPrefix)) {
+      const versionPart = tag.slice(sanitizedAtPrefix.length);
+      if (/^v?\d/.test(versionPart)) {
+        return { packageName, version: versionPart };
+      }
+    }
+    // Sanitized name + "-" separator: "scope-pkg-v1.0.0"
+    const dashPrefix = `${sanitized}-`;
     if (tag.startsWith(dashPrefix)) {
       const versionPart = tag.slice(dashPrefix.length);
       if (/^v?\d/.test(versionPart)) {
