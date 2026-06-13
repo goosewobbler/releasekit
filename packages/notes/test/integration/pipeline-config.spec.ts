@@ -319,15 +319,27 @@ describe('Pipeline: versioned release notes mode', () => {
     vi.mocked(fs.writeFileSync).mockReturnValue(undefined);
   });
 
-  it('should write an immutable per-version file under the release-notes directory', async () => {
+  it('should nest per-version files by package in a monorepo (detectMonorepo → true)', async () => {
     const { runPipeline } = await import('../../src/core/pipeline.js');
+
+    // detectMonorepo is mocked to isMonorepo: true at the top of this file, so even this
+    // single-package run nests by package — independent releases can't collide on <version>.md.
+    const config: Config = { changelog: false, releaseNotes: { mode: 'versioned' } };
+    const result = await runPipeline(sampleInput, config, false);
+
+    expect(result.files).toContain('release-notes/test-pkg/1.0.0.md');
+    expect(fs.writeFileSync).toHaveBeenCalledWith('release-notes/test-pkg/1.0.0.md', expect.any(String), 'utf-8');
+  });
+
+  it('should write a flat per-version file in a single-package repo (detectMonorepo → false)', async () => {
+    const { runPipeline } = await import('../../src/core/pipeline.js');
+    const { detectMonorepo } = await import('../../src/monorepo/aggregator.js');
+    vi.mocked(detectMonorepo).mockReturnValueOnce({ isMonorepo: false, packagesPath: '' });
 
     const config: Config = { changelog: false, releaseNotes: { mode: 'versioned' } };
     const result = await runPipeline(sampleInput, config, false);
 
-    // sampleInput is a single package → flat release-notes/<version>.md
     expect(result.files).toContain('release-notes/1.0.0.md');
-    expect(fs.writeFileSync).toHaveBeenCalledWith('release-notes/1.0.0.md', expect.any(String), 'utf-8');
   });
 
   it('should honor a custom directory', async () => {
@@ -336,6 +348,6 @@ describe('Pipeline: versioned release notes mode', () => {
     const config: Config = { changelog: false, releaseNotes: { mode: 'versioned', directory: 'docs/releases' } };
     const result = await runPipeline(sampleInput, config, false);
 
-    expect(result.files).toContain('docs/releases/1.0.0.md');
+    expect(result.files).toContain('docs/releases/test-pkg/1.0.0.md');
   });
 });

@@ -7,23 +7,25 @@ import { type FormatVersionOptions, renderMarkdown } from './markdown.js';
 /**
  * Write one immutable Markdown file per package version under `directory`.
  *
- * Layout: `release-notes/<package>/<version>.md` for monorepos (more than one package in the
- * release), collapsing to `release-notes/<version>.md` for a single package. Unlike the rolling
- * root/packages outputs, each release writes a *new* file keyed by version, so prior versions are
- * never overwritten; re-running the same release rewrites the same file idempotently.
+ * Layout: `release-notes/<package>/<version>.md` when `nested`, else `release-notes/<version>.md`.
+ * `nested` MUST reflect whether the *repo* has more than one package — not how many packages are in
+ * this run. An independently-versioned monorepo releases one package per pipeline invocation, so a
+ * flat path would silently overwrite another package that shares a version number (e.g. two packages
+ * both at 1.0.0) — the very history loss this mode exists to prevent.
  *
- * Standalone so both the live pipeline and the notes-backfill command (#293) can write the same
- * per-version history.
+ * Unlike the rolling root/packages outputs, each release writes a *new* file keyed by version, so
+ * prior versions are never overwritten; re-running the same release rewrites the same file
+ * idempotently. Standalone so both the live pipeline and the notes-backfill command (#293) can
+ * write the same per-version history.
  */
 export function writeVersionedNotes(
   contexts: TemplateContext[],
   directory: string,
   dryRun: boolean,
+  nested: boolean,
   options?: FormatVersionOptions,
 ): string[] {
   const written: string[] = [];
-  // Single-package (and sync) releases don't need a package subdirectory — the version is enough.
-  const nested = contexts.length > 1;
 
   for (const ctx of contexts) {
     const outputPath = nested
@@ -39,10 +41,8 @@ export function writeVersionedNotes(
       continue;
     }
 
-    const dir = path.dirname(outputPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+    // mkdirSync({ recursive: true }) is idempotent — no existsSync guard needed.
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
     fs.writeFileSync(outputPath, content, 'utf-8');
     success(`Release notes written to ${outputPath}`);
     written.push(outputPath);

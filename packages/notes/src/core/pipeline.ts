@@ -481,7 +481,9 @@ export async function runPipeline(
     const fileName = releaseNotesConfig.file ?? 'RELEASE_NOTES.md';
     const mode = releaseNotesConfig.mode;
 
-    info(`Generating release notes → ${fileName}`);
+    info(
+      `Generating release notes → ${mode === 'versioned' ? (releaseNotesConfig.directory ?? 'release-notes') : fileName}`,
+    );
 
     try {
       if (mode === 'root' || mode === 'both') {
@@ -510,10 +512,15 @@ export async function runPipeline(
       }
 
       if (mode === 'versioned') {
+        const { detectMonorepo } = await import('../monorepo/aggregator.js');
+        // Nest by package whenever the repo has more than one package (a monorepo), so independent
+        // per-package releases — one context per run — can't collide on release-notes/<version>.md.
+        const nested = detectMonorepo(process.cwd()).isMonorepo || contexts.length > 1;
         const versionedFiles = writeVersionedNotes(
           contexts,
           releaseNotesConfig.directory ?? 'release-notes',
           dryRun,
+          nested,
           fmtOpts,
         );
         files.push(...versionedFiles);

@@ -4,7 +4,6 @@ import type { TemplateContext } from '../../../src/core/types.js';
 import { writeVersionedNotes } from '../../../src/output/versioned.js';
 
 vi.mock('node:fs', () => ({
-  existsSync: vi.fn(),
   mkdirSync: vi.fn(),
   writeFileSync: vi.fn(),
 }));
@@ -26,11 +25,10 @@ function makeContext(overrides: Partial<TemplateContext> = {}): TemplateContext 
 describe('writeVersionedNotes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedFs.existsSync.mockReturnValue(false);
   });
 
-  it('should write a flat release-notes/<version>.md for a single package', () => {
-    const written = writeVersionedNotes([makeContext({ version: '1.2.0' })], 'release-notes', false);
+  it('should write a flat release-notes/<version>.md when not nested (single-package repo)', () => {
+    const written = writeVersionedNotes([makeContext({ version: '1.2.0' })], 'release-notes', false, false);
 
     expect(written).toEqual(['release-notes/1.2.0.md']);
     const [filePath, content] = mockedFs.writeFileSync.mock.calls[0] as [string, string];
@@ -38,7 +36,21 @@ describe('writeVersionedNotes', () => {
     expect(content).toContain('1.2.0');
   });
 
-  it('should write nested release-notes/<package>/<version>.md for a monorepo release', () => {
+  it('should nest by package even for a single context when nested', () => {
+    // Regression for the independent-monorepo collision: one context per run must still nest, so two
+    // packages that share a version (e.g. both 1.0.0) don't overwrite release-notes/1.0.0.md.
+    const written = writeVersionedNotes(
+      [makeContext({ packageName: '@scope/pkg-a', version: '1.0.0' })],
+      'release-notes',
+      false,
+      true,
+    );
+
+    expect(written).toEqual(['release-notes/@scope/pkg-a/1.0.0.md']);
+    expect(mockedFs.mkdirSync).toHaveBeenCalledWith('release-notes/@scope/pkg-a', { recursive: true });
+  });
+
+  it('should write nested files per package for a multi-package release', () => {
     const written = writeVersionedNotes(
       [
         makeContext({ packageName: '@scope/pkg-a', version: '1.1.0' }),
@@ -46,22 +58,22 @@ describe('writeVersionedNotes', () => {
       ],
       'release-notes',
       false,
+      true,
     );
 
     expect(written).toEqual(['release-notes/@scope/pkg-a/1.1.0.md', 'release-notes/@scope/pkg-b/2.0.0.md']);
-    // Each package directory is created recursively.
     expect(mockedFs.mkdirSync).toHaveBeenCalledWith('release-notes/@scope/pkg-a', { recursive: true });
     expect(mockedFs.mkdirSync).toHaveBeenCalledWith('release-notes/@scope/pkg-b', { recursive: true });
   });
 
   it('should honor a custom output directory', () => {
-    const written = writeVersionedNotes([makeContext({ version: '3.0.0' })], 'docs/notes', false);
+    const written = writeVersionedNotes([makeContext({ version: '3.0.0' })], 'docs/notes', false, false);
 
     expect(written).toEqual(['docs/notes/3.0.0.md']);
   });
 
   it('should not write anything in dry-run mode', () => {
-    const written = writeVersionedNotes([makeContext({ version: '1.0.0' })], 'release-notes', true);
+    const written = writeVersionedNotes([makeContext({ version: '1.0.0' })], 'release-notes', true, false);
 
     expect(written).toEqual([]);
     expect(mockedFs.writeFileSync).not.toHaveBeenCalled();
