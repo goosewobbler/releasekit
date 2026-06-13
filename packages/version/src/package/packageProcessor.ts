@@ -5,7 +5,7 @@ import type { VersionChangelogEntry } from '@releasekit/core';
 import { shouldProcessPackage } from '@releasekit/core';
 import { extractChangelogEntriesFromCommits, extractRepoLevelChangelogEntries } from '../changelog/commitParser.js';
 import { calculateVersion } from '../core/versionCalculator.js';
-import { getLatestTagForPackage } from '../git/tagsAndBranches.js';
+import { getLatestStableTag, getLatestStableTagForPackage, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { verifyTag } from '../git/tagVerification.js';
 import type { Config, VersionConfigBase } from '../types.js';
 import {
@@ -24,6 +24,7 @@ import {
 } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { getVersionFromManifests } from '../utils/manifestHelpers.js';
+import { isStableTag, isStableVersion } from '../utils/versionUtils.js';
 import { updatePackageVersion } from './packageManagement.js';
 
 type ChangelogEntry = VersionChangelogEntry;
@@ -117,12 +118,18 @@ export class PackageProcessor {
       // Try to get the latest tag specific to this package first
       let latestTagResult = '';
       let hasRealTag = false;
+      // Whether `latestTag` came from this package's own tag series (vs. the global/manifest
+      // fallback below). Decides which stable-tag lookup to use when graduating, since
+      // `packageSpecificTags: true` can still fall back to a global tag for a package without its
+      // own tag history.
+      let usedPackageSpecificTag = false;
       try {
         latestTagResult = await getLatestTagForPackage(name, this.versionPrefix, {
           tagTemplate: this.tagTemplate,
           packageSpecificTags: this.fullConfig.packageSpecificTags,
         });
         hasRealTag = !!latestTagResult;
+        usedPackageSpecificTag = !!latestTagResult;
       } catch (error) {
         // Log the specific error, but continue with fallback
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -183,6 +190,23 @@ export class PackageProcessor {
         continue; // No version change calculated for this package
       }
 
+      // When a prerelease graduates to stable, aggregate the changelog from the last *stable* tag
+      // rather than from `latestTag` (the prerelease, which usually holds only the release-prep
+      // commit). `latestTag` still drives version calculation above — it must see the prerelease to
+      // graduate correctly. With no prior stable tag (first stable release), `changelogBaseTag` is
+      // '' and the range falls through to all commits.
+      let changelogBaseTag = latestTag;
+      if (hasRealTag && latestTag && isStableVersion(nextVersion) && !isStableTag(latestTag)) {
+        // Follow latestTag's source (package series vs global) — the other lookup returns '' here
+        // and would over-include every commit.
+        changelogBaseTag = usedPackageSpecificTag
+          ? await getLatestStableTagForPackage(name, this.versionPrefix, {
+              tagTemplate: this.tagTemplate,
+              packageSpecificTags: true,
+            })
+          : await getLatestStableTag(this.versionPrefix);
+      }
+
       // Generate changelog entries from conventional commits
       let changelogEntries: ChangelogEntry[] = [];
       let revisionRange = 'HEAD';
@@ -191,7 +215,7 @@ export class PackageProcessor {
         // Extract entries from commits between the base ref (or latest tag) and HEAD.
         // baseRef takes precedence — it's a PR base SHA supplied in advisory standing-pr mode
         // so the changelog is scoped to only this PR's commits, not all commits since last tag.
-        const baseForRange = this.fullConfig.baseRef ?? latestTag;
+        const baseForRange = this.fullConfig.baseRef ?? changelogBaseTag;
         if (baseForRange) {
           const verification = verifyTag(baseForRange, pkgPath);
           if (verification.exists && verification.reachable) {
@@ -290,7 +314,7 @@ export class PackageProcessor {
       addChangelogData({
         packageName: name,
         version: nextVersion,
-        previousVersion: latestTag ? displayTag(latestTag, baselineTagPrefix, formattedPrefix) : null,
+        previousVersion: changelogBaseTag ? displayTag(changelogBaseTag, baselineTagPrefix, formattedPrefix) : null,
         revisionRange,
         repoUrl: repoUrl || null,
         entries: changelogEntries,

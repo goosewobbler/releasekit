@@ -2,6 +2,7 @@ import { getSemverTags } from 'git-semver-tags';
 import semver from 'semver';
 import { escapeRegExp } from '../utils/formatting.js';
 import { log } from '../utils/logging.js';
+import { isStableTag } from '../utils/versionUtils.js';
 import { execAsync, execSync } from './commandExecutor.js';
 
 /**
@@ -137,7 +138,79 @@ export async function lastMergeBranchName(branches: string[], baseBranch: string
 }
 
 /**
- * Get the latest semver tag for a specific package
+ * List a package's tags (those matching its tag template), most-recently-created first.
+ *
+ * Returns an empty array when package-specific tags are disabled (callers fall back to the global
+ * tag series) or when nothing matches. Shared by the latest-tag and latest-stable-tag lookups.
+ */
+export async function listPackageTags(
+  packageName: string,
+  versionPrefix?: string,
+  options?: TagSearchOptions,
+): Promise<string[]> {
+  const packageSpecificTags = options?.packageSpecificTags ?? false;
+  const tagTemplate =
+    options?.tagTemplate || (packageSpecificTags ? `\${packageName}@\${prefix}\${version}` : `\${prefix}\${version}`);
+
+  // Strip @ prefix from package names for tag matching (e.g., @releasekit/version -> releasekit-version)
+  const sanitizedPackageName = packageName.startsWith('@') ? packageName.slice(1).replace(/\//g, '-') : packageName;
+  const escapedPackageName = escapeRegExp(sanitizedPackageName);
+  const escapedPrefix = versionPrefix ? escapeRegExp(versionPrefix) : '';
+
+  log(
+    `Looking for tags for package ${packageName} with prefix ${versionPrefix || 'none'}, packageSpecificTags: ${packageSpecificTags}`,
+    'debug',
+  );
+
+  // Only package-specific tags are listed here; global tags go through getLatestTag/getSemverTags.
+  if (!packageSpecificTags) {
+    log(`Package-specific tags disabled for ${packageName}, falling back to global tags`, 'debug');
+    return [];
+  }
+
+  // Get ALL git tags (not just semver ones, which git-semver-tags can't see), sorted by creatordate
+  // descending so the most recently created tag comes first. This ensures a stable patch release
+  // (e.g. v0.2.1) created after a prerelease (e.g. v0.3.0-next.4) is correctly identified as latest.
+  let allTags: string[] = [];
+  try {
+    const { execSync } = await import('./commandExecutor.js');
+    const tagsOutput = execSync('git', ['tag', '--sort=-creatordate'], { cwd: process.cwd() });
+    allTags = tagsOutput
+      .toString()
+      .trim()
+      .split('\n')
+      .filter((tag) => tag.length > 0);
+  } catch (err) {
+    log(`Error getting tags: ${err instanceof Error ? err.message : String(err)}`, 'error');
+  }
+
+  log(`Retrieved ${allTags.length} tags`, 'debug');
+
+  // Build a regex from the tag template, replacing template variables with capture groups.
+  const packageTagPattern = escapeRegExp(tagTemplate)
+    .replace(/\\\$\\\{packageName\\\}/g, `(?:${escapedPackageName})`)
+    .replace(/\\\$\\\{prefix\\\}/g, `(?:${escapedPrefix})`)
+    .replace(/\\\$\\\{version\\\}/g, '(?:[0-9]+\\.[0-9]+\\.[0-9]+(?:-[a-zA-Z0-9.-]+)?)');
+
+  log(`Using package tag pattern: ${packageTagPattern}`, 'debug');
+
+  const packageTagRegex = new RegExp(`^${packageTagPattern}$`);
+  // allTags is already sorted by --sort=-creatordate, so the filtered list preserves that order.
+  const packageTags = allTags.filter((tag) => packageTagRegex.test(tag));
+
+  log(`Found ${packageTags.length} matching tags for ${packageName}`, 'debug');
+  if (packageTags.length === 0) {
+    if (allTags.length > 0) {
+      log(`Available tags: ${allTags.join(', ')}`, 'debug');
+    } else {
+      log('No tags available in the repository', 'debug');
+    }
+  }
+  return packageTags;
+}
+
+/**
+ * Get the latest semver tag for a specific package (most recently created), or '' if none.
  * @param packageName The name of the package to get tags for
  * @param versionPrefix Optional version prefix (e.g., 'v')
  * @param options Additional options including tag templates
@@ -149,79 +222,13 @@ export async function getLatestTagForPackage(
   options?: TagSearchOptions,
 ): Promise<string> {
   try {
-    const packageSpecificTags = options?.packageSpecificTags ?? false;
-    const tagTemplate =
-      options?.tagTemplate || (packageSpecificTags ? `\${packageName}@\${prefix}\${version}` : `\${prefix}\${version}`);
-
-    // Strip @ prefix from package names for tag matching (e.g., @releasekit/version -> releasekit-version)
-    const sanitizedPackageName = packageName.startsWith('@') ? packageName.slice(1).replace(/\//g, '-') : packageName;
-    // Escape package name for regex
-    const escapedPackageName = escapeRegExp(sanitizedPackageName);
-    const escapedPrefix = versionPrefix ? escapeRegExp(versionPrefix) : '';
-
-    log(
-      `Looking for tags for package ${packageName} with prefix ${versionPrefix || 'none'}, packageSpecificTags: ${packageSpecificTags}`,
-      'debug',
-    );
-
-    // Instead of using the package option which requires lerna mode,
-    // get all tags and filter manually for the package
-    // For package-specific tags, we need ALL git tags (not just semver ones)
-    // which git-semver-tags doesn't recognize, so we use git tag -l
-    let allTags: string[] = [];
-    try {
-      const { execSync } = await import('./commandExecutor.js');
-      // Sort by creatordate descending so the most recently created tag comes first.
-      // This ensures that a stable patch release (e.g. v0.2.1) created after a prerelease
-      // (e.g. v0.3.0-next.4) is correctly identified as the latest tag for the package.
-      const tagsOutput = execSync('git', ['tag', '--sort=-creatordate'], { cwd: process.cwd() });
-      allTags = tagsOutput
-        .toString()
-        .trim()
-        .split('\n')
-        .filter((tag) => tag.length > 0);
-    } catch (err) {
-      log(`Error getting tags: ${err instanceof Error ? err.message : String(err)}`, 'error');
+    const packageTags = await listPackageTags(packageName, versionPrefix, options);
+    if (packageTags.length > 0) {
+      log(`Found ${packageTags.length} package tags using configured pattern`, 'debug');
+      log(`Using most recently created tag: ${packageTags[0]}`, 'debug');
+      return packageTags[0];
     }
-
-    log(`Retrieved ${allTags.length} tags`, 'debug');
-
-    // Only use package-specific tag patterns if explicitly enabled
-    if (packageSpecificTags) {
-      // Create a regex pattern based on the tagTemplate
-      // First, replace template variables with regex capture groups
-      const packageTagPattern = escapeRegExp(tagTemplate)
-        .replace(/\\\$\\\{packageName\\\}/g, `(?:${escapedPackageName})`)
-        .replace(/\\\$\\\{prefix\\\}/g, `(?:${escapedPrefix})`)
-        .replace(/\\\$\\\{version\\\}/g, '(?:[0-9]+\\.[0-9]+\\.[0-9]+(?:-[a-zA-Z0-9.-]+)?)');
-
-      log(`Using package tag pattern: ${packageTagPattern}`, 'debug');
-
-      const packageTagRegex = new RegExp(`^${packageTagPattern}$`);
-      const packageTags = allTags.filter((tag) => packageTagRegex.test(tag));
-
-      log(`Found ${packageTags.length} matching tags for ${packageName}`, 'debug');
-
-      // If we found tags with the configured pattern, return the most recently created one.
-      // allTags is already sorted by --sort=-creatordate, so packageTags preserves that order.
-      if (packageTags.length > 0) {
-        log(`Found ${packageTags.length} package tags using configured pattern`, 'debug');
-        log(`Using most recently created tag: ${packageTags[0]}`, 'debug');
-
-        return packageTags[0];
-      }
-
-      log('No matching tags found for configured tag pattern', 'debug');
-      if (allTags.length > 0) {
-        log(`Available tags: ${allTags.join(', ')}`, 'debug');
-      } else {
-        log('No tags available in the repository', 'debug');
-      }
-      return '';
-    }
-
-    // Package-specific tags disabled, return empty string to fall back to global tags
-    log(`Package-specific tags disabled for ${packageName}, falling back to global tags`, 'debug');
+    log('No matching tags found for configured tag pattern', 'debug');
     return '';
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -233,5 +240,63 @@ export async function getLatestTagForPackage(
     }
 
     return ''; // Return empty string on error or no tags
+  }
+}
+
+/**
+ * Most recent *stable* (non-prerelease) tag for a package, or '' if none.
+ *
+ * Used when a prerelease graduates to stable: the changelog should aggregate everything since the
+ * last stable release, not since the most recent (prerelease) tag.
+ */
+export async function getLatestStableTagForPackage(
+  packageName: string,
+  versionPrefix?: string,
+  options?: TagSearchOptions,
+): Promise<string> {
+  try {
+    const packageTags = await listPackageTags(packageName, versionPrefix, options);
+    const stable = packageTags.find((tag) => isStableTag(tag));
+    if (stable) {
+      log(`Using most recently created stable tag for ${packageName}: ${stable}`, 'debug');
+      return stable;
+    }
+    return '';
+  } catch (error) {
+    log(
+      `Failed to get latest stable tag for package ${packageName}: ${error instanceof Error ? error.message : String(error)}`,
+      'error',
+    );
+    return '';
+  }
+}
+
+/**
+ * Most recent *stable* tag across the global (non-package-specific) tag series, or '' if none.
+ * Stable counterpart of {@link getLatestTag} for sync/global graduation.
+ */
+export async function getLatestStableTag(versionPrefix?: string): Promise<string> {
+  try {
+    const tags: string[] = await getSemverTags({ tagPrefix: versionPrefix });
+    const stripPrefix = (tag: string) =>
+      versionPrefix && tag.startsWith(versionPrefix) ? tag.slice(versionPrefix.length) : tag;
+
+    const stableTags = tags.filter((tag) => {
+      const cleaned = semver.clean(stripPrefix(tag));
+      return cleaned ? semver.prerelease(cleaned) === null : false;
+    });
+
+    if (stableTags.length === 0) return '';
+
+    // Highest stable version first (mirrors getLatestTag's semantic sort).
+    const sorted = [...stableTags].sort((a, b) => {
+      const va = semver.clean(stripPrefix(a)) || '0.0.0';
+      const vb = semver.clean(stripPrefix(b)) || '0.0.0';
+      return semver.rcompare(va, vb);
+    });
+    return sorted[0] ?? '';
+  } catch (error) {
+    log(`Failed to get latest stable tag: ${error instanceof Error ? error.message : String(error)}`, 'error');
+    return '';
   }
 }

@@ -13,6 +13,20 @@ import { log } from './logging.js';
 // Standard bump types
 export const STANDARD_BUMP_TYPES = ['major', 'minor', 'patch'] as const;
 
+/** True when a version string is a valid, stable release (no semver prerelease segment). */
+export function isStableVersion(version: string): boolean {
+  return semver.valid(version) !== null && semver.prerelease(version) === null;
+}
+
+/** True when a tag's embedded version is a stable release (no semver prerelease segment). */
+export function isStableTag(tag: string): boolean {
+  // Bounded quantifiers (not `\d+`) so a long run of digits in a tag name can't trigger polynomial
+  // backtracking on this uncontrolled input (CodeQL js/polynomial-redos). Real semver components
+  // never approach 16 digits, and prerelease identifiers never approach 256 chars.
+  const match = tag.match(/\d{1,16}\.\d{1,16}\.\d{1,16}(?:-[0-9A-Za-z.-]{1,256})?/);
+  return match ? semver.prerelease(match[0]) === null : false;
+}
+
 /**
  * Extract version from a package.json file
  */
