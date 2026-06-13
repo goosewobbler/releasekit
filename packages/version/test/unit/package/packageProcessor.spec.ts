@@ -398,7 +398,7 @@ describe('Package Processor', () => {
       expect(calls[0][0]).toMatchObject({ previousVersion: 'v1.0.0' });
     });
 
-    it('should aggregate the changelog from the last stable tag when a prerelease graduates (#291)', async () => {
+    it('should aggregate the changelog from the last stable tag when a prerelease graduates', async () => {
       // latestTag is a prerelease; releasing stable 1.1.0 must base the range and previousVersion on
       // the last *stable* tag, not the prerelease (which holds only the release-prep commit).
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('package-a@v1.1.0-next.0');
@@ -439,7 +439,7 @@ describe('Package Processor', () => {
       expect(calls[0][0]).toMatchObject({ previousVersion: 'package-a@v1.1.0-next.0' });
     });
 
-    it('should graduate against the global stable tag when packageSpecificTags is off (#291)', async () => {
+    it('should graduate against the global stable tag when packageSpecificTags is off', async () => {
       // No package-specific tags → latestTag comes from the injected global lookup. A global
       // prerelease graduating to stable must range from the last *global* stable tag. No manifest
       // is found, so the global-tag fallback path is exercised.
@@ -470,7 +470,7 @@ describe('Package Processor', () => {
       expect(calls[0][0]).toMatchObject({ previousVersion: 'v1.0.0' });
     });
 
-    it('should graduate against the global stable tag when packageSpecificTags is on but the package has no tags (#291)', async () => {
+    it('should graduate against the global stable tag when packageSpecificTags is on but the package has no tags', async () => {
       // The mismatch case: packageSpecificTags is true but the package has no tag history, so
       // latestTag falls back to the global tag. The stable base must follow that fallback (global)
       // rather than the empty package series, which would over-include every commit.
