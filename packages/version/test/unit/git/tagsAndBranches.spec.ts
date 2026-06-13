@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { execAsync, execSync } from '../../../src/git/commandExecutor.js';
 import {
   getCommitsLength,
+  getLatestStableTagForPackage,
   getLatestTag,
   getLatestTagForPackage,
   lastMergeBranchName,
+  listPackageTags,
 } from '../../../src/git/tagsAndBranches.js';
 import { log } from '../../../src/utils/logging.js';
 
@@ -739,6 +741,43 @@ describe('tagsAndBranches', () => {
         // Verify - should return first (chronological) when versions are identical
         expect(result).toBe('v1.0.0');
       });
+    });
+  });
+
+  describe('listPackageTags', () => {
+    it('should return matching package tags newest-first and an empty list when none match', async () => {
+      mockGitTags(['pkg@v1.1.0', 'pkg@v1.0.0', 'other@v9.9.9']);
+
+      const result = await listPackageTags('pkg', 'v', { packageSpecificTags: true });
+
+      expect(result).toEqual(['pkg@v1.1.0', 'pkg@v1.0.0']);
+    });
+
+    it('should return an empty list when package-specific tags are disabled', async () => {
+      mockGitTags(['v1.0.0', 'v1.1.0']);
+
+      const result = await listPackageTags('pkg', 'v', { packageSpecificTags: false });
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('getLatestStableTagForPackage', () => {
+    it('should skip prerelease tags and return the most recent stable tag', async () => {
+      // Newest tag is a prerelease; the stable lookup must skip it and return the last stable.
+      mockGitTags(['pkg@v1.1.0-next.0', 'pkg@v1.0.0', 'pkg@v0.9.0']);
+
+      const result = await getLatestStableTagForPackage('pkg', 'v', { packageSpecificTags: true });
+
+      expect(result).toBe('pkg@v1.0.0');
+    });
+
+    it('should return an empty string when only prerelease tags exist', async () => {
+      mockGitTags(['pkg@v1.0.0-next.1', 'pkg@v1.0.0-next.0']);
+
+      const result = await getLatestStableTagForPackage('pkg', 'v', { packageSpecificTags: true });
+
+      expect(result).toBe('');
     });
   });
 });

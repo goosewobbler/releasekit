@@ -398,6 +398,47 @@ describe('Package Processor', () => {
       expect(calls[0][0]).toMatchObject({ previousVersion: 'v1.0.0' });
     });
 
+    it('should aggregate the changelog from the last stable tag when a prerelease graduates (#291)', async () => {
+      // latestTag is a prerelease; releasing stable 1.1.0 must base the range and previousVersion on
+      // the last *stable* tag, not the prerelease (which holds only the release-prep commit).
+      vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('package-a@v1.1.0-next.0');
+      vi.spyOn(gitTags, 'getLatestStableTagForPackage').mockResolvedValue('package-a@v1.0.0');
+      vi.spyOn(formatting, 'displayTag').mockImplementation((tag) => tag);
+      vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
+      vi.spyOn(versionCalculatorModule, 'calculateVersion').mockResolvedValue('1.1.0');
+
+      const processor = new PackageProcessor({
+        ...defaultOptions,
+        fullConfig: { ...mockConfig, packageSpecificTags: true, writeChangelog: false },
+      });
+
+      await processor.processPackages([mockPackages[0]]);
+
+      expect(gitTags.getLatestStableTagForPackage).toHaveBeenCalled();
+      const calls = vi.mocked(jsonOutput.addChangelogData).mock.calls;
+      expect(calls.length).toBeGreaterThan(0);
+      expect(calls[0][0]).toMatchObject({ previousVersion: 'package-a@v1.0.0' });
+    });
+
+    it('should not use the stable base when releasing a prerelease (no graduation)', async () => {
+      vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('package-a@v1.1.0-next.0');
+      vi.spyOn(gitTags, 'getLatestStableTagForPackage').mockResolvedValue('package-a@v1.0.0');
+      vi.spyOn(formatting, 'displayTag').mockImplementation((tag) => tag);
+      vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0-next.1');
+      vi.spyOn(versionCalculatorModule, 'calculateVersion').mockResolvedValue('1.1.0-next.1');
+
+      const processor = new PackageProcessor({
+        ...defaultOptions,
+        fullConfig: { ...mockConfig, packageSpecificTags: true, writeChangelog: false },
+      });
+
+      await processor.processPackages([mockPackages[0]]);
+
+      expect(gitTags.getLatestStableTagForPackage).not.toHaveBeenCalled();
+      const calls = vi.mocked(jsonOutput.addChangelogData).mock.calls;
+      expect(calls[0][0]).toMatchObject({ previousVersion: 'package-a@v1.1.0-next.0' });
+    });
+
     it('should emit repo-level entries as sharedEntries, not in individual package changelogs', async () => {
       const repoLevelEntry = { type: 'chore', description: 'Update CI workflow' };
       const pkgAEntry = { type: 'added', description: 'New feature in pkg-a' };

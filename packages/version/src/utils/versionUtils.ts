@@ -13,6 +13,17 @@ import { log } from './logging.js';
 // Standard bump types
 export const STANDARD_BUMP_TYPES = ['major', 'minor', 'patch'] as const;
 
+/** True when a version string is a valid, stable release (no semver prerelease segment). */
+export function isStableVersion(version: string): boolean {
+  return semver.valid(version) !== null && semver.prerelease(version) === null;
+}
+
+/** True when a tag's embedded version is a stable release (no semver prerelease segment). */
+export function isStableTag(tag: string): boolean {
+  const match = tag.match(/\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?/);
+  return match ? semver.prerelease(match[0]) === null : false;
+}
+
 /**
  * Extract version from a package.json file
  */
