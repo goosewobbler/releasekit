@@ -118,12 +118,18 @@ export class PackageProcessor {
       // Try to get the latest tag specific to this package first
       let latestTagResult = '';
       let hasRealTag = false;
+      // Whether `latestTag` came from this package's own tag series (vs. the global/manifest
+      // fallback below). Decides which stable-tag lookup to use when graduating, since
+      // `packageSpecificTags: true` can still fall back to a global tag for a package without its
+      // own tag history.
+      let usedPackageSpecificTag = false;
       try {
         latestTagResult = await getLatestTagForPackage(name, this.versionPrefix, {
           tagTemplate: this.tagTemplate,
           packageSpecificTags: this.fullConfig.packageSpecificTags,
         });
         hasRealTag = !!latestTagResult;
+        usedPackageSpecificTag = !!latestTagResult;
       } catch (error) {
         // Log the specific error, but continue with fallback
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -191,7 +197,10 @@ export class PackageProcessor {
       // '' and the range falls through to all commits. (#291)
       let changelogBaseTag = latestTag;
       if (hasRealTag && latestTag && isStableVersion(nextVersion) && !isStableTag(latestTag)) {
-        changelogBaseTag = this.fullConfig.packageSpecificTags
+        // Mirror where `latestTag` came from: a package-specific prerelease graduates against the
+        // last package-specific stable; a global-fallback prerelease graduates against the last
+        // global stable. Using the wrong series would return '' and over-include all commits.
+        changelogBaseTag = usedPackageSpecificTag
           ? await getLatestStableTagForPackage(name, this.versionPrefix, {
               tagTemplate: this.tagTemplate,
               packageSpecificTags: true,

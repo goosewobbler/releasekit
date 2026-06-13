@@ -138,13 +138,6 @@ export async function lastMergeBranchName(branches: string[], baseBranch: string
 }
 
 /**
- * Get the latest semver tag for a specific package
- * @param packageName The name of the package to get tags for
- * @param versionPrefix Optional version prefix (e.g., 'v')
- * @param options Additional options including tag templates
- * @returns The latest tag for the package or empty string if none found
- */
-/**
  * List a package's tags (those matching its tag template), most-recently-created first.
  *
  * Returns an empty array when package-specific tags are disabled (callers fall back to the global
@@ -217,6 +210,13 @@ export async function listPackageTags(
   return packageTags;
 }
 
+/**
+ * Get the latest semver tag for a specific package (most recently created), or '' if none.
+ * @param packageName The name of the package to get tags for
+ * @param versionPrefix Optional version prefix (e.g., 'v')
+ * @param options Additional options including tag templates
+ * @returns The latest tag for the package or empty string if none found
+ */
 export async function getLatestTagForPackage(
   packageName: string,
   versionPrefix?: string,

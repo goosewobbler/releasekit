@@ -439,6 +439,68 @@ describe('Package Processor', () => {
       expect(calls[0][0]).toMatchObject({ previousVersion: 'package-a@v1.1.0-next.0' });
     });
 
+    it('should graduate against the global stable tag when packageSpecificTags is off (#291)', async () => {
+      // No package-specific tags → latestTag comes from the injected global lookup. A global
+      // prerelease graduating to stable must range from the last *global* stable tag. No manifest
+      // is found, so the global-tag fallback path is exercised.
+      vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
+      vi.spyOn(gitTags, 'getLatestStableTag').mockResolvedValue('v1.0.0');
+      vi.spyOn(gitTags, 'getLatestStableTagForPackage').mockResolvedValue('');
+      vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
+        version: null,
+        manifestFound: false,
+        manifestPath: '',
+        manifestType: null,
+      });
+      vi.spyOn(formatting, 'displayTag').mockImplementation((tag) => tag);
+      vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
+      vi.spyOn(versionCalculatorModule, 'calculateVersion').mockResolvedValue('1.1.0');
+
+      const processor = new PackageProcessor({
+        ...defaultOptions,
+        getLatestTag: vi.fn().mockResolvedValue('v1.1.0-next.0'),
+        fullConfig: { ...mockConfig, packageSpecificTags: false, writeChangelog: false },
+      });
+
+      await processor.processPackages([mockPackages[1]]);
+
+      expect(gitTags.getLatestStableTag).toHaveBeenCalled();
+      expect(gitTags.getLatestStableTagForPackage).not.toHaveBeenCalled();
+      const calls = vi.mocked(jsonOutput.addChangelogData).mock.calls;
+      expect(calls[0][0]).toMatchObject({ previousVersion: 'v1.0.0' });
+    });
+
+    it('should graduate against the global stable tag when packageSpecificTags is on but the package has no tags (#291)', async () => {
+      // The mismatch case: packageSpecificTags is true but the package has no tag history, so
+      // latestTag falls back to the global tag. The stable base must follow that fallback (global)
+      // rather than the empty package series, which would over-include every commit.
+      vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
+      vi.spyOn(gitTags, 'getLatestStableTag').mockResolvedValue('v1.0.0');
+      vi.spyOn(gitTags, 'getLatestStableTagForPackage').mockResolvedValue('');
+      vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
+        version: null,
+        manifestFound: false,
+        manifestPath: '',
+        manifestType: null,
+      });
+      vi.spyOn(formatting, 'displayTag').mockImplementation((tag) => tag);
+      vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
+      vi.spyOn(versionCalculatorModule, 'calculateVersion').mockResolvedValue('1.1.0');
+
+      const processor = new PackageProcessor({
+        ...defaultOptions,
+        getLatestTag: vi.fn().mockResolvedValue('v1.1.0-next.0'),
+        fullConfig: { ...mockConfig, packageSpecificTags: true, writeChangelog: false },
+      });
+
+      await processor.processPackages([mockPackages[1]]);
+
+      expect(gitTags.getLatestStableTag).toHaveBeenCalled();
+      expect(gitTags.getLatestStableTagForPackage).not.toHaveBeenCalled();
+      const calls = vi.mocked(jsonOutput.addChangelogData).mock.calls;
+      expect(calls[0][0]).toMatchObject({ previousVersion: 'v1.0.0' });
+    });
+
     it('should emit repo-level entries as sharedEntries, not in individual package changelogs', async () => {
       const repoLevelEntry = { type: 'chore', description: 'Update CI workflow' };
       const pkgAEntry = { type: 'added', description: 'New feature in pkg-a' };
