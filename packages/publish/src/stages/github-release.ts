@@ -76,10 +76,12 @@ interface TagResolution {
   version: string;
 }
 
-/** Match a tag against a list of package names, handling two formats:
- *  - Raw:       "@scope/pkg@v1.0.0"   (separator: @, no tagTemplate)
- *  - Sanitized: "scope-pkg-v1.0.0"    (separator: -, tagTemplate uses ${packageName})
+/** Match a tag against a list of package names, handling three formats:
+ *  - Raw:           "@scope/pkg@v1.0.0"  (unsanitized name, "@" separator — no tagTemplate)
+ *  - Sanitized "@": "scope-pkg@v1.0.0"   (sanitized name, "@" separator — tagTemplate "${packageName}@v${version}")
+ *  - Sanitized "-": "scope-pkg-v1.0.0"   (sanitized name, "-" separator — tagTemplate "${packageName}-${version}")
  *
+ *  Checked in that order; for unscoped names the sanitized-"@" form collapses to the raw form.
  *  Sorts by sanitized name length (longest first) to resolve prefix ambiguity.
  */
 function resolveTagPackage(tag: string, packageNames: string[]): TagResolution | null {
