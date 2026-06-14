@@ -22,7 +22,7 @@ A conceptual overview for contributors and users evaluating ReleaseKit.
 
 **version** reads git history since the last tag, applies conventional commit rules, and computes the next semver for each package. It writes updated `package.json`/`Cargo.toml` files and emits a `VersionOutput` JSON object.
 
-**notes** consumes `VersionOutput` and renders `CHANGELOG.md` and optional `RELEASE_NOTES.md` via Liquid/Handlebars/EJS templates. LLM enhancement is an optional pass inside this stage.
+**notes** consumes `VersionOutput` and renders the `CHANGELOG.md` plus per-release notes (the GitHub release body, or optional per-version files) via Liquid/Handlebars/EJS templates. LLM enhancement is an optional pass inside this stage.
 
 **publish** consumes the same `VersionOutput` and runs: git commit, git tag, `npm publish`, `cargo publish`, post-publish verification, git push, and GitHub Release creation — in that order.
 

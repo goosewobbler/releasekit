@@ -81,13 +81,13 @@ The notes step runs first, the LLM generates prose release notes, and the publis
 
 If `body` is `"auto"` (default), LLM release notes are used automatically when available — no extra config needed.
 
-**2. Optionally write release notes to a file** as well:
+**2. Optionally write release notes to in-repo files** as well:
 
 ```json
 {
   "notes": {
     "releaseNotes": {
-      "mode": "root",
+      "file": { "dir": "release-notes" },
       "llm": {
         "provider": "anthropic",
         "model": "claude-haiku-4-5",
@@ -98,7 +98,7 @@ If `body` is `"auto"` (default), LLM release notes are used automatically when a
 }
 ```
 
-When `mode` is set, a `RELEASE_NOTES.md` file is written in addition to the GitHub Release being populated.
+When `file.dir` is set, an immutable per-version file is written under that directory (`release-notes/<package>/<version>.md` in a monorepo) in addition to the GitHub Release being populated.
 
 ---
 

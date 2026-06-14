@@ -97,26 +97,36 @@ Controls release notes generation. Release notes are a separate output from the 
 
 Set to `false` to explicitly disable when it has been enabled via config inheritance.
 
-When an object with a `mode` or `file` property, release notes are written to a file. When only `llm` is present (no `mode`/`file`), the LLM runs but no file is written — the generated content is passed to the publish step for use as a GitHub release body.
-
-### `notes.releaseNotes.mode`
-
-| Value | Behaviour |
-|-------|-----------|
-| `"root"` | Write `RELEASE_NOTES.md` at the repo root |
-| `"packages"` | Write one release notes file per package |
-| `"both"` | Write both root and per-package files |
+Release notes are **not** a changelog. By default they have no file — the generated content is passed to the publish step for the GitHub release body. In-repo file output is opt-in via `file.dir`.
 
 ### `notes.releaseNotes.file`
 
-Override the release notes file name.
+Optional in-repo file output. Omit to keep release notes only on the GitHub release body (the default). When set, writes one **immutable file per version** under `dir`:
 
-**Type:** `string`
-**Default:** `"RELEASE_NOTES.md"`
+| Layout | Path |
+|--------|------|
+| Monorepo | `release-notes/<package>/<version>.md` |
+| Single-package repo | `release-notes/<version>.md` |
+
+Each release writes a new file keyed by version, so prior releases are never overwritten — a browsable, provider-independent per-release history (the primary target for non-GitHub projects).
+
+| Option | Type | Default |
+|--------|------|---------|
+| `dir` | `string` | `"release-notes"` |
+
+```json
+{
+  "notes": {
+    "releaseNotes": {
+      "file": { "dir": "release-notes" }
+    }
+  }
+}
+```
 
 ### `notes.releaseNotes.templates`
 
-Same structure as `notes.changelog.templates`. See the [templates guide](./templates.md).
+Same structure as `notes.changelog.templates`. Renders each release's notes; for versioned files it's also the hook for docs-site frontmatter. Takes precedence over LLM prose and the default formatted section. See the [templates guide](./templates.md).
 
 ### `notes.releaseNotes.llm`
 

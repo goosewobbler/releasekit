@@ -1,24 +1,32 @@
 # Monorepo Support
 
-`@releasekit/notes` can write changelogs and release notes at the repo root, inside each package directory, or both — controlled independently for changelog and release notes output.
+`@releasekit/notes` writes the **changelog** at the repo root, inside each package directory, or both. **Release notes** are a separate artifact: they default to the GitHub release body, with opt-in per-version files that nest by package in a monorepo.
 
-## Output Modes
+## Changelog Modes
 
-| Mode | Changelog written to | Release notes written to |
-|------|---------------------|--------------------------|
-| `"root"` | `<repo-root>/CHANGELOG.md` | `<repo-root>/RELEASE_NOTES.md` |
-| `"packages"` | `packages/<name>/CHANGELOG.md` (each package) | `packages/<name>/RELEASE_NOTES.md` |
-| `"both"` | Both root and per-package | Both root and per-package |
+| Mode | Changelog written to |
+|------|----------------------|
+| `"root"` | `<repo-root>/CHANGELOG.md` |
+| `"packages"` | `packages/<name>/CHANGELOG.md` (each package) |
+| `"both"` | Both root and per-package |
 
-Set `mode` on `changelog` and `releaseNotes` independently:
+## Release Notes Files
+
+Release notes don't use changelog modes. They go to the GitHub release body by default; set `releaseNotes.file.dir` for opt-in in-repo files, written one **per version** and nested by package:
 
 ```json
 {
   "notes": {
     "changelog": { "mode": "packages" },
-    "releaseNotes": { "mode": "root" }
+    "releaseNotes": { "file": { "dir": "release-notes" } }
   }
 }
+```
+
+```
+release-notes/
+  @myorg/core/2.0.0.md
+  utils/1.1.0.md
 ```
 
 ---
@@ -65,7 +73,7 @@ Custom file name applies to all packages:
 
 ## CLI Flags
 
-Use `--changelog-mode` / `--release-notes-mode` to override config:
+Use `--changelog-mode` to override the changelog location, and `--release-notes-dir` to write per-version release-notes files:
 
 ```bash
 # Root changelog only
@@ -74,14 +82,17 @@ releasekit-notes --changelog-mode root
 # Per-package changelogs
 releasekit-notes --changelog-mode packages
 
-# Both outputs
+# Both
 releasekit-notes --changelog-mode both
 
-# Use --monorepo as a shorthand (applies to both outputs)
+# Use --monorepo as a shorthand for the changelog mode
 releasekit-notes --monorepo packages
+
+# Per-version release-notes files
+releasekit-notes --release-notes-dir release-notes
 ```
 
-When `--monorepo` is set, it applies to both `changelog` and `releaseNotes` modes. Explicit `--changelog-mode` or `--release-notes-mode` flags take priority over `--monorepo` when both are present.
+`--monorepo` sets the changelog mode (release notes use a per-version directory, not modes). An explicit `--changelog-mode` takes priority over `--monorepo` when both are present.
 
 ---
 

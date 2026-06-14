@@ -14,7 +14,7 @@ Generates CHANGELOG.md and release notes from `@releasekit/version` output, with
 - 🤖 **LLM enhancement** (optional) — enhance descriptions, summarize, categorize, or generate prose release notes
 - 🎨 **Flexible templating** — Liquid, Handlebars, or EJS; single-file or composable layout
 - 📦 **Monorepo support** — root aggregation, per-package changelogs, or both
-- 🔀 **Two outputs** — `CHANGELOG.md` and `RELEASE_NOTES.md` are configured independently
+- 🔀 **Changelog + release notes** — a cumulative `CHANGELOG.md` and per-release notes (GitHub release body, or opt-in per-version files), configured independently
 - 🔍 **Dry-run mode** — preview without writing files
 
 ## Installation
@@ -62,8 +62,7 @@ releasekit-notes --input version-data.json \
 | `--changelog-mode <mode>` | Changelog location: `root`, `packages`, `both` | `root` |
 | `--changelog-file <name>` | Changelog file name override | `CHANGELOG.md` |
 | `--no-changelog` | Disable changelog generation | — |
-| `--release-notes-mode <mode>` | Enable release notes file output: `root`, `packages`, `both` | — |
-| `--release-notes-file <name>` | Release notes file name override | `RELEASE_NOTES.md` |
+| `--release-notes-dir <dir>` | Write per-version release-notes files to this directory | — |
 | `--no-release-notes` | Disable release notes generation | — |
 | `-t, --template <path>` | Template file or directory | built-in |
 | `-e, --engine <engine>` | Template engine: `handlebars`, `liquid`, `ejs` | `liquid` |
@@ -112,7 +111,6 @@ All options live under the `notes` key in `releasekit.config.json`:
       }
     },
     "releaseNotes": {
-      "mode": "root",
       "llm": {
         "provider": "openai",
         "model": "gpt-4o-mini",
