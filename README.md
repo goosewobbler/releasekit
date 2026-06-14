@@ -123,6 +123,7 @@ See the [package docs](#documentation) for the full option reference.
 - [CI setup](./packages/release/docs/ci-setup.md) — GitHub Actions workflows, OIDC, PR preview, prerelease
 - [CI examples](./examples) — runnable, CI-validated workflow + config scenarios (minimal, label-driven, standing-PR, OIDC, monorepo-rust, prerelease)
 - [Rust / Cargo](./docs/rust.md) — Rust crate versioning and crates.io publishing
+- [Dart / pub.dev](./docs/dart.md) — Dart/Flutter versioning and pub.dev publishing
 - [Migration](./docs/migration.md) — from semantic-release or changesets
 
 **Reference**
