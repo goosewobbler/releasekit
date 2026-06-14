@@ -176,10 +176,6 @@ export interface LLMConfig {
 
 export type LocationMode = 'root' | 'packages' | 'both';
 
-// Release notes additionally support 'versioned' (one immutable file per version); the changelog
-// does not, since a changelog is a single cumulative document.
-export type ReleaseNotesMode = LocationMode | 'versioned';
-
 export interface ChangelogConfig {
   mode?: LocationMode;
   file?: string;
@@ -192,10 +188,14 @@ export interface LinksConfig {
   title?: string;
 }
 
+export interface ReleaseNotesFileConfig {
+  /** Directory for the per-version release-notes files (default: release-notes). */
+  dir?: string;
+}
+
 export interface ReleaseNotesConfig {
-  mode?: ReleaseNotesMode;
-  file?: string;
-  directory?: string;
+  /** In-repo per-version file output. Omit to keep notes only on the GitHub release body. */
+  file?: ReleaseNotesFileConfig;
   templates?: TemplateConfig;
   llm?: LLMConfig;
   links?: LinksConfig;

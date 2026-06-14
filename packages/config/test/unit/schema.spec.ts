@@ -466,9 +466,9 @@ describe('NotesConfigSchema', () => {
     expect(result.changelog).toMatchObject({ mode: 'root', file: 'CHANGES.md' });
   });
 
-  it('should accept releaseNotes with mode', () => {
-    const result = NotesConfigSchema.parse({ releaseNotes: { mode: 'root' } });
-    expect(result.releaseNotes).toMatchObject({ mode: 'root' });
+  it('should accept releaseNotes with file output (dir) and default the directory', () => {
+    const result = NotesConfigSchema.parse({ releaseNotes: { file: {} } });
+    expect(result.releaseNotes).toMatchObject({ file: { dir: 'release-notes' } });
   });
 
   it('should accept false to disable releaseNotes', () => {
@@ -476,15 +476,14 @@ describe('NotesConfigSchema', () => {
     expect(result.releaseNotes).toBe(false);
   });
 
-  it('should accept releaseNotes with file and templates', () => {
+  it('should accept releaseNotes with a custom file dir and templates', () => {
     const result = NotesConfigSchema.parse({
       releaseNotes: {
-        mode: 'root',
-        file: 'RELEASE_NOTES.md',
+        file: { dir: 'docs/releases' },
         templates: { path: './templates/release.liquid', engine: 'liquid' },
       },
     });
-    expect(result.releaseNotes).toMatchObject({ mode: 'root', file: 'RELEASE_NOTES.md' });
+    expect(result.releaseNotes).toMatchObject({ file: { dir: 'docs/releases' } });
     expect((result.releaseNotes as { templates?: { path?: string } })?.templates?.path).toBe(
       './templates/release.liquid',
     );

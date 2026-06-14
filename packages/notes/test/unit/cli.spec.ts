@@ -54,7 +54,7 @@ describe('createNotesCommand', () => {
       );
     });
 
-    it('should set release notes mode with --release-notes-mode', async () => {
+    it('should set release notes file output with --release-notes-dir', async () => {
       vi.mocked(loadConfig).mockReturnValue(undefined as never);
 
       await createNotesCommand().parse([
@@ -63,13 +63,13 @@ describe('createNotesCommand', () => {
         'generate',
         '-i',
         'input.json',
-        '--release-notes-mode',
-        'root',
+        '--release-notes-dir',
+        'release-notes',
       ]);
 
       expect(runPipeline).toHaveBeenCalledWith(
         expect.anything(),
-        expect.objectContaining({ releaseNotes: expect.objectContaining({ mode: 'root' }) }),
+        expect.objectContaining({ releaseNotes: expect.objectContaining({ file: { dir: 'release-notes' } }) }),
         false,
       );
     });
@@ -211,26 +211,6 @@ describe('createNotesCommand', () => {
       );
     });
 
-    it('should default release notes mode to root when only --release-notes-file is set', async () => {
-      vi.mocked(loadConfig).mockReturnValue(undefined as never);
-
-      await createNotesCommand().parse([
-        'node',
-        'test',
-        'generate',
-        '-i',
-        'input.json',
-        '--release-notes-file',
-        'NOTES.md',
-      ]);
-
-      expect(runPipeline).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({ releaseNotes: expect.objectContaining({ mode: 'root', file: 'NOTES.md' }) }),
-        false,
-      );
-    });
-
     it('should preserve --changelog-mode when combined with --changelog-file', async () => {
       vi.mocked(loadConfig).mockReturnValue(undefined as never);
 
@@ -249,28 +229,6 @@ describe('createNotesCommand', () => {
       expect(runPipeline).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({ changelog: expect.objectContaining({ mode: 'packages', file: 'CHANGES.md' }) }),
-        false,
-      );
-    });
-
-    it('should preserve --release-notes-mode when combined with --release-notes-file', async () => {
-      vi.mocked(loadConfig).mockReturnValue(undefined as never);
-
-      await createNotesCommand().parse([
-        'node',
-        'test',
-        'generate',
-        '-i',
-        'input.json',
-        '--release-notes-mode',
-        'packages',
-        '--release-notes-file',
-        'NOTES.md',
-      ]);
-
-      expect(runPipeline).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({ releaseNotes: expect.objectContaining({ mode: 'packages', file: 'NOTES.md' }) }),
         false,
       );
     });

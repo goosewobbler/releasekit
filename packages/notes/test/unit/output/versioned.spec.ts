@@ -22,18 +22,35 @@ function makeContext(overrides: Partial<TemplateContext> = {}): TemplateContext 
   };
 }
 
+// Stand-in for the pipeline's content resolver — proves the writer writes whatever it returns.
+const render = (ctx: TemplateContext): string => `notes for ${ctx.packageName} ${ctx.version}`;
+
 describe('writeVersionedNotes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('should write a flat release-notes/<version>.md when not nested (single-package repo)', () => {
-    const written = writeVersionedNotes([makeContext({ version: '1.2.0' })], 'release-notes', false, false);
+    const written = writeVersionedNotes([makeContext({ version: '1.2.0' })], 'release-notes', false, false, render);
 
     expect(written).toEqual(['release-notes/1.2.0.md']);
     const [filePath, content] = mockedFs.writeFileSync.mock.calls[0] as [string, string];
     expect(filePath).toBe('release-notes/1.2.0.md');
-    expect(content).toContain('1.2.0');
+    expect(content).toBe('notes for pkg 1.2.0');
+  });
+
+  it('should write exactly the content the resolver returns (no changelog wrapping)', () => {
+    writeVersionedNotes(
+      [makeContext({ version: '1.0.0' })],
+      'release-notes',
+      false,
+      false,
+      () => '---\nfoo: bar\n---\nBody',
+    );
+
+    const [, content] = mockedFs.writeFileSync.mock.calls[0] as [string, string];
+    expect(content).toBe('---\nfoo: bar\n---\nBody');
+    expect(content).not.toContain('# Changelog');
   });
 
   it('should nest by package even for a single context when nested', () => {
@@ -44,6 +61,7 @@ describe('writeVersionedNotes', () => {
       'release-notes',
       false,
       true,
+      render,
     );
 
     expect(written).toEqual(['release-notes/@scope/pkg-a/1.0.0.md']);
@@ -59,6 +77,7 @@ describe('writeVersionedNotes', () => {
       'release-notes',
       false,
       true,
+      render,
     );
 
     expect(written).toEqual(['release-notes/@scope/pkg-a/1.1.0.md', 'release-notes/@scope/pkg-b/2.0.0.md']);
@@ -67,13 +86,13 @@ describe('writeVersionedNotes', () => {
   });
 
   it('should honor a custom output directory', () => {
-    const written = writeVersionedNotes([makeContext({ version: '3.0.0' })], 'docs/notes', false, false);
+    const written = writeVersionedNotes([makeContext({ version: '3.0.0' })], 'docs/notes', false, false, render);
 
     expect(written).toEqual(['docs/notes/3.0.0.md']);
   });
 
   it('should not write anything in dry-run mode', () => {
-    const written = writeVersionedNotes([makeContext({ version: '1.0.0' })], 'release-notes', true, false);
+    const written = writeVersionedNotes([makeContext({ version: '1.0.0' })], 'release-notes', true, false, render);
 
     expect(written).toEqual([]);
     expect(mockedFs.writeFileSync).not.toHaveBeenCalled();

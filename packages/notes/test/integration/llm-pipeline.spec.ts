@@ -285,12 +285,9 @@ describe('Pipeline: releaseNotes in output', () => {
       '{%- for version in versions %}Release notes for {{ version.packageName }} {{ version.version }}{%- endfor %}',
     );
 
-    const outFile = path.join(tmpDir, 'RELEASE_NOTES.md');
     const config = {
       changelog: false as const,
       releaseNotes: {
-        mode: 'root' as const,
-        file: outFile,
         templates: { path: templatePath, engine: 'liquid' as const },
       },
     };
@@ -313,28 +310,29 @@ describe('Pipeline: releaseNotes in output', () => {
     expect(result.releaseNotes).toBeUndefined();
   });
 
-  it('should set perPackage:true on the template context so headings can be suppressed', async () => {
-    // Template that emits the perPackage flag value so we can assert it was set
+  it('should render versioned files via the configured template (frontmatter hook, with perPackage context)', async () => {
     const templatePath = path.join(tmpDir, 'release.liquid');
-    fs.writeFileSync(templatePath, 'perPackage={{ perPackage }}');
+    fs.writeFileSync(
+      templatePath,
+      '{%- for version in versions %}version: {{ version.version }} perPackage={{ perPackage }}{%- endfor %}',
+    );
 
-    const outFile = path.join(tmpDir, 'RELEASE_NOTES.md');
     const config = {
       changelog: false as const,
       releaseNotes: {
-        mode: 'root' as const,
-        file: outFile,
+        file: { dir: path.join(tmpDir, 'notes') },
         templates: { path: templatePath, engine: 'liquid' as const },
       },
     };
 
     const result = await runPipeline(sampleInput, config, false);
 
-    // per-package in-memory render should have perPackage=true
-    expect(result.releaseNotes?.['my-lib']).toBe('perPackage=true');
-    // file render goes through generateWithTemplate which does NOT set perPackage
-    const fileContent = fs.readFileSync(outFile, 'utf-8');
-    expect(fileContent).toBe('perPackage=');
+    // The per-version file is rendered through the same template (the docs-site frontmatter hook),
+    // with the per-version document context (perPackage=true).
+    expect(result.files.length).toBeGreaterThan(0);
+    const fileContent = fs.readFileSync(result.files[0] as string, 'utf-8');
+    expect(fileContent).toContain('version: 2.0.0');
+    expect(fileContent).toContain('perPackage=true');
   });
 });
 

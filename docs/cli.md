@@ -206,8 +206,7 @@ Generate changelog from input data (a version-output JSON, read from a file or s
 | `--no-changelog` | boolean | - | Disable changelog generation |
 | `--changelog-mode <mode>` | `root` \| `packages` \| `both` | config | Changelog location mode |
 | `--changelog-file <name>` | string | config | Changelog file name override |
-| `--release-notes-mode <mode>` | `root` \| `packages` \| `both` | config | Enable release notes and set location |
-| `--release-notes-file <name>` | string | config | Release notes file name override |
+| `--release-notes-dir <dir>` | string | config | Write per-version release-notes files to this directory |
 | `--no-release-notes` | boolean | - | Disable release notes generation |
 | `-t, --template <path>` | string | config | Template file or directory |
 | `-e, --engine <engine>` | `handlebars` \| `liquid` \| `ejs` | config | Template engine |

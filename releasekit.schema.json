@@ -669,23 +669,17 @@
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "mode": {
-                  "type": "string",
-                  "enum": [
-                    "root",
-                    "packages",
-                    "both",
-                    "versioned"
-                  ],
-                  "description": "Where to write release notes. 'root': single rolling file at the repo root. 'packages': one rolling file per package. 'both': root and per-package. 'versioned': one immutable file per version under `directory` (release-notes/<package>/<version>.md in a monorepo, or release-notes/<version>.md in a single-package repo), keeping a browsable per-release history. Omit to skip file output (the LLM still runs if configured)."
-                },
                 "file": {
-                  "type": "string",
-                  "description": "Release notes file name override (default: RELEASE_NOTES.md)"
-                },
-                "directory": {
-                  "type": "string",
-                  "description": "Output directory for 'versioned' mode (default: release-notes)."
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "dir": {
+                      "type": "string",
+                      "default": "release-notes",
+                      "description": "Directory for the per-version release-notes files."
+                    }
+                  },
+                  "description": "Optional in-repo file output. Omit to keep release notes only on the GitHub release body (the default). When set, writes one immutable Markdown file per version under `dir` — release-notes/<package>/<version>.md in a monorepo, release-notes/<version>.md in a single-package repo — giving a browsable, provider-independent per-release history."
                 },
                 "templates": {
                   "type": "object",
@@ -705,7 +699,7 @@
                       "description": "Template engine"
                     }
                   },
-                  "description": "Template configuration for release notes"
+                  "description": "Template for rendering release notes (e.g. to add docs-site frontmatter). Takes precedence over LLM prose and the default formatted section."
                 },
                 "llm": {
                   "type": "object",
