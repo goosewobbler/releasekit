@@ -5,11 +5,11 @@
 [![Node](https://img.shields.io/node/v/@releasekit/release.svg)](https://www.npmjs.com/package/@releasekit/release)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-Versioning, changelogs, and publishing for JavaScript and Rust monorepos — driven by Conventional Commits, designed for CI.
+Versioning, changelogs, and publishing for whatever you ship — driven by Conventional Commits, built for CI. Releases to npm, crates.io, and pub.dev today, with more ecosystems on the way.
 
 ## Why ReleaseKit
 
-- **One config, two ecosystems** — JavaScript and Rust packages release from the same `releasekit.config.json`, including mixed monorepos.
+- **One config, every ecosystem** — npm (JavaScript/TypeScript), crates.io (Rust), and pub.dev (Dart/Flutter) packages release from the same `releasekit.config.json`, including mixed monorepos. The pipeline is registry-agnostic — new ecosystems plug in without changing your workflow.
 - **Composable, not opinionated** — three independent CLIs (`version`, `notes`, `publish`) you can pipe together, or a unified `release` command if you want the full pipeline.
 - **CI-native** — JSON output, OIDC publishing, PR preview comments, and label- or commit-driven triggers without bolting on extra tools.
 
@@ -52,13 +52,13 @@ See [Getting Started](./docs/getting-started.md) for prerequisites, config optio
 | [@releasekit/release](./packages/release) | [![npm](https://img.shields.io/npm/v/@releasekit/release.svg)](https://www.npmjs.com/package/@releasekit/release) | **Unified CLI** — run version, notes, and publish in a single command |
 | [@releasekit/version](./packages/version) | [![npm](https://img.shields.io/npm/v/@releasekit/version.svg)](https://www.npmjs.com/package/@releasekit/version) | Semantic versioning based on Git history and conventional commits |
 | [@releasekit/notes](./packages/notes) | [![npm](https://img.shields.io/npm/v/@releasekit/notes.svg)](https://www.npmjs.com/package/@releasekit/notes) | Changelog generation with LLM-powered enhancement and flexible templating |
-| [@releasekit/publish](./packages/publish) | [![npm](https://img.shields.io/npm/v/@releasekit/publish.svg)](https://www.npmjs.com/package/@releasekit/publish) | Publish packages to npm and crates.io with git tagging and GitHub releases |
+| [@releasekit/publish](./packages/publish) | [![npm](https://img.shields.io/npm/v/@releasekit/publish.svg)](https://www.npmjs.com/package/@releasekit/publish) | Publish packages to npm, crates.io, and pub.dev with git tagging and GitHub releases |
 
 ## Features
 
-- **Versioning** — derives semver bumps from Conventional Commits; supports JavaScript (`package.json`), Rust (`Cargo.toml`), and monorepos with per-package tags
+- **Versioning** — derives semver bumps from Conventional Commits; supports JavaScript/TypeScript (`package.json`), Rust (`Cargo.toml`), Dart/Flutter (`pubspec.yaml`), and monorepos with per-package tags
 - **Release notes** — generates changelogs from commit history, with optional LLM enhancement (Anthropic, OpenAI, or local models)
-- **Publishing** — pushes to npm (OIDC or token) and crates.io, tags the release, and creates a GitHub Release
+- **Publishing** — pushes to npm (OIDC or token), crates.io, and pub.dev, tags the release, and creates a GitHub Release
 - **CI/CD first** — JSON output for scripting, PR preview comments, and config-driven triggers (commit vs label)
 - **Composable** — use each tool independently or pipe them together
 
@@ -132,7 +132,7 @@ See the [package docs](#documentation) for the full option reference.
 - [@releasekit/release](./packages/release/README.md) — unified pipeline, CI automation, programmatic API
 - [@releasekit/version](./packages/version/README.md) — versioning strategies, JSON output
 - [@releasekit/notes](./packages/notes/README.md) — changelog, release notes, LLM, templates
-- [@releasekit/publish](./packages/publish/README.md) — npm, crates.io, GitHub Releases
+- [@releasekit/publish](./packages/publish/README.md) — npm, crates.io, pub.dev, GitHub Releases
 
 **Help**
 - [Troubleshooting](./docs/troubleshooting.md) — symptom-indexed error guide
