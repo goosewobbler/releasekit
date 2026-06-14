@@ -4,7 +4,7 @@ AI context file for the ReleaseKit monorepo.
 
 ## Project Overview
 
-ReleaseKit is release tooling for JavaScript and Rust monorepos: semantic versioning from Conventional Commits, changelog/release-notes generation (optionally LLM-enhanced), and publishing to npm / crates.io with git tags and GitHub Releases. It ships as four npm packages, a unified `releasekit` CLI, and a composite GitHub Action.
+ReleaseKit is release tooling for polyglot projects and monorepos: semantic versioning from Conventional Commits, changelog/release-notes generation (optionally LLM-enhanced), and publishing with git tags and GitHub Releases. Publish targets today are npm (JS/TS), crates.io (Rust), and pub.dev (Dart/Flutter); the pipeline is registry-agnostic and more ecosystems can be added. It ships as four npm packages, a unified `releasekit` CLI, and a composite GitHub Action.
 
 This repo **dogfoods itself**: releases run in standing-PR mode with sync versioning (see `releasekit.config.json`). The standing release PR lives on `release/next`.
 
@@ -28,7 +28,7 @@ packages/
 ├── config/    # Config loading, Zod schemas, JSONC parsing
 ├── version/   # Version calculation, bump strategies (sync/single/async)
 ├── notes/     # Changelog + release notes, LLM enhancement, templates
-├── publish/   # npm/cargo publish pipeline, git tags, GitHub Releases
+├── publish/   # Multi-registry publish pipeline, git tags, GitHub Releases
 └── release/   # Orchestrator: unified CLI, standing-pr, preview, gate, failure report
 
 docs/               # User docs (see "Documentation rules")
