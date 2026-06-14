@@ -28,7 +28,7 @@ packages/
 ├── config/    # Config loading, Zod schemas, JSONC parsing
 ├── version/   # Version calculation, bump strategies (sync/single/async)
 ├── notes/     # Changelog + release notes, LLM enhancement, templates
-├── publish/   # npm/cargo/pub publish pipeline, git tags, GitHub Releases
+├── publish/   # Multi-registry publish pipeline, git tags, GitHub Releases
 └── release/   # Orchestrator: unified CLI, standing-pr, preview, gate, failure report
 
 docs/               # User docs (see "Documentation rules")
