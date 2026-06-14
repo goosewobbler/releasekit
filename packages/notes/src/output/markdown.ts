@@ -353,6 +353,11 @@ export function writeMarkdown(
       fs.writeFileSync(outputPath, updated, 'utf-8');
     }
   } else {
+    // NOTE: prepend only applies to single-context writes. A multi-package changelog 'root' release
+    // overwrites this file with just the current release's sections — prior history is lost. The
+    // aggregating-prepend path (writeMonorepoChangelogs 'root' branch) is currently unreachable from
+    // the pipeline. Monorepos wanting a durable per-release history can use release-notes file output
+    // (`releaseNotes.file.dir`, immutable per-version files) or changelog `mode: 'packages'`.
     fs.writeFileSync(outputPath, content, 'utf-8');
   }
 

@@ -669,18 +669,17 @@
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "mode": {
-                  "type": "string",
-                  "enum": [
-                    "root",
-                    "packages",
-                    "both"
-                  ],
-                  "description": "Where to write release notes file. Omit to skip file output (LLM still runs if configured)."
-                },
                 "file": {
-                  "type": "string",
-                  "description": "Release notes file name override (default: RELEASE_NOTES.md)"
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "dir": {
+                      "type": "string",
+                      "default": "release-notes",
+                      "description": "Directory for the per-version release-notes files."
+                    }
+                  },
+                  "description": "Optional in-repo file output. Omit to keep release notes only on the GitHub release body (the default). When set, writes one immutable Markdown file per version under `dir` — release-notes/<package>/<version>.md in a monorepo, release-notes/<version>.md in a single-package repo — giving a browsable, provider-independent per-release history."
                 },
                 "templates": {
                   "type": "object",
@@ -700,7 +699,7 @@
                       "description": "Template engine"
                     }
                   },
-                  "description": "Template configuration for release notes"
+                  "description": "Template for rendering release notes (e.g. to add docs-site frontmatter). Takes precedence over LLM prose and the default formatted section."
                 },
                 "llm": {
                   "type": "object",

@@ -163,33 +163,27 @@ describe('Pipeline: mode both does not double-write root', () => {
     );
   });
 
-  it('should pass separate fileNames when both changelog and releaseNotes use mode: packages', async () => {
+  it('should route only the changelog through writeMonorepoChangelogs (release notes use per-version files)', async () => {
     const { writeMonorepoChangelogs } = await import('../../src/monorepo/aggregator.js');
     const { runPipeline } = await import('../../src/core/pipeline.js');
 
     const config: Config = {
       changelog: { mode: 'packages', file: 'CHANGELOG.md' },
-      releaseNotes: { mode: 'packages', file: 'RELEASE_NOTES.md' },
+      releaseNotes: { file: { dir: 'release-notes' } },
     };
     await runPipeline(sampleInput, config, false);
 
-    expect(writeMonorepoChangelogs).toHaveBeenCalledTimes(2);
+    expect(writeMonorepoChangelogs).toHaveBeenCalledTimes(1);
     expect(writeMonorepoChangelogs).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ fileName: 'CHANGELOG.md' }),
       expect.anything(),
       false,
     );
-    expect(writeMonorepoChangelogs).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ fileName: 'RELEASE_NOTES.md' }),
-      expect.anything(),
-      false,
-    );
   });
 });
 
-describe('Pipeline: file-only config defaults mode to root', () => {
+describe('Pipeline: changelog file default + release-notes summary', () => {
   beforeEach(() => {
     vi.mocked(fs.existsSync).mockReturnValue(false);
     vi.mocked(fs.mkdirSync).mockReturnValue(undefined as never);
@@ -206,17 +200,7 @@ describe('Pipeline: file-only config defaults mode to root', () => {
     expect(fs.writeFileSync).toHaveBeenCalledWith('CHANGES.md', expect.any(String), 'utf-8');
   });
 
-  it('should write release notes when config has file but no mode', async () => {
-    const { runPipeline } = await import('../../src/core/pipeline.js');
-
-    const config: Config = { changelog: false, releaseNotes: { file: 'NOTES.md' } };
-    const result = await runPipeline(sampleInput, config, false);
-
-    expect(result.files).toContain('NOTES.md');
-    expect(fs.writeFileSync).toHaveBeenCalledWith('NOTES.md', expect.any(String), 'utf-8');
-  });
-
-  it('should not write a release notes file when only LLM config is set (no mode or file)', async () => {
+  it('should not write a release notes file when only LLM config is set (no file output)', async () => {
     const { runPipeline } = await import('../../src/core/pipeline.js');
 
     const config: Config = {
@@ -236,9 +220,10 @@ describe('Pipeline: file-only config defaults mode to root', () => {
   it('should populate releaseNotes in result when releaseNotesConfig is set without tasks.releaseNotes', async () => {
     const { runPipeline } = await import('../../src/core/pipeline.js');
 
+    // releaseNotes set (even with no file output) → notes are resolved for the GitHub release body.
     const config: Config = {
       changelog: false,
-      releaseNotes: { mode: 'root', file: 'RELEASE_NOTES.md' },
+      releaseNotes: {},
     };
     const result = await runPipeline(sampleInput, config, false);
 
@@ -263,7 +248,7 @@ describe('Pipeline: skipReleaseNotes / skipChangelogs flags', () => {
     vi.mocked(fs.writeFileSync).mockReturnValue(undefined);
   });
 
-  it('should not write RELEASE_NOTES.md and should not invoke the LLM when skipReleaseNotes:true', async () => {
+  it('should not write release-notes files and should not invoke the LLM when skipReleaseNotes:true', async () => {
     const { createProvider } = await import('../../src/llm/index.js');
     vi.mocked(createProvider).mockClear();
 
@@ -271,8 +256,7 @@ describe('Pipeline: skipReleaseNotes / skipChangelogs flags', () => {
     const config: Config = {
       changelog: { mode: 'root', file: 'CHANGELOG.md' },
       releaseNotes: {
-        mode: 'root',
-        file: 'RELEASE_NOTES.md',
+        file: { dir: 'release-notes' },
         llm: { provider: 'openai-compatible', model: 'gpt-4o', tasks: { releaseNotes: true } },
       },
     };
@@ -280,34 +264,87 @@ describe('Pipeline: skipReleaseNotes / skipChangelogs flags', () => {
 
     expect(createProvider).not.toHaveBeenCalled();
     expect(result.files).toContain('CHANGELOG.md');
-    expect(result.files).not.toContain('RELEASE_NOTES.md');
+    expect(result.files.some((f) => f.includes('release-notes'))).toBe(false);
     expect(result.releaseNotes).toBeUndefined();
   });
 
-  it('should skip CHANGELOG.md but still write RELEASE_NOTES.md when skipChangelogs:true', async () => {
+  it('should skip CHANGELOG.md but still write release-notes files when skipChangelogs:true', async () => {
     const { createProvider } = await import('../../src/llm/index.js');
     vi.mocked(createProvider).mockClear();
 
     const { runPipeline } = await import('../../src/core/pipeline.js');
     const config: Config = {
       changelog: { mode: 'root', file: 'CHANGELOG.md' },
-      releaseNotes: { mode: 'root', file: 'RELEASE_NOTES.md' },
+      releaseNotes: { file: { dir: 'release-notes' } },
     };
     const result = await runPipeline(sampleInput, config, false, { skipChangelogs: true });
 
     expect(result.files).not.toContain('CHANGELOG.md');
-    expect(result.files).toContain('RELEASE_NOTES.md');
+    expect(result.files).toContain('release-notes/test-pkg/1.0.0.md');
   });
 
   it('should preserve existing behaviour with both flags omitted (changelog + release notes both written)', async () => {
     const { runPipeline } = await import('../../src/core/pipeline.js');
     const config: Config = {
       changelog: { mode: 'root', file: 'CHANGELOG.md' },
-      releaseNotes: { mode: 'root', file: 'RELEASE_NOTES.md' },
+      releaseNotes: { file: { dir: 'release-notes' } },
     };
     const result = await runPipeline(sampleInput, config, false);
 
     expect(result.files).toContain('CHANGELOG.md');
-    expect(result.files).toContain('RELEASE_NOTES.md');
+    expect(result.files).toContain('release-notes/test-pkg/1.0.0.md');
+  });
+});
+
+describe('Pipeline: versioned release notes file output', () => {
+  beforeEach(() => {
+    vi.mocked(fs.existsSync).mockReturnValue(false);
+    vi.mocked(fs.mkdirSync).mockReturnValue(undefined as never);
+    vi.mocked(fs.writeFileSync).mockReturnValue(undefined);
+  });
+
+  it('should nest per-version files by package in a monorepo (detectMonorepo → true)', async () => {
+    const { runPipeline } = await import('../../src/core/pipeline.js');
+
+    // detectMonorepo is mocked to isMonorepo: true at the top of this file, so even this
+    // single-package run nests by package — independent releases can't collide on <version>.md.
+    const config: Config = { changelog: false, releaseNotes: { file: { dir: 'release-notes' } } };
+    const result = await runPipeline(sampleInput, config, false);
+
+    expect(result.files).toContain('release-notes/test-pkg/1.0.0.md');
+    const call = vi.mocked(fs.writeFileSync).mock.calls.find(([p]) => p === 'release-notes/test-pkg/1.0.0.md') as
+      | [string, string]
+      | undefined;
+    // Release notes are not a changelog — no Keep-a-Changelog document header.
+    expect(call?.[1]).not.toContain('# Changelog');
+  });
+
+  it('should write a flat per-version file in a single-package repo (detectMonorepo → false)', async () => {
+    const { runPipeline } = await import('../../src/core/pipeline.js');
+    const { detectMonorepo } = await import('../../src/monorepo/aggregator.js');
+    vi.mocked(detectMonorepo).mockReturnValueOnce({ isMonorepo: false, packagesPath: '' });
+
+    const config: Config = { changelog: false, releaseNotes: { file: { dir: 'release-notes' } } };
+    const result = await runPipeline(sampleInput, config, false);
+
+    expect(result.files).toContain('release-notes/1.0.0.md');
+  });
+
+  it('should honor a custom directory', async () => {
+    const { runPipeline } = await import('../../src/core/pipeline.js');
+
+    const config: Config = { changelog: false, releaseNotes: { file: { dir: 'docs/releases' } } };
+    const result = await runPipeline(sampleInput, config, false);
+
+    expect(result.files).toContain('docs/releases/test-pkg/1.0.0.md');
+  });
+
+  it('should not write any release-notes file when file output is not configured', async () => {
+    const { runPipeline } = await import('../../src/core/pipeline.js');
+
+    const config: Config = { changelog: false, releaseNotes: { links: { title: 'Links' } } };
+    const result = await runPipeline(sampleInput, config, false);
+
+    expect(result.files).toHaveLength(0);
   });
 });

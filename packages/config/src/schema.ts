@@ -281,6 +281,13 @@ export const TemplateConfigSchema = z.object({
 
 export const LocationModeSchema = z.enum(['root', 'packages', 'both']);
 
+// Release notes are not a changelog, so they don't share the changelog's location modes. Their
+// only file shape is an immutable per-version directory; the default target is the GitHub release
+// body (no file). Hence a dedicated `file` config rather than a `mode` enum.
+export const ReleaseNotesFileConfigSchema = z.object({
+  dir: z.string().default('release-notes').describe('Directory for the per-version release-notes files.'),
+});
+
 export const ChangelogConfigSchema = z
   .object({
     mode: LocationModeSchema.optional().describe(
@@ -410,11 +417,12 @@ export const LLMConfigSchema = z.object({
 
 export const ReleaseNotesConfigSchema = z
   .object({
-    mode: LocationModeSchema.optional().describe(
-      'Where to write release notes file. Omit to skip file output (LLM still runs if configured).',
+    file: ReleaseNotesFileConfigSchema.optional().describe(
+      'Optional in-repo file output. Omit to keep release notes only on the GitHub release body (the default). When set, writes one immutable Markdown file per version under `dir` — release-notes/<package>/<version>.md in a monorepo, release-notes/<version>.md in a single-package repo — giving a browsable, provider-independent per-release history.',
     ),
-    file: z.string().optional().describe('Release notes file name override (default: RELEASE_NOTES.md)'),
-    templates: TemplateConfigSchema.optional().describe('Template configuration for release notes'),
+    templates: TemplateConfigSchema.optional().describe(
+      'Template for rendering release notes (e.g. to add docs-site frontmatter). Takes precedence over LLM prose and the default formatted section.',
+    ),
     llm: LLMConfigSchema.optional().describe('LLM configuration for release notes'),
     links: z
       .object({

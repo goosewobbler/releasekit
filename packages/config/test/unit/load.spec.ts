@@ -76,6 +76,29 @@ describe('loadConfig', () => {
     expect(() => loadConfig()).toThrow(ConfigError);
   });
 
+  it('should throw a migration error for the removed notes.releaseNotes.mode', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ notes: { releaseNotes: { mode: 'versioned' } } }));
+
+    expect(() => loadConfig()).toThrow(/notes\.releaseNotes no longer supports mode/);
+  });
+
+  it('should throw a migration error when notes.releaseNotes.file is a string', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ notes: { releaseNotes: { file: 'RELEASE_NOTES.md' } } }));
+
+    expect(() => loadConfig()).toThrow(/file \(string\)/);
+  });
+
+  it('should accept the new notes.releaseNotes.file object shape', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(
+      JSON.stringify({ notes: { releaseNotes: { file: { dir: 'release-notes' } } } }),
+    );
+
+    expect(() => loadConfig()).not.toThrow();
+  });
+
   it('should parse JSONC with comments', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(`{

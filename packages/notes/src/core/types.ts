@@ -188,9 +188,14 @@ export interface LinksConfig {
   title?: string;
 }
 
+export interface ReleaseNotesFileConfig {
+  /** Directory for the per-version release-notes files (default: release-notes). */
+  dir?: string;
+}
+
 export interface ReleaseNotesConfig {
-  mode?: LocationMode;
-  file?: string;
+  /** In-repo per-version file output. Omit to keep notes only on the GitHub release body. */
+  file?: ReleaseNotesFileConfig;
   templates?: TemplateConfig;
   llm?: LLMConfig;
   links?: LinksConfig;

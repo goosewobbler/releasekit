@@ -35,6 +35,30 @@ function resolveConfigPath(cwd: string): string {
   return path.join(cwd, CONFIG_FILES[0]);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * `notes.releaseNotes` no longer mirrors the changelog's location modes (release notes are not a
+ * changelog). Fail loudly with migration guidance instead of letting Zod silently strip the removed
+ * keys — which would otherwise turn off a user's file output without a word.
+ */
+function assertNoRemovedReleaseNotesFields(config: unknown): void {
+  if (!isRecord(config) || !isRecord(config.notes) || !isRecord(config.notes.releaseNotes)) return;
+  const rn = config.notes.releaseNotes;
+  const removed: string[] = [];
+  if ('mode' in rn) removed.push('mode');
+  if ('directory' in rn) removed.push('directory');
+  if (typeof rn.file === 'string') removed.push('file (string)');
+  if (removed.length === 0) return;
+  throw new ConfigError(
+    `notes.releaseNotes no longer supports ${removed.join(', ')}. Release notes go to the GitHub ` +
+      'release body by default; for in-repo per-version files set notes.releaseNotes.file to ' +
+      '{ "dir": "release-notes" }. For a cumulative changelog file, use changelog.mode.',
+  );
+}
+
 function loadConfigFile(configPath: string): ReleaseKitConfig {
   if (!fs.existsSync(configPath)) {
     return {};
@@ -44,6 +68,7 @@ function loadConfigFile(configPath: string): ReleaseKitConfig {
     const content = fs.readFileSync(configPath, 'utf-8');
     const parsed = parseJsonc(content);
     const substituted = substituteInObject(parsed);
+    assertNoRemovedReleaseNotesFields(substituted);
     return ReleaseKitConfigSchema.parse(substituted);
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {

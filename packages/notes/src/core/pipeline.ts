@@ -15,6 +15,7 @@ import {
   summarizeEntries,
 } from '../llm/index.js';
 import { type FormatVersionOptions, formatVersion, writeMarkdown } from '../output/markdown.js';
+import { writeVersionedNotes } from '../output/versioned.js';
 import { renderTemplate } from '../templates/index.js';
 import { withRetry } from '../utils/retry.js';
 import type {
@@ -360,14 +361,9 @@ export async function runPipeline(
   // mode defaults to 'root' for any object config that omits it (e.g. { file: 'CHANGES.md' }).
   const changelogConfig = config.changelog === false ? false : { mode: 'root' as const, ...(config.changelog ?? {}) };
   // releaseNotes: undefined = off (default), false = explicitly disabled, object = configured.
-  // mode defaults to 'root' only when file output is explicitly intended (mode or file is set).
-  // Omitting both lets LLM run without writing any file, as documented in the schema.
+  // Notes always flow to the GitHub release body; in-repo file output is opt-in via `file.dir`.
   const releaseNotesConfig =
-    config.releaseNotes === false || config.releaseNotes === undefined
-      ? undefined
-      : config.releaseNotes.mode !== undefined || config.releaseNotes.file !== undefined
-        ? { mode: 'root' as const, ...config.releaseNotes }
-        : config.releaseNotes;
+    config.releaseNotes === false || config.releaseNotes === undefined ? undefined : config.releaseNotes;
 
   const llmConfig = releaseNotesConfig?.llm;
   // The LLM pass is part of release-notes generation: enhanced text only flows into the
@@ -476,37 +472,33 @@ export async function runPipeline(
     }
   }
 
-  if (!pipelineOptions?.skipReleaseNotes && releaseNotesConfig?.mode) {
-    const fileName = releaseNotesConfig.file ?? 'RELEASE_NOTES.md';
-    const mode = releaseNotesConfig.mode;
-
-    info(`Generating release notes → ${fileName}`);
+  // Release-notes file output is opt-in and always per-version (immutable file per release). Notes
+  // also flow to the GitHub release body via `releaseNotesResult` below regardless of file output.
+  if (!pipelineOptions?.skipReleaseNotes && releaseNotesConfig?.file?.dir) {
+    const dir = releaseNotesConfig.file.dir;
+    info(`Generating release notes → ${dir}`);
 
     try {
-      if (mode === 'root' || mode === 'both') {
-        if (releaseNotesConfig.templates?.path) {
-          await generateWithTemplate(
-            contexts,
-            releaseNotesConfig.templates,
-            fileName,
-            contexts[0]?.repoUrl ?? undefined,
-            dryRun,
-          );
-        } else {
-          writeMarkdown(fileName, contexts, config, dryRun, fmtOpts);
-        }
-        if (!dryRun) files.push(fileName);
-      }
+      const { detectMonorepo } = await import('../monorepo/aggregator.js');
+      // Nest by package whenever the repo has more than one package (a monorepo), so independent
+      // per-package releases — one context per run — can't collide on release-notes/<version>.md.
+      const nested = detectMonorepo(process.cwd()).isMonorepo || contexts.length > 1;
 
-      if (mode === 'packages' || mode === 'both') {
-        const monoFiles = await writeMonorepoFiles(
-          contexts,
-          config,
-          dryRun,
-          releaseNotesConfig.file ?? 'RELEASE_NOTES.md',
-        );
-        files.push(...monoFiles);
-      }
+      // Content precedence: a template (the docs-site frontmatter hook) wins, else LLM prose, else a
+      // clean single-release section. Never the changelog document — release notes aren't a changelog.
+      const renderContent = (ctx: TemplateContext): string => {
+        if (releaseNotesConfig.templates?.path) {
+          const templatePath = path.resolve(releaseNotesConfig.templates.path);
+          const docCtx = { ...createDocumentContext([ctx], undefined), perPackage: true };
+          return renderTemplate(templatePath, docCtx, releaseNotesConfig.templates.engine as TemplateEngine | undefined)
+            .content;
+        }
+        if (ctx.enhanced?.releaseNotes) return ctx.enhanced.releaseNotes;
+        return formatVersion(ctx, fmtOpts);
+      };
+
+      const versionedFiles = writeVersionedNotes(contexts, dir, dryRun, nested, renderContent);
+      files.push(...versionedFiles);
     } catch (error) {
       warn(`Failed to write release notes: ${error instanceof Error ? error.message : String(error)}`);
     }

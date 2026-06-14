@@ -22,7 +22,7 @@ Add an `llm` block under `notes.releaseNotes` in `releasekit.config.json`:
 }
 ```
 
-> Without a `mode` or `file` property on `releaseNotes`, no file is written — the generated content is passed directly to the publish step (e.g. as a GitHub release body). Add `"mode": "root"` to also write a `RELEASE_NOTES.md` file.
+> By default no file is written — the generated content is passed directly to the publish step (e.g. as a GitHub release body). Add a `file` property (`"file": { "dir": "release-notes" }`) to also write an immutable per-version file under that directory.
 
 ---
 

@@ -272,11 +272,10 @@ Set to `false` to disable.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `mode` | `"root"` \| `"packages"` \| `"both"` | — | Where to write release notes file. Omit to skip file output (LLM still runs if configured). |
-| `file` | string | — | Release notes file name override (default: RELEASE_NOTES.md) |
+| `file` | object | — | Optional in-repo file output. Omit to keep release notes only on the GitHub release body (the default). When set, writes one immutable Markdown file per version under `dir` — release-notes/<package>/<version>.md in a monorepo, release-notes/<version>.md in a single-package repo — giving a browsable, provider-independent per-release history. |
 | `links` | object | — | Extra links to append to the release notes. |
 
-**`notes.releaseNotes.templates`** — Template configuration for release notes.
+**`notes.releaseNotes.templates`** — Template for rendering release notes (e.g. to add docs-site frontmatter). Takes precedence over LLM prose and the default formatted section.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
