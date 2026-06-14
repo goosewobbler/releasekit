@@ -24,8 +24,6 @@
       "mode": "packages"
     },
     "releaseNotes": {
-      "mode": "root",
-      "file": "RELEASE_NOTES.md",
       "templates": {
         "path": "./templates/release-notes/release.liquid",
         "engine": "liquid"
