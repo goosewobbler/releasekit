@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import type { VersionOutput } from '@releasekit/core';
 import { EXIT_CODES, error, info, success, warn } from '@releasekit/core';
 import { Command } from 'commander';
+import semver from 'semver';
 import { reconstructChangelogs } from '../backfill/reconstruct.js';
 
 function readPackageJson(pkgPath: string): { name?: string; repoUrl?: string } {
@@ -48,6 +49,19 @@ export function createBackfillCommand(): Command {
     .option('--apply', 'Write files (default: dry-run preview)', false)
     .option('-c, --config <path>', 'Config file path')
     .action(async (options) => {
+      // Validate the bounds up front: reconstructChangelogs feeds them straight to semver.lt/gt,
+      // whose SemVer constructor throws a bare TypeError on non-semver input — turn that into a
+      // clean CLI error before any work starts.
+      for (const [flag, value] of [
+        ['--from', options.from],
+        ['--to', options.to],
+      ] as const) {
+        if (value !== undefined && semver.valid(value) === null) {
+          error(`${flag} must be a valid semver version (got "${value}").`);
+          process.exit(EXIT_CODES.GENERAL_ERROR);
+        }
+      }
+
       const { loadConfig: loadVersionConfig } = await import('@releasekit/version');
       const {
         versionOutputToChangelogInput,
