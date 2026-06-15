@@ -19,6 +19,14 @@ vi.mock('../../../src/utils/auth.js', () => ({
   detectNpmAuth: vi.fn().mockReturnValue('token'),
 }));
 
+// Spy on `debug` (everything else from core stays real) to assert the absence of the misleading
+// "Failed to read package.json" log for non-npm manifests.
+const { debugMock } = vi.hoisted(() => ({ debugMock: vi.fn() }));
+vi.mock('@releasekit/core', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@releasekit/core')>()),
+  debug: debugMock,
+}));
+
 function createContext(cwd: string, overrides?: Partial<PipelineContext>): PipelineContext {
   return {
     input: {
@@ -126,6 +134,28 @@ describe('npm-publish stage', () => {
     expect(execCommand).not.toHaveBeenCalled();
     expect(ctx.output.npm[0]?.skipped).toBe(true);
     expect(ctx.output.npm[0]?.reason).toContain('private');
+  });
+
+  it('should skip non-package.json manifests (Cargo.toml) without trying to read them', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    const dir = createTmpDir();
+
+    // No Cargo.toml is created on disk: the guard must skip before any read attempt.
+    const ctx = createContext(dir, {
+      input: {
+        dryRun: false,
+        updates: [{ packageName: 'my-crate', newVersion: '1.0.0', filePath: 'crates/my-crate/Cargo.toml' }],
+        changelogs: [],
+        tags: [],
+      },
+    });
+    await runNpmPublishStage(ctx);
+
+    expect(ctx.output.npm[0]?.skipped).toBe(true);
+    expect(ctx.output.npm[0]?.reason).toBe('Not an npm package');
+    expect(execCommand).not.toHaveBeenCalled();
+    // Regression: no confusing "Failed to read package.json" for a non-npm manifest.
+    expect(debugMock).not.toHaveBeenCalledWith(expect.stringContaining('Failed to read package.json'));
   });
 
   it('should use correct cwd for npm vs pnpm', async () => {

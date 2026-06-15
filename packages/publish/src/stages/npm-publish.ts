@@ -50,6 +50,17 @@ export async function runNpmPublishStage(ctx: PipelineContext): Promise<void> {
         skipped: false,
       };
 
+      // Only npm packages have a package.json; cargo (Cargo.toml) and pub (pubspec.yaml) manifests
+      // flow through here too. Skip non-package.json manifests up front so we never JSON.parse a
+      // TOML/YAML file and emit a confusing "Failed to read package.json" debug.
+      if (!update.filePath.endsWith('package.json')) {
+        result.skipped = true;
+        result.success = true;
+        result.reason = 'Not an npm package';
+        ctx.output.npm.push(result);
+        continue;
+      }
+
       // Check if package is private
       const pkgJsonPath = path.resolve(cwd, update.filePath);
       let pkgJson: any = {};
@@ -69,15 +80,8 @@ export async function runNpmPublishStage(ctx: PipelineContext): Promise<void> {
           continue;
         }
       } catch (error) {
+        // A genuinely unreadable/malformed package.json — log and continue with empty metadata.
         debug(`Failed to read package.json: ${error}`);
-        // If we can't read package.json, it might be a Cargo.toml package
-        if (update.filePath.endsWith('Cargo.toml')) {
-          result.skipped = true;
-          result.success = true;
-          result.reason = 'Not an npm package';
-          ctx.output.npm.push(result);
-          continue;
-        }
       }
 
       // Check if already published
