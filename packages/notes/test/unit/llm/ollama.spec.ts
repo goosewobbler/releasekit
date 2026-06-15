@@ -21,7 +21,6 @@ describe('OllamaProvider', () => {
   });
 
   it('should parse structured output wrapped in a markdown code fence', async () => {
-    // Regression for #289: cloud-hosted models often wrap schema output in ```json … ``` fences.
     mockFetch('```json\n{ "entries": [{ "category": "New" }] }\n```');
     const provider = new OllamaProvider({ model: 'test-model', apiKey: 'k' });
 

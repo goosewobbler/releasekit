@@ -15,7 +15,6 @@ describe('OpenAIProvider', () => {
   });
 
   it('should parse structured output wrapped in a markdown code fence', async () => {
-    // Regression for #289: some models / openai-compatible backends wrap JSON in ```json fences.
     createMock.mockResolvedValue({
       choices: [{ message: { content: '```json\n{ "entries": [{ "category": "Fixed" }] }\n```' } }],
     });
