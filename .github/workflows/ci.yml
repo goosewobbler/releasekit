@@ -80,6 +80,9 @@ jobs:
       - name: Run action test harness (release)
         run: pnpm test:action:release
 
+      - name: Run backfill test harness
+        run: pnpm test:harness:backfill
+
   lint:
     name: Lint
     needs: [detect-changes, build]
