@@ -355,6 +355,7 @@ describe('Pipeline: releaseNotes in output', () => {
     const result = await runPipeline(sampleInput, config, false);
 
     // File render (output: 'file') includes the frontmatter…
+    expect(result.files.length).toBeGreaterThan(0);
     const fileContent = fs.readFileSync(result.files[0] as string, 'utf-8');
     expect(fileContent).toContain('---');
     expect(fileContent).toContain('version: 2.0.0');

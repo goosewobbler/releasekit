@@ -80,7 +80,8 @@ A release-notes template that adds frontmatter for the in-repo file but not the 
 title: {{ versions[0].version }}
 date: {{ versions[0].date }}
 ---
-{% endif %}{% for v in versions %}{{ v.summary }}{% endfor %}
+{% endif %}{% for v in versions %}{% for entry in v.entries %}- {{ entry.description }}
+{% endfor %}{% endfor %}
 ```
 
 ### Version context
