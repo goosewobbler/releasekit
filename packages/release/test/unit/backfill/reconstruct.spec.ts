@@ -5,6 +5,7 @@ import { reconstructChangelogs, versionFromTag } from '../../../src/backfill/rec
 
 vi.mock('@releasekit/version', () => ({
   listPackageTags: vi.fn(),
+  listGlobalTags: vi.fn(),
   // Echo the revision range back as an entry so tests can assert the pairing.
   extractChangelogEntriesFromCommits: vi.fn((_pkgPath: string, range: string) => [
     { type: 'feat', description: range },
@@ -20,6 +21,7 @@ describe('reconstructChangelogs', () => {
     vi.mocked(version.extractChangelogEntriesFromCommits).mockImplementation((_pkgPath: string, range: string) => [
       { type: 'feat', description: range },
     ]);
+    vi.mocked(version.listGlobalTags).mockResolvedValue([]);
     vi.mocked(execFileSync).mockReturnValue('2024-01-15\n');
   });
 
@@ -27,7 +29,7 @@ describe('reconstructChangelogs', () => {
     vi.mocked(execFileSync).mockReturnValue('2023-09-30\n');
     vi.mocked(version.listPackageTags).mockResolvedValue(['pkg@v1.0.0']);
 
-    const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p' });
+    const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p', packageSpecificTags: true });
 
     expect(result[0]?.date).toBe('2023-09-30');
   });
@@ -38,7 +40,7 @@ describe('reconstructChangelogs', () => {
     });
     vi.mocked(version.listPackageTags).mockResolvedValue(['pkg@v1.0.0']);
 
-    const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p' });
+    const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p', packageSpecificTags: true });
 
     expect(result[0]?.date).toBeUndefined();
   });
@@ -62,7 +64,13 @@ describe('reconstructChangelogs', () => {
   it('should honor inclusive from/to version bounds while still pairing with the real predecessor', async () => {
     vi.mocked(version.listPackageTags).mockResolvedValue(['pkg@v1.0.0', 'pkg@v1.1.0', 'pkg@v2.0.0']);
 
-    const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p', from: '1.1.0', to: '1.1.0' });
+    const result = await reconstructChangelogs({
+      packageName: 'pkg',
+      pkgPath: '/p',
+      packageSpecificTags: true,
+      from: '1.1.0',
+      to: '1.1.0',
+    });
 
     expect(result.map((r) => r.changelog.version)).toEqual(['1.1.0']);
     expect(result[0]?.changelog.previousVersion).toBe('1.0.0');
@@ -72,13 +80,27 @@ describe('reconstructChangelogs', () => {
   it('should skip tags without a valid semver', async () => {
     vi.mocked(version.listPackageTags).mockResolvedValue(['pkg@v1.0.0', 'pkg@latest', 'nightly']);
 
-    const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p' });
+    const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p', packageSpecificTags: true });
 
     expect(result.map((r) => r.changelog.version)).toEqual(['1.0.0']);
   });
 
+  it('should use the global tag series when packageSpecificTags is off', async () => {
+    // No package name in the tags — sync/single repos share one `v*` series. listPackageTags is not
+    // consulted; pairing and per-package commit scoping happen exactly as in the package-specific path.
+    vi.mocked(version.listGlobalTags).mockResolvedValue(['v1.1.0', 'v1.0.0']);
+
+    const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p', versionPrefix: 'v' });
+
+    expect(version.listGlobalTags).toHaveBeenCalledWith('v');
+    expect(version.listPackageTags).not.toHaveBeenCalled();
+    expect(result.map((r) => r.tag)).toEqual(['v1.0.0', 'v1.1.0']);
+    expect(result.map((r) => r.changelog.version)).toEqual(['1.0.0', '1.1.0']);
+    expect(result[1]?.changelog.revisionRange).toBe('v1.0.0..v1.1.0');
+  });
+
   it('should return an empty list when there are no matching tags', async () => {
-    vi.mocked(version.listPackageTags).mockResolvedValue([]);
+    vi.mocked(version.listGlobalTags).mockResolvedValue([]);
 
     const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p' });
 

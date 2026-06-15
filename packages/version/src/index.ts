@@ -9,7 +9,7 @@ export { VersionEngine } from './core/versionEngine.js';
 export { createAsyncStrategy, createSingleStrategy, createSyncStrategy } from './core/versionStrategies.js';
 export { BaseVersionError } from './errors/baseError.js';
 export { createVersionError, VersionErrorCode } from './errors/versionError.js';
-export { listPackageTags } from './git/tagsAndBranches.js';
+export { listGlobalTags, listPackageTags } from './git/tagsAndBranches.js';
 export { PackageProcessor } from './package/packageProcessor.js';
 export type { Config, VersionConfigBase, VersionRunOptions } from './types.js';
 export type { JsonOutputData } from './utils/jsonOutput.js';

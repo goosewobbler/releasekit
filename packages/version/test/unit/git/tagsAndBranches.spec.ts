@@ -6,6 +6,7 @@ import {
   getLatestTag,
   getLatestTagForPackage,
   lastMergeBranchName,
+  listGlobalTags,
   listPackageTags,
 } from '../../../src/git/tagsAndBranches.js';
 import { log } from '../../../src/utils/logging.js';
@@ -759,6 +760,35 @@ describe('tagsAndBranches', () => {
       const result = await listPackageTags('pkg', 'v', { packageSpecificTags: false });
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('listGlobalTags', () => {
+    it('should return prefix-matching global tags newest-first, ignoring package and non-semver tags', async () => {
+      mockGitTags(['v1.2.0', 'v1.1.0', 'pkg@v1.0.0', 'release/v0.9.0', 'nightly']);
+
+      const result = await listGlobalTags('v');
+
+      expect(result).toEqual(['v1.2.0', 'v1.1.0']);
+    });
+
+    it('should match unprefixed semver tags when no prefix is given', async () => {
+      mockGitTags(['1.2.0', '1.0.0', 'v2.0.0']);
+
+      const result = await listGlobalTags();
+
+      expect(result).toEqual(['1.2.0', '1.0.0']);
+    });
+
+    it('should return an empty list when listing tags fails', async () => {
+      vi.mocked(execSync, { partial: true }).mockImplementation(() => {
+        throw new Error('boom');
+      });
+
+      const result = await listGlobalTags('v');
+
+      expect(result).toEqual([]);
+      expect(log).toHaveBeenCalledWith('Failed to list global tags: boom', 'error');
     });
   });
 

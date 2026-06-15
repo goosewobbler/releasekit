@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import type { VersionPackageChangelog } from '@releasekit/core';
-import { extractChangelogEntriesFromCommits, listPackageTags } from '@releasekit/version';
+import { extractChangelogEntriesFromCommits, listGlobalTags, listPackageTags } from '@releasekit/version';
 import semver from 'semver';
 
 const VERSION_RE = /\d{1,16}\.\d{1,16}\.\d{1,16}(?:-[0-9A-Za-z.-]{1,256})?/;
@@ -57,10 +57,15 @@ export interface ReconstructedVersion {
  * per-package changelog build, for the notes-backfill command (#293).
  */
 export async function reconstructChangelogs(opts: ReconstructOptions): Promise<ReconstructedVersion[]> {
-  const tags: string[] = await listPackageTags(opts.packageName, opts.versionPrefix, {
-    tagTemplate: opts.tagTemplate,
-    packageSpecificTags: opts.packageSpecificTags ?? false,
-  });
+  // Package-specific repos tag each package (`pkg@v1.2.0`); sync/single repos share one global tag
+  // series (`v1.2.0`). listPackageTags returns [] for the latter, so pick the matching source — then
+  // the (commit-scoped) changelog extraction still isolates this package's history either way.
+  const tags: string[] = opts.packageSpecificTags
+    ? await listPackageTags(opts.packageName, opts.versionPrefix, {
+        tagTemplate: opts.tagTemplate,
+        packageSpecificTags: true,
+      })
+    : await listGlobalTags(opts.versionPrefix);
 
   const versioned = tags
     .map((tag) => ({ tag, version: versionFromTag(tag) }))
