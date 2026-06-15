@@ -19,16 +19,24 @@ function stableStringify(value: unknown): string {
   );
 }
 
+/** Identity of the model endpoint — distinct values must never share cached responses. */
+export interface CacheIdentity {
+  model: string;
+  /** Custom endpoint (openai-compatible / ollama). Two servers with the same model name and prompt
+   *  would otherwise collide and serve each other's responses, so it's part of the key. */
+  baseURL?: string;
+}
+
 /**
  * Wrap a provider so identical completions are served from an on-disk cache. The key covers
- * everything that determines the output — provider, model, the full message array, temperature and
- * maxTokens, and any structured-output schema/tool — so a changed input misses cleanly. Lets a
- * dry-run → `--apply` backfill (or a retried run) reuse prior generations instead of paying the LLM
- * again. Best-effort: any read/parse/write failure falls back to a live call.
+ * everything that determines the output — provider, model, baseURL, the full message array,
+ * temperature and maxTokens, and any structured-output schema/tool — so a changed input misses
+ * cleanly. Lets a dry-run → `--apply` backfill (or a retried run) reuse prior generations instead of
+ * paying the LLM again. Best-effort: any read/parse/write failure falls back to a live call.
  */
 export function withContentHashCache(
   provider: LLMProvider,
-  model: string,
+  identity: CacheIdentity,
   dir: string = defaultCacheDir(),
 ): LLMProvider {
   return {
@@ -39,7 +47,8 @@ export function withContentHashCache(
         .update(
           stableStringify({
             provider: provider.name,
-            model,
+            model: identity.model,
+            baseURL: identity.baseURL,
             messages,
             temperature: options?.temperature,
             maxTokens: options?.maxTokens,

@@ -203,7 +203,9 @@ async function processWithLLM(
 
     const rawProvider = createProvider(llmConfig);
     // Opt-in on-disk cache (innermost, so a hit skips both the provider call and the retry wrapper).
-    const baseProvider = llmConfig.cache ? withContentHashCache(rawProvider, llmConfig.model) : rawProvider;
+    const baseProvider = llmConfig.cache
+      ? withContentHashCache(rawProvider, { model: llmConfig.model, baseURL: llmConfig.baseURL })
+      : rawProvider;
     const retryOpts = llmConfig.retry ?? LLM_DEFAULTS.retry;
     const configOptions = llmConfig.options;
     const provider: LLMProvider = {

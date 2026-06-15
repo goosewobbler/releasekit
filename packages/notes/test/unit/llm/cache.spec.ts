@@ -38,7 +38,7 @@ describe('withContentHashCache', () => {
   it('should call the provider once and serve identical requests from cache', async () => {
     const dir = freshDir();
     const provider = mockProvider(() => 'response-A');
-    const cached = withContentHashCache(provider, 'model-x', dir);
+    const cached = withContentHashCache(provider, { model: 'model-x' }, dir);
 
     const first = await cached.complete(msgs);
     const second = await cached.complete(msgs);
@@ -51,7 +51,7 @@ describe('withContentHashCache', () => {
   it('should miss when the messages change', async () => {
     const dir = freshDir();
     const provider = mockProvider((m) => `echo:${m[0]?.content}`);
-    const cached = withContentHashCache(provider, 'model-x', dir);
+    const cached = withContentHashCache(provider, { model: 'model-x' }, dir);
 
     await cached.complete([{ role: 'user', content: 'one' }]);
     await cached.complete([{ role: 'user', content: 'two' }]);
@@ -59,22 +59,25 @@ describe('withContentHashCache', () => {
     expect(provider.calls).toBe(2);
   });
 
-  it('should miss when the model, temperature, or schema changes', async () => {
+  it('should miss when the model, baseURL, temperature, or schema changes', async () => {
     const dir = freshDir();
     const provider = mockProvider(() => 'r');
 
-    await withContentHashCache(provider, 'model-x', dir).complete(msgs);
-    await withContentHashCache(provider, 'model-y', dir).complete(msgs); // different model
-    await withContentHashCache(provider, 'model-x', dir).complete(msgs, { temperature: 0.1 }); // different temp
-    await withContentHashCache(provider, 'model-x', dir).complete(msgs, { schema: { type: 'object' } }); // different schema
+    await withContentHashCache(provider, { model: 'model-x' }, dir).complete(msgs);
+    await withContentHashCache(provider, { model: 'model-y' }, dir).complete(msgs); // different model
+    // Same provider name + model + prompt but a different endpoint must not collide (e.g. Groq vs Together).
+    await withContentHashCache(provider, { model: 'model-x', baseURL: 'https://a.example' }, dir).complete(msgs);
+    await withContentHashCache(provider, { model: 'model-x', baseURL: 'https://b.example' }, dir).complete(msgs);
+    await withContentHashCache(provider, { model: 'model-x' }, dir).complete(msgs, { temperature: 0.1 }); // different temp
+    await withContentHashCache(provider, { model: 'model-x' }, dir).complete(msgs, { schema: { type: 'object' } }); // different schema
 
-    expect(provider.calls).toBe(4);
+    expect(provider.calls).toBe(6);
   });
 
   it('should hash message order, not just contents', async () => {
     const dir = freshDir();
     const provider = mockProvider(() => 'r');
-    const cached = withContentHashCache(provider, 'model-x', dir);
+    const cached = withContentHashCache(provider, { model: 'model-x' }, dir);
 
     await cached.complete([
       { role: 'system', content: 'a' },
@@ -95,7 +98,7 @@ describe('withContentHashCache', () => {
     fs.writeFileSync(asFile, 'x');
     const provider = mockProvider(() => 'r');
 
-    const result = await withContentHashCache(provider, 'model-x', asFile).complete(msgs);
+    const result = await withContentHashCache(provider, { model: 'model-x' }, asFile).complete(msgs);
 
     expect(result).toEqual({ content: 'r' });
     expect(provider.calls).toBe(1);
