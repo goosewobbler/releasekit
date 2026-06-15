@@ -252,7 +252,8 @@ export async function runAction(input, options = {}) {
     backfill: buildBackfillArgs,
     preview: buildPreviewArgs,
   };
-  const args = (argBuilders[mode] ?? buildPreviewArgs)(input);
+  // `mode` is validated against validModes above, and every entry has a key here.
+  const args = argBuilders[mode](input);
 
   const projectDir = input.projectDir || '.';
   const actionDir = fileURLToPath(import.meta.url).replace(/[/\\]scripts[/\\]run-action.mjs$/, '');
