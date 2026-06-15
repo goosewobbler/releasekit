@@ -4,6 +4,7 @@ import type { VersionOutput } from '@releasekit/core';
 import { EXIT_CODES, error, info, success, warn } from '@releasekit/core';
 import { Command } from 'commander';
 import semver from 'semver';
+import { decideReleaseUpdate, editReleaseBody, getReleaseBody, withMarker } from '../backfill/github-release.js';
 import { reconstructChangelogs } from '../backfill/reconstruct.js';
 
 function readPackageJson(pkgPath: string): { name?: string; repoUrl?: string } {
@@ -35,9 +36,10 @@ function readPackageJson(pkgPath: string): { name?: string; repoUrl?: string } {
 
 /**
  * Backfill release notes for already-released versions of a single package by reconstructing each
- * version's notes from git history and running them through the notes pipeline's per-version file
- * output. Dry-run by default. (#293 — tracer slice; gh-release-edit, --only-missing, LLM caching and
- * the Action surface are follow-ups.)
+ * version's notes from git history. Renders each version through the notes pipeline and writes the
+ * result to per-version files (`notes.releaseNotes.file.dir`), to the matching GitHub release bodies
+ * (`--update-releases`), or both. Dry-run by default. (#293 — LLM caching and the Action surface are
+ * follow-ups.)
  */
 export function createBackfillCommand(): Command {
   return new Command('backfill')
@@ -46,7 +48,9 @@ export function createBackfillCommand(): Command {
     .option('--path <dir>', 'Package directory', '.')
     .option('--from <version>', 'Earliest version to backfill (inclusive)')
     .option('--to <version>', 'Latest version to backfill (inclusive)')
-    .option('--apply', 'Write files (default: dry-run preview)', false)
+    .option('--update-releases', 'Update matching GitHub release bodies via `gh release edit`', false)
+    .option('--only-missing', 'With --update-releases, skip releases already carrying releasekit notes', false)
+    .option('--apply', 'Apply changes (default: dry-run preview)', false)
     .option('-c, --config <path>', 'Config file path')
     .action(async (options) => {
       // Validate the bounds up front: reconstructChangelogs feeds them straight to semver.lt/gt,
@@ -78,16 +82,25 @@ export function createBackfillCommand(): Command {
         process.exit(EXIT_CODES.GENERAL_ERROR);
       }
 
+      const updateReleases: boolean = options.updateReleases === true;
       const notesConfig = loadNotesConfig(cwd, options.config);
-      const dir = notesConfig.releaseNotes !== false ? notesConfig.releaseNotes?.file?.dir : undefined;
-      if (!dir) {
-        error('Backfill writes per-version files — set notes.releaseNotes.file.dir in your config first.');
+      const releaseNotesEnabled = notesConfig.releaseNotes !== false && notesConfig.releaseNotes !== undefined;
+      const dir = releaseNotesEnabled ? notesConfig.releaseNotes?.file?.dir : undefined;
+      if (!dir && !updateReleases) {
+        error(
+          'Backfill needs an output: pass --update-releases to update GitHub release bodies, or set ' +
+            'notes.releaseNotes.file.dir to write per-version files.',
+        );
+        process.exit(EXIT_CODES.GENERAL_ERROR);
+      }
+      if (updateReleases && !releaseNotesEnabled) {
+        error('--update-releases needs notes.releaseNotes enabled in your config to render the bodies.');
         process.exit(EXIT_CODES.GENERAL_ERROR);
       }
 
       const versionConfig = loadVersionConfig({ cwd, configPath: options.config });
 
-      const changelogs = await reconstructChangelogs({
+      const reconstructed = await reconstructChangelogs({
         packageName,
         pkgPath,
         repoUrl: pkgJson.repoUrl ?? null,
@@ -98,12 +111,13 @@ export function createBackfillCommand(): Command {
         to: options.to,
       });
 
-      if (changelogs.length === 0) {
+      if (reconstructed.length === 0) {
         info(`No matching tags found for ${packageName}.`);
         return;
       }
 
       const dryRun = !options.apply;
+      const changelogs = reconstructed.map((r) => r.changelog);
       const versionOutput: VersionOutput = { dryRun, updates: [], changelogs, tags: [] };
       const input = versionOutputToChangelogInput(versionOutput);
 
@@ -112,13 +126,17 @@ export function createBackfillCommand(): Command {
       // pipeline, which also renders one package per run. Passing all versions at once would make
       // `contexts.length > 1` force nesting, so a non-monorepo backfill of 2+ versions would write to
       // <dir>/<package>/<version>.md while live releases write to <dir>/<version>.md.
-      // Backfill is release-notes only — never touch the cumulative changelog.
+      // Backfill is release-notes only — never touch the cumulative changelog. `input.packages` aligns
+      // 1:1 (and in order) with `reconstructed`, so `reconstructed[i].tag` names the release to edit.
       const writtenFiles: string[] = [];
+      const renderedBodies: string[] = [];
       for (const pkg of input.packages) {
         const result = await runPipeline({ ...input, packages: [pkg] }, { ...notesConfig, changelog: false }, dryRun, {
           skipChangelogs: true,
         });
         writtenFiles.push(...result.files);
+        // The pipeline keys release notes by package name; every version here is the same package.
+        renderedBodies.push(result.releaseNotes?.[packageName] ?? '');
       }
 
       info(`${dryRun ? '[dry-run] Would backfill' : 'Backfilled'} ${changelogs.length} version(s) of ${packageName}:`);
@@ -126,10 +144,53 @@ export function createBackfillCommand(): Command {
         const n = c.entries.length;
         info(`  ${c.version}  (${c.revisionRange}, ${n} entr${n === 1 ? 'y' : 'ies'})`);
       }
-      if (dryRun) {
-        info(`Re-run with --apply to write per-version files under ${dir}/.`);
-      } else {
-        success(`Wrote ${writtenFiles.length} release-notes file(s) under ${dir}/.`);
+
+      if (dir) {
+        if (dryRun) {
+          info(`Re-run with --apply to write per-version files under ${dir}/.`);
+        } else {
+          success(`Wrote ${writtenFiles.length} release-notes file(s) under ${dir}/.`);
+        }
+      }
+
+      if (updateReleases) {
+        const onlyMissing: boolean = options.onlyMissing === true;
+        let updated = 0;
+        let skippedNoRelease = 0;
+        let skippedExisting = 0;
+        for (let i = 0; i < reconstructed.length; i++) {
+          const tag = reconstructed[i]?.tag;
+          const body = renderedBodies[i];
+          if (!tag || !body) continue;
+          const decision = decideReleaseUpdate(getReleaseBody(tag), onlyMissing);
+          if (decision.action === 'skip') {
+            if (decision.reason === 'no-release') {
+              warn(`  ${tag}: no GitHub release found, skipping`);
+              skippedNoRelease++;
+            } else {
+              info(`  ${tag}: already has releasekit notes, skipping`);
+              skippedExisting++;
+            }
+            continue;
+          }
+          if (dryRun) {
+            info(`  ${tag}: would update release body`);
+          } else {
+            editReleaseBody(tag, withMarker(body));
+            info(`  ${tag}: updated release body`);
+          }
+          updated++;
+        }
+        const skips = [
+          skippedNoRelease > 0 ? `${skippedNoRelease} without a release` : null,
+          skippedExisting > 0 ? `${skippedExisting} already done` : null,
+        ].filter(Boolean);
+        const suffix = skips.length > 0 ? ` (skipped ${skips.join(', ')})` : '';
+        if (dryRun) {
+          info(`[dry-run] Would update ${updated} GitHub release body(ies)${suffix}. Re-run with --apply.`);
+        } else {
+          success(`Updated ${updated} GitHub release body(ies)${suffix}.`);
+        }
       }
     });
 }

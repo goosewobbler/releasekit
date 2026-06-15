@@ -24,12 +24,14 @@ describe('reconstructChangelogs', () => {
 
     const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p', packageSpecificTags: true });
 
-    expect(result.map((c) => c.version)).toEqual(['1.0.0', '1.1.0', '1.2.0']);
-    expect(result[0]).toMatchObject({ previousVersion: null, revisionRange: 'pkg@v1.0.0' });
-    expect(result[1]).toMatchObject({ previousVersion: '1.0.0', revisionRange: 'pkg@v1.0.0..pkg@v1.1.0' });
-    expect(result[2]).toMatchObject({ previousVersion: '1.1.0', revisionRange: 'pkg@v1.1.0..pkg@v1.2.0' });
+    expect(result.map((r) => r.changelog.version)).toEqual(['1.0.0', '1.1.0', '1.2.0']);
+    // Each entry carries the source tag alongside its rebuilt changelog.
+    expect(result.map((r) => r.tag)).toEqual(['pkg@v1.0.0', 'pkg@v1.1.0', 'pkg@v1.2.0']);
+    expect(result[0]?.changelog).toMatchObject({ previousVersion: null, revisionRange: 'pkg@v1.0.0' });
+    expect(result[1]?.changelog).toMatchObject({ previousVersion: '1.0.0', revisionRange: 'pkg@v1.0.0..pkg@v1.1.0' });
+    expect(result[2]?.changelog).toMatchObject({ previousVersion: '1.1.0', revisionRange: 'pkg@v1.1.0..pkg@v1.2.0' });
     // Entries are extracted from each pair's range.
-    expect(result[2]?.entries[0]?.description).toBe('pkg@v1.1.0..pkg@v1.2.0');
+    expect(result[2]?.changelog.entries[0]?.description).toBe('pkg@v1.1.0..pkg@v1.2.0');
   });
 
   it('should honor inclusive from/to version bounds while still pairing with the real predecessor', async () => {
@@ -37,9 +39,9 @@ describe('reconstructChangelogs', () => {
 
     const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p', from: '1.1.0', to: '1.1.0' });
 
-    expect(result.map((c) => c.version)).toEqual(['1.1.0']);
-    expect(result[0]?.previousVersion).toBe('1.0.0');
-    expect(result[0]?.revisionRange).toBe('pkg@v1.0.0..pkg@v1.1.0');
+    expect(result.map((r) => r.changelog.version)).toEqual(['1.1.0']);
+    expect(result[0]?.changelog.previousVersion).toBe('1.0.0');
+    expect(result[0]?.changelog.revisionRange).toBe('pkg@v1.0.0..pkg@v1.1.0');
   });
 
   it('should skip tags without a valid semver', async () => {
@@ -47,7 +49,7 @@ describe('reconstructChangelogs', () => {
 
     const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p' });
 
-    expect(result.map((c) => c.version)).toEqual(['1.0.0']);
+    expect(result.map((r) => r.changelog.version)).toEqual(['1.0.0']);
   });
 
   it('should return an empty list when there are no matching tags', async () => {

@@ -294,7 +294,7 @@ releasekit-release gate --json
 
 ## `releasekit-release backfill`
 
-Regenerate release notes for **already-released** versions of a package by reconstructing each version's notes from git history and running them through the notes pipeline's per-version file output. Dry-run by default — pass `--apply` to write. Requires `notes.releaseNotes.file.dir` in your config (the output directory).
+Regenerate release notes for **already-released** versions of a package by reconstructing each version's notes from git history. Each version is rendered through the notes pipeline and written to per-version files (`notes.releaseNotes.file.dir`), to the matching GitHub release bodies (`--update-releases`), or both. Dry-run by default — pass `--apply` to write. Needs at least one output: `notes.releaseNotes.file.dir` set, `--update-releases`, or both.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
@@ -302,7 +302,9 @@ Regenerate release notes for **already-released** versions of a package by recon
 | `--path <dir>` | string | `.` | Package directory |
 | `--from <version>` | string | - | Earliest version to backfill (inclusive) |
 | `--to <version>` | string | - | Latest version to backfill (inclusive) |
-| `--apply` | boolean | `false` | Write files (default: dry-run preview) |
+| `--update-releases` | boolean | `false` | Update matching GitHub release bodies via `gh release edit` |
+| `--only-missing` | boolean | `false` | With `--update-releases`, skip releases already carrying releasekit notes |
+| `--apply` | boolean | `false` | Apply changes (default: dry-run preview) |
 | `-c, --config <path>` | string | auto-discovered | Path to config file |
 
 ```bash
@@ -311,6 +313,11 @@ releasekit-release backfill --package @scope/pkg --path packages/pkg
 
 # Write the per-version files
 releasekit-release backfill --package @scope/pkg --path packages/pkg --apply
+
+# Update GitHub release bodies, filling only the gaps
+releasekit-release backfill --package @scope/pkg --update-releases --only-missing --apply
 ```
 
-> **Experimental (tracer slice of #293).** Currently single-package and reconstructs from package-specific tags (`version.packageSpecificTags`); backfilled notes use the current date. Updating GitHub release bodies (`gh release edit`), `--only-missing`, accurate per-version dates, and global-tag support are planned follow-ups.
+`--update-releases` edits existing releases only (it never creates them) and skips any tag without a release. Backfilled bodies carry a `<!-- releasekit-notes -->` marker: `--only-missing` skips releases that already have it (so re-runs fill only new gaps), while the default run refreshes every targeted body, including auto-generated or previously backfilled ones.
+
+> **Experimental (tracer slice of #293).** Currently single-package and reconstructs from package-specific tags (`version.packageSpecificTags`); backfilled notes use the current date. Accurate per-version dates, global-tag support, and the Action surface are planned follow-ups.
