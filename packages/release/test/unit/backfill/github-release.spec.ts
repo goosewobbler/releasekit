@@ -15,10 +15,11 @@ describe('decideReleaseUpdate', () => {
     expect(decideReleaseUpdate(null, true)).toEqual({ action: 'skip', reason: 'no-release' });
   });
 
-  it('should update an unmarked body regardless of --only-missing', () => {
-    // Empty, GitHub auto-generated, and pre-releasekit hand-written bodies all count as gaps.
+  it('should update empty or already-marked bodies in default mode, and non-empty bodies under --only-missing', () => {
+    // Empty bodies are always treated as gaps.
     expect(decideReleaseUpdate('', false)).toEqual({ action: 'update' });
     expect(decideReleaseUpdate('', true)).toEqual({ action: 'update' });
+    // Under --only-missing, non-empty unmarked bodies are still updated (they haven't been backfilled yet).
     expect(decideReleaseUpdate('## What changed\n- auto stuff', true)).toEqual({ action: 'update' });
   });
 
@@ -27,6 +28,29 @@ describe('decideReleaseUpdate', () => {
     expect(decideReleaseUpdate(marked, true)).toEqual({ action: 'skip', reason: 'already-backfilled' });
     // Default (force-refresh) run rewrites even bodies we authored before.
     expect(decideReleaseUpdate(marked, false)).toEqual({ action: 'update' });
+  });
+
+  it('should skip hand-edited (non-empty, unmarked) bodies in default mode', () => {
+    const handEdited = 'My custom notes about this release';
+    expect(decideReleaseUpdate(handEdited, false, false)).toEqual({
+      action: 'skip',
+      reason: 'hand-edited',
+    });
+  });
+
+  it('should not skip hand-edited bodies when --force is passed', () => {
+    const handEdited = 'My custom notes about this release';
+    expect(decideReleaseUpdate(handEdited, false, true)).toEqual({ action: 'update' });
+  });
+
+  it('should not skip hand-edited bodies under --only-missing even without --force', () => {
+    const handEdited = 'My custom notes about this release';
+    expect(decideReleaseUpdate(handEdited, true, false)).toEqual({ action: 'update' });
+  });
+
+  it('should treat whitespace-only bodies as empty', () => {
+    expect(decideReleaseUpdate('   ', false, false)).toEqual({ action: 'update' });
+    expect(decideReleaseUpdate('\n\n', false, false)).toEqual({ action: 'update' });
   });
 });
 
