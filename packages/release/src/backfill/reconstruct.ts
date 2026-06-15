@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import type { VersionPackageChangelog } from '@releasekit/core';
 import { extractChangelogEntriesFromCommits, listPackageTags } from '@releasekit/version';
 import semver from 'semver';
@@ -8,6 +9,22 @@ const VERSION_RE = /\d{1,16}\.\d{1,16}\.\d{1,16}(?:-[0-9A-Za-z.-]{1,256})?/;
 export function versionFromTag(tag: string): string | null {
   const match = tag.match(VERSION_RE);
   return match && semver.valid(match[0]) ? match[0] : null;
+}
+
+/**
+ * The committer date (`YYYY-MM-DD`) of the commit a tag points to — the closest reconstruction of
+ * when the version was actually released. Returns undefined if git can't resolve it, so the caller
+ * falls back to the pipeline's default (today). Uses `--date=short` (universal) rather than `%cs`.
+ */
+function tagDate(tag: string, cwd: string): string | undefined {
+  try {
+    return (
+      execFileSync('git', ['log', '-1', '--date=short', '--format=%cd', tag], { cwd, encoding: 'utf8' }).trim() ||
+      undefined
+    );
+  } catch {
+    return undefined;
+  }
 }
 
 export interface ReconstructOptions {
@@ -27,6 +44,8 @@ export interface ReconstructOptions {
 export interface ReconstructedVersion {
   /** The git tag this version was reconstructed from (e.g. `pkg@v1.2.0`). */
   tag: string;
+  /** The tag's commit date (`YYYY-MM-DD`), or undefined if git couldn't resolve it. */
+  date?: string;
   changelog: VersionPackageChangelog;
 }
 
@@ -60,6 +79,7 @@ export async function reconstructChangelogs(opts: ReconstructOptions): Promise<R
     const revisionRange = prev ? `${prev.tag}..${tag}` : tag;
     reconstructed.push({
       tag,
+      date: tagDate(tag, opts.pkgPath),
       changelog: {
         packageName: opts.packageName,
         version,

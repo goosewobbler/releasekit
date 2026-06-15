@@ -124,6 +124,15 @@ export function createBackfillCommand(): Command {
       const versionOutput: VersionOutput = { dryRun, updates: [], changelogs, tags: [] };
       const input = versionOutputToChangelogInput(versionOutput);
 
+      // versionOutputToChangelogInput stamps every version with today's date (correct for a live
+      // release, wrong for a historical one). Replace it with each tag's real commit date where git
+      // could resolve it; `input.packages` aligns 1:1 and in order with `reconstructed`.
+      for (let i = 0; i < input.packages.length; i++) {
+        const date = reconstructed[i]?.date;
+        const pkg = input.packages[i];
+        if (date && pkg) pkg.date = date;
+      }
+
       // Render one version per pipeline call (single context each). The pipeline's nesting decision
       // (`detectMonorepo(cwd).isMonorepo || contexts.length > 1`) then matches the live release
       // pipeline, which also renders one package per run. Passing all versions at once would make

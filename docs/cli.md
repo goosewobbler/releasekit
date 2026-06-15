@@ -320,4 +320,4 @@ releasekit-release backfill --package @scope/pkg --update-releases --only-missin
 
 `--update-releases` edits existing releases only (it never creates them) and skips any tag without a release. Backfilled bodies carry a `<!-- releasekit-notes -->` marker: `--only-missing` skips releases that already have it (so re-runs fill only new gaps), while the default run refreshes every targeted body, including auto-generated or previously backfilled ones.
 
-> **Experimental (tracer slice of #293).** Currently single-package and reconstructs from package-specific tags (`version.packageSpecificTags`); backfilled notes use the current date. Accurate per-version dates, global-tag support, and the Action surface are planned follow-ups.
+> **Experimental (#293).** Currently single-package and reconstructs from package-specific tags (`version.packageSpecificTags`). Each version is dated from its tag's commit date. Global-tag support, multi-package backfill, and the Action surface are planned follow-ups.

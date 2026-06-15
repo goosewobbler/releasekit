@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import * as version from '@releasekit/version';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { reconstructChangelogs, versionFromTag } from '../../../src/backfill/reconstruct.js';
@@ -10,12 +11,36 @@ vi.mock('@releasekit/version', () => ({
   ]),
 }));
 
+// reconstruct shells out to `git log` for each tag's date; mock it so the tests don't touch git.
+vi.mock('node:child_process', () => ({ execFileSync: vi.fn(() => '2024-01-15\n') }));
+
 describe('reconstructChangelogs', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(version.extractChangelogEntriesFromCommits).mockImplementation((_pkgPath: string, range: string) => [
       { type: 'feat', description: range },
     ]);
+    vi.mocked(execFileSync).mockReturnValue('2024-01-15\n');
+  });
+
+  it("should stamp each version with the tag's commit date, trimmed", async () => {
+    vi.mocked(execFileSync).mockReturnValue('2023-09-30\n');
+    vi.mocked(version.listPackageTags).mockResolvedValue(['pkg@v1.0.0']);
+
+    const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p' });
+
+    expect(result[0]?.date).toBe('2023-09-30');
+  });
+
+  it('should leave the date undefined when git cannot resolve the tag', async () => {
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw new Error('fatal: ambiguous argument');
+    });
+    vi.mocked(version.listPackageTags).mockResolvedValue(['pkg@v1.0.0']);
+
+    const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p' });
+
+    expect(result[0]?.date).toBeUndefined();
   });
 
   it('should reconstruct one changelog per tag, paired with its predecessor and sorted by version', async () => {
