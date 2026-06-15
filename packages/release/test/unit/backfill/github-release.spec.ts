@@ -1,5 +1,13 @@
-import { describe, expect, it } from 'vitest';
-import { decideReleaseUpdate, NOTES_MARKER, withMarker } from '../../../src/backfill/github-release.js';
+import { execFileSync } from 'node:child_process';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { decideReleaseUpdate, getReleaseBody, NOTES_MARKER, withMarker } from '../../../src/backfill/github-release.js';
+
+vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
+
+/** Build an execFileSync-style failure (non-zero exit) carrying stderr. */
+function execError(stderr: string, code?: string): Error {
+  return Object.assign(new Error('Command failed'), { status: 1, stderr, code });
+}
 
 describe('decideReleaseUpdate', () => {
   it('should skip when no release exists for the tag', () => {
@@ -25,5 +33,37 @@ describe('decideReleaseUpdate', () => {
 describe('withMarker', () => {
   it('should prepend the marker and normalise surrounding whitespace', () => {
     expect(withMarker('  - a note  ')).toBe(`${NOTES_MARKER}\n\n- a note\n`);
+  });
+});
+
+describe('getReleaseBody', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should return the release body on success', () => {
+    vi.mocked(execFileSync).mockReturnValue('## Notes\n- a thing\n');
+    expect(getReleaseBody('v1.0.0')).toBe('## Notes\n- a thing\n');
+  });
+
+  it('should return null only for a genuinely missing release', () => {
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw execError('release not found\n');
+    });
+    expect(getReleaseBody('v9.9.9')).toBeNull();
+  });
+
+  it('should throw a clear error when gh is not installed', () => {
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw execError('', 'ENOENT');
+    });
+    expect(() => getReleaseBody('v1.0.0')).toThrow(/GitHub CLI .* not found/);
+  });
+
+  it('should surface auth/network failures instead of reporting "no release"', () => {
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw execError('gh: Bad credentials (HTTP 401)\n');
+    });
+    expect(() => getReleaseBody('v1.0.0')).toThrow(/Bad credentials/);
   });
 });

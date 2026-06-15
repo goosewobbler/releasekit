@@ -164,7 +164,11 @@ export function createBackfillCommand(): Command {
         for (let i = 0; i < reconstructed.length; i++) {
           const tag = reconstructed[i]?.tag;
           const body = renderedBodies[i];
-          if (!tag || !body) continue;
+          if (!tag) continue;
+          if (!body) {
+            warn(`  ${tag}: no notes rendered, skipping release update`);
+            continue;
+          }
           const decision = decideReleaseUpdate(getReleaseBody(tag), onlyMissing);
           if (decision.action === 'skip') {
             if (decision.reason === 'no-release') {

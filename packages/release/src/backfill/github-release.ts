@@ -30,17 +30,23 @@ export function withMarker(body: string): string {
 
 /**
  * Read a GitHub release body by tag via `gh`, or null when no release exists for the tag.
- * Throws a clear error if `gh` itself is missing (ENOENT) so a missing CLI isn't silently read
- * as "every release is absent".
+ *
+ * `gh release view` exits non-zero both for a genuinely missing release ("release not found") and
+ * for auth/network/rate-limit failures, so a blanket catch would report a broken `gh` session as
+ * "no release" for every tag. Only the not-found case maps to null; everything else (a missing CLI,
+ * or any other failure) throws so the caller surfaces it instead of silently skipping the work.
  */
 export function getReleaseBody(tag: string): string | null {
   try {
     return execFileSync('gh', ['release', 'view', tag, '--json', 'body', '--jq', '.body'], { encoding: 'utf8' });
   } catch (err) {
-    if ((err as { code?: string }).code === 'ENOENT') {
+    const e = err as { code?: string; stderr?: string | Buffer; message?: string };
+    if (e.code === 'ENOENT') {
       throw new Error('GitHub CLI (`gh`) not found — install it and run `gh auth login` to update release bodies.');
     }
-    return null;
+    const stderr = (typeof e.stderr === 'string' ? e.stderr : e.stderr?.toString()) || e.message || '';
+    if (/release not found/i.test(stderr)) return null;
+    throw new Error(`\`gh release view ${tag}\` failed: ${stderr.trim() || 'unknown error'}`);
   }
 }
 
