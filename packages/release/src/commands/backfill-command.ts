@@ -26,7 +26,10 @@ function readPackageJson(pkgPath: string): { name?: string; repoUrl?: string } {
     const repo = pkg.repository;
     if (typeof repo === 'string') repoUrl = repo;
     else if (repo?.url) repoUrl = repo.url;
-    if (repoUrl?.startsWith('git+') && repoUrl.endsWith('.git')) repoUrl = repoUrl.slice(4, -4);
+    // Strip the `git+` prefix and `.git` suffix independently — a url may carry either alone
+    // (e.g. `git+https://…/repo` with no suffix), and leaving the prefix breaks compare links.
+    if (repoUrl?.startsWith('git+')) repoUrl = repoUrl.slice(4);
+    if (repoUrl?.endsWith('.git')) repoUrl = repoUrl.slice(0, -4);
     return { name: pkg.name, repoUrl };
   } catch (err) {
     warn(`Could not parse ${file}: ${err instanceof Error ? err.message : String(err)}`);
