@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { VersionOutput } from '@releasekit/core';
 import { EXIT_CODES, error, info, success, warn } from '@releasekit/core';
+import type { Config as VersionConfig } from '@releasekit/version';
 import { Command } from 'commander';
 import semver from 'semver';
 import { decideReleaseUpdate, editReleaseBody, getReleaseBody, withMarker } from '../backfill/github-release.js';
@@ -106,7 +107,7 @@ export function createBackfillCommand(): Command {
       const versionConfig = loadVersionConfig({ cwd, configPath: options.config });
       const dryRun = !options.apply;
 
-      const targets = await resolveTargets(options, cwd);
+      const targets = await resolveTargets(options, cwd, versionConfig);
 
       for (const target of targets) {
         const reconstructed = await reconstructChangelogs({
@@ -227,31 +228,39 @@ export function createBackfillCommand(): Command {
  * Resolve the set of packages to backfill: every workspace package under `--all`, or a single package
  * from `--package`/`--path` (falling back to the package.json name at `--path`). Exits with a clean
  * error when discovery fails or a single package's name can't be determined.
+ *
+ * `--all` reuses the version stage's discovery (`VersionEngine.getWorkspacePackages`), so it finds the
+ * same packages a live release would — npm/JS plus pure-Cargo crates, scoped by `config.packages` —
+ * rather than just package.json workspaces. (pub-only packages aren't discovered there either; pass
+ * those via `--package`.)
  */
 async function resolveTargets(
   options: { all?: boolean; package?: string; path: string },
   cwd: string,
+  versionConfig: VersionConfig,
 ): Promise<BackfillTarget[]> {
   if (options.all) {
-    const { getPackagesSync } = await import('@manypkg/get-packages');
+    const { VersionEngine } = await import('@releasekit/version');
+    // Minimal shape we consume — the version package's built types resolve loosely through re-exports.
+    let packages: Array<{ dir: string; packageJson: { name: string; repository?: unknown } }>;
     try {
-      const { packages } = getPackagesSync(cwd);
-      const targets = packages
-        .filter((p): p is typeof p & { packageJson: { name: string } } => Boolean(p.packageJson.name))
-        .map((p) => ({
-          packageName: p.packageJson.name,
-          pkgPath: p.dir,
-          repoUrl: normalizeRepoUrl((p.packageJson as { repository?: unknown }).repository) ?? null,
-        }));
-      if (targets.length === 0) {
-        error('No workspace packages with a name were found to backfill.');
-        process.exit(EXIT_CODES.GENERAL_ERROR);
-      }
-      return targets;
+      ({ packages } = await new VersionEngine(versionConfig).getWorkspacePackages());
     } catch (err) {
       error(`Could not discover workspace packages: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(EXIT_CODES.GENERAL_ERROR);
     }
+    const targets = packages
+      .filter((p) => Boolean(p.packageJson.name))
+      .map((p) => ({
+        packageName: p.packageJson.name,
+        pkgPath: p.dir,
+        repoUrl: normalizeRepoUrl((p.packageJson as { repository?: unknown }).repository) ?? null,
+      }));
+    if (targets.length === 0) {
+      error('No workspace packages with a name were found to backfill.');
+      process.exit(EXIT_CODES.GENERAL_ERROR);
+    }
+    return targets;
   }
 
   const pkgPath = path.resolve(cwd, options.path);
