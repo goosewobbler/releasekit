@@ -15,10 +15,11 @@ describe('decideReleaseUpdate', () => {
     expect(decideReleaseUpdate(null, true)).toEqual({ action: 'skip', reason: 'no-release' });
   });
 
-  it('should update an unmarked body regardless of --only-missing', () => {
-    // Empty, GitHub auto-generated, and pre-releasekit hand-written bodies all count as gaps.
+  it('should update empty or already-marked bodies in default mode, and non-empty bodies under --only-missing', () => {
+    // Empty bodies are always treated as gaps.
     expect(decideReleaseUpdate('', false)).toEqual({ action: 'update' });
     expect(decideReleaseUpdate('', true)).toEqual({ action: 'update' });
+    // Under --only-missing, non-empty unmarked bodies are still updated (they haven't been backfilled yet).
     expect(decideReleaseUpdate('## What changed\n- auto stuff', true)).toEqual({ action: 'update' });
   });
 
