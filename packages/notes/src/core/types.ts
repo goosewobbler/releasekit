@@ -79,6 +79,10 @@ export interface DocumentContext {
    *  Templates can use this to suppress document-level headings that are redundant
    *  when the content is embedded in a release that already shows the package/version. */
   perPackage?: boolean;
+  /** Which release-notes destination this render targets: `'file'` (an in-repo per-version file)
+   *  or `'release'` (the GitHub release body). Templates can branch on it — e.g. emit docs-site
+   *  YAML frontmatter only for `'file'`, since it would render as literal text in a GitHub release. */
+  output?: 'file' | 'release';
 }
 
 export interface LLMOptions {

@@ -489,7 +489,7 @@ export async function runPipeline(
       const renderContent = (ctx: TemplateContext): string => {
         if (releaseNotesConfig.templates?.path) {
           const templatePath = path.resolve(releaseNotesConfig.templates.path);
-          const docCtx = { ...createDocumentContext([ctx], undefined), perPackage: true };
+          const docCtx = { ...createDocumentContext([ctx], undefined), perPackage: true, output: 'file' as const };
           return renderTemplate(templatePath, docCtx, releaseNotesConfig.templates.engine as TemplateEngine | undefined)
             .content;
         }
@@ -520,7 +520,7 @@ export async function runPipeline(
       if (releaseNotesConfig.templates?.path) {
         try {
           const templatePath = path.resolve(releaseNotesConfig.templates.path);
-          const docCtx = { ...createDocumentContext([ctx], undefined), perPackage: true };
+          const docCtx = { ...createDocumentContext([ctx], undefined), perPackage: true, output: 'release' as const };
           const rendered = renderTemplate(
             templatePath,
             docCtx,

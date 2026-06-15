@@ -334,6 +334,37 @@ describe('Pipeline: releaseNotes in output', () => {
     expect(fileContent).toContain('version: 2.0.0');
     expect(fileContent).toContain('perPackage=true');
   });
+
+  it('should keep frontmatter out of the GitHub release body via the output flag', async () => {
+    // A template that emits frontmatter only for file output. The same template also feeds the
+    // GitHub release body, where YAML frontmatter would otherwise render as literal text.
+    const templatePath = path.join(tmpDir, 'release.liquid');
+    fs.writeFileSync(
+      templatePath,
+      '{% if output == "file" %}---\nversion: {{ versions[0].version }}\n---\n{% endif %}Notes for {{ versions[0].version }}',
+    );
+
+    const config = {
+      changelog: false as const,
+      releaseNotes: {
+        file: { dir: path.join(tmpDir, 'notes') },
+        templates: { path: templatePath, engine: 'liquid' as const },
+      },
+    };
+
+    const result = await runPipeline(sampleInput, config, false);
+
+    // File render (output: 'file') includes the frontmatter…
+    expect(result.files.length).toBeGreaterThan(0);
+    const fileContent = fs.readFileSync(result.files[0] as string, 'utf-8');
+    expect(fileContent).toContain('---');
+    expect(fileContent).toContain('version: 2.0.0');
+    expect(fileContent).toContain('Notes for 2.0.0');
+
+    // …but the GitHub release body render (output: 'release') does not.
+    expect(result.releaseNotes?.['my-lib']).toContain('Notes for 2.0.0');
+    expect(result.releaseNotes?.['my-lib']).not.toContain('---');
+  });
 });
 
 // ---------------------------------------------------------------------------
