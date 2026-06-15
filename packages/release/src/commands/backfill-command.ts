@@ -5,13 +5,7 @@ import { EXIT_CODES, error, info, success, warn } from '@releasekit/core';
 import type { Config as VersionConfig } from '@releasekit/version';
 import { Command } from 'commander';
 import semver from 'semver';
-import {
-  decideReleaseUpdate,
-  editReleaseBody,
-  getReleaseBody,
-  isReleaseDraft,
-  withMarker,
-} from '../backfill/github-release.js';
+import { decideReleaseUpdate, editReleaseBody, getReleaseInfo, withMarker } from '../backfill/github-release.js';
 import { reconstructChangelogs } from '../backfill/reconstruct.js';
 import { normalizeRepoUrl } from '../backfill/repo-url.js';
 
@@ -62,7 +56,7 @@ export function createBackfillCommand(): Command {
     .option('--update-releases', 'Update matching GitHub release bodies via `gh release edit`', false)
     .option('--only-missing', 'With --update-releases, skip releases already carrying releasekit notes', false)
     .option('--force', 'Overwrite hand-edited release bodies (use with --update-releases)', false)
-    .option('--no-llm', 'Disable LLM (use deterministic, zero-cost backfill)', false)
+    .option('--no-llm', 'Disable LLM (use deterministic, zero-cost backfill)')
     .option('--apply', 'Apply changes (default: dry-run preview)', false)
     .option('-c, --config <path>', 'Config file path')
     .action(async (options) => {
@@ -121,7 +115,7 @@ export function createBackfillCommand(): Command {
       const versionConfig = loadVersionConfig({ cwd, configPath: options.config });
       const dryRun = !options.apply;
       const force = options.force === true;
-      const noLlm = options.noLlm === true;
+      const noLlm = options.llm === false;
 
       const targets = await resolveTargets(options, cwd, versionConfig);
 
@@ -239,48 +233,48 @@ export function createBackfillCommand(): Command {
           if (isSkipped) {
             warn(`  Skipping all releases for ${target.packageName} (in githubRelease.skipPackages)`);
             skippedInSkipPackages = reconstructed.length;
-            continue;
-          }
+          } else {
+            for (let i = 0; i < reconstructed.length; i++) {
+              const tag = reconstructed[i]?.tag;
+              const body = renderedBodies[i];
+              if (!tag) continue;
+              if (!body) {
+                warn(`  ${tag}: no notes rendered, skipping release update`);
+                continue;
+              }
 
-          for (let i = 0; i < reconstructed.length; i++) {
-            const tag = reconstructed[i]?.tag;
-            const body = renderedBodies[i];
-            if (!tag) continue;
-            if (!body) {
-              warn(`  ${tag}: no notes rendered, skipping release update`);
-              continue;
-            }
-
-            // Check if release is a draft
-            const isDraft = isReleaseDraft(tag);
-            if (isDraft) {
-              info(`  ${tag}: release is a draft, skipping`);
-              skippedDraft++;
-              continue;
-            }
-
-            const existingBody = getReleaseBody(tag);
-            const decision = decideReleaseUpdate(existingBody, onlyMissing, force);
-            if (decision.action === 'skip') {
-              if (decision.reason === 'no-release') {
+              const releaseInfo = getReleaseInfo(tag);
+              if (releaseInfo === null) {
                 warn(`  ${tag}: no GitHub release found, skipping`);
                 skippedNoRelease++;
-              } else if (decision.reason === 'already-backfilled') {
-                info(`  ${tag}: already has releasekit notes, skipping`);
-                skippedExisting++;
-              } else if (decision.reason === 'hand-edited') {
-                info(`  ${tag}: hand-edited release body (use --force to overwrite), skipping`);
-                skippedHandEdited++;
+                continue;
               }
-              continue;
+
+              if (releaseInfo.isDraft) {
+                info(`  ${tag}: release is a draft, skipping`);
+                skippedDraft++;
+                continue;
+              }
+
+              const decision = decideReleaseUpdate(releaseInfo.body, onlyMissing, force);
+              if (decision.action === 'skip') {
+                if (decision.reason === 'already-backfilled') {
+                  info(`  ${tag}: already has releasekit notes, skipping`);
+                  skippedExisting++;
+                } else if (decision.reason === 'hand-edited') {
+                  info(`  ${tag}: hand-edited release body (use --force to overwrite), skipping`);
+                  skippedHandEdited++;
+                }
+                continue;
+              }
+              if (dryRun) {
+                info(`  ${tag}: would update release body`);
+              } else {
+                editReleaseBody(tag, withMarker(body));
+                info(`  ${tag}: updated release body`);
+              }
+              updated++;
             }
-            if (dryRun) {
-              info(`  ${tag}: would update release body`);
-            } else {
-              editReleaseBody(tag, withMarker(body));
-              info(`  ${tag}: updated release body`);
-            }
-            updated++;
           }
 
           const skips = [
@@ -309,7 +303,8 @@ function countEnabledLlmTasks(tasks?: {
   releaseNotes?: boolean;
 }): number {
   if (!tasks) return 4; // All tasks enabled by default
-  return Object.values(tasks).filter(Boolean).length || 4;
+  const allTaskKeys = ['summarize', 'enhance', 'categorize', 'releaseNotes'] as const;
+  return allTaskKeys.filter((k) => tasks[k] !== false).length;
 }
 
 /**

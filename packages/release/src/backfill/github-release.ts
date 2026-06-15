@@ -64,6 +64,26 @@ export function editReleaseBody(tag: string, body: string): void {
   execFileSync('gh', ['release', 'edit', tag, '--notes', body], { encoding: 'utf8' });
 }
 
+/**
+ * Fetch release metadata (isDraft and body) in a single gh call. Returns null when no release exists.
+ * Throws on auth/CLI/network failures.
+ */
+export function getReleaseInfo(tag: string): { isDraft: boolean; body: string | null } | null {
+  try {
+    const json = execFileSync('gh', ['release', 'view', tag, '--json', 'isDraft,body'], { encoding: 'utf8' });
+    const parsed = JSON.parse(json) as { isDraft: boolean; body: string | null };
+    return parsed;
+  } catch (err) {
+    const e = err as { code?: string; stderr?: string | Buffer; message?: string };
+    if (e.code === 'ENOENT') {
+      throw new Error('GitHub CLI (`gh`) not found — install it and run `gh auth login` to update release bodies.');
+    }
+    const stderr = (typeof e.stderr === 'string' ? e.stderr : e.stderr?.toString()) || e.message || '';
+    if (/release not found/i.test(stderr)) return null;
+    throw new Error(`\`gh release view ${tag}\` failed: ${stderr.trim() || 'unknown error'}`);
+  }
+}
+
 /** Check if a GitHub release is a draft. Returns false if no release exists. */
 export function isReleaseDraft(tag: string): boolean {
   try {
@@ -73,6 +93,9 @@ export function isReleaseDraft(tag: string): boolean {
     return isDraft === 'true';
   } catch (err) {
     const e = err as { code?: string; stderr?: string | Buffer; message?: string };
+    if (e.code === 'ENOENT') {
+      throw new Error('GitHub CLI (`gh`) not found — install it and run `gh auth login` to update release bodies.');
+    }
     const stderr = (typeof e.stderr === 'string' ? e.stderr : e.stderr?.toString()) || '';
     if (/release not found/i.test(stderr)) return false;
     throw err;
