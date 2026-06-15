@@ -197,21 +197,18 @@ export class VersionEngine {
 
         // Require an explicit version, like the Cargo path. A versionless pubspec is a Dart workspace
         // root or app manifest, not a publishable package — discovering it would feed a bogus baseline
-        // into the version stage.
+        // into the version stage. (No target/node_modules path check: findPubspec already skips those
+        // directories during the walk, so a found pubspec is never inside one.)
         if (pubData.name && typeof pubData.version === 'string') {
-          const relativePath = path.relative(workspaceRoot, packageDir);
-          const pathParts = relativePath.split(path.sep);
-          if (!pathParts.includes('target') && !pathParts.includes('node_modules')) {
-            dartPackages.push({
-              packageJson: {
-                name: pubData.name,
-                version: pubData.version,
-              },
-              dir: packageDir,
-              relativeDir: relativePath,
-            });
-            log(`Discovered Dart package: ${pubData.name} at ${packageDir}`, 'debug');
-          }
+          dartPackages.push({
+            packageJson: {
+              name: pubData.name,
+              version: pubData.version,
+            },
+            dir: packageDir,
+            relativeDir: path.relative(workspaceRoot, packageDir),
+          });
+          log(`Discovered Dart package: ${pubData.name} at ${packageDir}`, 'debug');
         }
       } catch (error) {
         log(`Failed to parse pubspec.yaml at ${pubspecPath}: ${error}`, 'warning');
