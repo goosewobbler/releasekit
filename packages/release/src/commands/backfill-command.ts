@@ -56,7 +56,7 @@ export function createBackfillCommand(): Command {
     .option('--update-releases', 'Update matching GitHub release bodies via `gh release edit`', false)
     .option('--only-missing', 'With --update-releases, skip releases already carrying releasekit notes', false)
     .option('--force', 'Overwrite hand-edited release bodies (use with --update-releases)', false)
-    .option('--no-llm', 'Disable LLM (use deterministic, zero-cost backfill)', false)
+    .option('--no-llm', 'Disable LLM (use deterministic, zero-cost backfill)')
     .option('--apply', 'Apply changes (default: dry-run preview)', false)
     .option('-c, --config <path>', 'Config file path')
     .action(async (options) => {
@@ -113,7 +113,7 @@ export function createBackfillCommand(): Command {
       const versionConfig = loadVersionConfig({ cwd, configPath: options.config });
       const dryRun = !options.apply;
       const force = options.force === true;
-      const noLlm = options.noLlm === true;
+      const noLlm = options.llm === false;
 
       const targets = await resolveTargets(options, cwd, versionConfig);
 
@@ -277,7 +277,8 @@ function countEnabledLlmTasks(tasks?: {
   releaseNotes?: boolean;
 }): number {
   if (!tasks) return 4; // All tasks enabled by default
-  return Object.values(tasks).filter(Boolean).length || 4;
+  const allTaskKeys = ['summarize', 'enhance', 'categorize', 'releaseNotes'] as const;
+  return allTaskKeys.filter((k) => tasks[k] !== false).length;
 }
 
 /**
