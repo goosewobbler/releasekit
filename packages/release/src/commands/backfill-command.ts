@@ -6,6 +6,14 @@ import { Command } from 'commander';
 import semver from 'semver';
 import { decideReleaseUpdate, editReleaseBody, getReleaseBody, withMarker } from '../backfill/github-release.js';
 import { reconstructChangelogs } from '../backfill/reconstruct.js';
+import { normalizeRepoUrl } from '../backfill/repo-url.js';
+
+/** A single package to backfill: its name, the directory its commits are scoped to, and repo URL. */
+interface BackfillTarget {
+  packageName: string;
+  pkgPath: string;
+  repoUrl: string | null;
+}
 
 function readPackageJson(pkgPath: string): { name?: string; repoUrl?: string } {
   const file = path.join(pkgPath, 'package.json');
@@ -22,15 +30,7 @@ function readPackageJson(pkgPath: string): { name?: string; repoUrl?: string } {
   }
   try {
     const pkg = JSON.parse(raw);
-    let repoUrl: string | undefined;
-    const repo = pkg.repository;
-    if (typeof repo === 'string') repoUrl = repo;
-    else if (repo?.url) repoUrl = repo.url;
-    // Strip the `git+` prefix and `.git` suffix independently — a url may carry either alone
-    // (e.g. `git+https://…/repo` with no suffix), and leaving the prefix breaks compare links.
-    if (repoUrl?.startsWith('git+')) repoUrl = repoUrl.slice(4);
-    if (repoUrl?.endsWith('.git')) repoUrl = repoUrl.slice(0, -4);
-    return { name: pkg.name, repoUrl };
+    return { name: pkg.name, repoUrl: normalizeRepoUrl(pkg.repository) };
   } catch (err) {
     warn(`Could not parse ${file}: ${err instanceof Error ? err.message : String(err)}`);
     return {};
@@ -38,17 +38,18 @@ function readPackageJson(pkgPath: string): { name?: string; repoUrl?: string } {
 }
 
 /**
- * Backfill release notes for already-released versions of a single package by reconstructing each
+ * Backfill release notes for already-released versions of one or more packages by reconstructing each
  * version's notes from git history. Renders each version through the notes pipeline and writes the
  * result to per-version files (`notes.releaseNotes.file.dir`), to the matching GitHub release bodies
- * (`--update-releases`), or both. Dry-run by default. (#293 — LLM caching and the Action surface are
- * follow-ups.)
+ * (`--update-releases`), or both. Single package by default; `--all` discovers every workspace
+ * package. Dry-run by default. (#293 — LLM caching and the Action surface are follow-ups.)
  */
 export function createBackfillCommand(): Command {
   return new Command('backfill')
     .description('Regenerate release notes for already-released versions from git history')
     .option('-p, --package <name>', 'Package name (defaults to the package.json name at --path)')
     .option('--path <dir>', 'Package directory', '.')
+    .option('--all', 'Backfill every package in the workspace (monorepo discovery)', false)
     .option('--from <version>', 'Earliest version to backfill (inclusive)')
     .option('--to <version>', 'Latest version to backfill (inclusive)')
     .option('--update-releases', 'Update matching GitHub release bodies via `gh release edit`', false)
@@ -68,6 +69,10 @@ export function createBackfillCommand(): Command {
           process.exit(EXIT_CODES.GENERAL_ERROR);
         }
       }
+      if (options.all && options.package) {
+        error('Pass either --all or --package, not both.');
+        process.exit(EXIT_CODES.GENERAL_ERROR);
+      }
 
       const { loadConfig: loadVersionConfig } = await import('@releasekit/version');
       const {
@@ -77,15 +82,8 @@ export function createBackfillCommand(): Command {
       } = await import('@releasekit/notes');
 
       const cwd = process.cwd();
-      const pkgPath = path.resolve(cwd, options.path);
-      const pkgJson = readPackageJson(pkgPath);
-      const packageName: string | undefined = options.package ?? pkgJson.name;
-      if (!packageName) {
-        error('Could not determine the package name. Pass --package, or run in a directory with a package.json.');
-        process.exit(EXIT_CODES.GENERAL_ERROR);
-      }
-
       const updateReleases: boolean = options.updateReleases === true;
+      const onlyMissing: boolean = options.onlyMissing === true;
       const notesConfig = loadNotesConfig(cwd, options.config);
       const releaseNotesEnabled = notesConfig.releaseNotes !== false && notesConfig.releaseNotes !== undefined;
       const dir = releaseNotesEnabled ? notesConfig.releaseNotes?.file?.dir : undefined;
@@ -100,117 +98,168 @@ export function createBackfillCommand(): Command {
         error('--update-releases needs notes.releaseNotes enabled in your config to render the bodies.');
         process.exit(EXIT_CODES.GENERAL_ERROR);
       }
-      if (options.onlyMissing === true && !updateReleases) {
+      if (onlyMissing && !updateReleases) {
         error('--only-missing only applies with --update-releases.');
         process.exit(EXIT_CODES.GENERAL_ERROR);
       }
 
       const versionConfig = loadVersionConfig({ cwd, configPath: options.config });
-
-      const reconstructed = await reconstructChangelogs({
-        packageName,
-        pkgPath,
-        repoUrl: pkgJson.repoUrl ?? null,
-        versionPrefix: versionConfig?.versionPrefix,
-        tagTemplate: versionConfig?.tagTemplate,
-        packageSpecificTags: versionConfig?.packageSpecificTags,
-        from: options.from,
-        to: options.to,
-      });
-
-      if (reconstructed.length === 0) {
-        info(`No matching tags found for ${packageName}.`);
-        return;
-      }
-
       const dryRun = !options.apply;
-      const changelogs = reconstructed.map((r) => r.changelog);
-      const versionOutput: VersionOutput = { dryRun, updates: [], changelogs, tags: [] };
-      const input = versionOutputToChangelogInput(versionOutput);
 
-      // versionOutputToChangelogInput stamps every version with today's date (correct for a live
-      // release, wrong for a historical one). Replace it with each tag's real commit date where git
-      // could resolve it; `input.packages` aligns 1:1 and in order with `reconstructed`.
-      for (let i = 0; i < input.packages.length; i++) {
-        const date = reconstructed[i]?.date;
-        const pkg = input.packages[i];
-        if (date && pkg) pkg.date = date;
-      }
+      const targets = await resolveTargets(options, cwd);
 
-      // Render one version per pipeline call (single context each). The pipeline's nesting decision
-      // (`detectMonorepo(cwd).isMonorepo || contexts.length > 1`) then matches the live release
-      // pipeline, which also renders one package per run. Passing all versions at once would make
-      // `contexts.length > 1` force nesting, so a non-monorepo backfill of 2+ versions would write to
-      // <dir>/<package>/<version>.md while live releases write to <dir>/<version>.md.
-      // Backfill is release-notes only — never touch the cumulative changelog. `input.packages` aligns
-      // 1:1 (and in order) with `reconstructed`, so `reconstructed[i].tag` names the release to edit.
-      const writtenFiles: string[] = [];
-      const renderedBodies: string[] = [];
-      for (const pkg of input.packages) {
-        const result = await runPipeline({ ...input, packages: [pkg] }, { ...notesConfig, changelog: false }, dryRun, {
-          skipChangelogs: true,
+      for (const target of targets) {
+        const reconstructed = await reconstructChangelogs({
+          packageName: target.packageName,
+          pkgPath: target.pkgPath,
+          repoUrl: target.repoUrl,
+          versionPrefix: versionConfig?.versionPrefix,
+          tagTemplate: versionConfig?.tagTemplate,
+          packageSpecificTags: versionConfig?.packageSpecificTags,
+          from: options.from,
+          to: options.to,
         });
-        writtenFiles.push(...result.files);
-        // The pipeline keys release notes by package name; every version here is the same package.
-        renderedBodies.push(result.releaseNotes?.[packageName] ?? '');
-      }
 
-      info(`${dryRun ? '[dry-run] Would backfill' : 'Backfilled'} ${changelogs.length} version(s) of ${packageName}:`);
-      for (const c of changelogs) {
-        const n = c.entries.length;
-        info(`  ${c.version}  (${c.revisionRange}, ${n} entr${n === 1 ? 'y' : 'ies'})`);
-      }
-
-      if (dir) {
-        if (dryRun) {
-          info(`Re-run with --apply to write per-version files under ${dir}/.`);
-        } else {
-          success(`Wrote ${writtenFiles.length} release-notes file(s) under ${dir}/.`);
+        if (reconstructed.length === 0) {
+          info(`No matching tags found for ${target.packageName}.`);
+          continue;
         }
-      }
 
-      if (updateReleases) {
-        const onlyMissing: boolean = options.onlyMissing === true;
-        let updated = 0;
-        let skippedNoRelease = 0;
-        let skippedExisting = 0;
-        for (let i = 0; i < reconstructed.length; i++) {
-          const tag = reconstructed[i]?.tag;
-          const body = renderedBodies[i];
-          if (!tag) continue;
-          if (!body) {
-            warn(`  ${tag}: no notes rendered, skipping release update`);
-            continue;
-          }
-          const decision = decideReleaseUpdate(getReleaseBody(tag), onlyMissing);
-          if (decision.action === 'skip') {
-            if (decision.reason === 'no-release') {
-              warn(`  ${tag}: no GitHub release found, skipping`);
-              skippedNoRelease++;
-            } else {
-              info(`  ${tag}: already has releasekit notes, skipping`);
-              skippedExisting++;
-            }
-            continue;
-          }
+        const changelogs = reconstructed.map((r) => r.changelog);
+        const versionOutput: VersionOutput = { dryRun, updates: [], changelogs, tags: [] };
+        const input = versionOutputToChangelogInput(versionOutput);
+
+        // versionOutputToChangelogInput stamps every version with today's date (correct for a live
+        // release, wrong for a historical one). Replace it with each tag's real commit date where git
+        // could resolve it; `input.packages` aligns 1:1 and in order with `reconstructed`.
+        for (let i = 0; i < input.packages.length; i++) {
+          const date = reconstructed[i]?.date;
+          const pkg = input.packages[i];
+          if (date && pkg) pkg.date = date;
+        }
+
+        // Render one version per pipeline call (single context each). The pipeline's nesting decision
+        // (`detectMonorepo(cwd).isMonorepo || contexts.length > 1`) then matches the live release
+        // pipeline, which also renders one package per run. Passing all versions at once would make
+        // `contexts.length > 1` force nesting, so a non-monorepo backfill of 2+ versions would write to
+        // <dir>/<package>/<version>.md while live releases write to <dir>/<version>.md.
+        // Backfill is release-notes only — never touch the cumulative changelog. `input.packages` aligns
+        // 1:1 (and in order) with `reconstructed`, so `reconstructed[i].tag` names the release to edit.
+        const writtenFiles: string[] = [];
+        const renderedBodies: string[] = [];
+        for (const pkg of input.packages) {
+          const result = await runPipeline(
+            { ...input, packages: [pkg] },
+            { ...notesConfig, changelog: false },
+            dryRun,
+            {
+              skipChangelogs: true,
+            },
+          );
+          writtenFiles.push(...result.files);
+          // The pipeline keys release notes by package name; every version here is the same package.
+          renderedBodies.push(result.releaseNotes?.[target.packageName] ?? '');
+        }
+
+        info(
+          `${dryRun ? '[dry-run] Would backfill' : 'Backfilled'} ${changelogs.length} version(s) of ${target.packageName}:`,
+        );
+        for (const c of changelogs) {
+          const n = c.entries.length;
+          info(`  ${c.version}  (${c.revisionRange}, ${n} entr${n === 1 ? 'y' : 'ies'})`);
+        }
+
+        if (dir) {
           if (dryRun) {
-            info(`  ${tag}: would update release body`);
+            info(`Re-run with --apply to write per-version files under ${dir}/.`);
           } else {
-            editReleaseBody(tag, withMarker(body));
-            info(`  ${tag}: updated release body`);
+            success(`Wrote ${writtenFiles.length} release-notes file(s) under ${dir}/.`);
           }
-          updated++;
         }
-        const skips = [
-          skippedNoRelease > 0 ? `${skippedNoRelease} without a release` : null,
-          skippedExisting > 0 ? `${skippedExisting} already done` : null,
-        ].filter(Boolean);
-        const suffix = skips.length > 0 ? ` (skipped ${skips.join(', ')})` : '';
-        if (dryRun) {
-          info(`[dry-run] Would update ${updated} GitHub release body(ies)${suffix}. Re-run with --apply.`);
-        } else {
-          success(`Updated ${updated} GitHub release body(ies)${suffix}.`);
+
+        if (updateReleases) {
+          let updated = 0;
+          let skippedNoRelease = 0;
+          let skippedExisting = 0;
+          for (let i = 0; i < reconstructed.length; i++) {
+            const tag = reconstructed[i]?.tag;
+            const body = renderedBodies[i];
+            if (!tag) continue;
+            if (!body) {
+              warn(`  ${tag}: no notes rendered, skipping release update`);
+              continue;
+            }
+            const decision = decideReleaseUpdate(getReleaseBody(tag), onlyMissing);
+            if (decision.action === 'skip') {
+              if (decision.reason === 'no-release') {
+                warn(`  ${tag}: no GitHub release found, skipping`);
+                skippedNoRelease++;
+              } else {
+                info(`  ${tag}: already has releasekit notes, skipping`);
+                skippedExisting++;
+              }
+              continue;
+            }
+            if (dryRun) {
+              info(`  ${tag}: would update release body`);
+            } else {
+              editReleaseBody(tag, withMarker(body));
+              info(`  ${tag}: updated release body`);
+            }
+            updated++;
+          }
+          const skips = [
+            skippedNoRelease > 0 ? `${skippedNoRelease} without a release` : null,
+            skippedExisting > 0 ? `${skippedExisting} already done` : null,
+          ].filter(Boolean);
+          const suffix = skips.length > 0 ? ` (skipped ${skips.join(', ')})` : '';
+          if (dryRun) {
+            info(`[dry-run] Would update ${updated} GitHub release body(ies)${suffix}. Re-run with --apply.`);
+          } else {
+            success(`Updated ${updated} GitHub release body(ies)${suffix}.`);
+          }
         }
       }
     });
+}
+
+/**
+ * Resolve the set of packages to backfill: every workspace package under `--all`, or a single package
+ * from `--package`/`--path` (falling back to the package.json name at `--path`). Exits with a clean
+ * error when discovery fails or a single package's name can't be determined.
+ */
+async function resolveTargets(
+  options: { all?: boolean; package?: string; path: string },
+  cwd: string,
+): Promise<BackfillTarget[]> {
+  if (options.all) {
+    const { getPackagesSync } = await import('@manypkg/get-packages');
+    try {
+      const { packages } = getPackagesSync(cwd);
+      const targets = packages
+        .filter((p): p is typeof p & { packageJson: { name: string } } => Boolean(p.packageJson.name))
+        .map((p) => ({
+          packageName: p.packageJson.name,
+          pkgPath: p.dir,
+          repoUrl: normalizeRepoUrl((p.packageJson as { repository?: unknown }).repository) ?? null,
+        }));
+      if (targets.length === 0) {
+        error('No workspace packages with a name were found to backfill.');
+        process.exit(EXIT_CODES.GENERAL_ERROR);
+      }
+      return targets;
+    } catch (err) {
+      error(`Could not discover workspace packages: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(EXIT_CODES.GENERAL_ERROR);
+    }
+  }
+
+  const pkgPath = path.resolve(cwd, options.path);
+  const pkgJson = readPackageJson(pkgPath);
+  const packageName = options.package ?? pkgJson.name;
+  if (!packageName) {
+    error('Could not determine the package name. Pass --package, or run in a directory with a package.json.');
+    process.exit(EXIT_CODES.GENERAL_ERROR);
+  }
+  return [{ packageName, pkgPath, repoUrl: pkgJson.repoUrl ?? null }];
 }
