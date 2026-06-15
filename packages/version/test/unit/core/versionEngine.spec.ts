@@ -1,3 +1,6 @@
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { cwd as mockCwd } from 'node:process';
 import { getPackagesSync } from '@manypkg/get-packages';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -283,7 +286,7 @@ describe('Version Engine', () => {
 
       expect(result.root).toBe('/test/workspace');
       // The new implementation logs discovery info, not the missing root warning
-      expect(log).toHaveBeenCalledWith('Discovered 1 NPM packages and 0 Rust packages (1 total)', 'info');
+      expect(log).toHaveBeenCalledWith('Discovered 1 NPM, 0 Rust, and 0 Dart packages (1 total)', 'info');
     });
 
     it('should throw error when getPackagesSync fails', async () => {
@@ -575,6 +578,53 @@ describe('Version Engine', () => {
 
       // Restore mocks
       discoverSpy.mockRestore();
+    });
+
+    it('should merge pure Dart/Flutter packages alongside npm and Rust', async () => {
+      const cargoSpy = vi.spyOn(VersionEngine.prototype as any, 'discoverCargoTomlPackages');
+      cargoSpy.mockReturnValue({
+        root: '/test/workspace',
+        packages: [{ dir: '/test/workspace/crates/rusty', packageJson: { name: 'rusty', version: '0.1.0' } }],
+      });
+      const pubSpy = vi.spyOn(VersionEngine.prototype as any, 'discoverPubspecPackages');
+      pubSpy.mockReturnValue({
+        root: '/test/workspace',
+        packages: [{ dir: '/test/workspace/packages/darty', packageJson: { name: 'darty', version: '1.2.3' } }],
+      });
+      vi.mocked(getPackagesSync).mockReturnValue({
+        root: '/test/workspace',
+        packages: [{ dir: '/test/workspace/packages/npmy', packageJson: { name: 'npmy', version: '1.0.0' } }],
+      });
+
+      const engine = new VersionEngine({ ...defaultConfig, sync: false } as Config);
+      const result = await engine.getWorkspacePackages();
+
+      expect(result.packages.map((p) => p.packageJson.name).sort()).toEqual(['darty', 'npmy', 'rusty']);
+
+      cargoSpy.mockRestore();
+      pubSpy.mockRestore();
+    });
+
+    it('should discover a pubspec-only package from the filesystem (no package.json)', async () => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-pub-discovery-'));
+      try {
+        const pkgDir = path.join(tmp, 'packages', 'flutter_pkg');
+        fs.mkdirSync(pkgDir, { recursive: true });
+        fs.writeFileSync(path.join(pkgDir, 'pubspec.yaml'), 'name: flutter_pkg\nversion: 2.5.0\n');
+        vi.mocked(mockCwd, { partial: true }).mockReturnValue(tmp);
+        // No npm packages — only the pubspec-only package should be discovered.
+        vi.mocked(getPackagesSync).mockReturnValue({ root: tmp, packages: [] });
+
+        const engine = new VersionEngine({ ...defaultConfig, sync: false } as Config);
+        const result = await engine.getWorkspacePackages();
+
+        const dart = result.packages.find((p) => p.packageJson.name === 'flutter_pkg');
+        expect(dart).toBeDefined();
+        expect(dart?.packageJson.version).toBe('2.5.0');
+        expect(dart?.dir).toBe(pkgDir);
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
     });
 
     it('should include a pure Rust package when explicitly named in config.packages', async () => {
