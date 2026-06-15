@@ -61,37 +61,37 @@ jobs:
             git -C "$out" bundle create "$GITHUB_WORKSPACE/.smoke-bundles/$s.bundle" --all
           done
       - name: Upload fixture bundle (minimal)
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: smoke-fixture-minimal
           path: .smoke-bundles/minimal.bundle
           if-no-files-found: error
       - name: Upload fixture bundle (label-driven)
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: smoke-fixture-label-driven
           path: .smoke-bundles/label-driven.bundle
           if-no-files-found: error
       - name: Upload fixture bundle (oidc)
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: smoke-fixture-oidc
           path: .smoke-bundles/oidc.bundle
           if-no-files-found: error
       - name: Upload fixture bundle (monorepo-rust)
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: smoke-fixture-monorepo-rust
           path: .smoke-bundles/monorepo-rust.bundle
           if-no-files-found: error
       - name: Upload fixture bundle (prerelease)
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: smoke-fixture-prerelease
           path: .smoke-bundles/prerelease.bundle
           if-no-files-found: error
       - name: Upload fixture bundle (standing-pr)
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: smoke-fixture-standing-pr
           path: .smoke-bundles/standing-pr.bundle
