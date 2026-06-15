@@ -291,3 +291,26 @@ releasekit-release gate --json
 ```
 
 > Most users run `gate` through the [GitHub Action](./action.md) (`mode: gate`) rather than the CLI directly.
+
+## `releasekit-release backfill`
+
+Regenerate release notes for **already-released** versions of a package by reconstructing each version's notes from git history and running them through the notes pipeline's per-version file output. Dry-run by default — pass `--apply` to write. Requires `notes.releaseNotes.file.dir` in your config (the output directory).
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-p, --package <name>` | string | package.json name at `--path` | Package to backfill |
+| `--path <dir>` | string | `.` | Package directory |
+| `--from <version>` | string | - | Earliest version to backfill (inclusive) |
+| `--to <version>` | string | - | Latest version to backfill (inclusive) |
+| `--apply` | boolean | `false` | Write files (default: dry-run preview) |
+| `-c, --config <path>` | string | auto-discovered | Path to config file |
+
+```bash
+# Preview what would be regenerated
+releasekit-release backfill --package @scope/pkg --path packages/pkg
+
+# Write the per-version files
+releasekit-release backfill --package @scope/pkg --path packages/pkg --apply
+```
+
+> **Experimental (tracer slice of #293).** Currently single-package and reconstructs from package-specific tags (`version.packageSpecificTags`); backfilled notes use the current date. Updating GitHub release bodies (`gh release edit`), `--only-missing`, accurate per-version dates, and global-tag support are planned follow-ups.
