@@ -7,19 +7,28 @@ import { execFileSync } from 'node:child_process';
  */
 export const NOTES_MARKER = '<!-- releasekit-notes -->';
 
-export type UpdateDecision = { action: 'update' } | { action: 'skip'; reason: 'no-release' | 'already-backfilled' };
+export type UpdateDecision =
+  | { action: 'update' }
+  | { action: 'skip'; reason: 'no-release' | 'already-backfilled' | 'hand-edited' };
 
 /**
  * Decide whether to (re)write a release body during backfill.
  *
  * - No release exists for the tag (`existingBody === null`) → skip; backfill edits, it doesn't create.
  * - `--only-missing` and the body already carries our marker → skip; we've backfilled it before.
- * - Otherwise update. An unmarked body (empty, GitHub auto-generated, or pre-releasekit hand-written)
- *   is treated as a gap to fill; the default (non-`--only-missing`) run also refreshes marked bodies.
+ * - Default mode + non-empty body without marker + not `--force` → skip; suspected hand-edit.
+ * - Otherwise update. An empty body or one carrying our marker is safe to overwrite.
  */
-export function decideReleaseUpdate(existingBody: string | null, onlyMissing: boolean): UpdateDecision {
+export function decideReleaseUpdate(
+  existingBody: string | null,
+  onlyMissing: boolean,
+  force: boolean = false,
+): UpdateDecision {
   if (existingBody === null) return { action: 'skip', reason: 'no-release' };
   if (onlyMissing && existingBody.includes(NOTES_MARKER)) return { action: 'skip', reason: 'already-backfilled' };
+  if (!force && !onlyMissing && existingBody.trim() && !existingBody.includes(NOTES_MARKER)) {
+    return { action: 'skip', reason: 'hand-edited' };
+  }
   return { action: 'update' };
 }
 

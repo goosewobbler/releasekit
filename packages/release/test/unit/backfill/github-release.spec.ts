@@ -28,6 +28,29 @@ describe('decideReleaseUpdate', () => {
     // Default (force-refresh) run rewrites even bodies we authored before.
     expect(decideReleaseUpdate(marked, false)).toEqual({ action: 'update' });
   });
+
+  it('should skip hand-edited (non-empty, unmarked) bodies in default mode', () => {
+    const handEdited = 'My custom notes about this release';
+    expect(decideReleaseUpdate(handEdited, false, false)).toEqual({
+      action: 'skip',
+      reason: 'hand-edited',
+    });
+  });
+
+  it('should not skip hand-edited bodies when --force is passed', () => {
+    const handEdited = 'My custom notes about this release';
+    expect(decideReleaseUpdate(handEdited, false, true)).toEqual({ action: 'update' });
+  });
+
+  it('should not skip hand-edited bodies under --only-missing even without --force', () => {
+    const handEdited = 'My custom notes about this release';
+    expect(decideReleaseUpdate(handEdited, true, false)).toEqual({ action: 'update' });
+  });
+
+  it('should treat whitespace-only bodies as empty', () => {
+    expect(decideReleaseUpdate('   ', false, false)).toEqual({ action: 'update' });
+    expect(decideReleaseUpdate('\n\n', false, false)).toEqual({ action: 'update' });
+  });
 });
 
 describe('withMarker', () => {

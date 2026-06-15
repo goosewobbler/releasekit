@@ -55,6 +55,7 @@ export function createBackfillCommand(): Command {
     .option('--to <version>', 'Latest version to backfill (inclusive)')
     .option('--update-releases', 'Update matching GitHub release bodies via `gh release edit`', false)
     .option('--only-missing', 'With --update-releases, skip releases already carrying releasekit notes', false)
+    .option('--force', 'Overwrite hand-edited release bodies (use with --update-releases)', false)
     .option('--apply', 'Apply changes (default: dry-run preview)', false)
     .option('-c, --config <path>', 'Config file path')
     .action(async (options) => {
@@ -103,9 +104,14 @@ export function createBackfillCommand(): Command {
         error('--only-missing only applies with --update-releases.');
         process.exit(EXIT_CODES.GENERAL_ERROR);
       }
+      if (options.force && !updateReleases) {
+        error('--force only applies with --update-releases.');
+        process.exit(EXIT_CODES.GENERAL_ERROR);
+      }
 
       const versionConfig = loadVersionConfig({ cwd, configPath: options.config });
       const dryRun = !options.apply;
+      const force = options.force === true;
 
       const targets = await resolveTargets(options, cwd, versionConfig);
 
@@ -182,6 +188,7 @@ export function createBackfillCommand(): Command {
           let updated = 0;
           let skippedNoRelease = 0;
           let skippedExisting = 0;
+          let skippedHandEdited = 0;
           for (let i = 0; i < reconstructed.length; i++) {
             const tag = reconstructed[i]?.tag;
             const body = renderedBodies[i];
@@ -190,14 +197,18 @@ export function createBackfillCommand(): Command {
               warn(`  ${tag}: no notes rendered, skipping release update`);
               continue;
             }
-            const decision = decideReleaseUpdate(getReleaseBody(tag), onlyMissing);
+            const existingBody = getReleaseBody(tag);
+            const decision = decideReleaseUpdate(existingBody, onlyMissing, force);
             if (decision.action === 'skip') {
               if (decision.reason === 'no-release') {
                 warn(`  ${tag}: no GitHub release found, skipping`);
                 skippedNoRelease++;
-              } else {
+              } else if (decision.reason === 'already-backfilled') {
                 info(`  ${tag}: already has releasekit notes, skipping`);
                 skippedExisting++;
+              } else if (decision.reason === 'hand-edited') {
+                info(`  ${tag}: hand-edited release body (use --force to overwrite), skipping`);
+                skippedHandEdited++;
               }
               continue;
             }
@@ -211,7 +222,8 @@ export function createBackfillCommand(): Command {
           }
           const skips = [
             skippedNoRelease > 0 ? `${skippedNoRelease} without a release` : null,
-            skippedExisting > 0 ? `${skippedExisting} already done` : null,
+            skippedExisting > 0 ? `${skippedExisting} already backfilled` : null,
+            skippedHandEdited > 0 ? `${skippedHandEdited} hand-edited` : null,
           ].filter(Boolean);
           const suffix = skips.length > 0 ? ` (skipped ${skips.join(', ')})` : '';
           if (dryRun) {
