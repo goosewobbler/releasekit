@@ -5,7 +5,13 @@ import { EXIT_CODES, error, info, success, warn } from '@releasekit/core';
 import type { Config as VersionConfig } from '@releasekit/version';
 import { Command } from 'commander';
 import semver from 'semver';
-import { decideReleaseUpdate, editReleaseBody, getReleaseBody, withMarker } from '../backfill/github-release.js';
+import {
+  decideReleaseUpdate,
+  editReleaseBody,
+  getReleaseBody,
+  isReleaseDraft,
+  withMarker,
+} from '../backfill/github-release.js';
 import { reconstructChangelogs } from '../backfill/reconstruct.js';
 import { normalizeRepoUrl } from '../backfill/repo-url.js';
 
@@ -83,11 +89,13 @@ export function createBackfillCommand(): Command {
         runPipeline,
         loadConfig: loadNotesConfig,
       } = await import('@releasekit/notes');
+      const { loadConfig: loadPublishConfig } = await import('@releasekit/publish');
 
       const cwd = process.cwd();
       const updateReleases: boolean = options.updateReleases === true;
       const onlyMissing: boolean = options.onlyMissing === true;
       const notesConfig = loadNotesConfig(cwd, options.config);
+      const publishConfig = loadPublishConfig(cwd, options.config);
       const releaseNotesEnabled = notesConfig.releaseNotes !== false && notesConfig.releaseNotes !== undefined;
       const dir = releaseNotesEnabled ? notesConfig.releaseNotes?.file?.dir : undefined;
       if (!dir && !updateReleases) {
@@ -222,6 +230,18 @@ export function createBackfillCommand(): Command {
           let skippedNoRelease = 0;
           let skippedExisting = 0;
           let skippedHandEdited = 0;
+          let skippedDraft = 0;
+          let skippedInSkipPackages = 0;
+
+          const skipPackages = publishConfig.githubRelease?.skipPackages ?? [];
+          const isSkipped = skipPackages.includes(target.packageName);
+
+          if (isSkipped) {
+            warn(`  Skipping all releases for ${target.packageName} (in githubRelease.skipPackages)`);
+            skippedInSkipPackages = reconstructed.length;
+            continue;
+          }
+
           for (let i = 0; i < reconstructed.length; i++) {
             const tag = reconstructed[i]?.tag;
             const body = renderedBodies[i];
@@ -230,6 +250,15 @@ export function createBackfillCommand(): Command {
               warn(`  ${tag}: no notes rendered, skipping release update`);
               continue;
             }
+
+            // Check if release is a draft
+            const isDraft = isReleaseDraft(tag);
+            if (isDraft) {
+              info(`  ${tag}: release is a draft, skipping`);
+              skippedDraft++;
+              continue;
+            }
+
             const existingBody = getReleaseBody(tag);
             const decision = decideReleaseUpdate(existingBody, onlyMissing, force);
             if (decision.action === 'skip') {
@@ -253,10 +282,13 @@ export function createBackfillCommand(): Command {
             }
             updated++;
           }
+
           const skips = [
             skippedNoRelease > 0 ? `${skippedNoRelease} without a release` : null,
             skippedExisting > 0 ? `${skippedExisting} already backfilled` : null,
             skippedHandEdited > 0 ? `${skippedHandEdited} hand-edited` : null,
+            skippedDraft > 0 ? `${skippedDraft} draft` : null,
+            skippedInSkipPackages > 0 ? `${skippedInSkipPackages} in skipPackages` : null,
           ].filter(Boolean);
           const suffix = skips.length > 0 ? ` (skipped ${skips.join(', ')})` : '';
           if (dryRun) {

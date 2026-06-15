@@ -63,3 +63,18 @@ export function getReleaseBody(tag: string): string | null {
 export function editReleaseBody(tag: string, body: string): void {
   execFileSync('gh', ['release', 'edit', tag, '--notes', body], { encoding: 'utf8' });
 }
+
+/** Check if a GitHub release is a draft. Returns false if no release exists. */
+export function isReleaseDraft(tag: string): boolean {
+  try {
+    const isDraft = execFileSync('gh', ['release', 'view', tag, '--json', 'isDraft', '--jq', '.isDraft'], {
+      encoding: 'utf8',
+    }).trim();
+    return isDraft === 'true';
+  } catch (err) {
+    const e = err as { code?: string; stderr?: string | Buffer; message?: string };
+    const stderr = (typeof e.stderr === 'string' ? e.stderr : e.stderr?.toString()) || '';
+    if (/release not found/i.test(stderr)) return false;
+    throw err;
+  }
+}
