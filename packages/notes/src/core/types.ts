@@ -170,6 +170,7 @@ export interface LLMConfig {
   };
   examples?: number;
   categoryOrder?: string[];
+  cache?: boolean;
   categories?: Array<{ name: string; description: string; scopes?: string[] }>;
   style?: string;
   scopes?: ScopeConfig;

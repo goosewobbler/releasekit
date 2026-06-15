@@ -298,6 +298,7 @@ LLM configuration for release notes.
 | `examples` | integer | `3` | Number of few-shot examples to include in LLM prompts (0–5). |
 | `context` | object | — | Additional context sources for the LLM. |
 | `categoryOrder` | `string[]` | — | Explicit ordering of categories in the output. Categories not listed retain their configured order after the listed ones. |
+| `cache` | boolean | `false` | Cache LLM responses on disk (under the OS temp dir), keyed by a hash of the provider, model, prompt, and request options. A re-run or backfill with the same inputs reuses the cached generation instead of re-calling the provider. Off by default. |
 
 #### `notes.releaseNotes.llm.options`
 

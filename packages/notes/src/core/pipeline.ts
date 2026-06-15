@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { debug, info, success, warn } from '@releasekit/core';
 import { parseVersionOutput } from '../input/version-output.js';
+import { withContentHashCache } from '../llm/cache.js';
 import { fetchPullRequestContext, parseIssueNumbers, resolveGitHubToken } from '../llm/context/prFetcher.js';
 import { LLM_DEFAULTS } from '../llm/defaults.js';
 import { fetchExamples } from '../llm/examples/fetcher.js';
@@ -201,13 +202,15 @@ async function processWithLLM(
     }
 
     const rawProvider = createProvider(llmConfig);
+    // Opt-in on-disk cache (innermost, so a hit skips both the provider call and the retry wrapper).
+    const baseProvider = llmConfig.cache ? withContentHashCache(rawProvider, llmConfig.model) : rawProvider;
     const retryOpts = llmConfig.retry ?? LLM_DEFAULTS.retry;
     const configOptions = llmConfig.options;
     const provider: LLMProvider = {
-      name: rawProvider.name,
-      capabilities: rawProvider.capabilities,
+      name: baseProvider.name,
+      capabilities: baseProvider.capabilities,
       complete: (messages, opts) =>
-        withRetry(() => rawProvider.complete(messages, { ...configOptions, ...opts }), retryOpts),
+        withRetry(() => baseProvider.complete(messages, { ...configOptions, ...opts }), retryOpts),
     };
 
     const activeTasks = Object.entries(tasks)
