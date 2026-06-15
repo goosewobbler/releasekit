@@ -56,6 +56,7 @@ export function createBackfillCommand(): Command {
     .option('--update-releases', 'Update matching GitHub release bodies via `gh release edit`', false)
     .option('--only-missing', 'With --update-releases, skip releases already carrying releasekit notes', false)
     .option('--force', 'Overwrite hand-edited release bodies (use with --update-releases)', false)
+    .option('--no-llm', 'Disable LLM (use deterministic, zero-cost backfill)', false)
     .option('--apply', 'Apply changes (default: dry-run preview)', false)
     .option('-c, --config <path>', 'Config file path')
     .action(async (options) => {
@@ -112,9 +113,17 @@ export function createBackfillCommand(): Command {
       const versionConfig = loadVersionConfig({ cwd, configPath: options.config });
       const dryRun = !options.apply;
       const force = options.force === true;
+      const noLlm = options.noLlm === true;
 
       const targets = await resolveTargets(options, cwd, versionConfig);
 
+      let totalReleaseCount = 0;
+      const releasesByTarget: Array<{
+        target: BackfillTarget;
+        reconstructed: Awaited<ReturnType<typeof reconstructChangelogs>>;
+      }> = [];
+
+      // Scan all targets to count total releases and estimate cost upfront
       for (const target of targets) {
         const reconstructed = await reconstructChangelogs({
           packageName: target.packageName,
@@ -127,11 +136,30 @@ export function createBackfillCommand(): Command {
           to: options.to,
         });
 
-        if (reconstructed.length === 0) {
-          info(`No matching tags found for ${target.packageName}.`);
-          continue;
+        if (reconstructed.length > 0) {
+          totalReleaseCount += reconstructed.length;
+          releasesByTarget.push({ target, reconstructed });
         }
+      }
 
+      // Estimate and warn about LLM cost if not in --no-llm mode and LLM is enabled
+      const llmEnabled = !noLlm && notesConfig.releaseNotes?.llm;
+      if (llmEnabled && totalReleaseCount > 0 && !dryRun) {
+        const llmConfig = notesConfig.releaseNotes?.llm;
+        const enabledTasks = countEnabledLlmTasks(llmConfig?.tasks);
+        warn(
+          `Estimated cost: ~${totalReleaseCount} release(s) × ${enabledTasks} LLM task(s). ` +
+            `Use --no-llm to disable LLM (deterministic, zero-cost run).`,
+        );
+      }
+
+      // Handle case where no releases were found across all targets
+      if (releasesByTarget.length === 0) {
+        info(`No matching tags found across ${targets.length} target(s).`);
+        return;
+      }
+
+      for (const { target, reconstructed } of releasesByTarget) {
         const changelogs = reconstructed.map((r) => r.changelog);
         const versionOutput: VersionOutput = { dryRun, updates: [], changelogs, tags: [] };
         const input = versionOutputToChangelogInput(versionOutput);
@@ -145,6 +173,11 @@ export function createBackfillCommand(): Command {
           if (date && pkg) pkg.date = date;
         }
 
+        // Override LLM config if --no-llm is set
+        const adjustedNotesConfig = noLlm
+          ? { ...notesConfig, releaseNotes: { ...notesConfig.releaseNotes, llm: undefined } }
+          : notesConfig;
+
         // Render one version per pipeline call (single context each). The pipeline's nesting decision
         // (`detectMonorepo(cwd).isMonorepo || contexts.length > 1`) then matches the live release
         // pipeline, which also renders one package per run. Passing all versions at once would make
@@ -157,7 +190,7 @@ export function createBackfillCommand(): Command {
         for (const pkg of input.packages) {
           const result = await runPipeline(
             { ...input, packages: [pkg] },
-            { ...notesConfig, changelog: false },
+            { ...adjustedNotesConfig, changelog: false },
             dryRun,
             {
               skipChangelogs: true,
@@ -234,6 +267,17 @@ export function createBackfillCommand(): Command {
         }
       }
     });
+}
+
+/** Count the number of enabled LLM tasks (summarize, enhance, categorize, releaseNotes). */
+function countEnabledLlmTasks(tasks?: {
+  summarize?: boolean;
+  enhance?: boolean;
+  categorize?: boolean;
+  releaseNotes?: boolean;
+}): number {
+  if (!tasks) return 4; // All tasks enabled by default
+  return Object.values(tasks).filter(Boolean).length || 4;
 }
 
 /**
