@@ -71,6 +71,17 @@ The outermost template (`document`) receives:
 | `unreleased` | `TemplateContext \| undefined` | Unreleased changes, if any |
 | `compareUrls` | `Record<string, string> \| undefined` | Map of version → compare URL for all versions |
 | `perPackage` | `boolean \| undefined` | `true` when rendered inline for a single package (e.g. GitHub release body). Use this to suppress document-level headings that are redundant when the content is embedded in a release that already shows the package name and version. |
+| `output` | `'file' \| 'release' \| undefined` | Which release-notes destination this render targets: `'file'` (an in-repo per-version file) or `'release'` (the GitHub release body). Branch on it to emit content that only suits one — most importantly, docs-site **YAML frontmatter**, which would render as literal text in a GitHub release. |
+
+A release-notes template that adds frontmatter for the in-repo file but not the GitHub release body:
+
+```liquid
+{% if output == "file" %}---
+title: {{ versions[0].version }}
+date: {{ versions[0].date }}
+---
+{% endif %}{% for v in versions %}{{ v.summary }}{% endfor %}
+```
 
 ### Version context
 
