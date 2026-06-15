@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { cwd } from 'node:process';
 import { getPackagesSync, type Package, type Packages } from '@manypkg/get-packages';
-import { filterPackagesByConfig, parseCargoToml } from '@releasekit/config';
+import { filterPackagesByConfig, parseCargoToml, parsePubspec } from '@releasekit/config';
 import { shouldMatchPackageTargets } from '@releasekit/core';
 import { GitError } from '../errors/gitError.js';
 import { createVersionError, VersionError, VersionErrorCode } from '../errors/versionError.js';
@@ -143,31 +143,113 @@ export class VersionEngine {
   }
 
   /**
-   * Merge NPM and Rust package lists with proper deduplication
+   * Discover pure Dart/Flutter packages (pubspec.yaml only) in the workspace. Mirrors the Cargo
+   * discovery: directories that already carry a package.json are left to @manypkg, and the merge
+   * step dedupes any directory shared with a Cargo crate.
    */
-  private mergePackageLists(npmPackages: PackagesWithRoot, rustPackages: PackagesWithRoot): PackagesWithRoot {
-    const mergedPackages = [...npmPackages.packages];
+  private discoverPubspecPackages(workspaceRoot: string): PackagesWithRoot {
+    const pubspecPaths: string[] = [];
 
-    for (const rustPkg of rustPackages.packages) {
-      // Check if this Rust package already exists in NPM packages (hybrid package)
-      const existingIndex = mergedPackages.findIndex((pkg) => pkg.dir === rustPkg.dir);
+    const findPubspec = (dir: string, relativePath: string = '') => {
+      try {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
 
-      if (existingIndex >= 0) {
-        // Hybrid package: prefer NPM package data, but log that Cargo.toml was found
-        log(`Hybrid package detected: ${rustPkg.packageJson.name} has both package.json and Cargo.toml`, 'debug');
-        // NPM package already includes the data we need
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+          const relPath = path.join(relativePath, entry.name);
+
+          if (entry.isDirectory()) {
+            // Skip dependency/build output dirs (incl. Dart's .dart_tool and build).
+            if (
+              entry.name === 'node_modules' ||
+              entry.name === 'target' ||
+              entry.name === '.git' ||
+              entry.name === '.dart_tool' ||
+              entry.name === 'build'
+            ) {
+              continue;
+            }
+            findPubspec(fullPath, relPath);
+          } else if (entry.isFile() && entry.name === 'pubspec.yaml') {
+            pubspecPaths.push(relPath);
+          }
+        }
+      } catch (error) {
+        log(`Cannot read directory ${dir}: ${error}`, 'debug');
+      }
+    };
+
+    findPubspec(workspaceRoot);
+
+    const dartPackages: Package[] = [];
+
+    for (const pubspecPath of pubspecPaths) {
+      try {
+        const fullPubspecPath = path.join(workspaceRoot, pubspecPath);
+        const packageDir = path.dirname(fullPubspecPath);
+
+        // Skip if this directory already has a package.json (handled by @manypkg).
+        if (fs.existsSync(path.join(packageDir, 'package.json'))) {
+          continue;
+        }
+
+        const pubData = parsePubspec(fullPubspecPath);
+
+        // Require an explicit version, like the Cargo path. A versionless pubspec is a Dart workspace
+        // root or app manifest, not a publishable package — discovering it would feed a bogus baseline
+        // into the version stage. (No target/node_modules path check: findPubspec already skips those
+        // directories during the walk, so a found pubspec is never inside one.)
+        if (pubData.name && typeof pubData.version === 'string') {
+          dartPackages.push({
+            packageJson: {
+              name: pubData.name,
+              version: pubData.version,
+            },
+            dir: packageDir,
+            relativeDir: path.relative(workspaceRoot, packageDir),
+          });
+          log(`Discovered Dart package: ${pubData.name} at ${packageDir}`, 'debug');
+        }
+      } catch (error) {
+        log(`Failed to parse pubspec.yaml at ${pubspecPath}: ${error}`, 'warning');
+      }
+    }
+
+    return {
+      packages: dartPackages,
+      root: workspaceRoot,
+      // biome-ignore lint/suspicious/noExplicitAny: Tool type from @manypkg doesn't support pub-only packages
+      tool: 'pnpm' as any,
+      rootDir: workspaceRoot,
+    };
+  }
+
+  /**
+   * Merge two package lists by directory, keeping the base entry for any shared directory. Used to
+   * fold Cargo and pubspec discoveries into the @manypkg set (and is run once per native ecosystem),
+   * so it stays manifest-agnostic.
+   */
+  private mergePackageLists(basePackages: PackagesWithRoot, extraPackages: PackagesWithRoot): PackagesWithRoot {
+    const mergedPackages = [...basePackages.packages];
+
+    for (const extraPkg of extraPackages.packages) {
+      // Same directory already discovered (a hybrid package.json + native manifest) — keep the base
+      // entry, which carries the richer @manypkg data.
+      const alreadyDiscovered = mergedPackages.some((pkg) => pkg.dir === extraPkg.dir);
+
+      if (alreadyDiscovered) {
+        log(`Hybrid package detected: ${extraPkg.packageJson.name} already discovered via package.json`, 'debug');
       } else {
-        // Pure Rust package: add it to the list
-        mergedPackages.push(rustPkg);
+        mergedPackages.push(extraPkg);
       }
     }
 
     return {
       packages: mergedPackages,
-      root: npmPackages.root || rustPackages.root,
+      root: basePackages.root || extraPackages.root,
       // biome-ignore lint/suspicious/noExplicitAny: Tool type from @manypkg doesn't support mixed packages
       tool: 'pnpm' as any,
-      rootDir: npmPackages.root || rustPackages.root,
+      rootDir: basePackages.root || extraPackages.root,
     };
   }
 
@@ -189,17 +271,19 @@ export class VersionEngine {
         throw createVersionError(VersionErrorCode.PACKAGES_NOT_FOUND);
       }
 
-      // 2. Discover additional pure Rust packages (Cargo.toml only)
+      // 2. Discover additional pure Rust (Cargo.toml) and Dart/Flutter (pubspec.yaml) packages
       const rustPackages = this.discoverCargoTomlPackages(workspaceRoot);
+      const dartPackages = this.discoverPubspecPackages(workspaceRoot);
 
-      // 3. Merge package lists with proper deduplication
-      const mergedPackages = this.mergePackageLists(npmPackages, rustPackages);
+      // 3. Merge package lists with proper deduplication (by directory; npm wins for hybrids)
+      const mergedPackages = this.mergePackageLists(this.mergePackageLists(npmPackages, rustPackages), dartPackages);
 
       // Log discovery results (pre-filter)
       const rustCount = rustPackages.packages.length;
+      const dartCount = dartPackages.packages.length;
       const npmCount = npmPackages.packages.length;
       log(
-        `Discovered ${npmCount} NPM packages and ${rustCount} Rust packages (${mergedPackages.packages.length} total)`,
+        `Discovered ${npmCount} NPM, ${rustCount} Rust, and ${dartCount} Dart packages (${mergedPackages.packages.length} total)`,
         'info',
       );
 
