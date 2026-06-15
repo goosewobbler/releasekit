@@ -3,6 +3,7 @@ import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { readPackageVersion } from '@releasekit/core';
 import { Command } from 'commander';
+import { createBackfillCommand } from './commands/backfill-command.js';
 import { createGateCommand } from './commands/gate-command.js';
 import { createPreviewCommand } from './commands/preview-command.js';
 import { createReleaseCommand } from './commands/release-command.js';
@@ -16,7 +17,8 @@ export function createReleaseProgram(): Command {
     .addCommand(createPreviewCommand(), { isDefault: true })
     .addCommand(createReleaseCommand())
     .addCommand(createGateCommand())
-    .addCommand(createStandingPRCommand());
+    .addCommand(createStandingPRCommand())
+    .addCommand(createBackfillCommand());
 }
 
 const isMain = (() => {

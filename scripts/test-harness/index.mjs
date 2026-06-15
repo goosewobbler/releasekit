@@ -13,16 +13,24 @@
  *   pnpm test:harness:preview   # Run preview mode explicitly
  *   pnpm test:harness:release   # Run release mode with patch bump
  *   pnpm test:harness:multi     # Run release mode with npm + cargo, verify both manifests bumped
+ *   pnpm test:harness:backfill  # Reconstruct notes from git history (--all + --package), verify files/dates/scoping
  *
  * The harness defaults to running in "CI simulation" mode where:
  * - Only the test project's node_modules are available in NODE_PATH
  * - This mimics the actual CI environment where the action's node_modules aren't available
  */
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { getRemoteRefs, verifyTags, verifyVersionCommit } from './mock-git.mjs';
 import { parseInputs, runActionLocal } from './run-action-local.mjs';
-import { cleanupTestProject, createMultiRegistryTestProject, createTestProject } from './test-project.mjs';
+import {
+  cleanupTestProject,
+  createBackfillTestProject,
+  createMultiRegistryTestProject,
+  createTestProject,
+} from './test-project.mjs';
 
 const args = process.argv.slice(2);
 const mode = args[0] || 'preview';
@@ -99,6 +107,79 @@ try {
     }
 
     console.log(`\n✅ release-multi completed successfully`);
+  } else if (mode === 'backfill') {
+    const testProject = createBackfillTestProject();
+    projectDir = testProject.projectDir;
+
+    const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+    const cliPath = path.resolve(scriptDir, '..', '..', 'packages', 'release', 'dist', 'cli.js');
+    if (!fs.existsSync(cliPath)) {
+      throw new Error(`CLI not found at: ${cliPath}. Run "pnpm build" first.`);
+    }
+
+    const runBackfill = (extraArgs) => {
+      console.log(`\n--- Running: backfill ${extraArgs.join(' ')} ---`);
+      const result = spawnSync('node', [cliPath, 'backfill', ...extraArgs], {
+        cwd: projectDir,
+        encoding: 'utf-8',
+        env: process.env,
+      });
+      if (result.stdout) console.log(result.stdout);
+      if (result.stderr) console.log(result.stderr);
+      return result;
+    };
+
+    const assert = (cond, msg) => {
+      if (!cond) throw new Error(`Backfill assertion failed: ${msg}`);
+    };
+
+    // 1. --all --apply: reconstruct every workspace package from the global tag series, write files.
+    const applyResult = runBackfill(['--all', '--apply', '-c', 'releasekit.config.json']);
+    if (applyResult.status !== 0) {
+      throw new Error(`backfill --all failed with exit code ${applyResult.status}`);
+    }
+
+    console.log('\n--- Verifying backfilled release-notes files ---');
+    const notesDir = path.join(projectDir, 'release-notes');
+    const today = new Date().toISOString().slice(0, 10);
+    for (const exp of testProject.expected) {
+      const filePath = path.join(notesDir, exp.file);
+      assert(fs.existsSync(filePath), `expected file ${exp.file} to exist`);
+      const body = fs.readFileSync(filePath, 'utf-8');
+      // Date comes from the tag's commit, not the day the backfill ran.
+      assert(body.includes(exp.date), `${exp.file} should be dated ${exp.date}`);
+      assert(!body.includes(today), `${exp.file} should not be stamped with today's date (${today})`);
+      // Entries are scoped to the package's own directory.
+      for (const s of exp.has) assert(body.includes(s), `${exp.file} should mention "${s}"`);
+      for (const s of exp.hasNot) assert(!body.includes(s), `${exp.file} should NOT mention "${s}" (path scoping)`);
+      console.log(`✓ ${exp.file}: dated ${exp.date}, scoped correctly`);
+    }
+
+    // 2. --package + --path + --from: single package, version-bounded (dry-run). Logs go to stderr.
+    const dryResult = runBackfill([
+      '--package',
+      '@test/alpha',
+      '--path',
+      'packages/alpha',
+      '--from',
+      '1.1.0',
+      '-c',
+      'releasekit.config.json',
+    ]);
+    if (dryResult.status !== 0) {
+      throw new Error(`backfill --package failed with exit code ${dryResult.status}`);
+    }
+    const dryOut = `${dryResult.stdout ?? ''}${dryResult.stderr ?? ''}`;
+    assert(dryOut.includes('@test/alpha'), '--package run should name the package');
+    // --from 1.1.0 drops 1.0.0, leaving exactly one version.
+    assert(dryOut.includes('Would backfill 1 version(s)'), '--from 1.1.0 should leave exactly one version');
+    assert(dryOut.includes('1.1.0'), 'the remaining version should be 1.1.0');
+    // --path scopes the preview to this package only.
+    assert(dryOut.includes('alpha two'), "preview should include this package's commit");
+    assert(!dryOut.includes('beta two'), 'preview should be scoped to packages/alpha (no beta commits)');
+    console.log('✓ --package @test/alpha --path packages/alpha --from 1.1.0: single package, scoped, version-bounded');
+
+    console.log(`\n✅ backfill completed successfully`);
   } else {
     const testProject = createTestProject();
     projectDir = testProject.projectDir;

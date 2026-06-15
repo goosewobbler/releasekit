@@ -40,6 +40,32 @@ export function addConventionalCommit(projectDir, message) {
   fs.unlinkSync(randomFile);
 }
 
+let commitSeq = 0;
+
+/**
+ * Commit a change inside a specific subdirectory, optionally at a fixed date. Used by the backfill
+ * harness to build per-package history (path-scoped) with deterministic tag dates. `date` is applied
+ * to both author and committer so `git log --format=%cd` (what backfill reads) is reproducible.
+ */
+export function addCommitInDir(projectDir, message, relDir, date) {
+  const dir = path.join(projectDir, relDir);
+  fs.mkdirSync(dir, { recursive: true });
+  commitSeq += 1;
+  fs.writeFileSync(path.join(dir, `change-${commitSeq}.txt`), message);
+  execSync('git add .', { cwd: projectDir, stdio: 'pipe' });
+  const env = { ...process.env };
+  if (date) {
+    env.GIT_AUTHOR_DATE = date;
+    env.GIT_COMMITTER_DATE = date;
+  }
+  execSync(`git commit -m ${JSON.stringify(message)}`, { cwd: projectDir, stdio: 'pipe', env });
+}
+
+/** Create a lightweight tag at the current HEAD. */
+export function addTag(projectDir, tag) {
+  execSync(`git tag ${tag}`, { cwd: projectDir, stdio: 'pipe' });
+}
+
 export function verifyTags(projectDir, expectedTags) {
   const tags = execSync('git tag', { cwd: projectDir, encoding: 'utf-8' }).trim().split('\n').filter(Boolean);
 

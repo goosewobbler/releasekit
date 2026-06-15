@@ -105,6 +105,32 @@ export async function getLatestTag(versionPrefix?: string): Promise<string> {
 }
 
 /**
+ * List every global tag (e.g. `v1.2.0`) for repos that don't use package-specific tags — the whole
+ * sync/single series, most-recently-created first. Lists `git tag` directly (not git-semver-tags,
+ * which only sees tags reachable from HEAD) and filters by the global `${prefix}${version}` template,
+ * mirroring {@link listPackageTags}' pattern construction. Returns `[]` on error or no match.
+ * @param versionPrefix Optional prefix the tags carry (e.g. `v`); only matching tags are returned.
+ */
+export async function listGlobalTags(versionPrefix?: string): Promise<string[]> {
+  let allTags: string[] = [];
+  try {
+    allTags = execSync('git', ['tag', '--sort=-creatordate'], { cwd: process.cwd() })
+      .toString()
+      .trim()
+      .split('\n')
+      .filter((tag) => tag.length > 0);
+  } catch (error) {
+    log(`Failed to list global tags: ${error instanceof Error ? error.message : String(error)}`, 'error');
+    return [];
+  }
+
+  const escapedPrefix = versionPrefix ? escapeRegExp(versionPrefix) : '';
+  const pattern = `^${escapedPrefix}(?:[0-9]+\\.[0-9]+\\.[0-9]+(?:-[a-zA-Z0-9.-]+)?)$`;
+  const regex = new RegExp(pattern);
+  return allTags.filter((tag) => regex.test(tag));
+}
+
+/**
  * Get the name of the last merged branch matching the specified patterns
  * @param branches Branch patterns to match
  * @param baseBranch Base branch to check merges against

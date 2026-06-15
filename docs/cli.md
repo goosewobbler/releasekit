@@ -291,3 +291,39 @@ releasekit-release gate --json
 ```
 
 > Most users run `gate` through the [GitHub Action](./action.md) (`mode: gate`) rather than the CLI directly.
+
+## `releasekit-release backfill`
+
+Regenerate release notes for **already-released** versions of one or more packages by reconstructing each version's notes from git history. Each version is rendered through the notes pipeline and written to per-version files (`notes.releaseNotes.file.dir`), to the matching GitHub release bodies (`--update-releases`), or both. Dry-run by default — pass `--apply` to write. Needs at least one output: `notes.releaseNotes.file.dir` set, `--update-releases`, or both.
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-p, --package <name>` | string | package.json name at `--path` | Package to backfill |
+| `--path <dir>` | string | `.` | Package directory |
+| `--all` | boolean | `false` | Backfill every package in the workspace (monorepo discovery) |
+| `--from <version>` | string | - | Earliest version to backfill (inclusive) |
+| `--to <version>` | string | - | Latest version to backfill (inclusive) |
+| `--update-releases` | boolean | `false` | Update matching GitHub release bodies via `gh release edit` |
+| `--only-missing` | boolean | `false` | With `--update-releases`, skip releases already carrying releasekit notes |
+| `--apply` | boolean | `false` | Apply changes (default: dry-run preview) |
+| `-c, --config <path>` | string | auto-discovered | Path to config file |
+
+```bash
+# Preview what would be regenerated
+releasekit-release backfill --package @scope/pkg --path packages/pkg
+
+# Write the per-version files
+releasekit-release backfill --package @scope/pkg --path packages/pkg --apply
+
+# Backfill every package in the workspace
+releasekit-release backfill --all --apply
+
+# Update GitHub release bodies, filling only the gaps
+releasekit-release backfill --package @scope/pkg --update-releases --only-missing --apply
+```
+
+`--all` discovers every package a release would version — npm/JS workspaces plus pure-Cargo crates, scoped by `version.packages` — using the version stage's own discovery, and backfills each; packages with no matching tags are skipped. It is mutually exclusive with `--package`. Tags are resolved per package (package-specific) or from the shared global series (sync/single), and each package's notes are scoped to its own directory's commits.
+
+`--update-releases` edits existing releases only (it never creates them) and skips any tag without a release. Backfilled bodies carry a `<!-- releasekit-notes -->` marker: `--only-missing` skips releases that already have it (so re-runs fill only new gaps), while the default run refreshes every targeted body, including auto-generated or previously backfilled ones.
+
+> **Experimental (#293).** Backfills a single package or, with `--all`, every package a release would version — npm/JS workspaces and pure-Cargo crates (pub-only packages aren't auto-discovered yet — pass those via `--package`). Works with both package-specific tags (`pkg@v1.2.0`, `version.packageSpecificTags: true`) and the global sync/single tag series (`v1.2.0`), and dates each version from its tag's commit date. LLM range caching and the Action surface are planned follow-ups.
