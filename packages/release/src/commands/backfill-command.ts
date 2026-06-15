@@ -100,6 +100,10 @@ export function createBackfillCommand(): Command {
         error('--update-releases needs notes.releaseNotes enabled in your config to render the bodies.');
         process.exit(EXIT_CODES.GENERAL_ERROR);
       }
+      if (options.onlyMissing === true && !updateReleases) {
+        error('--only-missing only applies with --update-releases.');
+        process.exit(EXIT_CODES.GENERAL_ERROR);
+      }
 
       const versionConfig = loadVersionConfig({ cwd, configPath: options.config });
 
