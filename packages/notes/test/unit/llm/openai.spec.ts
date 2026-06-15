@@ -25,4 +25,13 @@ describe('OpenAIProvider', () => {
 
     expect(result.structured).toEqual({ entries: [{ category: 'Fixed' }] });
   });
+
+  it('should still parse plain (unfenced) JSON structured output', async () => {
+    createMock.mockResolvedValue({ choices: [{ message: { content: '{ "ok": true }' } }] });
+    const provider = new OpenAIProvider({ model: 'gpt-4o-mini', apiKey: 'k' });
+
+    const result = await provider.complete([{ role: 'user', content: 'hi' }], { schema: { type: 'object' } });
+
+    expect(result.structured).toEqual({ ok: true });
+  });
 });
