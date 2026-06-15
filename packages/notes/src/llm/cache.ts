@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import * as fs from 'node:fs';
+import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import type { CompleteOptions } from '../core/types.js';
@@ -60,15 +60,15 @@ export function withContentHashCache(
       const file = path.join(dir, `${key}.json`);
 
       try {
-        return JSON.parse(fs.readFileSync(file, 'utf-8')) as CompleteResult;
+        return JSON.parse(await fs.readFile(file, 'utf-8')) as CompleteResult;
       } catch {
         // Cache miss or unreadable entry — fall through to a live call.
       }
 
       const result = await provider.complete(messages, options);
       try {
-        fs.mkdirSync(dir, { recursive: true });
-        fs.writeFileSync(file, JSON.stringify(result));
+        await fs.mkdir(dir, { recursive: true });
+        await fs.writeFile(file, JSON.stringify(result));
       } catch {
         // Caching is best-effort; a write failure must not fail the run.
       }
