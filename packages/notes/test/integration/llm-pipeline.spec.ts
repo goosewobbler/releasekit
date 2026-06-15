@@ -335,7 +335,7 @@ describe('Pipeline: releaseNotes in output', () => {
     expect(fileContent).toContain('perPackage=true');
   });
 
-  it('should keep frontmatter out of the GitHub release body via the output flag (#297)', async () => {
+  it('should keep frontmatter out of the GitHub release body via the output flag', async () => {
     // A template that emits frontmatter only for file output. The same template also feeds the
     // GitHub release body, where YAML frontmatter would otherwise render as literal text.
     const templatePath = path.join(tmpDir, 'release.liquid');
