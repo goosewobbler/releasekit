@@ -8,7 +8,7 @@ branding:
 
 inputs:
   mode:
-    description: Action mode (release, preview, gate, standing-pr-update, or standing-pr-publish)
+    description: Action mode (release, preview, gate, standing-pr-update, standing-pr-publish, or backfill)
     required: false
     default: preview
   config:
@@ -126,6 +126,35 @@ inputs:
     description: Write GITHUB_STEP_SUMMARY markdown
     required: false
     default: "true"
+
+  package:
+    description: Package to backfill (backfill mode; defaults to the package.json name at `path`)
+    required: false
+  path:
+    description: Package directory to backfill (backfill mode)
+    required: false
+  all:
+    description: Backfill every package in the workspace (backfill mode)
+    required: false
+    default: "false"
+  from:
+    description: Earliest version to backfill, inclusive (backfill mode)
+    required: false
+  to:
+    description: Latest version to backfill, inclusive (backfill mode)
+    required: false
+  update-releases:
+    description: Update matching GitHub release bodies via `gh release edit` (backfill mode)
+    required: false
+    default: "false"
+  only-missing:
+    description: With update-releases, skip releases already carrying releasekit notes (backfill mode)
+    required: false
+    default: "false"
+  apply:
+    description: Apply changes instead of a dry-run preview (backfill mode)
+    required: false
+    default: "false"
 
 outputs:
   success:
@@ -298,6 +327,14 @@ runs:
         INPUT_PREVIEW_DRY_RUN: ${{ inputs.preview-dry-run }}
         INPUT_PREVIEW_TARGET: ${{ inputs.preview-target }}
         INPUT_SUMMARY: ${{ inputs.summary }}
+        INPUT_PACKAGE: ${{ inputs.package }}
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_ALL: ${{ inputs.all }}
+        INPUT_FROM: ${{ inputs.from }}
+        INPUT_TO: ${{ inputs.to }}
+        INPUT_UPDATE_RELEASES: ${{ inputs.update-releases }}
+        INPUT_ONLY_MISSING: ${{ inputs.only-missing }}
+        INPUT_APPLY: ${{ inputs.apply }}
         GITHUB_TOKEN: ${{ github.token }}
         NPM_TOKEN: ${{ inputs.npm-token }}
         VERBOSE: ${{ inputs.verbose }}

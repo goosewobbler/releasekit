@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  buildBackfillArgs,
   buildGateArgs,
   buildGateSummary,
   buildPreviewArgs,
@@ -291,6 +292,81 @@ describe('action runner', () => {
         'electron',
       ]),
     );
+  });
+
+  it('should build backfill args for --all with release updates', () => {
+    const args = buildBackfillArgs({
+      config: 'releasekit.config.json',
+      backfillAll: 'true',
+      backfillUpdateReleases: 'true',
+      backfillOnlyMissing: 'true',
+      backfillApply: 'true',
+    });
+
+    expect(args).toEqual(
+      expect.arrayContaining([
+        'backfill',
+        '--config',
+        'releasekit.config.json',
+        '--all',
+        '--update-releases',
+        '--only-missing',
+        '--apply',
+      ]),
+    );
+    // backfill resolves the project via the runner's cwd, not a CLI flag.
+    expect(args).not.toContain('--project-dir');
+  });
+
+  it('should build single-package backfill args and omit unset flags', () => {
+    const args = buildBackfillArgs({
+      backfillPackage: '@scope/pkg',
+      backfillPath: 'packages/pkg',
+      backfillFrom: '1.1.0',
+    });
+
+    expect(args).toEqual(
+      expect.arrayContaining(['backfill', '--package', '@scope/pkg', '--path', 'packages/pkg', '--from', '1.1.0']),
+    );
+    expect(args).not.toContain('--all');
+    expect(args).not.toContain('--to');
+    expect(args).not.toContain('--update-releases');
+    expect(args).not.toContain('--only-missing');
+    expect(args).not.toContain('--apply');
+  });
+
+  it('should accept backfill mode and map its inputs', () => {
+    const parsed = parseInputs({
+      INPUT_MODE: 'backfill',
+      INPUT_PACKAGE: '@scope/pkg',
+      INPUT_ALL: 'true',
+      INPUT_FROM: '1.0.0',
+      INPUT_UPDATE_RELEASES: 'true',
+      INPUT_APPLY: 'true',
+    });
+
+    expect(parsed.mode).toBe('backfill');
+    expect(parsed.backfillPackage).toBe('@scope/pkg');
+    expect(parsed.backfillAll).toBe('true');
+    expect(parsed.backfillFrom).toBe('1.0.0');
+    expect(parsed.backfillUpdateReleases).toBe('true');
+    expect(parsed.backfillApply).toBe('true');
+  });
+
+  it('should dispatch backfill mode to the backfill subcommand', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-action-runner-test-'));
+    tempDirs.push(tempDir);
+    const cliPath = path.join(tempDir, 'fake-cli.mjs');
+    fs.writeFileSync(cliPath, 'console.log(process.argv.slice(2).join(" "))\n', 'utf-8');
+
+    const result = await runAction(
+      { mode: 'backfill', projectDir: '.', backfillAll: 'true', backfillApply: 'true' },
+      { cliPath },
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.args).toEqual(expect.arrayContaining(['backfill', '--all', '--apply']));
+    expect(result.stdout).toContain('backfill --all --apply');
   });
 
   it('should parse gate outputs from JSON stdout', () => {

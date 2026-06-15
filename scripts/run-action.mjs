@@ -123,6 +123,23 @@ export function buildGateArgs(input) {
   return args;
 }
 
+export function buildBackfillArgs(input) {
+  const args = ['backfill'];
+
+  // backfill has no --project-dir flag; the runner already spawns the CLI with cwd = projectDir.
+  pushOptionalArg(args, '--config', input.config);
+  pushOptionalArg(args, '--package', input.backfillPackage);
+  pushOptionalArg(args, '--path', input.backfillPath);
+  pushOptionalArg(args, '--from', input.backfillFrom);
+  pushOptionalArg(args, '--to', input.backfillTo);
+  pushBooleanFlag(args, '--all', input.backfillAll);
+  pushBooleanFlag(args, '--update-releases', input.backfillUpdateReleases);
+  pushBooleanFlag(args, '--only-missing', input.backfillOnlyMissing);
+  pushBooleanFlag(args, '--apply', input.backfillApply);
+
+  return args;
+}
+
 export function writeGateOutputs(stdout, verbose = false) {
   const parsed = parseReleaseOutput(stdout, verbose);
   setOutput('should-release', parsed?.shouldRelease ? 'true' : 'false');
@@ -197,9 +214,18 @@ export function parseInputs(env = process.env) {
     previewStable: env.INPUT_PREVIEW_STABLE,
     previewDryRun: env.INPUT_PREVIEW_DRY_RUN,
     previewTarget: normalizeString(env.INPUT_PREVIEW_TARGET),
+
+    backfillPackage: normalizeString(env.INPUT_PACKAGE),
+    backfillPath: normalizeString(env.INPUT_PATH),
+    backfillAll: env.INPUT_ALL,
+    backfillFrom: normalizeString(env.INPUT_FROM),
+    backfillTo: normalizeString(env.INPUT_TO),
+    backfillUpdateReleases: env.INPUT_UPDATE_RELEASES,
+    backfillOnlyMissing: env.INPUT_ONLY_MISSING,
+    backfillApply: env.INPUT_APPLY,
   };
 
-  const validModes = ['release', 'preview', 'gate', 'standing-pr-update', 'standing-pr-publish'];
+  const validModes = ['release', 'preview', 'gate', 'standing-pr-update', 'standing-pr-publish', 'backfill'];
   if (!validModes.includes(input.mode)) {
     throw new Error(`Invalid mode: ${input.mode}. Must be one of: ${validModes.join(', ')}`);
   }
@@ -209,7 +235,7 @@ export function parseInputs(env = process.env) {
 
 export async function runAction(input, options = {}) {
   const mode = input.mode;
-  const validModes = ['release', 'preview', 'gate', 'standing-pr-update', 'standing-pr-publish'];
+  const validModes = ['release', 'preview', 'gate', 'standing-pr-update', 'standing-pr-publish', 'backfill'];
   if (!validModes.includes(mode)) {
     throw new Error(`Invalid mode: ${mode}. Expected one of: ${validModes.join(', ')}.`);
   }
@@ -218,16 +244,15 @@ export async function runAction(input, options = {}) {
     options.cliPath ??
     path.resolve(fileURLToPath(import.meta.url), '..', '..', 'packages', 'release', 'dist', 'cli.js');
 
-  const args =
-    mode === 'release'
-      ? buildReleaseArgs(input)
-      : mode === 'gate'
-        ? buildGateArgs(input)
-        : mode === 'standing-pr-update'
-          ? buildStandingPRUpdateArgs(input)
-          : mode === 'standing-pr-publish'
-            ? buildStandingPRPublishArgs(input)
-            : buildPreviewArgs(input);
+  const argBuilders = {
+    release: buildReleaseArgs,
+    gate: buildGateArgs,
+    'standing-pr-update': buildStandingPRUpdateArgs,
+    'standing-pr-publish': buildStandingPRPublishArgs,
+    backfill: buildBackfillArgs,
+    preview: buildPreviewArgs,
+  };
+  const args = (argBuilders[mode] ?? buildPreviewArgs)(input);
 
   const projectDir = input.projectDir || '.';
   const actionDir = fileURLToPath(import.meta.url).replace(/[/\\]scripts[/\\]run-action.mjs$/, '');
@@ -552,6 +577,8 @@ async function main() {
     writeGateOutputs(result.stdout ?? '', verbose);
   } else if (result.mode === 'standing-pr-update' || result.mode === 'standing-pr-publish') {
     writeStandingPROutputs(result.stdout ?? '', verbose);
+  } else if (result.mode === 'backfill') {
+    // Backfill streams its own progress and exposes only the core success/mode outputs.
   } else {
     writePreviewOutputs(input, result.stdout ?? '');
   }
