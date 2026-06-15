@@ -1,6 +1,12 @@
 import { execFileSync } from 'node:child_process';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { decideReleaseUpdate, getReleaseBody, NOTES_MARKER, withMarker } from '../../../src/backfill/github-release.js';
+import {
+  decideReleaseUpdate,
+  getReleaseBody,
+  isReleaseDraft,
+  NOTES_MARKER,
+  withMarker,
+} from '../../../src/backfill/github-release.js';
 
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
 
@@ -88,5 +94,35 @@ describe('getReleaseBody', () => {
       throw execError('gh: Bad credentials (HTTP 401)\n');
     });
     expect(() => getReleaseBody('v1.0.0')).toThrow(/Bad credentials/);
+  });
+});
+
+describe('isReleaseDraft', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should return true for draft releases', () => {
+    vi.mocked(execFileSync).mockReturnValue('true');
+    expect(isReleaseDraft('v1.0.0')).toBe(true);
+  });
+
+  it('should return false for published releases', () => {
+    vi.mocked(execFileSync).mockReturnValue('false');
+    expect(isReleaseDraft('v1.0.0')).toBe(false);
+  });
+
+  it('should return false when no release exists for the tag', () => {
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw execError('release not found\n');
+    });
+    expect(isReleaseDraft('v9.9.9')).toBe(false);
+  });
+
+  it('should throw for non-not-found errors', () => {
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw execError('gh: Bad credentials (HTTP 401)\n');
+    });
+    expect(() => isReleaseDraft('v1.0.0')).toThrow();
   });
 });
