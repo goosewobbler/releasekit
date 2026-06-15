@@ -1,6 +1,7 @@
 import { debug } from '@releasekit/core';
 import type { CompleteOptions } from '../core/types.js';
 import { LLMError } from '../errors/index.js';
+import { extractJsonFromResponse } from '../utils/json.js';
 import { BaseLLMProvider } from './base.js';
 import { LLM_DEFAULTS } from './defaults.js';
 import type { CompleteResult, LLMMessage } from './messages.js';
@@ -110,7 +111,9 @@ export class OllamaProvider extends BaseLLMProvider {
 
       if (options?.schema) {
         try {
-          const structured = JSON.parse(content);
+          // Strip markdown code fences / preamble first — cloud-hosted models (e.g. via ollama.com)
+          // often wrap schema-constrained output in a ```json fence despite the `format` request.
+          const structured = JSON.parse(extractJsonFromResponse(content));
           return { content, structured };
         } catch (e) {
           debug(`Ollama: failed to parse structured response: ${e instanceof Error ? e.message : String(e)}`);
