@@ -195,14 +195,17 @@ export class VersionEngine {
 
         const pubData = parsePubspec(fullPubspecPath);
 
-        if (pubData.name) {
+        // Require an explicit version, like the Cargo path. A versionless pubspec is a Dart workspace
+        // root or app manifest, not a publishable package — discovering it would feed a bogus baseline
+        // into the version stage.
+        if (pubData.name && typeof pubData.version === 'string') {
           const relativePath = path.relative(workspaceRoot, packageDir);
           const pathParts = relativePath.split(path.sep);
           if (!pathParts.includes('target') && !pathParts.includes('node_modules')) {
             dartPackages.push({
               packageJson: {
                 name: pubData.name,
-                version: typeof pubData.version === 'string' ? pubData.version : '0.0.0',
+                version: pubData.version,
               },
               dir: packageDir,
               relativeDir: relativePath,
@@ -225,31 +228,31 @@ export class VersionEngine {
   }
 
   /**
-   * Merge NPM and Rust package lists with proper deduplication
+   * Merge two package lists by directory, keeping the base entry for any shared directory. Used to
+   * fold Cargo and pubspec discoveries into the @manypkg set (and is run once per native ecosystem),
+   * so it stays manifest-agnostic.
    */
-  private mergePackageLists(npmPackages: PackagesWithRoot, rustPackages: PackagesWithRoot): PackagesWithRoot {
-    const mergedPackages = [...npmPackages.packages];
+  private mergePackageLists(basePackages: PackagesWithRoot, extraPackages: PackagesWithRoot): PackagesWithRoot {
+    const mergedPackages = [...basePackages.packages];
 
-    for (const rustPkg of rustPackages.packages) {
-      // Check if this Rust package already exists in NPM packages (hybrid package)
-      const existingIndex = mergedPackages.findIndex((pkg) => pkg.dir === rustPkg.dir);
+    for (const extraPkg of extraPackages.packages) {
+      // Same directory already discovered (a hybrid package.json + native manifest) — keep the base
+      // entry, which carries the richer @manypkg data.
+      const alreadyDiscovered = mergedPackages.some((pkg) => pkg.dir === extraPkg.dir);
 
-      if (existingIndex >= 0) {
-        // Hybrid package: prefer NPM package data, but log that Cargo.toml was found
-        log(`Hybrid package detected: ${rustPkg.packageJson.name} has both package.json and Cargo.toml`, 'debug');
-        // NPM package already includes the data we need
+      if (alreadyDiscovered) {
+        log(`Hybrid package detected: ${extraPkg.packageJson.name} already discovered via package.json`, 'debug');
       } else {
-        // Pure Rust package: add it to the list
-        mergedPackages.push(rustPkg);
+        mergedPackages.push(extraPkg);
       }
     }
 
     return {
       packages: mergedPackages,
-      root: npmPackages.root || rustPackages.root,
+      root: basePackages.root || extraPackages.root,
       // biome-ignore lint/suspicious/noExplicitAny: Tool type from @manypkg doesn't support mixed packages
       tool: 'pnpm' as any,
-      rootDir: npmPackages.root || rustPackages.root,
+      rootDir: basePackages.root || extraPackages.root,
     };
   }
 

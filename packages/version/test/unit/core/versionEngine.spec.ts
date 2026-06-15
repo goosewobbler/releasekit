@@ -627,6 +627,25 @@ describe('Version Engine', () => {
       }
     });
 
+    it('should skip a versionless pubspec (workspace root / app manifest)', async () => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-pub-noversion-'));
+      try {
+        const pkgDir = path.join(tmp, 'packages', 'no_version');
+        fs.mkdirSync(pkgDir, { recursive: true });
+        // name but no version — like a Dart workspace root or Flutter app.
+        fs.writeFileSync(path.join(pkgDir, 'pubspec.yaml'), 'name: no_version\n');
+        vi.mocked(mockCwd, { partial: true }).mockReturnValue(tmp);
+        vi.mocked(getPackagesSync).mockReturnValue({ root: tmp, packages: [] });
+
+        const engine = new VersionEngine({ ...defaultConfig, sync: false } as Config);
+        const result = await engine.getWorkspacePackages();
+
+        expect(result.packages.find((p) => p.packageJson.name === 'no_version')).toBeUndefined();
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+
     it('should include a pure Rust package when explicitly named in config.packages', async () => {
       const discoverSpy = vi.spyOn(VersionEngine.prototype as any, 'discoverCargoTomlPackages');
       discoverSpy.mockReturnValue({
