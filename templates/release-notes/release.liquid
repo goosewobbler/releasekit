@@ -8,6 +8,11 @@ Developer entries use bolded subcategory labels.
 
 ## `{{ version.packageName }}` @ {{ version.version }}
 {%- endunless %}
+{%- comment -%}`isFirstRelease` is true when the package has no prior version — lead with a debut line.{%- endcomment -%}
+{%- if version.isFirstRelease %}
+
+_First release of `{{ version.packageName }}`._
+{%- endif %}
 
 {%- if version.enhanced.categories %}
 {%- for cat in version.enhanced.categories %}
