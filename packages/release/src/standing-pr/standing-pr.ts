@@ -56,6 +56,12 @@ export interface StandingPRManifest {
   baseSha: string;
   /** ISO timestamp of when this standing PR was first created. Preserved across updates. Added in schema v2. */
   firstUpdatedAt?: string;
+  /**
+   * Override-relevant labels (bump/channel/scope) present on the standing PR when this manifest was
+   * computed, sorted. Lets publish refuse a manifest whose labels diverged from the merged PR (#337).
+   * Optional: absent on manifests written before this field existed — consumers must tolerate that.
+   */
+  overrideLabels?: string[];
 }
 
 function getHeadSha(cwd: string): string {
@@ -63,6 +69,26 @@ function getHeadSha(cwd: string): string {
     return execSync('git rev-parse HEAD', { encoding: 'utf-8', cwd }).trim();
   } catch (err) {
     throw new Error(`Failed to get HEAD SHA: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+/**
+ * True when this run was triggered by a label being added/removed on a PR (#336) — a maintainer
+ * adjusting the standing PR's override labels, not a commit landing. The CLI reads the event itself
+ * (rather than taking a flag) so it works whether the workflow invokes the action, the reusable
+ * workflow, or the CLI directly. Such runs must bypass the initial skip-pattern guard: a
+ * pull_request event checks out the standing PR's `chore: release preparation` commit, which matches
+ * the skip pattern, so the guard would otherwise no-op every label-driven update.
+ */
+function isLabelTriggeredRun(): boolean {
+  if (process.env.GITHUB_EVENT_NAME !== 'pull_request') return false;
+  const eventPath = process.env.GITHUB_EVENT_PATH;
+  if (!eventPath) return false;
+  try {
+    const event = JSON.parse(fs.readFileSync(eventPath, 'utf-8')) as { action?: string };
+    return event.action === 'labeled' || event.action === 'unlabeled';
+  } catch {
+    return false;
   }
 }
 
@@ -537,6 +563,26 @@ interface StandingPrOverrides {
   conflicts: string[];
 }
 
+/**
+ * The override-relevant labels (bump/channel/scope) present on a PR, sorted and de-duplicated.
+ * This is the set that actually drives the next release, so it's what the manifest records and what
+ * publish compares against the merged PR to detect a stale manifest (#337). The standing-PR marker
+ * label and any unrelated labels (area:*, etc.) are deliberately excluded — they don't affect output.
+ */
+function extractOverrideLabels(prLabels: string[], ciConfig: CIConfig | undefined): string[] {
+  const labels = ciConfig?.labels ?? DEFAULT_LABELS;
+  const scopeLabels = ciConfig?.scopeLabels ?? {};
+  const relevant = new Set<string>([
+    labels.major,
+    labels.minor,
+    labels.patch,
+    labels.stable,
+    labels.prerelease,
+    ...Object.keys(scopeLabels),
+  ]);
+  return [...new Set(prLabels.filter((l) => relevant.has(l)))].sort();
+}
+
 function resolveStandingPrLabelOverrides(prLabels: string[], ciConfig: CIConfig | undefined): StandingPrOverrides {
   // Return a fresh object rather than a shared constant — callers may mutate `conflicts`.
   if (!prLabels || prLabels.length === 0) return { conflicts: [] };
@@ -638,12 +684,20 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const base = releaseKitConfig.git?.branch ?? 'main';
   const skipPatterns = releaseKitConfig.release?.ci?.skipPatterns ?? ['chore: release '];
 
-  // Skip-pattern guard. The reconcile flag bypasses it: reconcile runs deliberately right after
-  // a release (HEAD is a release commit that matches the skip pattern by design), so the
-  // push-event noise rejection this guard provides would otherwise turn every reconcile into a
-  // no-op and leave the standing PR holding just-published versions.
-  if (options.reconcile) {
-    info('Reconcile mode: bypassing skip-pattern guard');
+  // Label-triggered runs (a maintainer added/removed an override label on the standing PR, #336)
+  // must bypass the skip-pattern guards just like reconcile: the guards reject runs reacting to a
+  // release commit on HEAD, but a label event isn't reacting to HEAD at all — skipping would leave
+  // the new override unapplied until the next push or the hourly cron.
+  const bypassSkipGuard = options.reconcile || isLabelTriggeredRun();
+
+  // Skip-pattern guard. Bypassed by reconcile (HEAD is a release commit by design then) and by
+  // label-triggered runs (the trigger is a label, not the commit on HEAD).
+  if (bypassSkipGuard) {
+    info(
+      options.reconcile
+        ? 'Reconcile mode: bypassing skip-pattern guard'
+        : 'Label-triggered run: bypassing skip-pattern guard',
+    );
   } else {
     const headSubject = getHeadCommitMessage(cwd);
     if (headSubject && matchesSkipPattern(headSubject, skipPatterns)) {
@@ -963,6 +1017,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     createdAt: new Date().toISOString(),
     baseSha,
     firstUpdatedAt,
+    // Record the labels this manifest was computed under so publish can detect a stale manifest if
+    // they're changed after this update without a re-run (#337).
+    overrideLabels: extractOverrideLabels(existingStandingPr?.labels ?? [], ciConfig),
   };
 
   const manifestBody = serializeManifest(manifest);
@@ -1084,18 +1141,43 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     projectDir: cwd,
   };
 
-  // Pull any human-edited release notes from the live (now-merged, still-readable) PR body (#200).
-  // Marker slicing only — the manifest never stores prose, so "manifest = machine state only" holds.
-  let editedNotes: Record<string, string> = {};
+  // Fetch the merged (still-readable) PR once — used for both the override-label staleness guard
+  // and the human-edited release notes.
+  let livePr: Awaited<ReturnType<typeof octokit.rest.pulls.get>>['data'] | undefined;
   try {
-    const { data: livePr } = await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber });
+    livePr = (await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber })).data;
+  } catch (err) {
+    warn(`Could not read PR #${prNumber}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // Staleness guard (#337): refuse to publish a manifest whose override labels diverge from the
+  // merged PR's. This catches "label changed then merged before the standing-PR update re-ran" —
+  // publishing then would ship a release the labels no longer describe. Only enforced when the
+  // manifest actually recorded labels; manifests written before this field skip the check.
+  if (livePr && manifest.overrideLabels !== undefined) {
+    const mergedLabels = extractOverrideLabels(
+      (livePr.labels ?? []).map((l) => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean),
+      releaseKitConfig.ci,
+    );
+    const manifestLabels = [...manifest.overrideLabels].sort();
+    if (mergedLabels.join('\n') !== manifestLabels.join('\n')) {
+      throw new Error(
+        `Standing PR #${prNumber} override labels changed after the last update — the release manifest is stale.\n` +
+          `  manifest was computed for: [${manifestLabels.join(', ') || '(none)'}]\n` +
+          `  PR now has:                [${mergedLabels.join(', ') || '(none)'}]\n` +
+          `Re-run 'releasekit standing-pr update' so the manifest matches, then merge (or apply the retry label after ` +
+          `updating). Refusing to publish a release the labels no longer describe.`,
+      );
+    }
+  }
+
+  // Pull any human-edited release notes from the live PR body (#200). Marker slicing only — the
+  // manifest never stores prose, so "manifest = machine state only" holds.
+  let editedNotes: Record<string, string> = {};
+  if (livePr) {
     editedNotes = extractNotesRegions(
       livePr.body ?? '',
       publishableUpdates(manifest.versionOutput).map((u) => u.packageName),
-    );
-  } catch (err) {
-    warn(
-      `Could not read PR #${prNumber} body for edited release notes: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
 

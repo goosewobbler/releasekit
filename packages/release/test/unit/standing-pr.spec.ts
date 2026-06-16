@@ -278,6 +278,17 @@ describe('serializeManifest / parseManifest', () => {
     expect(parsed.schemaVersion).toBe(2);
     expect(parsed.firstUpdatedAt).toBe('2024-06-01T12:00:00.000Z');
   });
+
+  it('should round-trip overrideLabels (#337)', () => {
+    const m = { ...baseManifest, schemaVersion: 2 as const, overrideLabels: ['bump:major', 'channel:prerelease'] };
+    const parsed = parseManifest(serializeManifest(m));
+    expect(parsed.overrideLabels).toEqual(['bump:major', 'channel:prerelease']);
+  });
+
+  it('should accept a manifest without overrideLabels (backward compat)', () => {
+    const parsed = parseManifest(serializeManifest(baseManifest));
+    expect(parsed.overrideLabels).toBeUndefined();
+  });
 });
 
 describe('runStandingPRUpdate', () => {
@@ -403,6 +414,57 @@ describe('runStandingPRUpdate', () => {
 
     expect(result.action).toBe('created');
     expect(mocks.pullsCreate).toHaveBeenCalled();
+  });
+
+  it('should bypass the initial skip-pattern guard on a pull_request label event (#336)', async () => {
+    // A label event checks out the standing PR's `chore: release preparation` commit (matches the
+    // skip pattern) — the first guard would noop. A label-triggered run must proceed. The post-reset
+    // HEAD is a normal commit, so the post-reset guard (not bypassed for label runs) passes.
+    // HEAD is the release-prep commit until the branch is reset to origin/main, after which it's a
+    // normal commit. Keying on the reset (not call count) keeps this correct whether or not the
+    // first guard runs its git-log call — the whole point is that the bypass skips that call.
+    const { execSync } = await import('node:child_process');
+    let resetDone = false;
+    vi.mocked(execSync).mockImplementation((cmd: string) => {
+      if (typeof cmd === 'string') {
+        if (cmd.includes('reset --hard')) resetDone = true;
+        if (cmd.includes('git log -1 --pretty=%s')) {
+          return resetDone ? 'feat: something (#320)' : 'chore: release preparation';
+        }
+      }
+      return 'abc123\n';
+    });
+
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ action: 'labeled' }));
+    const prevName = process.env.GITHUB_EVENT_NAME;
+    const prevPath = process.env.GITHUB_EVENT_PATH;
+    process.env.GITHUB_EVENT_NAME = 'pull_request';
+    process.env.GITHUB_EVENT_PATH = '/event.json';
+
+    try {
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+      vi.mocked(runVersionStep)
+        .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+        .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+      const { createOctokit } = await import('../../src/github.js');
+      const { mocks, octokit } = createMockOctokit();
+      mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
+      vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+      const result = await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      // Did NOT noop on the first guard — the label-triggered run proceeded to update the PR.
+      expect(result.action).not.toBe('noop');
+    } finally {
+      if (prevName === undefined) delete process.env.GITHUB_EVENT_NAME;
+      else process.env.GITHUB_EVENT_NAME = prevName;
+      if (prevPath === undefined) delete process.env.GITHUB_EVENT_PATH;
+      else process.env.GITHUB_EVENT_PATH = prevPath;
+    }
   });
 
   it('should return noop when no releasable changes found and no existing PR', async () => {
@@ -1089,6 +1151,21 @@ describe('runStandingPRUpdate', () => {
       expect(runVersionStepMock.mock.calls[1]?.[0]).toMatchObject({ bump: 'premajor', prerelease: true });
     });
 
+    it('should record the override labels in the manifest, excluding the marker label (#337)', async () => {
+      const { mocks } = await setupWithStandingPRLabels(['release', 'bump:major', 'channel:prerelease']);
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const writes = [...mocks.createComment.mock.calls, ...mocks.updateComment.mock.calls];
+      const manifestWrite = writes.find(
+        (c) => typeof c[0]?.body === 'string' && c[0].body.includes('<!-- releasekit-manifest -->'),
+      );
+      expect(manifestWrite).toBeDefined();
+      const manifest = parseManifest(manifestWrite?.[0]?.body as string);
+      // Sorted, marker 'release' label excluded.
+      expect(manifest.overrideLabels).toEqual(['bump:major', 'channel:prerelease']);
+    });
+
     it('should drop the bump under channel:stable (graduation is bump-less, matching the SSOT)', async () => {
       const { runVersionStepMock } = await setupWithStandingPRLabels(['release', 'bump:major', 'channel:stable']);
 
@@ -1481,6 +1558,90 @@ describe('runStandingPRPublish', () => {
       { '@scope/core': '- regenerated at publish time' },
       expect.arrayContaining(['RELEASE_NOTES.md', ...baseManifest.notesFiles]),
     );
+  });
+
+  it('should refuse to publish when override labels diverge from the manifest (#337)', async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({ pull_request: { head: { ref: 'release/next' }, number: 42, merged: true } }),
+    );
+
+    const { createOctokit } = await import('../../src/github.js');
+    const { octokit, mocks } = createMockOctokit();
+    const manifestBody = serializeManifest({ ...baseManifest, schemaVersion: 2, overrideLabels: ['bump:major'] });
+    (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { data: [{ id: 1, body: manifestBody }] };
+      },
+    });
+    // The merged PR carries a different bump label than the manifest was computed for.
+    mocks.pullsGet.mockResolvedValue({ data: { body: '', labels: [{ name: 'bump:minor' }, { name: 'release' }] } });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await expect(
+      runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/labels changed after the last update/);
+
+    const { runPublishStep } = await import('../../src/steps.js');
+    expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
+  });
+
+  it('should publish when override labels match the manifest, ignoring non-override labels (#337)', async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({ pull_request: { head: { ref: 'release/next' }, number: 42, merged: true } }),
+    );
+
+    const { createOctokit } = await import('../../src/github.js');
+    const { octokit, mocks } = createMockOctokit();
+    const manifestBody = serializeManifest({ ...baseManifest, schemaVersion: 2, overrideLabels: ['bump:major'] });
+    (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { data: [{ id: 1, body: manifestBody }] };
+      },
+    });
+    // Same override label; the unrelated 'release' / 'area:ci' labels must not count as a mismatch.
+    mocks.pullsGet.mockResolvedValue({
+      data: { body: '', labels: [{ name: 'release' }, { name: 'bump:major' }, { name: 'area:ci' }] },
+    });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    const { runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+      ReturnType<typeof runPublishStep>
+    >);
+
+    const result = await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
+    expect(result).not.toBeNull();
+    expect(vi.mocked(runPublishStep)).toHaveBeenCalled();
+  });
+
+  it('should skip the override-label check for manifests without overrideLabels (backward compat)', async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({ pull_request: { head: { ref: 'release/next' }, number: 42, merged: true } }),
+    );
+
+    const { createOctokit } = await import('../../src/github.js');
+    const { octokit, mocks } = createMockOctokit();
+    // baseManifest has no overrideLabels (pre-#337) — the check must be skipped even if labels differ.
+    const manifestBody = serializeManifest(baseManifest);
+    (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { data: [{ id: 1, body: manifestBody }] };
+      },
+    });
+    mocks.pullsGet.mockResolvedValue({ data: { body: '', labels: [{ name: 'bump:major' }] } });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    const { runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+      ReturnType<typeof runPublishStep>
+    >);
+
+    const result = await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
+    expect(result).not.toBeNull();
+    expect(vi.mocked(runPublishStep)).toHaveBeenCalled();
   });
 
   it('should fall back to empty release notes when LLM regeneration fails', async () => {

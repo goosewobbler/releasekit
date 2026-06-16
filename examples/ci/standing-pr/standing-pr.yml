@@ -13,9 +13,10 @@ on:
   push:
     branches: [main]
   pull_request:
-    # labeled: needed for the release:retry path, which fires on the merged
-    # (closed) standing PR.
-    types: [closed, labeled]
+    # closed: publish on merge. labeled/unlabeled: (1) apply bump/scope/channel
+    # override labels to the OPEN standing PR immediately instead of waiting for the
+    # next push or the hourly cron; (2) the release:retry path on the merged PR.
+    types: [closed, labeled, unlabeled]
     branches: [main]
   schedule:
     - cron: '0 * * * *' # hourly: advances the minAge status check as time passes
@@ -33,7 +34,19 @@ permissions:
 jobs:
   update:
     name: Update Release PR
-    if: github.event_name == 'push' || github.event_name == 'schedule'
+    # push/schedule rebuild the PR; a label change on the OPEN standing PR re-runs the update
+    # so bump/scope/channel overrides take effect within seconds. `state == 'open'` keeps this
+    # off the merged-PR label events that drive publish/retry below. The `release/` prefix is
+    # hardcoded (workflow `if` can't read config) — the in-step config is authoritative.
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'schedule' ||
+      (
+        github.event_name == 'pull_request' &&
+        (github.event.action == 'labeled' || github.event.action == 'unlabeled') &&
+        github.event.pull_request.state == 'open' &&
+        startsWith(github.event.pull_request.head.ref, 'release/')
+      )
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

@@ -14,7 +14,10 @@ on:
   push:
     branches: [main]  # Should match git.branch in releasekit.config.json
   pull_request:
-    types: [closed]
+    # closed: publish / immediate-release on merge. labeled/unlabeled: apply
+    # bump/scope/channel override labels to the OPEN standing PR immediately
+    # (the merge-gated jobs below add `action == 'closed'` so they ignore these).
+    types: [closed, labeled, unlabeled]
     branches: [main]
   schedule:
     - cron: '0 * * * *'  # Hourly — re-evaluates minAge status check as time passes
@@ -32,7 +35,19 @@ permissions:
 jobs:
   update-release-pr:
     name: Update Release PR
-    if: github.event_name == 'push' || github.event_name == 'schedule'
+    # push/schedule rebuild the PR; a label change on the OPEN standing PR re-runs the update so
+    # bump/scope/channel overrides apply within seconds. `state == 'open'` keeps this off the
+    # merged-PR label events that drive the jobs below. `release/` prefix hardcoded (workflow `if`
+    # can't read config) — the in-step config is authoritative.
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'schedule' ||
+      (
+        github.event_name == 'pull_request' &&
+        (github.event.action == 'labeled' || github.event.action == 'unlabeled') &&
+        github.event.pull_request.state == 'open' &&
+        startsWith(github.event.pull_request.head.ref, 'release/')
+      )
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -72,6 +87,7 @@ jobs:
     name: Immediate Release (bypass standing PR)
     if: >
       github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
       github.event.pull_request.merged == true &&
       contains(github.event.pull_request.labels.*.name, 'release:immediate')
     runs-on: ubuntu-latest
@@ -121,6 +137,7 @@ jobs:
     name: Publish Release
     if: >
       github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
       github.event.pull_request.merged == true &&
       startsWith(github.event.pull_request.head.ref, 'release/')
     runs-on: ubuntu-latest

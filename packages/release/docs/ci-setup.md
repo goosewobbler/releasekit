@@ -342,7 +342,9 @@ on:
   push:
     branches: [main]
   pull_request:
-    types: [closed, labeled]  # labeled: release:retry on the merged standing PR (fires on closed PRs)
+    # closed: publish on merge. labeled/unlabeled: apply bump/scope/channel override labels to
+    # the OPEN standing PR immediately (#336); also the release:retry path on the merged PR.
+    types: [closed, labeled, unlabeled]
     branches: [main]
   schedule:
     - cron: '0 * * * *'  # Hourly — re-evaluates minAge status check as time passes
@@ -360,7 +362,19 @@ permissions:
 jobs:
   update-release-pr:
     name: Update Release PR
-    if: github.event_name == 'push' || github.event_name == 'schedule'
+    # push/schedule rebuild the PR; a label change on the OPEN standing PR re-runs the update so
+    # bump/scope/channel overrides take effect within seconds. `state == 'open'` keeps this off the
+    # merged-PR label events that drive publish/retry. The `release/` prefix is hardcoded (workflow
+    # `if` can't read config) — the in-step config is authoritative.
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'schedule' ||
+      (
+        github.event_name == 'pull_request' &&
+        (github.event.action == 'labeled' || github.event.action == 'unlabeled') &&
+        github.event.pull_request.state == 'open' &&
+        startsWith(github.event.pull_request.head.ref, 'release/')
+      )
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -515,7 +529,7 @@ Labels behave differently in standing-pr mode than in direct mode. There are two
 
 **2. The standing PR itself** — labels are the **canonical override surface**.
 
-A maintainer can edit labels directly on the standing PR (via the GitHub UI or `gh pr edit <n> --add-label bump:major`). The next `standing-pr update` reads those labels and applies them as overrides:
+A maintainer can edit labels directly on the standing PR (via the GitHub UI or `gh pr edit <n> --add-label bump:major`). Adding or removing a label re-runs `standing-pr update` immediately (the `pull_request` `labeled`/`unlabeled` trigger), so the recomputed version table and status check reflect the new labels within seconds — no waiting for the next push or the hourly cron. The update reads those labels and applies them as overrides:
 
 | Label on standing PR | Effect |
 |---|---|
@@ -527,6 +541,8 @@ A maintainer can edit labels directly on the standing PR (via the GitHub UI or `
 Conflicts (e.g. both `bump:patch` and `bump:major`) surface as a `pending` `releasekit/standing-pr` status check on the release branch and a workflow warning. The override is dropped (falls back to commit-driven) until the conflict is resolved by removing one of the labels.
 
 The `standing-pr update` workflow **preserves maintainer-added labels across runs** — labels you add stick until you remove them.
+
+**Staleness guard.** The manifest records the override labels it was computed under. If the standing PR's labels are changed and it's merged before the triggered update re-runs (a narrow race), `standing-pr publish` detects that the merged PR's override labels no longer match the manifest and **refuses to publish** rather than shipping a release the labels no longer describe — re-run `standing-pr update` and merge again (or apply the retry label after updating). So a mismatched manifest can never be released, even though merge itself isn't blocked.
 
 **Why this design**: labels live in one canonical place. There's no question about which feeder PR's bump label "wins" when multiple PRs disagree — there is only the standing PR. Provenance is GitHub's own audit log (`gh pr view <n> --json events`).
 
