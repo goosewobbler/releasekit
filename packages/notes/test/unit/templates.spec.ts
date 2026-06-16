@@ -11,6 +11,7 @@ const sampleContext: TemplateContext = {
   packageName: 'test-pkg',
   version: '1.0.0',
   previousVersion: null,
+  isFirstRelease: true,
   date: '2026-02-21',
   repoUrl: 'https://github.com/test/test-pkg',
   entries: [
@@ -37,6 +38,12 @@ describe('Liquid Engine', () => {
     const result = renderLiquid(template, sampleContext);
     expect(result).toBe('No previous');
   });
+
+  it('should branch on isFirstRelease', () => {
+    const template = '{% if isFirstRelease %}First!{% else %}Update{% endif %}';
+    expect(renderLiquid(template, sampleContext)).toBe('First!');
+    expect(renderLiquid(template, { ...sampleContext, isFirstRelease: false })).toBe('Update');
+  });
 });
 
 describe('Handlebars Engine', () => {
@@ -50,6 +57,12 @@ describe('Handlebars Engine', () => {
     const template = '{{#each entries}}- {{description}}{{/each}}';
     const result = renderHandlebars(template, sampleContext);
     expect(result).toBe('- New feature- Bug fix');
+  });
+
+  it('should branch on isFirstRelease', () => {
+    const template = '{{#if isFirstRelease}}First!{{else}}Update{{/if}}';
+    expect(renderHandlebars(template, sampleContext)).toBe('First!');
+    expect(renderHandlebars(template, { ...sampleContext, isFirstRelease: false })).toBe('Update');
   });
 
   it('should uppercase the first letter of a string with the capitalize helper', () => {

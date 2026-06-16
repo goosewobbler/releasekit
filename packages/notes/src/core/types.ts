@@ -65,6 +65,9 @@ export interface TemplateContext {
   entries: ChangelogEntry[];
   compareUrl?: string;
   enhanced?: EnhancedData;
+  /** True when `previousVersion === null` — the package has no prior release. Templates can branch
+   *  on it to add a first-release intro; the default renderer seeds a placeholder line. */
+  isFirstRelease?: boolean;
 }
 
 export interface DocumentContext {
@@ -198,10 +201,17 @@ export interface ReleaseNotesFileConfig {
   dir?: string;
 }
 
+export interface FirstReleaseConfig {
+  /** Placeholder intro line for a package's first release. Supports ${packageName} and ${version}. */
+  text?: string;
+}
+
 export interface ReleaseNotesConfig {
   /** In-repo per-version file output. Omit to keep notes only on the GitHub release body. */
   file?: ReleaseNotesFileConfig;
   templates?: TemplateConfig;
   llm?: LLMConfig;
   links?: LinksConfig;
+  /** First-release placeholder intro. Default-on with a factual line; set to false to disable. */
+  firstRelease?: false | FirstReleaseConfig;
 }

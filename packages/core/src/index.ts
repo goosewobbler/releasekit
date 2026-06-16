@@ -16,6 +16,12 @@ export {
   warn,
 } from './logger.js';
 export {
+  extractNotesRegion,
+  NOTES_MARKER,
+  NOTES_MARKER_END,
+  wrapNotesRegion,
+} from './notesRegion.js';
+export {
   matchesPackageTarget,
   shouldMatchPackageTargets,
   shouldProcessPackage,

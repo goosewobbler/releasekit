@@ -143,4 +143,47 @@ describe('Integration: single package', () => {
       expect(markdown).toContain('Add streaming support');
     });
   });
+
+  describe('First release -> intro line, no compare link', () => {
+    it('should derive isFirstRelease from a null previousVersion and render the intro', () => {
+      const versionOutput = {
+        dryRun: true,
+        updates: [
+          {
+            packageName: 'test-single-package',
+            previousVersion: null,
+            newVersion: '0.1.0',
+            filePath: 'package.json',
+          },
+        ],
+        changelogs: [
+          {
+            packageName: 'test-single-package',
+            version: '0.1.0',
+            previousVersion: null,
+            revisionRange: 'HEAD',
+            repoUrl: null,
+            entries: [{ type: 'added', description: 'Initial public API' }],
+          },
+        ],
+        tags: ['v0.1.0'],
+        commitMessage: 'chore: release test-single-package v0.1.0',
+      };
+
+      const input = parseVersionOutput(JSON.stringify(versionOutput));
+      const contexts = input.packages.map(createTemplateContext);
+      // The version→notes contract: a null previousVersion is the first-release signal.
+      expect(contexts[0]?.isFirstRelease).toBe(true);
+
+      const markdown = renderMarkdown(contexts);
+
+      // Unbracketed header (no prior version to link), the factual intro line, and the entries.
+      expect(markdown).toContain('## 0.1.0');
+      expect(markdown).not.toContain('## [0.1.0]');
+      expect(markdown).toContain('_First release of test-single-package._');
+      expect(markdown).toContain('Initial public API');
+      // Markers live only on the GitHub release body surface, never in the changelog document.
+      expect(markdown).not.toContain('<!-- releasekit-notes');
+    });
+  });
 });

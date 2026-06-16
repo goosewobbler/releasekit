@@ -544,6 +544,21 @@ If a standing-PR publish fails partway through (some packages on the registry, n
 
 Applying the label to a non-standing or unmerged PR simply doesn't match the job's guard — nothing runs. A successful retry resolves the partial-publish failure report and clears the supersede warning from the next standing PR. Full recovery walkthrough: [Recovering from a failed publish](../../../docs/troubleshooting.md#recovering-from-a-failed-publish). (For reference, releasekit's own repo implements the same flow as a standalone [`release-retry.yml`](../../../.github/workflows/release-retry.yml) that dispatches its release workflow — useful if your publish runs in a separate dispatchable workflow.)
 
+#### Previewing and editing release notes
+
+By default the standing PR generates only changelogs — LLM release notes are produced at **publish** time, so the workflow never depends on LLM availability on every push. To review and **edit** the release notes *before* merging, label the standing PR **`release:preview-notes`** (configurable via `ci.labels.previewNotes`).
+
+1. Add the label to the standing PR (`gh pr edit <n> --add-label release:preview-notes`).
+2. On the next `standing-pr update` — the next push to `main`, the hourly `schedule`, or a manual re-run of the workflow — releasekit generates LLM release notes into an editable **`## Release Notes`** region in the PR body, with one block per package delimited by `<!-- releasekit-notes:<package> -->` markers.
+3. Edit the prose between the markers directly in the PR description. **Keep the marker comments** — they delimit the region that's read back.
+4. Merge as usual. The edited notes become the GitHub release body, winning per package over freshly generated notes.
+
+Your edits are **preserved across update runs**: notes are generated once when the label is first applied, then carried over (not regenerated) on later pushes — so a push to `main` while you're mid-edit won't clobber your text. A package added to the queue *after* you started gets fresh notes; existing blocks keep your edits. Requires `notes.releaseNotes.llm` configured and the provider secret available to the `update-release-pr` job (same as publish-time generation).
+
+This is a standing-pr-only feature — it needs a durable pre-publish artifact (the PR body) to edit. In `direct`/`manual` mode, edit the GitHub Release after it's published instead. (A manual-mode draft-then-dispatch flow is tracked in [#319](https://github.com/goosewobbler/releasekit/issues/319).)
+
+> **Edit race:** a standing-PR update reads the live PR body, merges your edits, and rewrites it. An edit saved in the narrow window between that read and rewrite can be overwritten. Updates are infrequent (push/schedule-driven), so in practice this is rare — re-apply the edit if it happens.
+
 ### Troubleshooting
 
 | Symptom | Cause / fix |
@@ -555,6 +570,8 @@ Applying the label to a non-standing or unmerged PR simply doesn't match the job
 | Standing PR keeps closing immediately | `minPackages` is set higher than the current change count. Either lower the threshold or wait for more package changes to accumulate. |
 | Standing PR ignores my `bump:*` label on a feeder PR | By design — feeder labels are advisory in standing-pr mode. Add the label to the standing PR itself, or use `release:immediate` to bypass the queue. |
 | Standing PR shows `pending` status `Conflicting bump labels…` | Two conflicting labels on the standing PR (e.g. `bump:patch` + `bump:major`). Remove one and re-run `standing-pr update`. |
+| Added `release:preview-notes` but no notes appear | The region is written on the next `standing-pr update` (push to `main`, the hourly `schedule`, or a manual re-run) — not the instant the label is applied. Also confirm `notes.releaseNotes.llm` is set and the provider secret reaches the `update-release-pr` job. |
+| Edited release notes didn't ship | Confirm you edited *inside* the `<!-- releasekit-notes:<package> -->` markers and left them intact — content outside the markers isn't read back. |
 | Force-push to `release/next` fails | Branch is protected. Remove protection on the release branch, or grant the bot bypass. |
 | `minAge` never advances | The hourly `schedule` trigger isn't running. Confirm the workflow has a `schedule:` block and that the repo isn't paused (GitHub disables `schedule` on inactive repos after 60 days). |
 

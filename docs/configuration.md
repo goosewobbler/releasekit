@@ -274,6 +274,7 @@ Set to `false` to disable.
 |-----|------|---------|-------------|
 | `file` | object | — | Optional in-repo file output. Omit to keep release notes only on the GitHub release body (the default). When set, writes one immutable Markdown file per version under `dir` — release-notes/<package>/<version>.md in a monorepo, release-notes/<version>.md in a single-package repo — giving a browsable, provider-independent per-release history. |
 | `links` | object | — | Extra links to append to the release notes. |
+| `firstRelease` | `false` \| object | — | First-release placeholder intro, shown when a package has no prior version (previousVersion is null). Default-on with a factual line; set to false to disable. |
 
 **`notes.releaseNotes.templates`** — Template for rendering release notes (e.g. to add docs-site frontmatter). Takes precedence over LLM prose and the default formatted section.
 
@@ -393,6 +394,7 @@ PR label names used for release control. Override to match your repository's lab
 | `skip` | string | `"release:skip"` | Label to suppress a release on this PR |
 | `immediate` | string | `"release:immediate"` | Label to bypass the standing PR for one merge — triggers a direct release. Standing-pr mode only. |
 | `retry` | string | `"release:retry"` | Label to retry a failed publish by re-applying it to a merged standing PR. Standing-pr mode only. |
+| `previewNotes` | string | `"release:preview-notes"` | Label on the standing PR that generates LLM release notes on demand into an editable region in the PR body, for review and editing before merge. Standing-pr mode only. |
 | `major` | string | `"bump:major"` | Label to force a major bump |
 | `minor` | string | `"bump:minor"` | Label to force a minor bump |
 | `patch` | string | `"bump:patch"` | Label to force a patch bump |

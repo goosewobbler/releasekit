@@ -319,8 +319,10 @@ describe('Monorepo: aggregation and splitting', () => {
   });
 
   it('should include package name in formatVersion only when requested', () => {
-    const withName = formatVersion(pkgA, { includePackageName: true });
-    const withoutName = formatVersion(pkgA);
+    // firstRelease disabled to isolate the includePackageName behaviour from the first-release intro,
+    // whose line legitimately names the package.
+    const withName = formatVersion(pkgA, { includePackageName: true, firstRelease: false });
+    const withoutName = formatVersion(pkgA, { firstRelease: false });
 
     expect(withName).toContain('## @acme/core@1.0.0');
     expect(withoutName).toContain('## 1.0.0');

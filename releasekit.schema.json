@@ -1004,6 +1004,28 @@
                     }
                   },
                   "description": "Extra links to append to the release notes."
+                },
+                "firstRelease": {
+                  "oneOf": [
+                    {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Set to false to disable the first-release placeholder intro."
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "text": {
+                          "type": "string",
+                          "description": "Placeholder intro line for a package's first release. Supports ${packageName} and ${version}. Defaults to a factual line so it reads cleanly even when published unedited."
+                        }
+                      }
+                    }
+                  ],
+                  "description": "First-release placeholder intro, shown when a package has no prior version (previousVersion is null). Default-on with a factual line; set to false to disable."
                 }
               },
               "description": "Release notes configuration"
@@ -1098,6 +1120,11 @@
               "type": "string",
               "default": "release:retry",
               "description": "Label to retry a failed publish by re-applying it to a merged standing PR. Standing-pr mode only."
+            },
+            "previewNotes": {
+              "type": "string",
+              "default": "release:preview-notes",
+              "description": "Label on the standing PR that generates LLM release notes on demand into an editable region in the PR body, for review and editing before merge. Standing-pr mode only."
             },
             "major": {
               "type": "string",

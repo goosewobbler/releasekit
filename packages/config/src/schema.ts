@@ -449,6 +449,20 @@ export const ReleaseNotesConfigSchema = z
       })
       .optional()
       .describe('Extra links to append to the release notes.'),
+    firstRelease: z
+      .union([
+        z.literal(false).describe('Set to false to disable the first-release placeholder intro.'),
+        z.object({
+          text: z.string().optional().describe(
+            // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting placeholder syntax to the user
+            "Placeholder intro line for a package's first release. Supports ${packageName} and ${version}. Defaults to a factual line so it reads cleanly even when published unedited.",
+          ),
+        }),
+      ])
+      .optional()
+      .describe(
+        'First-release placeholder intro, shown when a package has no prior version (previousVersion is null). Default-on with a factual line; set to false to disable.',
+      ),
   })
   .describe('Release notes configuration');
 
@@ -484,6 +498,12 @@ export const CILabelsConfigSchema = z.object({
     .string()
     .default('release:retry')
     .describe('Label to retry a failed publish by re-applying it to a merged standing PR. Standing-pr mode only.'),
+  previewNotes: z
+    .string()
+    .default('release:preview-notes')
+    .describe(
+      'Label on the standing PR that generates LLM release notes on demand into an editable region in the PR body, for review and editing before merge. Standing-pr mode only.',
+    ),
   major: z.string().default('bump:major').describe('Label to force a major bump'),
   minor: z.string().default('bump:minor').describe('Label to force a minor bump'),
   patch: z.string().default('bump:patch').describe('Label to force a patch bump'),
@@ -561,6 +581,7 @@ export const CIConfigSchema = z.object({
     skip: 'release:skip',
     immediate: 'release:immediate',
     retry: 'release:retry',
+    previewNotes: 'release:preview-notes',
     major: 'bump:major',
     minor: 'bump:minor',
     patch: 'bump:patch',

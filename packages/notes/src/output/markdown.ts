@@ -1,7 +1,26 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { info, success } from '@releasekit/core';
-import type { ChangelogEntry, Config, EnhancedCategory, LinksConfig, TemplateContext } from '../core/types.js';
+import type {
+  ChangelogEntry,
+  Config,
+  EnhancedCategory,
+  FirstReleaseConfig,
+  LinksConfig,
+  TemplateContext,
+} from '../core/types.js';
+
+const DEFAULT_FIRST_RELEASE_TEXT = '_First release of ${packageName}._';
+
+/**
+ * The placeholder intro line for a first release, or `undefined` when not a first release or disabled.
+ * The default text is a true statement so it reads fine even when published unedited (automated modes).
+ */
+export function firstReleaseLine(context: TemplateContext, config?: FirstReleaseConfig | false): string | undefined {
+  if (!context.isFirstRelease || config === false) return undefined;
+  const template = config?.text ?? DEFAULT_FIRST_RELEASE_TEXT;
+  return template.replaceAll('${packageName}', context.packageName).replaceAll('${version}', context.version);
+}
 
 const TYPE_ORDER: ChangelogEntry['type'][] = ['added', 'changed', 'deprecated', 'removed', 'fixed', 'security'];
 
@@ -221,6 +240,8 @@ export interface FormatVersionOptions {
   categoryOrder?: string[];
   /** Migration/doc links to render at the end of the release notes section. */
   links?: LinksConfig;
+  /** First-release placeholder intro config, or `false` to suppress it. */
+  firstRelease?: FirstReleaseConfig | false;
 }
 
 export function formatVersion(context: TemplateContext, options?: FormatVersionOptions): string {
@@ -232,6 +253,12 @@ export function formatVersion(context: TemplateContext, options?: FormatVersionO
 
   lines.push(`${versionHeader} - ${context.date}`);
   lines.push('');
+
+  const introLine = firstReleaseLine(context, options?.firstRelease);
+  if (introLine) {
+    lines.push(introLine);
+    lines.push('');
+  }
 
   if (context.compareUrl) {
     lines.push(`[Full Changelog](${context.compareUrl})`);

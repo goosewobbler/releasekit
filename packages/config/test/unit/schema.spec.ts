@@ -505,6 +505,7 @@ describe('CIConfigSchema', () => {
       skip: 'release:skip',
       immediate: 'release:immediate',
       retry: 'release:retry',
+      previewNotes: 'release:preview-notes',
       major: 'bump:major',
       minor: 'bump:minor',
       patch: 'bump:patch',
