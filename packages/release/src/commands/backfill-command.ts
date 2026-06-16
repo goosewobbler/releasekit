@@ -256,7 +256,7 @@ export function createBackfillCommand(): Command {
                 continue;
               }
 
-              const decision = decideReleaseUpdate(releaseInfo.body, onlyMissing, force);
+              const decision = decideReleaseUpdate(releaseInfo.body ?? '', onlyMissing, force);
               if (decision.action === 'skip') {
                 if (decision.reason === 'already-backfilled') {
                   info(`  ${tag}: already has releasekit notes, skipping`);
