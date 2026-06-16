@@ -15,6 +15,10 @@ describe('composeBumpFromLabels', () => {
   });
 
   it('should return prerelease when the prerelease channel is present with no magnitude (iterate an existing line)', () => {
+    // This 'prerelease' return is only consumed in commit-trigger mode (via evaluatePR). In
+    // label-trigger mode the gate rejects prerelease-alone (shouldRelease: false) before it ever
+    // reaches the version engine, and the standing-PR path keeps it commit-driven — so the value
+    // is meaningful, but which path acts on it is context-dependent.
     expect(composeBumpFromLabels(['channel:prerelease'])).toBe('prerelease');
   });
 

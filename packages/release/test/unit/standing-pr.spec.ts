@@ -1089,6 +1089,17 @@ describe('runStandingPRUpdate', () => {
       expect(runVersionStepMock.mock.calls[1]?.[0]).toMatchObject({ bump: 'premajor', prerelease: true });
     });
 
+    it('should drop the bump under channel:stable (graduation is bump-less, matching the SSOT)', async () => {
+      const { runVersionStepMock } = await setupWithStandingPRLabels(['release', 'bump:major', 'channel:stable']);
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      // channel:stable wins — bump is dropped (not leaked as 'major'), consistent with
+      // composeBumpFromLabels returning undefined for stable.
+      expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ stable: true });
+      expect(runVersionStepMock.mock.calls[0]?.[0]?.bump).toBeUndefined();
+    });
+
     it('should drop conflicting bump labels and posts pending status check', async () => {
       const { mocks, runVersionStepMock } = await setupWithStandingPRLabels(['release', 'bump:patch', 'bump:major']);
 

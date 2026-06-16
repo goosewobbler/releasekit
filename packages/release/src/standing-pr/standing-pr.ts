@@ -578,11 +578,16 @@ function resolveStandingPrLabelOverrides(prLabels: string[], ciConfig: CIConfig 
     }
   }
 
-  // Compose pre<magnitude> when the prerelease channel accompanies a magnitude bump, so the
-  // standing PR escalates an already-prerelease package to a fresh line (premajor →
-  // 2.0.0-next.0) instead of incrementing it (#335). Mirrors composeBumpFromLabels; kept inline
-  // here because this path layers its own conflict detection on top.
-  const composedBump = bump && prerelease ? (`pre${bump}` as const) : bump;
+  // Compose the bump to match composeBumpFromLabels (the label→bump SSOT), kept inline here
+  // because this path layers its own conflict detection on top:
+  //   - channel:stable wins and drops the bump — graduation is bump-less, so don't leak a stale
+  //     magnitude into { bump, stable } (engine ignores it today, but the contract must hold).
+  //   - prerelease + magnitude escalates to a fresh line (premajor → 2.0.0-next.0) rather than
+  //     incrementing an existing prerelease (#335).
+  // (The one deliberate divergence from the SSOT: prerelease *alone* stays commit-driven here —
+  // bump undefined + prerelease flag — rather than forcing a 'prerelease' bump, so a standing PR's
+  // channel:prerelease label still lets commits pick the magnitude.)
+  const composedBump = stable ? undefined : bump && prerelease ? (`pre${bump}` as const) : bump;
 
   return { bump: composedBump, target, stable, prerelease, conflicts };
 }
