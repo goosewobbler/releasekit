@@ -46,6 +46,27 @@ export function getCommitsLength(pkgRoot: string, sinceTag?: string): number {
 }
 
 /**
+ * Whether a git ref (tag, branch, or SHA) exists and resolves to a commit in this repo.
+ * Used to guard a `from..HEAD` range before handing it to a commit walker — an absent ref
+ * should fall back to the unbounded default rather than throwing.
+ * @param ref The ref to verify
+ * @param cwd Optional working directory to run the check in
+ * @returns true if the ref resolves, false otherwise
+ */
+export function refExists(ref: string, cwd?: string): boolean {
+  if (!ref || ref.trim() === '') return false;
+  try {
+    execSync('git', ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], {
+      ...(cwd ? { cwd } : {}),
+      stdio: 'ignore',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Get the latest semver tag from the repository sorted by semantic version
  * This function prioritizes semantic ordering over chronological ordering to handle
  * cases where tags were created out of order (e.g., v0.7.1 created after v0.8.0)

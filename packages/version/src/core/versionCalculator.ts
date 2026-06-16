@@ -8,7 +8,7 @@ import { Bumper } from 'conventional-recommended-bump';
 import type { ReleaseType } from 'semver';
 import semver from 'semver';
 import { getCurrentBranch } from '../git/repository.js';
-import { getCommitsLength, lastMergeBranchName } from '../git/tagsAndBranches.js';
+import { getCommitsLength, lastMergeBranchName, refExists } from '../git/tagsAndBranches.js';
 import type { Config, VersionOptions } from '../types.js';
 import { buildTagStripPatternFromTemplate, escapeRegExp } from '../utils/formatting.js';
 import { log } from '../utils/logging.js';
@@ -302,8 +302,15 @@ export async function calculateVersion(config: Config, options: VersionOptions):
       log(`Creating bumper with preset: ${preset}`, 'debug');
       const bumper = new Bumper();
       bumper.loadPreset(preset);
-      if (config.baseRef) {
-        bumper.commits({ from: config.baseRef });
+      // Bound the commit scan to the same baseline the changelog uses (`config.baseRef ?? latestTag`).
+      // Without the latestTag fallback an absent baseRef lets conventional-recommended-bump scan the
+      // ENTIRE history — the repo's baseline tags (e.g. `release/v0.29.0`) aren't in a format its
+      // default tag-detection recognises — so accumulated historical feats inflate the bump magnitude
+      // (a docs-only window bumps minor instead of patch). Guard the tag with rev-parse so an absent
+      // ref falls back to the unbounded default rather than throwing. See #330.
+      const bumpFrom = config.baseRef ?? (latestTag && refExists(latestTag, pkgPath) ? latestTag : undefined);
+      if (bumpFrom) {
+        bumper.commits({ from: bumpFrom });
       }
       const recommendedBump = await bumper.bump();
       const releaseTypeFromCommits =
