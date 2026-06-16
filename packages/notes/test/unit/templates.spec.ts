@@ -142,6 +142,20 @@ describe('release.liquid template', () => {
     expect(result).toContain('**Full Changelog**: https://github.com/test/test-pkg/compare/v0.9.0...v1.0.0');
   });
 
+  it('should lead with a first-release line when isFirstRelease is true', () => {
+    const first: DocumentContext = {
+      project: { name: 'test-pkg' },
+      versions: [{ ...sampleContext, isFirstRelease: true }],
+    };
+    expect(renderLiquid(template, first)).toContain('_First release of `test-pkg`._');
+
+    const subsequent: DocumentContext = {
+      project: { name: 'test-pkg' },
+      versions: [{ ...sampleContext, isFirstRelease: false }],
+    };
+    expect(renderLiquid(template, subsequent)).not.toContain('First release of');
+  });
+
   it('should skip empty categories', () => {
     const ctx: DocumentContext = {
       project: { name: 'test-pkg' },
