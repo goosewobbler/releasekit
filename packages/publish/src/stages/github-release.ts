@@ -1,5 +1,5 @@
 import type { VersionPackageChangelog } from '@releasekit/core';
-import { debug, info, sanitizePackageName, success, warn, wrapNotesRegion } from '@releasekit/core';
+import { debug, info, sanitizePackageName, success, warn } from '@releasekit/core';
 import type { GitHubReleaseResult, PipelineContext } from '../types.js';
 import { execCommand, execCommandSafe } from '../utils/exec.js';
 import { isPrerelease } from '../utils/semver.js';
@@ -41,7 +41,7 @@ function resolveNotes(
     }
     if (pipelineNotes) {
       const body = findNotesForTag(tag, pipelineNotes);
-      if (body) return { body: wrapNotesRegion(body), useGithubNotes: false };
+      if (body) return { body, useGithubNotes: false };
     }
     warn('No release notes found in pipeline output, falling back to GitHub auto-notes');
     return { useGithubNotes: true };
@@ -59,7 +59,7 @@ function resolveNotes(
   // 'auto' mode — try release notes, fall back to GitHub auto-generated notes
   if (releaseNotesEnabled && pipelineNotes) {
     const body = findNotesForTag(tag, pipelineNotes);
-    if (body) return { body: wrapNotesRegion(body), useGithubNotes: false };
+    if (body) return { body, useGithubNotes: false };
     warn(`Release notes configured but no content found for tag ${tag}, falling back to GitHub auto-generated notes`);
   }
 
