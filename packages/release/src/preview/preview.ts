@@ -6,7 +6,7 @@ import { renderSupersedeWarning } from '../failure-report/failure-report.js';
 import { detectUnresolvedFailure } from '../failure-report/post.js';
 import { evaluatePR } from '../gate/evaluate-pr.js';
 import { createOctokit, fetchPRLabels, postOrUpdateComment } from '../github.js';
-import { DEFAULT_LABELS, detectLabelConflicts } from '../label-utils.js';
+import { composeBumpFromLabels, DEFAULT_LABELS, detectLabelConflicts } from '../label-utils.js';
 import { runRelease } from '../release.js';
 import {
   fetchStandingPRSnapshot,
@@ -364,15 +364,14 @@ async function applyLabelOverrides(
       warn(`Conflicting labels "${labels.stable}" and "${labels.prerelease}" detected — release blocked`);
     }
     if (!labelContext.noBumpLabel) {
-      if (prLabels.includes(labels.major)) {
-        labelContext.bumpLabel = 'major';
-        result.bump = 'major';
-      } else if (prLabels.includes(labels.minor)) {
-        labelContext.bumpLabel = 'minor';
-        result.bump = 'minor';
-      } else if (prLabels.includes(labels.patch)) {
-        labelContext.bumpLabel = 'patch';
-        result.bump = 'patch';
+      // Carry the COMPOSED bump (e.g. premajor) so a major+prerelease on an existing
+      // prerelease escalates to a fresh line rather than degrading to an increment (#335).
+      // The banner still shows the magnitude.
+      const composedBump = composeBumpFromLabels(prLabels, labels);
+      const magnitude = magnitudeFromBump(composedBump);
+      if (magnitude) {
+        labelContext.bumpLabel = magnitude;
+        result.bump = composedBump;
       }
       if (prLabels.includes(labels.stable)) {
         labelContext.stable = true;
@@ -403,12 +402,13 @@ async function applyLabelOverrides(
         warn(`Conflicting labels "${labels.stable}" and "${labels.prerelease}" detected — release blocked`);
       }
     } else {
-      // Releasing — translate evaluation.bump to PreviewOptions + bumpLabel for the banner.
+      // Releasing — carry the gate's COMPOSED bump (e.g. premajor) verbatim so the preview
+      // matches what the release will compute; the banner shows the magnitude (#335).
       const magnitude = magnitudeFromBump(evaluation.bump);
       if (magnitude) {
         info(`PR label "bump:${magnitude}" detected — ${magnitude} release`);
         labelContext.bumpLabel = magnitude;
-        result.bump = magnitude;
+        result.bump = evaluation.bump;
       }
       if (evaluation.stable) {
         labelContext.stable = true;

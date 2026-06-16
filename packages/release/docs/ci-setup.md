@@ -95,14 +95,29 @@ In CI, add `--check`: it exits non-zero on a missing label, catching the silent 
 | `channel:prerelease` + `bump:patch` | `1.0.0` | `1.0.1-next.0` |
 | `channel:prerelease` + `bump:minor` | `1.0.0` | `1.1.0-next.0` |
 | `channel:prerelease` + `bump:major` | `1.0.0` | `2.0.0-next.0` |
-| `channel:prerelease` + `bump:patch` | `1.0.0-next.6` | `1.0.0-next.7` — increments prerelease counter |
-| `channel:prerelease` + `bump:minor` | `1.0.0-next.6` | `1.0.0-next.7` — increments prerelease counter |
-| `channel:prerelease` + `bump:major` | `1.0.0-next.6` | `1.0.0-next.7` — increments prerelease counter |
+| `channel:prerelease` + `bump:patch` | `1.0.0-next.6` | `1.0.1-next.0` — starts a fresh patch prerelease line |
+| `channel:prerelease` + `bump:minor` | `1.0.0-next.6` | `1.1.0-next.0` — starts a fresh minor prerelease line |
+| `channel:prerelease` + `bump:major` | `1.0.0-next.6` | `2.0.0-next.0` — starts a fresh major prerelease line |
 | `channel:prerelease` alone | any | No release — add a `bump:*` label |
 | `channel:stable` alone | `1.0.0-next.6` | `1.0.0` |
 | `channel:stable` alone | `1.0.0` | No release — already at stable version |
 | `channel:stable` + any `bump:*` | `1.0.0-next.6` | `1.0.0` — bump label is ignored during stable promotion |
 | `channel:stable` + `bump:minor` | `1.0.0` | `1.1.0` — bump applies to already-stable packages |
+
+> **`channel:prerelease` + `bump:*` escalates — it starts a *fresh* prerelease line at the chosen
+> magnitude, even when the package is already on a prerelease.** So `bump:major` + `channel:prerelease`
+> on `1.1.1-next.1` yields `2.0.0-next.0`, not `1.1.1-next.2`. To *iterate* an existing prerelease
+> counter (`2.0.0-next.0` → `2.0.0-next.1`) without escalating, drop the `bump:*` label and let the
+> bump come from commits with the prerelease channel applied — e.g. in standing-pr mode, put
+> `channel:prerelease` alone on the standing PR.
+
+> **`channel:prerelease` is a channel modifier, never a standalone release trigger.** It does
+> nothing without a `bump:*` label in label/direct mode (it can't pick a magnitude on its own), and
+> in standing-pr mode it simply sets the channel for the next merge. `channel:stable` is the one
+> channel label that can stand alone in label/direct mode — but only because graduating a prerelease
+> resolves to exactly one version (`1.0.0-next.6` → `1.0.0`); on an already-stable package it's a
+> no-op. In standing-pr mode the *merge* is the trigger, so both channel labels are pure modifiers
+> there.
 
 ```yaml
 # .github/workflows/release.yml

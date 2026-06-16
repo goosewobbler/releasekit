@@ -417,14 +417,16 @@ describe('runPreview', () => {
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major' }));
       });
 
-      it('should compose bump label and prerelease label', async () => {
+      it('should compose bump label and prerelease label into a pre* bump', async () => {
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
         mockDetectPrerelease.mockReturnValue({ isPrerelease: false });
         mockFetchPRLabels.mockResolvedValue(['bump:minor', 'channel:prerelease']);
 
         await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
-        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor', prerelease: true }));
+        // minor + prerelease composes to preminor so an existing prerelease escalates a fresh
+        // line rather than degrading to a prerelease increment (#335).
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'preminor', prerelease: true }));
       });
 
       it('should ignore skip label in label mode', async () => {
@@ -568,13 +570,13 @@ describe('runPreview', () => {
         expect(body).not.toContain('### Packages');
       });
 
-      it('should use minor bump when prerelease and bump:minor labels present', async () => {
+      it('should use preminor bump when prerelease and bump:minor labels present', async () => {
         mockFetchPRLabels.mockResolvedValue(['channel:prerelease', 'bump:minor']);
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
 
         await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
-        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'minor', prerelease: true }));
+        expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'preminor', prerelease: true }));
       });
     });
 
