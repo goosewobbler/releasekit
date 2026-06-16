@@ -8,8 +8,16 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+# Isolate only the `pull_request: closed` event into its own group; `push` and `workflow_dispatch`
+# stay together. The publish dispatch (detect-release-merge → trigger-publish) and the
+# update-release-pr work ride `push`/`workflow_dispatch` and MUST serialize. The `pull_request` run
+# is a no-op for normal merges (it only handles `release:immediate`) — but sharing the queue let it
+# supersede a queued publish-dispatch push run (GitHub keeps only the latest pending run per group),
+# silently dropping the publish (see #322). Mapping just `pull_request` to a separate group fixes
+# that without separating `workflow_dispatch` from `push` (which would let a manual re-trigger race
+# an in-flight push run).
 concurrency:
-  group: standing-release-pr
+  group: standing-release-pr-${{ github.event_name == 'pull_request' && 'pull-request' || 'main' }}
   cancel-in-progress: false
 
 permissions:
