@@ -144,7 +144,7 @@ export function createBackfillCommand(): Command {
 
       // Estimate and warn about LLM cost if not in --no-llm mode and LLM is enabled
       const llmEnabled = !noLlm && notesConfig.releaseNotes?.llm;
-      if (llmEnabled && totalReleaseCount > 0 && !dryRun) {
+      if (llmEnabled && totalReleaseCount > 0) {
         const llmConfig = notesConfig.releaseNotes?.llm;
         const enabledTasks = countEnabledLlmTasks(llmConfig?.tasks);
         warn(

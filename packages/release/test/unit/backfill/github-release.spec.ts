@@ -19,7 +19,8 @@ describe('decideReleaseUpdate', () => {
     // Empty bodies are always treated as gaps.
     expect(decideReleaseUpdate('', false)).toEqual({ action: 'update' });
     expect(decideReleaseUpdate('', true)).toEqual({ action: 'update' });
-    // Under --only-missing, non-empty unmarked bodies are still updated (they haven't been backfilled yet).
+    // Under --only-missing, non-empty unmarked bodies are updated (they haven't been backfilled yet).
+    // In default mode, the same body would be skipped as hand-edited (see separate test).
     expect(decideReleaseUpdate('## What changed\n- auto stuff', true)).toEqual({ action: 'update' });
   });
 
