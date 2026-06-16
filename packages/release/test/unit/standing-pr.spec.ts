@@ -343,6 +343,38 @@ describe('runStandingPRUpdate', () => {
     expect(result.action).toBe('noop');
   });
 
+  it('should return noop when a release commit lands on the base branch during the run (#323)', async () => {
+    // Top-of-function guard sees a non-release HEAD (passes), but after resetting to origin/main a
+    // release commit is now HEAD — a release merged mid-run. The post-reset recheck must bow out so
+    // the standing PR doesn't double-bump off the just-merged-but-untagged version bump.
+    const { execSync } = await import('node:child_process');
+    let logCalls = 0;
+    vi.mocked(execSync).mockImplementation((cmd: string) => {
+      if (typeof cmd === 'string' && cmd.includes('git log -1 --pretty=%s')) {
+        logCalls += 1;
+        return logCalls === 1 ? 'feat: something (#320)' : 'chore: release v0.29.0 (#318)';
+      }
+      return 'abc123\n';
+    });
+
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '0.29.0' }]);
+    vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const { createOctokit } = await import('../../src/github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    const result = await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(result.action).toBe('noop');
+    // No PR write — the update bowed out before force-push / PR update.
+    expect(mocks.pullsUpdate).not.toHaveBeenCalled();
+    expect(mocks.pullsCreate).not.toHaveBeenCalled();
+  });
+
   it('should bypass the skip-pattern guard when reconcile is set', async () => {
     // HEAD is a release commit (matches the skip pattern) — the post-release reconcile scenario.
     // Without reconcile this would noop; with reconcile it must proceed and create the PR.
