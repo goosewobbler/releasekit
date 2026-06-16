@@ -770,8 +770,41 @@ describe('Version Calculator', () => {
       expect(commitsSpy).toHaveBeenCalledWith({ from: 'deadbeef123' });
     });
 
-    it('should NOT call Bumper.commits when config.baseRef is not set', async () => {
+    it('should bound the bumper to latestTag when baseRef is absent and the tag exists', async () => {
+      // Regression for #330: without baseRef the scan must still be bounded to the last release
+      // tag. Otherwise conventional-recommended-bump scans the entire history and historical feats
+      // inflate the bump magnitude (a docs-only window bumps minor instead of patch).
       const commitsSpy = vi.spyOn(Bumper.prototype, 'commits').mockReturnThis();
+      vi.spyOn(gitTags, 'refExists').mockReturnValue(true);
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.0.1');
+
+      const options: VersionOptions = { latestTag: 'v1.0.0', versionPrefix: 'v' };
+
+      await calculateVersion(defaultConfig as Config, options);
+
+      expect(commitsSpy).toHaveBeenCalledWith({ from: 'v1.0.0' });
+    });
+
+    it('should bound the bumper to a multi-segment baseline tag when baseRef is absent', async () => {
+      // Mirrors the standing-PR / sync shape that surfaced #330: the baseline tag carries the
+      // `baselineTagTemplate` prefix (e.g. `release/v0.29.0`), which must still bound the scan.
+      const commitsSpy = vi.spyOn(Bumper.prototype, 'commits').mockReturnThis();
+      vi.spyOn(gitTags, 'refExists').mockReturnValue(true);
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('0.29.1');
+
+      const config = { ...defaultConfig, baselineTagTemplate: 'release/${prefix}${version}' } as Config;
+      const options: VersionOptions = { latestTag: 'release/v0.29.0', versionPrefix: 'v' };
+
+      await calculateVersion(config, options);
+
+      expect(commitsSpy).toHaveBeenCalledWith({ from: 'release/v0.29.0' });
+    });
+
+    it('should leave the bumper unbounded when baseRef is absent and latestTag does not resolve', async () => {
+      // An absent/unreachable tag falls back to the unbounded default rather than throwing,
+      // mirroring the changelog path's rev-parse guard.
+      const commitsSpy = vi.spyOn(Bumper.prototype, 'commits').mockReturnThis();
+      vi.spyOn(gitTags, 'refExists').mockReturnValue(false);
       vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.0.1');
 
       const options: VersionOptions = { latestTag: 'v1.0.0', versionPrefix: 'v' };

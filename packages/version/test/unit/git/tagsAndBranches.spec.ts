@@ -8,6 +8,7 @@ import {
   lastMergeBranchName,
   listGlobalTags,
   listPackageTags,
+  refExists,
 } from '../../../src/git/tagsAndBranches.js';
 import { log } from '../../../src/utils/logging.js';
 
@@ -59,6 +60,44 @@ describe('tagsAndBranches', () => {
       // Verify
       expect(result).toBe(0);
       expect(log).toHaveBeenCalledWith('Failed to get number of commits since last tag: Command failed', 'error');
+    });
+  });
+
+  describe('refExists', () => {
+    it('should return true when rev-parse resolves the ref', () => {
+      vi.mocked(execSync, { partial: true }).mockReturnValue(Buffer.from(''));
+
+      expect(refExists('release/v0.29.0')).toBe(true);
+      expect(execSync).toHaveBeenCalledWith(
+        'git',
+        ['rev-parse', '--verify', '--quiet', 'release/v0.29.0^{commit}'],
+        expect.objectContaining({ stdio: 'ignore' }),
+      );
+    });
+
+    it('should pass cwd through when provided', () => {
+      vi.mocked(execSync, { partial: true }).mockReturnValue(Buffer.from(''));
+
+      refExists('v1.0.0', '/repo/pkg');
+
+      expect(execSync).toHaveBeenCalledWith(
+        'git',
+        ['rev-parse', '--verify', '--quiet', 'v1.0.0^{commit}'],
+        expect.objectContaining({ cwd: '/repo/pkg', stdio: 'ignore' }),
+      );
+    });
+
+    it('should return false when the ref does not resolve', () => {
+      vi.mocked(execSync, { partial: true }).mockImplementation(() => {
+        throw new Error('fatal: Needed a single revision');
+      });
+
+      expect(refExists('does-not-exist')).toBe(false);
+    });
+
+    it('should return false for an empty ref without shelling out', () => {
+      expect(refExists('')).toBe(false);
+      expect(execSync).not.toHaveBeenCalled();
     });
   });
 
