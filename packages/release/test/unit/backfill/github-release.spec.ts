@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   decideReleaseUpdate,
   getReleaseBody,
-  isReleaseDraft,
+  getReleaseInfo,
   NOTES_MARKER,
   withMarker,
 } from '../../../src/backfill/github-release.js';
@@ -98,32 +98,39 @@ describe('getReleaseBody', () => {
   });
 });
 
-describe('isReleaseDraft', () => {
+describe('getReleaseInfo', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should return true for draft releases', () => {
-    vi.mocked(execFileSync).mockReturnValue('true');
-    expect(isReleaseDraft('v1.0.0')).toBe(true);
+  it('should return isDraft and body on success', () => {
+    vi.mocked(execFileSync).mockReturnValue(JSON.stringify({ isDraft: false, body: '## Notes\n- a thing\n' }));
+    expect(getReleaseInfo('v1.0.0')).toEqual({ isDraft: false, body: '## Notes\n- a thing\n' });
   });
 
-  it('should return false for published releases', () => {
-    vi.mocked(execFileSync).mockReturnValue('false');
-    expect(isReleaseDraft('v1.0.0')).toBe(false);
+  it('should return isDraft true for draft releases', () => {
+    vi.mocked(execFileSync).mockReturnValue(JSON.stringify({ isDraft: true, body: null }));
+    expect(getReleaseInfo('v1.0.0')).toEqual({ isDraft: true, body: null });
   });
 
-  it('should return false when no release exists for the tag', () => {
+  it('should return null for a genuinely missing release', () => {
     vi.mocked(execFileSync).mockImplementation(() => {
       throw execError('release not found\n');
     });
-    expect(isReleaseDraft('v9.9.9')).toBe(false);
+    expect(getReleaseInfo('v9.9.9')).toBeNull();
   });
 
-  it('should throw for non-not-found errors', () => {
+  it('should throw a clear error when gh is not installed', () => {
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw execError('', 'ENOENT');
+    });
+    expect(() => getReleaseInfo('v1.0.0')).toThrow(/GitHub CLI .* not found/);
+  });
+
+  it('should surface auth/network failures instead of reporting "no release"', () => {
     vi.mocked(execFileSync).mockImplementation(() => {
       throw execError('gh: Bad credentials (HTTP 401)\n');
     });
-    expect(() => isReleaseDraft('v1.0.0')).toThrow();
+    expect(() => getReleaseInfo('v1.0.0')).toThrow(/Bad credentials/);
   });
 });
