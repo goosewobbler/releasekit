@@ -285,6 +285,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       // Extract changelog entries from commits
       let changelogEntries: ChangelogEntry[] = [];
       let revisionRange = 'HEAD';
+      let baselineUnreachable = false;
 
       try {
         const baseForRange = config.baseRef ?? latestTag;
@@ -303,8 +304,17 @@ export function createSyncStrategy(config: Config): StrategyFunction {
                   `To allow fallback to all commits, set strictReachable to false.`,
               );
             }
-            log(`Ref ${baseForRange} doesn't exist, using all commits for changelog`, 'debug');
+            // Loud, not debug: this silently produces a whole-history changelog (#339). The resolved
+            // baseline exists as a ref but won't verify from HEAD — usually a shallow clone or an
+            // unpushed tag. Omit previousVersion below so the changelog doesn't claim this baseline.
+            log(
+              `Baseline ref '${baseForRange}' could not be verified from HEAD — generating the changelog from ALL ` +
+                `history instead of since the last release. The tag is likely missing from the checkout (shallow ` +
+                `clone, or never pushed). Fetch/push the tag, or set version.baseRef, to bound the changelog.`,
+              'warning',
+            );
             revisionRange = 'HEAD';
+            baselineUnreachable = true;
           }
         }
 
@@ -367,7 +377,10 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       // In per-package tag mode, emit one changelog entry per workspace package so the
       // notes pipeline can write a CHANGELOG.md to each package directory and the
       // publish pipeline can match tags to the right release notes.
-      const displayPrevious = latestTag ? displayTag(latestTag, baselineTagPrefix, formattedPrefix) : null;
+      // Omit previousVersion when we fell back to all-history (#339): claiming a baseline the
+      // changelog never diffed against produces a self-contradictory "since <tag>" + full log.
+      const displayPrevious =
+        latestTag && !baselineUnreachable ? displayTag(latestTag, baselineTagPrefix, formattedPrefix) : null;
       if (config.packageSpecificTags && workspaceNames.length > 0) {
         for (const pkgName of workspaceNames) {
           addChangelogData({
@@ -544,6 +557,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
       // Generate changelog entries from conventional commits
       let changelogEntries: ChangelogEntry[] = [];
       let revisionRange = 'HEAD';
+      let baselineUnreachable = false;
 
       try {
         const baseForRange = config.baseRef ?? latestTag;
@@ -562,8 +576,17 @@ export function createSingleStrategy(config: Config): StrategyFunction {
                   `To allow fallback to all commits, set strictReachable to false.`,
               );
             }
-            log(`Ref ${baseForRange} doesn't exist, using all commits for changelog`, 'debug');
+            // Loud, not debug: this silently produces a whole-history changelog (#339). The resolved
+            // baseline exists as a ref but won't verify from HEAD — usually a shallow clone or an
+            // unpushed tag. Omit previousVersion below so the changelog doesn't claim this baseline.
+            log(
+              `Baseline ref '${baseForRange}' could not be verified from HEAD — generating the changelog from ALL ` +
+                `history instead of since the last release. The tag is likely missing from the checkout (shallow ` +
+                `clone, or never pushed). Fetch/push the tag, or set version.baseRef, to bound the changelog.`,
+              'warning',
+            );
             revisionRange = 'HEAD';
+            baselineUnreachable = true;
           }
         }
 
@@ -616,11 +639,13 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         );
       }
 
-      // Track changelog data for JSON output
+      // Track changelog data for JSON output. Omit previousVersion when we fell back to all-history
+      // (#339) so the changelog doesn't claim a baseline it never diffed against.
       addChangelogData({
         packageName,
         version: nextVersion,
-        previousVersion: latestTag ? displayTag(latestTag, baselineTagPrefix, formattedPrefix) : null,
+        previousVersion:
+          latestTag && !baselineUnreachable ? displayTag(latestTag, baselineTagPrefix, formattedPrefix) : null,
         revisionRange,
         repoUrl: repoUrl || null,
         entries: changelogEntries,

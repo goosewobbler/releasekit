@@ -7,6 +7,7 @@ import * as commitParser from '../../../src/changelog/commitParser.js';
 import * as calculator from '../../../src/core/versionCalculator.js';
 import * as versionCalculatorModule from '../../../src/core/versionCalculator.js';
 import * as gitTags from '../../../src/git/tagsAndBranches.js';
+import * as tagVerification from '../../../src/git/tagVerification.js';
 import * as packageManagement from '../../../src/package/packageManagement.js';
 import { PackageProcessor } from '../../../src/package/packageProcessor.js';
 import type { Config } from '../../../src/types.js';
@@ -20,6 +21,7 @@ vi.mock('node:path');
 vi.mock('node:process');
 vi.mock('../../../src/package/packageManagement.js');
 vi.mock('../../../src/git/tagsAndBranches.js');
+vi.mock('../../../src/git/tagVerification.js');
 vi.mock('../../../src/utils/logging.js');
 vi.mock('../../../src/utils/formatting.js', () => ({
   formatVersionPrefix: vi.fn().mockReturnValue('v'),
@@ -148,6 +150,10 @@ describe('Package Processor', () => {
 
     // Path mock
     vi.spyOn(path, 'join').mockImplementation((...args) => args.join('/'));
+
+    // Baseline tag verification — default to a valid, reachable baseline so changelog ranges
+    // resolve to `<tag>..HEAD`. Tests exercising the all-history fallback (#339) override this.
+    vi.spyOn(tagVerification, 'verifyTag').mockReturnValue({ exists: true, reachable: true });
 
     // Calculator mock - fix to return a Promise
     vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
@@ -396,6 +402,34 @@ describe('Package Processor', () => {
       const calls = vi.mocked(jsonOutput.addChangelogData).mock.calls;
       expect(calls.length).toBeGreaterThan(0);
       expect(calls[0][0]).toMatchObject({ previousVersion: 'v1.0.0' });
+    });
+
+    it('should warn and omit previousVersion when the baseline tag is unreachable (#339)', async () => {
+      vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('release/v1.0.0');
+      vi.spyOn(formatting, 'deriveBaselineTagPrefix').mockReturnValue('release/v');
+      vi.spyOn(formatting, 'displayTag').mockImplementation((tag, baselineTagPrefix, formattedPrefix) => {
+        if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) return tag;
+        return `${formattedPrefix}${tag.slice(baselineTagPrefix.length)}`;
+      });
+      // Baseline resolves as a ref but can't be verified from HEAD (shallow clone / unpushed tag).
+      vi.spyOn(tagVerification, 'verifyTag').mockReturnValue({ exists: false, reachable: false, error: 'not found' });
+
+      const processor = new PackageProcessor({
+        ...defaultOptions,
+        fullConfig: {
+          ...mockConfig,
+          baselineTagTemplate: 'release/${' + 'prefix}${' + 'version}',
+          writeChangelog: false,
+        },
+      });
+
+      await processor.processPackages([mockPackages[0]]);
+
+      // Surfaced loudly (not a silent debug line)...
+      expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('could not be verified from HEAD'), 'warning');
+      // ...all-history range, and previousVersion omitted so the changelog doesn't claim an undiffed baseline.
+      const calls = vi.mocked(jsonOutput.addChangelogData).mock.calls;
+      expect(calls[0][0]).toMatchObject({ previousVersion: null, revisionRange: 'HEAD' });
     });
 
     it('should aggregate the changelog from the last stable tag when a prerelease graduates', async () => {

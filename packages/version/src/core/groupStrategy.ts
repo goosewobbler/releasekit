@@ -215,9 +215,11 @@ function extractEntries(
 ): {
   entries: ChangelogEntry[];
   revisionRange: string;
+  baselineUnreachable: boolean;
 } {
   let revisionRange = 'HEAD';
   let entries: ChangelogEntry[] = [];
+  let baselineUnreachable = false;
   try {
     const baseForRange = config.baseRef ?? latestTag;
     if (baseForRange) {
@@ -231,7 +233,16 @@ function extractEntries(
               'When strictReachable is enabled, all refs must be reachable.',
           );
         }
+        // Loud, not silent: this produces a whole-history changelog (#339). Callers omit
+        // previousVersion when this fires so the changelog doesn't claim an undiffed baseline.
+        log(
+          `Baseline ref '${baseForRange}' could not be verified from HEAD — generating the changelog from ALL ` +
+            `history instead of since the last release. The tag is likely missing from the checkout (shallow ` +
+            `clone, or never pushed). Fetch/push the tag, or set version.baseRef, to bound the changelog.`,
+          'warning',
+        );
         revisionRange = 'HEAD';
+        baselineUnreachable = true;
       }
     }
     entries = extractChangelogEntriesFromCommits(pkgDir, revisionRange);
@@ -241,7 +252,7 @@ function extractEntries(
   if (entries.length === 0) {
     entries = [{ type: 'changed', description: `Update version to ${version}` }];
   }
-  return { entries, revisionRange };
+  return { entries, revisionRange, baselineUnreachable };
 }
 
 /**
@@ -302,11 +313,17 @@ function releaseGroup(group: ResolvedGroup, computation: GroupComputation, confi
     setPackageUpdateGroup(name, group.name);
 
     const baselineTagPrefix = deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, name);
-    const { entries, revisionRange } = extractEntries(pkg.dir, plan.latestTag, groupVersion, config);
+    const { entries, revisionRange, baselineUnreachable } = extractEntries(
+      pkg.dir,
+      plan.latestTag,
+      groupVersion,
+      config,
+    );
     addChangelogData({
       packageName: name,
       version: groupVersion,
-      previousVersion: plan.latestTag ? displayTag(plan.latestTag, baselineTagPrefix, formattedPrefix) : null,
+      previousVersion:
+        plan.latestTag && !baselineUnreachable ? displayTag(plan.latestTag, baselineTagPrefix, formattedPrefix) : null,
       revisionRange,
       repoUrl: readRepoUrl(pkg.dir),
       entries,
@@ -411,11 +428,19 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
         addTag(tag);
         setPackageUpdateTag(name, tag);
         const baselineTagPrefix = deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, name);
-        const { entries, revisionRange } = extractEntries(pkg.dir, plan.latestTag, plan.ownNext, config);
+        const { entries, revisionRange, baselineUnreachable } = extractEntries(
+          pkg.dir,
+          plan.latestTag,
+          plan.ownNext,
+          config,
+        );
         addChangelogData({
           packageName: name,
           version: plan.ownNext,
-          previousVersion: plan.latestTag ? displayTag(plan.latestTag, baselineTagPrefix, formattedPrefix) : null,
+          previousVersion:
+            plan.latestTag && !baselineUnreachable
+              ? displayTag(plan.latestTag, baselineTagPrefix, formattedPrefix)
+              : null,
           revisionRange,
           repoUrl: readRepoUrl(pkg.dir),
           entries,

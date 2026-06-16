@@ -210,6 +210,7 @@ export class PackageProcessor {
       // Generate changelog entries from conventional commits
       let changelogEntries: ChangelogEntry[] = [];
       let revisionRange = 'HEAD';
+      let baselineUnreachable = false;
 
       try {
         // Extract entries from commits between the base ref (or latest tag) and HEAD.
@@ -228,8 +229,17 @@ export class PackageProcessor {
                   `To allow fallback to all commits, set strictReachable to false.`,
               );
             }
-            log(`Ref ${baseForRange} is unreachable (${verification.error}), using all commits for changelog`, 'debug');
+            // Loud, not debug: this silently produces a whole-history changelog (#339) — both this
+            // package's entries and the repo-level entries below. Omit previousVersion so the
+            // changelog doesn't claim a baseline it never diffed against.
+            log(
+              `Baseline ref '${baseForRange}' could not be verified from HEAD (${verification.error}) — generating ` +
+                `the changelog from ALL history instead of since the last release. The tag is likely missing from the ` +
+                `checkout (shallow clone, or never pushed). Fetch/push the tag, or set version.baseRef, to bound it.`,
+              'warning',
+            );
             revisionRange = 'HEAD';
+            baselineUnreachable = true;
           }
         }
 
@@ -314,7 +324,10 @@ export class PackageProcessor {
       addChangelogData({
         packageName: name,
         version: nextVersion,
-        previousVersion: changelogBaseTag ? displayTag(changelogBaseTag, baselineTagPrefix, formattedPrefix) : null,
+        previousVersion:
+          changelogBaseTag && !baselineUnreachable
+            ? displayTag(changelogBaseTag, baselineTagPrefix, formattedPrefix)
+            : null,
         revisionRange,
         repoUrl: repoUrl || null,
         entries: changelogEntries,
