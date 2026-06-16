@@ -164,6 +164,21 @@ export function createBackfillCommand(): Command {
       }
 
       for (const { target, reconstructed } of releasesByTarget) {
+        // Check skipPackages before rendering to avoid unnecessary LLM calls for excluded packages.
+        const skipPackages = publishConfig.githubRelease?.skipPackages ?? [];
+        const isSkipped = updateReleases && skipPackages.includes(target.packageName);
+        if (isSkipped && !dir) {
+          warn(`  Skipping all releases for ${target.packageName} (in githubRelease.skipPackages)`);
+          const skippedInSkipPackages = reconstructed.length;
+          const suffix = ` (skipped ${skippedInSkipPackages} in skipPackages)`;
+          if (dryRun) {
+            info(`[dry-run] Would update 0 GitHub release body(ies)${suffix}. Re-run with --apply.`);
+          } else {
+            success(`Updated 0 GitHub release body(ies)${suffix}.`);
+          }
+          continue;
+        }
+
         const changelogs = reconstructed.map((r) => r.changelog);
         const versionOutput: VersionOutput = { dryRun, updates: [], changelogs, tags: [] };
         const input = versionOutputToChangelogInput(versionOutput);
@@ -228,9 +243,6 @@ export function createBackfillCommand(): Command {
           let skippedHandEdited = 0;
           let skippedDraft = 0;
           let skippedInSkipPackages = 0;
-
-          const skipPackages = publishConfig.githubRelease?.skipPackages ?? [];
-          const isSkipped = skipPackages.includes(target.packageName);
 
           if (isSkipped) {
             warn(`  Skipping all releases for ${target.packageName} (in githubRelease.skipPackages)`);
