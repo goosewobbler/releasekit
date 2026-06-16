@@ -112,6 +112,7 @@ describe('runLabelsSync', () => {
       'release:skip',
       'release:immediate',
       'release:retry',
+      'release:preview-notes',
       'release',
     ]);
     vi.mocked(createOctokit).mockReturnValue(octokit as never);
