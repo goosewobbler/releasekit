@@ -73,12 +73,14 @@ See [Getting Started](./docs/getting-started.md) for prerequisites, config optio
 
 ## Packages
 
-| Package | Version | Downloads | Description |
-|---------|---------|-----------|-------------|
-| [@releasekit/release](./packages/release) | [![npm](https://img.shields.io/npm/v/@releasekit/release.svg)](https://www.npmjs.com/package/@releasekit/release) | [![downloads](https://img.shields.io/npm/dw/@releasekit/release.svg)](https://www.npmjs.com/package/@releasekit/release) | **Unified CLI** — run version, notes, and publish in a single command |
-| [@releasekit/version](./packages/version) | [![npm](https://img.shields.io/npm/v/@releasekit/version.svg)](https://www.npmjs.com/package/@releasekit/version) | [![downloads](https://img.shields.io/npm/dw/@releasekit/version.svg)](https://www.npmjs.com/package/@releasekit/version) | Semantic versioning based on Git history and conventional commits |
-| [@releasekit/notes](./packages/notes) | [![npm](https://img.shields.io/npm/v/@releasekit/notes.svg)](https://www.npmjs.com/package/@releasekit/notes) | [![downloads](https://img.shields.io/npm/dw/@releasekit/notes.svg)](https://www.npmjs.com/package/@releasekit/notes) | Changelog generation with LLM-powered enhancement and flexible templating |
-| [@releasekit/publish](./packages/publish) | [![npm](https://img.shields.io/npm/v/@releasekit/publish.svg)](https://www.npmjs.com/package/@releasekit/publish) | [![downloads](https://img.shields.io/npm/dw/@releasekit/publish.svg)](https://www.npmjs.com/package/@releasekit/publish) | Publish packages to npm, crates.io, and pub.dev with git tagging and GitHub releases |
+All four packages share a single version (sync versioning) — see the version badge above.
+
+| Package | Downloads | Description |
+|---------|-----------|-------------|
+| [@releasekit/release](./packages/release) | [![downloads](https://img.shields.io/npm/dw/@releasekit/release.svg)](https://www.npmjs.com/package/@releasekit/release) | **Unified CLI** — run version, notes, and publish in a single command |
+| [@releasekit/version](./packages/version) | [![downloads](https://img.shields.io/npm/dw/@releasekit/version.svg)](https://www.npmjs.com/package/@releasekit/version) | Semantic versioning based on Git history and conventional commits |
+| [@releasekit/notes](./packages/notes) | [![downloads](https://img.shields.io/npm/dw/@releasekit/notes.svg)](https://www.npmjs.com/package/@releasekit/notes) | Changelog generation with LLM-powered enhancement and flexible templating |
+| [@releasekit/publish](./packages/publish) | [![downloads](https://img.shields.io/npm/dw/@releasekit/publish.svg)](https://www.npmjs.com/package/@releasekit/publish) | Publish packages to npm, crates.io, and pub.dev with git tagging and GitHub releases |
 
 ## Features
 
