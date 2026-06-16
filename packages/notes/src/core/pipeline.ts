@@ -152,6 +152,7 @@ export function createTemplateContext(pkg: PackageChangelog): TemplateContext {
     repoUrl: pkg.repoUrl,
     entries: pkg.entries,
     compareUrl,
+    isFirstRelease: pkg.previousVersion === null,
   };
 }
 
@@ -444,6 +445,7 @@ export async function runPipeline(
     includePackageName: contexts.length > 1 || contexts.some((c) => c.packageName.includes('/')),
     categoryOrder: llmConfig?.categoryOrder,
     links: releaseNotesConfig?.links,
+    firstRelease: releaseNotesConfig?.firstRelease,
   };
 
   if (!pipelineOptions?.skipChangelogs && changelogConfig !== false && changelogConfig.mode) {
@@ -512,7 +514,9 @@ export async function runPipeline(
   const packageNotes: Record<string, string> = {};
   const releaseNotesResult: Record<string, string> = {};
   for (const ctx of contexts) {
-    packageNotes[ctx.packageName] = formatVersion(ctx);
+    // packageNotes is already keyed by package, so it keeps the bare header (no includePackageName);
+    // only the first-release intro is threaded in.
+    packageNotes[ctx.packageName] = formatVersion(ctx, { firstRelease: releaseNotesConfig?.firstRelease });
     if (pipelineOptions?.skipReleaseNotes) {
       // Caller asked to skip release notes — don't populate the per-package map either,
       // otherwise the callsite will treat it as "available" content and propagate it.
@@ -542,7 +546,7 @@ export async function runPipeline(
         info(
           `No LLM release notes or template output for ${ctx.packageName}, using formatted changelog as release notes preview`,
         );
-        releaseNotesResult[ctx.packageName] = formatVersion(ctx);
+        releaseNotesResult[ctx.packageName] = formatVersion(ctx, { firstRelease: releaseNotesConfig?.firstRelease });
       }
     }
   }

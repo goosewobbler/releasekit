@@ -1004,6 +1004,28 @@
                     }
                   },
                   "description": "Extra links to append to the release notes."
+                },
+                "firstRelease": {
+                  "oneOf": [
+                    {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Set to false to disable the first-release placeholder intro."
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "text": {
+                          "type": "string",
+                          "description": "Placeholder intro line for a package's first release. Supports ${packageName} and ${version}. Defaults to a factual line so it reads cleanly even when published unedited."
+                        }
+                      }
+                    }
+                  ],
+                  "description": "First-release placeholder intro, shown when a package has no prior version (previousVersion is null). Default-on with a factual line; set to false to disable."
                 }
               },
               "description": "Release notes configuration"

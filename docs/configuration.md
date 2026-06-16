@@ -274,6 +274,7 @@ Set to `false` to disable.
 |-----|------|---------|-------------|
 | `file` | object | — | Optional in-repo file output. Omit to keep release notes only on the GitHub release body (the default). When set, writes one immutable Markdown file per version under `dir` — release-notes/<package>/<version>.md in a monorepo, release-notes/<version>.md in a single-package repo — giving a browsable, provider-independent per-release history. |
 | `links` | object | — | Extra links to append to the release notes. |
+| `firstRelease` | boolean \| object | — | First-release placeholder intro, shown when a package has no prior version (previousVersion is null). Default-on with a factual line; set to false to disable. |
 
 **`notes.releaseNotes.templates`** — Template for rendering release notes (e.g. to add docs-site frontmatter). Takes precedence over LLM prose and the default formatted section.
 

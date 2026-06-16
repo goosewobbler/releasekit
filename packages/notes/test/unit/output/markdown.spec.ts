@@ -586,3 +586,57 @@ describe('formatVersion: non-LLM path', () => {
     expect(result).toContain('### Fixed');
   });
 });
+
+// ---------------------------------------------------------------------------
+// formatVersion — first-release intro
+// ---------------------------------------------------------------------------
+
+describe('formatVersion: first-release intro', () => {
+  const firstReleaseCtx = (overrides = {}) =>
+    makeContext({ previousVersion: null, isFirstRelease: true, ...overrides });
+
+  it('should emit the default factual intro line after the header on a first release', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const result = formatVersion(firstReleaseCtx());
+
+    expect(result).toContain('_First release of test-pkg._');
+    // Intro sits between the header and the sections.
+    expect(result.indexOf('## 1.0.0')).toBeLessThan(result.indexOf('_First release of test-pkg._'));
+    expect(result.indexOf('_First release of test-pkg._')).toBeLessThan(result.indexOf('### Added'));
+  });
+
+  it('should not emit an intro for a non-first release', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const result = formatVersion(makeContext({ isFirstRelease: false }));
+
+    expect(result).not.toContain('First release of');
+  });
+
+  it('should suppress the intro when firstRelease is false', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const result = formatVersion(firstReleaseCtx(), { firstRelease: false });
+
+    expect(result).not.toContain('First release of');
+  });
+
+  it('should substitute ${packageName} and ${version} in a custom intro template', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const result = formatVersion(firstReleaseCtx(), {
+      firstRelease: { text: 'Introducing ${packageName} ${version}!' },
+    });
+
+    expect(result).toContain('Introducing test-pkg 1.0.0!');
+  });
+
+  it('should never wrap the intro in region markers (changelog/file surface)', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+
+    const result = formatVersion(firstReleaseCtx());
+
+    expect(result).not.toContain('<!-- releasekit-notes');
+  });
+});

@@ -449,6 +449,22 @@ export const ReleaseNotesConfigSchema = z
       })
       .optional()
       .describe('Extra links to append to the release notes.'),
+    firstRelease: z
+      .union([
+        z.literal(false).describe('Set to false to disable the first-release placeholder intro.'),
+        z.object({
+          text: z
+            .string()
+            .optional()
+            .describe(
+              "Placeholder intro line for a package's first release. Supports ${packageName} and ${version}. Defaults to a factual line so it reads cleanly even when published unedited.",
+            ),
+        }),
+      ])
+      .optional()
+      .describe(
+        'First-release placeholder intro, shown when a package has no prior version (previousVersion is null). Default-on with a factual line; set to false to disable.',
+      ),
   })
   .describe('Release notes configuration');
 

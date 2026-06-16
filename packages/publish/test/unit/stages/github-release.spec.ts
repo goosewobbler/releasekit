@@ -1,4 +1,5 @@
 import * as fs from 'node:fs';
+import { wrapNotesRegion } from '@releasekit/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDefaultConfig } from '../../../src/config.js';
 import { runGithubReleaseStage } from '../../../src/stages/github-release.js';
@@ -128,7 +129,7 @@ describe('github-release stage', () => {
 
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
     expect(args).toContain('--notes');
-    expect(args).toContain('## 1.0.0\n\n- Enhanced notes from pipeline');
+    expect(args).toContain(wrapNotesRegion('## 1.0.0\n\n- Enhanced notes from pipeline'));
     expect(args).not.toContain('--generate-notes');
   });
 
@@ -331,7 +332,7 @@ describe('github-release stage', () => {
 
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
     expect(args).toContain('--notes');
-    expect(args[args.indexOf('--notes') + 1]).toBe('LLM-enhanced release notes');
+    expect(args[args.indexOf('--notes') + 1]).toBe(wrapNotesRegion('LLM-enhanced release notes'));
     expect(args).not.toContain('--generate-notes');
     // Title should be resolved via the releaseNotes keys even though changelogs is empty
     expect(args[args.indexOf('--title') + 1]).toBe('@releasekit/version: v0.4.1');
@@ -360,7 +361,7 @@ describe('github-release stage', () => {
 
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
     expect(args).toContain('--notes');
-    expect(args[args.indexOf('--notes') + 1]).toBe('LLM-enhanced release notes');
+    expect(args[args.indexOf('--notes') + 1]).toBe(wrapNotesRegion('LLM-enhanced release notes'));
     expect(args).not.toContain('--generate-notes');
     // Title resolves via the original (unsanitized) scoped name
     expect(args[args.indexOf('--title') + 1]).toBe('@wdio/tauri-plugin: v1.1.0');

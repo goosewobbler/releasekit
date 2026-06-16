@@ -1,11 +1,13 @@
 import { execFileSync } from 'node:child_process';
+import { NOTES_MARKER } from '@releasekit/core';
 
 /**
  * Marker that identifies a GitHub release body releasekit authored. Embedded at the top of every
  * backfilled body so re-runs can recognise their own work (see `decideReleaseUpdate`) — the same
- * idempotent-marker convention the preview/manifest/publish-failure comments use.
+ * idempotent-marker convention the preview/manifest/publish-failure comments use. Re-exported from
+ * `@releasekit/core`, which owns the editable-region marker family shared with the notes pipeline.
  */
-export const NOTES_MARKER = '<!-- releasekit-notes -->';
+export { NOTES_MARKER };
 
 export type UpdateDecision =
   | { action: 'update' }
