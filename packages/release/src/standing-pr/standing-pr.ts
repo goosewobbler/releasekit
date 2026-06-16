@@ -528,7 +528,8 @@ export async function fetchStandingPRSnapshot(
  * surface for adjusting bump magnitude, scope, and channel — feeder PR labels are advisory.
  */
 interface StandingPrOverrides {
-  bump?: 'major' | 'minor' | 'patch';
+  /** Composed bump: a magnitude (major/minor/patch) or a `pre*` form when prerelease is also requested. */
+  bump?: 'major' | 'minor' | 'patch' | 'premajor' | 'preminor' | 'prepatch';
   target?: string;
   stable?: boolean;
   prerelease?: boolean;
@@ -577,13 +578,19 @@ function resolveStandingPrLabelOverrides(prLabels: string[], ciConfig: CIConfig 
     }
   }
 
-  return { bump, target, stable, prerelease, conflicts };
+  // Compose pre<magnitude> when the prerelease channel accompanies a magnitude bump, so the
+  // standing PR escalates an already-prerelease package to a fresh line (premajor →
+  // 2.0.0-next.0) instead of incrementing it (#335). Mirrors composeBumpFromLabels; kept inline
+  // here because this path layers its own conflict detection on top.
+  const composedBump = bump && prerelease ? (`pre${bump}` as const) : bump;
+
+  return { bump: composedBump, target, stable, prerelease, conflicts };
 }
 
 interface BuildOptionsExtras {
   /** Per-package vs synced versioning. Inherited from version.sync config (default true). */
   sync?: boolean;
-  bump?: 'major' | 'minor' | 'patch';
+  bump?: 'major' | 'minor' | 'patch' | 'premajor' | 'preminor' | 'prepatch';
   target?: string;
   stable?: boolean;
   prerelease?: boolean;

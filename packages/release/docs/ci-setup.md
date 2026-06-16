@@ -95,14 +95,21 @@ In CI, add `--check`: it exits non-zero on a missing label, catching the silent 
 | `channel:prerelease` + `bump:patch` | `1.0.0` | `1.0.1-next.0` |
 | `channel:prerelease` + `bump:minor` | `1.0.0` | `1.1.0-next.0` |
 | `channel:prerelease` + `bump:major` | `1.0.0` | `2.0.0-next.0` |
-| `channel:prerelease` + `bump:patch` | `1.0.0-next.6` | `1.0.0-next.7` — increments prerelease counter |
-| `channel:prerelease` + `bump:minor` | `1.0.0-next.6` | `1.0.0-next.7` — increments prerelease counter |
-| `channel:prerelease` + `bump:major` | `1.0.0-next.6` | `1.0.0-next.7` — increments prerelease counter |
+| `channel:prerelease` + `bump:patch` | `1.0.0-next.6` | `1.0.1-next.0` — starts a fresh patch prerelease line |
+| `channel:prerelease` + `bump:minor` | `1.0.0-next.6` | `1.1.0-next.0` — starts a fresh minor prerelease line |
+| `channel:prerelease` + `bump:major` | `1.0.0-next.6` | `2.0.0-next.0` — starts a fresh major prerelease line |
 | `channel:prerelease` alone | any | No release — add a `bump:*` label |
 | `channel:stable` alone | `1.0.0-next.6` | `1.0.0` |
 | `channel:stable` alone | `1.0.0` | No release — already at stable version |
 | `channel:stable` + any `bump:*` | `1.0.0-next.6` | `1.0.0` — bump label is ignored during stable promotion |
 | `channel:stable` + `bump:minor` | `1.0.0` | `1.1.0` — bump applies to already-stable packages |
+
+> **`channel:prerelease` + `bump:*` escalates — it starts a *fresh* prerelease line at the chosen
+> magnitude, even when the package is already on a prerelease.** So `bump:major` + `channel:prerelease`
+> on `1.1.1-next.1` yields `2.0.0-next.0`, not `1.1.1-next.2`. To *iterate* an existing prerelease
+> counter (`2.0.0-next.0` → `2.0.0-next.1`) without escalating, drop the `bump:*` label and let the
+> bump come from commits with the prerelease channel applied — e.g. in standing-pr mode, put
+> `channel:prerelease` alone on the standing PR.
 
 ```yaml
 # .github/workflows/release.yml

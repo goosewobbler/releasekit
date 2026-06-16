@@ -115,8 +115,10 @@ jobs:
               BUMP_FLAGS="--bump prerelease"
               PRERELEASE_FLAGS="--prerelease next"
             elif [[ "$INPUT_BUMP" == pre* ]]; then
-              BASE_BUMP="${INPUT_BUMP#pre}"
-              BUMP_FLAGS="--bump ${BASE_BUMP}"
+              # Pass the composed pre* bump through verbatim — the engine handles premajor/
+              # preminor/prepatch directly (escalating a fresh prerelease line). De-composing to
+              # "--bump <magnitude> --prerelease" would increment an existing prerelease instead (#335).
+              BUMP_FLAGS="--bump ${INPUT_BUMP}"
               PRERELEASE_FLAGS="--prerelease next"
             else
               BUMP_FLAGS="--bump $INPUT_BUMP"

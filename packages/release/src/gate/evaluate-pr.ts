@@ -1,5 +1,5 @@
 import type { CIConfig } from '@releasekit/config';
-import { detectLabelConflicts, type LabelConfig } from '../label-utils.js';
+import { composeBumpFromLabels, detectLabelConflicts, type LabelConfig } from '../label-utils.js';
 
 /**
  * Per-PR release decision. Captures whether a single PR's labels would trigger a release,
@@ -127,7 +127,7 @@ export function evaluatePR(
     };
   }
 
-  const bump = detectBumpFromLabels(labels, labelConfig);
+  const bump = composeBumpFromLabels(labels, labelConfig);
 
   if (trigger === 'label') {
     const hasBumpLabel = labels.some(
@@ -202,24 +202,4 @@ export function evaluatePR(
     reason: 'No skip label in commit mode - proceeding with release',
     hasReleaseIntent,
   };
-}
-
-function detectBumpFromLabels(labels: string[], labelConfig: LabelConfig): string | undefined {
-  const hasPrerelease = labels.includes(labelConfig.prerelease);
-  const hasStable = labels.includes(labelConfig.stable);
-
-  if (hasStable) return undefined;
-
-  if (hasPrerelease) {
-    if (labels.includes(labelConfig.major)) return 'premajor';
-    if (labels.includes(labelConfig.minor)) return 'preminor';
-    if (labels.includes(labelConfig.patch)) return 'prepatch';
-    return 'prerelease';
-  }
-
-  if (labels.includes(labelConfig.major)) return 'major';
-  if (labels.includes(labelConfig.minor)) return 'minor';
-  if (labels.includes(labelConfig.patch)) return 'patch';
-
-  return undefined;
 }

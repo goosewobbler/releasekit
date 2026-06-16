@@ -1078,6 +1078,17 @@ describe('runStandingPRUpdate', () => {
       expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ prerelease: true });
     });
 
+    it('should compose bump:major + channel:prerelease into a premajor bump', async () => {
+      const { runVersionStepMock } = await setupWithStandingPRLabels(['release', 'bump:major', 'channel:prerelease']);
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      // Composed so an already-prerelease package escalates a fresh line (premajor → 2.0.0-next.0)
+      // rather than degrading to a prerelease increment (#335). Both dry-run and write calls agree.
+      expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ bump: 'premajor', prerelease: true });
+      expect(runVersionStepMock.mock.calls[1]?.[0]).toMatchObject({ bump: 'premajor', prerelease: true });
+    });
+
     it('should drop conflicting bump labels and posts pending status check', async () => {
       const { mocks, runVersionStepMock } = await setupWithStandingPRLabels(['release', 'bump:patch', 'bump:major']);
 
