@@ -745,6 +745,20 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   info(`Resetting release branch '${branch}' to origin/${base}...`);
   resetReleaseBranch(branch, base, cwd);
 
+  // A release merge can land on `base` after this run started — e.g. another PR is merged moments
+  // before the standing PR. The reset above pulls that commit in, so its version bump is now on HEAD
+  // but not yet tagged; recomputing from it would double-bump (package.json ahead of the last tag →
+  // bump again under `mismatchStrategy: prefer-package`). Re-check the skip pattern post-reset and
+  // bow out — the post-release reconcile (or the next push) rebuilds the standing PR cleanly once the
+  // release has tagged. Reconcile runs are exempt: HEAD is a release commit by design there. See #323.
+  if (!options.reconcile) {
+    const resetHeadSubject = getHeadCommitMessage(cwd);
+    if (resetHeadSubject && matchesSkipPattern(resetHeadSubject, skipPatterns)) {
+      info('Skipping standing PR update: a release commit landed on the base branch during this run');
+      return { action: 'noop' };
+    }
+  }
+
   // Materialize changes on release branch
   info('Writing version bumps...');
   const writeOptions = buildBaseReleaseOptions(options, false, buildExtras);
