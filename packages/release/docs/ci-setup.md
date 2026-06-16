@@ -111,6 +111,14 @@ In CI, add `--check`: it exits non-zero on a missing label, catching the silent 
 > bump come from commits with the prerelease channel applied — e.g. in standing-pr mode, put
 > `channel:prerelease` alone on the standing PR.
 
+> **`channel:prerelease` is a channel modifier, never a standalone release trigger.** It does
+> nothing without a `bump:*` label in label/direct mode (it can't pick a magnitude on its own), and
+> in standing-pr mode it simply sets the channel for the next merge. `channel:stable` is the one
+> channel label that can stand alone in label/direct mode — but only because graduating a prerelease
+> resolves to exactly one version (`1.0.0-next.6` → `1.0.0`); on an already-stable package it's a
+> no-op. In standing-pr mode the *merge* is the trigger, so both channel labels are pure modifiers
+> there.
+
 ```yaml
 # .github/workflows/release.yml
 name: Release
