@@ -50,7 +50,7 @@ function resolveNotes(
   if (bodySource === 'changelog') {
     const packageBody = formatChangelogForTag(tag, changelogs);
     if (packageBody) {
-      return { body: wrapNotesRegion(packageBody), useGithubNotes: false };
+      return { body: packageBody, useGithubNotes: false };
     }
     warn('No changelog found for tag, falling back to GitHub auto-notes');
     return { useGithubNotes: true };

@@ -367,48 +367,6 @@ describe('github-release stage', () => {
     expect(args[args.indexOf('--title') + 1]).toBe('@wdio/tauri-plugin: v1.1.0');
   });
 
-  it('should wrap changelog body with notesRegion markers when body is changelog', async () => {
-    const { execCommand } = await import('../../../src/utils/exec.js');
-    const config = getDefaultConfig();
-    config.githubRelease.body = 'changelog';
-
-    const ctx = createContext({
-      config,
-      input: {
-        dryRun: false,
-        updates: [],
-        changelogs: [
-          {
-            packageName: 'pkg-a',
-            version: '1.0.0',
-            previousVersion: '0.9.0',
-            revisionRange: 'v0.9.0..HEAD',
-            repoUrl: null,
-            entries: [{ type: 'fix', description: 'fix a bug' }],
-          },
-        ],
-        tags: ['pkg-a@v1.0.0'],
-      },
-      output: {
-        dryRun: false,
-        git: { committed: true, tags: ['pkg-a@v1.0.0'], pushed: true },
-        npm: [],
-        cargo: [],
-        verification: [],
-        githubReleases: [],
-      },
-    });
-
-    await runGithubReleaseStage(ctx);
-
-    const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
-    expect(args).toContain('--notes');
-    const notesValue = args[args.indexOf('--notes') + 1] as string;
-    expect(notesValue).toContain('<!-- releasekit-notes -->');
-    expect(notesValue).toContain('fix a bug');
-    expect(args).not.toContain('--generate-notes');
-  });
-
   it('should always use --generate-notes when body is generated', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const config = getDefaultConfig();
