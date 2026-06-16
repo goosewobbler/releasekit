@@ -1154,6 +1154,19 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   // merged PR's. This catches "label changed then merged before the standing-PR update re-ran" —
   // publishing then would ship a release the labels no longer describe. Only enforced when the
   // manifest actually recorded labels; manifests written before this field skip the check.
+  //
+  // Fail closed rather than publish blind: when the manifest carried override labels but the PR is
+  // unreadable (transient API failure coinciding with the race window) we can't verify, so refuse
+  // and let the retry handle it. An empty override set has nothing a label change could contradict
+  // beyond "a label was added", which the next update would have folded in — not worth failing the
+  // common (no-override) publish on an API blip.
+  if (!livePr && manifest.overrideLabels !== undefined && manifest.overrideLabels.length > 0) {
+    throw new Error(
+      `Cannot verify standing PR #${prNumber} override labels against the manifest — the PR could not be read ` +
+        `from GitHub. Refusing to publish a manifest that carried override labels without confirming they still ` +
+        `match. Re-run once the GitHub API is reachable (or apply the retry label).`,
+    );
+  }
   if (livePr && manifest.overrideLabels !== undefined) {
     const mergedLabels = extractOverrideLabels(
       (livePr.labels ?? []).map((l) => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean),

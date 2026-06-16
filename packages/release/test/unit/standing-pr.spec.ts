@@ -1644,6 +1644,32 @@ describe('runStandingPRPublish', () => {
     expect(vi.mocked(runPublishStep)).toHaveBeenCalled();
   });
 
+  it('should refuse to publish when the PR is unreadable but the manifest carried override labels (#337)', async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({ pull_request: { head: { ref: 'release/next' }, number: 42, merged: true } }),
+    );
+
+    const { createOctokit } = await import('../../src/github.js');
+    const { octokit, mocks } = createMockOctokit();
+    const manifestBody = serializeManifest({ ...baseManifest, schemaVersion: 2, overrideLabels: ['bump:major'] });
+    (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { data: [{ id: 1, body: manifestBody }] };
+      },
+    });
+    // The PR can't be read (transient API failure) — can't verify labels, so fail closed.
+    mocks.pullsGet.mockRejectedValue(new Error('API unavailable'));
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await expect(
+      runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/could not be read/);
+
+    const { runPublishStep } = await import('../../src/steps.js');
+    expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
+  });
+
   it('should fall back to empty release notes when LLM regeneration fails', async () => {
     const { readFileSync } = await import('node:fs');
     vi.mocked(readFileSync).mockReturnValue(

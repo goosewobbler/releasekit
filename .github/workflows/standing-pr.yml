@@ -148,8 +148,11 @@ jobs:
   # succeeds, replacing what used to be the `reconcile-standing-pr` job here.
   trigger-immediate:
     name: Trigger immediate release via release.yml
+    # action == 'closed' matters now that labeled/unlabeled are subscribed: a label added to the
+    # already-merged immediate PR also satisfies merged == true and would dispatch a second publish.
     if: >
       github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
       github.event.pull_request.merged == true &&
       contains(github.event.pull_request.labels.*.name, 'release:immediate')
     runs-on: ubuntu-latest
