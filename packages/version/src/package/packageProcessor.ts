@@ -207,6 +207,24 @@ export class PackageProcessor {
           : await getLatestStableTag(this.versionPrefix);
       }
 
+      // #334: a package with no prior git tag has its changelog computed from the FULL git history,
+      // which in standing-PR mode can push the rendered PR body past GitHub's 65,536-char limit and
+      // fail PR creation with an opaque 422 (#333). Surface it loudly with an actionable baseline-tag
+      // suggestion. (baseRef-scoped runs — advisory preview — are bounded to the PR, so skip them.)
+      if (!hasRealTag && !this.fullConfig.baseRef) {
+        const currentVersion = pkg.packageJson.version;
+        const suggestedTag = currentVersion
+          ? formatTag(currentVersion, formattedPrefix, name, this.tagTemplate, this.fullConfig.packageSpecificTags)
+          : undefined;
+        log(
+          `No prior tag found for ${name} — its changelog will include the full git history.` +
+            (suggestedTag
+              ? ` Create a baseline tag to scope it: git tag ${suggestedTag} <release-sha> && git push origin ${suggestedTag}`
+              : ''),
+          'warning',
+        );
+      }
+
       // Generate changelog entries from conventional commits
       let changelogEntries: ChangelogEntry[] = [];
       let revisionRange = 'HEAD';

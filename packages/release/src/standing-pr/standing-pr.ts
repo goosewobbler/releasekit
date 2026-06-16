@@ -354,45 +354,74 @@ function deleteReleaseBranch(releaseBranch: string, cwd: string): void {
   }
 }
 
+// GitHub rejects a PR body over 65,536 chars with a 422. Cap below that (with margin) so an
+// oversized changelog — almost always a package with no baseline tag whose changelog spans the
+// entire git history (#333) — truncates gracefully instead of failing PR creation outright.
+const STANDING_PR_BODY_CAP = 64000;
+
+function truncateAtLineBoundary(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  const slice = text.slice(0, maxChars);
+  const lastNewline = slice.lastIndexOf('\n');
+  return lastNewline > 0 ? slice.slice(0, lastNewline) : slice;
+}
+
 function renderPrBody(versionOutput: VersionOutput, supersedeWarning?: string[], notesRegion?: string): string {
-  const lines: string[] = ['## Release', ''];
+  // Build the body around a given changelog section so we can re-render with a truncated changelog
+  // if the full one would exceed GitHub's limit, without disturbing the editable notes region.
+  const build = (changelogSection: string): string => {
+    const lines: string[] = ['## Release', ''];
 
-  // While a prior release remains partially published, lead with the supersede warning so the
-  // maintainer sees the retry-vs-supersede choice before the package list.
-  if (supersedeWarning && supersedeWarning.length > 0) {
-    lines.push(...supersedeWarning);
-  }
-
-  // The root lockstep bump (sync mode) is never published — keep it out of the package list.
-  const updates = publishableUpdates(versionOutput);
-
-  if (versionOutput.strategy === 'sync') {
-    // Sync releases move as one unit — lead with the version; a per-row version column
-    // would repeat the same value for every package.
-    lines.push(`Merging this PR will publish **${syncVersionDisplay(versionOutput)}**:`, '');
-    for (const update of updates) {
-      lines.push(`- \`${update.packageName}\``);
+    // While a prior release remains partially published, lead with the supersede warning so the
+    // maintainer sees the retry-vs-supersede choice before the package list.
+    if (supersedeWarning && supersedeWarning.length > 0) {
+      lines.push(...supersedeWarning);
     }
-  } else {
-    lines.push(
-      'Merging this PR will publish the following packages:',
-      '',
-      '| Package | Version |',
-      '|---------|---------|',
-    );
-    for (const update of updates) {
-      lines.push(`| \`${update.packageName}\` | ${update.newVersion} |`);
+
+    // The root lockstep bump (sync mode) is never published — keep it out of the package list.
+    const updates = publishableUpdates(versionOutput);
+
+    if (versionOutput.strategy === 'sync') {
+      // Sync releases move as one unit — lead with the version; a per-row version column
+      // would repeat the same value for every package.
+      lines.push(`Merging this PR will publish **${syncVersionDisplay(versionOutput)}**:`, '');
+      for (const update of updates) {
+        lines.push(`- \`${update.packageName}\``);
+      }
+    } else {
+      lines.push(
+        'Merging this PR will publish the following packages:',
+        '',
+        '| Package | Version |',
+        '|---------|---------|',
+      );
+      for (const update of updates) {
+        lines.push(`| \`${update.packageName}\` | ${update.newVersion} |`);
+      }
     }
-  }
+
+    if (changelogSection) lines.push('', changelogSection, '');
+    // The editable release-notes region (opt-in via the preview-notes label) sits below the changelog
+    // and above the merge instructions, so a reviewer reads/edits it in the natural place.
+    if (notesRegion) lines.push('', notesRegion, '');
+    lines.push('---', '> Merge this PR to publish. The release will be triggered automatically.');
+    lines.push('', ATTRIBUTION_FOOTER);
+    return lines.join('\n');
+  };
 
   const changelog = renderChangelogSection(versionOutput);
-  if (changelog) lines.push('', changelog, '');
-  // The editable release-notes region (opt-in via the preview-notes label) sits below the changelog
-  // and above the merge instructions, so a reviewer reads/edits it in the natural place.
-  if (notesRegion) lines.push('', notesRegion, '');
-  lines.push('---', '> Merge this PR to publish. The release will be triggered automatically.');
-  lines.push('', ATTRIBUTION_FOOTER);
-  return lines.join('\n');
+  const body = build(changelog);
+  if (body.length <= STANDING_PR_BODY_CAP || !changelog) return body;
+
+  // Too long: truncate the changelog and point to each package's CHANGELOG.md for the rest. The
+  // root cause is almost always a package with no baseline tag (#333/#334) — say so.
+  const notice =
+    "> **Changelog truncated** — the full changelog exceeded GitHub's PR-body limit and was shortened here. " +
+    "Each package's complete changelog is in its `CHANGELOG.md`. This usually means a package has no prior " +
+    'release tag, so its changelog spans the entire git history — create baseline tags to scope it.';
+  const room = STANDING_PR_BODY_CAP - build('').length - notice.length - 8;
+  if (room <= 0) return build(notice);
+  return build(`${truncateAtLineBoundary(changelog, room)}\n\n${notice}`);
 }
 
 export function serializeManifest(m: StandingPRManifest): string {

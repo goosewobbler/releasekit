@@ -535,6 +535,31 @@ describe('Package Processor', () => {
       expect(calls[0][0]).toMatchObject({ previousVersion: 'v1.0.0' });
     });
 
+    it('should warn when a package has no prior tag (full-history changelog, #334)', async () => {
+      // No package tag and no global tag — only the manifest version is available, so hasRealTag is
+      // false and the changelog spans the full history. The warning makes this visible (and heads off
+      // the opaque oversized-PR-body 422 in #333).
+      vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
+      vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
+        version: '0.1.0',
+        manifestFound: true,
+        manifestPath: 'package.json',
+        manifestType: 'package.json',
+      });
+      vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('0.1.1');
+      vi.spyOn(versionCalculatorModule, 'calculateVersion').mockResolvedValue('0.1.1');
+
+      const processor = new PackageProcessor({
+        ...defaultOptions,
+        getLatestTag: vi.fn().mockResolvedValue(null), // no global tag either
+        fullConfig: { ...mockConfig, packageSpecificTags: true, writeChangelog: false },
+      });
+
+      await processor.processPackages([mockPackages[1]]);
+
+      expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('No prior tag found for package-b'), 'warning');
+    });
+
     it('should emit repo-level entries as sharedEntries, not in individual package changelogs', async () => {
       const repoLevelEntry = { type: 'chore', description: 'Update CI workflow' };
       const pkgAEntry = { type: 'added', description: 'New feature in pkg-a' };
