@@ -1,6 +1,12 @@
 import { execFileSync } from 'node:child_process';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { decideReleaseUpdate, getReleaseBody, NOTES_MARKER, withMarker } from '../../../src/backfill/github-release.js';
+import {
+  decideReleaseUpdate,
+  getReleaseBody,
+  getReleaseInfo,
+  NOTES_MARKER,
+  withMarker,
+} from '../../../src/backfill/github-release.js';
 
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
 
@@ -90,5 +96,42 @@ describe('getReleaseBody', () => {
       throw execError('gh: Bad credentials (HTTP 401)\n');
     });
     expect(() => getReleaseBody('v1.0.0')).toThrow(/Bad credentials/);
+  });
+});
+
+describe('getReleaseInfo', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should return isDraft and body on success', () => {
+    vi.mocked(execFileSync).mockReturnValue(JSON.stringify({ isDraft: false, body: '## Notes\n- a thing\n' }));
+    expect(getReleaseInfo('v1.0.0')).toEqual({ isDraft: false, body: '## Notes\n- a thing\n' });
+  });
+
+  it('should return isDraft true for draft releases', () => {
+    vi.mocked(execFileSync).mockReturnValue(JSON.stringify({ isDraft: true, body: null }));
+    expect(getReleaseInfo('v1.0.0')).toEqual({ isDraft: true, body: null });
+  });
+
+  it('should return null for a genuinely missing release', () => {
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw execError('release not found\n');
+    });
+    expect(getReleaseInfo('v9.9.9')).toBeNull();
+  });
+
+  it('should throw a clear error when gh is not installed', () => {
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw execError('', 'ENOENT');
+    });
+    expect(() => getReleaseInfo('v1.0.0')).toThrow(/GitHub CLI .* not found/);
+  });
+
+  it('should surface auth/network failures instead of reporting "no release"', () => {
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw execError('gh: Bad credentials (HTTP 401)\n');
+    });
+    expect(() => getReleaseInfo('v1.0.0')).toThrow(/Bad credentials/);
   });
 });

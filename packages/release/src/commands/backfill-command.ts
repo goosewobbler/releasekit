@@ -5,7 +5,7 @@ import { EXIT_CODES, error, info, success, warn } from '@releasekit/core';
 import type { Config as VersionConfig } from '@releasekit/version';
 import { Command } from 'commander';
 import semver from 'semver';
-import { decideReleaseUpdate, editReleaseBody, getReleaseBody, withMarker } from '../backfill/github-release.js';
+import { decideReleaseUpdate, editReleaseBody, getReleaseInfo, withMarker } from '../backfill/github-release.js';
 import { reconstructChangelogs } from '../backfill/reconstruct.js';
 import { normalizeRepoUrl } from '../backfill/repo-url.js';
 
@@ -83,11 +83,13 @@ export function createBackfillCommand(): Command {
         runPipeline,
         loadConfig: loadNotesConfig,
       } = await import('@releasekit/notes');
+      const { loadConfig: loadPublishConfig } = await import('@releasekit/publish');
 
       const cwd = process.cwd();
       const updateReleases: boolean = options.updateReleases === true;
       const onlyMissing: boolean = options.onlyMissing === true;
       const notesConfig = loadNotesConfig(cwd, options.config);
+      const publishConfig = loadPublishConfig(cwd, options.config);
       const releaseNotesEnabled = notesConfig.releaseNotes !== false && notesConfig.releaseNotes !== undefined;
       const dir = releaseNotesEnabled ? notesConfig.releaseNotes?.file?.dir : undefined;
       if (!dir && !updateReleases) {
@@ -162,6 +164,21 @@ export function createBackfillCommand(): Command {
       }
 
       for (const { target, reconstructed } of releasesByTarget) {
+        // Check skipPackages before rendering to avoid unnecessary LLM calls for excluded packages.
+        const skipPackages = publishConfig.githubRelease?.skipPackages ?? [];
+        const isSkipped = updateReleases && skipPackages.includes(target.packageName);
+        if (isSkipped && !dir) {
+          warn(`  Skipping all releases for ${target.packageName} (in githubRelease.skipPackages)`);
+          const skippedInSkipPackages = reconstructed.length;
+          const suffix = ` (skipped ${skippedInSkipPackages} in skipPackages)`;
+          if (dryRun) {
+            info(`[dry-run] Would update 0 GitHub release body(ies)${suffix}. Re-run with --apply.`);
+          } else {
+            success(`Updated 0 GitHub release body(ies)${suffix}.`);
+          }
+          continue;
+        }
+
         const changelogs = reconstructed.map((r) => r.changelog);
         const versionOutput: VersionOutput = { dryRun, updates: [], changelogs, tags: [] };
         const input = versionOutputToChangelogInput(versionOutput);
@@ -224,41 +241,62 @@ export function createBackfillCommand(): Command {
           let skippedNoRelease = 0;
           let skippedExisting = 0;
           let skippedHandEdited = 0;
-          for (let i = 0; i < reconstructed.length; i++) {
-            const tag = reconstructed[i]?.tag;
-            const body = renderedBodies[i];
-            if (!tag) continue;
-            if (!body) {
-              warn(`  ${tag}: no notes rendered, skipping release update`);
-              continue;
-            }
-            const existingBody = getReleaseBody(tag);
-            const decision = decideReleaseUpdate(existingBody, onlyMissing, force);
-            if (decision.action === 'skip') {
-              if (decision.reason === 'no-release') {
+          let skippedDraft = 0;
+          let skippedInSkipPackages = 0;
+
+          if (isSkipped) {
+            warn(`  Skipping all releases for ${target.packageName} (in githubRelease.skipPackages)`);
+            skippedInSkipPackages = reconstructed.length;
+          } else {
+            for (let i = 0; i < reconstructed.length; i++) {
+              const tag = reconstructed[i]?.tag;
+              const body = renderedBodies[i];
+              if (!tag) continue;
+              if (!body) {
+                warn(`  ${tag}: no notes rendered, skipping release update`);
+                continue;
+              }
+
+              const releaseInfo = getReleaseInfo(tag);
+              if (releaseInfo === null) {
                 warn(`  ${tag}: no GitHub release found, skipping`);
                 skippedNoRelease++;
-              } else if (decision.reason === 'already-backfilled') {
-                info(`  ${tag}: already has releasekit notes, skipping`);
-                skippedExisting++;
-              } else if (decision.reason === 'hand-edited') {
-                info(`  ${tag}: hand-edited release body (use --force to overwrite), skipping`);
-                skippedHandEdited++;
+                continue;
               }
-              continue;
+
+              if (releaseInfo.isDraft) {
+                info(`  ${tag}: release is a draft, skipping`);
+                skippedDraft++;
+                continue;
+              }
+
+              const decision = decideReleaseUpdate(releaseInfo.body ?? '', onlyMissing, force);
+              if (decision.action === 'skip') {
+                if (decision.reason === 'already-backfilled') {
+                  info(`  ${tag}: already has releasekit notes, skipping`);
+                  skippedExisting++;
+                } else if (decision.reason === 'hand-edited') {
+                  info(`  ${tag}: hand-edited release body (use --force to overwrite), skipping`);
+                  skippedHandEdited++;
+                }
+                continue;
+              }
+              if (dryRun) {
+                info(`  ${tag}: would update release body`);
+              } else {
+                editReleaseBody(tag, withMarker(body));
+                info(`  ${tag}: updated release body`);
+              }
+              updated++;
             }
-            if (dryRun) {
-              info(`  ${tag}: would update release body`);
-            } else {
-              editReleaseBody(tag, withMarker(body));
-              info(`  ${tag}: updated release body`);
-            }
-            updated++;
           }
+
           const skips = [
             skippedNoRelease > 0 ? `${skippedNoRelease} without a release` : null,
             skippedExisting > 0 ? `${skippedExisting} already backfilled` : null,
             skippedHandEdited > 0 ? `${skippedHandEdited} hand-edited` : null,
+            skippedDraft > 0 ? `${skippedDraft} draft` : null,
+            skippedInSkipPackages > 0 ? `${skippedInSkipPackages} in skipPackages` : null,
           ].filter(Boolean);
           const suffix = skips.length > 0 ? ` (skipped ${skips.join(', ')})` : '';
           if (dryRun) {
