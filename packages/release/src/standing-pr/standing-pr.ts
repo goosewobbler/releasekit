@@ -16,6 +16,7 @@ import { DEFAULT_LABELS } from '../label-utils.js';
 import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
+import { extractNotesRegions, mergeNotesRegions, renderNotesRegion } from './notes-region.js';
 import { postStandingPRStatusSafe } from './status.js';
 
 const MANIFEST_MARKER = '<!-- releasekit-manifest -->';
@@ -327,7 +328,7 @@ function deleteReleaseBranch(releaseBranch: string, cwd: string): void {
   }
 }
 
-function renderPrBody(versionOutput: VersionOutput, supersedeWarning?: string[]): string {
+function renderPrBody(versionOutput: VersionOutput, supersedeWarning?: string[], notesRegion?: string): string {
   const lines: string[] = ['## Release', ''];
 
   // While a prior release remains partially published, lead with the supersede warning so the
@@ -360,6 +361,9 @@ function renderPrBody(versionOutput: VersionOutput, supersedeWarning?: string[])
 
   const changelog = renderChangelogSection(versionOutput);
   if (changelog) lines.push('', changelog, '');
+  // The editable release-notes region (opt-in via the preview-notes label) sits below the changelog
+  // and above the merge instructions, so a reviewer reads/edits it in the natural place.
+  if (notesRegion) lines.push('', notesRegion, '');
   lines.push('---', '> Merge this PR to publish. The release will be triggered automatically.');
   lines.push('', ATTRIBUTION_FOOTER);
   return lines.join('\n');
@@ -651,6 +655,11 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   }
 
+  // Preview-notes opt-in (#200): when the standing PR carries the preview-notes label, generate LLM
+  // release notes on demand into an editable region in the PR body. Default path stays LLM-free.
+  const previewNotesLabel = (ciConfig?.labels ?? DEFAULT_LABELS).previewNotes;
+  const previewNotesEnabled = (existingStandingPr?.labels ?? []).includes(previewNotesLabel);
+
   const overrides = resolveStandingPrLabelOverrides(existingStandingPr?.labels ?? [], ciConfig);
   if (overrides.bump) info(`Standing PR label override: bump=${overrides.bump}`);
   if (overrides.target) info(`Standing PR label override: target=${overrides.target}`);
@@ -741,11 +750,33 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const writeOptions = buildBaseReleaseOptions(options, false, buildExtras);
   const versionOutput = await runVersionStep(writeOptions);
 
-  // Generate per-package CHANGELOG.md only — release-notes generation (LLM + RELEASE_NOTES.md)
-  // is deferred to publish time. This decouples standing-PR updates from LLM availability and
-  // avoids paying for an LLM call on every push to main when only the final publish needs it.
+  // With the preview-notes label, pull any release notes a human has already edited into the live PR
+  // body so they survive this regenerate-and-force-push. Marker slicing only — never parse the prose.
+  const previewPackages = publishableUpdates(versionOutput).map((u) => u.packageName);
+  let editedNotes: Record<string, string> = {};
+  if (previewNotesEnabled && existingStandingPr && githubContext?.token) {
+    try {
+      const previewOctokit = createOctokit(githubContext.token);
+      const { data: livePr } = await previewOctokit.rest.pulls.get({
+        owner: githubContext.owner,
+        repo: githubContext.repo,
+        pull_number: existingStandingPr.number,
+      });
+      editedNotes = extractNotesRegions(livePr.body ?? '', previewPackages);
+    } catch (err) {
+      warn(
+        `Could not read current PR body to preserve note edits: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  // Generate per-package CHANGELOG.md always; LLM release notes only when previewing. To keep LLM
+  // load low (#200), skip generation when every releasing package already has an edited region —
+  // notes are seeded once when the label is first applied, then preserved on later pushes.
   info('Generating changelog...');
-  const notesOptions = { ...writeOptions, skipNotes: false, skipReleaseNotes: true };
+  const allPackagesHaveRegions = previewPackages.length > 0 && previewPackages.every((p) => p in editedNotes);
+  const generateReleaseNotes = previewNotesEnabled && !allPackagesHaveRegions;
+  const notesOptions = { ...writeOptions, skipNotes: false, skipReleaseNotes: !generateReleaseNotes };
   const notesResult = await runNotesStep(versionOutput, notesOptions);
 
   // Commit and force-push the release branch
@@ -809,7 +840,17 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     warn(`Could not check for unresolved publish failures: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  const body = renderPrBody(versionOutput, supersedeWarning);
+  // Edited notes win per package; packages new since the last edit fall back to freshly generated.
+  // The read-modify-write here has a small window: a human edit landing between the pulls.get above
+  // and the pulls.update below can be overwritten. Standing-PR updates are infrequent (push-driven),
+  // so we accept it rather than add optimistic-concurrency machinery.
+  let notesRegion: string | undefined;
+  if (previewNotesEnabled) {
+    const merged = mergeNotesRegions(notesResult.releaseNotes ?? {}, editedNotes);
+    if (Object.keys(merged).length > 0) notesRegion = renderNotesRegion(merged);
+  }
+
+  const body = renderPrBody(versionOutput, supersedeWarning, notesRegion);
 
   let prNumber: number;
   let prUrl: string;
@@ -1017,6 +1058,21 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     projectDir: cwd,
   };
 
+  // Pull any human-edited release notes from the live (now-merged, still-readable) PR body (#200).
+  // Marker slicing only — the manifest never stores prose, so "manifest = machine state only" holds.
+  let editedNotes: Record<string, string> = {};
+  try {
+    const { data: livePr } = await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber });
+    editedNotes = extractNotesRegions(
+      livePr.body ?? '',
+      publishableUpdates(manifest.versionOutput).map((u) => u.packageName),
+    );
+  } catch (err) {
+    warn(
+      `Could not read PR #${prNumber} body for edited release notes: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
   let releaseNotes: Record<string, string> = {};
   let notesFiles: string[] = [...manifest.notesFiles];
   try {
@@ -1039,6 +1095,13 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   } catch (err) {
     warn(`Release notes generation failed: ${err instanceof Error ? err.message : String(err)}`);
     warn('Publish will proceed with empty release notes; GitHub release will use auto-generated notes.');
+  }
+
+  // Human-edited notes win per package for the GitHub release body. Applied after regeneration so
+  // edits override fresh prose, and so a regeneration failure still yields the edited content.
+  if (Object.keys(editedNotes).length > 0) {
+    releaseNotes = { ...releaseNotes, ...editedNotes };
+    info(`Using human-edited release notes for ${Object.keys(editedNotes).length} package(s) from the PR body.`);
   }
 
   // Create the release tags at HEAD before invoking the publish pipeline. The pipeline's

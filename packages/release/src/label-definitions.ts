@@ -52,6 +52,11 @@ export function deriveLabelDefinitions(ciConfig: CIConfig | undefined): LabelDef
       color: COLOR_RELEASE,
       description: 'ReleaseKit: retry a failed publish on this merged standing PR',
     },
+    {
+      name: labels.previewNotes,
+      color: COLOR_RELEASE,
+      description: 'ReleaseKit: generate editable release notes in the standing PR body',
+    },
   ];
 
   for (const scopeLabel of Object.keys(scopeLabels)) {

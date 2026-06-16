@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderFailureReport, renderResolvedReport } from '../../src/failure-report/failure-report.js';
+import { renderNotesRegion } from '../../src/standing-pr/notes-region.js';
 import type { StandingPRManifest } from '../../src/standing-pr/standing-pr.js';
 import {
   createReleaseTags,
@@ -302,6 +303,7 @@ describe('runStandingPRUpdate', () => {
         prerelease: 'channel:prerelease',
         skip: 'release:skip',
         immediate: 'release:immediate',
+        previewNotes: 'release:preview-notes',
         major: 'bump:major',
         minor: 'bump:minor',
         patch: 'bump:patch',
@@ -1107,6 +1109,82 @@ describe('runStandingPRUpdate', () => {
       expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ sync: true });
     });
   });
+
+  describe('preview-notes editable region (#200)', () => {
+    async function setupPreviewPR(opts: { labels: string[]; liveBody?: string; freshNotes?: Record<string, string> }) {
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+      vi.mocked(runVersionStep)
+        .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+        .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+      vi.mocked(runNotesStep).mockResolvedValue({
+        packageNotes: {},
+        releaseNotes: opts.freshNotes ?? {},
+        files: [],
+      });
+
+      const { createOctokit } = await import('../../src/github.js');
+      const { mocks, octokit } = createMockOctokit();
+      mocks.pullsList.mockResolvedValue({
+        data: [
+          {
+            number: 99,
+            html_url: 'https://github.com/owner/repo/pull/99',
+            labels: opts.labels.map((name) => ({ name })),
+          },
+        ],
+      });
+      mocks.pullsGet.mockResolvedValue({ data: { body: opts.liveBody ?? '' } });
+      vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+      return { mocks, runNotesStepMock: vi.mocked(runNotesStep) };
+    }
+
+    it('should seed generated notes into the editable region when the preview label is present', async () => {
+      const { mocks, runNotesStepMock } = await setupPreviewPR({
+        labels: ['release', 'release:preview-notes'],
+        liveBody: '',
+        freshNotes: { '@scope/core': 'Generated notes for core' },
+      });
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      // LLM release notes were requested (skipReleaseNotes false) on the seeding run.
+      expect(runNotesStepMock.mock.calls.at(-1)?.[1]).toMatchObject({ skipReleaseNotes: false });
+      const body = mocks.pullsUpdate.mock.calls.at(-1)?.[0]?.body as string;
+      expect(body).toContain('## Release Notes');
+      expect(body).toContain('<!-- releasekit-notes:@scope/core -->');
+      expect(body).toContain('Generated notes for core');
+    });
+
+    it('should preserve a human-edited region across an update without regenerating', async () => {
+      const editedBody = renderNotesRegion({ '@scope/core': 'HUMAN EDITED notes' });
+      const { mocks, runNotesStepMock } = await setupPreviewPR({
+        labels: ['release', 'release:preview-notes'],
+        liveBody: editedBody,
+        // Even if the mock returned fresh notes, the edit must win — but generation should be skipped.
+        freshNotes: { '@scope/core': 'REGENERATED notes' },
+      });
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      // Every releasing package already has a region → LLM generation is skipped.
+      expect(runNotesStepMock.mock.calls.at(-1)?.[1]).toMatchObject({ skipReleaseNotes: true });
+      const body = mocks.pullsUpdate.mock.calls.at(-1)?.[0]?.body as string;
+      expect(body).toContain('HUMAN EDITED notes');
+      expect(body).not.toContain('REGENERATED notes');
+    });
+
+    it('should not add a notes region when the preview label is absent', async () => {
+      const { mocks } = await setupPreviewPR({ labels: ['release'], freshNotes: {} });
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const body = mocks.pullsUpdate.mock.calls.at(-1)?.[0]?.body as string;
+      expect(body).not.toContain('## Release Notes');
+      expect(body).not.toContain('<!-- releasekit-notes');
+    });
+  });
 });
 
 describe('findLatestMergedStandingPR', () => {
@@ -1553,6 +1631,38 @@ describe('publishFromManifest', () => {
     await expect(
       publishFromManifest(42, { projectDir: '/test', verbose: false, quiet: false, json: false }),
     ).rejects.toThrow(/manifest not found/);
+  });
+
+  it('should use human-edited notes from the PR body at merge, overriding regenerated notes (#200)', async () => {
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({
+      packageNotes: {},
+      releaseNotes: { '@scope/core': 'REGENERATED at merge' },
+      files: [],
+    });
+    vi.mocked(runPublishStep).mockResolvedValue({
+      npm: [],
+      cargo: [],
+      githubReleases: [],
+      git: { committed: true, tags: [], pushed: true },
+    } as unknown as Awaited<ReturnType<typeof runPublishStep>>);
+
+    const { createOctokit } = await import('../../src/github.js');
+    const { mocks, octokit } = createMockOctokit();
+    // Manifest comment present so publish proceeds.
+    mocks.paginate.iterator.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield { data: [{ id: 77, body: serializeManifest(baseManifest) }] };
+      },
+    });
+    // The merged PR body carries a human-edited region for @scope/core.
+    mocks.pullsGet.mockResolvedValue({ data: { body: renderNotesRegion({ '@scope/core': 'EDITED AT MERGE' }) } });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    // The edited notes (not the regenerated ones) reach the publish step's release-body map.
+    expect(vi.mocked(runPublishStep).mock.calls[0]?.[2]).toMatchObject({ '@scope/core': 'EDITED AT MERGE' });
   });
 });
 

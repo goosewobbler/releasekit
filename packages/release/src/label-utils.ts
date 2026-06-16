@@ -4,6 +4,7 @@ export interface LabelConfig {
   skip: string;
   immediate: string;
   retry: string;
+  previewNotes: string;
   major: string;
   minor: string;
   patch: string;
@@ -15,6 +16,7 @@ export const DEFAULT_LABELS: LabelConfig = {
   skip: 'release:skip',
   immediate: 'release:immediate',
   retry: 'release:retry',
+  previewNotes: 'release:preview-notes',
   major: 'bump:major',
   minor: 'bump:minor',
   patch: 'bump:patch',
