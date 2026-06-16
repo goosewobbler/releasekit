@@ -8,8 +8,14 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+# Keyed by event so the no-op `pull_request: closed` run can't supersede a queued `push` run.
+# The publish dispatch (detect-release-merge → trigger-publish) rides the `push` event; when a
+# prior update run holds the group, the merge's push run queues — and a same-group `pull_request`
+# run would otherwise cancel it (GitHub keeps only the latest pending run per group), silently
+# dropping the publish (see #322). Push runs still share one group, preserving the
+# update-vs-publish serialization this gate was created for.
 concurrency:
-  group: standing-release-pr
+  group: standing-release-pr-${{ github.event_name }}
   cancel-in-progress: false
 
 permissions:
