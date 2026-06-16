@@ -237,8 +237,8 @@ function extractEntries(
         // previousVersion when this fires so the changelog doesn't claim an undiffed baseline.
         log(
           `Baseline ref '${baseForRange}' could not be verified from HEAD — generating the changelog from ALL ` +
-            `history instead of since the last release. The tag is likely missing from the checkout (shallow ` +
-            `clone, or never pushed). Fetch/push the tag, or set version.baseRef, to bound the changelog.`,
+            `history instead of since the last release. The ref is likely missing from the checkout (shallow ` +
+            `clone, or never pushed). ${config.baseRef ? 'Fetch/push the ref to make it available in this checkout.' : 'Fetch/push the tag, or set version.baseRef, to bound the changelog.'}`,
           'warning',
         );
         revisionRange = 'HEAD';

@@ -234,8 +234,8 @@ export class PackageProcessor {
             // changelog doesn't claim a baseline it never diffed against.
             log(
               `Baseline ref '${baseForRange}' could not be verified from HEAD (${verification.error}) — generating ` +
-                `the changelog from ALL history instead of since the last release. The tag is likely missing from the ` +
-                `checkout (shallow clone, or never pushed). Fetch/push the tag, or set version.baseRef, to bound it.`,
+                `the changelog from ALL history instead of since the last release. The ref is likely missing from the ` +
+                `checkout (shallow clone, or never pushed). ${this.fullConfig.baseRef ? 'Fetch/push the ref to make it available in this checkout.' : 'Fetch/push the tag, or set version.baseRef, to bound it.'}`,
               'warning',
             );
             revisionRange = 'HEAD';

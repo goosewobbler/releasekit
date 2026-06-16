@@ -767,6 +767,28 @@ describe('Version Strategies', () => {
       expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a v1.1.0');
     });
 
+    it('should warn and omit previousVersion when the baseline tag is unverifiable (#339)', async () => {
+      // rev-parse on the baseline fails (shallow clone / unpushed tag); other git calls succeed.
+      vi.mocked(commandExecutor.execSync, { partial: true }).mockImplementation((_cmd, args) => {
+        if (Array.isArray(args) && args.includes('rev-parse')) {
+          throw new Error('fatal: Needed a single revision');
+        }
+        return Buffer.from('');
+      });
+
+      const config: Partial<Config> = { ...defaultConfig, mainPackage: 'package-a' };
+      const singleStrategy = strategies.createSingleStrategy(config as Config);
+
+      await singleStrategy(mockPackages);
+
+      // Loud warning, all-history range, and previousVersion omitted so the changelog doesn't claim
+      // a baseline it never diffed against — same guarantee as createSyncStrategy.
+      expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('could not be verified from HEAD'), 'warning');
+      expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
+        expect.objectContaining({ previousVersion: null, revisionRange: 'HEAD' }),
+      );
+    });
+
     it('should use packageName in commit message template', async () => {
       // Setup
       const config: Partial<Config> = {
