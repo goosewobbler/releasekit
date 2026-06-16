@@ -63,6 +63,7 @@ function fmtType(prop: SchemaProperty): string {
   if (prop.oneOf) {
     return prop.oneOf
       .map((s) => {
+        if (s.type === 'boolean' && s.enum) return (s.enum as unknown[]).map((v) => `\`${v}\``).join(' | ');
         if (s.type === 'boolean') return 'boolean';
         if (s.type === 'string' && s.enum) return s.enum.map((v) => `\`"${v}"\``).join(' | ');
         return s.type ?? 'any';
