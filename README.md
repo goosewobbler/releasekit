@@ -1,17 +1,43 @@
-# ReleaseKit
+<h1 align="center">ReleaseKit</h1>
 
-[![npm](https://img.shields.io/npm/v/@releasekit/release.svg)](https://www.npmjs.com/package/@releasekit/release)
-[![CI](https://github.com/goosewobbler/releasekit/actions/workflows/ci.yml/badge.svg)](https://github.com/goosewobbler/releasekit/actions/workflows/ci.yml)
-[![Node](https://img.shields.io/node/v/@releasekit/release.svg)](https://www.npmjs.com/package/@releasekit/release)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+<p align="center"><em>Versioning, changelogs, and publishing for whatever you ship — driven by Conventional Commits, built for CI.</em></p>
 
-Versioning, changelogs, and publishing for whatever you ship — driven by Conventional Commits, built for CI. Releases to npm, crates.io, and pub.dev today, with more ecosystems on the way.
+<p align="center">
+  <a href="https://www.npmjs.com/package/@releasekit/release"><img alt="npm" src="https://img.shields.io/npm/v/@releasekit/release.svg"></a>
+  <a href="https://github.com/goosewobbler/releasekit/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/goosewobbler/releasekit/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://www.npmjs.com/package/@releasekit/release"><img alt="Node" src="https://img.shields.io/node/v/@releasekit/release.svg"></a>
+  <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg"></a>
+</p>
+
+<p align="center">
+  <a href="#why-releasekit">Why</a> ·
+  <a href="#quickstart">Quickstart</a> ·
+  <a href="#packages">Packages</a> ·
+  <a href="#documentation">Docs</a> ·
+  <a href="./CONTRIBUTING.md">Contributing</a>
+</p>
+
+Releases to npm, crates.io, and pub.dev today, with more ecosystems on the way.
+
+```text
+   from Conventional Commits:
+
+   ┌─────────┐     ┌─────────┐     ┌─────────┐
+   │ version │ ──▶ │  notes  │ ──▶ │ publish │
+   └─────────┘     └─────────┘     └─────────┘
+    semver bumps    changelog +     npm · crates.io · pub.dev
+    per package     LLM notes       git tags · GitHub Release
+
+   Independent CLIs, piped via a VersionOutput JSON contract — run one stage or all three.
+```
 
 ## Why ReleaseKit
 
 - **One config, every ecosystem** — npm (JavaScript/TypeScript), crates.io (Rust), and pub.dev (Dart/Flutter) packages release from the same `releasekit.config.json`, including mixed monorepos. The pipeline is registry-agnostic — new ecosystems plug in without changing your workflow.
 - **Composable, not opinionated** — three independent CLIs (`version`, `notes`, `publish`) you can pipe together, or a unified `release` command if you want the full pipeline.
 - **CI-native** — JSON output, OIDC publishing, PR preview comments, and label- or commit-driven triggers without bolting on extra tools.
+
+> **Coming from semantic-release or changesets?** See the [Migration guide](./docs/migration.md) for a mapping of concepts and a step-by-step switch.
 
 ## Quickstart
 
@@ -47,20 +73,20 @@ See [Getting Started](./docs/getting-started.md) for prerequisites, config optio
 
 ## Packages
 
-| Package | Version | Description |
-|---------|---------|-------------|
-| [@releasekit/release](./packages/release) | [![npm](https://img.shields.io/npm/v/@releasekit/release.svg)](https://www.npmjs.com/package/@releasekit/release) | **Unified CLI** — run version, notes, and publish in a single command |
-| [@releasekit/version](./packages/version) | [![npm](https://img.shields.io/npm/v/@releasekit/version.svg)](https://www.npmjs.com/package/@releasekit/version) | Semantic versioning based on Git history and conventional commits |
-| [@releasekit/notes](./packages/notes) | [![npm](https://img.shields.io/npm/v/@releasekit/notes.svg)](https://www.npmjs.com/package/@releasekit/notes) | Changelog generation with LLM-powered enhancement and flexible templating |
-| [@releasekit/publish](./packages/publish) | [![npm](https://img.shields.io/npm/v/@releasekit/publish.svg)](https://www.npmjs.com/package/@releasekit/publish) | Publish packages to npm, crates.io, and pub.dev with git tagging and GitHub releases |
+| Package | Version | Downloads | Description |
+|---------|---------|-----------|-------------|
+| [@releasekit/release](./packages/release) | [![npm](https://img.shields.io/npm/v/@releasekit/release.svg)](https://www.npmjs.com/package/@releasekit/release) | [![downloads](https://img.shields.io/npm/dw/@releasekit/release.svg)](https://www.npmjs.com/package/@releasekit/release) | **Unified CLI** — run version, notes, and publish in a single command |
+| [@releasekit/version](./packages/version) | [![npm](https://img.shields.io/npm/v/@releasekit/version.svg)](https://www.npmjs.com/package/@releasekit/version) | [![downloads](https://img.shields.io/npm/dw/@releasekit/version.svg)](https://www.npmjs.com/package/@releasekit/version) | Semantic versioning based on Git history and conventional commits |
+| [@releasekit/notes](./packages/notes) | [![npm](https://img.shields.io/npm/v/@releasekit/notes.svg)](https://www.npmjs.com/package/@releasekit/notes) | [![downloads](https://img.shields.io/npm/dw/@releasekit/notes.svg)](https://www.npmjs.com/package/@releasekit/notes) | Changelog generation with LLM-powered enhancement and flexible templating |
+| [@releasekit/publish](./packages/publish) | [![npm](https://img.shields.io/npm/v/@releasekit/publish.svg)](https://www.npmjs.com/package/@releasekit/publish) | [![downloads](https://img.shields.io/npm/dw/@releasekit/publish.svg)](https://www.npmjs.com/package/@releasekit/publish) | Publish packages to npm, crates.io, and pub.dev with git tagging and GitHub releases |
 
 ## Features
 
-- **Versioning** — derives semver bumps from Conventional Commits; supports JavaScript/TypeScript (`package.json`), Rust (`Cargo.toml`), Dart/Flutter (`pubspec.yaml`), and monorepos with per-package tags
-- **Release notes** — generates changelogs from commit history, with optional LLM enhancement (Anthropic, OpenAI, or local models)
-- **Publishing** — pushes to npm (OIDC or token), crates.io, and pub.dev, tags the release, and creates a GitHub Release
-- **CI/CD first** — JSON output for scripting, PR preview comments, and config-driven triggers (commit vs label)
-- **Composable** — use each tool independently or pipe them together
+- 🔖 **Versioning** — derives semver bumps from Conventional Commits; supports JavaScript/TypeScript (`package.json`), Rust (`Cargo.toml`), Dart/Flutter (`pubspec.yaml`), and monorepos with per-package tags
+- 📝 **Release notes** — generates changelogs from commit history, with optional LLM enhancement (Anthropic, OpenAI, or local models)
+- 📦 **Publishing** — pushes to npm (OIDC or token), crates.io, and pub.dev, tags the release, and creates a GitHub Release
+- ⚙️ **CI/CD first** — JSON output for scripting, PR preview comments, and config-driven triggers (commit vs label)
+- 🧩 **Composable** — use each tool independently or pipe them together
 
 ## Usage
 
@@ -143,6 +169,13 @@ See the [package docs](#documentation) for the full option reference.
 ## Development
 
 `pnpm install && pnpm build && pnpm test` — see [CONTRIBUTING.md](./CONTRIBUTING.md) for the full guide.
+
+## Support
+
+- [GitHub Issues](https://github.com/goosewobbler/releasekit/issues) — bug reports and feature requests
+- [Contributing](./CONTRIBUTING.md) — development setup and PR guidelines
+- [Security policy](./SECURITY.md) — reporting vulnerabilities
+- [Code of Conduct](./CODE_OF_CONDUCT.md)
 
 ## License
 
