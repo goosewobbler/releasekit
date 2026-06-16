@@ -139,6 +139,8 @@ export function createBackfillCommand(): Command {
         if (reconstructed.length > 0) {
           totalReleaseCount += reconstructed.length;
           releasesByTarget.push({ target, reconstructed });
+        } else if (targets.length > 1) {
+          info(`${target.packageName}: no matching tags found, skipping`);
         }
       }
 
