@@ -3,7 +3,8 @@ import * as path from 'node:path';
 import * as TOML from 'smol-toml';
 
 export interface CargoManifest {
-  package?: { name?: string; version?: string; [key: string]: unknown };
+  package?: { name?: string; version?: string; publish?: boolean | string[]; [key: string]: unknown };
+  workspace?: { members?: string[]; [key: string]: unknown };
   dependencies?: Record<string, unknown>;
   [key: string]: unknown;
 }

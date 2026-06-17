@@ -646,6 +646,91 @@ describe('Version Engine', () => {
       }
     });
 
+    it('should skip a pub package with publish_to: none', async () => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-pub-private-'));
+      try {
+        const pkgDir = path.join(tmp, 'packages', 'private_pkg');
+        fs.mkdirSync(pkgDir, { recursive: true });
+        fs.writeFileSync(path.join(pkgDir, 'pubspec.yaml'), 'name: private_pkg\nversion: 1.0.0\npublish_to: none\n');
+        vi.mocked(mockCwd, { partial: true }).mockReturnValue(tmp);
+        vi.mocked(getPackagesSync).mockReturnValue({ root: tmp, packages: [] });
+
+        const engine = new VersionEngine({ ...defaultConfig, sync: false } as Config);
+        const result = await engine.getWorkspacePackages();
+
+        expect(result.packages.find((p) => p.packageJson.name === 'private_pkg')).toBeUndefined();
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+
+    it('should skip a Cargo crate with publish = false', async () => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-cargo-nopublish-'));
+      try {
+        const crateDir = path.join(tmp, 'crates', 'private_crate');
+        fs.mkdirSync(crateDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(crateDir, 'Cargo.toml'),
+          '[package]\nname = "private_crate"\nversion = "1.0.0"\npublish = false\n',
+        );
+        vi.mocked(mockCwd, { partial: true }).mockReturnValue(tmp);
+        vi.mocked(getPackagesSync).mockReturnValue({ root: tmp, packages: [] });
+
+        const engine = new VersionEngine({ ...defaultConfig, sync: false } as Config);
+        const result = await engine.getWorkspacePackages();
+
+        expect(result.packages.find((p) => p.packageJson.name === 'private_crate')).toBeUndefined();
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+
+    it('should exclude Cargo crates outside workspace members when a workspace root Cargo.toml exists', async () => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-cargo-workspace-'));
+      try {
+        fs.writeFileSync(path.join(tmp, 'Cargo.toml'), '[workspace]\nmembers = ["crates/member"]\n');
+        const memberDir = path.join(tmp, 'crates', 'member');
+        fs.mkdirSync(memberDir, { recursive: true });
+        fs.writeFileSync(path.join(memberDir, 'Cargo.toml'), '[package]\nname = "member_crate"\nversion = "0.1.0"\n');
+        const fixtureDir = path.join(tmp, 'fixtures', 'test_crate');
+        fs.mkdirSync(fixtureDir, { recursive: true });
+        fs.writeFileSync(path.join(fixtureDir, 'Cargo.toml'), '[package]\nname = "fixture_crate"\nversion = "0.1.0"\n');
+        vi.mocked(mockCwd, { partial: true }).mockReturnValue(tmp);
+        vi.mocked(getPackagesSync).mockReturnValue({ root: tmp, packages: [] });
+
+        const engine = new VersionEngine({ ...defaultConfig, sync: false } as Config);
+        const result = await engine.getWorkspacePackages();
+
+        expect(result.packages.find((p) => p.packageJson.name === 'member_crate')).toBeDefined();
+        expect(result.packages.find((p) => p.packageJson.name === 'fixture_crate')).toBeUndefined();
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+
+    it('should exclude pub packages outside pnpm workspace globs when pnpm-workspace.yaml exists', async () => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-pub-workspace-'));
+      try {
+        fs.writeFileSync(path.join(tmp, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/*"\n');
+        const memberDir = path.join(tmp, 'packages', 'flutter_member');
+        fs.mkdirSync(memberDir, { recursive: true });
+        fs.writeFileSync(path.join(memberDir, 'pubspec.yaml'), 'name: flutter_member\nversion: 1.0.0\n');
+        const fixtureDir = path.join(tmp, 'fixtures', 'flutter_fixture');
+        fs.mkdirSync(fixtureDir, { recursive: true });
+        fs.writeFileSync(path.join(fixtureDir, 'pubspec.yaml'), 'name: flutter_fixture\nversion: 0.0.1\n');
+        vi.mocked(mockCwd, { partial: true }).mockReturnValue(tmp);
+        vi.mocked(getPackagesSync).mockReturnValue({ root: tmp, packages: [] });
+
+        const engine = new VersionEngine({ ...defaultConfig, sync: false } as Config);
+        const result = await engine.getWorkspacePackages();
+
+        expect(result.packages.find((p) => p.packageJson.name === 'flutter_member')).toBeDefined();
+        expect(result.packages.find((p) => p.packageJson.name === 'flutter_fixture')).toBeUndefined();
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+
     it('should include a pure Rust package when explicitly named in config.packages', async () => {
       const discoverSpy = vi.spyOn(VersionEngine.prototype as any, 'discoverCargoTomlPackages');
       discoverSpy.mockReturnValue({
