@@ -4,7 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
-    types: [closed]
+    # closed: merge handling (publish dispatch / immediate). labeled/unlabeled: re-run the
+    # standing-PR update so override labels on the OPEN PR apply immediately (#336).
+    types: [closed, labeled, unlabeled]
     branches: [main]
   workflow_dispatch: {}
 
@@ -119,6 +121,25 @@ jobs:
     secrets:
       OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
+  # A label change on the OPEN standing PR re-runs the update so bump/scope/channel overrides apply
+  # within seconds instead of waiting for the next push (#336). Separate from update-release-pr
+  # because that one depends on detect-release-merge, which is skipped on pull_request events.
+  # `state == 'open'` keeps this off the merged-PR label events handled by trigger-immediate. The
+  # CLI bypasses the skip-pattern guard on label events (the checked-out HEAD is the prep commit).
+  update-on-label:
+    name: Update Release PR (label change)
+    if: >-
+      github.event_name == 'pull_request' &&
+      (github.event.action == 'labeled' || github.event.action == 'unlabeled') &&
+      github.event.pull_request.state == 'open' &&
+      startsWith(github.event.pull_request.head.ref, 'release/')
+    uses: ./.github/workflows/_standing-pr-update.reusable.yml
+    permissions:
+      contents: write
+      pull-requests: write
+    secrets:
+      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+
   # Same architectural constraint as `trigger-publish` below: any OIDC publish triggered from
   # `standing-pr.yml` would have `workflow_ref = standing-pr.yml`, which doesn't match the
   # `release.yml` trusted-publisher entry on npmjs.com (only one is allowed per package). So
@@ -127,8 +148,11 @@ jobs:
   # succeeds, replacing what used to be the `reconcile-standing-pr` job here.
   trigger-immediate:
     name: Trigger immediate release via release.yml
+    # action == 'closed' matters now that labeled/unlabeled are subscribed: a label added to the
+    # already-merged immediate PR also satisfies merged == true and would dispatch a second publish.
     if: >
       github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
       github.event.pull_request.merged == true &&
       contains(github.event.pull_request.labels.*.name, 'release:immediate')
     runs-on: ubuntu-latest
