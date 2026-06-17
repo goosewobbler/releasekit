@@ -289,7 +289,8 @@ export class PackageProcessor {
           .filter((p) => sharedPackageNames.includes(p.packageJson.name))
           .map((p) => p.dir);
         // Use the tighter of the per-package range (already bounded for tagged packages)
-        // or the global baseline floor (for untagged packages whose range is 'HEAD').
+        // or the global baseline floor — applies to untagged packages and to packages whose
+        // tag exists but is unreachable (shallow clone, #339), both of which produce revisionRange='HEAD'.
         let sharedRevisionRange = revisionRange;
         if (revisionRange === 'HEAD' && !this.fullConfig.baseRef) {
           if (_sharedBaselineRange === undefined) {
