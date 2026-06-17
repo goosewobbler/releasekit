@@ -235,7 +235,9 @@ export class PackageProcessor {
         // baseRef takes precedence — it's a PR base SHA supplied in advisory standing-pr mode
         // so the changelog is scoped to only this PR's commits, not all commits since last tag.
         const baseForRange = this.fullConfig.baseRef ?? changelogBaseTag;
-        if (baseForRange) {
+        if (baseForRange && (this.fullConfig.baseRef || hasRealTag)) {
+          // A real tag (or an explicit baseRef) — verify it. A failure here is the #339 case: the
+          // ref genuinely exists but isn't reachable in this checkout (shallow clone / unpushed).
           const verification = verifyTag(baseForRange, pkgPath);
           if (verification.exists && verification.reachable) {
             revisionRange = `${baseForRange}..HEAD`;
@@ -259,6 +261,13 @@ export class PackageProcessor {
             revisionRange = 'HEAD';
             baselineUnreachable = true;
           }
+        } else if (baseForRange) {
+          // No real tag — `baseForRange` is the manifest-fallback's synthetic tag, which isn't a git
+          // ref. The #334 warning above already explained the full-history changelog accurately, so
+          // skip verifyTag here: running it would emit a second, misleading "could not be verified —
+          // shallow clone / unpushed" message about a tag that never existed.
+          revisionRange = 'HEAD';
+          baselineUnreachable = true;
         }
 
         changelogEntries = extractChangelogEntriesFromCommits(pkgPath, revisionRange);

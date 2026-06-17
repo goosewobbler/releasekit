@@ -558,6 +558,12 @@ describe('Package Processor', () => {
       await processor.processPackages([mockPackages[1]]);
 
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('No prior tag found for package-b'), 'warning');
+      // ...and NOT the misleading #339 "shallow clone / unpushed" warning about the synthetic
+      // manifest-fallback tag, which never existed as a git ref.
+      expect(logging.log).not.toHaveBeenCalledWith(
+        expect.stringContaining('could not be verified from HEAD'),
+        'warning',
+      );
     });
 
     it('should emit repo-level entries as sharedEntries, not in individual package changelogs', async () => {
