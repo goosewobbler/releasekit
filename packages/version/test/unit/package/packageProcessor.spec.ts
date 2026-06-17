@@ -566,6 +566,49 @@ describe('Package Processor', () => {
       );
     });
 
+    it('should bound repo-level changelog range by global baseline when a package has no real tag (#348)', async () => {
+      // package-a has no specific tag; getVersionFromManifests returns a manifest version via
+      // the global beforeEach mock, making hasRealTag=false and revisionRange='HEAD'.
+      // The shared-entries call should use the global baseline floor, not 'HEAD'.
+      vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
+      vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
+      vi.spyOn(versionCalculatorModule, 'calculateVersion').mockResolvedValue('1.1.0');
+      const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockReturnValue([]);
+
+      const globalTag = 'v1.0.0';
+      const processor = new PackageProcessor({
+        ...defaultOptions,
+        getLatestTag: vi.fn().mockResolvedValue(globalTag),
+        fullConfig: { ...mockConfig, packageSpecificTags: true, writeChangelog: false },
+      });
+
+      await processor.processPackages([mockPackages[0]]); // package-a triggers manifest fallback
+
+      expect(extractSharedSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        `${globalTag}..HEAD`,
+        expect.any(Array),
+        expect.any(Array),
+      );
+    });
+
+    it('should fall back to HEAD range for shared entries when getLatestTag rejects (#348)', async () => {
+      vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
+      vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
+      vi.spyOn(versionCalculatorModule, 'calculateVersion').mockResolvedValue('1.1.0');
+      const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockReturnValue([]);
+
+      const processor = new PackageProcessor({
+        ...defaultOptions,
+        getLatestTag: vi.fn().mockRejectedValue(new Error('git failure')),
+        fullConfig: { ...mockConfig, packageSpecificTags: true, writeChangelog: false },
+      });
+
+      await processor.processPackages([mockPackages[0]]);
+
+      expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), 'HEAD', expect.any(Array), expect.any(Array));
+    });
+
     it('should emit repo-level entries as sharedEntries, not in individual package changelogs', async () => {
       const repoLevelEntry = { type: 'chore', description: 'Update CI workflow' };
       const pkgAEntry = { type: 'added', description: 'New feature in pkg-a' };

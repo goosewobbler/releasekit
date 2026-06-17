@@ -419,6 +419,7 @@ function renderPrBody(versionOutput: VersionOutput, supersedeWarning?: string[],
     "> **Changelog truncated** — the full changelog exceeded GitHub's PR-body limit and was shortened here. " +
     "Each package's complete changelog is in its `CHANGELOG.md`. This usually means a package has no prior " +
     'release tag, so its changelog spans the entire git history — create baseline tags to scope it.';
+  // 8 = 4 (\n\n before + \n\n after from push('', section, '')) + 2 (\n\n between truncated changelog and notice) + 2 safety margin
   const room = STANDING_PR_BODY_CAP - build('').length - notice.length - 8;
   // No room for any changelog: the non-changelog content (package table / notes region) already
   // fills the budget. Drop the changelog entirely rather than appending the notice, which would only

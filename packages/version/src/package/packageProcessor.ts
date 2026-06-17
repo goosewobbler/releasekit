@@ -109,6 +109,13 @@ export class PackageProcessor {
     // Accumulate repo-level entries across all packages (keyed by type+description to deduplicate)
     const sharedEntriesMap = new Map<string, ChangelogEntry>();
 
+    // (#348) Lazy-computed floor for repo-level changelog entries. When an untagged package's
+    // per-package revisionRange is 'HEAD' (all history), passing that same range to
+    // extractRepoLevelChangelogEntries floods "Project-wide changes" with the full git history.
+    // Bound it by the most recent release tag reachable from HEAD instead, computed on first
+    // need and shared across all packages in this run.
+    let _sharedBaselineRange: string | undefined;
+
     for (const pkg of pkgsToConsider) {
       const name = pkg.packageJson.name;
       const pkgPath = pkg.dir;
@@ -281,9 +288,30 @@ export class PackageProcessor {
         const sharedPackageDirs = packages
           .filter((p) => sharedPackageNames.includes(p.packageJson.name))
           .map((p) => p.dir);
+        // Use the tighter of the per-package range (already bounded for tagged packages)
+        // or the global baseline floor — applies to untagged packages and to packages whose
+        // tag exists but is unreachable (shallow clone, #339), both of which produce revisionRange='HEAD'.
+        let sharedRevisionRange = revisionRange;
+        if (revisionRange === 'HEAD' && !this.fullConfig.baseRef) {
+          if (_sharedBaselineRange === undefined) {
+            try {
+              const globalTag = await this.getLatestTag();
+              if (globalTag) {
+                const gv = verifyTag(globalTag, process.cwd());
+                _sharedBaselineRange = gv.exists && gv.reachable ? `${globalTag}..HEAD` : 'HEAD';
+              } else {
+                _sharedBaselineRange = 'HEAD';
+              }
+            } catch {
+              _sharedBaselineRange = 'HEAD';
+            }
+          }
+          sharedRevisionRange = _sharedBaselineRange;
+        }
+
         const repoLevelEntries = extractRepoLevelChangelogEntries(
           pkgPath,
-          revisionRange,
+          sharedRevisionRange,
           allPackageDirs,
           sharedPackageDirs,
         );
