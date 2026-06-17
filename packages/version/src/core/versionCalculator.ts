@@ -148,22 +148,16 @@ export async function calculateVersion(config: Config, options: VersionOptions):
       return versionSource.version;
     }
 
-    // First release scenario: no previous tag + explicit type provided
+    // First release scenario: no previous tag. Emit a warning but fall through to normal
+    // bump/stable/prerelease logic using the manifest version as the base. Returning the
+    // manifest verbatim here would silently ignore --stable, --bump, and prereleaseIdentifier
+    // inputs, causing wrong identifiers or missed graduations on first release (#347).
     log(
       `Checking first release scenario: latestTag=${latestTag}, type=${type}, stableOnly=${config.stableOnly}`,
       'debug',
     );
     if (hasNoTags && type) {
-      log(`First release scenario detected`, 'debug');
-      const currentVersion = getCurrentVersionFromSource();
-      log(`Current version for first release: ${currentVersion}`, 'debug');
       log(`No previous tag found for ${name || 'project'} - this appears to be a first release`, 'warning');
-      // For first release, return the version directly from package.json - no bumping needed.
-      // This ensures the release proceeds regardless of version changes (prerelease versions
-      // may not actually change when bumped). The version in package.json is already the
-      // intended release version.
-      log(`First release version: ${currentVersion}`, 'debug');
-      return currentVersion;
     }
 
     // Handle stableOnly mode: graduate prerelease → stable base; skip already-stable packages.
