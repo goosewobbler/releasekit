@@ -592,6 +592,23 @@ describe('Package Processor', () => {
       );
     });
 
+    it('should fall back to HEAD range for shared entries when getLatestTag rejects (#348)', async () => {
+      vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
+      vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
+      vi.spyOn(versionCalculatorModule, 'calculateVersion').mockResolvedValue('1.1.0');
+      const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockReturnValue([]);
+
+      const processor = new PackageProcessor({
+        ...defaultOptions,
+        getLatestTag: vi.fn().mockRejectedValue(new Error('git failure')),
+        fullConfig: { ...mockConfig, packageSpecificTags: true, writeChangelog: false },
+      });
+
+      await processor.processPackages([mockPackages[0]]);
+
+      expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), 'HEAD', expect.any(Array), expect.any(Array));
+    });
+
     it('should emit repo-level entries as sharedEntries, not in individual package changelogs', async () => {
       const repoLevelEntry = { type: 'chore', description: 'Update CI workflow' };
       const pkgAEntry = { type: 'added', description: 'New feature in pkg-a' };

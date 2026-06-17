@@ -294,11 +294,15 @@ export class PackageProcessor {
         let sharedRevisionRange = revisionRange;
         if (revisionRange === 'HEAD' && !this.fullConfig.baseRef) {
           if (_sharedBaselineRange === undefined) {
-            const globalTag = await this.getLatestTag();
-            if (globalTag) {
-              const gv = verifyTag(globalTag, process.cwd());
-              _sharedBaselineRange = gv.exists && gv.reachable ? `${globalTag}..HEAD` : 'HEAD';
-            } else {
+            try {
+              const globalTag = await this.getLatestTag();
+              if (globalTag) {
+                const gv = verifyTag(globalTag, process.cwd());
+                _sharedBaselineRange = gv.exists && gv.reachable ? `${globalTag}..HEAD` : 'HEAD';
+              } else {
+                _sharedBaselineRange = 'HEAD';
+              }
+            } catch {
               _sharedBaselineRange = 'HEAD';
             }
           }
