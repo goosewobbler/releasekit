@@ -75,6 +75,17 @@ function findCompoundTagSepPos(tag: string): number {
   return -1;
 }
 
+/** True when position `i` in `tag` begins a semver version: a digit, or a `v` immediately followed by a digit. */
+function isVersionStartAt(tag: string, i: number): boolean {
+  const c = tag.charCodeAt(i);
+  if (c >= 48 && c <= 57) return true;
+  if (tag[i] === 'v') {
+    const n = tag.charCodeAt(i + 1);
+    return n >= 48 && n <= 57;
+  }
+  return false;
+}
+
 function generateCompareUrl(repoUrl: string, from: string, to: string, packageName?: string): string {
   // Check if using package-specific tags (from version contains @ and package name)
   const isPackageSpecific = from.includes('@') && packageName && from.includes(packageName);
@@ -93,8 +104,16 @@ function generateCompareUrl(repoUrl: string, from: string, to: string, packageNa
     // Use index-based string operations instead of regex to avoid ReDoS on inputs with
     // many repeated digits (polynomial backtracking with lazy + greedy quantifiers).
     const toClean = to.replace(/^v/, '');
+    const atPos = from.lastIndexOf('@');
     const dashVPos = from.lastIndexOf('-v');
-    if (dashVPos > 0 && from.charCodeAt(dashVPos + 2) >= 48 && from.charCodeAt(dashVPos + 2) <= 57) {
+    if (atPos > 0 && isVersionStartAt(from, atPos + 1)) {
+      // Sanitized package-specific tag: "<de-scoped-name>@[v]<version>" (e.g. "scope-pkg@v1.2.3").
+      // formatTag always strips the "@scope/", so the raw package name never appears literally and
+      // the isPackageSpecific check above can't match it. Keep the "<name>@" prefix and re-attach the
+      // new version, preserving a "v" only if the original tag had one (#338).
+      fromVersion = from;
+      toVersion = `${from.slice(0, atPos + 1)}${from[atPos + 1] === 'v' ? 'v' : ''}${toClean}`;
+    } else if (dashVPos > 0 && from.charCodeAt(dashVPos + 2) >= 48 && from.charCodeAt(dashVPos + 2) <= 57) {
       // "-v" followed by a digit → compound tag with explicit "v" prefix
       fromVersion = from;
       toVersion = `${from.slice(0, dashVPos + 1)}v${toClean}`;

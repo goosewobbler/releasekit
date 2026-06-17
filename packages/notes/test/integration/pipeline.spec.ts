@@ -164,6 +164,39 @@ describe('compareUrl: platform detection', () => {
     );
   });
 
+  it('should generate compare URL for sanitized "@v" package-specific tags (#338)', () => {
+    // formatTag strips "@scope/" -> "scope-name", so a `${packageName}@v${version}` template
+    // yields "zubridge-electron@v3.0.0". The raw "@zubridge/electron" never appears in the tag,
+    // so the `to` ref must be derived from the tag's own prefix, not the package name.
+    const ctx = createTemplateContext({
+      packageName: '@zubridge/electron',
+      version: '3.1.0',
+      previousVersion: 'zubridge-electron@v3.0.0',
+      revisionRange: 'zubridge-electron@v3.0.0..HEAD',
+      repoUrl: 'https://github.com/goosewobbler/zubridge',
+      date: '2026-01-01',
+      entries: [],
+    });
+    expect(ctx.compareUrl).toBe(
+      'https://github.com/goosewobbler/zubridge/compare/zubridge-electron@v3.0.0...zubridge-electron@v3.1.0',
+    );
+  });
+
+  it('should generate compare URL for sanitized "@v" tags across a prerelease escalation (#338)', () => {
+    const ctx = createTemplateContext({
+      packageName: '@zubridge/tauri',
+      version: '2.0.0-next.0',
+      previousVersion: 'zubridge-tauri@v1.1.1-next.1',
+      revisionRange: 'zubridge-tauri@v1.1.1-next.1..HEAD',
+      repoUrl: 'https://github.com/goosewobbler/zubridge',
+      date: '2026-01-01',
+      entries: [],
+    });
+    expect(ctx.compareUrl).toBe(
+      'https://github.com/goosewobbler/zubridge/compare/zubridge-tauri@v1.1.1-next.1...zubridge-tauri@v2.0.0-next.0',
+    );
+  });
+
   it('should omit compareUrl when no previousVersion', () => {
     const ctx = createTemplateContext({
       packageName: 'pkg',
