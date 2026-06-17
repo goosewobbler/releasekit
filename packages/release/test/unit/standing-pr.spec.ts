@@ -10,6 +10,7 @@ import {
   runStandingPRMerge,
   runStandingPRPublish,
   runStandingPRUpdate,
+  STANDING_PR_BODY_CAP,
   serializeManifest,
 } from '../../src/standing-pr/standing-pr.js';
 
@@ -641,6 +642,46 @@ describe('runStandingPRUpdate', () => {
     expect(createCall?.body).toContain('**Fixed**');
     expect(createCall?.body).toContain('Fix broken export');
     expect(createCall?.body).toContain('@scope/core — 1.2.2 → 1.2.3');
+  });
+
+  it("should truncate the PR body when the changelog would exceed GitHub's limit (#333)", async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    // A no-baseline-tag package's full-history changelog: thousands of entries blow past 65,536 chars.
+    const hugeEntries = Array.from({ length: 4000 }, (_, i) => ({
+      type: 'added',
+      description: `feature number ${i} with some descriptive text to pad the changelog body length`,
+    }));
+    const versionOutput = {
+      ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.0.0' }]),
+      changelogs: [
+        {
+          packageName: '@scope/core',
+          version: '1.0.0',
+          previousVersion: null,
+          revisionRange: 'HEAD',
+          entries: hugeEntries,
+        },
+      ],
+    };
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const { createOctokit } = await import('../../src/github.js');
+    const { mocks, octokit } = createMockOctokit();
+    mocks.pullsList.mockResolvedValue({ data: [] });
+    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const body = mocks.pullsCreate.mock.calls[0]?.[0]?.body as string;
+    // Assert against the module's cap (well under GitHub's 65,536), so a truncation that leaks into
+    // the 64,001–65,535 safety margin still fails the test.
+    expect(body.length).toBeLessThanOrEqual(STANDING_PR_BODY_CAP);
+    expect(body).toContain('Changelog truncated');
+    // The package table above the changelog is preserved so the PR is still usable.
+    expect(body).toContain('| `@scope/core` | 1.0.0 |');
   });
 
   it('should omit the ### Changelog section when all updates are sync-bumped (no entries)', async () => {

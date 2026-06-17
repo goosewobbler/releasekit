@@ -207,6 +207,24 @@ export class PackageProcessor {
           : await getLatestStableTag(this.versionPrefix);
       }
 
+      // #334: a package with no prior git tag has its changelog computed from the FULL git history,
+      // which in standing-PR mode can push the rendered PR body past GitHub's 65,536-char limit and
+      // fail PR creation with an opaque 422 (#333). Surface it loudly with an actionable baseline-tag
+      // suggestion. (baseRef-scoped runs — advisory preview — are bounded to the PR, so skip them.)
+      if (!hasRealTag && !this.fullConfig.baseRef) {
+        const currentVersion = pkg.packageJson.version;
+        const suggestedTag = currentVersion
+          ? formatTag(currentVersion, formattedPrefix, name, this.tagTemplate, this.fullConfig.packageSpecificTags)
+          : undefined;
+        log(
+          `No prior tag found for ${name} — its changelog will include the full git history.` +
+            (suggestedTag
+              ? ` Create a baseline tag to scope it: git tag ${suggestedTag} <release-sha> && git push origin ${suggestedTag}`
+              : ''),
+          'warning',
+        );
+      }
+
       // Generate changelog entries from conventional commits
       let changelogEntries: ChangelogEntry[] = [];
       let revisionRange = 'HEAD';
@@ -217,7 +235,9 @@ export class PackageProcessor {
         // baseRef takes precedence — it's a PR base SHA supplied in advisory standing-pr mode
         // so the changelog is scoped to only this PR's commits, not all commits since last tag.
         const baseForRange = this.fullConfig.baseRef ?? changelogBaseTag;
-        if (baseForRange) {
+        if (baseForRange && (this.fullConfig.baseRef || hasRealTag)) {
+          // A real tag (or an explicit baseRef) — verify it. A failure here is the #339 case: the
+          // ref genuinely exists but isn't reachable in this checkout (shallow clone / unpushed).
           const verification = verifyTag(baseForRange, pkgPath);
           if (verification.exists && verification.reachable) {
             revisionRange = `${baseForRange}..HEAD`;
@@ -241,6 +261,13 @@ export class PackageProcessor {
             revisionRange = 'HEAD';
             baselineUnreachable = true;
           }
+        } else if (baseForRange) {
+          // No real tag — `baseForRange` is the manifest-fallback's synthetic tag, which isn't a git
+          // ref. The #334 warning above already explained the full-history changelog accurately, so
+          // skip verifyTag here: running it would emit a second, misleading "could not be verified —
+          // shallow clone / unpushed" message about a tag that never existed.
+          revisionRange = 'HEAD';
+          baselineUnreachable = true;
         }
 
         changelogEntries = extractChangelogEntriesFromCommits(pkgPath, revisionRange);
