@@ -729,6 +729,30 @@ describe('Version Engine', () => {
       }
     });
 
+    it('should include a workspace root crate that also carries [package] even when workspace members are declared', async () => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-cargo-root-pkg-'));
+      try {
+        // Root Cargo.toml declares both [workspace] and [package] — a "virtual workspace root crate"
+        fs.writeFileSync(
+          path.join(tmp, 'Cargo.toml'),
+          '[workspace]\nmembers = ["crates/member"]\n\n[package]\nname = "root_crate"\nversion = "2.0.0"\n',
+        );
+        const memberDir = path.join(tmp, 'crates', 'member');
+        fs.mkdirSync(memberDir, { recursive: true });
+        fs.writeFileSync(path.join(memberDir, 'Cargo.toml'), '[package]\nname = "member_crate"\nversion = "0.1.0"\n');
+        vi.mocked(mockCwd, { partial: true }).mockReturnValue(tmp);
+        vi.mocked(getPackagesSync).mockReturnValue({ root: tmp, packages: [] });
+
+        const engine = new VersionEngine({ ...defaultConfig, sync: false } as Config);
+        const result = await engine.getWorkspacePackages();
+
+        expect(result.packages.find((p) => p.packageJson.name === 'root_crate')).toBeDefined();
+        expect(result.packages.find((p) => p.packageJson.name === 'member_crate')).toBeDefined();
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+
     it('should exclude pub packages outside pnpm workspace globs when pnpm-workspace.yaml exists', async () => {
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-pub-workspace-'));
       try {

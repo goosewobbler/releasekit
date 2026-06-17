@@ -148,7 +148,9 @@ export class VersionEngine {
           }
 
           // When workspace members are declared, only include packages inside those globs.
-          if (workspaceMembers !== null) {
+          // The workspace root itself (relativePath === '') is always included — it is the
+          // package whose Cargo.toml declares [workspace], so member globs don't apply to it.
+          if (workspaceMembers !== null && relativePath !== '') {
             const normalizedRelative = relativePath.replace(/\\/g, '/');
             const matchesMember = workspaceMembers.some((member) =>
               minimatch(normalizedRelative, member, { dot: true }),
