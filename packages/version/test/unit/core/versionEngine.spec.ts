@@ -685,6 +685,27 @@ describe('Version Engine', () => {
       }
     });
 
+    it('should skip a Cargo crate with publish = []', async () => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-cargo-nopublish-arr-'));
+      try {
+        const crateDir = path.join(tmp, 'crates', 'private_crate');
+        fs.mkdirSync(crateDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(crateDir, 'Cargo.toml'),
+          '[package]\nname = "private_crate"\nversion = "1.0.0"\npublish = []\n',
+        );
+        vi.mocked(mockCwd, { partial: true }).mockReturnValue(tmp);
+        vi.mocked(getPackagesSync).mockReturnValue({ root: tmp, packages: [] });
+
+        const engine = new VersionEngine({ ...defaultConfig, sync: false } as Config);
+        const result = await engine.getWorkspacePackages();
+
+        expect(result.packages.find((p) => p.packageJson.name === 'private_crate')).toBeUndefined();
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+
     it('should exclude Cargo crates outside workspace members when a workspace root Cargo.toml exists', async () => {
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-cargo-workspace-'));
       try {

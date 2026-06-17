@@ -132,8 +132,9 @@ export class VersionEngine {
         // Parse Cargo.toml
         const cargoData = parseCargoToml(fullCargoPath);
 
-        // Skip crates that explicitly opt out of publishing (Cargo's `publish = false`).
-        if (cargoData.package?.publish === false) {
+        // Skip crates that explicitly opt out of publishing (`publish = false` or `publish = []`).
+        const publishField = cargoData.package?.publish;
+        if (publishField === false || (Array.isArray(publishField) && publishField.length === 0)) {
           log(`Skipping Rust package at ${packageDir}: publish = false`, 'debug');
           continue;
         }
