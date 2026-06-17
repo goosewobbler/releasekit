@@ -4,6 +4,8 @@ import { cwd } from 'node:process';
 import { getPackagesSync, type Package, type Packages } from '@manypkg/get-packages';
 import { filterPackagesByConfig, parseCargoToml, parsePubspec } from '@releasekit/config';
 import { shouldMatchPackageTargets } from '@releasekit/core';
+import { minimatch } from 'minimatch';
+import * as yaml from 'yaml';
 import { GitError } from '../errors/gitError.js';
 import { createVersionError, VersionError, VersionErrorCode } from '../errors/versionError.js';
 import type { Config, VersionRunOptions } from '../types.js';
@@ -65,9 +67,27 @@ export class VersionEngine {
   }
 
   /**
-   * Discover pure Rust packages (Cargo.toml only) in the workspace
+   * Discover pure Rust packages (Cargo.toml only) in the workspace.
+   * Skips crates with `publish = false` (Cargo's publish opt-out).
+   * When a workspace root Cargo.toml with `[workspace].members` is found, only
+   * crates inside those member globs are discovered.
    */
   private discoverCargoTomlPackages(workspaceRoot: string): PackagesWithRoot {
+    // Detect Cargo workspace members to scope discovery.
+    let workspaceMembers: string[] | null = null;
+    const rootCargoPath = path.join(workspaceRoot, 'Cargo.toml');
+    if (fs.existsSync(rootCargoPath)) {
+      try {
+        const rootCargo = parseCargoToml(rootCargoPath);
+        if (Array.isArray(rootCargo.workspace?.members) && rootCargo.workspace.members.length > 0) {
+          workspaceMembers = rootCargo.workspace.members;
+          log(`Cargo workspace members detected: ${workspaceMembers.join(', ')}`, 'debug');
+        }
+      } catch (error) {
+        log(`Could not parse root Cargo.toml for workspace members: ${error}`, 'debug');
+      }
+    }
+
     const cargoTomlPaths: string[] = [];
 
     // Recursive function to find Cargo.toml files
@@ -112,21 +132,47 @@ export class VersionEngine {
         // Parse Cargo.toml
         const cargoData = parseCargoToml(fullCargoPath);
 
+        // Skip crates that explicitly opt out of publishing (`publish = false` or `publish = []`).
+        const publishField = cargoData.package?.publish;
+        if (publishField === false || (Array.isArray(publishField) && publishField.length === 0)) {
+          log(`Skipping Rust package at ${packageDir}: publish = false`, 'debug');
+          continue;
+        }
+
         if (cargoData.package?.name && typeof cargoData.package?.version === 'string') {
           // Check if this is a valid workspace package (not in target/ or other build dirs)
           const relativePath = path.relative(workspaceRoot, packageDir);
           const pathParts = relativePath.split(path.sep);
-          if (!pathParts.includes('target') && !pathParts.includes('node_modules')) {
-            rustPackages.push({
-              packageJson: {
-                name: cargoData.package.name,
-                version: cargoData.package.version,
-              },
-              dir: packageDir,
-              relativeDir: relativePath,
-            });
-            log(`Discovered Rust package: ${cargoData.package.name} at ${packageDir}`, 'debug');
+          if (pathParts.includes('target') || pathParts.includes('node_modules')) {
+            continue;
           }
+
+          // When workspace members are declared, only include packages inside those globs.
+          // The workspace root itself (relativePath === '') is always included — it is the
+          // package whose Cargo.toml declares [workspace], so member globs don't apply to it.
+          if (workspaceMembers !== null && relativePath !== '') {
+            const normalizedRelative = relativePath.replace(/\\/g, '/');
+            const matchesMember = workspaceMembers.some((member) =>
+              minimatch(normalizedRelative, member, { dot: true }),
+            );
+            if (!matchesMember) {
+              log(
+                `Skipping Rust package ${cargoData.package.name} at ${relativePath}: not in workspace members`,
+                'debug',
+              );
+              continue;
+            }
+          }
+
+          rustPackages.push({
+            packageJson: {
+              name: cargoData.package.name,
+              version: cargoData.package.version,
+            },
+            dir: packageDir,
+            relativeDir: relativePath,
+          });
+          log(`Discovered Rust package: ${cargoData.package.name} at ${packageDir}`, 'debug');
         }
       } catch (error) {
         log(`Failed to parse Cargo.toml at ${cargoPath}: ${error}`, 'warning');
@@ -146,8 +192,28 @@ export class VersionEngine {
    * Discover pure Dart/Flutter packages (pubspec.yaml only) in the workspace. Mirrors the Cargo
    * discovery: directories that already carry a package.json are left to @manypkg, and the merge
    * step dedupes any directory shared with a Cargo crate.
+   *
+   * Skips packages with `publish_to: none` (pub's publish opt-out).
+   * When pnpm-workspace.yaml exists at the workspace root, only packages whose paths match the
+   * declared workspace globs are discovered.
    */
   private discoverPubspecPackages(workspaceRoot: string): PackagesWithRoot {
+    // Read pnpm-workspace.yaml globs to scope pub discovery to declared paths.
+    let pnpmWorkspaceGlobs: string[] | null = null;
+    const pnpmWorkspacePath = path.join(workspaceRoot, 'pnpm-workspace.yaml');
+    if (fs.existsSync(pnpmWorkspacePath)) {
+      try {
+        const pnpmWorkspaceContent = fs.readFileSync(pnpmWorkspacePath, 'utf-8');
+        const pnpmWorkspace = yaml.parse(pnpmWorkspaceContent) as { packages?: string[] };
+        if (Array.isArray(pnpmWorkspace?.packages) && pnpmWorkspace.packages.length > 0) {
+          pnpmWorkspaceGlobs = pnpmWorkspace.packages;
+          log(`pnpm workspace globs detected for pub discovery scoping: ${pnpmWorkspaceGlobs.join(', ')}`, 'debug');
+        }
+      } catch (error) {
+        log(`Could not parse pnpm-workspace.yaml for pub discovery scoping: ${error}`, 'debug');
+      }
+    }
+
     const pubspecPaths: string[] = [];
 
     const findPubspec = (dir: string, relativePath: string = '') => {
@@ -195,18 +261,36 @@ export class VersionEngine {
 
         const pubData = parsePubspec(fullPubspecPath);
 
+        // Skip packages that explicitly opt out of publishing via pub's convention.
+        if (pubData.publish_to === 'none') {
+          log(`Skipping Dart package at ${packageDir}: publish_to: none`, 'debug');
+          continue;
+        }
+
         // Require an explicit version, like the Cargo path. A versionless pubspec is a Dart workspace
         // root or app manifest, not a publishable package — discovering it would feed a bogus baseline
         // into the version stage. (No target/node_modules path check: findPubspec already skips those
         // directories during the walk, so a found pubspec is never inside one.)
         if (pubData.name && typeof pubData.version === 'string') {
+          const relativePath = path.relative(workspaceRoot, packageDir);
+
+          // When pnpm workspace globs are declared, only include packages inside those globs.
+          if (pnpmWorkspaceGlobs !== null) {
+            const normalizedRelative = relativePath.replace(/\\/g, '/');
+            const matchesGlob = pnpmWorkspaceGlobs.some((glob) => minimatch(normalizedRelative, glob, { dot: true }));
+            if (!matchesGlob) {
+              log(`Skipping Dart package ${pubData.name} at ${relativePath}: not in pnpm workspace globs`, 'debug');
+              continue;
+            }
+          }
+
           dartPackages.push({
             packageJson: {
               name: pubData.name,
               version: pubData.version,
             },
             dir: packageDir,
-            relativeDir: path.relative(workspaceRoot, packageDir),
+            relativeDir: relativePath,
           });
           log(`Discovered Dart package: ${pubData.name} at ${packageDir}`, 'debug');
         }
