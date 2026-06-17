@@ -357,7 +357,7 @@ function deleteReleaseBranch(releaseBranch: string, cwd: string): void {
 // GitHub rejects a PR body over 65,536 chars with a 422. Cap below that (with margin) so an
 // oversized changelog — almost always a package with no baseline tag whose changelog spans the
 // entire git history (#333) — truncates gracefully instead of failing PR creation outright.
-const STANDING_PR_BODY_CAP = 64000;
+export const STANDING_PR_BODY_CAP = 64000;
 
 function truncateAtLineBoundary(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text;
@@ -420,7 +420,11 @@ function renderPrBody(versionOutput: VersionOutput, supersedeWarning?: string[],
     "Each package's complete changelog is in its `CHANGELOG.md`. This usually means a package has no prior " +
     'release tag, so its changelog spans the entire git history — create baseline tags to scope it.';
   const room = STANDING_PR_BODY_CAP - build('').length - notice.length - 8;
-  if (room <= 0) return build(notice);
+  // No room for any changelog: the non-changelog content (package table / notes region) already
+  // fills the budget. Drop the changelog entirely rather than appending the notice, which would only
+  // add to the overflow. (A package table that alone exceeds the cap would need its own truncation —
+  // that's thousands of packages and out of scope here.)
+  if (room <= 0) return build('');
   return build(`${truncateAtLineBoundary(changelog, room)}\n\n${notice}`);
 }
 

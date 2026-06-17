@@ -10,6 +10,7 @@ import {
   runStandingPRMerge,
   runStandingPRPublish,
   runStandingPRUpdate,
+  STANDING_PR_BODY_CAP,
   serializeManifest,
 } from '../../src/standing-pr/standing-pr.js';
 
@@ -675,7 +676,9 @@ describe('runStandingPRUpdate', () => {
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     const body = mocks.pullsCreate.mock.calls[0]?.[0]?.body as string;
-    expect(body.length).toBeLessThanOrEqual(65536);
+    // Assert against the module's cap (well under GitHub's 65,536), so a truncation that leaks into
+    // the 64,001–65,535 safety margin still fails the test.
+    expect(body.length).toBeLessThanOrEqual(STANDING_PR_BODY_CAP);
     expect(body).toContain('Changelog truncated');
     // The package table above the changelog is preserved so the PR is still usable.
     expect(body).toContain('| `@scope/core` | 1.0.0 |');
