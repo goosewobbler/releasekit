@@ -566,19 +566,21 @@ describe('Package Processor', () => {
       );
     });
 
-    it('should bound repo-level changelog range by global baseline when a package has no real tag (#348)', async () => {
-      // package-a has no specific tag; getVersionFromManifests returns a manifest version via
-      // the global beforeEach mock, making hasRealTag=false and revisionRange='HEAD'.
-      // The shared-entries call should use the global baseline floor, not 'HEAD'.
+    it('should bound repo-level changelog by the nearest reachable tag, even when getLatestTag is prefix-blind (#348)', async () => {
+      // package-a has no specific tag; getVersionFromManifests returns a manifest version via the
+      // global beforeEach mock, making hasRealTag=false and revisionRange='HEAD'. The baseline floor
+      // must come from getNearestReachableTag (git describe), which finds per-package prefixed tags.
+      // The injected getLatestTag (git-semver-tags, bare-semver only) returns '' for such repos —
+      // sourcing the floor from it collapsed the range to full history, the bug this guards against.
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
+      vi.spyOn(gitTags, 'getNearestReachableTag').mockReturnValue('wdio-dioxus-bridge@v1.0.0-next.2');
       vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
       vi.spyOn(versionCalculatorModule, 'calculateVersion').mockResolvedValue('1.1.0');
       const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockReturnValue([]);
 
-      const globalTag = 'v1.0.0';
       const processor = new PackageProcessor({
         ...defaultOptions,
-        getLatestTag: vi.fn().mockResolvedValue(globalTag),
+        getLatestTag: vi.fn().mockResolvedValue(''), // prefix-blind: no bare-semver tag in this repo
         fullConfig: { ...mockConfig, packageSpecificTags: true, writeChangelog: false },
       });
 
@@ -586,21 +588,21 @@ describe('Package Processor', () => {
 
       expect(extractSharedSpy).toHaveBeenCalledWith(
         expect.any(String),
-        `${globalTag}..HEAD`,
+        'wdio-dioxus-bridge@v1.0.0-next.2..HEAD',
         expect.any(Array),
         expect.any(Array),
       );
     });
 
-    it('should fall back to HEAD range for shared entries when getLatestTag rejects (#348)', async () => {
+    it('should fall back to HEAD range for shared entries when no tag is reachable (#348)', async () => {
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
+      vi.spyOn(gitTags, 'getNearestReachableTag').mockReturnValue('');
       vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
       vi.spyOn(versionCalculatorModule, 'calculateVersion').mockResolvedValue('1.1.0');
       const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockReturnValue([]);
 
       const processor = new PackageProcessor({
         ...defaultOptions,
-        getLatestTag: vi.fn().mockRejectedValue(new Error('git failure')),
         fullConfig: { ...mockConfig, packageSpecificTags: true, writeChangelog: false },
       });
 
