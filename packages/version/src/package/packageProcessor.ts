@@ -5,7 +5,12 @@ import type { VersionChangelogEntry } from '@releasekit/core';
 import { shouldProcessPackage } from '@releasekit/core';
 import { extractChangelogEntriesFromCommits, extractRepoLevelChangelogEntries } from '../changelog/commitParser.js';
 import { calculateVersion } from '../core/versionCalculator.js';
-import { getLatestStableTag, getLatestStableTagForPackage, getLatestTagForPackage } from '../git/tagsAndBranches.js';
+import {
+  getLatestStableTag,
+  getLatestStableTagForPackage,
+  getLatestTagForPackage,
+  getNearestReachableTag,
+} from '../git/tagsAndBranches.js';
 import { verifyTag } from '../git/tagVerification.js';
 import type { Config, VersionConfigBase } from '../types.js';
 import {
@@ -294,17 +299,13 @@ export class PackageProcessor {
         let sharedRevisionRange = revisionRange;
         if (revisionRange === 'HEAD' && !this.fullConfig.baseRef) {
           if (_sharedBaselineRange === undefined) {
-            try {
-              const globalTag = await this.getLatestTag();
-              if (globalTag) {
-                const gv = verifyTag(globalTag, process.cwd());
-                _sharedBaselineRange = gv.exists && gv.reachable ? `${globalTag}..HEAD` : 'HEAD';
-              } else {
-                _sharedBaselineRange = 'HEAD';
-              }
-            } catch {
-              _sharedBaselineRange = 'HEAD';
-            }
+            // Most recent tag reachable from HEAD as the baseline floor — NOT `this.getLatestTag()`,
+            // which goes through git-semver-tags and only matches bare-semver tags. In monorepos that
+            // tag per package (`pkg@vX.Y.Z`) it returns '' and the floor wrongly collapsed to full
+            // history (#348). `git describe` is prefix-agnostic and reachable by construction, so the
+            // separate verifyTag check is no longer needed.
+            const globalTag = getNearestReachableTag(process.cwd());
+            _sharedBaselineRange = globalTag ? `${globalTag}..HEAD` : 'HEAD';
           }
           sharedRevisionRange = _sharedBaselineRange;
         }

@@ -67,6 +67,28 @@ export function refExists(ref: string, cwd?: string): boolean {
 }
 
 /**
+ * The most recent tag reachable from HEAD, regardless of package prefix or version scheme.
+ *
+ * Unlike `getLatestTag` — which goes through git-semver-tags and only matches *bare* semver tags
+ * (`v1.2.3`) — this walks HEAD's ancestors via `git describe`, so it also finds the per-package
+ * tags monorepos actually use (`pkg@vX.Y.Z`, `release/vX.Y.Z`). The result is reachable by
+ * construction, which is exactly what a `<tag>..HEAD` baseline floor needs (#348).
+ *
+ * @returns The nearest reachable tag, or '' when none is reachable (no releases yet / shallow clone).
+ */
+export function getNearestReachableTag(cwd?: string): string {
+  try {
+    return execSync('git', ['describe', '--tags', '--abbrev=0'], {
+      ...(cwd ? { cwd } : {}),
+    })
+      .toString()
+      .trim();
+  } catch {
+    return '';
+  }
+}
+
+/**
  * Get the latest semver tag from the repository sorted by semantic version
  * This function prioritizes semantic ordering over chronological ordering to handle
  * cases where tags were created out of order (e.g., v0.7.1 created after v0.8.0)
