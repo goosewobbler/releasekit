@@ -388,6 +388,14 @@
               "type": "string",
               "default": "latest",
               "description": "NPM dist tag"
+            },
+            "publishOrder": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "description": "Explicit publish order for npm packages; empty auto-sorts dependencies first"
             }
           },
           "description": "NPM publishing configuration"

@@ -172,6 +172,7 @@ NPM publishing configuration.
 | `registry` | string | `"https://registry.npmjs.org"` | NPM registry URL |
 | `copyFiles` | `string[]` | `["LICENSE"]` | Files to copy to package before publishing |
 | `tag` | string | `"latest"` | NPM dist tag |
+| `publishOrder` | `string[]` | `[]` | Explicit publish order for npm packages; empty auto-sorts dependencies first |
 
 ### `publish.cargo`
 
