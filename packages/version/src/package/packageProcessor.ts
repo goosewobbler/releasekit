@@ -4,22 +4,11 @@ import type { Package } from '@manypkg/get-packages';
 import type { VersionChangelogEntry } from '@releasekit/core';
 import { shouldProcessPackage } from '@releasekit/core';
 import { extractChangelogEntriesFromCommits, extractRepoLevelChangelogEntries } from '../changelog/commitParser.js';
+import { BaselineResolver } from '../core/baselineResolver.js';
 import { calculateVersion } from '../core/versionCalculator.js';
-import {
-  getLatestStableTag,
-  getLatestStableTagForPackage,
-  getLatestTagForPackage,
-  getNearestReachableTag,
-} from '../git/tagsAndBranches.js';
-import { verifyTag } from '../git/tagVerification.js';
+import { getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import type { Config, VersionConfigBase } from '../types.js';
-import {
-  deriveBaselineTagPrefix,
-  displayTag,
-  formatCommitMessage,
-  formatTag,
-  formatVersionPrefix,
-} from '../utils/formatting.js';
+import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
 import {
   addChangelogData,
   addTag,
@@ -29,7 +18,6 @@ import {
 } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { getVersionFromManifests } from '../utils/manifestHelpers.js';
-import { isStableTag, isStableVersion } from '../utils/versionUtils.js';
 import { updatePackageVersion } from './packageManagement.js';
 
 type ChangelogEntry = VersionChangelogEntry;
@@ -114,12 +102,17 @@ export class PackageProcessor {
     // Accumulate repo-level entries across all packages (keyed by type+description to deduplicate)
     const sharedEntriesMap = new Map<string, ChangelogEntry>();
 
-    // (#348) Lazy-computed floor for repo-level changelog entries. When an untagged package's
-    // per-package revisionRange is 'HEAD' (all history), passing that same range to
-    // extractRepoLevelChangelogEntries floods "Project-wide changes" with the full git history.
-    // Bound it by the most recent release tag reachable from HEAD instead, computed on first
-    // need and shared across all packages in this run.
-    let _sharedBaselineRange: string | undefined;
+    // BaselineResolver owns the per-package changelog floor (B) and the repo-level shared floor (C),
+    // constructed once per run so the nearest-reachable shared floor (#348) is computed a single time
+    // and reused across packages.
+    const baselineResolver = new BaselineResolver({
+      versionPrefix: this.versionPrefix,
+      tagTemplate: this.tagTemplate,
+      packageSpecificTags: this.fullConfig.packageSpecificTags ?? false,
+      strictReachable: this.config.strictReachable ?? false,
+      baseRef: this.fullConfig.baseRef,
+      sharedFloorCwd: process.cwd(),
+    });
 
     for (const pkg of pkgsToConsider) {
       const name = pkg.packageJson.name;
@@ -202,22 +195,9 @@ export class PackageProcessor {
         continue; // No version change calculated for this package
       }
 
-      // When a prerelease graduates to stable, aggregate the changelog from the last *stable* tag
-      // rather than from `latestTag` (the prerelease, which usually holds only the release-prep
-      // commit). `latestTag` still drives version calculation above — it must see the prerelease to
-      // graduate correctly. With no prior stable tag (first stable release), `changelogBaseTag` is
-      // '' and the range falls through to all commits.
-      let changelogBaseTag = latestTag;
-      if (hasRealTag && latestTag && isStableVersion(nextVersion) && !isStableTag(latestTag)) {
-        // Follow latestTag's source (package series vs global) — the other lookup returns '' here
-        // and would over-include every commit.
-        changelogBaseTag = usedPackageSpecificTag
-          ? await getLatestStableTagForPackage(name, this.versionPrefix, {
-              tagTemplate: this.tagTemplate,
-              packageSpecificTags: true,
-            })
-          : await getLatestStableTag(this.versionPrefix);
-      }
+      // previousVersion is shown to users in the changelog header — strip the baseline-tag scheme
+      // back to its consumer-facing form so `release/v0.22.0` appears as `v0.22.0`.
+      const baselineTagPrefix = deriveBaselineTagPrefix(this.fullConfig.baselineTagTemplate, formattedPrefix, name);
 
       // #334: a package with no prior git tag has its changelog computed from the FULL git history,
       // which in standing-PR mode can push the rendered PR body past GitHub's 65,536-char limit and
@@ -237,50 +217,25 @@ export class PackageProcessor {
         );
       }
 
-      // Generate changelog entries from conventional commits
+      // Generate changelog entries from conventional commits. The changelog floor (range,
+      // reachability, prerelease→stable graduation) is resolved by BaselineResolver.
       let changelogEntries: ChangelogEntry[] = [];
       let revisionRange = 'HEAD';
-      let baselineUnreachable = false;
+      let previousVersion: string | null = null;
 
       try {
-        // Extract entries from commits between the base ref (or latest tag) and HEAD.
-        // baseRef takes precedence — it's a PR base SHA supplied in advisory standing-pr mode
-        // so the changelog is scoped to only this PR's commits, not all commits since last tag.
-        const baseForRange = this.fullConfig.baseRef ?? changelogBaseTag;
-        if (baseForRange && (this.fullConfig.baseRef || hasRealTag)) {
-          // A real tag (or an explicit baseRef) — verify it. A failure here is the #339 case: the
-          // ref genuinely exists but isn't reachable in this checkout (shallow clone / unpushed).
-          const verification = verifyTag(baseForRange, pkgPath);
-          if (verification.exists && verification.reachable) {
-            revisionRange = `${baseForRange}..HEAD`;
-          } else {
-            if (!this.fullConfig.baseRef && this.config.strictReachable) {
-              throw new Error(
-                `Cannot generate changelog: ref '${baseForRange}' is not reachable from the current commit. ` +
-                  `When strictReachable is enabled, all refs must be reachable. ` +
-                  `To allow fallback to all commits, set strictReachable to false.`,
-              );
-            }
-            // Loud, not debug: this silently produces a whole-history changelog (#339) — both this
-            // package's entries and the repo-level entries below. Omit previousVersion so the
-            // changelog doesn't claim a baseline it never diffed against.
-            log(
-              `Baseline ref '${baseForRange}' could not be verified from HEAD (${verification.error}) — generating ` +
-                `the changelog from ALL history instead of since the last release. The ref is likely missing from the ` +
-                `checkout (shallow clone, or never pushed). ${this.fullConfig.baseRef ? 'Fetch/push the ref to make it available in this checkout.' : 'Fetch/push the tag, or set version.baseRef, to bound it.'}`,
-              'warning',
-            );
-            revisionRange = 'HEAD';
-            baselineUnreachable = true;
-          }
-        } else if (baseForRange) {
-          // No real tag — `baseForRange` is the manifest-fallback's synthetic tag, which isn't a git
-          // ref. The #334 warning above already explained the full-history changelog accurately, so
-          // skip verifyTag here: running it would emit a second, misleading "could not be verified —
-          // shallow clone / unpushed" message about a tag that never existed.
-          revisionRange = 'HEAD';
-          baselineUnreachable = true;
-        }
+        const baseline = await baselineResolver.resolve({
+          pkgDir: pkgPath,
+          latestTag,
+          hasRealTag,
+          usedPackageSpecificTag,
+          nextVersion,
+          graduationName: name,
+          baselineTagPrefix,
+          formattedPrefix,
+        });
+        revisionRange = baseline.revisionRange;
+        previousVersion = baseline.previousVersion;
 
         changelogEntries = extractChangelogEntriesFromCommits(pkgPath, revisionRange);
 
@@ -293,22 +248,10 @@ export class PackageProcessor {
         const sharedPackageDirs = packages
           .filter((p) => sharedPackageNames.includes(p.packageJson.name))
           .map((p) => p.dir);
-        // Use the tighter of the per-package range (already bounded for tagged packages)
-        // or the global baseline floor — applies to untagged packages and to packages whose
-        // tag exists but is unreachable (shallow clone, #339), both of which produce revisionRange='HEAD'.
-        let sharedRevisionRange = revisionRange;
-        if (revisionRange === 'HEAD' && !this.fullConfig.baseRef) {
-          if (_sharedBaselineRange === undefined) {
-            // Most recent tag reachable from HEAD as the baseline floor — NOT `this.getLatestTag()`,
-            // which goes through git-semver-tags and only matches bare-semver tags. In monorepos that
-            // tag per package (`pkg@vX.Y.Z`) it returns '' and the floor wrongly collapsed to full
-            // history (#348). `git describe` is prefix-agnostic and reachable by construction, so the
-            // separate verifyTag check is no longer needed.
-            const globalTag = getNearestReachableTag(process.cwd());
-            _sharedBaselineRange = globalTag ? `${globalTag}..HEAD` : 'HEAD';
-          }
-          sharedRevisionRange = _sharedBaselineRange;
-        }
+        // Bound the repo-level ("shared") entries by the run's nearest-reachable floor when this
+        // package's own range collapsed to full history (untagged / unreachable), so a single
+        // untagged package doesn't flood "Project-wide changes" with the entire history (#348).
+        const sharedRevisionRange = baselineResolver.sharedFloor(revisionRange);
 
         const repoLevelEntries = extractRepoLevelChangelogEntries(
           pkgPath,
@@ -373,17 +316,12 @@ export class PackageProcessor {
         );
       }
 
-      // Track changelog data for JSON output. previousVersion is shown to users in the
-      // changelog header — strip the baseline-tag scheme back to its consumer-facing form
-      // so `release/v0.22.0` appears as `v0.22.0` rather than leaking the internal marker.
-      const baselineTagPrefix = deriveBaselineTagPrefix(this.fullConfig.baselineTagTemplate, formattedPrefix, name);
+      // Track changelog data for JSON output. previousVersion is resolved by BaselineResolver (the
+      // floor tag in consumer-facing display form, null when we fell back to all-history, #339).
       addChangelogData({
         packageName: name,
         version: nextVersion,
-        previousVersion:
-          changelogBaseTag && !baselineUnreachable
-            ? displayTag(changelogBaseTag, baselineTagPrefix, formattedPrefix)
-            : null,
+        previousVersion,
         revisionRange,
         repoUrl: repoUrl || null,
         entries: changelogEntries,

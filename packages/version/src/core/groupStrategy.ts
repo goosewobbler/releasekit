@@ -24,17 +24,10 @@ import { shouldMatchPackageTargets, shouldProcessPackage as shouldProcessPackage
 import semver from 'semver';
 import { extractChangelogEntriesFromCommits } from '../changelog/commitParser.js';
 import { BaseVersionError } from '../errors/baseError.js';
-import { execSync } from '../git/commandExecutor.js';
 import { getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { updatePackageVersion } from '../package/packageManagement.js';
 import type { Config } from '../types.js';
-import {
-  deriveBaselineTagPrefix,
-  displayTag,
-  formatCommitMessage,
-  formatTag,
-  formatVersionPrefix,
-} from '../utils/formatting.js';
+import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
 import {
   addBaselineTag,
   addChangelogData,
@@ -45,6 +38,7 @@ import {
   setVersioningStrategy,
 } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
+import { BaselineResolver } from './baselineResolver.js';
 import { expandTargetsForFixedGroups, type ResolvedGroup, resolveGroups } from './groupResolution.js';
 import { calculateVersion } from './versionCalculator.js';
 import type { PackagesWithRoot } from './versionEngine.js';
@@ -76,6 +70,8 @@ interface MemberPlan {
   baseline: string;
   /** The tag the changelog/revision range is computed against, or '' when none. */
   latestTag: string;
+  /** Whether `latestTag` came from this package's own series (vs. the global fallback). */
+  usedPackageSpecificTag: boolean;
   /** Version this member would bump to on its own ('' when it earned no releasable change). */
   ownNext: string;
   /** Whether this member earned a releasable change. */
@@ -101,11 +97,13 @@ async function planMember(
   const name = pkg.packageJson.name;
 
   let latestTag = '';
+  let usedPackageSpecificTag = false;
   if (!config.baselineTagTemplate) {
     latestTag = await getLatestTagForPackage(name, formattedPrefix, {
       tagTemplate: config.tagTemplate,
       packageSpecificTags: config.packageSpecificTags,
     });
+    usedPackageSpecificTag = !!latestTag;
   }
   if (!latestTag) latestTag = globalTag;
 
@@ -127,7 +125,7 @@ async function planMember(
   const candidates = [manifestVersion, tagVersion].map(cleanBaseline).filter((v) => v !== '0.0.0');
   const baseline = candidates.length > 0 ? candidates.sort(semver.rcompare)[0] : '0.0.0';
 
-  return { pkg, baseline, latestTag, ownNext, changed: !!ownNext };
+  return { pkg, baseline, latestTag, usedPackageSpecificTag, ownNext, changed: !!ownNext };
 }
 
 /** Derive the bump magnitude a member earned by comparing its computed next version to baseline. */
@@ -207,52 +205,42 @@ function readRepoUrl(pkgDir: string): string | null {
   }
 }
 
-function extractEntries(
-  pkgDir: string,
-  latestTag: string,
-  version: string,
-  config: Config,
-): {
-  entries: ChangelogEntry[];
-  revisionRange: string;
-  baselineUnreachable: boolean;
-} {
+async function extractEntries(
+  resolver: BaselineResolver,
+  input: {
+    pkgDir: string;
+    latestTag: string;
+    usedPackageSpecificTag: boolean;
+    nextVersion: string;
+    graduationName: string;
+    baselineTagPrefix: string | undefined;
+    formattedPrefix: string;
+  },
+): Promise<{ entries: ChangelogEntry[]; revisionRange: string; previousVersion: string | null }> {
   let revisionRange = 'HEAD';
   let entries: ChangelogEntry[] = [];
-  let baselineUnreachable = false;
+  let previousVersion: string | null = null;
   try {
-    const baseForRange = config.baseRef ?? latestTag;
-    if (baseForRange) {
-      try {
-        execSync('git', ['rev-parse', '--verify', baseForRange], { cwd: pkgDir, stdio: 'ignore' });
-        revisionRange = `${baseForRange}..HEAD`;
-      } catch {
-        if (!config.baseRef && config.strictReachable) {
-          throw new Error(
-            `Cannot generate changelog: ref '${baseForRange}' is not reachable from the current commit. ` +
-              'When strictReachable is enabled, all refs must be reachable.',
-          );
-        }
-        // Loud, not silent: this produces a whole-history changelog (#339). Callers omit
-        // previousVersion when this fires so the changelog doesn't claim an undiffed baseline.
-        log(
-          `Baseline ref '${baseForRange}' could not be verified from HEAD — generating the changelog from ALL ` +
-            `history instead of since the last release. The ref is likely missing from the checkout (shallow ` +
-            `clone, or never pushed). ${config.baseRef ? 'Fetch/push the ref to make it available in this checkout.' : 'Fetch/push the tag, or set version.baseRef, to bound the changelog.'}`,
-          'warning',
-        );
-        revisionRange = 'HEAD';
-        baselineUnreachable = true;
-      }
-    }
-    entries = extractChangelogEntriesFromCommits(pkgDir, revisionRange);
+    const baseline = await resolver.resolve({
+      pkgDir: input.pkgDir,
+      latestTag: input.latestTag,
+      hasRealTag: input.latestTag !== '',
+      usedPackageSpecificTag: input.usedPackageSpecificTag,
+      nextVersion: input.nextVersion,
+      graduationName: input.graduationName,
+      baselineTagPrefix: input.baselineTagPrefix,
+      formattedPrefix: input.formattedPrefix,
+    });
+    revisionRange = baseline.revisionRange;
+    previousVersion = baseline.previousVersion;
+    entries = extractChangelogEntriesFromCommits(input.pkgDir, revisionRange);
   } catch (error) {
     log(`Error extracting changelog entries: ${error instanceof Error ? error.message : String(error)}`, 'warning');
   }
   if (entries.length === 0) {
-    entries = [{ type: 'changed', description: `Update version to ${version}` }];
+    entries = [{ type: 'changed', description: `Update version to ${input.nextVersion}` }];
   }
-  return { entries, revisionRange, baselineUnreachable };
+  return { entries, revisionRange, previousVersion };
 }
 
 /**
@@ -260,7 +248,12 @@ function extractEntries(
  * changelog data, and tag each update with the group name for downstream CI surfaces.
  * Returns the names of the packages that were written (for commit-message aggregation).
  */
-function releaseGroup(group: ResolvedGroup, computation: GroupComputation, config: Config): string[] {
+async function releaseGroup(
+  group: ResolvedGroup,
+  computation: GroupComputation,
+  config: Config,
+  baselineResolver: BaselineResolver,
+): Promise<string[]> {
   const { groupVersion, releasing } = computation;
   const formattedPrefix = formatVersionPrefix(config.versionPrefix || 'v');
   const released: string[] = [];
@@ -313,17 +306,19 @@ function releaseGroup(group: ResolvedGroup, computation: GroupComputation, confi
     setPackageUpdateGroup(name, group.name);
 
     const baselineTagPrefix = deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, name);
-    const { entries, revisionRange, baselineUnreachable } = extractEntries(
-      pkg.dir,
-      plan.latestTag,
-      groupVersion,
-      config,
-    );
+    const { entries, revisionRange, previousVersion } = await extractEntries(baselineResolver, {
+      pkgDir: pkg.dir,
+      latestTag: plan.latestTag,
+      usedPackageSpecificTag: plan.usedPackageSpecificTag,
+      nextVersion: groupVersion,
+      graduationName: name,
+      baselineTagPrefix,
+      formattedPrefix,
+    });
     addChangelogData({
       packageName: name,
       version: groupVersion,
-      previousVersion:
-        plan.latestTag && !baselineUnreachable ? displayTag(plan.latestTag, baselineTagPrefix, formattedPrefix) : null,
+      previousVersion,
       revisionRange,
       repoUrl: readRepoUrl(pkg.dir),
       entries,
@@ -355,6 +350,13 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
       setVersioningStrategy('group');
       const formattedPrefix = formatVersionPrefix(config.versionPrefix || 'v');
       const globalTag = await getLatestTag(deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix));
+      const baselineResolver = new BaselineResolver({
+        versionPrefix: formattedPrefix,
+        tagTemplate: config.tagTemplate,
+        packageSpecificTags: config.packageSpecificTags ?? false,
+        strictReachable: config.strictReachable ?? false,
+        baseRef: config.baseRef,
+      });
 
       const resolution = resolveGroups(config, packages.packages);
 
@@ -402,7 +404,7 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
             `${computation.groupVersion}.`,
           'info',
         );
-        const released = releaseGroup(group, computation, config);
+        const released = await releaseGroup(group, computation, config, baselineResolver);
         for (const name of released) {
           allReleased.push(name);
           allVersions.set(name, computation.groupVersion);
@@ -428,19 +430,19 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
         addTag(tag);
         setPackageUpdateTag(name, tag);
         const baselineTagPrefix = deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, name);
-        const { entries, revisionRange, baselineUnreachable } = extractEntries(
-          pkg.dir,
-          plan.latestTag,
-          plan.ownNext,
-          config,
-        );
+        const { entries, revisionRange, previousVersion } = await extractEntries(baselineResolver, {
+          pkgDir: pkg.dir,
+          latestTag: plan.latestTag,
+          usedPackageSpecificTag: plan.usedPackageSpecificTag,
+          nextVersion: plan.ownNext,
+          graduationName: name,
+          baselineTagPrefix,
+          formattedPrefix,
+        });
         addChangelogData({
           packageName: name,
           version: plan.ownNext,
-          previousVersion:
-            plan.latestTag && !baselineUnreachable
-              ? displayTag(plan.latestTag, baselineTagPrefix, formattedPrefix)
-              : null,
+          previousVersion,
           revisionRange,
           repoUrl: readRepoUrl(pkg.dir),
           entries,

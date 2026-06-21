@@ -10,18 +10,11 @@ import { shouldMatchPackageTargets, shouldProcessPackage as shouldProcessPackage
 import { extractChangelogEntriesFromCommits } from '../changelog/commitParser.js';
 import { BaseVersionError } from '../errors/baseError.js';
 import { createVersionError, VersionErrorCode } from '../errors/versionError.js';
-import { execSync } from '../git/commandExecutor.js';
 import { getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { updatePackageVersion } from '../package/packageManagement.js';
 import { PackageProcessor } from '../package/packageProcessor.js';
 import type { Config } from '../types.js';
-import {
-  deriveBaselineTagPrefix,
-  displayTag,
-  formatCommitMessage,
-  formatTag,
-  formatVersionPrefix,
-} from '../utils/formatting.js';
+import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
 import {
   addBaselineTag,
   addChangelogData,
@@ -31,6 +24,7 @@ import {
   setVersioningStrategy,
 } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
+import { BaselineResolver } from './baselineResolver.js';
 import { hasExplicitGroups } from './groupResolution.js';
 import { createGroupStrategy } from './groupStrategy.js';
 import { calculateVersion } from './versionCalculator.js';
@@ -174,6 +168,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       // source for the previous release in that mode, and overwriting it with a consumer-facing
       // tag (which may have been force-moved off the source branch) would re-introduce the
       // exact unreachable-tag regression baselineTagTemplate exists to fix.
+      let usedPackageSpecificTag = false;
       if (versionSourceName && !config.baselineTagTemplate) {
         const packageSpecificTag = await getLatestTagForPackage(versionSourceName, formattedPrefix, {
           tagTemplate,
@@ -182,6 +177,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
 
         if (packageSpecificTag) {
           latestTag = packageSpecificTag;
+          usedPackageSpecificTag = true;
           log(`Using package-specific tag for ${versionSourceName}: ${latestTag}`, 'debug');
         } else {
           log(`No package-specific tag found for ${versionSourceName}, using global tag: ${latestTag}`, 'debug');
@@ -282,60 +278,42 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         return;
       }
 
+      // Resolve the changelog floor (range, reachability, prerelease→stable graduation).
+      const baselineResolver = new BaselineResolver({
+        versionPrefix: formattedPrefix,
+        tagTemplate,
+        packageSpecificTags: config.packageSpecificTags ?? false,
+        strictReachable: config.strictReachable ?? false,
+        baseRef: config.baseRef,
+      });
+
       // Extract changelog entries from commits
       let changelogEntries: ChangelogEntry[] = [];
       let revisionRange = 'HEAD';
-      let baselineUnreachable = false;
+      let previousVersion: string | null = null;
 
       try {
-        const baseForRange = config.baseRef ?? latestTag;
-        if (baseForRange) {
-          try {
-            execSync('git', ['rev-parse', '--verify', baseForRange], {
-              cwd: mainPkgPath,
-              stdio: 'ignore',
-            });
-            revisionRange = `${baseForRange}..HEAD`;
-          } catch {
-            if (!config.baseRef && config.strictReachable) {
-              throw new Error(
-                `Cannot generate changelog: tag '${baseForRange}' is not reachable from the current commit. ` +
-                  `When strictReachable is enabled, all tags must be reachable. ` +
-                  `To allow fallback to all commits, set strictReachable to false.`,
-              );
-            }
-            // Loud, not debug: this silently produces a whole-history changelog (#339). The resolved
-            // baseline exists as a ref but won't verify from HEAD — usually a shallow clone or an
-            // unpushed tag. Omit previousVersion below so the changelog doesn't claim this baseline.
-            log(
-              `Baseline ref '${baseForRange}' could not be verified from HEAD — generating the changelog from ALL ` +
-                `history instead of since the last release. The ref is likely missing from the checkout (shallow ` +
-                `clone, or never pushed). ${config.baseRef ? 'Fetch/push the ref to make it available in this checkout.' : 'Fetch/push the tag, or set version.baseRef, to bound the changelog.'}`,
-              'warning',
-            );
-            revisionRange = 'HEAD';
-            baselineUnreachable = true;
-          }
-        }
+        const baseline = await baselineResolver.resolve({
+          pkgDir: mainPkgPath,
+          latestTag,
+          hasRealTag: latestTag !== '',
+          usedPackageSpecificTag,
+          nextVersion,
+          graduationName: versionSourceName,
+          baselineTagPrefix,
+          formattedPrefix,
+        });
+        revisionRange = baseline.revisionRange;
+        previousVersion = baseline.previousVersion;
 
         changelogEntries = extractChangelogEntriesFromCommits(mainPkgPath, revisionRange);
 
         if (changelogEntries.length === 0) {
-          changelogEntries = [
-            {
-              type: 'changed',
-              description: `Update version to ${nextVersion}`,
-            },
-          ];
+          changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];
         }
       } catch (error) {
         log(`Error extracting changelog entries: ${error instanceof Error ? error.message : String(error)}`, 'warning');
-        changelogEntries = [
-          {
-            type: 'changed',
-            description: `Update version to ${nextVersion}`,
-          },
-        ];
+        changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];
       }
 
       // Build the commit message package name from all updated workspace packages.
@@ -379,8 +357,8 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       // publish pipeline can match tags to the right release notes.
       // Omit previousVersion when we fell back to all-history (#339): claiming a baseline the
       // changelog never diffed against produces a self-contradictory "since <tag>" + full log.
-      const displayPrevious =
-        latestTag && !baselineUnreachable ? displayTag(latestTag, baselineTagPrefix, formattedPrefix) : null;
+      // previousVersion is resolved by BaselineResolver (null when we fell back to all-history, #339).
+      const displayPrevious = previousVersion;
       if (config.packageSpecificTags && workspaceNames.length > 0) {
         for (const pkgName of workspaceNames) {
           addChangelogData({
@@ -524,6 +502,9 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         tagTemplate,
         packageSpecificTags: config.packageSpecificTags,
       });
+      // Whether the floor tag came from this package's own series — decides which stable-tag
+      // lookup graduation uses (must match latestTag's source).
+      const usedPackageSpecificTag = !!latestTagResult;
 
       // Fallback to global tag if no package-specific tag exists
       if (!latestTagResult) {
@@ -554,63 +535,45 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         return;
       }
 
+      // Resolve the changelog floor (range, reachability, prerelease→stable graduation) for this package.
+      const baselineResolver = new BaselineResolver({
+        versionPrefix: formattedPrefix,
+        tagTemplate,
+        packageSpecificTags: config.packageSpecificTags ?? false,
+        strictReachable: config.strictReachable ?? false,
+        baseRef: config.baseRef,
+      });
+
       // Generate changelog entries from conventional commits
       let changelogEntries: ChangelogEntry[] = [];
       let revisionRange = 'HEAD';
-      let baselineUnreachable = false;
+      let previousVersion: string | null = null;
 
       try {
-        const baseForRange = config.baseRef ?? latestTag;
-        if (baseForRange) {
-          try {
-            execSync('git', ['rev-parse', '--verify', baseForRange], {
-              cwd: pkgPath,
-              stdio: 'ignore',
-            });
-            revisionRange = `${baseForRange}..HEAD`;
-          } catch {
-            if (!config.baseRef && config.strictReachable) {
-              throw new Error(
-                `Cannot generate changelog: tag '${baseForRange}' is not reachable from the current commit. ` +
-                  `When strictReachable is enabled, all tags must be reachable. ` +
-                  `To allow fallback to all commits, set strictReachable to false.`,
-              );
-            }
-            // Loud, not debug: this silently produces a whole-history changelog (#339). The resolved
-            // baseline exists as a ref but won't verify from HEAD — usually a shallow clone or an
-            // unpushed tag. Omit previousVersion below so the changelog doesn't claim this baseline.
-            log(
-              `Baseline ref '${baseForRange}' could not be verified from HEAD — generating the changelog from ALL ` +
-                `history instead of since the last release. The ref is likely missing from the checkout (shallow ` +
-                `clone, or never pushed). ${config.baseRef ? 'Fetch/push the ref to make it available in this checkout.' : 'Fetch/push the tag, or set version.baseRef, to bound the changelog.'}`,
-              'warning',
-            );
-            revisionRange = 'HEAD';
-            baselineUnreachable = true;
-          }
-        }
+        const baseline = await baselineResolver.resolve({
+          pkgDir: pkgPath,
+          latestTag,
+          hasRealTag: latestTag !== '',
+          usedPackageSpecificTag,
+          nextVersion,
+          graduationName: packageName,
+          baselineTagPrefix,
+          formattedPrefix,
+        });
+        revisionRange = baseline.revisionRange;
+        previousVersion = baseline.previousVersion;
 
         changelogEntries = extractChangelogEntriesFromCommits(pkgPath, revisionRange);
 
         // If we have no entries but we're definitely changing versions,
         // add a minimal entry about the version change
         if (changelogEntries.length === 0) {
-          changelogEntries = [
-            {
-              type: 'changed',
-              description: `Update version to ${nextVersion}`,
-            },
-          ];
+          changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];
         }
       } catch (error) {
         log(`Error extracting changelog entries: ${error instanceof Error ? error.message : String(error)}`, 'warning');
         // Fall back to minimal entry
-        changelogEntries = [
-          {
-            type: 'changed',
-            description: `Update version to ${nextVersion}`,
-          },
-        ];
+        changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];
       }
 
       // Determine repo URL from package.json or git config
@@ -639,13 +602,12 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         );
       }
 
-      // Track changelog data for JSON output. Omit previousVersion when we fell back to all-history
-      // (#339) so the changelog doesn't claim a baseline it never diffed against.
+      // Track changelog data for JSON output. previousVersion is resolved by BaselineResolver and is
+      // null when we fell back to all-history (#339) so the changelog doesn't claim an undiffed baseline.
       addChangelogData({
         packageName,
         version: nextVersion,
-        previousVersion:
-          latestTag && !baselineUnreachable ? displayTag(latestTag, baselineTagPrefix, formattedPrefix) : null,
+        previousVersion,
         revisionRange,
         repoUrl: repoUrl || null,
         entries: changelogEntries,
