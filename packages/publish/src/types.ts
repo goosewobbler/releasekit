@@ -10,6 +10,7 @@ export interface NpmConfig {
   registry: string;
   copyFiles: string[];
   tag: string;
+  publishOrder: string[];
 }
 
 export interface CargoConfig {
@@ -161,6 +162,7 @@ export function getDefaultConfig(): PublishConfig {
       registry: 'https://registry.npmjs.org',
       copyFiles: ['LICENSE'],
       tag: 'latest',
+      publishOrder: [],
     },
     cargo: {
       enabled: false,
@@ -227,6 +229,7 @@ export function toPublishConfig(config: BasePublishConfig | undefined): PublishC
       registry: config.npm?.registry ?? defaults.npm.registry,
       copyFiles: config.npm?.copyFiles ?? defaults.npm.copyFiles,
       tag: config.npm?.tag ?? defaults.npm.tag,
+      publishOrder: config.npm?.publishOrder ?? defaults.npm.publishOrder,
     },
     cargo: {
       enabled: config.cargo?.enabled ?? defaults.cargo.enabled,

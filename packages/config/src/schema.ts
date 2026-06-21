@@ -134,6 +134,10 @@ export const NpmConfigSchema = z.object({
   registry: z.string().default('https://registry.npmjs.org').describe('NPM registry URL'),
   copyFiles: z.array(z.string()).default(['LICENSE']).describe('Files to copy to package before publishing'),
   tag: z.string().default('latest').describe('NPM dist tag'),
+  publishOrder: z
+    .array(z.string())
+    .default([])
+    .describe('Explicit publish order for npm packages; empty auto-sorts dependencies first'),
 });
 
 export const CargoPublishConfigSchema = z.object({
@@ -231,6 +235,7 @@ export const PublishConfigSchema = z.object({
     registry: 'https://registry.npmjs.org',
     copyFiles: ['LICENSE'],
     tag: 'latest',
+    publishOrder: [],
   }).describe('NPM publishing configuration'),
   cargo: CargoPublishConfigSchema.default({
     enabled: false,

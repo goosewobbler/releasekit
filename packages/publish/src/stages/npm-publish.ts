@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { debug, info, success, warn } from '@releasekit/core';
+import { buildDependencyGraph, debug, type GraphPackage, info, success, warn } from '@releasekit/core';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext, PublishResult } from '../types.js';
 import { detectNpmAuth } from '../utils/auth.js';
@@ -14,6 +14,55 @@ const ALREADY_PUBLISHED_PATTERN = /EPUBLISHCONFLICT|cannot publish over (?:the )
 
 /** Bounded auto-retry for transient registry blips: initial attempt + 2 retries. */
 const PUBLISH_RETRY = { maxAttempts: 3, initialDelay: 1000 } as const;
+
+/** Workspace deps an npm package declares (dependencies + peerDependencies; devDependencies excluded). */
+function readNpmWorkspaceDeps(pkgJsonPath: string): string[] {
+  try {
+    const json = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
+    return [...Object.keys(json.dependencies ?? {}), ...Object.keys(json.peerDependencies ?? {})];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Order npm updates so a dependency publishes before any package that depends on it, closing the
+ * window where a just-published package references a not-yet-published version. An explicit
+ * `publishOrder` wins (matching cargo); otherwise the workspace graph topo-sorts dependencies first.
+ * Non-npm updates keep their position — the stage skips them anyway.
+ */
+export function orderNpmUpdates<T extends { packageName: string; filePath: string }>(
+  updates: T[],
+  explicitOrder: string[],
+  cwd: string,
+): T[] {
+  const npm = updates.filter((u) => u.filePath.endsWith('package.json'));
+  if (npm.length <= 1) return updates;
+  const other = updates.filter((u) => !u.filePath.endsWith('package.json'));
+  const byName = new Map(npm.map((u) => [u.packageName, u]));
+
+  let orderedNames: string[];
+  if (explicitOrder.length > 0) {
+    const remaining = new Set(npm.map((u) => u.packageName));
+    orderedNames = explicitOrder.filter((n) => remaining.has(n));
+    for (const n of orderedNames) remaining.delete(n);
+    for (const u of npm) if (remaining.has(u.packageName)) orderedNames.push(u.packageName);
+  } else {
+    const graphPackages: GraphPackage[] = npm.map((u) => {
+      const pkgJsonPath = path.resolve(cwd, u.filePath);
+      return {
+        name: u.packageName,
+        dir: path.dirname(pkgJsonPath),
+        ecosystem: 'npm',
+        deps: readNpmWorkspaceDeps(pkgJsonPath),
+      };
+    });
+    orderedNames = buildDependencyGraph(graphPackages).topologicalOrder(npm.map((u) => u.packageName));
+  }
+
+  const orderedNpm = orderedNames.map((n) => byName.get(n)).filter((u): u is T => u !== undefined);
+  return [...orderedNpm, ...other];
+}
 
 /** Error strategy: FAIL-FAST. First publish failure aborts the stage. */
 export async function runNpmPublishStage(ctx: PipelineContext): Promise<void> {
@@ -41,7 +90,8 @@ export async function runNpmPublishStage(ctx: PipelineContext): Promise<void> {
   });
 
   try {
-    for (const update of input.updates) {
+    const orderedUpdates = orderNpmUpdates(input.updates, config.npm.publishOrder, cwd);
+    for (const update of orderedUpdates) {
       const result: PublishResult = {
         packageName: update.packageName,
         version: update.newVersion,
