@@ -278,7 +278,6 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         return;
       }
 
-      // Resolve the changelog floor (range, reachability, prerelease→stable graduation).
       const baselineResolver = new BaselineResolver({
         versionPrefix: formattedPrefix,
         tagTemplate,
@@ -535,7 +534,6 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         return;
       }
 
-      // Resolve the changelog floor (range, reachability, prerelease→stable graduation) for this package.
       const baselineResolver = new BaselineResolver({
         versionPrefix: formattedPrefix,
         tagTemplate,
