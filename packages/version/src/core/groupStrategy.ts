@@ -210,6 +210,7 @@ async function extractEntries(
   input: {
     pkgDir: string;
     latestTag: string;
+    hasRealTag: boolean;
     usedPackageSpecificTag: boolean;
     nextVersion: string;
     graduationName: string;
@@ -224,7 +225,7 @@ async function extractEntries(
     const baseline = await resolver.resolve({
       pkgDir: input.pkgDir,
       latestTag: input.latestTag,
-      hasRealTag: input.latestTag !== '',
+      hasRealTag: input.hasRealTag,
       usedPackageSpecificTag: input.usedPackageSpecificTag,
       nextVersion: input.nextVersion,
       graduationName: input.graduationName,
@@ -309,6 +310,7 @@ async function releaseGroup(
     const { entries, revisionRange, previousVersion } = await extractEntries(baselineResolver, {
       pkgDir: pkg.dir,
       latestTag: plan.latestTag,
+      hasRealTag: plan.latestTag !== '',
       usedPackageSpecificTag: plan.usedPackageSpecificTag,
       nextVersion: groupVersion,
       graduationName: name,
@@ -433,6 +435,7 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
         const { entries, revisionRange, previousVersion } = await extractEntries(baselineResolver, {
           pkgDir: pkg.dir,
           latestTag: plan.latestTag,
+          hasRealTag: plan.latestTag !== '',
           usedPackageSpecificTag: plan.usedPackageSpecificTag,
           nextVersion: plan.ownNext,
           graduationName: name,
