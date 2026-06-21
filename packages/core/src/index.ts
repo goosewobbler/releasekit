@@ -1,4 +1,10 @@
 export { readPackageVersion } from './cli.js';
+export {
+  buildDependencyGraph,
+  type Ecosystem,
+  type GraphPackage,
+  type WorkspaceDependencyGraph,
+} from './dependencyGraph.js';
 export { EXIT_CODES, type ExitCode, ReleaseKitError } from './errors.js';
 export {
   debug,

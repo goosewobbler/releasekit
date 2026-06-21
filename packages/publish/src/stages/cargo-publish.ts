@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { debug, success, warn } from '@releasekit/core';
+import { buildDependencyGraph, debug, type GraphPackage, success, warn } from '@releasekit/core';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext, PublishResult } from '../types.js';
 import { hasCargoAuth } from '../utils/auth.js';
@@ -232,65 +232,22 @@ function orderCrates(crates: CrateInfo[], explicitOrder: string[]): CrateInfo[] 
 }
 
 function topologicalSort(crates: CrateInfo[]): CrateInfo[] {
-  const nameSet = new Set(crates.map((c) => c.name));
-  const graph = new Map<string, string[]>();
-  const crateMap = new Map(crates.map((c) => [c.name, c]));
+  const byName = new Map(crates.map((c) => [c.name, c]));
+  // Map each crate's directory to its name so `path:` deps (which are paths) resolve to crate names.
+  const nameByDir = new Map(crates.map((c) => [path.resolve(c.dir), c.name]));
 
-  for (const crate of crates) {
-    graph.set(crate.name, []);
-  }
+  const graphPackages: GraphPackage[] = crates.map((c) => ({
+    name: c.name,
+    dir: c.dir,
+    ecosystem: 'cargo',
+    deps: c.pathDeps
+      .map((depPath) => nameByDir.get(path.resolve(c.dir, depPath)))
+      .filter((name): name is string => name !== undefined),
+  }));
 
-  // Build dependency edges from path deps
-  for (const crate of crates) {
-    for (const depPath of crate.pathDeps) {
-      const resolvedDir = path.resolve(crate.dir, depPath);
-      // Find which crate lives at that path
-      for (const other of crates) {
-        if (path.resolve(other.dir) === resolvedDir && nameSet.has(other.name)) {
-          graph.get(crate.name)?.push(other.name);
-        }
-      }
-    }
-  }
-
-  // Kahn's algorithm
-  const inDegree = new Map<string, number>();
-  for (const name of nameSet) {
-    inDegree.set(name, 0);
-  }
-  for (const deps of graph.values()) {
-    for (const dep of deps) {
-      inDegree.set(dep, (inDegree.get(dep) ?? 0) + 1);
-    }
-  }
-
-  const queue: string[] = [];
-  for (const [name, degree] of inDegree) {
-    if (degree === 0) {
-      queue.push(name);
-    }
-  }
-
-  const result: CrateInfo[] = [];
-  while (queue.length > 0) {
-    const name = queue.shift();
-    if (!name) break;
-    const crate = crateMap.get(name);
-    if (crate) {
-      result.push(crate);
-    }
-
-    for (const dep of graph.get(name) ?? []) {
-      const newDegree = (inDegree.get(dep) ?? 1) - 1;
-      inDegree.set(dep, newDegree);
-      if (newDegree === 0) {
-        queue.push(dep);
-      }
-    }
-  }
-
-  // Reverse so dependencies come first
-  result.reverse();
-
-  return result;
+  const graph = buildDependencyGraph(graphPackages);
+  return graph
+    .topologicalOrder(crates.map((c) => c.name))
+    .map((name) => byName.get(name))
+    .filter((crate): crate is CrateInfo => crate !== undefined);
 }
