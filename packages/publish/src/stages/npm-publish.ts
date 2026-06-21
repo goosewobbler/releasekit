@@ -20,7 +20,10 @@ function readNpmWorkspaceDeps(pkgJsonPath: string): string[] {
   try {
     const json = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
     return [...Object.keys(json.dependencies ?? {}), ...Object.keys(json.peerDependencies ?? {})];
-  } catch {
+  } catch (error) {
+    // A package whose deps can't be read looks dependency-free to the graph and could be ordered
+    // ahead of packages it actually depends on — surface it rather than silently mis-ordering.
+    debug(`Failed to read workspace deps from ${pkgJsonPath}: ${error}`);
     return [];
   }
 }
@@ -29,7 +32,7 @@ function readNpmWorkspaceDeps(pkgJsonPath: string): string[] {
  * Order npm updates so a dependency publishes before any package that depends on it, closing the
  * window where a just-published package references a not-yet-published version. An explicit
  * `publishOrder` wins (matching cargo); otherwise the workspace graph topo-sorts dependencies first.
- * Non-npm updates keep their position — the stage skips them anyway.
+ * Non-npm updates are moved to the end — the stage skips them anyway, so publish order is unaffected.
  */
 export function orderNpmUpdates<T extends { packageName: string; filePath: string }>(
   updates: T[],
