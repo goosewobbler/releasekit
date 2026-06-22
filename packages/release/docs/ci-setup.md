@@ -367,9 +367,10 @@ jobs:
     # push/schedule rebuild the PR; a label change or selection-region edit on the OPEN standing PR
     # re-runs the update so bump/scope/channel overrides and held-back packages take effect within
     # seconds. `state == 'open'` keeps this off the merged-PR label events that drive publish/retry.
-    # The `sender.login != 'github-actions[bot]'` guard is load-bearing for `edited`: the update
-    # rewrites the PR body (an `edited` event), so without it the bot would re-trigger forever. The
-    # `release/` prefix is hardcoded (workflow `if` can't read config) — the in-step config is authoritative.
+    # The `sender.type != 'Bot'` guard is load-bearing for `edited`: the update rewrites the PR body
+    # (an `edited` event), so without it the bot would re-trigger forever. Match on type, not a
+    # hardcoded `github-actions[bot]` login, so a custom GitHub App token (its own `*[bot]` login) is
+    # filtered too. The `release/` prefix is hardcoded (workflow `if` can't read config) — in-step config is authoritative.
     if: >-
       github.event_name == 'push' ||
       github.event_name == 'schedule' ||
@@ -382,7 +383,7 @@ jobs:
         ) &&
         github.event.pull_request.state == 'open' &&
         startsWith(github.event.pull_request.head.ref, 'release/') &&
-        github.event.sender.login != 'github-actions[bot]'
+        github.event.sender.type != 'Bot'
       )
     runs-on: ubuntu-latest
     steps:

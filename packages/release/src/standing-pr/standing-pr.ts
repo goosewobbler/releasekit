@@ -103,7 +103,7 @@ function getHeadSha(cwd: string): string {
  * the skip pattern, so the guard would otherwise no-op every PR-driven update. The body re-render is
  * idempotent and the workflow guards out the bot's own edits, so an `edited` re-trigger is safe.
  */
-function isLabelTriggeredRun(): boolean {
+function isStandingPrEventRun(): boolean {
   if (process.env.GITHUB_EVENT_NAME !== 'pull_request') return false;
   const eventPath = process.env.GITHUB_EVENT_PATH;
   if (!eventPath) return false;
@@ -725,7 +725,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // must bypass the skip-pattern guards just like reconcile: the guards reject runs reacting to a
   // release commit on HEAD, but a label event isn't reacting to HEAD at all — skipping would leave
   // the new override unapplied until the next push or the hourly cron.
-  const bypassSkipGuard = options.reconcile || isLabelTriggeredRun();
+  const bypassSkipGuard = options.reconcile || isStandingPrEventRun();
 
   // Skip-pattern guard. Bypassed by reconcile (HEAD is a release commit by design then) and by
   // label-triggered runs (the trigger is a label, not the commit on HEAD).
@@ -876,15 +876,22 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const groups = releaseKitConfig.version?.groups ?? {};
   const changedNames = new Set(dryUpdates.map((u) => u.packageName));
   const effectiveDeselected = new Set<string>();
-  for (const name of priorDeselected) {
-    if (!changedNames.has(name)) continue;
-    const update = dryUpdates.find((u) => u.packageName === name);
-    const groupSync = update?.group ? groups[update.group]?.sync : undefined;
-    if (groupSync === 'fixed' || groupSync === 'linked') {
-      warn(`Selection: ignoring held-back \`${name}\` — lockstep group \`${update?.group}\` members release together.`);
-      continue;
+  // Sync releases ship atomically and never render a selection region, so ignore any deselection —
+  // a residual region (e.g. a body left over from before the repo switched to sync) must not
+  // silently narrow a sync release into a partial one. Same guard the selection-block render uses.
+  if (versionOutputDry.strategy !== 'sync') {
+    for (const name of priorDeselected) {
+      if (!changedNames.has(name)) continue;
+      const update = dryUpdates.find((u) => u.packageName === name);
+      const groupSync = update?.group ? groups[update.group]?.sync : undefined;
+      if (groupSync === 'fixed' || groupSync === 'linked') {
+        warn(
+          `Selection: ignoring held-back \`${name}\` — lockstep group \`${update?.group}\` members release together.`,
+        );
+        continue;
+      }
+      effectiveDeselected.add(name);
     }
-    effectiveDeselected.add(name);
   }
 
   // Materialize changes on release branch. Held-back packages are excluded from the version step so

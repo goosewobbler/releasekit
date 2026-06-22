@@ -501,6 +501,35 @@ describe('runStandingPRUpdate', () => {
     expect(updatedBody).toContain('- [x] `@scope/a`');
   });
 
+  it('should never honour a residual selection region in a sync release (#367)', async () => {
+    // A repo that switched to sync may carry a leftover selection region. Sync ships atomically, so a
+    // stale deselection must NOT narrow it into a partial release — exclude stays empty.
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([
+        { packageName: '@scope/a', newVersion: '1.1.0' },
+        { packageName: '@scope/b', newVersion: '1.1.0' },
+      ]),
+      strategy: 'sync' as const,
+    };
+    vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const priorBody = [
+      '<!-- releasekit-selection -->',
+      '',
+      '- [ ] `@scope/b` → 1.1.0 <!-- rk-sel:@scope/b -->',
+      '',
+      '<!-- releasekit-selection-end -->',
+    ].join('\n');
+    await mockForge({ standingPR: openStandingPR(99), pullRequests: { 99: { body: priorBody, labels: [] } } });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { exclude?: string[] };
+    expect(writeCall.exclude).toEqual([]);
+  });
+
   it('should bypass the initial skip-pattern guard on a pull_request label event (#336)', async () => {
     // A label event checks out the standing PR's `chore: release preparation` commit (matches the
     // skip pattern) — the first guard would noop. A label-triggered run must proceed. The post-reset
