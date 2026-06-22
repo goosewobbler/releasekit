@@ -204,7 +204,7 @@ export function buildWorkflow(): Record<string, unknown> {
         },
         ...SCENARIOS.map((s) => ({
           name: `Upload fixture bundle (${s.id})`,
-          uses: 'actions/upload-artifact@v4',
+          uses: 'actions/upload-artifact@v7',
           with: { name: `smoke-fixture-${s.id}`, path: `.smoke-bundles/${s.id}.bundle`, 'if-no-files-found': 'error' },
         })),
       ],
