@@ -56,6 +56,29 @@ describe('selection-region', () => {
       expect(region).toContain('→ 1.1.0 (minor)');
     });
 
+    it('should not crash and still derive the bump kind from a package-specific tag previousVersion', () => {
+      // packageSpecificTags repos carry previousVersion as a full tag (`name@vX.Y.Z`) — a bare
+      // semver.diff throws "Invalid Version" and would abort the whole render (regression #NNN).
+      const updates: Update[] = [{ packageName: 'wdio-electron-cdp-bridge', newVersion: '10.1.0', filePath: '' }];
+      const region = renderSelectionRegion(
+        mockOutput(updates, [changelog('wdio-electron-cdp-bridge', 'wdio-electron-cdp-bridge@v10.0.0', '10.1.0')]),
+        updates,
+        new Set(),
+      );
+      expect(region).toContain('→ 10.1.0 (minor)');
+    });
+
+    it('should drop the suffix rather than throw on an unparseable previousVersion', () => {
+      const updates: Update[] = [{ packageName: 'pkg', newVersion: '1.1.0', filePath: '' }];
+      const region = renderSelectionRegion(
+        mockOutput(updates, [changelog('pkg', 'not-a-version', '1.1.0')]),
+        updates,
+        new Set(),
+      );
+      expect(region).toContain('→ 1.1.0');
+      expect(region).not.toContain('(');
+    });
+
     it('should group targets above their derived prerequisites', () => {
       const updates: Update[] = [
         { packageName: '@scope/app', newVersion: '2.0.0', filePath: '', role: 'target' },

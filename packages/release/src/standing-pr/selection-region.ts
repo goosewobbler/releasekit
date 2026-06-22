@@ -22,8 +22,17 @@ const REGION_HINT =
 export function bumpSuffix(versionOutput: VersionOutput, packageName: string, newVersion: string): string {
   const previous = versionOutput.changelogs.find((c) => c.packageName === packageName)?.previousVersion;
   if (!previous) return '';
-  const kind = semver.diff(previous, newVersion);
-  return kind ? ` (${kind})` : '';
+  // `previousVersion` can carry a package-specific tag prefix (e.g. `name@v1.2.3`) in repos using
+  // `packageSpecificTags` — not valid semver, so a bare `semver.diff` throws and would crash the
+  // whole standing-PR render. Strip to the part after the last `@`, then diff inside a guard: a
+  // cosmetic bump suffix must never abort the update (regressed packageSpecificTags repos on 0.31.0).
+  const prev = previous.includes('@') ? previous.slice(previous.lastIndexOf('@') + 1) : previous;
+  try {
+    const kind = semver.diff(prev, newVersion);
+    return kind ? ` (${kind})` : '';
+  } catch {
+    return '';
+  }
 }
 
 function checkbox(selected: boolean): string {
