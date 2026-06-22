@@ -585,6 +585,36 @@ describe('runStandingPRUpdate', () => {
     expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-selection-denied -->')).toBe(true);
   });
 
+  it('should not crash the run when the permission check throws — fails closed to the manifest (#401)', async () => {
+    await withAuthz();
+    await asEditedBy('rando');
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([
+        { packageName: '@scope/a', newVersion: '1.1.0' },
+        { packageName: '@scope/b', newVersion: '2.0.0' },
+      ]),
+      strategy: 'async' as const,
+    };
+    vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const forge = await mockForge({
+      standingPR: openStandingPR(99),
+      pullRequests: { 99: { body: selectionBody(), labels: [] } },
+      comments: [{ id: 5, prNumber: 99, body: serializeManifest({ ...baseManifest, deselected: [] }) }],
+    });
+    // A transient permission-check failure (rate-limit, etc.) must not abort the whole update.
+    vi.spyOn(forge, 'getActorPermission').mockRejectedValue(Object.assign(new Error('429'), { status: 429 }));
+
+    const result = await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(result.action).toBe('updated'); // run completed, no crash
+    // Failed closed → the body's untick is ignored and the authoritative (empty) manifest selection wins.
+    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { exclude?: string[] };
+    expect(writeCall.exclude).toEqual([]);
+  });
+
   it('should never honour a residual selection region in a sync release (#367)', async () => {
     // A repo that switched to sync may carry a leftover selection region. Sync ships atomically, so a
     // stale deselection must NOT narrow it into a partial release — exclude stays empty.

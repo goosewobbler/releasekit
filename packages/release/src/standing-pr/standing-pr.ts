@@ -17,7 +17,7 @@ import { DEFAULT_LABELS } from '../label-utils.js';
 import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
-import { getEventActor, isAuthorizedActor } from './authorization.js';
+import { type EventActor, getEventActor, isAuthorizedActor, type StandingPrAuthorization } from './authorization.js';
 import { extractNotesRegions, mergeNotesRegions, renderNotesRegion } from './notes-region.js';
 import { extractSelection, renderSelectionRegion, selectionWarnings } from './selection-region.js';
 import { postStandingPRStatusSafe } from './status.js';
@@ -741,6 +741,23 @@ function setsEqual(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
   return a.size === b.size && [...a].every((x) => b.has(x));
 }
 
+/**
+ * {@link isAuthorizedActor}, but it never throws. The permission check is a forge API call that can
+ * fail (rate-limit, network, a mis-scoped token — `getActorPermission` rethrows non-404s); on failure
+ * we warn and fail **closed** (treat the actor as unauthorized), so a transient hiccup reverts the
+ * standing PR to its authoritative manifest state rather than crashing the whole update (#401).
+ */
+async function authorizedOrWarn(forge: Forge, actor: EventActor, authz: StandingPrAuthorization): Promise<boolean> {
+  try {
+    return await isAuthorizedActor(forge, actor.login, actor.type, authz);
+  } catch (err) {
+    warn(
+      `Could not verify permission for '${actor.login ?? 'unknown'}' — treating as unauthorized: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return false;
+  }
+}
+
 export async function runStandingPRUpdate(options: StandingPROptions): Promise<StandingPRResult> {
   const cwd = options.projectDir;
 
@@ -828,18 +845,18 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   if (authz && existingStandingPr && githubContext?.token) {
     const manifestDeselected = new Set<string>(existingManifest?.deselected ?? []);
     const actor = getEventActor();
-    const authorizedEdit =
-      actor.action === 'edited' && (await isAuthorizedActor(forgeFor(githubContext), actor.login, actor.type, authz));
+    const authorizedEdit = actor.action === 'edited' && (await authorizedOrWarn(forgeFor(githubContext), actor, authz));
     if (!authorizedEdit) {
       priorDeselected = manifestDeselected;
       // An unauthorized actor changed the checklist — tell them it was ignored (idempotent comment).
       if (actor.action === 'edited' && !setsEqual(bodyDeselected, manifestDeselected)) {
-        const permission = authz.requiredPermission;
+        // Only mention the allow-list when one is actually configured.
+        const allowClause = authz.allowedActors?.length ? ', or an allow-listed actor' : '';
         await forgeFor(githubContext)
           .upsertMarkerComment(
             existingStandingPr.number,
             SELECTION_DENIED_MARKER,
-            `${SELECTION_DENIED_MARKER}\n\n> ⚠️ **Selection change ignored.** Only authorized maintainers (\`${permission}\`+, or an allow-listed actor) can hold packages back from the release. The **Packages to release** checklist has been reset to the approved selection.`,
+            `${SELECTION_DENIED_MARKER}\n\n> ⚠️ **Selection change ignored.** Only authorized maintainers (\`${authz.requiredPermission}\`+${allowClause}) can hold packages back from the release. The **Packages to release** checklist has been reset to the approved selection.`,
           )
           .catch((err) =>
             warn(`Could not post selection-denied notice: ${err instanceof Error ? err.message : String(err)}`),
