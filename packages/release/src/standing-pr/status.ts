@@ -1,9 +1,9 @@
 import { warn } from '@releasekit/core';
-import type { Forge } from '@releasekit/forge';
+import type { CommitStatusState, Forge } from '@releasekit/forge';
 
 const STATUS_CONTEXT = 'releasekit/standing-pr';
 
-export type CommitStatusState = 'success' | 'pending' | 'failure' | 'error';
+export type { CommitStatusState };
 
 export async function postStandingPRStatus(
   forge: Forge,
