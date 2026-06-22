@@ -39,9 +39,20 @@ describe('applyOverrideScope', () => {
   it('should strip the override for a package outside overrideScope so it computes commit-driven', () => {
     const { config, options } = applyOverrideScope(cfg(['@scope/a']), opts('@other/b'));
     expect(config.type).toBeUndefined();
-    expect(config.isPrerelease).toBe(false);
-    expect(config.stableOnly).toBe(false);
+    expect(config.isPrerelease).toBeUndefined();
+    expect(config.stableOnly).toBeUndefined();
     expect(options.type).toBeUndefined();
+  });
+
+  it('should apply the override when the package has no name (single-package repo)', () => {
+    const { config, options } = applyOverrideScope(cfg(['@scope/a']), {
+      latestTag: 'v1.0.0',
+      versionPrefix: 'v',
+      type: 'major',
+    });
+    expect(config.type).toBe('major');
+    expect(config.isPrerelease).toBe(true);
+    expect(options.type).toBe('major');
   });
 
   it('should not mutate the input config (returns a scoped copy)', () => {

@@ -31,9 +31,14 @@ export function applyOverrideScope(
   options: VersionOptions,
 ): { config: Config; options: VersionOptions } {
   const { overrideScope } = config;
+  // `type` / `isPrerelease` / `stableOnly` are the engine's runtime override fields (folded from
+  // runOptions bump/prerelease/stable) — none is a static config-file setting, so clearing them to
+  // their "not specified" sentinel reverts an out-of-scope package to commit-driven calculation.
+  // When `options.name` is absent (a single-package repo) there's nothing to match against, so the
+  // override applies — scoping is only meaningful across multiple packages.
   if (overrideScope?.length && options.name && !shouldMatchPackageTargets(options.name, overrideScope)) {
     return {
-      config: { ...config, type: undefined, isPrerelease: false, stableOnly: false },
+      config: { ...config, type: undefined, isPrerelease: undefined, stableOnly: undefined },
       options: { ...options, type: undefined },
     };
   }
