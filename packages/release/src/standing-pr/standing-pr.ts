@@ -396,15 +396,26 @@ function bumpSuffix(versionOutput: VersionOutput, packageName: string, newVersio
 function renderPrerequisiteSet(versionOutput: VersionOutput, updates: VersionOutput['updates']): string[] {
   const lines = ['Merging this PR will publish the targeted packages and their changed prerequisites:', ''];
   const prerequisites = updates.filter((u) => u.role === 'prerequisite');
+  const rendered = new Set<string>();
   for (const target of updates.filter((u) => u.role === 'target')) {
     lines.push(
       `- **\`${target.packageName}\`** → ${target.newVersion}${bumpSuffix(versionOutput, target.packageName, target.newVersion)}`,
     );
+    rendered.add(target.packageName);
     for (const prereq of prerequisites.filter((p) => p.prerequisiteOf?.includes(target.packageName))) {
       lines.push(
         `  - ↳ prerequisite \`${prereq.packageName}\` → ${prereq.newVersion}${bumpSuffix(versionOutput, prereq.packageName, prereq.newVersion)}`,
       );
+      rendered.add(prereq.packageName);
     }
+  }
+  // A prerequisite whose target had no releasable change of its own never gets an update entry, so it
+  // is never tagged 'target' and nothing nests under it — yet the prerequisite still publishes. List
+  // any update not already shown flat, so the package list is never empty while a publish is pending.
+  for (const update of updates.filter((u) => !rendered.has(u.packageName))) {
+    lines.push(
+      `- \`${update.packageName}\` → ${update.newVersion}${bumpSuffix(versionOutput, update.packageName, update.newVersion)}`,
+    );
   }
   return lines;
 }

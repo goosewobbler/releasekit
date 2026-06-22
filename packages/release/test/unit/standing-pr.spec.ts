@@ -428,6 +428,41 @@ describe('runStandingPRUpdate', () => {
     expect(body).toContain('(minor)'); // prerequisite's own commit-driven bump
   });
 
+  it('should list a prerequisite whose target has no update entry rather than render an empty body', async () => {
+    // The targeted package (@scope/app) had no releasable change of its own, so the engine never
+    // emits an update for it and it is never tagged 'target'. Its changed prerequisite (@scope/core)
+    // still publishes — the body must show it, not just the intro line.
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.1.0' }]),
+      strategy: 'async' as const,
+      changelogs: [
+        {
+          packageName: '@scope/core',
+          version: '1.1.0',
+          previousVersion: '1.0.0',
+          revisionRange: '',
+          repoUrl: null,
+          entries: [],
+        },
+      ],
+    };
+    versionOutput.updates[0]!.role = 'prerequisite';
+    versionOutput.updates[0]!.prerequisiteOf = ['@scope/app'];
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const forge = await mockForge({ standingPR: null });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const body = forge.createdPullRequests[0]?.body ?? '';
+    expect(body).toContain('@scope/core');
+    expect(body).toContain('(minor)');
+  });
+
   it('should bypass the initial skip-pattern guard on a pull_request label event (#336)', async () => {
     // A label event checks out the standing PR's `chore: release preparation` commit (matches the
     // skip pattern) — the first guard would noop. A label-triggered run must proceed. The post-reset
