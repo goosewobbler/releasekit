@@ -501,6 +501,90 @@ describe('runStandingPRUpdate', () => {
     expect(updatedBody).toContain('- [x] `@scope/a`');
   });
 
+  const selectionBody = (untickedB = true) =>
+    [
+      '<!-- releasekit-selection -->',
+      '',
+      '- [x] `@scope/a` → 1.1.0 <!-- rk-sel:@scope/a -->',
+      `- [${untickedB ? ' ' : 'x'}] \`@scope/b\` → 2.0.0 <!-- rk-sel:@scope/b -->`,
+      '',
+      '<!-- releasekit-selection-end -->',
+    ].join('\n');
+
+  const withAuthz = async () => {
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValue({
+      ...defaultConfig,
+      ci: {
+        ...defaultConfig.ci,
+        standingPr: { ...defaultConfig.ci.standingPr, authorization: { requiredPermission: 'admin' } },
+      },
+    } as unknown as ReturnType<typeof loadConfig>);
+  };
+
+  const asEditedBy = async (login: string) => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ action: 'edited', sender: { login, type: 'User' } }));
+    process.env.GITHUB_EVENT_NAME = 'pull_request';
+    process.env.GITHUB_EVENT_PATH = '/event.json';
+  };
+
+  it('should honour an authorized actor’s checkbox untick (#401)', async () => {
+    await withAuthz();
+    await asEditedBy('admin-user');
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([
+        { packageName: '@scope/a', newVersion: '1.1.0' },
+        { packageName: '@scope/b', newVersion: '2.0.0' },
+      ]),
+      strategy: 'async' as const,
+    };
+    vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    await mockForge({
+      standingPR: openStandingPR(99),
+      pullRequests: { 99: { body: selectionBody(), labels: [] } },
+      actorPermissions: { 'admin-user': 'admin' },
+    });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { exclude?: string[] };
+    expect(writeCall.exclude).toEqual(['@scope/b']); // admin's untick is applied
+  });
+
+  it('should ignore an unauthorized actor’s untick (manifest stays authoritative) and post a notice (#401)', async () => {
+    await withAuthz();
+    await asEditedBy('rando');
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([
+        { packageName: '@scope/a', newVersion: '1.1.0' },
+        { packageName: '@scope/b', newVersion: '2.0.0' },
+      ]),
+      strategy: 'async' as const,
+    };
+    vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    // Body unticks @scope/b, but the authoritative manifest holds back @scope/a — the unauthorized
+    // edit must be ignored and the manifest's selection used instead.
+    const forge = await mockForge({
+      standingPR: openStandingPR(99),
+      pullRequests: { 99: { body: selectionBody(), labels: [] } },
+      actorPermissions: { rando: 'write' }, // below the 'admin' threshold
+      comments: [{ id: 5, prNumber: 99, body: serializeManifest({ ...baseManifest, deselected: ['@scope/a'] }) }],
+    });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { exclude?: string[] };
+    expect(writeCall.exclude).toEqual(['@scope/a']); // manifest's selection wins, not the body's
+    expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-selection-denied -->')).toBe(true);
+  });
+
   it('should never honour a residual selection region in a sync release (#367)', async () => {
     // A repo that switched to sync may carry a leftover selection region. Sync ships atomically, so a
     // stale deselection must NOT narrow it into a partial release — exclude stays empty.
