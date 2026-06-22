@@ -417,6 +417,14 @@ export class VersionEngine {
         mergedPackages.root = workspaceRoot;
       }
 
+      // Capture the FULL discovered workspace (name+dir) before any release-set filtering below, so
+      // the repo-level changelog classifier can tell "touches a non-releasing package" apart from
+      // "genuinely repo-level" (#397) and resolve shared-package globs against every package (#406).
+      this.config.allWorkspacePackages = mergedPackages.packages.map((p) => ({
+        name: p.packageJson.name,
+        dir: p.dir,
+      }));
+
       // --include-prerequisites: expand the explicit targets to the full release set (their changed
       // transitive dependencies + the rest of any group they belong to) and scope the bump/prerelease/
       // stable override to just the explicit, group-expanded targets. Runs on the full discovered set,

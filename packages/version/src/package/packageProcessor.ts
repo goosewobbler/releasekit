@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import path from 'node:path';
 import type { Package } from '@manypkg/get-packages';
 import type { VersionChangelogEntry } from '@releasekit/core';
-import { shouldProcessPackage } from '@releasekit/core';
+import { shouldMatchPackageTargets, shouldProcessPackage } from '@releasekit/core';
 import { extractChangelogEntriesFromCommits, extractRepoLevelChangelogEntries } from '../changelog/commitParser.js';
 import { BaselineResolver } from '../core/baselineResolver.js';
 import { calculateVersion } from '../core/versionCalculator.js';
@@ -240,15 +240,22 @@ export class PackageProcessor {
 
         changelogEntries = extractChangelogEntriesFromCommits(pkgPath, revisionRange);
 
-        // Also extract repo-level commits (those that don't touch any non-shared package directory)
-        // These include CI changes, infrastructure updates, and changes to shared packages (config, core)
-        // that affect all packages
-        const allPackageDirs = packages.map((p) => p.dir);
-        // Define shared packages that should be included in all package changelogs
-        const sharedPackageNames = ['config', 'core', '@releasekit/config', '@releasekit/core'];
-        const sharedPackageDirs = packages
-          .filter((p) => sharedPackageNames.includes(p.packageJson.name))
-          .map((p) => p.dir);
+        // Also extract repo-level commits (those touching no package dir, plus declared shared
+        // packages whose changes belong project-wide). Classify against the FULL discovered
+        // workspace, not the filtered release set (`packages`) — otherwise a commit touching only a
+        // *non-releasing* package's dir touches "no package" and wrongly leaks into the shared block
+        // (#397). Falls back to the processing set when the engine didn't populate the workspace
+        // (e.g. a direct PackageProcessor construction in tests).
+        const workspace =
+          this.fullConfig.allWorkspacePackages ?? packages.map((p) => ({ name: p.packageJson.name, dir: p.dir }));
+        const allPackageDirs = workspace.map((p) => p.dir);
+        // Foundational packages whose changes route to repo-level, from config (exact name or glob).
+        // No hardcoded names — a consumer declares its own via `version.sharedPackages` (#406).
+        const sharedPackagePatterns = this.fullConfig.sharedPackages ?? [];
+        const sharedPackageDirs =
+          sharedPackagePatterns.length === 0
+            ? []
+            : workspace.filter((p) => shouldMatchPackageTargets(p.name, sharedPackagePatterns)).map((p) => p.dir);
         // Bound the repo-level ("shared") entries by the run's nearest-reachable floor when this
         // package's own range collapsed to full history (untagged / unreachable), so a single
         // untagged package doesn't flood "Project-wide changes" with the entire history (#348).

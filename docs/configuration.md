@@ -65,6 +65,7 @@ Versioning configuration.
 | `preset` | string | `"conventional"` | Commit convention preset |
 | `sync` | boolean | `true` | Global lockstep versioning. true is sugar for one implicit fixed group of every package — it shares the same mechanism as version.groups. Set to false when using version.groups; sync: true alongside groups is treated as the implicit all-packages fixed group taking precedence (a config conflict, warned about at runtime). |
 | `packages` | `string[]` | `[]` | Packages to include in versioning |
+| `sharedPackages` | `string[]` | — | Foundational packages whose changes belong in every package’s changelog. A commit touching only a shared package (exact name or glob) is classified as repo-level and surfaced under "Project-wide changes" rather than attributed to that one package. Default: none — no package is treated as shared unless declared. |
 | `mainPackage` | string | — | Package to use for version determination |
 | `updateInternalDependencies` | `"major"` \| `"minor"` \| `"patch"` \| `"no-internal-update"` | `"minor"` | How to bump internal dependencies |
 | `skip` | `string[]` | — | Packages to exclude from versioning |

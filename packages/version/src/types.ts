@@ -94,6 +94,9 @@ export interface Config extends VersionConfigBase {
    */
   groups?: Record<string, VersionGroup>;
   packages: string[];
+  /** Foundational packages whose changes route to repo-level ("Project-wide changes") in every
+   *  package's changelog (exact name or glob). See VersionConfig.sharedPackages. Default: none. */
+  sharedPackages?: string[];
   mainPackage?: string;
   updateInternalDependencies: 'major' | 'minor' | 'patch' | 'no-internal-update';
   skip?: string[];
@@ -111,6 +114,11 @@ export interface Config extends VersionConfigBase {
   /** Runtime override: package patterns the forced bump/prerelease/stable applies to. When set,
    *  non-matching packages ignore the override and compute commit-driven. See VersionRunOptions.overrideScope. */
   overrideScope?: string[];
+  /** Runtime (engine-populated): the FULL discovered workspace — every package's name+dir, before
+   *  the release-set filters (targets/exclude/config.packages). The repo-level changelog classifier
+   *  uses this so a commit touching a non-releasing package's dir is attributed to that package, not
+   *  leaked into "Project-wide changes" (#397). Not user config. */
+  allWorkspacePackages?: Array<{ name: string; dir: string }>;
   mismatchStrategy?: 'error' | 'warn' | 'ignore' | 'prefer-package' | 'prefer-git';
   strictReachable?: boolean;
   /** Pre-1.0 inferred-breaking bump policy ('spec' | 'strict'). See docs/configuration.md#versionzeromajor. */
@@ -192,6 +200,7 @@ export function toVersionConfig(config: VersionConfig | undefined, gitConfig?: G
     sync: config.sync ?? true,
     groups: config.groups,
     packages: config.packages ?? [],
+    sharedPackages: config.sharedPackages,
     mainPackage: config.mainPackage,
     updateInternalDependencies: config.updateInternalDependencies ?? 'minor',
     skip: config.skip,

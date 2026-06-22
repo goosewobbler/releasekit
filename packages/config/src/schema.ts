@@ -93,6 +93,12 @@ export const VersionConfigSchema = z.object({
       'Named version groups. Each group binds a set of package patterns to a fixed, linked, or independent sync mode. fixed: any releasable change in any member releases ALL members at the shared group version (bump(max(member baselines))). linked: only members with releasable changes release, but every releasing member shares the same computed version. independent: only members with releasable changes release, each on its own commit-driven version line (no shared version), but the set is atomic — targeting any member pulls in the whole group. Packages not matched by any group version independently. A package may belong to at most one group. Set version.sync to false when using groups.',
     ),
   packages: z.array(z.string()).default([]).describe('Packages to include in versioning'),
+  sharedPackages: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'Foundational packages whose changes belong in every package’s changelog. A commit touching only a shared package (exact name or glob) is classified as repo-level and surfaced under "Project-wide changes" rather than attributed to that one package. Default: none — no package is treated as shared unless declared.',
+    ),
   mainPackage: z.string().optional().describe('Package to use for version determination'),
   updateInternalDependencies: z
     .enum(['major', 'minor', 'patch', 'no-internal-update'])
