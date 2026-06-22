@@ -2,8 +2,9 @@
  * Prerequisite resolution — given a set of explicit release targets, derive the *prerequisite*
  * releases: the transitive internal dependencies of those targets that ALSO have a releasable
  * change. Prerequisites are pulled in only if they changed (an unchanged dependency needs no
- * release), are dependency-ordered so a dependency precedes its dependents, and keep their own
- * commit-driven bump (the override applies to the explicit targets, not their prerequisites).
+ * release), are listed in the workspace's dependency order (the full release set is published
+ * deps-first), and keep their own commit-driven bump (the override applies to the explicit targets,
+ * not their prerequisites).
  *
  * Group expansion of the explicit targets is the caller's concern — this operates on whatever
  * target list it is given.
@@ -16,7 +17,10 @@ export interface PrerequisiteResolution {
   targets: string[];
   /**
    * Derived prerequisites: transitive internal dependencies of the targets that also changed,
-   * dependency-ordered, excluding the targets themselves. Each keeps its own commit-driven bump.
+   * excluding the targets themselves, each keeping its own commit-driven bump. Listed in the
+   * workspace's dependency order — consistent with the full release set, not just among themselves.
+   * The authoritative publish order is `topologicalOrder([...targetSet])`; prerequisites are NOT a
+   * standalone "publish these before the targets" list.
    */
   prerequisites: string[];
   /** Everything that will release: targets ∪ prerequisites. */
@@ -38,10 +42,12 @@ export function resolvePrerequisites(
       if (changed.has(dep) && !targetSet.has(dep)) prereqSet.add(dep);
     }
   }
+  for (const name of prereqSet) targetSet.add(name);
 
-  // Dependency-ordered so the publish stage sees prerequisites before their dependents.
-  const prerequisites = graph.topologicalOrder([...prereqSet]);
-  for (const name of prerequisites) targetSet.add(name);
+  // Order by the FULL release set's dependency order, then filter to the derived subset — so a
+  // prerequisite that depends on an explicit target sorts after it. Ordering the prerequisite slice
+  // alone would miss that cross-boundary edge (the target isn't in the slice).
+  const prerequisites = graph.topologicalOrder([...targetSet]).filter((name) => prereqSet.has(name));
 
   return { targets: explicitTargets, prerequisites, targetSet };
 }

@@ -47,6 +47,22 @@ describe('resolvePrerequisites', () => {
     expect(prerequisites).not.toContain('utils');
   });
 
+  it('should order prerequisites by the full release graph when a prereq depends on a target', () => {
+    // utils (a prerequisite) depends on core (an explicit target). The complete release order must
+    // place core before utils — prerequisites must not be treated as "publish before the targets".
+    const { targets, prerequisites, targetSet } = resolvePrerequisites(
+      graph,
+      ['core', 'app'],
+      ['app', 'utils', 'core'],
+    );
+    expect(targets).toEqual(['core', 'app']);
+    expect(prerequisites).toEqual(['utils']); // core is a target, so only utils is a derived prereq
+    expect(targetSet).toEqual(new Set(['core', 'app', 'utils']));
+    // The authoritative publish order is the topo-sort of the full release set: core before utils.
+    const order = graph.topologicalOrder([...targetSet]);
+    expect(order.indexOf('core')).toBeLessThan(order.indexOf('utils'));
+  });
+
   it('should dedupe a prerequisite shared by multiple targets', () => {
     const { prerequisites } = resolvePrerequisites(graph, ['utils', 'types'], ['utils', 'types', 'core']);
     expect(prerequisites).toEqual(['core']);
