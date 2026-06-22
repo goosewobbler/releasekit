@@ -130,7 +130,7 @@ function smokeJob(scenario: Scenario): Record<string, unknown> {
       // setup is the only thing that can put pnpm/cargo on PATH. The fixture
       // arrives as a git bundle, downloaded outside the workspace.
       name: 'Download fixture bundle',
-      uses: 'actions/download-artifact@v4',
+      uses: 'actions/download-artifact@v8',
       // biome-ignore lint/suspicious/noTemplateCurlyInString: ${{ runner.temp }} is a GitHub Actions expression, not a JS template placeholder
       with: { name: `smoke-fixture-${scenario.id}`, path: '${{ runner.temp }}/fixture' },
     },
