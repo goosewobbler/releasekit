@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import { type CIConfig, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput } from '@releasekit/core';
 import { error, info, success, warn } from '@releasekit/core';
-import type { Forge, PullRequestDetails } from '@releasekit/forge';
+import { type Forge, forgeErrorStatus, type PullRequestDetails } from '@releasekit/forge';
 import { PipelineError } from '@releasekit/publish';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration, parseDuration } from '../duration.js';
@@ -1369,9 +1369,11 @@ export async function runStandingPRMerge(
   try {
     await forge.mergePullRequest(pr.number, mergeMethod);
   } catch (err) {
-    const reqErr = err as { status?: number; response?: { data?: { message?: string } } };
-    if (reqErr.status === 405) {
-      const reason = reqErr.response?.data?.message ?? 'unknown reason';
+    if (forgeErrorStatus(err) === 405) {
+      // Best-effort detail; the forge surfaces the raw error, so a non-GitHub adapter just yields
+      // 'unknown reason' here.
+      const reason =
+        (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'unknown reason';
       throw new Error(`Cannot merge standing PR #${pr.number}: GitHub rejected the merge (${reason})`);
     }
     throw err;
