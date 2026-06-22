@@ -13,6 +13,11 @@ export function createReleaseCommand(): Command {
     .option('--stable', 'Graduate prerelease packages to stable without bumping', false)
     .option('-s, --sync', 'Use synchronized versioning across all packages', false)
     .option('-t, --target <packages>', 'Target specific packages (comma-separated)')
+    .option(
+      '--include-prerequisites',
+      'Also release the changed internal dependencies of --target packages (and the rest of their groups)',
+      false,
+    )
     .option('--scope <name>', 'Resolve scope name to target packages from ci.scopeLabels config')
     .option('--branch <name>', 'Override the git branch used for push')
     .addOption(new Option('--npm-auth <method>', 'NPM auth method').choices(['auto', 'oidc', 'token']).default('auto'))
@@ -39,6 +44,7 @@ export function createReleaseCommand(): Command {
         stable: opts.stable,
         sync: opts.sync,
         target: opts.target,
+        includePrerequisites: opts.includePrerequisites,
         scope: opts.scope,
         branch: opts.branch,
         npmAuth: opts.npmAuth,

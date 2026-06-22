@@ -8,9 +8,13 @@ import { minimatch } from 'minimatch';
 import * as yaml from 'yaml';
 import { GitError } from '../errors/gitError.js';
 import { createVersionError, VersionError, VersionErrorCode } from '../errors/versionError.js';
+import { getCommitsLength, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import type { Config, VersionRunOptions } from '../types.js';
+import { formatVersionPrefix } from '../utils/formatting.js';
 import { log } from '../utils/logging.js';
+import { resolvePrerequisiteTargets } from './prerequisiteScope.js';
 import { createStrategy, createStrategyMap, type StrategyFunction, type StrategyType } from './versionStrategies.js';
+import { buildWorkspaceGraph } from './workspaceGraph.js';
 
 // Define extended type that includes root property
 export interface PackagesWithRoot extends Packages {
@@ -26,6 +30,7 @@ export class VersionEngine {
   private strategies: Record<StrategyType, StrategyFunction>;
   private currentStrategy: StrategyFunction;
   private runtimeTargets: string[] = [];
+  private includePrerequisites = false;
 
   constructor(config: Config, runOptions?: VersionRunOptions) {
     // Validate required configuration
@@ -50,6 +55,7 @@ export class VersionEngine {
       if (runOptions.targets?.length) this.runtimeTargets = runOptions.targets;
       if (runOptions.baseRef) effective.baseRef = runOptions.baseRef;
       if (runOptions.overrideScope) effective.overrideScope = runOptions.overrideScope;
+      if (runOptions.includePrerequisites) this.includePrerequisites = true;
     }
 
     // Default values for required properties
@@ -341,6 +347,30 @@ export class VersionEngine {
   /**
    * Get workspace packages information - with caching for performance
    */
+  /**
+   * Lightweight changed-detection for prerequisite resolution: a package is "changed" when it has
+   * commits since its last release tag. Over-inclusive by design — a pulled-in prerequisite with no
+   * *releasable* change is still skipped by the per-package bump calc downstream.
+   */
+  private async detectChangedPackages(packages: Package[]): Promise<Set<string>> {
+    const formattedPrefix = formatVersionPrefix(this.config.versionPrefix || 'v');
+    const changed = new Set<string>();
+    for (const pkg of packages) {
+      let tag = '';
+      try {
+        tag = await getLatestTagForPackage(pkg.packageJson.name, formattedPrefix, {
+          tagTemplate: this.config.tagTemplate,
+          packageSpecificTags: this.config.packageSpecificTags,
+        });
+        if (!tag) tag = await getLatestTag(formattedPrefix);
+      } catch {
+        // No tag resolvable — getCommitsLength falls back to git describe / full history.
+      }
+      if (getCommitsLength(pkg.dir, tag) > 0) changed.add(pkg.packageJson.name);
+    }
+    return changed;
+  }
+
   public async getWorkspacePackages(): Promise<PackagesWithRoot> {
     try {
       // Return cached result if available for better performance
@@ -376,6 +406,31 @@ export class VersionEngine {
       if (!mergedPackages.root) {
         log('Root path is undefined in packages result, setting to current working directory', 'warning');
         mergedPackages.root = workspaceRoot;
+      }
+
+      // --include-prerequisites: expand the explicit targets to the full release set (their changed
+      // transitive dependencies + the rest of any group they belong to) and scope the bump/prerelease/
+      // stable override to just the explicit, group-expanded targets. Runs on the full discovered set,
+      // before the target pre-filter below, so prerequisites aren't pruned away.
+      if (this.includePrerequisites && this.runtimeTargets.length > 0) {
+        const graph = buildWorkspaceGraph(mergedPackages.packages);
+        const changed = await this.detectChangedPackages(mergedPackages.packages);
+        const { targets, overrideScope } = resolvePrerequisiteTargets(
+          graph,
+          mergedPackages.packages,
+          this.config,
+          this.runtimeTargets,
+          (name) => changed.has(name),
+        );
+        log(
+          `Prerequisites: releasing ${targets.length} package(s); override scoped to [${overrideScope.join(', ')}].`,
+          'info',
+        );
+        this.runtimeTargets = targets;
+        this.config.overrideScope = overrideScope;
+        // Rebuild strategies so they pick up the override scope derived from the workspace graph.
+        this.strategies = createStrategyMap(this.config);
+        this.currentStrategy = createStrategy(this.config);
       }
 
       // When explicit version groups are configured, do NOT pre-filter by runtime targets here.

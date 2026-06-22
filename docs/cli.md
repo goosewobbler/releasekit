@@ -52,6 +52,7 @@ Run the full release pipeline: version, changelog, publish, git, and GitHub Rele
 | `--stable` | boolean | `false` | Graduate prerelease packages to stable without bumping |
 | `-s, --sync` | boolean | `false` | Use synchronized versioning across all packages |
 | `-t, --target <packages>` | string | all | Target specific packages (comma-separated) |
+| `--include-prerequisites` | boolean | `false` | Also release the changed internal dependencies of `--target` packages (and the rest of their groups) |
 | `--scope <name>` | string | - | Resolve scope name to target packages from `ci.scopeLabels` config |
 | `--branch <name>` | string | current | Override the git branch used for push |
 | `--npm-auth <method>` | `auto` \| `oidc` \| `token` | `auto` | NPM auth method |
@@ -92,6 +93,8 @@ Calculate versions, commit to the release branch, and create/update the standing
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
+| `-t, --target <packages>` | string | labels | Ad-hoc override: release only these packages (comma-separated). Wins over label-derived targets |
+| `--include-prerequisites` | boolean | `false` | With `--target`, also release the changed internal dependencies (and group members) of the targets |
 | `--reconcile` | boolean | `false` | Bypass the skip-pattern guard so a post-release reconcile run still updates the standing PR (HEAD is a release commit at that point) |
 
 ```bash
@@ -182,6 +185,7 @@ Version a package or packages based on configuration and conventional commits. A
 | `-s, --sync` | boolean | config | Use synchronized versioning across all packages |
 | `-j, --json` | boolean | `false` | Output results as JSON |
 | `-t, --target <packages>` | string | all | Comma-delimited list of package names to target |
+| `--include-prerequisites` | boolean | `false` | Also release the changed internal dependencies of `--target` packages (and the rest of their groups) |
 | `--project-dir <path>` | string | `cwd` | Project directory to run commands in |
 
 `--stable` and `--prerelease` are mutually exclusive. `--target` is ignored for single-package repos.

@@ -17,6 +17,11 @@ export function createVersionCommand(): Command {
     .option('-s, --sync', 'Use synchronized versioning across all packages')
     .option('-j, --json', 'Output results as JSON', false)
     .option('-t, --target <packages>', 'Comma-delimited list of package names to target')
+    .option(
+      '--include-prerequisites',
+      'Also release the changed internal dependencies of --target packages (and the rest of their groups)',
+      false,
+    )
     .option('--project-dir <path>', 'Project directory to run commands in', process.cwd())
     .action(async (options) => {
       if (options.stable && options.prerelease) {
@@ -57,6 +62,7 @@ export function createVersionCommand(): Command {
           dryRun: options.dryRun,
           sync: options.sync,
           targets: cliTargets.length > 0 ? cliTargets : undefined,
+          includePrerequisites: options.includePrerequisites,
         };
 
         const engine = new VersionEngine(config, runOptions);
