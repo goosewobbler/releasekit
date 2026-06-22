@@ -618,6 +618,36 @@ describe('runStandingPRUpdate', () => {
     );
   });
 
+  it('should close (not render ****) when the write step recomputes to an empty release set (#396)', async () => {
+    // Reconcile-race: the dry run sees updates (guard passes), but a release landing on base mid-run
+    // makes the write step recompute to 0 publishable updates. The second guard must close the PR
+    // instead of rendering a degenerate `****` body.
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const withUpdates = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+    const empty = createMockVersionOutput([]);
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(withUpdates as unknown as Awaited<ReturnType<typeof runVersionStep>>) // dry run
+      .mockResolvedValueOnce(empty as unknown as Awaited<ReturnType<typeof runVersionStep>>); // write step
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const forge = await mockForge({ standingPR: openStandingPR(42) });
+
+    const result = await runStandingPRUpdate({
+      projectDir: '/test',
+      verbose: false,
+      quiet: false,
+      json: false,
+      reconcile: true,
+    });
+
+    expect(result.action).toBe('closed');
+    expect(forge.updatedPullRequests).toContainEqual(
+      expect.objectContaining({ prNumber: 42, changes: expect.objectContaining({ state: 'closed' }) }),
+    );
+    // The empty body must never be rendered onto the PR.
+    expect(forge.updatedPullRequests.some((u) => u.changes.body !== undefined)).toBe(false);
+  });
+
   it('should create a new PR when no existing standing PR', async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
