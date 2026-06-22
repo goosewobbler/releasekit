@@ -23,7 +23,7 @@ jobs:
           fetch-depth: 0
 
       # Hosted runners ship NEITHER pnpm NOR the Rust toolchain — set up both.
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v6
         with:

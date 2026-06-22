@@ -36,7 +36,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v6
         with:
@@ -140,7 +140,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v6
         with:
@@ -236,7 +236,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v6
         with:
@@ -382,7 +382,7 @@ jobs:
           fetch-depth: 0
           token: ${{ github.token }}
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v6
         with:
@@ -422,7 +422,7 @@ jobs:
           fetch-depth: 0
           token: ${{ github.token }}
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v6
         with:
@@ -464,7 +464,7 @@ jobs:
           token: ${{ github.token }}
           ref: main  # the standing PR's branch is deleted on merge; publish from main
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v6
         with:
@@ -646,7 +646,7 @@ permissions:
   id-token: write    # grants the OIDC token
 
 steps:
-  - uses: pnpm/action-setup@v5
+  - uses: pnpm/action-setup@v6
 
   - uses: actions/setup-node@v6
     with:
@@ -742,7 +742,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v6
         with:

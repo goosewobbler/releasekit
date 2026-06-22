@@ -54,7 +54,7 @@ jobs:
           fetch-depth: 0
           token: ${{ github.token }}
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v6
         with:
@@ -95,7 +95,7 @@ jobs:
           fetch-depth: 0
           token: ${{ github.token }}
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v6
         with:
@@ -142,7 +142,7 @@ jobs:
           token: ${{ github.token }}
           ref: main # the standing PR branch is deleted on merge; publish from main
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v6
         with:
