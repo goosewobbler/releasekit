@@ -176,6 +176,11 @@ function renderVersion(prop: SchemaProperty): void {
       '`version.packages`) and `sync` is one of:',
       '',
     );
+    emit(
+      'Groups are one of three release-coordination mechanisms — see the',
+      '[release taxonomy](./release-taxonomy.md) for groups vs. derived prerequisites vs. selection.',
+      '',
+    );
     if (groupItem?.properties) {
       emit(propsTable(groupItem.properties));
     }

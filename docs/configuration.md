@@ -103,6 +103,9 @@ of the monorepo versions independently. Each entry under `groups` is a group nam
 `{ packages, sync }`, where `packages` is a list of patterns (same matching as
 `version.packages`) and `sync` is one of:
 
+Groups are one of three release-coordination mechanisms — see the
+[release taxonomy](./release-taxonomy.md) for groups vs. derived prerequisites vs. selection.
+
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `packages` | `string[]` | — | Package patterns (exact names, @scope/*, or globs) whose matched packages form this group. Same matching rules as version.packages. |

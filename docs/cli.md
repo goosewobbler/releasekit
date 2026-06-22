@@ -101,6 +101,12 @@ Calculate versions, commit to the release branch, and create/update the standing
 releasekit standing-pr update --reconcile
 ```
 
+The standing PR body carries a **Packages to release** checklist — untick a changed package to hold
+it back from the next release (it is excluded from the version step, never bumped). Requires the
+`pull_request: edited` trigger; see the [release taxonomy](./release-taxonomy.md#selection--what-to-act-on-now)
+for how this composes with groups and prerequisites, and [CI setup](../packages/release/docs/ci-setup.md)
+for the workflow.
+
 ### `releasekit standing-pr publish`
 
 Publish packages from a merged standing release PR (reads the manifest from the PR comment).
