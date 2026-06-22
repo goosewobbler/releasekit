@@ -612,6 +612,71 @@ describe('Package Processor', () => {
       expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), 'HEAD', expect.any(Array), expect.any(Array));
     });
 
+    it('should classify against the full workspace, not the release set, so a non-releasing package does not leak into shared (#397)', async () => {
+      const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockReturnValue([]);
+      const processor = new PackageProcessor({
+        ...defaultOptions,
+        fullConfig: {
+          ...mockConfig,
+          allWorkspacePackages: [
+            { name: 'package-a', dir: '/path/to/package-a' },
+            { name: 'package-b', dir: '/path/to/package-b' },
+          ],
+        },
+      });
+
+      // Release set is only package-a, but package-b's dir must still count as "a package dir" so a
+      // commit touching only package-b is attributed to it (absent here), not dumped into shared.
+      await processor.processPackages([mockPackages[0]]);
+
+      expect(extractSharedSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        ['/path/to/package-a', '/path/to/package-b'],
+        expect.any(Array),
+      );
+    });
+
+    it('should route a configured sharedPackages package to repo-level via its dir (#406)', async () => {
+      const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockReturnValue([]);
+      const processor = new PackageProcessor({
+        ...defaultOptions,
+        fullConfig: {
+          ...mockConfig,
+          sharedPackages: ['package-b'],
+          allWorkspacePackages: [
+            { name: 'package-a', dir: '/path/to/package-a' },
+            { name: 'package-b', dir: '/path/to/package-b' },
+          ],
+        },
+      });
+
+      await processor.processPackages([mockPackages[0]]);
+
+      expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), expect.any(String), expect.any(Array), [
+        '/path/to/package-b',
+      ]);
+    });
+
+    it('should treat no package as shared when sharedPackages is unset — no hardcoded names (#406)', async () => {
+      const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockReturnValue([]);
+      const processor = new PackageProcessor({
+        ...defaultOptions,
+        fullConfig: {
+          ...mockConfig,
+          // @releasekit/core was formerly hardcoded as shared; it must no longer auto-match.
+          allWorkspacePackages: [
+            { name: '@releasekit/core', dir: '/path/to/core' },
+            { name: 'package-a', dir: '/path/to/package-a' },
+          ],
+        },
+      });
+
+      await processor.processPackages([mockPackages[0]]);
+
+      expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), expect.any(String), expect.any(Array), []);
+    });
+
     it('should emit repo-level entries as sharedEntries, not in individual package changelogs', async () => {
       const repoLevelEntry = { type: 'chore', description: 'Update CI workflow' };
       const pkgAEntry = { type: 'added', description: 'New feature in pkg-a' };
