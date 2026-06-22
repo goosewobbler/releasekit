@@ -76,6 +76,8 @@ export interface Registry<T extends RegistryTarget = RegistryTarget, S = unknown
   /** Publish one target. Honours dryRun via execCommand and throws on failure. */
   publish(target: T, ctx: PipelineContext, session: S): Promise<void>;
 
-  /** Teardown for `authCheck`'s setup (npm env isolation). */
-  dispose?(session: S): void;
+  /** Teardown for `authCheck`'s setup (npm env isolation). Sync today; typed to also accept an async
+   *  teardown (e.g. a future adapter flushing a token write) without a breaking interface change —
+   *  the dispatcher awaits it. */
+  dispose?(session: S): void | Promise<void>;
 }

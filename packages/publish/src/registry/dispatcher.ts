@@ -30,6 +30,11 @@ export async function runPublishStage<T extends RegistryTarget, S>(
 
   try {
     const targets = await registry.discover(ctx, session);
+    if (targets.length === 0) {
+      // Restores the per-registry "nothing to do" breadcrumb the old per-target stages logged, so
+      // verbose output still confirms the stage ran and found no targets (vs. not running at all).
+      debug(`[${registry.id}] No targets found, nothing to publish`);
+    }
     if (targets.length > 0) await registry.prepare?.(ctx, session);
 
     for (const target of targets) {
@@ -97,7 +102,7 @@ export async function runPublishStage<T extends RegistryTarget, S>(
       }
     }
   } finally {
-    registry.dispose?.(session);
+    await registry.dispose?.(session);
   }
 }
 
