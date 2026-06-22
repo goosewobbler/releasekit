@@ -6,7 +6,6 @@ import type { VersionOutput } from '@releasekit/core';
 import { error, info, markerData, success, warn } from '@releasekit/core';
 import { type Forge, forgeErrorStatus, type PullRequestDetails } from '@releasekit/forge';
 import { PipelineError } from '@releasekit/publish';
-import semver from 'semver';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration, parseDuration } from '../duration.js';
 import { renderSupersedeWarning } from '../failure-report/failure-report.js';
@@ -19,6 +18,7 @@ import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
 import { extractNotesRegions, mergeNotesRegions, renderNotesRegion } from './notes-region.js';
+import { extractSelection, renderSelectionRegion, selectionWarnings } from './selection-region.js';
 import { postStandingPRStatusSafe } from './status.js';
 
 const MANIFEST_MARKER = '<!-- releasekit-manifest -->';
@@ -76,6 +76,13 @@ export interface StandingPRManifest {
    * Optional: absent on manifests written before this field existed — consumers must tolerate that.
    */
   overrideLabels?: string[];
+  /**
+   * Packages a maintainer unticked in the PR's selection region, so they were held back from this
+   * release (excluded from `versionOutput`). Recorded for provenance/auditing; the release set is
+   * already narrowed in `versionOutput`. Optional: absent when nothing was deselected, and on
+   * manifests written before this field existed.
+   */
+  deselected?: string[];
 }
 
 function getHeadSha(cwd: string): string {
@@ -87,12 +94,14 @@ function getHeadSha(cwd: string): string {
 }
 
 /**
- * True when this run was triggered by a label being added/removed on a PR (#336) — a maintainer
- * adjusting the standing PR's override labels, not a commit landing. The CLI reads the event itself
+ * True when this run was triggered by a maintainer acting on the standing PR itself (#336/#367),
+ * not by a commit landing: a label added/removed (`labeled`/`unlabeled`) adjusting override labels,
+ * or the body `edited` to tick/untick the ad-hoc selection region. The CLI reads the event itself
  * (rather than taking a flag) so it works whether the workflow invokes the action, the reusable
  * workflow, or the CLI directly. Such runs must bypass the initial skip-pattern guard: a
  * pull_request event checks out the standing PR's `chore: release preparation` commit, which matches
- * the skip pattern, so the guard would otherwise no-op every label-driven update.
+ * the skip pattern, so the guard would otherwise no-op every PR-driven update. The body re-render is
+ * idempotent and the workflow guards out the bot's own edits, so an `edited` re-trigger is safe.
  */
 function isLabelTriggeredRun(): boolean {
   if (process.env.GITHUB_EVENT_NAME !== 'pull_request') return false;
@@ -100,7 +109,7 @@ function isLabelTriggeredRun(): boolean {
   if (!eventPath) return false;
   try {
     const event = JSON.parse(fs.readFileSync(eventPath, 'utf-8')) as { action?: string };
-    return event.action === 'labeled' || event.action === 'unlabeled';
+    return event.action === 'labeled' || event.action === 'unlabeled' || event.action === 'edited';
   } catch {
     return false;
   }
@@ -380,47 +389,12 @@ function truncateAtLineBoundary(text: string, maxChars: number): string {
   return lastNewline > 0 ? slice.slice(0, lastNewline) : slice;
 }
 
-/** A ` (minor)`-style bump suffix derived from the package's previous→new version, when known. */
-function bumpSuffix(versionOutput: VersionOutput, packageName: string, newVersion: string): string {
-  const previous = versionOutput.changelogs.find((c) => c.packageName === packageName)?.previousVersion;
-  if (!previous) return '';
-  const kind = semver.diff(previous, newVersion);
-  return kind ? ` (${kind})` : '';
-}
-
-/**
- * Render the release set grouped by target → its derived prerequisites (a `--include-prerequisites`
- * / `release:with-prerequisites` run). Each prerequisite shows its own commit-driven bump; a shared
- * prerequisite is listed under every target that pulled it in.
- */
-function renderPrerequisiteSet(versionOutput: VersionOutput, updates: VersionOutput['updates']): string[] {
-  const lines = ['Merging this PR will publish the targeted packages and their changed prerequisites:', ''];
-  const prerequisites = updates.filter((u) => u.role === 'prerequisite');
-  const rendered = new Set<string>();
-  for (const target of updates.filter((u) => u.role === 'target')) {
-    lines.push(
-      `- **\`${target.packageName}\`** → ${target.newVersion}${bumpSuffix(versionOutput, target.packageName, target.newVersion)}`,
-    );
-    rendered.add(target.packageName);
-    for (const prereq of prerequisites.filter((p) => p.prerequisiteOf?.includes(target.packageName))) {
-      lines.push(
-        `  - ↳ prerequisite \`${prereq.packageName}\` → ${prereq.newVersion}${bumpSuffix(versionOutput, prereq.packageName, prereq.newVersion)}`,
-      );
-      rendered.add(prereq.packageName);
-    }
-  }
-  // A prerequisite whose target had no releasable change of its own never gets an update entry, so it
-  // is never tagged 'target' and nothing nests under it — yet the prerequisite still publishes. List
-  // any update not already shown flat, so the package list is never empty while a publish is pending.
-  for (const update of updates.filter((u) => !rendered.has(u.packageName))) {
-    lines.push(
-      `- \`${update.packageName}\` → ${update.newVersion}${bumpSuffix(versionOutput, update.packageName, update.newVersion)}`,
-    );
-  }
-  return lines;
-}
-
-function renderPrBody(versionOutput: VersionOutput, supersedeWarning?: string[], notesRegion?: string): string {
+function renderPrBody(
+  versionOutput: VersionOutput,
+  supersedeWarning?: string[],
+  notesRegion?: string,
+  selectionBlock?: string,
+): string {
   // Build the body around a given changelog section so we can re-render with a truncated changelog
   // if the full one would exceed GitHub's limit, without disturbing the editable notes region.
   const build = (changelogSection: string): string => {
@@ -435,12 +409,14 @@ function renderPrBody(versionOutput: VersionOutput, supersedeWarning?: string[],
     // The root lockstep bump (sync mode) is never published — keep it out of the package list.
     const updates = publishableUpdates(versionOutput);
 
-    if (updates.some((u) => u.role === 'prerequisite')) {
-      // Prerequisite mode: group targets → their derived prerequisites instead of a flat list.
-      lines.push(...renderPrerequisiteSet(versionOutput, updates));
+    if (selectionBlock) {
+      // Non-sync releases render the interactive selection region in place of a static list — it is
+      // the package list (ticked rows = will release), built from the full changed set upstream so a
+      // held-back package still shows as an unticked row. Includes the prerequisite grouping.
+      lines.push(selectionBlock);
     } else if (versionOutput.strategy === 'sync') {
       // Sync releases move as one unit — lead with the version; a per-row version column
-      // would repeat the same value for every package.
+      // would repeat the same value for every package. Selection does not apply (atomic).
       lines.push(`Merging this PR will publish **${syncVersionDisplay(versionOutput)}**:`, '');
       for (const update of updates) {
         lines.push(`- \`${update.packageName}\``);
@@ -702,6 +678,8 @@ interface BuildOptionsExtras {
   stable?: boolean;
   prerelease?: boolean;
   includePrerequisites?: boolean;
+  /** Packages to hold back from the release (standing-PR ad-hoc deselection). Exact name match. */
+  exclude?: string[];
 }
 
 function buildBaseReleaseOptions(
@@ -716,6 +694,7 @@ function buildBaseReleaseOptions(
     bump: extras?.bump,
     target: extras?.target,
     includePrerequisites: extras?.includePrerequisites,
+    exclude: extras?.exclude,
     stable: extras?.stable,
     prerelease: extras?.prerelease ? true : undefined,
     skipNotes: true,
@@ -777,6 +756,21 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
       warn(`Could not look up standing PR for label overrides: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
+
+  // Read the standing PR's live body once (reused for the ad-hoc selection region and edited notes).
+  // A maintainer ticks/unticks packages and edits notes in place; both are read back by marker
+  // slicing so their choices survive this run's regenerate + force-push.
+  let liveBody: string | undefined;
+  if (existingStandingPr && githubContext?.token) {
+    try {
+      liveBody = (await forgeFor(githubContext).getPullRequest(existingStandingPr.number)).body;
+    } catch (err) {
+      warn(`Could not read current PR body to preserve selection: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  // The maintainer's prior package selection — names whose row was unticked (held back). Reconciled
+  // against the actually-changed set after the dry-run below (a name no longer changed is dropped).
+  const priorDeselected = new Set<string>((liveBody && extractSelection(liveBody)?.deselected) || []);
 
   // Preview-notes opt-in (#200): when the standing PR carries the preview-notes label, generate LLM
   // release notes on demand into an editable region in the PR body. Default path stays LLM-free.
@@ -873,24 +867,38 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   }
 
-  // Materialize changes on release branch
+  // Reconcile the maintainer's prior selection against this run's changed set: keep a deselection
+  // only when the package still has a releasable change, and never honour one for a lockstep
+  // (fixed/linked) group member — those release together, so holding one back would split the group
+  // (its untick is ignored and the row re-renders ticked next run). The result both narrows the
+  // write below (excluded packages are never bumped) and seeds the rendered selection region.
+  const dryUpdates = publishableUpdates(versionOutputDry);
+  const groups = releaseKitConfig.version?.groups ?? {};
+  const changedNames = new Set(dryUpdates.map((u) => u.packageName));
+  const effectiveDeselected = new Set<string>();
+  for (const name of priorDeselected) {
+    if (!changedNames.has(name)) continue;
+    const update = dryUpdates.find((u) => u.packageName === name);
+    const groupSync = update?.group ? groups[update.group]?.sync : undefined;
+    if (groupSync === 'fixed' || groupSync === 'linked') {
+      warn(`Selection: ignoring held-back \`${name}\` — lockstep group \`${update?.group}\` members release together.`);
+      continue;
+    }
+    effectiveDeselected.add(name);
+  }
+
+  // Materialize changes on release branch. Held-back packages are excluded from the version step so
+  // they are never bumped — no orphan bump lands on the base branch with no tag (roll-forward model).
   info('Writing version bumps...');
-  const writeOptions = buildBaseReleaseOptions(options, false, buildExtras);
+  const writeOptions = buildBaseReleaseOptions(options, false, { ...buildExtras, exclude: [...effectiveDeselected] });
   const versionOutput = await runVersionStep(writeOptions);
 
-  // With the preview-notes label, pull any release notes a human has already edited into the live PR
-  // body so they survive this regenerate-and-force-push. Marker slicing only — never parse the prose.
+  // With the preview-notes label, pull any release notes a human has already edited from the live PR
+  // body (fetched once above) so they survive this regenerate-and-force-push. Marker slicing only.
   const previewPackages = publishableUpdates(versionOutput).map((u) => u.packageName);
   let editedNotes: Record<string, string> = {};
-  if (previewNotesEnabled && existingStandingPr && githubContext?.token) {
-    try {
-      const livePr = await forgeFor(githubContext).getPullRequest(existingStandingPr.number);
-      editedNotes = extractNotesRegions(livePr.body, previewPackages);
-    } catch (err) {
-      warn(
-        `Could not read current PR body to preserve note edits: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+  if (previewNotesEnabled && liveBody) {
+    editedNotes = extractNotesRegions(liveBody, previewPackages);
   }
 
   // Generate per-package CHANGELOG.md always; LLM release notes only when previewing. To keep LLM
@@ -972,7 +980,19 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     if (Object.keys(merged).length > 0) notesRegion = renderNotesRegion(merged);
   }
 
-  const body = renderPrBody(versionOutput, supersedeWarning, notesRegion);
+  // The interactive selection region — the package list for non-sync releases. Rendered from the
+  // full changed set (dry run) so a held-back package still shows as an unticked row; sync releases
+  // are atomic and carry none. Coherence warnings (partial independent group, held-back prerequisite
+  // of a still-selected target) ride below the region and surface in the run log.
+  let selectionBlock: string | undefined;
+  if (versionOutputDry.strategy !== 'sync') {
+    const region = renderSelectionRegion(versionOutputDry, dryUpdates, effectiveDeselected);
+    const warnings = selectionWarnings(dryUpdates, effectiveDeselected, groups);
+    for (const w of warnings) warn(`Selection: ${w.reason}`);
+    selectionBlock = warnings.length > 0 ? `${region}\n\n${warnings.map((w) => `> ⚠️ ${w.reason}`).join('\n')}` : region;
+  }
+
+  const body = renderPrBody(versionOutput, supersedeWarning, notesRegion, selectionBlock);
 
   let prNumber: number;
   let prUrl: string;
@@ -1044,6 +1064,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     // Record the labels this manifest was computed under so publish can detect a stale manifest if
     // they're changed after this update without a re-run (#337).
     overrideLabels: extractOverrideLabels(existingStandingPr?.labels ?? [], ciConfig),
+    // Record any packages held back via the selection region (provenance; the release set in
+    // `versionOutput` is already narrowed). Omitted when nothing was deselected.
+    deselected: effectiveDeselected.size > 0 ? [...effectiveDeselected].sort() : undefined,
   };
 
   const manifestBody = serializeManifest(manifest);

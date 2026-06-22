@@ -265,6 +265,21 @@ describe('Version Engine', () => {
       expect(getPackagesSync).toHaveBeenCalledTimes(1);
     });
 
+    it('should drop excluded packages from the release set as the final filter', async () => {
+      const engine = new VersionEngine(defaultConfig as Config, { exclude: ['package-b'] });
+      const result = await engine.getWorkspacePackages();
+
+      expect(result.packages.map((p) => p.packageJson.name)).toEqual(['package-a']);
+      expect(log).toHaveBeenCalledWith('Exclude filter: 2 → 1 packages', 'info');
+    });
+
+    it('should leave the release set untouched when exclude is empty', async () => {
+      const engine = new VersionEngine(defaultConfig as Config, { exclude: [] });
+      const result = await engine.getWorkspacePackages();
+
+      expect(result.packages).toHaveLength(2);
+    });
+
     it('should handle missing root property by setting it to cwd', async () => {
       // Mock packages WITHOUT root - the merge function will use npmPackages.root as fallback
       const mockPackagesWithoutRoot = {

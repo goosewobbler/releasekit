@@ -344,7 +344,9 @@ on:
   pull_request:
     # closed: publish on merge. labeled/unlabeled: apply bump/scope/channel override labels to
     # the OPEN standing PR immediately (#336); also the release:retry path on the merged PR.
-    types: [closed, labeled, unlabeled]
+    # edited: a maintainer ticked/unticked packages in the PR's selection region — re-run so the
+    # held-back set applies (the bot's own body edits are filtered by the sender guard below).
+    types: [closed, labeled, unlabeled, edited]
     branches: [main]
   schedule:
     - cron: '0 * * * *'  # Hourly — re-evaluates minAge status check as time passes
@@ -362,18 +364,25 @@ permissions:
 jobs:
   update-release-pr:
     name: Update Release PR
-    # push/schedule rebuild the PR; a label change on the OPEN standing PR re-runs the update so
-    # bump/scope/channel overrides take effect within seconds. `state == 'open'` keeps this off the
-    # merged-PR label events that drive publish/retry. The `release/` prefix is hardcoded (workflow
-    # `if` can't read config) — the in-step config is authoritative.
+    # push/schedule rebuild the PR; a label change or selection-region edit on the OPEN standing PR
+    # re-runs the update so bump/scope/channel overrides and held-back packages take effect within
+    # seconds. `state == 'open'` keeps this off the merged-PR label events that drive publish/retry.
+    # The `sender.login != 'github-actions[bot]'` guard is load-bearing for `edited`: the update
+    # rewrites the PR body (an `edited` event), so without it the bot would re-trigger forever. The
+    # `release/` prefix is hardcoded (workflow `if` can't read config) — the in-step config is authoritative.
     if: >-
       github.event_name == 'push' ||
       github.event_name == 'schedule' ||
       (
         github.event_name == 'pull_request' &&
-        (github.event.action == 'labeled' || github.event.action == 'unlabeled') &&
+        (
+          github.event.action == 'labeled' ||
+          github.event.action == 'unlabeled' ||
+          github.event.action == 'edited'
+        ) &&
         github.event.pull_request.state == 'open' &&
-        startsWith(github.event.pull_request.head.ref, 'release/')
+        startsWith(github.event.pull_request.head.ref, 'release/') &&
+        github.event.sender.login != 'github-actions[bot]'
       )
     runs-on: ubuntu-latest
     steps:
@@ -541,6 +550,8 @@ A maintainer can edit labels directly on the standing PR (via the GitHub UI or `
 Conflicts (e.g. both `bump:patch` and `bump:major`) surface as a `pending` `releasekit/standing-pr` status check on the release branch and a workflow warning. The override is dropped (falls back to commit-driven) until the conflict is resolved by removing one of the labels.
 
 The `standing-pr update` workflow **preserves maintainer-added labels across runs** — labels you add stick until you remove them.
+
+**Ad-hoc package selection.** The standing PR body carries a **Packages to release** checklist — one ticked row per changed package. Untick a package to hold it back from the next release and save; the `edited` trigger re-runs `standing-pr update`, which excludes it from the version bump entirely (no orphan version lands on `main`) and records the held-back set in the manifest. The choice survives later pushes — a held-back package re-renders as an unticked row until you re-tick it. The package each row refers to is read from its `<!-- rk-sel:… -->` marker comment, so keep those intact. Unticking a member of an `independent` group, or a prerequisite still needed by a ticked target, surfaces a ⚠️ warning in the body; members of a lockstep (`fixed`/`linked`) group can't be held back individually and re-tick automatically. (Sync releases ship atomically and carry no checklist.)
 
 **Staleness guard.** The manifest records the override labels it was computed under. If the standing PR's labels are changed and it's merged before the triggered update re-runs (a narrow race), `standing-pr publish` detects that the merged PR's override labels no longer match the manifest and **refuses to publish** rather than shipping a release the labels no longer describe — re-run `standing-pr update` and merge again (or apply the retry label after updating). So a mismatched manifest can never be released, even though merge itself isn't blocked.
 

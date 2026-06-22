@@ -16,7 +16,10 @@ on:
     # closed: publish on merge. labeled/unlabeled: (1) apply bump/scope/channel
     # override labels to the OPEN standing PR immediately instead of waiting for the
     # next push or the hourly cron; (2) the release:retry path on the merged PR.
-    types: [closed, labeled, unlabeled]
+    # edited: a maintainer ticked/unticked packages in the PR's selection region —
+    # re-run so the held-back set applies (the bot's own body edits are filtered by
+    # the sender guard below to avoid a loop).
+    types: [closed, labeled, unlabeled, edited]
     branches: [main]
   schedule:
     - cron: '0 * * * *' # hourly: advances the minAge status check as time passes
@@ -34,18 +37,25 @@ permissions:
 jobs:
   update:
     name: Update Release PR
-    # push/schedule rebuild the PR; a label change on the OPEN standing PR re-runs the update
-    # so bump/scope/channel overrides take effect within seconds. `state == 'open'` keeps this
-    # off the merged-PR label events that drive publish/retry below. The `release/` prefix is
-    # hardcoded (workflow `if` can't read config) — the in-step config is authoritative.
+    # push/schedule rebuild the PR; a label change or selection-region edit on the OPEN standing PR
+    # re-runs the update so bump/scope/channel overrides and held-back packages take effect within
+    # seconds. `state == 'open'` keeps this off the merged-PR label events that drive publish/retry
+    # below. The `sender.login != 'github-actions[bot]'` guard is load-bearing for `edited`: the
+    # update rewrites the PR body (an `edited` event), so without it the bot would re-trigger forever.
+    # The `release/` prefix is hardcoded (workflow `if` can't read config) — in-step config is authoritative.
     if: >-
       github.event_name == 'push' ||
       github.event_name == 'schedule' ||
       (
         github.event_name == 'pull_request' &&
-        (github.event.action == 'labeled' || github.event.action == 'unlabeled') &&
+        (
+          github.event.action == 'labeled' ||
+          github.event.action == 'unlabeled' ||
+          github.event.action == 'edited'
+        ) &&
         github.event.pull_request.state == 'open' &&
-        startsWith(github.event.pull_request.head.ref, 'release/')
+        startsWith(github.event.pull_request.head.ref, 'release/') &&
+        github.event.sender.login != 'github-actions[bot]'
       )
     runs-on: ubuntu-latest
     steps:

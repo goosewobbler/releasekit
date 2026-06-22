@@ -463,6 +463,44 @@ describe('runStandingPRUpdate', () => {
     expect(body).toContain('(minor)');
   });
 
+  it('should exclude a package the maintainer unticked in the selection region (#367)', async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([
+        { packageName: '@scope/a', newVersion: '1.1.0' },
+        { packageName: '@scope/b', newVersion: '2.0.0' },
+      ]),
+      strategy: 'async' as const,
+    };
+    vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    // The live PR body carries a prior selection with @scope/b unticked.
+    const priorBody = [
+      '<!-- releasekit-selection -->',
+      '',
+      '- [x] `@scope/a` → 1.1.0 <!-- rk-sel:@scope/a -->',
+      '- [ ] `@scope/b` → 2.0.0 <!-- rk-sel:@scope/b -->',
+      '',
+      '<!-- releasekit-selection-end -->',
+    ].join('\n');
+    const forge = await mockForge({
+      standingPR: openStandingPR(99),
+      pullRequests: { 99: { body: priorBody, labels: [] } },
+    });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    // The write run (second call) excludes the unticked package so it is never bumped.
+    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { exclude?: string[] };
+    expect(writeCall.exclude).toEqual(['@scope/b']);
+
+    // The regenerated body preserves the untick (merge-preserve) — @scope/b stays unticked, @scope/a ticked.
+    const updatedBody = forge.updatedPullRequests[0]?.changes.body ?? '';
+    expect(updatedBody).toContain('- [ ] `@scope/b`');
+    expect(updatedBody).toContain('- [x] `@scope/a`');
+  });
+
   it('should bypass the initial skip-pattern guard on a pull_request label event (#336)', async () => {
     // A label event checks out the standing PR's `chore: release preparation` commit (matches the
     // skip pattern) — the first guard would noop. A label-triggered run must proceed. The post-reset
@@ -704,8 +742,8 @@ describe('runStandingPRUpdate', () => {
     // the 64,001–65,535 safety margin still fails the test.
     expect(body.length).toBeLessThanOrEqual(STANDING_PR_BODY_CAP);
     expect(body).toContain('Changelog truncated');
-    // The package table above the changelog is preserved so the PR is still usable.
-    expect(body).toContain('| `@scope/core` | 1.0.0 |');
+    // The selection region above the changelog is preserved so the PR is still usable.
+    expect(body).toContain('- [x] `@scope/core` → 1.0.0');
   });
 
   it('should omit the ### Changelog section when all updates are sync-bumped (no entries)', async () => {

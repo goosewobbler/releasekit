@@ -11,6 +11,8 @@ export interface ReleaseOptions {
   target?: string;
   /** Also release the changed internal dependencies of `target` packages (and the rest of their groups). */
   includePrerequisites?: boolean;
+  /** Package names to drop from the release set (standing-PR ad-hoc deselection). Exact name match. */
+  exclude?: string[];
   scope?: string;
   branch?: string;
   skipNotes: boolean;
