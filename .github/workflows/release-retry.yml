@@ -39,7 +39,7 @@ jobs:
       # `main`: the standing PR's branch is typically deleted on merge, so the PR head ref may no
       # longer exist when this runs.
       - name: Checkout config
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7
         with:
           ref: main
           sparse-checkout: releasekit.config.json
