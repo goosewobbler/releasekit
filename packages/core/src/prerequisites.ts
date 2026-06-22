@@ -49,5 +49,6 @@ export function resolvePrerequisites(
   // alone would miss that cross-boundary edge (the target isn't in the slice).
   const prerequisites = graph.topologicalOrder([...targetSet]).filter((name) => prereqSet.has(name));
 
-  return { targets: explicitTargets, prerequisites, targetSet };
+  // Return a copy of the targets, not the caller's array, so all three fields are freshly owned.
+  return { targets: [...explicitTargets], prerequisites, targetSet };
 }
