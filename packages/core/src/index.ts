@@ -32,6 +32,7 @@ export {
   shouldMatchPackageTargets,
   shouldProcessPackage,
 } from './packageUtils.js';
+export { type PrerequisiteResolution, resolvePrerequisites } from './prerequisites.js';
 export type {
   VersionChangelogEntry,
   VersionOutput,
