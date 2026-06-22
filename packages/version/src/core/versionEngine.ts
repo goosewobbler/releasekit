@@ -11,6 +11,7 @@ import { createVersionError, VersionError, VersionErrorCode } from '../errors/ve
 import { getCommitsLength, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import type { Config, VersionRunOptions } from '../types.js';
 import { formatVersionPrefix } from '../utils/formatting.js';
+import { tagPrerequisiteRoles } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { resolvePrerequisiteTargets } from './prerequisiteScope.js';
 import { createStrategy, createStrategyMap, type StrategyFunction, type StrategyType } from './versionStrategies.js';
@@ -31,6 +32,9 @@ export class VersionEngine {
   private currentStrategy: StrategyFunction;
   private runtimeTargets: string[] = [];
   private includePrerequisites = false;
+  /** Prereq → target(s) it was pulled in for, captured during prerequisite resolution; used after
+   *  `run()` to tag each update's role/prerequisiteOf. Empty unless prerequisites were derived. */
+  private prerequisiteOf: Record<string, string[]> = {};
 
   constructor(config: Config, runOptions?: VersionRunOptions) {
     // Validate required configuration
@@ -417,7 +421,7 @@ export class VersionEngine {
       if (this.includePrerequisites && this.runtimeTargets.length > 0) {
         const graph = buildWorkspaceGraph(mergedPackages.packages);
         const changed = await this.detectChangedPackages(mergedPackages.packages);
-        const { targets, overrideScope } = resolvePrerequisiteTargets(
+        const { targets, overrideScope, prerequisiteOf } = resolvePrerequisiteTargets(
           graph,
           mergedPackages.packages,
           this.config,
@@ -430,6 +434,7 @@ export class VersionEngine {
         );
         this.runtimeTargets = targets;
         this.config.overrideScope = overrideScope;
+        this.prerequisiteOf = prerequisiteOf;
         // Rebuild strategies so they pick up the override scope derived from the workspace graph.
         this.strategies = createStrategyMap(this.config);
         this.currentStrategy = createStrategy(this.config);
@@ -506,7 +511,13 @@ export class VersionEngine {
   public async run(packages: PackagesWithRoot, targets: string[] = []): Promise<void> {
     try {
       // Execute the strategy function
-      return this.currentStrategy(packages, targets);
+      await this.currentStrategy(packages, targets);
+      // Once the strategy has produced the updates, tag each one's role: explicit (group-expanded)
+      // targets keep the override; derived prerequisites carry their own bump and record the
+      // target(s) they were pulled in for. Only when prerequisites were actually derived.
+      if (Object.keys(this.prerequisiteOf).length > 0) {
+        tagPrerequisiteRoles(this.config.overrideScope ?? [], this.prerequisiteOf);
+      }
     } catch (error) {
       if (error instanceof VersionError || error instanceof GitError) {
         log(`Version engine failed: ${error.message} (${error.code || 'UNKNOWN'})`, 'error');

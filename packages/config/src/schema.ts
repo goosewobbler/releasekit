@@ -512,6 +512,12 @@ export const CILabelsConfigSchema = z.object({
   major: z.string().default('bump:major').describe('Label to force a major bump'),
   minor: z.string().default('bump:minor').describe('Label to force a minor bump'),
   patch: z.string().default('bump:patch').describe('Label to force a patch bump'),
+  withPrerequisites: z
+    .string()
+    .default('release:with-prerequisites')
+    .describe(
+      'Label on the standing PR that also releases the changed prerequisites (transitive internal dependencies) of the targeted/scoped packages — each at its own commit-driven bump. Standing-pr mode only.',
+    ),
 });
 
 export const StandingPrConfigSchema = z.object({
@@ -590,6 +596,7 @@ export const CIConfigSchema = z.object({
     major: 'bump:major',
     minor: 'bump:minor',
     patch: 'bump:patch',
+    withPrerequisites: 'release:with-prerequisites',
   }).describe("PR label names used for release control. Override to match your repository's label conventions."),
   scopeLabels: z
     .record(z.string(), z.string())

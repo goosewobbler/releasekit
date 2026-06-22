@@ -13,6 +13,7 @@ import {
   setCommitMessage,
   setPackageUpdateTag,
   setVersioningStrategy,
+  tagPrerequisiteRoles,
 } from '../../../src/utils/jsonOutput.js';
 
 vi.mock('node:fs');
@@ -46,6 +47,7 @@ describe('JSON Output Utilities', () => {
       addPackageUpdate('test-package', '1.0.0', '/path/to/package.json');
       addTag('v1.0.0');
       setCommitMessage('Release v1.0.0');
+      // (tagPrerequisiteRoles is exercised in its own describe below.)
 
       // Check data was added
       const updatedData = getJsonData();
@@ -363,6 +365,25 @@ describe('JSON Output Utilities', () => {
       const parsed = JSON.parse(output);
       expect(parsed.changelogs).toHaveLength(1);
       expect(parsed.changelogs[0].entries[0].description).toBe('New feature');
+    });
+  });
+
+  describe('tagPrerequisiteRoles', () => {
+    it('should tag override-scope packages as targets and the rest as prerequisites', () => {
+      enableJsonOutput(true);
+      addPackageUpdate('app', '2.0.0', 'packages/app/package.json');
+      addPackageUpdate('core', '1.1.0', 'packages/core/package.json');
+      addPackageUpdate('root', '0.0.1', 'package.json', true);
+
+      tagPrerequisiteRoles(['app'], { core: ['app'] });
+
+      const updates = getJsonData().updates;
+      const byName = (n: string) => updates.find((u) => u.packageName === n);
+      expect(byName('app')).toMatchObject({ role: 'target' });
+      expect(byName('app')?.prerequisiteOf).toBeUndefined();
+      expect(byName('core')).toMatchObject({ role: 'prerequisite', prerequisiteOf: ['app'] });
+      // The root lockstep bump is neither a target nor a prerequisite — left untagged.
+      expect(byName('root')?.role).toBeUndefined();
     });
   });
 });

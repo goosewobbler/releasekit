@@ -8,6 +8,7 @@ export interface LabelConfig {
   major: string;
   minor: string;
   patch: string;
+  withPrerequisites: string;
 }
 
 export const DEFAULT_LABELS: LabelConfig = {
@@ -20,6 +21,7 @@ export const DEFAULT_LABELS: LabelConfig = {
   major: 'bump:major',
   minor: 'bump:minor',
   patch: 'bump:patch',
+  withPrerequisites: 'release:with-prerequisites',
 };
 
 export interface LabelConflictResult {

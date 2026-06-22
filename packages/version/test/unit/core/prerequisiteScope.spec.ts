@@ -35,6 +35,7 @@ describe('resolvePrerequisiteTargets', () => {
     const result = resolvePrerequisiteTargets(graph, packages, baseConfig(), ['app'], () => true);
     expect(new Set(result.targets)).toEqual(new Set(['app', 'utils', 'types', 'core']));
     expect(result.overrideScope).toEqual(['app']);
+    expect(result.prerequisiteOf).toEqual({ utils: ['app'], types: ['app'], core: ['app'] });
   });
 
   it('should not pull in unchanged dependencies', () => {

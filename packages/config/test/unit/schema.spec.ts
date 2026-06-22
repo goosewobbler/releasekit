@@ -517,6 +517,7 @@ describe('CIConfigSchema', () => {
       major: 'bump:major',
       minor: 'bump:minor',
       patch: 'bump:patch',
+      withPrerequisites: 'release:with-prerequisites',
     });
   });
 

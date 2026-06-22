@@ -25,6 +25,12 @@ export interface PrerequisiteResolution {
   prerequisites: string[];
   /** Everything that will release: targets ∪ prerequisites. */
   targetSet: Set<string>;
+  /**
+   * For each derived prerequisite, the explicit target(s) that pulled it in (i.e. the targets that
+   * transitively depend on it). A shared dependency can serve several targets. Lets callers render
+   * "target → its prerequisites" without re-walking the graph.
+   */
+  prerequisiteOf: Record<string, string[]>;
 }
 
 export function resolvePrerequisites(
@@ -35,11 +41,16 @@ export function resolvePrerequisites(
   const changed = new Set(changedPackages);
   const targetSet = new Set(explicitTargets);
   const prereqSet = new Set<string>();
+  const prerequisiteOf: Record<string, string[]> = {};
 
   for (const target of explicitTargets) {
     for (const dep of graph.transitiveDependencies(target)) {
       // A dependency is a prerequisite only when it actually changed and isn't itself a target.
-      if (changed.has(dep) && !targetSet.has(dep)) prereqSet.add(dep);
+      // `targetSet` here still holds only the explicit targets (prerequisites are added below).
+      if (changed.has(dep) && !targetSet.has(dep)) {
+        prereqSet.add(dep);
+        prerequisiteOf[dep] = [...(prerequisiteOf[dep] ?? []), target];
+      }
     }
   }
   for (const name of prereqSet) targetSet.add(name);
@@ -49,6 +60,6 @@ export function resolvePrerequisites(
   // alone would miss that cross-boundary edge (the target isn't in the slice).
   const prerequisites = graph.topologicalOrder([...targetSet]).filter((name) => prereqSet.has(name));
 
-  // Return a copy of the targets, not the caller's array, so all three fields are freshly owned.
-  return { targets: [...explicitTargets], prerequisites, targetSet };
+  // Return a copy of the targets, not the caller's array, so all fields are freshly owned.
+  return { targets: [...explicitTargets], prerequisites, targetSet, prerequisiteOf };
 }

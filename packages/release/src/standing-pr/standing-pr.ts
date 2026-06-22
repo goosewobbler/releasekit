@@ -6,6 +6,7 @@ import type { VersionOutput } from '@releasekit/core';
 import { error, info, markerData, success, warn } from '@releasekit/core';
 import { type Forge, forgeErrorStatus, type PullRequestDetails } from '@releasekit/forge';
 import { PipelineError } from '@releasekit/publish';
+import semver from 'semver';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration, parseDuration } from '../duration.js';
 import { renderSupersedeWarning } from '../failure-report/failure-report.js';
@@ -379,6 +380,35 @@ function truncateAtLineBoundary(text: string, maxChars: number): string {
   return lastNewline > 0 ? slice.slice(0, lastNewline) : slice;
 }
 
+/** A ` (minor)`-style bump suffix derived from the package's previous→new version, when known. */
+function bumpSuffix(versionOutput: VersionOutput, packageName: string, newVersion: string): string {
+  const previous = versionOutput.changelogs.find((c) => c.packageName === packageName)?.previousVersion;
+  if (!previous) return '';
+  const kind = semver.diff(previous, newVersion);
+  return kind ? ` (${kind})` : '';
+}
+
+/**
+ * Render the release set grouped by target → its derived prerequisites (a `--include-prerequisites`
+ * / `release:with-prerequisites` run). Each prerequisite shows its own commit-driven bump; a shared
+ * prerequisite is listed under every target that pulled it in.
+ */
+function renderPrerequisiteSet(versionOutput: VersionOutput, updates: VersionOutput['updates']): string[] {
+  const lines = ['Merging this PR will publish the targeted packages and their changed prerequisites:', ''];
+  const prerequisites = updates.filter((u) => u.role === 'prerequisite');
+  for (const target of updates.filter((u) => u.role === 'target')) {
+    lines.push(
+      `- **\`${target.packageName}\`** → ${target.newVersion}${bumpSuffix(versionOutput, target.packageName, target.newVersion)}`,
+    );
+    for (const prereq of prerequisites.filter((p) => p.prerequisiteOf?.includes(target.packageName))) {
+      lines.push(
+        `  - ↳ prerequisite \`${prereq.packageName}\` → ${prereq.newVersion}${bumpSuffix(versionOutput, prereq.packageName, prereq.newVersion)}`,
+      );
+    }
+  }
+  return lines;
+}
+
 function renderPrBody(versionOutput: VersionOutput, supersedeWarning?: string[], notesRegion?: string): string {
   // Build the body around a given changelog section so we can re-render with a truncated changelog
   // if the full one would exceed GitHub's limit, without disturbing the editable notes region.
@@ -394,7 +424,10 @@ function renderPrBody(versionOutput: VersionOutput, supersedeWarning?: string[],
     // The root lockstep bump (sync mode) is never published — keep it out of the package list.
     const updates = publishableUpdates(versionOutput);
 
-    if (versionOutput.strategy === 'sync') {
+    if (updates.some((u) => u.role === 'prerequisite')) {
+      // Prerequisite mode: group targets → their derived prerequisites instead of a flat list.
+      lines.push(...renderPrerequisiteSet(versionOutput, updates));
+    } else if (versionOutput.strategy === 'sync') {
       // Sync releases move as one unit — lead with the version; a per-row version column
       // would repeat the same value for every package.
       lines.push(`Merging this PR will publish **${syncVersionDisplay(versionOutput)}**:`, '');
@@ -564,6 +597,8 @@ interface StandingPrOverrides {
   target?: string;
   stable?: boolean;
   prerelease?: boolean;
+  /** Also release the targeted packages' changed prerequisites (the `release:with-prerequisites` label). */
+  withPrerequisites?: boolean;
   /** Human-readable conflict descriptions (used for the pending status check). Empty when no conflict. */
   conflicts: string[];
 }
@@ -583,6 +618,7 @@ function extractOverrideLabels(prLabels: string[], ciConfig: CIConfig | undefine
     labels.patch,
     labels.stable,
     labels.prerelease,
+    labels.withPrerequisites,
     ...Object.keys(scopeLabels),
   ]);
   return [...new Set(prLabels.filter((l) => relevant.has(l)))].sort();
@@ -640,7 +676,11 @@ function resolveStandingPrLabelOverrides(prLabels: string[], ciConfig: CIConfig 
   // channel:prerelease label still lets commits pick the magnitude.)
   const composedBump = stable ? undefined : bump && prerelease ? (`pre${bump}` as const) : bump;
 
-  return { bump: composedBump, target, stable, prerelease, conflicts };
+  // Orthogonal to bump/channel/scope: pull in the targets' changed prerequisites. Only takes effect
+  // when there is a target (the engine derives prerequisites from the targeted set).
+  const withPrerequisites = prLabels.includes(labels.withPrerequisites) || undefined;
+
+  return { bump: composedBump, target, stable, prerelease, withPrerequisites, conflicts };
 }
 
 interface BuildOptionsExtras {
@@ -744,18 +784,19 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const sync = releaseKitConfig.version?.sync ?? false;
   // When labels conflict, drop the override (fall back to commit-driven) but keep the
   // conflict descriptions for the final status check.
-  // CLI --target (ad-hoc override) wins over the label-derived target; --include-prerequisites opts
-  // the targeted set's changed dependencies into the release either way.
+  // CLI --target (ad-hoc override) wins over the label-derived target; prerequisites are opted in by
+  // the CLI flag OR the `release:with-prerequisites` label, either way.
   const cliTarget = options.target ?? overrides.target;
+  const includePrerequisites = options.includePrerequisites || overrides.withPrerequisites;
   const buildExtras: BuildOptionsExtras = overrides.conflicts.length
-    ? { sync, target: cliTarget, includePrerequisites: options.includePrerequisites }
+    ? { sync, target: cliTarget, includePrerequisites }
     : {
         sync,
         bump: overrides.bump,
         target: cliTarget,
         stable: overrides.stable,
         prerelease: overrides.prerelease,
-        includePrerequisites: options.includePrerequisites,
+        includePrerequisites,
       };
 
   // Dry-run version analysis to compute bumps without writing

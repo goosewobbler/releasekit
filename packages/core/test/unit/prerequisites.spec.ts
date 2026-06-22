@@ -68,6 +68,19 @@ describe('resolvePrerequisites', () => {
     expect(prerequisites).toEqual(['core']);
   });
 
+  it('should record which target each prerequisite was pulled in for', () => {
+    const { prerequisiteOf } = resolvePrerequisites(graph, ['app'], ['app', 'utils', 'types', 'core']);
+    expect(prerequisiteOf.utils).toEqual(['app']);
+    expect(prerequisiteOf.types).toEqual(['app']);
+    expect(prerequisiteOf.core).toEqual(['app']);
+  });
+
+  it('should list a shared prerequisite under every target that depends on it', () => {
+    // Both utils and types depend on core, so core is a prerequisite of both.
+    const { prerequisiteOf } = resolvePrerequisites(graph, ['utils', 'types'], ['utils', 'types', 'core']);
+    expect(new Set(prerequisiteOf.core)).toEqual(new Set(['utils', 'types']));
+  });
+
   it('should not throw and derive nothing for a target outside the graph', () => {
     const { targets, prerequisites } = resolvePrerequisites(graph, ['ghost'], ['ghost', 'core']);
     expect(targets).toEqual(['ghost']);

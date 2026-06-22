@@ -404,6 +404,7 @@ PR label names used for release control. Override to match your repository's lab
 | `major` | string | `"bump:major"` | Label to force a major bump |
 | `minor` | string | `"bump:minor"` | Label to force a minor bump |
 | `patch` | string | `"bump:patch"` | Label to force a patch bump |
+| `withPrerequisites` | string | `"release:with-prerequisites"` | Label on the standing PR that also releases the changed prerequisites (transitive internal dependencies) of the targeted/scoped packages — each at its own commit-driven bump. Standing-pr mode only. |
 
 ### `ci.standingPr`
 

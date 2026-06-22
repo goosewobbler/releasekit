@@ -125,6 +125,25 @@ export function setPackageUpdateGroup(packageName: string, group: string): void 
 }
 
 /**
+ * Tag each package update's role for a `--include-prerequisites` run: a package in `overrideScope`
+ * is a `'target'`; one listed in `prerequisiteOf` is a `'prerequisite'` carrying the target(s) it
+ * was pulled in for. Updates in neither (e.g. the root lockstep bump) are left untagged. Called by
+ * the engine after the strategy has produced the updates.
+ */
+export function tagPrerequisiteRoles(overrideScope: string[], prerequisiteOf: Record<string, string[]>): void {
+  if (!_jsonOutputMode) return;
+  const targets = new Set(overrideScope);
+  for (const update of _jsonData.updates) {
+    if (targets.has(update.packageName)) {
+      update.role = 'target';
+    } else if (prerequisiteOf[update.packageName]) {
+      update.role = 'prerequisite';
+      update.prerequisiteOf = prerequisiteOf[update.packageName];
+    }
+  }
+}
+
+/**
  * Add changelog data for a package to the JSON output
  */
 export function addChangelogData(data: VersionPackageChangelog): void {
