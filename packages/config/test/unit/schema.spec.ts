@@ -167,9 +167,17 @@ describe('VersionConfigSchema', () => {
   it('should reject a group with an invalid sync mode', () => {
     expect(() =>
       VersionConfigSchema.parse({
-        groups: { native: { packages: ['@wdio/native-*'], sync: 'independent' } },
+        groups: { native: { packages: ['@wdio/native-*'], sync: 'frozen' } },
       }),
     ).toThrow();
+  });
+
+  it('should accept an independent group', () => {
+    const result = VersionConfigSchema.parse({
+      sync: false,
+      groups: { native: { packages: ['@wdio/native-*'], sync: 'independent' } },
+    });
+    expect(result.groups?.native.sync).toBe('independent');
   });
 
   it('should leave groups undefined when not specified', () => {

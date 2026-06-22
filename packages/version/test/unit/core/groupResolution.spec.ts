@@ -1,7 +1,7 @@
 import type { Package } from '@manypkg/get-packages';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  expandTargetsForFixedGroups,
+  expandTargetsForAtomicGroups,
   hasExplicitGroups,
   hasGroups,
   IMPLICIT_SYNC_GROUP,
@@ -139,7 +139,7 @@ describe('groupResolution', () => {
     });
   });
 
-  describe('expandTargetsForFixedGroups (--target on a subset of a fixed group)', () => {
+  describe('expandTargetsForAtomicGroups (--target on a subset of an atomic group)', () => {
     const packages = [pkg('@wdio/native-core'), pkg('@wdio/native-utils'), pkg('@wdio/native-spy')];
 
     it('should expand a strict subset of a fixed group to the whole group', () => {
@@ -147,7 +147,7 @@ describe('groupResolution', () => {
         base({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
         packages,
       );
-      const { targets, expandedGroups } = expandTargetsForFixedGroups(res, ['@wdio/native-core']);
+      const { targets, expandedGroups } = expandTargetsForAtomicGroups(res, ['@wdio/native-core']);
       expect(new Set(targets)).toEqual(new Set(['@wdio/native-core', '@wdio/native-utils', '@wdio/native-spy']));
       expect(expandedGroups).toEqual(['native']);
     });
@@ -157,8 +157,18 @@ describe('groupResolution', () => {
         base({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
         packages,
       );
-      const { expandedGroups } = expandTargetsForFixedGroups(res, ['@wdio/native-*']);
+      const { expandedGroups } = expandTargetsForAtomicGroups(res, ['@wdio/native-*']);
       expect(expandedGroups).toEqual([]);
+    });
+
+    it('should expand a strict subset of an independent group to the whole group', () => {
+      const res = resolveGroups(
+        base({ groups: { native: { packages: ['@wdio/native-*'], sync: 'independent' } } }),
+        packages,
+      );
+      const { targets, expandedGroups } = expandTargetsForAtomicGroups(res, ['@wdio/native-core']);
+      expect(new Set(targets)).toEqual(new Set(['@wdio/native-core', '@wdio/native-utils', '@wdio/native-spy']));
+      expect(expandedGroups).toEqual(['native']);
     });
 
     it('should NOT expand a linked group (partial targeting is well defined there)', () => {
@@ -166,7 +176,7 @@ describe('groupResolution', () => {
         base({ groups: { native: { packages: ['@wdio/native-*'], sync: 'linked' } } }),
         packages,
       );
-      const { targets, expandedGroups } = expandTargetsForFixedGroups(res, ['@wdio/native-core']);
+      const { targets, expandedGroups } = expandTargetsForAtomicGroups(res, ['@wdio/native-core']);
       expect(targets).toEqual(['@wdio/native-core']);
       expect(expandedGroups).toEqual([]);
     });
@@ -176,7 +186,7 @@ describe('groupResolution', () => {
         base({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
         packages,
       );
-      expect(expandTargetsForFixedGroups(res, [])).toEqual({ targets: [], expandedGroups: [] });
+      expect(expandTargetsForAtomicGroups(res, [])).toEqual({ targets: [], expandedGroups: [] });
     });
   });
 });

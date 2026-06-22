@@ -123,9 +123,10 @@
                 "type": "string",
                 "enum": [
                   "fixed",
-                  "linked"
+                  "linked",
+                  "independent"
                 ],
-                "description": "fixed: all members release together at the shared group version. linked: only changed members release, all at the same computed version."
+                "description": "fixed: all members release together at the shared group version. linked: only changed members release, all at the same computed version. independent: only changed members release, each on its own commit-driven version line (no shared version), but the set ships atomically."
               }
             },
             "required": [
@@ -133,7 +134,7 @@
               "sync"
             ]
           },
-          "description": "Named version groups. Each group binds a set of package patterns to a fixed or linked sync mode. fixed: any releasable change in any member releases ALL members at the shared group version (bump(max(member baselines))). linked: only members with releasable changes release, but every releasing member shares the same computed version. Packages not matched by any group version independently. A package may belong to at most one group. Set version.sync to false when using groups.",
+          "description": "Named version groups. Each group binds a set of package patterns to a fixed, linked, or independent sync mode. fixed: any releasable change in any member releases ALL members at the shared group version (bump(max(member baselines))). linked: only members with releasable changes release, but every releasing member shares the same computed version. independent: only members with releasable changes release, each on its own commit-driven version line (no shared version), but the set is atomic — targeting any member pulls in the whole group. Packages not matched by any group version independently. A package may belong to at most one group. Set version.sync to false when using groups.",
           "propertyNames": {
             "type": "string"
           }

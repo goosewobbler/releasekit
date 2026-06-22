@@ -106,7 +106,7 @@ of the monorepo versions independently. Each entry under `groups` is a group nam
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `packages` | `string[]` | — | Package patterns (exact names, @scope/*, or globs) whose matched packages form this group. Same matching rules as version.packages. |
-| `sync` | `"fixed"` \| `"linked"` | — | fixed: all members release together at the shared group version. linked: only changed members release, all at the same computed version. |
+| `sync` | `"fixed"` \| `"linked"` \| `"independent"` | — | fixed: all members release together at the shared group version. linked: only changed members release, all at the same computed version. independent: only changed members release, each on its own commit-driven version line (no shared version), but the set ships atomically. |
 
 - **`fixed`** — any releasable change in *any* member releases **all** members at the shared
   group version, computed as `bump(max(member baselines))`. This is the changesets `fixed`
@@ -114,6 +114,11 @@ of the monorepo versions independently. Each entry under `groups` is a group nam
   group of every package — there is one mechanism, not two.
 - **`linked`** — only members with a releasable change release, but every releasing member
   shares the same computed version. Unchanged members are left untouched (no empty re-release).
+- **`independent`** — only members with a releasable change release, each on its **own**
+  commit-driven version line (no shared group version). The set is still atomic: targeting any
+  member pulls in the whole group, and dropping a changed member (via `config.skip`) warns. Use
+  this for packages coupled by a contract but versioned separately (e.g. a wire protocol across
+  an npm package and a Rust crate on different version lines).
 
 **Group baseline** is the highest member version found in tags / manifests; the group bumps
 from there.
@@ -123,9 +128,9 @@ from there.
 > releases at `2.4.0`, skipping its own `1.x` line), overriding the per-package "initial version
 > from `package.json`" rule. The version step warns when the jump skips versions.
 
-**`--target` and fixed groups.** Targeting a strict subset of a `fixed` group expands to the
-whole group (a fixed group never silently splits). `linked` groups and ungrouped packages honor
-targets as-is.
+**`--target` and atomic groups.** Targeting a strict subset of an atomic group (`fixed` or
+`independent`) expands to the whole group, so it never silently splits. `linked` groups and
+ungrouped packages honor targets as-is.
 
 **Workspace pins.** Intra-group `workspace:*` dependencies resolve to the group version within a
 run, so a fixed group publishes internally consistent.
