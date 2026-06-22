@@ -20,5 +20,6 @@ export type {
   ReleaseChanges,
   ReleaseRef,
   ReleaseSummary,
+  RepoPermission,
   StandingPullRequest,
 } from './types.js';

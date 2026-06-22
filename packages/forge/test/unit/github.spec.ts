@@ -12,6 +12,7 @@ function makeOctokit() {
     createRelease: vi.fn(),
     updateRelease: vi.fn(),
     getReleaseByTag: vi.fn(),
+    getCollaboratorPermissionLevel: vi.fn(),
     pullsList: vi.fn(),
     pullsGet: vi.fn(),
     pullsCreate: vi.fn(),
@@ -33,6 +34,7 @@ function makeOctokit() {
         createRelease: fns.createRelease,
         updateRelease: fns.updateRelease,
         getReleaseByTag: fns.getReleaseByTag,
+        getCollaboratorPermissionLevel: fns.getCollaboratorPermissionLevel,
       },
       pulls: {
         list: fns.pullsList,
@@ -372,6 +374,33 @@ describe('GitHubForge', () => {
 describe('createGitHubForge', () => {
   it('should build a GitHubForge bound to owner/repo', () => {
     expect(createGitHubForge({ token: 't', owner: 'o', repo: 'r' })).toBeInstanceOf(GitHubForge);
+  });
+});
+
+describe('GitHubForge.getActorPermission', () => {
+  it('should prefer role_name so maintain/triage are distinguished', async () => {
+    const { octokit, fns } = makeOctokit();
+    fns.getCollaboratorPermissionLevel.mockResolvedValue({ data: { permission: 'write', role_name: 'maintain' } });
+    expect(await new GitHubForge(octokit, 'o', 'r').getActorPermission('alice')).toBe('maintain');
+    expect(fns.getCollaboratorPermissionLevel).toHaveBeenCalledWith({ owner: 'o', repo: 'r', username: 'alice' });
+  });
+
+  it('should fall back to permission when role_name is unrecognised', async () => {
+    const { octokit, fns } = makeOctokit();
+    fns.getCollaboratorPermissionLevel.mockResolvedValue({ data: { permission: 'admin', role_name: 'custom' } });
+    expect(await new GitHubForge(octokit, 'o', 'r').getActorPermission('bob')).toBe('admin');
+  });
+
+  it('should return none when the user is not a collaborator (404)', async () => {
+    const { octokit, fns } = makeOctokit();
+    fns.getCollaboratorPermissionLevel.mockRejectedValue(Object.assign(new Error('404'), { status: 404 }));
+    expect(await new GitHubForge(octokit, 'o', 'r').getActorPermission('stranger')).toBe('none');
+  });
+
+  it('should rethrow non-404 errors (e.g. a mis-scoped token) rather than silently report none', async () => {
+    const { octokit, fns } = makeOctokit();
+    fns.getCollaboratorPermissionLevel.mockRejectedValue(Object.assign(new Error('403'), { status: 403 }));
+    await expect(new GitHubForge(octokit, 'o', 'r').getActorPermission('alice')).rejects.toThrow('403');
   });
 });
 

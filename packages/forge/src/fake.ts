@@ -14,6 +14,7 @@ import type {
   ReleaseChanges,
   ReleaseRef,
   ReleaseSummary,
+  RepoPermission,
   StandingPullRequest,
 } from './types.js';
 
@@ -39,6 +40,8 @@ export interface FakeForgeSeed {
   labelNames?: string[];
   releases?: ReleaseSummary[];
   releasesByTag?: Record<string, ReleaseRef>;
+  /** Per-username repo permission. Unseeded usernames resolve to 'none'. */
+  actorPermissions?: Record<string, RepoPermission>;
 }
 
 /**
@@ -57,6 +60,7 @@ export class FakeForge implements Forge {
   labelNames: string[];
   private readonly releases: ReleaseSummary[];
   private readonly releasesByTag: Record<string, ReleaseRef>;
+  private readonly actorPermissions: Record<string, RepoPermission>;
 
   // Recorded writes, for assertions.
   readonly createdComments: Array<{ prNumber: number; body: string }> = [];
@@ -85,7 +89,16 @@ export class FakeForge implements Forge {
     this.labelNames = [...(seed.labelNames ?? [])];
     this.releases = seed.releases ?? [];
     this.releasesByTag = seed.releasesByTag ?? {};
+    this.actorPermissions = seed.actorPermissions ?? {};
     this.nextCommentId = Math.max(0, ...this.comments.map((c) => c.id)) + 1;
+  }
+
+  async getActorPermission(username: string): Promise<RepoPermission> {
+    // GitHub resolves usernames case-insensitively (Alice === alice); match the real adapter so the
+    // fake doesn't diverge. Unseeded → 'none'.
+    const lc = username.toLowerCase();
+    const key = Object.keys(this.actorPermissions).find((k) => k.toLowerCase() === lc);
+    return (key !== undefined ? this.actorPermissions[key] : undefined) ?? 'none';
   }
 
   async listPullRequestsForCommit(commitSha: string): Promise<AssociatedPullRequest[]> {

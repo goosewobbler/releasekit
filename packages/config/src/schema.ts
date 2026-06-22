@@ -555,6 +555,25 @@ export const StandingPrConfigSchema = z.object({
     .describe(
       'Minimum number of packages with releasable changes required to create or maintain the standing PR. Below this threshold the PR is closed and no new PR is opened.',
     ),
+  authorization: z
+    .object({
+      requiredPermission: z
+        .enum(['admin', 'maintain', 'write'])
+        .default('admin')
+        .describe(
+          'Minimum repository permission an actor needs to steer the standing PR — tick/untick selection checkboxes, apply release labels, and (with branch protection) merge. Default: admin.',
+        ),
+      allowedActors: z
+        .array(z.string())
+        .optional()
+        .describe(
+          'Extra actors authorized regardless of permission level: GitHub usernames. (Team support via "@org/team" entries is added separately and requires an org-read token, not the default GITHUB_TOKEN.)',
+        ),
+    })
+    .optional()
+    .describe(
+      'Restrict who can steer the standing PR — its selection checkboxes, release labels, and merge. Omit to allow anyone with the GitHub permission GitHub itself requires for each action (today’s behavior).',
+    ),
 });
 
 export const CIConfigSchema = z.object({

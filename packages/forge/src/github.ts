@@ -1,4 +1,5 @@
 import { Octokit } from '@octokit/rest';
+import { forgeErrorStatus } from './errors.js';
 import type {
   AssociatedPullRequest,
   CommitStatus,
@@ -16,8 +17,11 @@ import type {
   ReleaseChanges,
   ReleaseRef,
   ReleaseSummary,
+  RepoPermission,
   StandingPullRequest,
 } from './types.js';
+
+const REPO_PERMISSIONS: readonly RepoPermission[] = ['admin', 'maintain', 'write', 'triage', 'read', 'none'];
 
 /** Releases are listed at most this many pages deep (100/page) — bounds the examples fetch. */
 const MAX_RELEASE_PAGES = 3;
@@ -111,6 +115,24 @@ export class GitHubForge implements Forge {
 
   async mergePullRequest(prNumber: number, method: MergeMethod): Promise<void> {
     await this.octokit.rest.pulls.merge({ ...this.base, pull_number: prNumber, merge_method: method });
+  }
+
+  async getActorPermission(username: string): Promise<RepoPermission> {
+    try {
+      const { data } = await this.octokit.rest.repos.getCollaboratorPermissionLevel({ ...this.base, username });
+      // Prefer `role_name` — it distinguishes maintain/triage, which the coarse `permission`
+      // ('admin'|'write'|'read'|'none') collapses. Fall back to `permission` for older API shapes.
+      const role = data.role_name as RepoPermission | undefined;
+      if (role && REPO_PERMISSIONS.includes(role)) return role;
+      return (data.permission as RepoPermission) ?? 'none';
+    } catch (error) {
+      // 404 = not a collaborator / unknown user → genuinely no permission. Any other error (403 from a
+      // mis-scoped token, 429 rate limit, 5xx, network) means we CAN'T determine permission — surface
+      // it rather than silently reporting 'none', which would fail the gate closed for every real
+      // actor (even admins) with no diagnostic.
+      if (forgeErrorStatus(error) === 404) return 'none';
+      throw error;
+    }
   }
 
   async findComment(prNumber: number, marker: string): Promise<ForgeComment | null> {
