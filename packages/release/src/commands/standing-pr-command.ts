@@ -21,6 +21,12 @@ export function createStandingPRCommand(): Command {
     cmd
       .command('update')
       .description('Calculate versions, commit to release branch, and create/update the standing PR')
+      .option('-t, --target <packages>', 'Ad-hoc override: release only these packages (comma-separated)')
+      .option(
+        '--include-prerequisites',
+        'With --target, also release the changed internal dependencies (and group members) of the targets',
+        false,
+      )
       .option(
         '--reconcile',
         'Bypass the skip-pattern guard so a post-release reconcile run still updates the standing PR (HEAD is a release commit at that point)',
@@ -35,6 +41,8 @@ export function createStandingPRCommand(): Command {
       verbose: opts.verbose,
       quiet: opts.quiet,
       reconcile: opts.reconcile,
+      target: opts.target,
+      includePrerequisites: opts.includePrerequisites,
     };
 
     try {

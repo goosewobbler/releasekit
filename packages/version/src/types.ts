@@ -39,6 +39,13 @@ export interface VersionRunOptions {
    * `undefined` (the default) applies the override to every package.
    */
   overrideScope?: string[];
+  /**
+   * Expand the explicit `targets` to also release their changed transitive dependencies
+   * (prerequisites) plus the rest of any group a target belongs to. The override (bump/prerelease/
+   * stable) stays scoped to the explicit, group-expanded targets; prerequisites keep their own
+   * commit-driven bump.
+   */
+  includePrerequisites?: boolean;
 }
 
 export interface GitInfo {

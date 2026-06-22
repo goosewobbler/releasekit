@@ -38,6 +38,10 @@ export interface StandingPROptions {
    * intend an update, so they opt out via this flag. All other guards/behaviour are unchanged.
    */
   reconcile?: boolean;
+  /** Ad-hoc CLI override: release only these comma-split package patterns (supplements label overrides). */
+  target?: string;
+  /** Ad-hoc CLI override: also release the changed prerequisites (and group members) of the targets. */
+  includePrerequisites?: boolean;
 }
 
 export interface StandingPRResult {
@@ -679,6 +683,7 @@ interface BuildOptionsExtras {
   target?: string;
   stable?: boolean;
   prerelease?: boolean;
+  includePrerequisites?: boolean;
 }
 
 function buildBaseReleaseOptions(
@@ -692,6 +697,7 @@ function buildBaseReleaseOptions(
     sync: extras?.sync ?? false,
     bump: extras?.bump,
     target: extras?.target,
+    includePrerequisites: extras?.includePrerequisites,
     stable: extras?.stable,
     prerelease: extras?.prerelease ? true : undefined,
     skipNotes: true,
@@ -772,14 +778,18 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const sync = releaseKitConfig.version?.sync ?? false;
   // When labels conflict, drop the override (fall back to commit-driven) but keep the
   // conflict descriptions for the final status check.
+  // CLI --target (ad-hoc override) wins over the label-derived target; --include-prerequisites opts
+  // the targeted set's changed dependencies into the release either way.
+  const cliTarget = options.target ?? overrides.target;
   const buildExtras: BuildOptionsExtras = overrides.conflicts.length
-    ? { sync, target: overrides.target }
+    ? { sync, target: cliTarget, includePrerequisites: options.includePrerequisites }
     : {
         sync,
         bump: overrides.bump,
-        target: overrides.target,
+        target: cliTarget,
         stable: overrides.stable,
         prerelease: overrides.prerelease,
+        includePrerequisites: options.includePrerequisites,
       };
 
   // Dry-run version analysis to compute bumps without writing

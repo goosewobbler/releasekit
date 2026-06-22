@@ -9,6 +9,8 @@ export interface ReleaseOptions {
   stable?: boolean;
   sync: boolean;
   target?: string;
+  /** Also release the changed internal dependencies of `target` packages (and the rest of their groups). */
+  includePrerequisites?: boolean;
   scope?: string;
   branch?: string;
   skipNotes: boolean;
