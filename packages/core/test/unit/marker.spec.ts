@@ -29,9 +29,11 @@ describe('markerData', () => {
     expect(field.decode('<!-- demo-data: {"n":"x"} -->')).toBeNull();
   });
 
-  it('should be linear (ReDoS-safe) on a long unterminated marker', () => {
-    // A backtracking regex would hang here; the indexOf slice returns immediately.
-    expect(field.decode(`<!-- demo-data:${'{'.repeat(100000)}`)).toBeNull();
+  it('should be linear (ReDoS-safe) scanning a long unterminated payload', () => {
+    // The opener IS matched (note the space after the colon), then the closer is scanned over a
+    // huge payload with no terminator. A backtracking regex would blow up here; the linear indexOf
+    // for the closer returns immediately (no close → null).
+    expect(field.decode(`<!-- demo-data: ${'{'.repeat(100000)}`)).toBeNull();
   });
 
   it('should honour a custom-spaced open token (the manifest base64 shape)', () => {
