@@ -710,6 +710,29 @@ function buildBaseReleaseOptions(
   };
 }
 
+/**
+ * Close the standing PR (when one exists and we have a token) or noop — the empty-queue outcome.
+ * Shared by the dry-run empty-queue guard and the write-step empty guard (#396), so a queue that
+ * empties out is handled identically whichever step observes it.
+ */
+async function closeEmptyQueue(
+  existingStandingPr: { number: number; url: string } | null,
+  githubContext: ReturnType<typeof getGitHubContext>,
+): Promise<StandingPRResult> {
+  info('No releasable changes found');
+  if (githubContext?.token && existingStandingPr) {
+    const forge = forgeFor(githubContext);
+    await forge.createComment(
+      existingStandingPr.number,
+      'No releasable changes found. Closing this PR as the release queue is empty.',
+    );
+    await forge.updatePullRequest(existingStandingPr.number, { state: 'closed' });
+    info(`Closed standing PR #${existingStandingPr.number}`);
+    return { action: 'closed', prNumber: existingStandingPr.number, prUrl: existingStandingPr.url };
+  }
+  return { action: 'noop' };
+}
+
 export async function runStandingPRUpdate(options: StandingPROptions): Promise<StandingPRResult> {
   const cwd = options.projectDir;
 
@@ -810,20 +833,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const versionOutputDry = await runVersionStep(dryRunOptions);
 
   if (versionOutputDry.updates.length === 0) {
-    info('No releasable changes found');
-
-    if (githubContext?.token && existingStandingPr) {
-      const forge = forgeFor(githubContext);
-      await forge.createComment(
-        existingStandingPr.number,
-        'No releasable changes found. Closing this PR as the release queue is empty.',
-      );
-      await forge.updatePullRequest(existingStandingPr.number, { state: 'closed' });
-      info(`Closed standing PR #${existingStandingPr.number}`);
-      return { action: 'closed', prNumber: existingStandingPr.number, prUrl: existingStandingPr.url };
-    }
-
-    return { action: 'noop' };
+    return closeEmptyQueue(existingStandingPr, githubContext);
   }
 
   // minPackages gate: close existing PR and noop if package count is below threshold.
@@ -899,6 +909,15 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   info('Writing version bumps...');
   const writeOptions = buildBaseReleaseOptions(options, false, { ...buildExtras, exclude: [...effectiveDeselected] });
   const versionOutput = await runVersionStep(writeOptions);
+
+  // The write step recomputes from the post-reset HEAD, which can differ from the dry run when a
+  // release landed on `base` mid-run (a reconcile race exempt from the skip-pattern bail above): the
+  // dry-run guard saw updates, but the write set is now empty. Without this second guard the empty
+  // output renders a degenerate `****` body and an empty `chore: release ` title onto the open PR
+  // (#396). Gate on publishable updates so a sync root-only bump with nothing to publish is caught too.
+  if (publishableUpdates(versionOutput).length === 0) {
+    return closeEmptyQueue(existingStandingPr, githubContext);
+  }
 
   // With the preview-notes label, pull any release notes a human has already edited from the live PR
   // body (fetched once above) so they survive this regenerate-and-force-push. Marker slicing only.
