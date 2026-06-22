@@ -396,6 +396,12 @@ describe('GitHubForge.getActorPermission', () => {
     fns.getCollaboratorPermissionLevel.mockRejectedValue(Object.assign(new Error('404'), { status: 404 }));
     expect(await new GitHubForge(octokit, 'o', 'r').getActorPermission('stranger')).toBe('none');
   });
+
+  it('should rethrow non-404 errors (e.g. a mis-scoped token) rather than silently report none', async () => {
+    const { octokit, fns } = makeOctokit();
+    fns.getCollaboratorPermissionLevel.mockRejectedValue(Object.assign(new Error('403'), { status: 403 }));
+    await expect(new GitHubForge(octokit, 'o', 'r').getActorPermission('alice')).rejects.toThrow('403');
+  });
 });
 
 describe('forgeErrorStatus', () => {

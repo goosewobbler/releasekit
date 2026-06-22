@@ -71,7 +71,10 @@ export async function isAuthorizedActor(
 ): Promise<boolean> {
   if (isBot(login, type)) return true;
   if (!login) return false;
-  if (authz.allowedActors?.includes(login)) return true;
+  // GitHub usernames are case-insensitive, so compare case-folded — a `allowedActors: ['Alice']`
+  // entry must still match an event delivering `login: 'alice'`.
+  const lc = login.toLowerCase();
+  if (authz.allowedActors?.some((a) => a.toLowerCase() === lc)) return true;
   const permission = await forge.getActorPermission(login);
   return PERMISSION_RANK[permission] >= PERMISSION_RANK[authz.requiredPermission];
 }

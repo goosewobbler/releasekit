@@ -33,6 +33,12 @@ describe('isAuthorizedActor', () => {
     expect(await isAuthorizedActor(forge, 'dave', 'User', authz({ allowedActors: ['dave'] }))).toBe(true);
   });
 
+  it('should match the allow-list case-insensitively (GitHub usernames are case-insensitive)', async () => {
+    const forge = createFakeForge({ actorPermissions: { Alice: 'read' } });
+    // Configured as `Alice`, event delivers `alice` — must still authorize.
+    expect(await isAuthorizedActor(forge, 'alice', 'User', authz({ allowedActors: ['Alice'] }))).toBe(true);
+  });
+
   it('should reject an unknown actor (no login, or no repo access)', async () => {
     const forge = createFakeForge();
     expect(await isAuthorizedActor(forge, undefined, 'User', authz())).toBe(false);

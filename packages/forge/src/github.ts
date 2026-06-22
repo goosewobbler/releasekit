@@ -1,4 +1,5 @@
 import { Octokit } from '@octokit/rest';
+import { forgeErrorStatus } from './errors.js';
 import type {
   AssociatedPullRequest,
   CommitStatus,
@@ -124,9 +125,13 @@ export class GitHubForge implements Forge {
       const role = data.role_name as RepoPermission | undefined;
       if (role && REPO_PERMISSIONS.includes(role)) return role;
       return (data.permission as RepoPermission) ?? 'none';
-    } catch {
-      // 404 = not a collaborator / unknown user. Treat as no permission rather than failing the run.
-      return 'none';
+    } catch (error) {
+      // 404 = not a collaborator / unknown user → genuinely no permission. Any other error (403 from a
+      // mis-scoped token, 429 rate limit, 5xx, network) means we CAN'T determine permission — surface
+      // it rather than silently reporting 'none', which would fail the gate closed for every real
+      // actor (even admins) with no diagnostic.
+      if (forgeErrorStatus(error) === 404) return 'none';
+      throw error;
     }
   }
 
