@@ -11,6 +11,8 @@
  * Multiple packages share one surface (a multi-package standing PR) by keying the markers:
  * `<!-- releasekit-notes:<key> -->` … `<!-- releasekit-notes-end:<key> -->`.
  */
+import { extractMarkerRegion, wrapMarkerRegion } from './marker.js';
+
 export const NOTES_MARKER = '<!-- releasekit-notes -->';
 export const NOTES_MARKER_END = '<!-- releasekit-notes-end -->';
 
@@ -24,23 +26,14 @@ function closeMarker(pkgKey?: string): string {
 
 /** Wrap rendered notes in the editable-region markers so they can be recognised and extracted later. */
 export function wrapNotesRegion(content: string, pkgKey?: string): string {
-  return `${openMarker(pkgKey)}\n\n${content.trim()}\n\n${closeMarker(pkgKey)}`;
+  return wrapMarkerRegion(content, openMarker(pkgKey), closeMarker(pkgKey));
 }
 
 /**
- * Extract the editable-region content from a body, or `undefined` when the opener is absent.
- *
- * Pure marker slicing — it never interprets the prose. An opener with no closer (a legacy body
- * backfilled when only the opener was prepended) falls back to "everything after the opener", so
- * older release bodies still round-trip.
+ * Extract the editable-region content from a body, or `undefined` when the opener is absent. The
+ * notes-region adapter over {@link extractMarkerRegion}: pure marker slicing, with the legacy
+ * "opener but no closer" body falling back to everything after the opener.
  */
 export function extractNotesRegion(body: string, pkgKey?: string): string | undefined {
-  const open = openMarker(pkgKey);
-  const start = body.indexOf(open);
-  if (start === -1) return undefined;
-
-  const afterOpen = start + open.length;
-  const end = body.indexOf(closeMarker(pkgKey), afterOpen);
-  const region = end === -1 ? body.slice(afterOpen) : body.slice(afterOpen, end);
-  return region.trim();
+  return extractMarkerRegion(body, openMarker(pkgKey), closeMarker(pkgKey));
 }

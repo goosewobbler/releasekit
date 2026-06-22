@@ -3,7 +3,7 @@ import { execFileSync, execSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import { type CIConfig, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput } from '@releasekit/core';
-import { error, info, success, warn } from '@releasekit/core';
+import { error, info, markerData, success, warn } from '@releasekit/core';
 import { type Forge, forgeErrorStatus, type PullRequestDetails } from '@releasekit/forge';
 import { PipelineError } from '@releasekit/publish';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
@@ -23,6 +23,14 @@ import { postStandingPRStatusSafe } from './status.js';
 const MANIFEST_MARKER = '<!-- releasekit-manifest -->';
 const MANIFEST_SCHEMA_VERSION = 2;
 const MANIFEST_SCHEMA_MIN_VERSION = 1;
+
+// The manifest payload rides as a base64 blob in its own marker; base64/JSON/schema decoding (with
+// its specific error messages) stays in parseManifest below.
+const MANIFEST_BASE64 = markerData<string>({
+  open: '<!-- base64',
+  serialize: (encoded) => encoded,
+  deserialize: (payload) => payload || null,
+});
 
 export interface StandingPROptions {
   config?: string;
@@ -435,27 +443,26 @@ function renderPrBody(versionOutput: VersionOutput, supersedeWarning?: string[],
 }
 
 export function serializeManifest(m: StandingPRManifest): string {
-  const json = JSON.stringify(m);
-  const encoded = Buffer.from(json).toString('base64');
+  const encoded = Buffer.from(JSON.stringify(m)).toString('base64');
   return [
     MANIFEST_MARKER,
     '<details><summary>Release manifest (do not edit)</summary>',
     '',
-    `<!-- base64 ${encoded} -->`,
+    MANIFEST_BASE64.encode(encoded),
     '',
     '</details>',
   ].join('\n');
 }
 
 export function parseManifest(commentBody: string): StandingPRManifest {
-  const b64Match = commentBody.match(/<!-- base64 ([A-Za-z0-9+/=]+) -->/);
-  if (!b64Match?.[1]) {
+  const encoded = MANIFEST_BASE64.decode(commentBody);
+  if (!encoded) {
     throw new Error('Release manifest not found or malformed in PR comment');
   }
 
   let json: string;
   try {
-    json = Buffer.from(b64Match[1], 'base64').toString('utf-8');
+    json = Buffer.from(encoded, 'base64').toString('utf-8');
   } catch {
     throw new Error('Release manifest encoding is invalid');
   }

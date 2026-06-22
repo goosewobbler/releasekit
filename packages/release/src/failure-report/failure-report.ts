@@ -1,4 +1,4 @@
-import type { VersionOutput } from '@releasekit/core';
+import { markerData, type VersionOutput } from '@releasekit/core';
 import type { PublishOutput } from '@releasekit/publish';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
@@ -32,6 +32,34 @@ export interface FailureReportData {
   published: number;
   total: number;
 }
+
+/** Resolution status carried behind its own marker. */
+const STATUS_FIELD = markerData<FailureReportStatus>({
+  open: STATUS_PREFIX,
+  serialize: (status) => status,
+  deserialize: (payload) => (payload === 'resolved' || payload === 'unresolved' ? payload : null),
+});
+
+/** Headline data (label + published/total) carried as JSON behind its own marker. */
+const DATA_FIELD = markerData<FailureReportData>({
+  open: DATA_PREFIX,
+  serialize: (data) => JSON.stringify(data),
+  deserialize: (payload) => {
+    try {
+      const parsed = JSON.parse(payload) as Partial<FailureReportData>;
+      if (
+        typeof parsed.label !== 'string' ||
+        typeof parsed.published !== 'number' ||
+        typeof parsed.total !== 'number'
+      ) {
+        return null;
+      }
+      return { label: parsed.label, published: parsed.published, total: parsed.total };
+    } catch {
+      return null;
+    }
+  },
+});
 
 /** Release mode the failed publish ran in — drives the recovery instructions. */
 export type FailureReportMode = 'standing-pr' | 'direct' | 'manual';
@@ -207,8 +235,8 @@ export function renderFailureReport(input: FailureReportInput): string {
 
   const lines: string[] = [
     FAILURE_MARKER,
-    `${STATUS_PREFIX} unresolved -->`,
-    `${DATA_PREFIX} ${JSON.stringify({ label, published, total } satisfies FailureReportData)} -->`,
+    STATUS_FIELD.encode('unresolved'),
+    DATA_FIELD.encode({ label, published, total }),
     '',
     `## ❌ Publish of ${label} failed partway through`,
     '',
@@ -256,7 +284,7 @@ export function renderResolvedReport(versionOutput: VersionOutput): string {
   const label = releaseLabel(versionOutput);
   return [
     FAILURE_MARKER,
-    `${STATUS_PREFIX} resolved -->`,
+    STATUS_FIELD.encode('resolved'),
     '',
     `## ✅ Publish of ${label} recovered`,
     '',
@@ -274,8 +302,7 @@ export function renderResolvedReport(versionOutput: VersionOutput): string {
  */
 export function parseFailureReportStatus(body: string): FailureReportStatus | null {
   if (!body.startsWith(FAILURE_MARKER)) return null;
-  const match = body.match(/<!-- releasekit-publish-failure-status:\s*(unresolved|resolved)\s*-->/);
-  return (match?.[1] as FailureReportStatus | undefined) ?? 'unresolved';
+  return STATUS_FIELD.decode(body) ?? 'unresolved';
 }
 
 /**
@@ -284,23 +311,7 @@ export function parseFailureReportStatus(body: string): FailureReportStatus | nu
  */
 export function parseFailureReportData(body: string): FailureReportData | null {
   if (!body.startsWith(FAILURE_MARKER)) return null;
-  // Locate the data block by its fixed delimiters with linear indexOf rather than a backtracking
-  // regex — a regex like `:\s*(\{.*?\})\s*-->` is polynomial on an untrusted comment body with many
-  // `{` and no terminator (ReDoS). JSON.parse + the field checks below still reject anything malformed.
-  const prefix = '<!-- releasekit-publish-failure-data:';
-  const start = body.indexOf(prefix);
-  if (start === -1) return null;
-  const end = body.indexOf('-->', start + prefix.length);
-  if (end === -1) return null;
-  try {
-    const parsed = JSON.parse(body.slice(start + prefix.length, end).trim()) as Partial<FailureReportData>;
-    if (typeof parsed.label !== 'string' || typeof parsed.published !== 'number' || typeof parsed.total !== 'number') {
-      return null;
-    }
-    return { label: parsed.label, published: parsed.published, total: parsed.total };
-  } catch {
-    return null;
-  }
+  return DATA_FIELD.decode(body);
 }
 
 export interface SupersedeWarningInput {
