@@ -3,7 +3,7 @@
  */
 
 import { cwd } from 'node:process';
-import { sanitizePackageName } from '@releasekit/core';
+import { sanitizePackageName, shouldMatchPackageTargets } from '@releasekit/core';
 import { Bumper } from 'conventional-recommended-bump';
 import type { ReleaseType } from 'semver';
 import semver from 'semver';
@@ -22,9 +22,38 @@ import {
 } from '../utils/versionUtils.js';
 
 /**
+ * Strip the forced `bump` / `prerelease` / `stable` override for a package outside `overrideScope`,
+ * so it falls through to commit-driven calculation. Returns the (possibly scoped) config + options.
+ * Scoping changes *who* the override applies to, never the composed-bump formula.
+ */
+export function applyOverrideScope(
+  config: Config,
+  options: VersionOptions,
+): { config: Config; options: VersionOptions } {
+  const { overrideScope } = config;
+  // `type` / `isPrerelease` / `stableOnly` are the engine's runtime override fields (folded from
+  // runOptions bump/prerelease/stable) — none is a static config-file setting, so clearing them to
+  // their "not specified" sentinel reverts an out-of-scope package to commit-driven calculation.
+  // When `options.name` is absent (a single-package repo) there's nothing to match against, so the
+  // override applies — scoping is only meaningful across multiple packages.
+  if (overrideScope?.length && options.name && !shouldMatchPackageTargets(options.name, overrideScope)) {
+    return {
+      config: { ...config, type: undefined, isPrerelease: undefined, stableOnly: undefined },
+      options: { ...options, type: undefined },
+    };
+  }
+  return { config, options };
+}
+
+/**
  * Calculates the next version number based on the current version and options
  */
 export async function calculateVersion(config: Config, options: VersionOptions): Promise<string> {
+  const scoped = applyOverrideScope(config, options);
+  return calculateVersionInner(scoped.config, scoped.options);
+}
+
+async function calculateVersionInner(config: Config, options: VersionOptions): Promise<string> {
   log(`Starting version calculation for ${options.name || 'project'}`, 'debug');
 
   const {
