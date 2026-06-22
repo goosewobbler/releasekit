@@ -2,10 +2,11 @@ import type { CIConfig, ReleaseConfig } from '@releasekit/config';
 import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput } from '@releasekit/core';
 import { error, info, setJsonMode, setLogLevel, setQuietMode, success, warn } from '@releasekit/core';
+import type { Forge } from '@releasekit/forge';
 import { PipelineError } from '@releasekit/publish';
 import { postFailureReport, resolveFailureReportIfPresent } from './failure-report/post.js';
 import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from './git.js';
-import { createOctokit, fetchPRLabels, findMergedPRsForCommit } from './github.js';
+import { fetchPRLabels, findMergedPRsForCommit, forgeFor } from './github.js';
 import { DEFAULT_LABELS, detectLabelConflicts } from './label-utils.js';
 import { runNotesStep, runPublishStep, runVersionStep } from './steps.js';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
@@ -17,25 +18,23 @@ import { publishableUpdates } from './version-display.js';
  * PR): mode 'manual' with no PR number — the report goes to the workflow step summary.
  */
 async function resolveReleaseReportTarget(): Promise<{
-  octokit: ReturnType<typeof createOctokit>;
-  owner: string;
-  repo: string;
+  forge: Forge;
   prNumber?: number;
   mode: 'direct' | 'manual';
 } | null> {
   const githubContext = getGitHubContext();
   if (!githubContext?.token) return null;
-  const octokit = createOctokit(githubContext.token);
-  const { owner, repo, sha } = githubContext;
+  const forge = forgeFor({ token: githubContext.token, owner: githubContext.owner, repo: githubContext.repo });
+  const { sha } = githubContext;
 
   const isManualDispatch = process.env.GITHUB_EVENT_NAME === 'workflow_dispatch';
   let prNumber: number | undefined;
   if (sha && !isManualDispatch) {
-    const prs = await findMergedPRsForCommit(octokit, owner, repo, sha);
+    const prs = await findMergedPRsForCommit(forge, sha);
     prNumber = prs[0];
   }
 
-  return { octokit, owner, repo, prNumber, mode: prNumber !== undefined ? 'direct' : 'manual' };
+  return { forge, prNumber, mode: prNumber !== undefined ? 'direct' : 'manual' };
 }
 
 /**
@@ -51,9 +50,7 @@ async function reportReleaseFailure(versionOutput: VersionOutput, err: PipelineE
     }
     await postFailureReport(
       {
-        octokit: target.octokit,
-        owner: target.owner,
-        repo: target.repo,
+        forge: target.forge,
         mode: target.mode,
         prNumber: target.prNumber,
       },
@@ -107,14 +104,14 @@ async function applyScopeLabelsFromPR(
     return { target: options.target, scopeLabels: [], labels: [] };
   }
 
-  const octokit = createOctokit(token);
+  const forge = forgeFor({ token, owner: githubContext.owner, repo: githubContext.repo });
 
-  const prNumbers = await findMergedPRsForCommit(octokit, githubContext.owner, githubContext.repo, githubContext.sha);
+  const prNumbers = await findMergedPRsForCommit(forge, githubContext.sha);
   const allLabels: string[] = [];
   const perPRLabels: Map<number, string[]> = new Map();
 
   for (const prNumber of prNumbers) {
-    const labels = await fetchPRLabels(octokit, githubContext.owner, githubContext.repo, prNumber);
+    const labels = await fetchPRLabels(forge, prNumber);
     allLabels.push(...labels);
     perPRLabels.set(prNumber, labels);
   }
@@ -335,13 +332,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
       try {
         const target = await resolveReleaseReportTarget();
         if (target?.prNumber !== undefined) {
-          await resolveFailureReportIfPresent(
-            target.octokit,
-            target.owner,
-            target.repo,
-            target.prNumber,
-            versionOutput,
-          );
+          await resolveFailureReportIfPresent(target.forge, target.prNumber, versionOutput);
         }
       } catch (resolveErr) {
         warn(

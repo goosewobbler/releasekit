@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { loadCIConfig } from '@releasekit/config';
 import { EXIT_CODES, error, info, success } from '@releasekit/core';
 import { Command } from 'commander';
-import { createOctokit } from '../github.js';
+import { forgeFor } from '../github.js';
 import { checkLabels, deriveLabelDefinitions, syncLabels } from '../label-definitions.js';
 
 interface LabelsCommandContext {
@@ -99,10 +99,10 @@ export async function runLabelsSync(options: LabelsSyncOptions): Promise<void> {
   const definitions = deriveLabelDefinitions(ciConfig);
 
   const { owner, repo, token } = resolveLabelsContext({ repo: options.repo, projectDir: options.projectDir });
-  const octokit = createOctokit(token);
+  const forge = forgeFor({ token, owner, repo });
 
   if (options.check) {
-    const { missing } = await checkLabels(octokit, owner, repo, definitions);
+    const { missing } = await checkLabels(forge, definitions);
     if (missing.length > 0) {
       error(`Missing ${missing.length} label(s) in ${owner}/${repo}:`);
       for (const name of missing) {
@@ -115,7 +115,7 @@ export async function runLabelsSync(options: LabelsSyncOptions): Promise<void> {
     return;
   }
 
-  const { created, existing } = await syncLabels(octokit, owner, repo, definitions);
+  const { created, existing } = await syncLabels(forge, definitions);
   if (created.length > 0) {
     for (const name of created) {
       info(`Created label: ${name}`);

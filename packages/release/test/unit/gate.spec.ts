@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockLoadReleaseKitConfig = vi.fn();
-const mockCreateOctokit = vi.fn();
+const mockForgeFor = vi.fn();
 const mockFindMergedPRsSinceLastRelease = vi.fn();
 const mockFetchPRLabels = vi.fn();
 const mockPostOrUpdateComment = vi.fn();
@@ -25,7 +25,7 @@ vi.mock('node:child_process', () => ({
 }));
 
 vi.mock('../../src/github.js', () => ({
-  createOctokit: (...args: unknown[]) => mockCreateOctokit(...args),
+  forgeFor: (...args: unknown[]) => mockForgeFor(...args),
   findMergedPRsSinceLastRelease: (...args: unknown[]) => mockFindMergedPRsSinceLastRelease(...args),
   fetchPRLabels: (...args: unknown[]) => mockFetchPRLabels(...args),
   postOrUpdateComment: (...args: unknown[]) => mockPostOrUpdateComment(...args),
@@ -563,9 +563,7 @@ describe('Gate', () => {
       // Notify is only posted on PR #225 (insufficient labels with intent),
       // never on the winning PR #224.
       expect(mockPostOrUpdateComment).toHaveBeenCalledTimes(1);
-      const [, owner, repo, prNumber, body, marker] = mockPostOrUpdateComment.mock.calls[0];
-      expect(owner).toBe('owner');
-      expect(repo).toBe('repo');
+      const [, prNumber, body, marker] = mockPostOrUpdateComment.mock.calls[0];
       expect(prNumber).toBe(225);
       expect(body).toContain('did not trigger a release');
       expect(body).toContain('channel:prerelease');
@@ -606,7 +604,7 @@ describe('Gate', () => {
 
       expect(result.blocked).toBe(true);
       expect(mockPostOrUpdateComment).toHaveBeenCalledTimes(1);
-      const [, , , prNumber, body] = mockPostOrUpdateComment.mock.calls[0];
+      const [, prNumber, body] = mockPostOrUpdateComment.mock.calls[0];
       expect(prNumber).toBe(42);
       expect(body).toContain('conflicting');
       expect(body).toContain('bump:major');

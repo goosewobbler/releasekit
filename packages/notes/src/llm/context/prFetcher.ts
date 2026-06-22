@@ -1,6 +1,6 @@
 import { RequestError } from '@octokit/request-error';
-import { Octokit } from '@octokit/rest';
 import { debug, warn } from '@releasekit/core';
+import { createGitHubForge } from '@releasekit/forge';
 import type { PRContext } from '../../core/types.js';
 
 const BODY_CAP = 2048;
@@ -65,7 +65,7 @@ export async function fetchPullRequestContext(
   token: string,
   cache: Map<number, PRContext | null>,
 ): Promise<void> {
-  const octokit = new Octokit({ auth: token });
+  const forge = createGitHubForge({ token, owner, repo });
   const needed = issueNumbers.filter((n) => !cache.has(n));
 
   for (let i = 0; i < needed.length; i += FETCH_CONCURRENCY) {
@@ -73,14 +73,13 @@ export async function fetchPullRequestContext(
     await Promise.all(
       batch.map(async (number) => {
         try {
-          const { data } = await octokit.rest.issues.get({ owner, repo, issue_number: number });
-          if (!data.pull_request) {
+          const issue = await forge.getIssue(number);
+          if (!issue.isPullRequest) {
             cache.set(number, null); // cache as "not a PR" to avoid re-fetching
             return;
           }
-          const raw = data.body ?? '';
-          const body = truncateBody(sanitiseBody(raw));
-          cache.set(number, { number, title: data.title, body });
+          const body = truncateBody(sanitiseBody(issue.body));
+          cache.set(number, { number, title: issue.title, body });
         } catch (error) {
           if (error instanceof RequestError) {
             if (error.status === 401 || error.status === 403) {

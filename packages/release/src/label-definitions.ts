@@ -1,5 +1,5 @@
-import type { Octokit } from '@octokit/rest';
 import type { CIConfig } from '@releasekit/config';
+import type { Forge } from '@releasekit/forge';
 import { DEFAULT_LABELS } from './label-utils.js';
 
 /**
@@ -90,19 +90,9 @@ export function deriveLabelDefinitions(ciConfig: CIConfig | undefined): LabelDef
  * names so callers can do case-insensitive comparisons; GitHub's `createLabel` API uses
  * case-insensitive uniqueness, so `bump:minor` and `Bump:Minor` are the same label.
  */
-async function listRepoLabelNames(octokit: Octokit, owner: string, repo: string): Promise<Set<string>> {
-  const names = new Set<string>();
-  const iterator = octokit.paginate.iterator(octokit.rest.issues.listLabelsForRepo, {
-    owner,
-    repo,
-    per_page: 100,
-  });
-  for await (const response of iterator) {
-    for (const label of response.data) {
-      names.add(label.name.toLowerCase());
-    }
-  }
-  return names;
+async function listRepoLabelNames(forge: Forge): Promise<Set<string>> {
+  const names = await forge.listLabelNames();
+  return new Set(names.map((name) => name.toLowerCase()));
 }
 
 export interface LabelSyncResult {
@@ -115,34 +105,15 @@ export interface LabelSyncResult {
  * labels are left untouched (createLabel throws 422; ignored). Returns which labels were created
  * vs already present.
  */
-export async function syncLabels(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  definitions: LabelDefinition[],
-): Promise<LabelSyncResult> {
+export async function syncLabels(forge: Forge, definitions: LabelDefinition[]): Promise<LabelSyncResult> {
   const created: string[] = [];
   const existing: string[] = [];
 
   for (const def of definitions) {
-    try {
-      await octokit.rest.issues.createLabel({
-        owner,
-        repo,
-        name: def.name,
-        color: def.color,
-        description: def.description,
-      });
-      created.push(def.name);
-    } catch (err) {
-      // 422 means the label already exists — that's the idempotent happy path. Any other
-      // status is a real failure (auth, rate limit) and should surface to the caller.
-      if (isAlreadyExistsError(err)) {
-        existing.push(def.name);
-      } else {
-        throw err;
-      }
-    }
+    // The forge treats GitHub's "already exists" 422 as idempotent (returns 'exists') and surfaces
+    // any other failure (auth, rate limit, validation) by throwing.
+    const result = await forge.createLabel({ name: def.name, color: def.color, description: def.description });
+    (result === 'created' ? created : existing).push(def.name);
   }
 
   return { created, existing };
@@ -153,12 +124,10 @@ export async function syncLabels(
  * of missing label names; an empty list means the repo is fully provisioned.
  */
 export async function checkLabels(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
+  forge: Forge,
   definitions: LabelDefinition[],
 ): Promise<{ missing: string[]; present: string[] }> {
-  const existing = await listRepoLabelNames(octokit, owner, repo);
+  const existing = await listRepoLabelNames(forge);
   const missing: string[] = [];
   const present: string[] = [];
   for (const def of definitions) {
@@ -169,15 +138,4 @@ export async function checkLabels(
     }
   }
   return { missing, present };
-}
-
-function isAlreadyExistsError(err: unknown): boolean {
-  if (typeof err !== 'object' || err === null) return false;
-  const status = (err as { status?: number }).status;
-  if (status !== 422) return false;
-  // A 422 for "already exists" carries errors[0].code === 'already_exists'.
-  // Other 422s (label name too long, disallowed characters, etc.) are real
-  // validation failures and must surface to the caller.
-  const errors = (err as { response?: { data?: { errors?: { code?: string }[] } } }).response?.data?.errors;
-  return Array.isArray(errors) && errors.some((e) => e?.code === 'already_exists');
 }

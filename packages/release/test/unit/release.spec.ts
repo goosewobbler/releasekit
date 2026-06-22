@@ -6,7 +6,7 @@ import type { ReleaseOptions } from '../../src/types.js';
 
 const mockLoadReleaseKitConfig = vi.fn();
 const mockLoadCIConfig = vi.fn();
-const mockCreateOctokit = vi.fn();
+const mockForgeFor = vi.fn();
 const mockFindMergedPRsForCommit = vi.fn();
 const mockFetchPRLabels = vi.fn();
 
@@ -19,7 +19,7 @@ vi.mock('node:child_process', () => ({
 }));
 
 vi.mock('../../src/github.js', () => ({
-  createOctokit: (...args: unknown[]) => mockCreateOctokit(...args),
+  forgeFor: (...args: unknown[]) => mockForgeFor(...args),
   findMergedPRsForCommit: (...args: unknown[]) => mockFindMergedPRsForCommit(...args),
   fetchPRLabels: (...args: unknown[]) => mockFetchPRLabels(...args),
   // Used by the best-effort failure-report resolve path; a plain stub keeps it quiet.
@@ -161,7 +161,7 @@ describe('runRelease', () => {
     vi.clearAllMocks();
 
     // Default mock setup
-    mockCreateOctokit.mockReturnValue({});
+    mockForgeFor.mockReturnValue({});
     mockFindMergedPRsForCommit.mockResolvedValue([]);
     mockFetchPRLabels.mockResolvedValue([]);
     mockLoadReleaseKitConfig.mockReturnValue({});

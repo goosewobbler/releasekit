@@ -1,3 +1,4 @@
+import { createFakeForge, type FakeForge, type FakeForgeSeed } from '@releasekit/forge';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderFailureReport, renderResolvedReport } from '../../src/failure-report/failure-report.js';
 import { renderNotesRegion } from '../../src/standing-pr/notes-region.js';
@@ -42,7 +43,7 @@ vi.mock('../../src/steps.js', () => ({
 }));
 
 vi.mock('../../src/github.js', () => ({
-  createOctokit: vi.fn(),
+  forgeFor: vi.fn(),
 }));
 
 function createMockVersionOutput(updates: { packageName: string; newVersion: string }[] = []) {
@@ -56,66 +57,19 @@ function createMockVersionOutput(updates: { packageName: string; newVersion: str
   };
 }
 
-function createMockOctokit(overrides: Record<string, unknown> = {}) {
-  const createComment = vi.fn().mockResolvedValue({});
-  const updateComment = vi.fn().mockResolvedValue({});
-  const pullsList = vi.fn().mockResolvedValue({ data: [] });
-  const pullsCreate = vi
-    .fn()
-    .mockResolvedValue({ data: { number: 42, html_url: 'https://github.com/owner/repo/pull/42' } });
-  const pullsUpdate = vi.fn().mockResolvedValue({});
-  const pullsGet = vi.fn().mockResolvedValue({ data: { body: '' } });
-  const pullsMerge = vi.fn().mockResolvedValue({});
-  const issuesSetLabels = vi.fn().mockResolvedValue({});
-  const issuesCreateLabel = vi.fn().mockResolvedValue({});
-  const createCommitStatus = vi.fn().mockResolvedValue({});
+const MANIFEST_MARKER = '<!-- releasekit-manifest -->';
 
-  const paginate = {
-    iterator: vi.fn().mockReturnValue({
-      async *[Symbol.asyncIterator]() {
-        yield { data: [] };
-      },
-    }),
-  };
+// Build a FakeForge from seed state and point the mocked `forgeFor` at it, so production code
+// that calls `forgeFor(githubContext)` is driven by this fake.
+async function mockForge(seed: FakeForgeSeed = {}): Promise<FakeForge> {
+  const { forgeFor } = await import('../../src/github.js');
+  const forge = createFakeForge(seed);
+  vi.mocked(forgeFor).mockReturnValue(forge);
+  return forge;
+}
 
-  return {
-    octokit: {
-      paginate,
-      rest: {
-        issues: {
-          listComments: vi.fn(),
-          createComment,
-          updateComment,
-          createLabel: issuesCreateLabel,
-          setLabels: issuesSetLabels,
-        },
-        pulls: {
-          list: pullsList,
-          create: pullsCreate,
-          update: pullsUpdate,
-          get: pullsGet,
-          merge: pullsMerge,
-        },
-        repos: {
-          createCommitStatus,
-        },
-      },
-      ...overrides,
-    },
-    mocks: {
-      createComment,
-      updateComment,
-      pullsList,
-      pullsCreate,
-      pullsUpdate,
-      pullsGet,
-      pullsMerge,
-      issuesSetLabels,
-      issuesCreateLabel,
-      paginate,
-      createCommitStatus,
-    },
-  };
+function openStandingPR(number: number, labels: string[] = []) {
+  return { number, url: `https://github.com/owner/repo/pull/${number}`, labels };
 }
 
 const baseManifest: StandingPRManifest = {
@@ -374,17 +328,14 @@ describe('runStandingPRUpdate', () => {
     vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    const forge = await mockForge({ standingPR: openStandingPR(99) });
 
     const result = await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     expect(result.action).toBe('noop');
     // No PR write — the update bowed out before force-push / PR update.
-    expect(mocks.pullsUpdate).not.toHaveBeenCalled();
-    expect(mocks.pullsCreate).not.toHaveBeenCalled();
+    expect(forge.updatedPullRequests).toHaveLength(0);
+    expect(forge.createdPullRequests).toHaveLength(0);
   });
 
   it('should bypass the skip-pattern guard when reconcile is set', async () => {
@@ -400,10 +351,7 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [] });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    const forge = await mockForge({ standingPR: null });
 
     const result = await runStandingPRUpdate({
       projectDir: '/test',
@@ -414,7 +362,7 @@ describe('runStandingPRUpdate', () => {
     });
 
     expect(result.action).toBe('created');
-    expect(mocks.pullsCreate).toHaveBeenCalled();
+    expect(forge.createdPullRequests).toHaveLength(1);
   });
 
   it('should bypass the initial skip-pattern guard on a pull_request label event (#336)', async () => {
@@ -451,10 +399,7 @@ describe('runStandingPRUpdate', () => {
         .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
       vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-      const { createOctokit } = await import('../../src/github.js');
-      const { mocks, octokit } = createMockOctokit();
-      mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
-      vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+      await mockForge({ standingPR: openStandingPR(99) });
 
       const result = await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
@@ -474,10 +419,7 @@ describe('runStandingPRUpdate', () => {
       createMockVersionOutput([]) as unknown as Awaited<ReturnType<typeof runVersionStep>>,
     );
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [] });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    await mockForge({ standingPR: null });
 
     const result = await runStandingPRUpdate({
       projectDir: '/test',
@@ -495,10 +437,7 @@ describe('runStandingPRUpdate', () => {
       createMockVersionOutput([]) as unknown as Awaited<ReturnType<typeof runVersionStep>>,
     );
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [{ number: 10, html_url: 'https://github.com/owner/repo/pull/10' }] });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    const forge = await mockForge({ standingPR: openStandingPR(10) });
 
     const result = await runStandingPRUpdate({
       projectDir: '/test',
@@ -509,7 +448,9 @@ describe('runStandingPRUpdate', () => {
 
     expect(result.action).toBe('closed');
     expect(result.prNumber).toBe(10);
-    expect(mocks.pullsUpdate).toHaveBeenCalledWith(expect.objectContaining({ state: 'closed', pull_number: 10 }));
+    expect(forge.updatedPullRequests).toContainEqual(
+      expect.objectContaining({ prNumber: 10, changes: expect.objectContaining({ state: 'closed' }) }),
+    );
   });
 
   it('should create a new PR when no existing standing PR', async () => {
@@ -520,10 +461,7 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [] });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    const forge = await mockForge({ standingPR: null });
 
     const result = await runStandingPRUpdate({
       projectDir: '/test',
@@ -534,7 +472,7 @@ describe('runStandingPRUpdate', () => {
 
     expect(result.action).toBe('created');
     expect(result.prNumber).toBe(42);
-    expect(mocks.pullsCreate).toHaveBeenCalled();
+    expect(forge.createdPullRequests).toHaveLength(1);
   });
 
   it('should default the PR title to the release tag in sync mode', async () => {
@@ -560,14 +498,11 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [] });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    const forge = await mockForge({ standingPR: null });
 
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    expect(mocks.pullsCreate).toHaveBeenCalledWith(expect.objectContaining({ title: 'chore: release v1.2.3' }));
+    expect(forge.createdPullRequests[0]).toEqual(expect.objectContaining({ title: 'chore: release v1.2.3' }));
   });
 
   it('should exclude the root lockstep bump from ${count} and the PR body publish table', async () => {
@@ -587,22 +522,19 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [] });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    const forge = await mockForge({ standingPR: null });
 
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     // Configured title template counts publishable packages only (root excluded)
-    expect(mocks.pullsCreate).toHaveBeenCalledWith(expect.objectContaining({ title: 'chore: release 2 package(s)' }));
+    expect(forge.createdPullRequests[0]).toEqual(expect.objectContaining({ title: 'chore: release 2 package(s)' }));
 
     // Sync body leads with the version and lists bare package names, root excluded
-    const createCall = mocks.pullsCreate.mock.calls[0]?.[0] as { body?: string } | undefined;
-    expect(createCall?.body).toContain('Merging this PR will publish **v1.2.3**:');
-    expect(createCall?.body).toContain('- `@scope/core`');
-    expect(createCall?.body).toContain('- `@scope/utils`');
-    expect(createCall?.body).not.toContain('my-monorepo');
+    const body = forge.createdPullRequests[0]?.body;
+    expect(body).toContain('Merging this PR will publish **v1.2.3**:');
+    expect(body).toContain('- `@scope/core`');
+    expect(body).toContain('- `@scope/utils`');
+    expect(body).not.toContain('my-monorepo');
   });
 
   it('should include a ### Changelog section in the PR body with changelog entries', async () => {
@@ -628,20 +560,17 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [] });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    const forge = await mockForge({ standingPR: null });
 
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    const createCall = mocks.pullsCreate.mock.calls[0]?.[0] as { body?: string } | undefined;
-    expect(createCall?.body).toContain('### Changelog');
-    expect(createCall?.body).toContain('**Added**');
-    expect(createCall?.body).toContain('Add new widget');
-    expect(createCall?.body).toContain('**Fixed**');
-    expect(createCall?.body).toContain('Fix broken export');
-    expect(createCall?.body).toContain('@scope/core — 1.2.2 → 1.2.3');
+    const body = forge.createdPullRequests[0]?.body;
+    expect(body).toContain('### Changelog');
+    expect(body).toContain('**Added**');
+    expect(body).toContain('Add new widget');
+    expect(body).toContain('**Fixed**');
+    expect(body).toContain('Fix broken export');
+    expect(body).toContain('@scope/core — 1.2.2 → 1.2.3');
   });
 
   it("should truncate the PR body when the changelog would exceed GitHub's limit (#333)", async () => {
@@ -668,14 +597,11 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [] });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    const forge = await mockForge({ standingPR: null });
 
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    const body = mocks.pullsCreate.mock.calls[0]?.[0]?.body as string;
+    const body = forge.createdPullRequests[0]?.body as string;
     // Assert against the module's cap (well under GitHub's 65,536), so a truncation that leaks into
     // the 64,001–65,535 safety margin still fails the test.
     expect(body.length).toBeLessThanOrEqual(STANDING_PR_BODY_CAP);
@@ -693,17 +619,14 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [] });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    const forge = await mockForge({ standingPR: null });
 
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    const createCall = mocks.pullsCreate.mock.calls[0]?.[0] as { body?: string } | undefined;
-    expect(createCall?.body).not.toContain('### Changelog');
-    expect(createCall?.body).toContain('@scope/core');
-    expect(createCall?.body).toContain('1.2.3');
+    const body = forge.createdPullRequests[0]?.body;
+    expect(body).not.toContain('### Changelog');
+    expect(body).toContain('@scope/core');
+    expect(body).toContain('1.2.3');
   });
 
   describe('partial-publish supersede warning on the next standing PR', () => {
@@ -741,12 +664,6 @@ describe('runStandingPRUpdate', () => {
       });
     }
 
-    // pullsList is used both for the open standing PR (findStandingPR) and the most recently
-    // merged one (findLatestMergedStandingPR). Branch on the requested state.
-    function listByState(merged: Array<{ number: number; merged_at: string }>) {
-      return (args: { state?: string }) => Promise.resolve({ data: args.state === 'closed' ? merged : [] });
-    }
-
     it('should include the warning when the latest merged standing PR has an unresolved failure', async () => {
       const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
       const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '0.25.0' }]);
@@ -755,22 +672,20 @@ describe('runStandingPRUpdate', () => {
         .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
       vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-      const { createOctokit } = await import('../../src/github.js');
-      const { mocks, octokit } = createMockOctokit();
-      mocks.pullsList.mockImplementation(listByState([{ number: 7, merged_at: '2026-01-01T00:00:00Z' }]));
-      mocks.paginate.iterator.mockReturnValue({
-        async *[Symbol.asyncIterator]() {
-          yield { data: [{ id: 1, body: failureReportBody() }] };
-        },
+      // No open standing PR (creates a new one); the most-recently-merged standing PR (#7) carries an
+      // unresolved failure-report comment.
+      const forge = await mockForge({
+        standingPR: null,
+        recentlyClosedPRs: [{ number: 7, mergedAt: '2026-01-01T00:00:00Z' }],
+        comments: [{ id: 1, body: failureReportBody() }],
       });
-      vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-      const createCall = mocks.pullsCreate.mock.calls[0]?.[0] as { body?: string } | undefined;
-      expect(createCall?.body).toContain('partially published');
-      expect(createCall?.body).toContain('1/2 packages');
-      expect(createCall?.body).toContain('#7');
+      const body = forge.createdPullRequests[0]?.body;
+      expect(body).toContain('partially published');
+      expect(body).toContain('1/2 packages');
+      expect(body).toContain('#7');
     });
 
     it('should omit the warning when the latest merged standing PR failure is resolved', async () => {
@@ -781,25 +696,21 @@ describe('runStandingPRUpdate', () => {
         .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
       vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-      const { createOctokit } = await import('../../src/github.js');
-      const { mocks, octokit } = createMockOctokit();
-      mocks.pullsList.mockImplementation(listByState([{ number: 7, merged_at: '2026-01-01T00:00:00Z' }]));
       const resolved = renderResolvedReport(
         createMockVersionOutput([{ packageName: '@scope/core', newVersion: '0.24.0' }]) as unknown as Parameters<
           typeof renderResolvedReport
         >[0],
       );
-      mocks.paginate.iterator.mockReturnValue({
-        async *[Symbol.asyncIterator]() {
-          yield { data: [{ id: 1, body: resolved }] };
-        },
+      const forge = await mockForge({
+        standingPR: null,
+        recentlyClosedPRs: [{ number: 7, mergedAt: '2026-01-01T00:00:00Z' }],
+        comments: [{ id: 1, body: resolved }],
       });
-      vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-      const createCall = mocks.pullsCreate.mock.calls[0]?.[0] as { body?: string } | undefined;
-      expect(createCall?.body).not.toContain('partially published');
+      const body = forge.createdPullRequests[0]?.body;
+      expect(body).not.toContain('partially published');
     });
 
     it('should omit the warning when there is no merged standing PR', async () => {
@@ -810,15 +721,12 @@ describe('runStandingPRUpdate', () => {
         .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
       vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-      const { createOctokit } = await import('../../src/github.js');
-      const { mocks, octokit } = createMockOctokit();
-      mocks.pullsList.mockImplementation(listByState([]));
-      vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+      const forge = await mockForge({ standingPR: null, recentlyClosedPRs: [] });
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-      const createCall = mocks.pullsCreate.mock.calls[0]?.[0] as { body?: string } | undefined;
-      expect(createCall?.body).not.toContain('partially published');
+      const body = forge.createdPullRequests[0]?.body;
+      expect(body).not.toContain('partially published');
     });
   });
 
@@ -830,10 +738,7 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    const forge = await mockForge({ standingPR: openStandingPR(99) });
 
     const result = await runStandingPRUpdate({
       projectDir: '/test',
@@ -844,8 +749,8 @@ describe('runStandingPRUpdate', () => {
 
     expect(result.action).toBe('updated');
     expect(result.prNumber).toBe(99);
-    expect(mocks.pullsUpdate).toHaveBeenCalledWith(expect.objectContaining({ pull_number: 99 }));
-    expect(mocks.pullsCreate).not.toHaveBeenCalled();
+    expect(forge.updatedPullRequests).toContainEqual(expect.objectContaining({ prNumber: 99 }));
+    expect(forge.createdPullRequests).toHaveLength(0);
   });
 
   it('should update manifest comment when existing manifest comment found on PR', async () => {
@@ -856,23 +761,16 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
-    // Paginate returns an existing manifest comment so the update path is taken
-    mocks.paginate.iterator.mockReturnValue({
-      async *[Symbol.asyncIterator]() {
-        yield { data: [{ id: 77, body: serializeManifest(baseManifest) }] };
-      },
+    // An existing manifest comment so the update path is taken.
+    const forge = await mockForge({
+      standingPR: openStandingPR(99),
+      comments: [{ id: 77, body: serializeManifest(baseManifest) }],
     });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
 
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    expect(mocks.updateComment).toHaveBeenCalledWith(expect.objectContaining({ comment_id: 77 }));
-    expect(mocks.createComment).not.toHaveBeenCalledWith(
-      expect.objectContaining({ body: expect.stringContaining('<!-- releasekit-manifest -->') }),
-    );
+    expect(forge.updatedComments).toContainEqual(expect.objectContaining({ commentId: 77 }));
+    expect(forge.createdComments.some((c) => c.body.includes(MANIFEST_MARKER))).toBe(false);
   });
 
   it('should return noop with versionOutput when no GitHub context is available but changes exist', async () => {
@@ -905,15 +803,12 @@ describe('runStandingPRUpdate', () => {
     const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
     vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [] });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    const forge = await mockForge({ standingPR: null });
 
     const result = await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     expect(result.action).toBe('noop');
-    expect(mocks.pullsCreate).not.toHaveBeenCalled();
+    expect(forge.createdPullRequests).toHaveLength(0);
   });
 
   it('should close existing PR when package count is below minPackages threshold', async () => {
@@ -927,17 +822,16 @@ describe('runStandingPRUpdate', () => {
     const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
     vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [{ number: 55, html_url: 'https://github.com/owner/repo/pull/55' }] });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    const forge = await mockForge({ standingPR: openStandingPR(55) });
 
     const result = await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     expect(result.action).toBe('closed');
     expect(result.prNumber).toBe(55);
-    expect(mocks.pullsUpdate).toHaveBeenCalledWith(expect.objectContaining({ state: 'closed', pull_number: 55 }));
-    expect(mocks.createComment).toHaveBeenCalledWith(
+    expect(forge.updatedPullRequests).toContainEqual(
+      expect.objectContaining({ prNumber: 55, changes: expect.objectContaining({ state: 'closed' }) }),
+    );
+    expect(forge.createdComments).toContainEqual(
       expect.objectContaining({ body: expect.stringContaining('1 of 3 required') }),
     );
   });
@@ -950,17 +844,12 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [] });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    const forge = await mockForge({ standingPR: null });
 
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    expect(mocks.createCommitStatus).toHaveBeenCalledWith(
+    expect(forge.commitStatuses).toContainEqual(
       expect.objectContaining({
-        owner: 'owner',
-        repo: 'repo',
         sha: 'abc123',
         state: 'success',
         description: 'Ready to merge',
@@ -983,26 +872,17 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
     // Existing PR with a manifest that has a recent firstUpdatedAt (5 minutes ago)
-    mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
     const recentTimestamp = new Date(Date.now() - 5 * 60_000).toISOString();
-    const existingManifest = serializeManifest({
-      ...baseManifest,
-      schemaVersion: 2,
-      firstUpdatedAt: recentTimestamp,
+    const existingManifest = serializeManifest({ ...baseManifest, schemaVersion: 2, firstUpdatedAt: recentTimestamp });
+    const forge = await mockForge({
+      standingPR: openStandingPR(99),
+      comments: [{ id: 77, body: existingManifest }],
     });
-    mocks.paginate.iterator.mockReturnValue({
-      async *[Symbol.asyncIterator]() {
-        yield { data: [{ id: 77, body: existingManifest }] };
-      },
-    });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
 
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    expect(mocks.createCommitStatus).toHaveBeenCalledWith(
+    expect(forge.commitStatuses).toContainEqual(
       expect.objectContaining({
         state: 'pending',
         context: 'releasekit/standing-pr',
@@ -1025,26 +905,17 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
     // firstUpdatedAt is 2 hours ago — minAge of 1h is satisfied
     const oldTimestamp = new Date(Date.now() - 2 * 3_600_000).toISOString();
-    const existingManifest = serializeManifest({
-      ...baseManifest,
-      schemaVersion: 2,
-      firstUpdatedAt: oldTimestamp,
+    const existingManifest = serializeManifest({ ...baseManifest, schemaVersion: 2, firstUpdatedAt: oldTimestamp });
+    const forge = await mockForge({
+      standingPR: openStandingPR(99),
+      comments: [{ id: 77, body: existingManifest }],
     });
-    mocks.paginate.iterator.mockReturnValue({
-      async *[Symbol.asyncIterator]() {
-        yield { data: [{ id: 77, body: existingManifest }] };
-      },
-    });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
 
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    expect(mocks.createCommitStatus).toHaveBeenCalledWith(
+    expect(forge.commitStatuses).toContainEqual(
       expect.objectContaining({ state: 'success', description: 'Ready to merge' }),
     );
   });
@@ -1057,32 +928,23 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
-
     const originalTimestamp = '2024-01-15T08:00:00.000Z';
     const existingManifest = serializeManifest({
       ...baseManifest,
       schemaVersion: 2,
       firstUpdatedAt: originalTimestamp,
     });
-    mocks.paginate.iterator.mockReturnValue({
-      async *[Symbol.asyncIterator]() {
-        yield { data: [{ id: 77, body: existingManifest }] };
-      },
+    const forge = await mockForge({
+      standingPR: openStandingPR(99),
+      comments: [{ id: 77, body: existingManifest }],
     });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
 
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     // The manifest comment update should contain the original firstUpdatedAt
-    const updateCall = mocks.updateComment.mock.calls.find(
-      (c) => typeof c[0]?.body === 'string' && c[0].body.includes('<!-- releasekit-manifest -->'),
-    );
+    const updateCall = forge.updatedComments.find((c) => c.body.includes(MANIFEST_MARKER));
     expect(updateCall).toBeDefined();
-    const writtenBody = updateCall?.[0]?.body as string;
-    const writtenManifest = parseManifest(writtenBody);
+    const writtenManifest = parseManifest(updateCall?.body as string);
     expect(writtenManifest.firstUpdatedAt).toBe(originalTimestamp);
   });
 
@@ -1094,26 +956,18 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [{ number: 99, html_url: 'https://github.com/owner/repo/pull/99' }] });
-
     // v1 manifest has no firstUpdatedAt — should fall back to createdAt
     const v1Manifest = serializeManifest({ ...baseManifest, schemaVersion: 1 });
-    mocks.paginate.iterator.mockReturnValue({
-      async *[Symbol.asyncIterator]() {
-        yield { data: [{ id: 77, body: v1Manifest }] };
-      },
+    const forge = await mockForge({
+      standingPR: openStandingPR(99),
+      comments: [{ id: 77, body: v1Manifest }],
     });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
 
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    const updateCall = mocks.updateComment.mock.calls.find(
-      (c) => typeof c[0]?.body === 'string' && c[0].body.includes('<!-- releasekit-manifest -->'),
-    );
+    const updateCall = forge.updatedComments.find((c) => c.body.includes(MANIFEST_MARKER));
     expect(updateCall).toBeDefined();
-    const writtenManifest = parseManifest(updateCall?.[0]?.body as string);
+    const writtenManifest = parseManifest(updateCall?.body as string);
     expect(writtenManifest.firstUpdatedAt).toBe(baseManifest.createdAt);
   });
 
@@ -1125,11 +979,8 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [] });
-    mocks.createCommitStatus.mockRejectedValue(new Error('API rate limit exceeded'));
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    const forge = await mockForge({ standingPR: null });
+    vi.spyOn(forge, 'setCommitStatus').mockRejectedValue(new Error('API rate limit exceeded'));
 
     // Should resolve (not throw) even when status check post fails
     const result = await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
@@ -1147,20 +998,9 @@ describe('runStandingPRUpdate', () => {
         .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
       vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-      const { createOctokit } = await import('../../src/github.js');
-      const { mocks, octokit } = createMockOctokit();
-      mocks.pullsList.mockResolvedValue({
-        data: [
-          {
-            number: 99,
-            html_url: 'https://github.com/owner/repo/pull/99',
-            labels: labelNames.map((name) => ({ name })),
-          },
-        ],
-      });
-      vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+      const forge = await mockForge({ standingPR: openStandingPR(99, labelNames) });
 
-      return { mocks, octokit, runVersionStepMock: vi.mocked(runVersionStep) };
+      return { forge, runVersionStepMock: vi.mocked(runVersionStep) };
     }
 
     it('should pass bump:major from standing PR labels into version step', async () => {
@@ -1193,16 +1033,14 @@ describe('runStandingPRUpdate', () => {
     });
 
     it('should record the override labels in the manifest, excluding the marker label (#337)', async () => {
-      const { mocks } = await setupWithStandingPRLabels(['release', 'bump:major', 'channel:prerelease']);
+      const { forge } = await setupWithStandingPRLabels(['release', 'bump:major', 'channel:prerelease']);
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-      const writes = [...mocks.createComment.mock.calls, ...mocks.updateComment.mock.calls];
-      const manifestWrite = writes.find(
-        (c) => typeof c[0]?.body === 'string' && c[0].body.includes('<!-- releasekit-manifest -->'),
-      );
+      const writes = [...forge.createdComments.map((c) => c.body), ...forge.updatedComments.map((c) => c.body)];
+      const manifestWrite = writes.find((b) => b.includes(MANIFEST_MARKER));
       expect(manifestWrite).toBeDefined();
-      const manifest = parseManifest(manifestWrite?.[0]?.body as string);
+      const manifest = parseManifest(manifestWrite as string);
       // Sorted, marker 'release' label excluded.
       expect(manifest.overrideLabels).toEqual(['bump:major', 'channel:prerelease']);
     });
@@ -1219,7 +1057,7 @@ describe('runStandingPRUpdate', () => {
     });
 
     it('should drop conflicting bump labels and posts pending status check', async () => {
-      const { mocks, runVersionStepMock } = await setupWithStandingPRLabels(['release', 'bump:patch', 'bump:major']);
+      const { forge, runVersionStepMock } = await setupWithStandingPRLabels(['release', 'bump:patch', 'bump:major']);
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
@@ -1227,7 +1065,7 @@ describe('runStandingPRUpdate', () => {
       expect(runVersionStepMock.mock.calls[0]?.[0]).not.toHaveProperty('bump', 'major');
       expect(runVersionStepMock.mock.calls[0]?.[0]?.bump).toBeUndefined();
       // Final status check is pending with conflict description
-      const lastStatus = mocks.createCommitStatus.mock.calls.at(-1)?.[0];
+      const lastStatus = forge.commitStatuses.at(-1);
       expect(lastStatus?.state).toBe('pending');
       expect(lastStatus?.description).toMatch(/Conflicting bump labels/);
     });
@@ -1239,22 +1077,22 @@ describe('runStandingPRUpdate', () => {
         ci: { ...defaultConfig.ci, standingPr: { ...defaultConfig.ci.standingPr, minAge: '6h' } },
       } as ReturnType<typeof loadConfig>);
 
-      const { mocks } = await setupWithStandingPRLabels(['release', 'bump:patch', 'bump:major']);
+      const { forge } = await setupWithStandingPRLabels(['release', 'bump:patch', 'bump:major']);
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-      const lastStatus = mocks.createCommitStatus.mock.calls.at(-1)?.[0];
+      const lastStatus = forge.commitStatuses.at(-1);
       expect(lastStatus?.state).toBe('pending');
       expect(lastStatus?.description).toMatch(/Conflicting bump labels/);
       expect(lastStatus?.description).not.toMatch(/minAge/);
     });
 
     it('should preserve maintainer-added labels in setLabels (union with configured labels)', async () => {
-      const { mocks } = await setupWithStandingPRLabels(['release', 'bump:major']);
+      const { forge } = await setupWithStandingPRLabels(['release', 'bump:major']);
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-      const lastSetLabels = mocks.issuesSetLabels.mock.calls.at(-1)?.[0];
+      const lastSetLabels = forge.setLabelsCalls.at(-1);
       // Should contain BOTH the configured 'release' and the maintainer-added 'bump:major'
       expect(lastSetLabels?.labels).toContain('release');
       expect(lastSetLabels?.labels).toContain('bump:major');
@@ -1295,25 +1133,16 @@ describe('runStandingPRUpdate', () => {
         files: [],
       });
 
-      const { createOctokit } = await import('../../src/github.js');
-      const { mocks, octokit } = createMockOctokit();
-      mocks.pullsList.mockResolvedValue({
-        data: [
-          {
-            number: 99,
-            html_url: 'https://github.com/owner/repo/pull/99',
-            labels: opts.labels.map((name) => ({ name })),
-          },
-        ],
+      const forge = await mockForge({
+        standingPR: openStandingPR(99, opts.labels),
+        pullRequests: { 99: { body: opts.liveBody ?? '', labels: [] } },
       });
-      mocks.pullsGet.mockResolvedValue({ data: { body: opts.liveBody ?? '' } });
-      vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
 
-      return { mocks, runNotesStepMock: vi.mocked(runNotesStep) };
+      return { forge, runNotesStepMock: vi.mocked(runNotesStep) };
     }
 
     it('should seed generated notes into the editable region when the preview label is present', async () => {
-      const { mocks, runNotesStepMock } = await setupPreviewPR({
+      const { forge, runNotesStepMock } = await setupPreviewPR({
         labels: ['release', 'release:preview-notes'],
         liveBody: '',
         freshNotes: { '@scope/core': 'Generated notes for core' },
@@ -1323,7 +1152,7 @@ describe('runStandingPRUpdate', () => {
 
       // LLM release notes were requested (skipReleaseNotes false) on the seeding run.
       expect(runNotesStepMock.mock.calls.at(-1)?.[1]).toMatchObject({ skipReleaseNotes: false });
-      const body = mocks.pullsUpdate.mock.calls.at(-1)?.[0]?.body as string;
+      const body = forge.updatedPullRequests.at(-1)?.changes.body as string;
       expect(body).toContain('## Release Notes');
       expect(body).toContain('<!-- releasekit-notes:@scope/core -->');
       expect(body).toContain('Generated notes for core');
@@ -1331,7 +1160,7 @@ describe('runStandingPRUpdate', () => {
 
     it('should preserve a human-edited region across an update without regenerating', async () => {
       const editedBody = renderNotesRegion({ '@scope/core': 'HUMAN EDITED notes' });
-      const { mocks, runNotesStepMock } = await setupPreviewPR({
+      const { forge, runNotesStepMock } = await setupPreviewPR({
         labels: ['release', 'release:preview-notes'],
         liveBody: editedBody,
         // Even if the mock returned fresh notes, the edit must win — but generation should be skipped.
@@ -1342,17 +1171,17 @@ describe('runStandingPRUpdate', () => {
 
       // Every releasing package already has a region → LLM generation is skipped.
       expect(runNotesStepMock.mock.calls.at(-1)?.[1]).toMatchObject({ skipReleaseNotes: true });
-      const body = mocks.pullsUpdate.mock.calls.at(-1)?.[0]?.body as string;
+      const body = forge.updatedPullRequests.at(-1)?.changes.body as string;
       expect(body).toContain('HUMAN EDITED notes');
       expect(body).not.toContain('REGENERATED notes');
     });
 
     it('should not add a notes region when the preview label is absent', async () => {
-      const { mocks } = await setupPreviewPR({ labels: ['release'], freshNotes: {} });
+      const { forge } = await setupPreviewPR({ labels: ['release'], freshNotes: {} });
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-      const body = mocks.pullsUpdate.mock.calls.at(-1)?.[0]?.body as string;
+      const body = forge.updatedPullRequests.at(-1)?.changes.body as string;
       expect(body).not.toContain('## Release Notes');
       expect(body).not.toContain('<!-- releasekit-notes');
     });
@@ -1361,39 +1190,25 @@ describe('runStandingPRUpdate', () => {
 
 describe('findLatestMergedStandingPR', () => {
   it('should pick the most recently merged PR even when an older merge was updated more recently', async () => {
-    const { createOctokit } = await import('../../src/github.js');
-    const { octokit, mocks } = createMockOctokit();
     // List order is the API's 'updated' sort — late activity (a comment, a label) on the
     // older merged #42 floats it above the newer merge #77.
-    mocks.pullsList.mockResolvedValue({
-      data: [
-        { number: 42, merged_at: '2024-01-01T00:00:00Z' },
-        { number: 80, merged_at: null },
-        { number: 77, merged_at: '2024-01-02T00:00:00Z' },
+    const forge = createFakeForge({
+      recentlyClosedPRs: [
+        { number: 42, mergedAt: '2024-01-01T00:00:00Z' },
+        { number: 80, mergedAt: null },
+        { number: 77, mergedAt: '2024-01-02T00:00:00Z' },
       ],
     });
 
-    const result = await findLatestMergedStandingPR(
-      octokit as unknown as ReturnType<typeof createOctokit>,
-      'owner',
-      'repo',
-      'release/next',
-    );
+    const result = await findLatestMergedStandingPR(forge, 'release/next');
 
     expect(result).toBe(77);
   });
 
   it('should return null when no closed PR from the branch was merged', async () => {
-    const { createOctokit } = await import('../../src/github.js');
-    const { octokit, mocks } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [{ number: 80, merged_at: null }] });
+    const forge = createFakeForge({ recentlyClosedPRs: [{ number: 80, mergedAt: null }] });
 
-    const result = await findLatestMergedStandingPR(
-      octokit as unknown as ReturnType<typeof createOctokit>,
-      'owner',
-      'repo',
-      'release/next',
-    );
+    const result = await findLatestMergedStandingPR(forge, 'release/next');
 
     expect(result).toBeNull();
   });
@@ -1427,35 +1242,28 @@ describe('runStandingPRPublish', () => {
   it('should infer the latest merged standing PR from the API when GITHUB_EVENT_PATH is not set', async () => {
     delete process.env.GITHUB_EVENT_PATH;
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { octokit, mocks } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({
-      data: [
-        { number: 80, merged_at: null },
-        { number: 77, merged_at: '2024-01-02T00:00:00Z' },
-      ],
-    });
     // No manifest comment on the inferred PR — the publish attempt throwing proves the
     // inference resolved #77 and proceeded to publishFromManifest.
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    const forge = await mockForge({
+      recentlyClosedPRs: [
+        { number: 80, mergedAt: null },
+        { number: 77, mergedAt: '2024-01-02T00:00:00Z' },
+      ],
+    });
+    const listClosed = vi.spyOn(forge, 'listRecentlyClosedPullRequests');
 
     await expect(
       runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }),
     ).rejects.toThrow(/manifest not found/);
 
-    expect(mocks.pullsList).toHaveBeenCalledWith(
-      expect.objectContaining({ head: 'owner:release/next', state: 'closed' }),
-    );
+    expect(listClosed).toHaveBeenCalledWith('release/next', expect.any(Number));
   });
 
   it('should fall back to API inference when the event payload has no pull_request (workflow_dispatch)', async () => {
     const { readFileSync } = await import('node:fs');
     vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ inputs: {} }));
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { octokit, mocks } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [{ number: 42, merged_at: '2024-01-02T00:00:00Z' }] });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    await mockForge({ recentlyClosedPRs: [{ number: 42, mergedAt: '2024-01-02T00:00:00Z' }] });
 
     await expect(
       runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }),
@@ -1465,10 +1273,7 @@ describe('runStandingPRPublish', () => {
   it('should return null when API inference finds no merged standing PR', async () => {
     delete process.env.GITHUB_EVENT_PATH;
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { octokit, mocks } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [{ number: 80, merged_at: null }] });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    await mockForge({ recentlyClosedPRs: [{ number: 80, mergedAt: null }] });
 
     const result = await runStandingPRPublish({
       projectDir: '/test',
@@ -1538,10 +1343,8 @@ describe('runStandingPRPublish', () => {
       }),
     );
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { octokit } = createMockOctokit();
     // No manifest comment
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    await mockForge({});
 
     await expect(
       runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }),
@@ -1556,15 +1359,7 @@ describe('runStandingPRPublish', () => {
       }),
     );
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { octokit } = createMockOctokit();
-    const manifestBody = serializeManifest(baseManifest);
-    (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
-      async *[Symbol.asyncIterator]() {
-        yield { data: [{ id: 1, body: manifestBody }] };
-      },
-    });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
 
     const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
     // publishFromManifest regenerates LLM-enhanced notes against the merged commit set
@@ -1607,17 +1402,12 @@ describe('runStandingPRPublish', () => {
       JSON.stringify({ pull_request: { head: { ref: 'release/next' }, number: 42, merged: true } }),
     );
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { octokit, mocks } = createMockOctokit();
     const manifestBody = serializeManifest({ ...baseManifest, schemaVersion: 2, overrideLabels: ['bump:major'] });
-    (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
-      async *[Symbol.asyncIterator]() {
-        yield { data: [{ id: 1, body: manifestBody }] };
-      },
-    });
     // The merged PR carries a different bump label than the manifest was computed for.
-    mocks.pullsGet.mockResolvedValue({ data: { body: '', labels: [{ name: 'bump:minor' }, { name: 'release' }] } });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    await mockForge({
+      comments: [{ id: 1, body: manifestBody }],
+      pullRequests: { 42: { body: '', labels: ['bump:minor', 'release'] } },
+    });
 
     await expect(
       runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }),
@@ -1633,19 +1423,12 @@ describe('runStandingPRPublish', () => {
       JSON.stringify({ pull_request: { head: { ref: 'release/next' }, number: 42, merged: true } }),
     );
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { octokit, mocks } = createMockOctokit();
     const manifestBody = serializeManifest({ ...baseManifest, schemaVersion: 2, overrideLabels: ['bump:major'] });
-    (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
-      async *[Symbol.asyncIterator]() {
-        yield { data: [{ id: 1, body: manifestBody }] };
-      },
-    });
     // Same override label; the unrelated 'release' / 'area:ci' labels must not count as a mismatch.
-    mocks.pullsGet.mockResolvedValue({
-      data: { body: '', labels: [{ name: 'release' }, { name: 'bump:major' }, { name: 'area:ci' }] },
+    await mockForge({
+      comments: [{ id: 1, body: manifestBody }],
+      pullRequests: { 42: { body: '', labels: ['release', 'bump:major', 'area:ci'] } },
     });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
 
     const { runPublishStep } = await import('../../src/steps.js');
     vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
@@ -1663,17 +1446,11 @@ describe('runStandingPRPublish', () => {
       JSON.stringify({ pull_request: { head: { ref: 'release/next' }, number: 42, merged: true } }),
     );
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { octokit, mocks } = createMockOctokit();
     // baseManifest has no overrideLabels (pre-#337) — the check must be skipped even if labels differ.
-    const manifestBody = serializeManifest(baseManifest);
-    (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
-      async *[Symbol.asyncIterator]() {
-        yield { data: [{ id: 1, body: manifestBody }] };
-      },
+    await mockForge({
+      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+      pullRequests: { 42: { body: '', labels: ['bump:major'] } },
     });
-    mocks.pullsGet.mockResolvedValue({ data: { body: '', labels: [{ name: 'bump:major' }] } });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
 
     const { runPublishStep } = await import('../../src/steps.js');
     vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
@@ -1691,17 +1468,10 @@ describe('runStandingPRPublish', () => {
       JSON.stringify({ pull_request: { head: { ref: 'release/next' }, number: 42, merged: true } }),
     );
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { octokit, mocks } = createMockOctokit();
     const manifestBody = serializeManifest({ ...baseManifest, schemaVersion: 2, overrideLabels: ['bump:major'] });
-    (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
-      async *[Symbol.asyncIterator]() {
-        yield { data: [{ id: 1, body: manifestBody }] };
-      },
-    });
+    const forge = await mockForge({ comments: [{ id: 1, body: manifestBody }] });
     // The PR can't be read (transient API failure) — can't verify labels, so fail closed.
-    mocks.pullsGet.mockRejectedValue(new Error('API unavailable'));
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    vi.spyOn(forge, 'getPullRequest').mockRejectedValue(new Error('API unavailable'));
 
     await expect(
       runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }),
@@ -1719,15 +1489,7 @@ describe('runStandingPRPublish', () => {
       }),
     );
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { octokit } = createMockOctokit();
-    const manifestBody = serializeManifest(baseManifest);
-    (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
-      async *[Symbol.asyncIterator]() {
-        yield { data: [{ id: 1, body: manifestBody }] };
-      },
-    });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
 
     const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
     vi.mocked(runNotesStep).mockRejectedValue(new Error('LLM provider unavailable'));
@@ -1761,15 +1523,7 @@ describe('runStandingPRPublish', () => {
       }),
     );
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { octokit } = createMockOctokit();
-    const manifestBody = serializeManifest(baseManifest);
-    (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
-      async *[Symbol.asyncIterator]() {
-        yield { data: [{ id: 1, body: manifestBody }] };
-      },
-    });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
 
     const { runPublishStep } = await import('../../src/steps.js');
     vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
@@ -1801,15 +1555,7 @@ describe('runStandingPRPublish', () => {
       }),
     );
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { octokit } = createMockOctokit();
-    const manifestBody = serializeManifest(baseManifest);
-    (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
-      async *[Symbol.asyncIterator]() {
-        yield { data: [{ id: 1, body: manifestBody }] };
-      },
-    });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
 
     const { runPublishStep } = await import('../../src/steps.js');
     vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
@@ -1850,15 +1596,8 @@ describe('runStandingPRPublish', () => {
       }),
     );
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { octokit } = createMockOctokit();
     const badManifest = '<!-- releasekit-manifest -->\n<!-- json {broken -->';
-    (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
-      async *[Symbol.asyncIterator]() {
-        yield { data: [{ id: 1, body: badManifest }] };
-      },
-    });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    await mockForge({ comments: [{ id: 1, body: badManifest }] });
 
     await expect(
       runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }),
@@ -1906,9 +1645,7 @@ describe('publishFromManifest', () => {
   });
 
   it('should throw when manifest comment is missing from PR', async () => {
-    const { createOctokit } = await import('../../src/github.js');
-    const { octokit } = createMockOctokit();
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    await mockForge({});
 
     await expect(
       publishFromManifest(42, { projectDir: '/test', verbose: false, quiet: false, json: false }),
@@ -1929,17 +1666,11 @@ describe('publishFromManifest', () => {
       git: { committed: true, tags: [], pushed: true },
     } as unknown as Awaited<ReturnType<typeof runPublishStep>>);
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    // Manifest comment present so publish proceeds.
-    mocks.paginate.iterator.mockReturnValue({
-      async *[Symbol.asyncIterator]() {
-        yield { data: [{ id: 77, body: serializeManifest(baseManifest) }] };
-      },
+    // Manifest comment present so publish proceeds; the merged PR body carries a human-edited region.
+    await mockForge({
+      comments: [{ id: 77, body: serializeManifest(baseManifest) }],
+      pullRequests: { 99: { body: renderNotesRegion({ '@scope/core': 'EDITED AT MERGE' }), labels: [] } },
     });
-    // The merged PR body carries a human-edited region for @scope/core.
-    mocks.pullsGet.mockResolvedValue({ data: { body: renderNotesRegion({ '@scope/core': 'EDITED AT MERGE' }) } });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
 
     await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
 
@@ -1985,10 +1716,7 @@ describe('runStandingPRMerge', () => {
   });
 
   it('should return null when no open standing PR found', async () => {
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({ data: [] });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    const forge = await mockForge({ standingPR: null });
 
     const result = await runStandingPRMerge(
       { projectDir: '/test', verbose: false, quiet: false, json: false },
@@ -1996,7 +1724,7 @@ describe('runStandingPRMerge', () => {
     );
 
     expect(result).toBeNull();
-    expect(mocks.pullsMerge).not.toHaveBeenCalled();
+    expect(forge.mergedPullRequests).toHaveLength(0);
   });
 
   it('should call pulls.merge with mergeMethod from config', async () => {
@@ -2008,23 +1736,11 @@ describe('runStandingPRMerge', () => {
       git: { branch: 'main' },
     } as ReturnType<typeof loadConfig>);
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({
-      data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
-    });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    const forge = await mockForge({ standingPR: openStandingPR(42) });
 
     await runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false });
 
-    expect(mocks.pullsMerge).toHaveBeenCalledWith(
-      expect.objectContaining({
-        owner: 'owner',
-        repo: 'repo',
-        pull_number: 42,
-        merge_method: 'squash',
-      }),
-    );
+    expect(forge.mergedPullRequests).toContainEqual({ prNumber: 42, method: 'squash' });
   });
 
   it('should default to merge method when config omits mergeMethod', async () => {
@@ -2036,33 +1752,19 @@ describe('runStandingPRMerge', () => {
       git: { branch: 'main' },
     } as ReturnType<typeof loadConfig>);
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({
-      data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
-    });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    const forge = await mockForge({ standingPR: openStandingPR(42) });
 
     await runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false });
 
-    expect(mocks.pullsMerge).toHaveBeenCalledWith(
-      expect.objectContaining({
-        merge_method: 'merge',
-      }),
-    );
+    expect(forge.mergedPullRequests).toContainEqual(expect.objectContaining({ method: 'merge' }));
   });
 
   it('should throw clear error message on 405 response', async () => {
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({
-      data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
-    });
-    mocks.pullsMerge.mockRejectedValue({
+    const forge = await mockForge({ standingPR: openStandingPR(42) });
+    vi.spyOn(forge, 'mergePullRequest').mockRejectedValue({
       status: 405,
       response: { data: { message: 'Required status checks have not passed' } },
     });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
 
     await expect(
       runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false }),
@@ -2074,14 +1776,9 @@ describe('runStandingPRMerge', () => {
   });
 
   it('should re-throw non-405 errors unchanged', async () => {
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({
-      data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
-    });
+    const forge = await mockForge({ standingPR: openStandingPR(42) });
     const originalError = new Error('Network error');
-    mocks.pullsMerge.mockRejectedValue(originalError);
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    vi.spyOn(forge, 'mergePullRequest').mockRejectedValue(originalError);
 
     await expect(
       runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false }),
@@ -2089,12 +1786,7 @@ describe('runStandingPRMerge', () => {
   });
 
   it('should return null without publishing when publish flag is false', async () => {
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({
-      data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
-    });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    await mockForge({ standingPR: openStandingPR(42) });
 
     const result = await runStandingPRMerge(
       { projectDir: '/test', verbose: false, quiet: false, json: false },
@@ -2105,18 +1797,10 @@ describe('runStandingPRMerge', () => {
   });
 
   it('should call publishFromManifest when publish flag is true and manifest exists', async () => {
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({
-      data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
+    await mockForge({
+      standingPR: openStandingPR(42),
+      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
     });
-    const manifestBody = serializeManifest(baseManifest);
-    (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
-      async *[Symbol.asyncIterator]() {
-        yield { data: [{ id: 1, body: manifestBody }] };
-      },
-    });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
 
     const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
     vi.mocked(runNotesStep).mockResolvedValue({
@@ -2143,18 +1827,10 @@ describe('runStandingPRMerge', () => {
   });
 
   it('should delete branch after publish when deleteBranchOnMerge is true', async () => {
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({
-      data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
+    await mockForge({
+      standingPR: openStandingPR(42),
+      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
     });
-    const manifestBody = serializeManifest(baseManifest);
-    (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
-      async *[Symbol.asyncIterator]() {
-        yield { data: [{ id: 1, body: manifestBody }] };
-      },
-    });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
 
     const { runPublishStep } = await import('../../src/steps.js');
     vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
@@ -2179,18 +1855,10 @@ describe('runStandingPRMerge', () => {
       git: { branch: 'main' },
     } as ReturnType<typeof loadConfig>);
 
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({
-      data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
+    await mockForge({
+      standingPR: openStandingPR(42),
+      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
     });
-    const manifestBody = serializeManifest(baseManifest);
-    (octokit as unknown as { paginate: { iterator: ReturnType<typeof vi.fn> } }).paginate.iterator.mockReturnValue({
-      async *[Symbol.asyncIterator]() {
-        yield { data: [{ id: 1, body: manifestBody }] };
-      },
-    });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
 
     const { runPublishStep } = await import('../../src/steps.js');
     vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
@@ -2208,12 +1876,7 @@ describe('runStandingPRMerge', () => {
   });
 
   it('should delete branch even when publish flag is false and deleteBranchOnMerge is true', async () => {
-    const { createOctokit } = await import('../../src/github.js');
-    const { mocks, octokit } = createMockOctokit();
-    mocks.pullsList.mockResolvedValue({
-      data: [{ number: 42, html_url: 'https://github.com/owner/repo/pull/42' }],
-    });
-    vi.mocked(createOctokit).mockReturnValue(octokit as unknown as ReturnType<typeof createOctokit>);
+    await mockForge({ standingPR: openStandingPR(42) });
 
     const { execSync } = await import('node:child_process');
 

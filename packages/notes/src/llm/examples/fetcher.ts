@@ -3,8 +3,8 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { RequestError } from '@octokit/request-error';
-import { Octokit } from '@octokit/rest';
 import { debug, warn } from '@releasekit/core';
+import { createGitHubForge } from '@releasekit/forge';
 import { parseReleaseBodyToExample } from './parser.js';
 import type { Example } from './types.js';
 
@@ -77,27 +77,15 @@ export async function fetchExamples(options: FetchExamplesOptions): Promise<Exam
     return [];
   }
 
-  const octokit = new Octokit({ auth: token });
+  const forge = createGitHubForge({ token, owner, repo });
 
   try {
-    const allReleases: Awaited<ReturnType<typeof octokit.rest.repos.listReleases>>['data'] = [];
-    for (let page = 1; page <= 3; page++) {
-      const { data } = await octokit.rest.repos.listReleases({ owner, repo, per_page: 100, page });
-      allReleases.push(...data);
-      const totalScoped = allReleases.filter(
-        (r) => !r.draft && !r.prerelease && matchesPackageScoped(r.tag_name, packageName),
-      ).length;
-      if (totalScoped >= count || data.length < 100) break;
-    }
+    const allReleases = await forge.listReleases();
 
     const nonDraft = allReleases.filter((r) => !r.draft && !r.prerelease);
-    const packageScoped = nonDraft.filter((r) => matchesPackageScoped(r.tag_name, packageName));
+    const packageScoped = nonDraft.filter((r) => matchesPackageScoped(r.tagName, packageName));
     const matching = (
-      packageScoped.length > 0
-        ? packageScoped
-        : isMonorepo
-          ? []
-          : nonDraft.filter((r) => matchesBareVersion(r.tag_name))
+      packageScoped.length > 0 ? packageScoped : isMonorepo ? [] : nonDraft.filter((r) => matchesBareVersion(r.tagName))
     ).slice(0, count);
 
     if (matching.length === 0) {
@@ -105,7 +93,7 @@ export async function fetchExamples(options: FetchExamplesOptions): Promise<Exam
       return [];
     }
 
-    const latestTag = matching[0]!.tag_name;
+    const latestTag = matching[0]!.tagName;
     const key = cacheKey(owner, repo, packageName);
     const cached = readCache(key, latestTag, count);
     if (cached) {
@@ -116,7 +104,7 @@ export async function fetchExamples(options: FetchExamplesOptions): Promise<Exam
     const examples: Example[] = [];
     for (const release of matching) {
       if (!release.body) continue;
-      const version = release.tag_name.replace(/^.*@/, '').replace(/^v/, '');
+      const version = release.tagName.replace(/^.*@/, '').replace(/^v/, '');
       const example = parseReleaseBodyToExample(release.body, version);
       if (example) examples.push(example);
     }

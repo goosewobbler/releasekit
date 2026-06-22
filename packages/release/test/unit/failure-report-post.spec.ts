@@ -1,6 +1,7 @@
 import type { VersionOutput } from '@releasekit/core';
+import { createFakeForge } from '@releasekit/forge';
 import { PipelineError, type PublishOutput, type PublishResult } from '@releasekit/publish';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FAILURE_MARKER, renderFailureReport, renderResolvedReport } from '../../src/failure-report/failure-report.js';
 import {
   detectUnresolvedFailure,
@@ -43,33 +44,9 @@ function pipelineErrorFor(versionOutput: VersionOutput): PipelineError {
   return new PipelineError('Failed to publish to npm: npm 403', 'npm-publish', publishOutput);
 }
 
-function commentsIterator(bodies: Array<{ id: number; body: string }>) {
-  return {
-    iterator: vi.fn().mockReturnValue({
-      async *[Symbol.asyncIterator]() {
-        yield { data: bodies };
-      },
-    }),
-  };
-}
-
-function mockOctokit(comments: Array<{ id: number; body: string }> = []) {
-  const createComment = vi.fn().mockResolvedValue({});
-  const updateComment = vi.fn().mockResolvedValue({});
-  return {
-    octokit: {
-      paginate: commentsIterator(comments),
-      rest: {
-        issues: {
-          listComments: vi.fn(),
-          createComment,
-          updateComment,
-        },
-      },
-    } as never,
-    createComment,
-    updateComment,
-  };
+/** A forge seeded with existing comments, exposing its recorded create/update writes for assertions. */
+function fakeForgeWith(comments: Array<{ id: number; body: string }> = []) {
+  return createFakeForge({ comments });
 }
 
 const versionOutput = versionOutputFor([
@@ -79,14 +56,14 @@ const versionOutput = versionOutputFor([
 
 describe('postFailureReport', () => {
   it('should create a new marker comment when none exists', async () => {
-    const { octokit, createComment } = mockOctokit([]);
+    const forge = fakeForgeWith([]);
     await postFailureReport(
-      { octokit, owner: 'o', repo: 'r', mode: 'standing-pr', prNumber: 42, standingPrNumber: 42 },
+      { forge, mode: 'standing-pr', prNumber: 42, standingPrNumber: 42 },
       versionOutput,
       pipelineErrorFor(versionOutput),
     );
-    expect(createComment).toHaveBeenCalledTimes(1);
-    const body = createComment.mock.calls[0]?.[0]?.body as string;
+    expect(forge.createdComments).toHaveLength(1);
+    const body = forge.createdComments[0]?.body as string;
     expect(body.startsWith(FAILURE_MARKER)).toBe(true);
     expect(body).toContain('1/2 package(s) published');
   });
@@ -99,15 +76,15 @@ describe('postFailureReport', () => {
       errorMessage: 'older error',
       recovery: { mode: 'standing-pr', standingPrNumber: 42 },
     });
-    const { octokit, createComment, updateComment } = mockOctokit([{ id: 7, body: existing }]);
+    const forge = fakeForgeWith([{ id: 7, body: existing }]);
     await postFailureReport(
-      { octokit, owner: 'o', repo: 'r', mode: 'standing-pr', prNumber: 42, standingPrNumber: 42 },
+      { forge, mode: 'standing-pr', prNumber: 42, standingPrNumber: 42 },
       versionOutput,
       pipelineErrorFor(versionOutput),
     );
-    expect(createComment).not.toHaveBeenCalled();
-    expect(updateComment).toHaveBeenCalledTimes(1);
-    expect(updateComment.mock.calls[0]?.[0]?.comment_id).toBe(7);
+    expect(forge.createdComments).toHaveLength(0);
+    expect(forge.updatedComments).toHaveLength(1);
+    expect(forge.updatedComments[0]?.commentId).toBe(7);
   });
 
   it('should write to the step summary when no PR is available (manual dispatch)', async () => {
@@ -115,13 +92,9 @@ describe('postFailureReport', () => {
     const fs = await import('node:fs');
     process.env.GITHUB_STEP_SUMMARY = tmp;
     try {
-      const { octokit, createComment } = mockOctokit([]);
-      await postFailureReport(
-        { octokit, owner: 'o', repo: 'r', mode: 'manual' },
-        versionOutput,
-        pipelineErrorFor(versionOutput),
-      );
-      expect(createComment).not.toHaveBeenCalled();
+      const forge = fakeForgeWith([]);
+      await postFailureReport({ forge, mode: 'manual' }, versionOutput, pipelineErrorFor(versionOutput));
+      expect(forge.createdComments).toHaveLength(0);
       const written = fs.readFileSync(tmp, 'utf-8');
       expect(written).toContain(FAILURE_MARKER);
       expect(written).toContain('1/2 package(s) published');
@@ -142,18 +115,18 @@ describe('resolveFailureReportIfPresent', () => {
       errorMessage: 'err',
       recovery: { mode: 'standing-pr', standingPrNumber: 42 },
     });
-    const { octokit, updateComment } = mockOctokit([{ id: 7, body: existing }]);
-    await resolveFailureReportIfPresent(octokit, 'o', 'r', 42, versionOutput);
-    expect(updateComment).toHaveBeenCalledTimes(1);
-    const body = updateComment.mock.calls[0]?.[0]?.body as string;
+    const forge = fakeForgeWith([{ id: 7, body: existing }]);
+    await resolveFailureReportIfPresent(forge, 42, versionOutput);
+    expect(forge.updatedComments).toHaveLength(1);
+    const body = forge.updatedComments[0]?.body as string;
     expect(body).toContain('recovered');
   });
 
   it('should be a no-op when there is no existing report', async () => {
-    const { octokit, updateComment, createComment } = mockOctokit([]);
-    await resolveFailureReportIfPresent(octokit, 'o', 'r', 42, versionOutput);
-    expect(updateComment).not.toHaveBeenCalled();
-    expect(createComment).not.toHaveBeenCalled();
+    const forge = fakeForgeWith([]);
+    await resolveFailureReportIfPresent(forge, 42, versionOutput);
+    expect(forge.updatedComments).toHaveLength(0);
+    expect(forge.createdComments).toHaveLength(0);
   });
 });
 
@@ -176,20 +149,20 @@ describe('detectUnresolvedFailure', () => {
       errorMessage: 'npm 403',
       recovery: { mode: 'standing-pr', standingPrNumber: 42 },
     });
-    const { octokit } = mockOctokit([{ id: 9, body: report }]);
-    const result = await detectUnresolvedFailure(octokit, 'o', 'r', 42);
+    const forge = fakeForgeWith([{ id: 9, body: report }]);
+    const result = await detectUnresolvedFailure(forge, 42);
     expect(result).toEqual({ previousLabel: 'v0.24.0', published: 1, total: 2, prNumber: 42 });
   });
 
   it('should return null once the report is resolved', async () => {
     const resolved = renderResolvedReport(versionOutput);
-    const { octokit } = mockOctokit([{ id: 9, body: resolved }]);
-    expect(await detectUnresolvedFailure(octokit, 'o', 'r', 42)).toBeNull();
+    const forge = fakeForgeWith([{ id: 9, body: resolved }]);
+    expect(await detectUnresolvedFailure(forge, 42)).toBeNull();
   });
 
   it('should return null when there is no failure report', async () => {
-    const { octokit } = mockOctokit([{ id: 1, body: 'unrelated comment' }]);
-    expect(await detectUnresolvedFailure(octokit, 'o', 'r', 42)).toBeNull();
+    const forge = fakeForgeWith([{ id: 1, body: 'unrelated comment' }]);
+    expect(await detectUnresolvedFailure(forge, 42)).toBeNull();
   });
 });
 

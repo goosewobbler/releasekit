@@ -23,3 +23,8 @@ Conflating these is the historical source of the `fix(version)` bug cluster (#33
 - **Explicit group** — a declared coordination invariant over related packages: `fixed` (shared version, all move) · `linked` (shared version, changed-only) · `independent` (own version lines, changed-only, atomic).
 - **Prerequisite** — *derived* from the dependency graph at release time; keeps its own commit-driven bump; pulled in only if changed; dependency-ordered.
 - **Selection** — orthogonal *"what to act on now"* (scope labels / checkboxes / CLI). Under this taxonomy, scope labels revert to pure selection — they are not the home for co-release coupling.
+
+## Forge — the hosting platform, distinct from git
+
+- **Forge** — the *remote* hosting platform's collaboration API: pull requests, marker comments, labels, commit statuses, releases. GitHub is the only forge today; GitLab/Bitbucket would be additional **adapters** behind the same `Forge` interface (`@releasekit/forge`: `Forge` interface + `GitHubForge` octokit adapter + in-memory fake). Returns plain data — never leaks Octokit types — so a second forge is a new adapter with zero caller changes.
+- **Not** the **git** layer — `git` is the *local* CLI (tags, log, commit, push, status; no token, no PR concept); a forge is the *server-side API* over HTTP with a token. A release run uses both at once.

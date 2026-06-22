@@ -55,6 +55,7 @@
   "dependencies": {
     "@manypkg/get-packages": "catalog:",
     "@octokit/rest": "catalog:",
+    "@releasekit/forge": "workspace:*",
     "@releasekit/notes": "workspace:*",
     "@releasekit/publish": "workspace:*",
     "@releasekit/version": "workspace:*",

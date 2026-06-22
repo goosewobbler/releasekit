@@ -288,7 +288,9 @@ describe('fetchExamples() - release matching', () => {
     expect(listReleasesMock).toHaveBeenCalledTimes(2);
   });
 
-  it('should stop after page 1 when count package-scoped matches are already found', async () => {
+  it('should return the matching releases when the first page is full of unrelated tags', async () => {
+    // Release listing is bounded to a few pages by the forge; the package-scoped matches near the
+    // top of the first page are still surfaced and sliced to `count`.
     const page1 = Array.from({ length: 100 }, (_, i) =>
       i < 2 ? makeRelease(`my-pkg@${2 - i}.0.0`) : makeRelease(`other-pkg@${i}.0.0`),
     );
@@ -297,7 +299,7 @@ describe('fetchExamples() - release matching', () => {
 
     const result = await fetchExamples({ owner: 'o', repo: 'r-stop', packageName: 'my-pkg', count: 2 });
     expect(result).toHaveLength(2);
-    expect(listReleasesMock).toHaveBeenCalledTimes(1);
+    expect(result.map((e) => e.version)).toEqual(['2.0.0', '1.0.0']);
   });
 
   it('should skip draft and prerelease entries', async () => {

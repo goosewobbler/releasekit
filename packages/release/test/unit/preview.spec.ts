@@ -43,13 +43,13 @@ vi.mock('../../src/release.js', () => ({
 }));
 
 const mockPostOrUpdateComment = vi.fn();
-const mockCreateOctokit = vi.fn();
+const mockForgeFor = vi.fn();
 const mockFetchPRLabels = vi.fn();
 
 vi.mock('../../src/github.js', () => ({
   MARKER: '<!-- releasekit-preview -->',
   postOrUpdateComment: (...args: unknown[]) => mockPostOrUpdateComment(...args),
-  createOctokit: (...args: unknown[]) => mockCreateOctokit(...args),
+  forgeFor: (...args: unknown[]) => mockForgeFor(...args),
   fetchPRLabels: (...args: unknown[]) => mockFetchPRLabels(...args),
 }));
 
@@ -113,7 +113,7 @@ describe('runPreview', () => {
       notesGenerated: false,
     });
     mockResolvePreviewContext.mockReturnValue(defaultContext);
-    mockCreateOctokit.mockReturnValue({});
+    mockForgeFor.mockReturnValue({});
     mockFetchPRLabels.mockResolvedValue([]);
     mockPostOrUpdateComment.mockResolvedValue(undefined);
     mockFetchStandingPRSnapshot.mockResolvedValue(null);
@@ -175,8 +175,6 @@ describe('runPreview', () => {
 
       expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
         expect.anything(),
-        'owner',
-        'repo',
         1,
         expect.stringContaining('No releasable changes detected'),
       );
@@ -308,8 +306,6 @@ describe('runPreview', () => {
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major' }));
         expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
           expect.anything(),
-          'owner',
-          'repo',
           1,
           expect.stringContaining('labeled for a **major** release'),
         );
@@ -324,8 +320,6 @@ describe('runPreview', () => {
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'major' }));
         expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
           expect.anything(),
-          'owner',
-          'repo',
           1,
           expect.stringContaining('labeled for a **major** release'),
         );
@@ -340,8 +334,6 @@ describe('runPreview', () => {
         expect(mockRunRelease).not.toHaveBeenCalled();
         expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
           expect.anything(),
-          'owner',
-          'repo',
           1,
           expect.stringContaining('marked to skip release'),
         );
@@ -356,8 +348,6 @@ describe('runPreview', () => {
         expect(mockRunRelease).not.toHaveBeenCalled();
         expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
           expect.anything(),
-          'owner',
-          'repo',
           1,
           expect.stringContaining('marked to skip release'),
         );
@@ -383,8 +373,6 @@ describe('runPreview', () => {
         expect(mockRunRelease).not.toHaveBeenCalled();
         expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
           expect.anything(),
-          'owner',
-          'repo',
           1,
           expect.stringContaining('No bump label detected'),
         );
@@ -486,8 +474,6 @@ describe('runPreview', () => {
         expect(mockRunRelease).not.toHaveBeenCalled();
         expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
           expect.anything(),
-          'owner',
-          'repo',
           1,
           expect.stringContaining('Conflicting bump labels detected'),
         );
@@ -502,8 +488,6 @@ describe('runPreview', () => {
         expect(mockRunRelease).not.toHaveBeenCalled();
         expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
           expect.anything(),
-          'owner',
-          'repo',
           1,
           expect.stringContaining('Conflicting bump labels detected'),
         );
@@ -520,8 +504,6 @@ describe('runPreview', () => {
         expect(mockRunRelease).not.toHaveBeenCalled();
         expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
           expect.anything(),
-          'owner',
-          'repo',
           1,
           expect.stringContaining('Conflicting release type labels detected'),
         );
@@ -540,8 +522,6 @@ describe('runPreview', () => {
         expect(mockRunRelease).not.toHaveBeenCalled();
         expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
           expect.anything(),
-          'owner',
-          'repo',
           1,
           expect.stringContaining('No bump label detected'),
         );
@@ -562,7 +542,7 @@ describe('runPreview', () => {
         // Critically: runRelease (which would compute the misleading version bump) is NOT called.
         expect(mockRunRelease).not.toHaveBeenCalled();
 
-        const body = mockPostOrUpdateComment.mock.calls[0][4] as string;
+        const body = mockPostOrUpdateComment.mock.calls[0][2] as string;
         expect(body).toContain('No bump label detected');
         // The gate reason — surfaced via labelContext.gateReason — explains exactly why.
         expect(body).toContain('channel:prerelease');
@@ -624,13 +604,7 @@ describe('runPreview', () => {
       await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
       expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ target: '@wdio/native-*' }));
-      expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
-        expect.anything(),
-        'owner',
-        'repo',
-        1,
-        expect.stringContaining('**Scope:**'),
-      );
+      expect(mockPostOrUpdateComment).toHaveBeenCalledWith(expect.anything(), 1, expect.stringContaining('**Scope:**'));
     });
 
     it('should NOT trigger release for scope-only PR in label mode (matches gate)', async () => {
@@ -649,8 +623,6 @@ describe('runPreview', () => {
       expect(mockRunRelease).not.toHaveBeenCalled();
       expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
         expect.anything(),
-        'owner',
-        'repo',
         1,
         expect.stringContaining('No bump label detected'),
       );
@@ -717,8 +689,6 @@ describe('runPreview', () => {
       // configured glob pattern. result.target still uses the pattern.
       expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
         expect.anything(),
-        'owner',
-        'repo',
         1,
         expect.stringContaining('**Scope:** scope:shared'),
       );
@@ -780,8 +750,6 @@ describe('runPreview', () => {
       expect(mockRunRelease).not.toHaveBeenCalled();
       expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
         expect.anything(),
-        'owner',
-        'repo',
         1,
         expect.stringContaining('No bump label detected'),
       );
@@ -881,7 +849,7 @@ describe('runPreview', () => {
       await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
       expect(mockFetchStandingPRSnapshot).toHaveBeenCalledTimes(1);
-      const body = mockPostOrUpdateComment.mock.calls[0]?.[4] as string;
+      const body = mockPostOrUpdateComment.mock.calls[0]?.[2] as string;
       expect(body).toContain('**Standing release PR:**');
       expect(body).toContain('[#42]');
       expect(body).toContain('### After merge — predicted release');
@@ -894,7 +862,7 @@ describe('runPreview', () => {
 
       await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
-      const body = mockPostOrUpdateComment.mock.calls[0]?.[4] as string;
+      const body = mockPostOrUpdateComment.mock.calls[0]?.[2] as string;
       expect(body).toContain('**Standing release PR:**');
       expect(body).not.toContain('### After merge');
     });
@@ -905,7 +873,7 @@ describe('runPreview', () => {
 
       await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
-      const body = mockPostOrUpdateComment.mock.calls[0]?.[4] as string;
+      const body = mockPostOrUpdateComment.mock.calls[0]?.[2] as string;
       expect(body).not.toContain('**Standing release PR:**');
     });
 
@@ -916,7 +884,7 @@ describe('runPreview', () => {
       await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
       expect(mockPostOrUpdateComment).toHaveBeenCalled();
-      const body = mockPostOrUpdateComment.mock.calls[0]?.[4] as string;
+      const body = mockPostOrUpdateComment.mock.calls[0]?.[2] as string;
       expect(body).not.toContain('**Standing release PR:**');
     });
 
@@ -967,7 +935,7 @@ describe('runPreview', () => {
 
       await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
-      const body = mockPostOrUpdateComment.mock.calls[0]?.[4] as string;
+      const body = mockPostOrUpdateComment.mock.calls[0]?.[2] as string;
       // queued-pkg is in the standing PR scope — must appear as a table row (escalated)
       expect(body).toContain('| `queued-pkg`');
       // test-pkg is outside standing PR scope — must NOT appear as a merge-table row
