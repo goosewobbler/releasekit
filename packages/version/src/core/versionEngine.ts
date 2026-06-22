@@ -345,32 +345,34 @@ export class VersionEngine {
   }
 
   /**
-   * Get workspace packages information - with caching for performance
-   */
-  /**
    * Lightweight changed-detection for prerequisite resolution: a package is "changed" when it has
    * commits since its last release tag. Over-inclusive by design — a pulled-in prerequisite with no
-   * *releasable* change is still skipped by the per-package bump calc downstream.
+   * *releasable* change is still skipped by the per-package bump calc downstream. Tag lookups are
+   * independent per package, so they run in parallel.
    */
   private async detectChangedPackages(packages: Package[]): Promise<Set<string>> {
     const formattedPrefix = formatVersionPrefix(this.config.versionPrefix || 'v');
-    const changed = new Set<string>();
-    for (const pkg of packages) {
-      let tag = '';
-      try {
-        tag = await getLatestTagForPackage(pkg.packageJson.name, formattedPrefix, {
-          tagTemplate: this.config.tagTemplate,
-          packageSpecificTags: this.config.packageSpecificTags,
-        });
-        if (!tag) tag = await getLatestTag(formattedPrefix);
-      } catch {
-        // No tag resolvable — getCommitsLength falls back to git describe / full history.
-      }
-      if (getCommitsLength(pkg.dir, tag) > 0) changed.add(pkg.packageJson.name);
-    }
-    return changed;
+    const results = await Promise.all(
+      packages.map(async (pkg) => {
+        let tag = '';
+        try {
+          tag = await getLatestTagForPackage(pkg.packageJson.name, formattedPrefix, {
+            tagTemplate: this.config.tagTemplate,
+            packageSpecificTags: this.config.packageSpecificTags,
+          });
+          if (!tag) tag = await getLatestTag(formattedPrefix);
+        } catch {
+          // No tag resolvable — getCommitsLength falls back to git describe / full history.
+        }
+        return getCommitsLength(pkg.dir, tag) > 0 ? pkg.packageJson.name : null;
+      }),
+    );
+    return new Set(results.filter((name): name is string => name !== null));
   }
 
+  /**
+   * Get workspace packages information - with caching for performance
+   */
   public async getWorkspacePackages(): Promise<PackagesWithRoot> {
     try {
       // Return cached result if available for better performance
