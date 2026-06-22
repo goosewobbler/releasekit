@@ -284,10 +284,16 @@ export function parseFailureReportStatus(body: string): FailureReportStatus | nu
  */
 export function parseFailureReportData(body: string): FailureReportData | null {
   if (!body.startsWith(FAILURE_MARKER)) return null;
-  const match = body.match(/<!-- releasekit-publish-failure-data:\s*(\{.*?\})\s*-->/);
-  if (!match?.[1]) return null;
+  // Locate the data block by its fixed delimiters with linear indexOf rather than a backtracking
+  // regex — a regex like `:\s*(\{.*?\})\s*-->` is polynomial on an untrusted comment body with many
+  // `{` and no terminator (ReDoS). JSON.parse + the field checks below still reject anything malformed.
+  const prefix = '<!-- releasekit-publish-failure-data:';
+  const start = body.indexOf(prefix);
+  if (start === -1) return null;
+  const end = body.indexOf('-->', start + prefix.length);
+  if (end === -1) return null;
   try {
-    const parsed = JSON.parse(match[1]) as Partial<FailureReportData>;
+    const parsed = JSON.parse(body.slice(start + prefix.length, end).trim()) as Partial<FailureReportData>;
     if (typeof parsed.label !== 'string' || typeof parsed.published !== 'number' || typeof parsed.total !== 'number') {
       return null;
     }

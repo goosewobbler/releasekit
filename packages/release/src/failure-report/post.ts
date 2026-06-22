@@ -1,8 +1,8 @@
 import * as fs from 'node:fs';
 import type { VersionOutput } from '@releasekit/core';
 import { info, warn } from '@releasekit/core';
+import type { Forge } from '@releasekit/forge';
 import type { PipelineError } from '@releasekit/publish';
-import type { createOctokit } from '../github.js';
 import { findPreviewComment, postOrUpdateComment } from '../github.js';
 import {
   FAILURE_MARKER,
@@ -13,12 +13,8 @@ import {
   renderResolvedReport,
 } from './failure-report.js';
 
-type OctokitInstance = ReturnType<typeof createOctokit>;
-
 export interface PostFailureReportContext {
-  octokit: OctokitInstance;
-  owner: string;
-  repo: string;
+  forge: Forge;
   mode: FailureReportMode;
   /** PR to comment on. Omit for manual dispatch with no PR — the report goes to the step summary. */
   prNumber?: number;
@@ -55,7 +51,7 @@ export async function postFailureReport(
   }
 
   try {
-    await postOrUpdateComment(ctx.octokit, ctx.owner, ctx.repo, ctx.prNumber, body, FAILURE_MARKER);
+    await postOrUpdateComment(ctx.forge, ctx.prNumber, body, FAILURE_MARKER);
     info(`Posted publish-failure report on PR #${ctx.prNumber}`);
   } catch (err) {
     warn(`Failed to post publish-failure report: ${err instanceof Error ? err.message : String(err)}`);
@@ -68,16 +64,14 @@ export async function postFailureReport(
  * exists. Safe to call unconditionally after a successful publish.
  */
 export async function resolveFailureReportIfPresent(
-  octokit: OctokitInstance,
-  owner: string,
-  repo: string,
+  forge: Forge,
   prNumber: number,
   versionOutput: VersionOutput,
 ): Promise<void> {
   try {
-    const existing = await findPreviewComment(octokit, owner, repo, prNumber, FAILURE_MARKER);
+    const existing = await findPreviewComment(forge, prNumber, FAILURE_MARKER);
     if (existing === null) return;
-    await postOrUpdateComment(octokit, owner, repo, prNumber, renderResolvedReport(versionOutput), FAILURE_MARKER);
+    await postOrUpdateComment(forge, prNumber, renderResolvedReport(versionOutput), FAILURE_MARKER);
     info(`Marked publish-failure report on PR #${prNumber} as resolved`);
   } catch (err) {
     warn(`Failed to resolve publish-failure report: ${err instanceof Error ? err.message : String(err)}`);
@@ -114,29 +108,10 @@ export interface UnresolvedFailure {
  * report or it is already resolved. The published/total fraction is recovered from the ledger
  * embedded in the report body so the caller doesn't need the original pipeline output.
  */
-export async function detectUnresolvedFailure(
-  octokit: OctokitInstance,
-  owner: string,
-  repo: string,
-  prNumber: number,
-): Promise<UnresolvedFailure | null> {
+export async function detectUnresolvedFailure(forge: Forge, prNumber: number): Promise<UnresolvedFailure | null> {
   let body: string | undefined;
   try {
-    const iterator = octokit.paginate.iterator(octokit.rest.issues.listComments, {
-      owner,
-      repo,
-      issue_number: prNumber,
-      per_page: 100,
-    });
-    for await (const response of iterator) {
-      for (const comment of response.data) {
-        if (comment.body?.startsWith(FAILURE_MARKER)) {
-          body = comment.body;
-          break;
-        }
-      }
-      if (body) break;
-    }
+    body = (await forge.findComment(prNumber, FAILURE_MARKER))?.body;
   } catch {
     return null;
   }

@@ -16,6 +16,7 @@ var require = __createRequire(import.meta.url);`.trim(),
   noExternal: [
     '@releasekit/core',
     '@releasekit/config',
+    '@releasekit/forge',
     '@releasekit/version',
     '@releasekit/notes',
     '@releasekit/publish',

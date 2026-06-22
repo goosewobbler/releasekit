@@ -26,6 +26,7 @@ This repo **dogfoods itself**: releases run in standing-PR mode with sync versio
 packages/
 ├── core/      # Shared types (VersionOutput contract) + logging
 ├── config/    # Config loading, Zod schemas, JSONC parsing
+├── forge/     # Forge (GitHub) collaboration API behind one Forge interface + in-memory fake
 ├── version/   # Version calculation, bump strategies (sync/single/async)
 ├── notes/     # Changelog + release notes, LLM enhancement, templates
 ├── publish/   # Multi-registry publish pipeline, git tags, GitHub Releases

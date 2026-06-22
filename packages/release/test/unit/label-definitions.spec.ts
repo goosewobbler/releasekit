@@ -1,4 +1,5 @@
 import type { CIConfig } from '@releasekit/config';
+import { createFakeForge } from '@releasekit/forge';
 import { describe, expect, it, vi } from 'vitest';
 import { checkLabels, deriveLabelDefinitions, type LabelDefinition, syncLabels } from '../../src/label-definitions.js';
 
@@ -94,146 +95,98 @@ describe('deriveLabelDefinitions', () => {
   });
 });
 
-function mockOctokitForCreate(failures: Record<string, number> = {}) {
-  const createLabel = vi.fn(async ({ name }: { name: string }) => {
-    const status = failures[name];
-    if (status) {
-      const err = new Error(`HTTP ${status}`) as Error & { status: number };
-      err.status = status;
-      throw err;
-    }
-    return { data: {} };
-  });
-  return { rest: { issues: { createLabel } }, _createLabel: createLabel };
-}
-
-function mockOctokitForCreateWithErrorBody(failures: Record<string, { status: number; errors?: { code: string }[] }>) {
-  const createLabel = vi.fn(async ({ name }: { name: string }) => {
-    const failure = failures[name];
-    if (failure) {
-      const err = new Error(`HTTP ${failure.status}`) as Error & {
-        status: number;
-        response?: { data: { errors?: { code: string }[] } };
-      };
-      err.status = failure.status;
-      if (failure.errors) {
-        err.response = { data: { errors: failure.errors } };
-      }
-      throw err;
-    }
-    return { data: {} };
-  });
-  return { rest: { issues: { createLabel } }, _createLabel: createLabel };
-}
-
 describe('syncLabels', () => {
   it('should create every definition that does not already exist', async () => {
-    const octokit = mockOctokitForCreate();
+    const forge = createFakeForge();
     const defs: LabelDefinition[] = [
       { name: 'bump:minor', color: '0e8a16', description: 'x' },
       { name: 'release:skip', color: 'd93f0b', description: 'y' },
     ];
 
-    const result = await syncLabels(octokit as never, 'owner', 'repo', defs);
+    const result = await syncLabels(forge, defs);
 
     expect(result.created).toEqual(['bump:minor', 'release:skip']);
     expect(result.existing).toEqual([]);
-    expect(octokit._createLabel).toHaveBeenCalledTimes(2);
+    expect(forge.createdLabels).toHaveLength(2);
   });
 
   it('should treat a 422 with already_exists error code as idempotent', async () => {
-    const octokit = mockOctokitForCreateWithErrorBody({
-      'bump:minor': { status: 422, errors: [{ code: 'already_exists' }] },
-    });
+    // The forge resolves an already-existing label to 'exists' (the raw-422 'already_exists'
+    // detection now lives in the GitHubForge adapter). Seed the existing label to reproduce it.
+    const forge = createFakeForge({ labelNames: ['bump:minor'] });
     const defs: LabelDefinition[] = [
       { name: 'bump:minor', color: '0e8a16', description: 'x' },
       { name: 'release:skip', color: 'd93f0b', description: 'y' },
     ];
 
-    const result = await syncLabels(octokit as never, 'owner', 'repo', defs);
+    const result = await syncLabels(forge, defs);
 
     expect(result.existing).toEqual(['bump:minor']);
     expect(result.created).toEqual(['release:skip']);
   });
 
   it('should rethrow 422 validation errors (e.g. label name too long) so the caller sees the real failure', async () => {
-    const octokit = mockOctokitForCreateWithErrorBody({
-      'scope:very-long-feature-area-name-that-exceeds-the-limit': {
-        status: 422,
-        errors: [{ code: 'invalid' }],
-      },
-    });
+    const forge = createFakeForge();
+    vi.spyOn(forge, 'createLabel').mockRejectedValueOnce(Object.assign(new Error('HTTP 422'), { status: 422 }));
     const defs: LabelDefinition[] = [
-      {
-        name: 'scope:very-long-feature-area-name-that-exceeds-the-limit',
-        color: '5319e7',
-        description: 'x',
-      },
+      { name: 'scope:very-long-feature-area-name-that-exceeds-the-limit', color: '5319e7', description: 'x' },
     ];
 
-    await expect(syncLabels(octokit as never, 'owner', 'repo', defs)).rejects.toThrow('HTTP 422');
+    await expect(syncLabels(forge, defs)).rejects.toThrow('HTTP 422');
   });
 
   it('should rethrow 422 errors without a structured body as a real failure', async () => {
-    const octokit = mockOctokitForCreate({ 'bump:minor': 422 });
+    const forge = createFakeForge();
+    vi.spyOn(forge, 'createLabel').mockRejectedValueOnce(Object.assign(new Error('HTTP 422'), { status: 422 }));
     const defs: LabelDefinition[] = [{ name: 'bump:minor', color: '0e8a16', description: 'x' }];
 
-    await expect(syncLabels(octokit as never, 'owner', 'repo', defs)).rejects.toThrow('HTTP 422');
+    await expect(syncLabels(forge, defs)).rejects.toThrow('HTTP 422');
   });
 
   it('should rethrow non-422 errors (e.g. auth/rate-limit)', async () => {
-    const octokit = mockOctokitForCreate({ 'bump:minor': 403 });
+    const forge = createFakeForge();
+    vi.spyOn(forge, 'createLabel').mockRejectedValueOnce(Object.assign(new Error('HTTP 403'), { status: 403 }));
     const defs: LabelDefinition[] = [{ name: 'bump:minor', color: '0e8a16', description: 'x' }];
 
-    await expect(syncLabels(octokit as never, 'owner', 'repo', defs)).rejects.toThrow('HTTP 403');
+    await expect(syncLabels(forge, defs)).rejects.toThrow('HTTP 403');
   });
 });
 
-function mockOctokitForList(existing: string[]) {
-  const listLabelsForRepo = vi.fn();
-  const iterator = vi.fn().mockReturnValue({
-    async *[Symbol.asyncIterator]() {
-      yield { data: existing.map((name) => ({ name })) };
-    },
-  });
-  return { paginate: { iterator }, rest: { issues: { listLabelsForRepo } } };
-}
-
 describe('checkLabels', () => {
   it('should report all labels missing when the repo has none', async () => {
-    const octokit = mockOctokitForList([]);
+    const forge = createFakeForge({ labelNames: [] });
     const defs: LabelDefinition[] = [
       { name: 'bump:minor', color: '0e8a16', description: 'x' },
       { name: 'release:skip', color: 'd93f0b', description: 'y' },
     ];
 
-    const { missing, present } = await checkLabels(octokit as never, 'owner', 'repo', defs);
+    const { missing, present } = await checkLabels(forge, defs);
 
     expect(missing).toEqual(['bump:minor', 'release:skip']);
     expect(present).toEqual([]);
   });
 
   it('should report only the missing subset', async () => {
-    const octokit = mockOctokitForList(['bump:minor']);
+    const forge = createFakeForge({ labelNames: ['bump:minor'] });
     const defs: LabelDefinition[] = [
       { name: 'bump:minor', color: '0e8a16', description: 'x' },
       { name: 'release:skip', color: 'd93f0b', description: 'y' },
     ];
 
-    const { missing, present } = await checkLabels(octokit as never, 'owner', 'repo', defs);
+    const { missing, present } = await checkLabels(forge, defs);
 
     expect(missing).toEqual(['release:skip']);
     expect(present).toEqual(['bump:minor']);
   });
 
   it('should report nothing missing when the repo is fully provisioned', async () => {
-    const octokit = mockOctokitForList(['bump:minor', 'release:skip']);
+    const forge = createFakeForge({ labelNames: ['bump:minor', 'release:skip'] });
     const defs: LabelDefinition[] = [
       { name: 'bump:minor', color: '0e8a16', description: 'x' },
       { name: 'release:skip', color: 'd93f0b', description: 'y' },
     ];
 
-    const { missing } = await checkLabels(octokit as never, 'owner', 'repo', defs);
+    const { missing } = await checkLabels(forge, defs);
 
     expect(missing).toEqual([]);
   });

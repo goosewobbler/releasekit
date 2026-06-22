@@ -2,10 +2,11 @@ import * as fs from 'node:fs';
 import type { CIConfig } from '@releasekit/config';
 import { loadCIConfig, loadConfig } from '@releasekit/config';
 import { info, success, warn } from '@releasekit/core';
+import type { Forge } from '@releasekit/forge';
 import { renderSupersedeWarning } from '../failure-report/failure-report.js';
 import { detectUnresolvedFailure } from '../failure-report/post.js';
 import { evaluatePR } from '../gate/evaluate-pr.js';
-import { createOctokit, fetchPRLabels, postOrUpdateComment } from '../github.js';
+import { fetchPRLabels, forgeFor, postOrUpdateComment } from '../github.js';
 import { composeBumpFromLabels, DEFAULT_LABELS, detectLabelConflicts } from '../label-utils.js';
 import { runRelease } from '../release.js';
 import {
@@ -46,20 +47,20 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   }
 
   // Resolve GitHub context early so we can fetch PR labels
-  // Note: We create Octokit here and reuse it in applyLabelOverrides to avoid creating multiple instances
+  // Note: We create the forge here and reuse it in applyLabelOverrides to avoid creating multiple instances
   let context: PreviewContext | undefined;
-  let octokit: ReturnType<typeof createOctokit> | undefined;
+  let forge: Forge | undefined;
   if (!options.dryRun) {
     try {
       context = resolvePreviewContext({ pr: options.pr, repo: options.repo });
-      octokit = createOctokit(context.token);
+      forge = forgeFor(context);
     } catch (error) {
       warn(`Cannot post PR comment: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
-  // Apply label-driven overrides (pass octokit to avoid creating a second instance)
-  const { options: effectiveOptions, labelContext } = await applyLabelOverrides(options, ciConfig, context, octokit);
+  // Apply label-driven overrides (pass the forge to avoid creating a second instance)
+  const { options: effectiveOptions, labelContext } = await applyLabelOverrides(options, ciConfig, context, forge);
 
   const strategy = ciConfig?.releaseStrategy ?? 'direct';
 
@@ -69,9 +70,9 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   // not a queued-state outcome.
   let standingPrSnapshot: StandingPRSnapshot | undefined;
   let supersedeWarning: string[] | undefined;
-  if (strategy === 'standing-pr' && !labelContext.immediate && context && octokit) {
+  if (strategy === 'standing-pr' && !labelContext.immediate && context && forge) {
     try {
-      standingPrSnapshot = (await fetchStandingPRSnapshot(octokit, context.owner, context.repo, ciConfig)) ?? undefined;
+      standingPrSnapshot = (await fetchStandingPRSnapshot(forge, ciConfig)) ?? undefined;
     } catch {
       // Non-fatal: preview still renders without the snapshot
     }
@@ -80,9 +81,9 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
     // off the failure-report comment on the most recently merged standing PR. Non-fatal.
     try {
       const branch = ciConfig?.standingPr?.branch ?? 'release/next';
-      const latestMerged = await findLatestMergedStandingPR(octokit, context.owner, context.repo, branch);
+      const latestMerged = await findLatestMergedStandingPR(forge, branch);
       if (latestMerged !== null) {
-        const unresolved = await detectUnresolvedFailure(octokit, context.owner, context.repo, latestMerged);
+        const unresolved = await detectUnresolvedFailure(forge, latestMerged);
         if (unresolved) {
           supersedeWarning = renderSupersedeWarning({
             previousLabel: unresolved.previousLabel,
@@ -173,14 +174,14 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
     supersedeWarning,
   });
 
-  if (!context || !octokit) {
+  if (!context || !forge) {
     // Dry-run mode or GitHub context unavailable — print to stdout
     console.log(commentBody);
     return;
   }
 
   info(`Posting preview comment on PR #${context.prNumber}...`);
-  await postOrUpdateComment(octokit, context.owner, context.repo, context.prNumber, commentBody);
+  await postOrUpdateComment(forge, context.prNumber, commentBody);
   success(`Preview comment posted on PR #${context.prNumber}`);
 }
 
@@ -239,7 +240,7 @@ async function applyLabelOverrides(
   options: PreviewOptions,
   ciConfig: CIConfig | undefined,
   context: PreviewContext | undefined,
-  existingOctokit?: ReturnType<typeof createOctokit>,
+  existingForge?: Forge,
 ): Promise<LabelOverrideResult> {
   const trigger = ciConfig?.releaseTrigger ?? 'label';
   const labels = ciConfig?.labels ?? DEFAULT_LABELS;
@@ -262,9 +263,9 @@ async function applyLabelOverrides(
   }
 
   let prLabels: string[];
-  const octokitToUse = existingOctokit ?? createOctokit(context.token);
+  const forgeToUse = existingForge ?? forgeFor(context);
   try {
-    prLabels = await fetchPRLabels(octokitToUse, context.owner, context.repo, context.prNumber);
+    prLabels = await fetchPRLabels(forgeToUse, context.prNumber);
   } catch {
     warn('Could not fetch PR labels — skipping label-driven overrides');
     return {

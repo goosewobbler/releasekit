@@ -13,44 +13,19 @@ vi.mock('@releasekit/core', async (importOriginal) => {
   };
 });
 vi.mock('../../src/github.js', () => ({
-  createOctokit: vi.fn(),
+  forgeFor: vi.fn(),
 }));
 
 import { EXIT_CODES } from '@releasekit/core';
+import { createFakeForge } from '@releasekit/forge';
 import { runLabelsSync } from '../../src/commands/labels-command.js';
-import { createOctokit } from '../../src/github.js';
+import { forgeFor } from '../../src/github.js';
 
-function mockOctokit(existingLabels: string[] = [], failures: Record<string, number> = {}) {
-  const createLabel = vi.fn(async ({ name }: { name: string }) => {
-    const status = failures[name];
-    if (status) {
-      const err = new Error(`HTTP ${status}`) as Error & {
-        status: number;
-        response?: { data: { errors?: { code: string }[] } };
-      };
-      err.status = status;
-      // GitHub's 422 for "already exists" carries errors[0].code === 'already_exists';
-      // other 422s are real validation failures and must surface. Mock both as 422-with-body
-      // so the test exercises the existing/regression path the same way the real API would.
-      if (status === 422) {
-        err.response = { data: { errors: [{ code: 'already_exists' }] } };
-      }
-      throw err;
-    }
-    return { data: {} };
-  });
-  const iterator = vi.fn().mockReturnValue({
-    async *[Symbol.asyncIterator]() {
-      yield { data: existingLabels.map((name) => ({ name })) };
-    },
-  });
-  return {
-    octokit: {
-      paginate: { iterator },
-      rest: { issues: { createLabel, listLabelsForRepo: vi.fn() } },
-    },
-    createLabel,
-  };
+/** A forge whose repo already has `existingLabels` — `createLabel` resolves 'exists' for those. */
+function mockForge(existingLabels: string[] = []) {
+  const forge = createFakeForge({ labelNames: existingLabels });
+  vi.mocked(forgeFor).mockReturnValue(forge);
+  return forge;
 }
 
 describe('runLabelsSync', () => {
@@ -71,39 +46,37 @@ describe('runLabelsSync', () => {
   });
 
   it('should create missing labels in sync mode', async () => {
-    const { octokit, createLabel } = mockOctokit([]);
-    vi.mocked(createOctokit).mockReturnValue(octokit as never);
+    const forge = mockForge([]);
 
     await runLabelsSync({ repo: 'owner/repo' });
 
     // Default config implies the 8 reserved labels + the default 'release' standing-PR label.
-    expect(createLabel).toHaveBeenCalled();
-    const created = createLabel.mock.calls.map((c) => (c[0] as { name: string }).name);
+    expect(forge.createdLabels.length).toBeGreaterThan(0);
+    const created = forge.createdLabels.map((l) => l.name);
     expect(created).toEqual(expect.arrayContaining(['bump:minor', 'channel:stable', 'release:skip', 'release']));
     expect(exitSpy).not.toHaveBeenCalled();
   });
 
   it('should be idempotent — 422 already-exists does not fail the run', async () => {
-    const { octokit } = mockOctokit([], { 'bump:minor': 422 });
-    vi.mocked(createOctokit).mockReturnValue(octokit as never);
+    // The forge resolves an existing label to 'exists' rather than throwing — the run succeeds.
+    mockForge(['bump:minor']);
 
     await expect(runLabelsSync({ repo: 'owner/repo' })).resolves.toBeUndefined();
     expect(exitSpy).not.toHaveBeenCalled();
   });
 
   it('should exit non-zero in --check mode when labels are missing', async () => {
-    const { octokit, createLabel } = mockOctokit([]); // repo has no labels → all missing
-    vi.mocked(createOctokit).mockReturnValue(octokit as never);
+    const forge = mockForge([]); // repo has no labels → all missing
 
     await runLabelsSync({ repo: 'owner/repo', check: true });
 
     expect(exitSpy).toHaveBeenCalledWith(EXIT_CODES.GENERAL_ERROR);
     // --check performs NO mutations.
-    expect(createLabel).not.toHaveBeenCalled();
+    expect(forge.createdLabels).toHaveLength(0);
   });
 
   it('should not exit in --check mode when all labels are present', async () => {
-    const { octokit, createLabel } = mockOctokit([
+    const forge = mockForge([
       'bump:patch',
       'bump:minor',
       'bump:major',
@@ -115,12 +88,11 @@ describe('runLabelsSync', () => {
       'release:preview-notes',
       'release',
     ]);
-    vi.mocked(createOctokit).mockReturnValue(octokit as never);
 
     await runLabelsSync({ repo: 'owner/repo', check: true });
 
     expect(exitSpy).not.toHaveBeenCalled();
-    expect(createLabel).not.toHaveBeenCalled();
+    expect(forge.createdLabels).toHaveLength(0);
   });
 
   it('should throw when no GitHub token is available', async () => {

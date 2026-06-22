@@ -73,6 +73,7 @@
     "@biomejs/biome": "catalog:",
     "@releasekit/config": "workspace:*",
     "@releasekit/core": "workspace:*",
+    "@releasekit/forge": "workspace:*",
     "@types/node": "catalog:",
     "@types/semver": "catalog:",
     "@vitest/coverage-v8": "catalog:",

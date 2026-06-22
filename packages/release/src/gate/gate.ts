@@ -1,8 +1,9 @@
 import type { CIConfig, ReleaseKitConfig } from '@releasekit/config';
 import { loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import { info, warn } from '@releasekit/core';
+import type { Forge } from '@releasekit/forge';
 import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from '../git.js';
-import { createOctokit, fetchPRLabels, findMergedPRsSinceLastRelease, postOrUpdateComment } from '../github.js';
+import { fetchPRLabels, findMergedPRsSinceLastRelease, forgeFor, postOrUpdateComment } from '../github.js';
 import { DEFAULT_LABELS, type LabelConfig } from '../label-utils.js';
 import { resolveScopeToTarget } from '../release.js';
 import { evaluatePR, type PREvaluation } from './evaluate-pr.js';
@@ -76,13 +77,8 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
   // Find merged PRs since the last release tag (not just the triggering SHA) so that
   // a labelled PR isn't silently dropped when a subsequent push (e.g. dependabot) cancels
   // the original CI run and fires the gate with a different head_sha.
-  const octokit = createOctokit(token);
-  const prNumbers = await findMergedPRsSinceLastRelease(
-    octokit,
-    githubContext.owner,
-    githubContext.repo,
-    options.projectDir,
-  );
+  const forge = forgeFor({ token, owner: githubContext.owner, repo: githubContext.repo });
+  const prNumbers = await findMergedPRsSinceLastRelease(forge, options.projectDir);
 
   if (prNumbers.length === 0) {
     info('No merged PRs found since last release');
@@ -102,9 +98,7 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
   // Fetches are independent so we parallelise them.
   const evaluations = await Promise.all(
     prNumbers.map((prNumber) =>
-      fetchPRLabels(octokit, githubContext.owner, githubContext.repo, prNumber).then((labels) =>
-        evaluatePR(prNumber, labels, labelConfig, ciConfig),
-      ),
+      fetchPRLabels(forge, prNumber).then((labels) => evaluatePR(prNumber, labels, labelConfig, ciConfig)),
     ),
   );
 
@@ -120,7 +114,7 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
   // Notify users of PRs whose labels indicated release intent but didn't trigger one.
   // Idempotent: postOrUpdateComment finds the existing notify-marker comment and updates it.
   if (options.notify !== false) {
-    await notifyInsufficientLabels(octokit, githubContext.owner, githubContext.repo, evaluations, trigger, labelConfig);
+    await notifyInsufficientLabels(forge, evaluations, trigger, labelConfig);
   }
 
   return result;
@@ -238,9 +232,7 @@ function shouldNotifyPR(e: PREvaluation, trigger: 'commit' | 'label'): boolean {
 }
 
 async function notifyInsufficientLabels(
-  octokit: ReturnType<typeof createOctokit>,
-  owner: string,
-  repo: string,
+  forge: Forge,
   evaluations: PREvaluation[],
   trigger: 'commit' | 'label',
   labelConfig: LabelConfig,
@@ -250,7 +242,7 @@ async function notifyInsufficientLabels(
       if (!shouldNotifyPR(e, trigger)) return;
       try {
         const body = buildNotifyBody(e, labelConfig);
-        await postOrUpdateComment(octokit, owner, repo, e.prNumber, body, NOTIFY_MARKER);
+        await postOrUpdateComment(forge, e.prNumber, body, NOTIFY_MARKER);
         info(`Posted gate notify comment on PR #${e.prNumber}`);
       } catch (err) {
         warn(`Failed to post gate notify comment on PR #${e.prNumber}: ${err instanceof Error ? err.message : err}`);

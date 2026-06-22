@@ -4,13 +4,14 @@ import * as fs from 'node:fs';
 import { type CIConfig, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput } from '@releasekit/core';
 import { error, info, success, warn } from '@releasekit/core';
+import { type Forge, forgeErrorStatus, type PullRequestDetails } from '@releasekit/forge';
 import { PipelineError } from '@releasekit/publish';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration, parseDuration } from '../duration.js';
 import { renderSupersedeWarning } from '../failure-report/failure-report.js';
 import { detectUnresolvedFailure, postFailureReport, resolveFailureReportIfPresent } from '../failure-report/post.js';
 import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from '../git.js';
-import { createOctokit } from '../github.js';
+import { forgeFor } from '../github.js';
 import { deriveLabelDefinitions, syncLabels } from '../label-definitions.js';
 import { DEFAULT_LABELS } from '../label-utils.js';
 import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
@@ -476,50 +477,11 @@ export function parseManifest(commentBody: string): StandingPRManifest {
   return m;
 }
 
-type OctokitInstance = ReturnType<typeof createOctokit>;
-
 export async function findManifestComment(
-  octokit: OctokitInstance,
-  owner: string,
-  repo: string,
+  forge: Forge,
   prNumber: number,
 ): Promise<{ id: number; body: string } | null> {
-  const iterator = octokit.paginate.iterator(octokit.rest.issues.listComments, {
-    owner,
-    repo,
-    issue_number: prNumber,
-    per_page: 100,
-  });
-
-  for await (const response of iterator) {
-    for (const comment of response.data) {
-      if (comment.body?.startsWith(MANIFEST_MARKER)) {
-        return { id: comment.id, body: comment.body };
-      }
-    }
-  }
-
-  return null;
-}
-
-export async function findStandingPR(
-  octokit: OctokitInstance,
-  owner: string,
-  repo: string,
-  branch: string,
-): Promise<{ number: number; url: string; labels: string[] } | null> {
-  const { data: prs } = await octokit.rest.pulls.list({
-    owner,
-    repo,
-    head: `${owner}:${branch}`,
-    state: 'open',
-    per_page: 1,
-  });
-
-  const pr = prs[0];
-  if (!pr) return null;
-  const labels = (pr.labels ?? []).map((l) => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean);
-  return { number: pr.number, url: pr.html_url, labels };
+  return forge.findComment(prNumber, MANIFEST_MARKER);
 }
 
 /**
@@ -541,16 +503,14 @@ export interface StandingPRSnapshot {
 }
 
 export async function fetchStandingPRSnapshot(
-  octokit: OctokitInstance,
-  owner: string,
-  repo: string,
+  forge: Forge,
   ciConfig: CIConfig | undefined,
 ): Promise<StandingPRSnapshot | null> {
   const branch = ciConfig?.standingPr?.branch ?? 'release/next';
-  const pr = await findStandingPR(octokit, owner, repo, branch);
+  const pr = await forge.findStandingPR(branch);
   if (!pr) return null;
 
-  const comment = await findManifestComment(octokit, owner, repo, pr.number);
+  const comment = await findManifestComment(forge, pr.number);
   if (!comment) return null;
 
   let manifest: StandingPRManifest;
@@ -754,8 +714,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   let existingStandingPr: { number: number; url: string; labels: string[] } | null = null;
   if (githubContext?.token) {
     try {
-      const lookupOctokit = createOctokit(githubContext.token);
-      existingStandingPr = await findStandingPR(lookupOctokit, githubContext.owner, githubContext.repo, branch);
+      existingStandingPr = await forgeFor(githubContext).findStandingPR(branch);
     } catch (err) {
       warn(`Could not look up standing PR for label overrides: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -801,19 +760,12 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     info('No releasable changes found');
 
     if (githubContext?.token && existingStandingPr) {
-      const octokit = createOctokit(githubContext.token);
-      await octokit.rest.issues.createComment({
-        owner: githubContext.owner,
-        repo: githubContext.repo,
-        issue_number: existingStandingPr.number,
-        body: 'No releasable changes found. Closing this PR as the release queue is empty.',
-      });
-      await octokit.rest.pulls.update({
-        owner: githubContext.owner,
-        repo: githubContext.repo,
-        pull_number: existingStandingPr.number,
-        state: 'closed',
-      });
+      const forge = forgeFor(githubContext);
+      await forge.createComment(
+        existingStandingPr.number,
+        'No releasable changes found. Closing this PR as the release queue is empty.',
+      );
+      await forge.updatePullRequest(existingStandingPr.number, { state: 'closed' });
       info(`Closed standing PR #${existingStandingPr.number}`);
       return { action: 'closed', prNumber: existingStandingPr.number, prUrl: existingStandingPr.url };
     }
@@ -829,19 +781,12 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   if (minPackages !== undefined && publishableCount < minPackages) {
     info(`Package count (${publishableCount}) is below minPackages threshold (${minPackages}), skipping`);
     if (githubContext?.token && existingStandingPr) {
-      const octokit = createOctokit(githubContext.token);
-      await octokit.rest.issues.createComment({
-        owner: githubContext.owner,
-        repo: githubContext.repo,
-        issue_number: existingStandingPr.number,
-        body: `Not enough packages with releasable changes (${publishableCount} of ${minPackages} required). Closing until the threshold is reached.`,
-      });
-      await octokit.rest.pulls.update({
-        owner: githubContext.owner,
-        repo: githubContext.repo,
-        pull_number: existingStandingPr.number,
-        state: 'closed',
-      });
+      const forge = forgeFor(githubContext);
+      await forge.createComment(
+        existingStandingPr.number,
+        `Not enough packages with releasable changes (${publishableCount} of ${minPackages} required). Closing until the threshold is reached.`,
+      );
+      await forge.updatePullRequest(existingStandingPr.number, { state: 'closed' });
       info(`Closed standing PR #${existingStandingPr.number} (minPackages not met)`);
       return { action: 'closed', prNumber: existingStandingPr.number, prUrl: existingStandingPr.url };
     }
@@ -880,13 +825,8 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   let editedNotes: Record<string, string> = {};
   if (previewNotesEnabled && existingStandingPr && githubContext?.token) {
     try {
-      const previewOctokit = createOctokit(githubContext.token);
-      const { data: livePr } = await previewOctokit.rest.pulls.get({
-        owner: githubContext.owner,
-        repo: githubContext.repo,
-        pull_number: existingStandingPr.number,
-      });
-      editedNotes = extractNotesRegions(livePr.body ?? '', previewPackages);
+      const livePr = await forgeFor(githubContext).getPullRequest(existingStandingPr.number);
+      editedNotes = extractNotesRegions(livePr.body, previewPackages);
     } catch (err) {
       warn(
         `Could not read current PR body to preserve note edits: ${err instanceof Error ? err.message : String(err)}`,
@@ -917,8 +857,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     return { action: 'noop', versionOutput };
   }
 
-  const octokit = createOctokit(githubContext.token);
-  const { owner, repo } = githubContext;
+  const forge = forgeFor(githubContext);
 
   // Build PR title and labels. ${count} and ${version} exclude the root lockstep bump —
   // it isn't a publishable package. Sync releases move as one unit, so the sync default
@@ -947,9 +886,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // Best-effort — a lookup failure must not block the standing-PR update.
   let supersedeWarning: string[] | undefined;
   try {
-    const latestMerged = await findLatestMergedStandingPR(octokit, owner, repo, branch);
+    const latestMerged = await findLatestMergedStandingPR(forge, branch);
     if (latestMerged !== null) {
-      const unresolved = await detectUnresolvedFailure(octokit, owner, repo, latestMerged);
+      const unresolved = await detectUnresolvedFailure(forge, latestMerged);
       if (unresolved) {
         supersedeWarning = renderSupersedeWarning({
           previousLabel: unresolved.previousLabel,
@@ -981,28 +920,15 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   let action: StandingPRResult['action'];
 
   if (existing) {
-    await octokit.rest.pulls.update({
-      owner,
-      repo,
-      pull_number: existing.number,
-      title,
-      body,
-    });
+    await forge.updatePullRequest(existing.number, { title, body });
     prNumber = existing.number;
     prUrl = existing.url;
     action = 'updated';
     info(`Updated standing PR #${prNumber}`);
   } else {
-    const { data: newPr } = await octokit.rest.pulls.create({
-      owner,
-      repo,
-      title,
-      body,
-      head: branch,
-      base,
-    });
+    const newPr = await forge.createPullRequest({ title, body, head: branch, base });
     prNumber = newPr.number;
-    prUrl = newPr.html_url;
+    prUrl = newPr.url;
     action = 'created';
     info(`Created standing PR #${prNumber}`);
   }
@@ -1011,7 +937,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // retry label is created but NOT applied — a maintainer applies it on demand after merge to
   // retry a failed publish (issue #245). Best-effort: a sync failure must not block the update.
   try {
-    await syncLabels(octokit, owner, repo, deriveLabelDefinitions(ciConfig));
+    await syncLabels(forge, deriveLabelDefinitions(ciConfig));
   } catch (err) {
     warn(`Could not ensure ReleaseKit labels exist: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -1023,12 +949,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     try {
       const currentLabels = existingStandingPr?.labels ?? [];
       const mergedLabels = [...new Set([...currentLabels, ...labels])];
-      await octokit.rest.issues.setLabels({
-        owner,
-        repo,
-        issue_number: prNumber,
-        labels: mergedLabels,
-      });
+      await forge.setLabels(prNumber, mergedLabels);
     } catch {
       warn('Failed to apply labels to standing PR');
     }
@@ -1036,7 +957,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   // Find existing manifest to preserve firstUpdatedAt across updates
   let firstUpdatedAt = new Date().toISOString();
-  const existingManifestComment = await findManifestComment(octokit, owner, repo, prNumber);
+  const existingManifestComment = await findManifestComment(forge, prNumber);
   if (existingManifestComment) {
     try {
       const existingManifest = parseManifest(existingManifestComment.body);
@@ -1068,19 +989,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   const manifestBody = serializeManifest(manifest);
   if (existingManifestComment) {
-    await octokit.rest.issues.updateComment({
-      owner,
-      repo,
-      comment_id: existingManifestComment.id,
-      body: manifestBody,
-    });
+    await forge.updateComment(existingManifestComment.id, manifestBody);
   } else {
-    await octokit.rest.issues.createComment({
-      owner,
-      repo,
-      issue_number: prNumber,
-      body: manifestBody,
-    });
+    await forge.createComment(prNumber, manifestBody);
   }
   success(`Manifest written to PR #${prNumber}`);
 
@@ -1110,7 +1021,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   }
 
-  await postStandingPRStatusSafe(octokit, owner, repo, releaseBranchSha, statusState, statusDescription);
+  await postStandingPRStatusSafe(forge, releaseBranchSha, statusState, statusDescription);
 
   return { action, prNumber, prUrl, versionOutput };
 }
@@ -1126,8 +1037,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     return null;
   }
 
-  const octokit = createOctokit(githubContext.token);
-  const { owner, repo } = githubContext;
+  const forge = forgeFor(githubContext);
 
   const releaseKitConfig = loadReleaseKitConfig({ cwd, configPath: options.config });
   const standingPrConfig = releaseKitConfig.ci?.standingPr;
@@ -1135,7 +1045,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   const deleteBranchOnMerge = standingPrConfig?.deleteBranchOnMerge !== false;
 
   // Find and parse manifest from the PR
-  const manifestComment = await findManifestComment(octokit, owner, repo, prNumber);
+  const manifestComment = await findManifestComment(forge, prNumber);
   if (!manifestComment) {
     throw new Error(`Release manifest not found on PR #${prNumber}. Re-run 'standing-pr update' to regenerate.`);
   }
@@ -1187,9 +1097,9 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
 
   // Fetch the merged (still-readable) PR once — used for both the override-label staleness guard
   // and the human-edited release notes.
-  let livePr: Awaited<ReturnType<typeof octokit.rest.pulls.get>>['data'] | undefined;
+  let livePr: PullRequestDetails | undefined;
   try {
-    livePr = (await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber })).data;
+    livePr = await forge.getPullRequest(prNumber);
   } catch (err) {
     warn(`Could not read PR #${prNumber}: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -1212,10 +1122,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     );
   }
   if (livePr && manifest.overrideLabels !== undefined) {
-    const mergedLabels = extractOverrideLabels(
-      (livePr.labels ?? []).map((l) => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean),
-      releaseKitConfig.ci,
-    );
+    const mergedLabels = extractOverrideLabels((livePr.labels ?? []).filter(Boolean), releaseKitConfig.ci);
     const manifestLabels = [...manifest.overrideLabels].sort();
     if (mergedLabels.join('\n') !== manifestLabels.join('\n')) {
       throw new Error(
@@ -1305,9 +1212,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
       try {
         await postFailureReport(
           {
-            octokit,
-            owner,
-            repo,
+            forge,
             mode: 'standing-pr',
             prNumber,
             standingPrNumber: prNumber,
@@ -1329,7 +1234,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
 
   // Publish succeeded — clear any prior failure report on this PR (resolves it and the supersede
   // warning that would otherwise show on the next standing PR).
-  await resolveFailureReportIfPresent(octokit, owner, repo, prNumber, manifest.versionOutput);
+  await resolveFailureReportIfPresent(forge, prNumber, manifest.versionOutput);
 
   // Cleanup: delete release branch if configured
   if (deleteBranchOnMerge) {
@@ -1351,28 +1256,15 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
  * Inference fallback for dispatch-funnelled publishes — explicit `--pr` is preferred
  * because a re-run of a stale dispatch can land after a newer standing PR has merged.
  */
-export async function findLatestMergedStandingPR(
-  octokit: OctokitInstance,
-  owner: string,
-  repo: string,
-  branch: string,
-): Promise<number | null> {
-  const { data: prs } = await octokit.rest.pulls.list({
-    owner,
-    repo,
-    head: `${owner}:${branch}`,
-    state: 'closed',
-    sort: 'updated',
-    direction: 'desc',
-    per_page: 10,
-  });
+export async function findLatestMergedStandingPR(forge: Forge, branch: string): Promise<number | null> {
+  const prs = await forge.listRecentlyClosedPullRequests(branch, 10);
 
   // 'updated' ordering only guarantees the newest merge is in the page (merging touches
   // updated_at) — late activity on an older merged PR (a comment, a label) can sort it
-  // above a newer merge. Pick by merged_at, not list position.
+  // above a newer merge. Pick by mergedAt, not list position.
   const merged = prs
-    .filter((pr) => pr.merged_at != null)
-    .sort((a, b) => new Date(b.merged_at as string).getTime() - new Date(a.merged_at as string).getTime());
+    .filter((pr) => pr.mergedAt != null)
+    .sort((a, b) => new Date(b.mergedAt as string).getTime() - new Date(a.mergedAt as string).getTime());
   return merged[0]?.number ?? null;
 }
 
@@ -1435,8 +1327,7 @@ export async function runStandingPRPublish(
     return null;
   }
 
-  const octokit = createOctokit(githubContext.token);
-  const inferred = await findLatestMergedStandingPR(octokit, githubContext.owner, githubContext.repo, releaseBranch);
+  const inferred = await findLatestMergedStandingPR(forgeFor(githubContext), releaseBranch);
   if (inferred === null) {
     error(`No merged standing release PR found for branch '${releaseBranch}' — pass --pr explicitly`);
     return null;
@@ -1466,10 +1357,9 @@ export async function runStandingPRMerge(
     return null;
   }
 
-  const octokit = createOctokit(githubContext.token);
-  const { owner, repo } = githubContext;
+  const forge = forgeFor(githubContext);
 
-  const pr = await findStandingPR(octokit, owner, repo, branch);
+  const pr = await forge.findStandingPR(branch);
   if (!pr) {
     info(`No open standing PR found for branch '${branch}'`);
     return null;
@@ -1477,16 +1367,13 @@ export async function runStandingPRMerge(
 
   info(`Merging standing PR #${pr.number} via ${mergeMethod}...`);
   try {
-    await octokit.rest.pulls.merge({
-      owner,
-      repo,
-      pull_number: pr.number,
-      merge_method: mergeMethod,
-    });
+    await forge.mergePullRequest(pr.number, mergeMethod);
   } catch (err) {
-    const reqErr = err as { status?: number; response?: { data?: { message?: string } } };
-    if (reqErr.status === 405) {
-      const reason = reqErr.response?.data?.message ?? 'unknown reason';
+    if (forgeErrorStatus(err) === 405) {
+      // Best-effort detail; the forge surfaces the raw error, so a non-GitHub adapter just yields
+      // 'unknown reason' here.
+      const reason =
+        (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'unknown reason';
       throw new Error(`Cannot merge standing PR #${pr.number}: GitHub rejected the merge (${reason})`);
     }
     throw err;

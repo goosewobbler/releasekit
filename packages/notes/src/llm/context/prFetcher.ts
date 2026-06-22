@@ -1,6 +1,5 @@
-import { RequestError } from '@octokit/request-error';
-import { Octokit } from '@octokit/rest';
 import { debug, warn } from '@releasekit/core';
+import { createGitHubForge, type Forge, forgeErrorStatus } from '@releasekit/forge';
 import type { PRContext } from '../../core/types.js';
 
 const BODY_CAP = 2048;
@@ -64,8 +63,8 @@ export async function fetchPullRequestContext(
   issueNumbers: number[],
   token: string,
   cache: Map<number, PRContext | null>,
+  forge: Forge = createGitHubForge({ token, owner, repo }),
 ): Promise<void> {
-  const octokit = new Octokit({ auth: token });
   const needed = issueNumbers.filter((n) => !cache.has(n));
 
   for (let i = 0; i < needed.length; i += FETCH_CONCURRENCY) {
@@ -73,23 +72,19 @@ export async function fetchPullRequestContext(
     await Promise.all(
       batch.map(async (number) => {
         try {
-          const { data } = await octokit.rest.issues.get({ owner, repo, issue_number: number });
-          if (!data.pull_request) {
+          const issue = await forge.getIssue(number);
+          if (!issue.isPullRequest) {
             cache.set(number, null); // cache as "not a PR" to avoid re-fetching
             return;
           }
-          const raw = data.body ?? '';
-          const body = truncateBody(sanitiseBody(raw));
-          cache.set(number, { number, title: data.title, body });
+          const body = truncateBody(sanitiseBody(issue.body));
+          cache.set(number, { number, title: issue.title, body });
         } catch (error) {
-          if (error instanceof RequestError) {
-            if (error.status === 401 || error.status === 403) {
-              warn(`GitHub API auth error fetching PR #${number} (${error.status}): check GITHUB_TOKEN permissions`);
-            } else if (error.status === 404) {
-              cache.set(number, null); // not found — avoid re-fetching
-            } else {
-              debug(`Failed to fetch PR #${number}: ${error.message}`);
-            }
+          const status = forgeErrorStatus(error);
+          if (status === 401 || status === 403) {
+            warn(`GitHub API auth error fetching PR #${number} (${status}): check GITHUB_TOKEN permissions`);
+          } else if (status === 404) {
+            cache.set(number, null); // not found — avoid re-fetching
           } else {
             debug(`Failed to fetch PR #${number}: ${error instanceof Error ? error.message : String(error)}`);
           }

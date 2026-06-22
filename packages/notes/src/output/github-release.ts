@@ -1,5 +1,5 @@
-import { Octokit } from '@octokit/rest';
 import { info, success } from '@releasekit/core';
+import { createGitHubForge, type Forge } from '@releasekit/forge';
 import type { TemplateContext } from '../core/types.js';
 import { GitHubError } from '../errors/index.js';
 import { renderMarkdown } from '../output/markdown.js';
@@ -20,20 +20,16 @@ export interface CreateReleaseResult {
 }
 
 export class GitHubClient {
-  private octokit: Octokit;
-  private owner: string;
-  private repo: string;
+  private forge: Forge;
 
-  constructor(options: GitHubReleaseOptions) {
+  constructor(options: GitHubReleaseOptions, forge?: Forge) {
     const token = options.token ?? process.env.GITHUB_TOKEN;
 
     if (!token) {
       throw new GitHubError('GITHUB_TOKEN not set. Set it as an environment variable.');
     }
 
-    this.octokit = new Octokit({ auth: token });
-    this.owner = options.owner;
-    this.repo = options.repo;
+    this.forge = forge ?? createGitHubForge({ token, owner: options.owner, repo: options.repo });
   }
 
   async createRelease(
@@ -53,22 +49,20 @@ export class GitHubClient {
     info(`Creating GitHub release for ${tagName}`);
 
     try {
-      const response = await this.octokit.repos.createRelease({
-        owner: this.owner,
-        repo: this.repo,
-        tag_name: tagName,
+      const ref = await this.forge.createRelease({
+        tagName,
         name: tagName,
         body,
         draft: options.draft ?? false,
         prerelease: options.prerelease ?? false,
-        generate_release_notes: options.generateNotes ?? false,
+        generateReleaseNotes: options.generateNotes ?? false,
       });
 
-      success(`Release created: ${response.data.html_url}`);
+      success(`Release created: ${ref.url}`);
 
       return {
-        id: response.data.id,
-        htmlUrl: response.data.html_url,
+        id: ref.id,
+        htmlUrl: ref.url,
         tagName,
       };
     } catch (error) {
@@ -94,22 +88,19 @@ export class GitHubClient {
     info(`Updating GitHub release ${releaseId}`);
 
     try {
-      const response = await this.octokit.repos.updateRelease({
-        owner: this.owner,
-        repo: this.repo,
-        release_id: releaseId,
-        tag_name: tagName,
+      const ref = await this.forge.updateRelease(releaseId, {
+        tagName,
         name: tagName,
         body,
         draft: options.draft ?? false,
         prerelease: options.prerelease ?? false,
       });
 
-      success(`Release updated: ${response.data.html_url}`);
+      success(`Release updated: ${ref.url}`);
 
       return {
-        id: response.data.id,
-        htmlUrl: response.data.html_url,
+        id: ref.id,
+        htmlUrl: ref.url,
         tagName,
       };
     } catch (error) {
@@ -118,21 +109,8 @@ export class GitHubClient {
   }
 
   async getReleaseByTag(tag: string): Promise<CreateReleaseResult | null> {
-    try {
-      const response = await this.octokit.repos.getReleaseByTag({
-        owner: this.owner,
-        repo: this.repo,
-        tag,
-      });
-
-      return {
-        id: response.data.id,
-        htmlUrl: response.data.html_url,
-        tagName: response.data.tag_name,
-      };
-    } catch {
-      return null;
-    }
+    const ref = await this.forge.getReleaseByTag(tag);
+    return ref ? { id: ref.id, htmlUrl: ref.url, tagName: ref.tagName } : null;
   }
 }
 
