@@ -43,6 +43,17 @@ describe('FakeForge', () => {
     expect(await forge.findComment(1, 'MARK')).toMatchObject({ body: 'MARK second' });
   });
 
+  it('should scope findComment to the requested PR (created comments) while ambient seeds are global', async () => {
+    const forge = createFakeForge({ comments: [{ id: 1, body: 'AMBIENT note' }] });
+    await forge.createComment(5, 'PR5 note');
+
+    // An unscoped seeded comment is visible from any PR.
+    expect(await forge.findComment(99, 'AMBIENT')).toMatchObject({ body: 'AMBIENT note' });
+    // A created comment is only found on its own PR.
+    expect(await forge.findComment(5, 'PR5')).toMatchObject({ body: 'PR5 note' });
+    expect(await forge.findComment(6, 'PR5')).toBeNull();
+  });
+
   it('should make createLabel idempotent against seeded labels', async () => {
     const forge = createFakeForge({ labelNames: ['existing'] });
 

@@ -20,6 +20,12 @@ import type {
 interface FakeComment {
   id: number;
   body: string;
+  /**
+   * The PR the comment lives on. `createComment` tags it; a seeded comment may set it to scope the
+   * comment to one PR. Left undefined, a seeded comment is "ambient" — visible from any PR's
+   * `findComment` (a convenience for the common single-PR test).
+   */
+  prNumber?: number;
 }
 
 /** Seed state for a {@link FakeForge}. Everything is optional; unseeded reads return empty/null. */
@@ -116,13 +122,16 @@ export class FakeForge implements Forge {
     this.mergedPullRequests.push({ prNumber, method });
   }
 
-  async findComment(_prNumber: number, marker: string): Promise<FakeComment | null> {
-    return this.comments.find((c) => c.body.startsWith(marker)) ?? null;
+  async findComment(prNumber: number, marker: string): Promise<FakeComment | null> {
+    return (
+      this.comments.find((c) => c.body.startsWith(marker) && (c.prNumber === undefined || c.prNumber === prNumber)) ??
+      null
+    );
   }
 
   async createComment(prNumber: number, body: string): Promise<void> {
     this.createdComments.push({ prNumber, body });
-    this.comments.push({ id: this.nextCommentId++, body });
+    this.comments.push({ id: this.nextCommentId++, body, prNumber });
   }
 
   async updateComment(commentId: number, body: string): Promise<void> {
