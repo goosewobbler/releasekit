@@ -171,14 +171,11 @@ function renderVersion(prop: SchemaProperty): void {
     emit('### `version.groups`', '');
     emit(
       'Named version groups let a co-evolving family of packages version together while the rest',
-      'of the monorepo versions independently. Each entry under `groups` is a group name mapping to',
+      'of the monorepo versions independently. Groups are one of three release-coordination',
+      'mechanisms — see the [release taxonomy](./release-taxonomy.md) for groups vs. derived',
+      'prerequisites vs. selection. Each entry under `groups` is a group name mapping to',
       '`{ packages, sync }`, where `packages` is a list of patterns (same matching as',
       '`version.packages`) and `sync` is one of:',
-      '',
-    );
-    emit(
-      'Groups are one of three release-coordination mechanisms — see the',
-      '[release taxonomy](./release-taxonomy.md) for groups vs. derived prerequisites vs. selection.',
       '',
     );
     if (groupItem?.properties) {
