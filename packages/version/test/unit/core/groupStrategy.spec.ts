@@ -482,14 +482,15 @@ describe('createGroupStrategy', () => {
       expect(jsonOutput.setPackageUpdateGroup).not.toHaveBeenCalledWith('@wdio/native-utils', 'native');
     });
 
-    it('should warn when an independent group ships without an excluded member', async () => {
+    it('should warn when an independent group ships without an excluded CHANGED member', async () => {
       const core = mkPackage('@wdio/native-core', '2.3.0');
       const utils = mkPackage('@wdio/native-utils', '2.3.0');
       const spy = mkPackage('@wdio/native-spy', '2.3.0');
 
-      // core changes; spy is excluded via config.skip, so the atomic set ships partially.
+      // core and spy both changed, but spy is in config.skip — dropping a changed member breaks the
+      // atomic set, so it must warn.
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
-        opts.name === '@wdio/native-core' ? '2.4.0' : '',
+        opts.name === '@wdio/native-core' || opts.name === '@wdio/native-spy' ? '2.4.0' : '',
       );
 
       const strategy = createGroupStrategy(
@@ -504,6 +505,27 @@ describe('createGroupStrategy', () => {
         expect.stringContaining('will release without: @wdio/native-spy'),
         'warning',
       );
+    });
+
+    it('should NOT warn when an independent group skips an unchanged member', async () => {
+      const core = mkPackage('@wdio/native-core', '2.3.0');
+      const spy = mkPackage('@wdio/native-spy', '2.3.0');
+
+      // Only core changed; spy is skipped but had no releasable change, so the set still ships
+      // atomically — warning here would be a false alarm.
+      vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
+        opts.name === '@wdio/native-core' ? '2.4.0' : '',
+      );
+
+      const strategy = createGroupStrategy(
+        baseConfig({
+          skip: ['@wdio/native-spy'],
+          groups: { native: { packages: ['@wdio/native-*'], sync: 'independent' } },
+        }),
+      );
+      await strategy(workspace([core, spy]));
+
+      expect(logging.log).not.toHaveBeenCalledWith(expect.stringContaining('will release without'), 'warning');
     });
   });
 });

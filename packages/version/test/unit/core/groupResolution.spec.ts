@@ -139,7 +139,7 @@ describe('groupResolution', () => {
     });
   });
 
-  describe('expandTargetsForAtomicGroups (--target on a subset of a fixed group)', () => {
+  describe('expandTargetsForAtomicGroups (--target on a subset of an atomic group)', () => {
     const packages = [pkg('@wdio/native-core'), pkg('@wdio/native-utils'), pkg('@wdio/native-spy')];
 
     it('should expand a strict subset of a fixed group to the whole group', () => {

@@ -397,17 +397,26 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
           continue;
         }
 
-        // `config.skip` and the target filter both remove members from `members`, so an atomic
-        // (fixed/independent) group can release with a subset of its declared members — breaking its
-        // atomicity. Warn so the partial release is intentional, not a surprise. Only relevant once
-        // the group is actually releasing (past the no-change guard above). Linked groups are exempt:
-        // partial release is their defined behaviour.
+        // `config.skip` and the target filter remove members from `members`, so an atomic group can
+        // ship a partial set. fixed loses lockstep if ANY declared member is missing; independent only
+        // breaks if a *changed* member is missing — an unchanged skipped member would not release
+        // anyway, so we plan the excluded members to avoid a false alarm. Linked groups release
+        // partially by design, so they're exempt.
         if (group.sync !== 'linked') {
           const inRelease = new Set(members.map((m) => m.packageJson.name));
-          const excluded = group.members.map((m) => m.packageJson.name).filter((name) => !inRelease.has(name));
-          if (excluded.length > 0) {
+          const excludedMembers = group.members.filter((m) => !inRelease.has(m.packageJson.name));
+          let droppedNames: string[];
+          if (group.sync === 'fixed') {
+            droppedNames = excludedMembers.map((m) => m.packageJson.name);
+          } else {
+            const excludedPlans = await Promise.all(
+              excludedMembers.map((m) => planMember(config, m, formattedPrefix, globalTag)),
+            );
+            droppedNames = excludedPlans.filter((p) => p.changed).map((p) => p.pkg.packageJson.name);
+          }
+          if (droppedNames.length > 0) {
             log(
-              `Group "${group.name}" (${group.sync}) will release without: ${excluded.join(', ')}. ` +
+              `Group "${group.name}" (${group.sync}) will release without: ${droppedNames.join(', ')}. ` +
                 'They were excluded by config.skip or --target, so the group will not ship as a single atomic unit. ' +
                 'Include them (remove from config.skip or add via --target) to keep the group atomic.',
               'warning',

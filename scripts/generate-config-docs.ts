@@ -187,6 +187,11 @@ function renderVersion(prop: SchemaProperty): void {
       '  group of every package — there is one mechanism, not two.',
       '- **`linked`** — only members with a releasable change release, but every releasing member',
       '  shares the same computed version. Unchanged members are left untouched (no empty re-release).',
+      '- **`independent`** — only members with a releasable change release, each on its **own**',
+      '  commit-driven version line (no shared group version). The set is still atomic: targeting any',
+      '  member pulls in the whole group, and dropping a changed member (via `config.skip`) warns. Use',
+      '  this for packages coupled by a contract but versioned separately (e.g. a wire protocol across',
+      '  an npm package and a Rust crate on different version lines).',
       '',
     );
     emit(
@@ -202,9 +207,9 @@ function renderVersion(prop: SchemaProperty): void {
       '',
     );
     emit(
-      '**`--target` and fixed groups.** Targeting a strict subset of a `fixed` group expands to the',
-      'whole group (a fixed group never silently splits). `linked` groups and ungrouped packages honor',
-      'targets as-is.',
+      '**`--target` and atomic groups.** Targeting a strict subset of an atomic group (`fixed` or',
+      '`independent`) expands to the whole group, so it never silently splits. `linked` groups and',
+      'ungrouped packages honor targets as-is.',
       '',
     );
     emit(
