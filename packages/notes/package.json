@@ -58,6 +58,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
+    "@octokit/rest": "catalog:",
     "chalk": "catalog:",
     "commander": "catalog:",
     "ejs": "^4.0.1",
