@@ -33,6 +33,12 @@ export interface VersionRunOptions {
    * Useful for preview mode where only a PR's own commits should be analysed.
    */
   baseRef?: string;
+  /**
+   * Package name patterns the `bump` / `prerelease` / `stable` override applies to. When set, only
+   * matching packages receive the override; the rest fall through to commit-driven calculation.
+   * `undefined` (the default) applies the override to every package.
+   */
+  overrideScope?: string[];
 }
 
 export interface GitInfo {
@@ -87,6 +93,9 @@ export interface Config extends VersionConfigBase {
   /** Runtime override: when set, use this commit SHA as the start of the revision range
    *  for both bump calculation and changelog extraction. See VersionRunOptions.baseRef. */
   baseRef?: string;
+  /** Runtime override: package patterns the forced bump/prerelease/stable applies to. When set,
+   *  non-matching packages ignore the override and compute commit-driven. See VersionRunOptions.overrideScope. */
+  overrideScope?: string[];
   mismatchStrategy?: 'error' | 'warn' | 'ignore' | 'prefer-package' | 'prefer-git';
   strictReachable?: boolean;
   /** Pre-1.0 inferred-breaking bump policy ('spec' | 'strict'). See docs/configuration.md#versionzeromajor. */
