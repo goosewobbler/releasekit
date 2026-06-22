@@ -2,9 +2,8 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { RequestError } from '@octokit/request-error';
 import { debug, warn } from '@releasekit/core';
-import { createGitHubForge } from '@releasekit/forge';
+import { createGitHubForge, type Forge, forgeErrorStatus } from '@releasekit/forge';
 import { parseReleaseBodyToExample } from './parser.js';
 import type { Example } from './types.js';
 
@@ -15,6 +14,8 @@ export interface FetchExamplesOptions {
   count: number;
   githubToken?: string;
   isMonorepo?: boolean;
+  /** Inject a forge (tests); defaults to a GitHub-backed forge built from the token. */
+  forge?: Forge;
 }
 
 // Parsed release body text is cached in /tmp keyed by the latest release tag.
@@ -77,7 +78,7 @@ export async function fetchExamples(options: FetchExamplesOptions): Promise<Exam
     return [];
   }
 
-  const forge = createGitHubForge({ token, owner, repo });
+  const forge = options.forge ?? createGitHubForge({ token, owner, repo });
 
   try {
     const allReleases = await forge.listReleases();
@@ -113,8 +114,9 @@ export async function fetchExamples(options: FetchExamplesOptions): Promise<Exam
     debug(`Fetched ${examples.length} examples for ${packageName}`);
     return examples;
   } catch (error) {
-    if (error instanceof RequestError && (error.status === 401 || error.status === 403)) {
-      warn(`GitHub API auth error (${error.status}) — skipping examples fetch; check GITHUB_TOKEN permissions`);
+    const status = forgeErrorStatus(error);
+    if (status === 401 || status === 403) {
+      warn(`GitHub API auth error (${status}) — skipping examples fetch; check GITHUB_TOKEN permissions`);
     } else {
       debug(`Failed to fetch examples: ${error instanceof Error ? error.message : String(error)}`);
     }

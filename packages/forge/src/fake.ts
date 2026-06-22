@@ -86,12 +86,12 @@ export class FakeForge implements Forge {
     return this.pullRequestsForCommit[commitSha] ?? [];
   }
 
-  async findStandingPR(): Promise<StandingPullRequest | null> {
+  async findStandingPR(_branch: string): Promise<StandingPullRequest | null> {
     return this.standingPR;
   }
 
-  async listRecentlyClosedPullRequests(): Promise<AssociatedPullRequest[]> {
-    return this.recentlyClosedPRs;
+  async listRecentlyClosedPullRequests(_branch: string, limit: number): Promise<AssociatedPullRequest[]> {
+    return this.recentlyClosedPRs.slice(0, limit);
   }
 
   async getIssue(issueNumber: number): Promise<IssueDetails> {

@@ -52,4 +52,58 @@ describe('FakeForge', () => {
     expect((await forge.listLabelNames()).sort()).toEqual(['existing', 'fresh']);
     expect(forge.createdLabels).toHaveLength(3);
   });
+
+  it('should bound listRecentlyClosedPullRequests by the limit argument', async () => {
+    const forge = createFakeForge({
+      recentlyClosedPRs: [
+        { number: 1, mergedAt: 'a' },
+        { number: 2, mergedAt: 'b' },
+        { number: 3, mergedAt: 'c' },
+      ],
+    });
+    expect(await forge.listRecentlyClosedPullRequests('release/next', 2)).toHaveLength(2);
+    expect(await forge.listRecentlyClosedPullRequests('release/next', 10)).toHaveLength(3);
+  });
+
+  it('should return seeded issue/PR details and sensible defaults', async () => {
+    const forge = createFakeForge({
+      issues: { 7: { body: 'ib', title: 'it', labels: ['l'], isPullRequest: true } },
+      pullRequests: { 7: { body: 'pb', labels: ['p'] } },
+    });
+    expect(await forge.getIssue(7)).toEqual({ body: 'ib', title: 'it', labels: ['l'], isPullRequest: true });
+    expect(await forge.getPullRequest(7)).toEqual({ body: 'pb', labels: ['p'] });
+    expect(await forge.getIssue(404)).toEqual({ body: '', title: '', labels: [], isPullRequest: true });
+    expect(await forge.getPullRequest(404)).toEqual({ body: '', labels: [] });
+  });
+
+  it('should record label and release writes and return release refs', async () => {
+    const forge = createFakeForge();
+    await forge.setLabels(7, ['a', 'b']);
+    const created = await forge.createRelease({
+      tagName: 'v1',
+      name: 'v1',
+      body: 'b',
+      draft: false,
+      prerelease: false,
+    });
+    const updated = await forge.updateRelease(created.id, {
+      tagName: 'v1',
+      name: 'v1',
+      body: 'b2',
+      draft: true,
+      prerelease: false,
+    });
+
+    expect(forge.setLabelsCalls).toEqual([{ issueNumber: 7, labels: ['a', 'b'] }]);
+    expect(created).toEqual({ id: 1, url: expect.stringContaining('1'), tagName: 'v1' });
+    expect(updated.id).toBe(1);
+    expect(forge.createdReleases).toHaveLength(1);
+    expect(forge.updatedReleases).toEqual([{ releaseId: 1, release: expect.objectContaining({ body: 'b2' }) }]);
+  });
+
+  it('should return seeded releases from listReleases', async () => {
+    const releases = [{ tagName: 'v1', draft: false, prerelease: false, body: 'b' }];
+    const forge = createFakeForge({ releases });
+    expect(await forge.listReleases()).toEqual(releases);
+  });
 });

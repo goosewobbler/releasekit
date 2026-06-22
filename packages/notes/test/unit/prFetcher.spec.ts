@@ -1,9 +1,7 @@
-import { Octokit } from '@octokit/rest';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createFakeForge } from '@releasekit/forge';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PRContext } from '../../src/core/types.js';
 import { fetchPullRequestContext, parseIssueNumbers, resolveGitHubToken } from '../../src/llm/context/prFetcher.js';
-
-vi.mock('@octokit/rest', () => ({ Octokit: vi.fn() }));
 
 // ---------------------------------------------------------------------------
 // parseIssueNumbers
@@ -57,27 +55,17 @@ describe('resolveGitHubToken()', () => {
 // fetchPullRequestContext
 // ---------------------------------------------------------------------------
 
+/** A forge whose `getIssue` returns a PR with the given title/body. */
+function forgeWithIssue(number: number, title: string, body: string) {
+  return createFakeForge({ issues: { [number]: { title, body, labels: [], isPullRequest: true } } });
+}
+
 describe('fetchPullRequestContext()', () => {
-  let mockGet: ReturnType<typeof vi.fn>;
-
-  beforeEach(() => {
-    mockGet = vi.fn();
-    vi.mocked(Octokit).mockImplementation(
-      class {
-        rest = { issues: { get: mockGet } };
-      } as unknown as typeof Octokit,
-    );
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it('should populate cache with fetched PR data', async () => {
-    mockGet.mockResolvedValue({ data: { title: 'Add feature', body: 'PR body content', pull_request: {} } });
+    const forge = forgeWithIssue(42, 'Add feature', 'PR body content');
     const cache = new Map<number, PRContext | null>();
 
-    await fetchPullRequestContext('owner', 'repo', [42], 'token', cache);
+    await fetchPullRequestContext('owner', 'repo', [42], 'token', cache, forge);
 
     expect(cache.has(42)).toBe(true);
     expect(cache.get(42)).toMatchObject({ number: 42, title: 'Add feature', body: 'PR body content' });
@@ -86,58 +74,55 @@ describe('fetchPullRequestContext()', () => {
   it('should skip numbers already in cache', async () => {
     const existing: PRContext = { number: 1, title: 'Cached', body: 'cached body' };
     const cache = new Map([[1, existing]]);
+    const forge = createFakeForge();
+    const getIssue = vi.spyOn(forge, 'getIssue');
 
-    await fetchPullRequestContext('owner', 'repo', [1], 'token', cache);
+    await fetchPullRequestContext('owner', 'repo', [1], 'token', cache, forge);
 
-    expect(mockGet).not.toHaveBeenCalled();
+    expect(getIssue).not.toHaveBeenCalled();
   });
 
   it('should handle missing PR body gracefully', async () => {
-    mockGet.mockResolvedValue({ data: { title: 'No body', body: null, pull_request: {} } });
+    const forge = forgeWithIssue(7, 'No body', '');
     const cache = new Map<number, PRContext | null>();
 
-    await fetchPullRequestContext('owner', 'repo', [7], 'token', cache);
+    await fetchPullRequestContext('owner', 'repo', [7], 'token', cache, forge);
 
     expect(cache.get(7)?.body).toBe('');
   });
 
   it('should skip entry on fetch error without throwing', async () => {
-    mockGet.mockRejectedValue(new Error('not found'));
+    const forge = createFakeForge();
+    vi.spyOn(forge, 'getIssue').mockRejectedValue(new Error('not found'));
     const cache = new Map<number, PRContext | null>();
 
-    await expect(fetchPullRequestContext('owner', 'repo', [99], 'token', cache)).resolves.not.toThrow();
+    await expect(fetchPullRequestContext('owner', 'repo', [99], 'token', cache, forge)).resolves.not.toThrow();
     expect(cache.has(99)).toBe(false);
   });
 
   it('should sanitise HTML comments from body', async () => {
-    mockGet.mockResolvedValue({
-      data: { title: 'Test', body: 'Before<!-- hidden comment -->After', pull_request: {} },
-    });
+    const forge = forgeWithIssue(1, 'Test', 'Before<!-- hidden comment -->After');
     const cache = new Map<number, PRContext | null>();
 
-    await fetchPullRequestContext('owner', 'repo', [1], 'token', cache);
+    await fetchPullRequestContext('owner', 'repo', [1], 'token', cache, forge);
 
     expect(cache.get(1)?.body).toBe('BeforeAfter');
   });
 
   it('should handle nested/truncated HTML comment patterns', async () => {
-    mockGet.mockResolvedValue({
-      data: { title: 'Test', body: 'A<!--<!---->B<!--unclosedC', pull_request: {} },
-    });
+    const forge = forgeWithIssue(1, 'Test', 'A<!--<!---->B<!--unclosedC');
     const cache = new Map<number, PRContext | null>();
 
-    await fetchPullRequestContext('owner', 'repo', [1], 'token', cache);
+    await fetchPullRequestContext('owner', 'repo', [1], 'token', cache, forge);
 
     expect(cache.get(1)?.body).not.toContain('<!--');
   });
 
   it('should strip images from body', async () => {
-    mockGet.mockResolvedValue({
-      data: { title: 'Test', body: 'Text ![screenshot](https://example.com/img.png) more text', pull_request: {} },
-    });
+    const forge = forgeWithIssue(1, 'Test', 'Text ![screenshot](https://example.com/img.png) more text');
     const cache = new Map<number, PRContext | null>();
 
-    await fetchPullRequestContext('owner', 'repo', [1], 'token', cache);
+    await fetchPullRequestContext('owner', 'repo', [1], 'token', cache, forge);
 
     expect(cache.get(1)?.body).not.toContain('![');
     expect(cache.get(1)?.body).toContain('Text');
@@ -145,16 +130,10 @@ describe('fetchPullRequestContext()', () => {
   });
 
   it('should strip <details> blocks from body', async () => {
-    mockGet.mockResolvedValue({
-      data: {
-        title: 'Test',
-        body: 'Before<details><summary>Click</summary>Hidden</details>After',
-        pull_request: {},
-      },
-    });
+    const forge = forgeWithIssue(1, 'Test', 'Before<details><summary>Click</summary>Hidden</details>After');
     const cache = new Map<number, PRContext | null>();
 
-    await fetchPullRequestContext('owner', 'repo', [1], 'token', cache);
+    await fetchPullRequestContext('owner', 'repo', [1], 'token', cache, forge);
 
     expect(cache.get(1)?.body).not.toContain('<details>');
     expect(cache.get(1)?.body).toContain('Before');
@@ -162,16 +141,10 @@ describe('fetchPullRequestContext()', () => {
   });
 
   it('should strip nested <details> blocks without leaving stray closing tags', async () => {
-    mockGet.mockResolvedValue({
-      data: {
-        title: 'Test',
-        body: 'Before<details><details>inner</details>outer</details>After',
-        pull_request: {},
-      },
-    });
+    const forge = forgeWithIssue(1, 'Test', 'Before<details><details>inner</details>outer</details>After');
     const cache = new Map<number, PRContext | null>();
 
-    await fetchPullRequestContext('owner', 'repo', [1], 'token', cache);
+    await fetchPullRequestContext('owner', 'repo', [1], 'token', cache, forge);
 
     expect(cache.get(1)?.body).not.toContain('details');
     expect(cache.get(1)?.body).not.toContain('outer');
@@ -179,32 +152,40 @@ describe('fetchPullRequestContext()', () => {
   });
 
   it('should truncate long bodies to ~2 KB', async () => {
-    const longBody = 'a'.repeat(4000);
-    mockGet.mockResolvedValue({ data: { title: 'Long', body: longBody, pull_request: {} } });
+    const forge = forgeWithIssue(1, 'Long', 'a'.repeat(4000));
     const cache = new Map<number, PRContext | null>();
 
-    await fetchPullRequestContext('owner', 'repo', [1], 'token', cache);
+    await fetchPullRequestContext('owner', 'repo', [1], 'token', cache, forge);
 
     expect(cache.get(1)!.body.length).toBeLessThanOrEqual(2100);
   });
 
   it('should cache plain issues (non-PR) as null to prevent re-fetching', async () => {
-    mockGet.mockResolvedValue({ data: { title: 'Plain issue', body: 'issue body' } });
+    const forge = createFakeForge({
+      issues: { 5: { title: 'Plain issue', body: 'issue body', labels: [], isPullRequest: false } },
+    });
     const cache = new Map<number, PRContext | null>();
 
-    await fetchPullRequestContext('owner', 'repo', [5], 'token', cache);
+    await fetchPullRequestContext('owner', 'repo', [5], 'token', cache, forge);
 
     expect(cache.has(5)).toBe(true);
     expect(cache.get(5)).toBeNull();
   });
 
   it('should fetch multiple numbers in parallel', async () => {
-    mockGet.mockResolvedValue({ data: { title: 'PR', body: 'body', pull_request: {} } });
+    const forge = createFakeForge({
+      issues: {
+        1: { title: 'PR', body: 'body', labels: [], isPullRequest: true },
+        2: { title: 'PR', body: 'body', labels: [], isPullRequest: true },
+        3: { title: 'PR', body: 'body', labels: [], isPullRequest: true },
+      },
+    });
+    const getIssue = vi.spyOn(forge, 'getIssue');
     const cache = new Map<number, PRContext | null>();
 
-    await fetchPullRequestContext('owner', 'repo', [1, 2, 3], 'token', cache);
+    await fetchPullRequestContext('owner', 'repo', [1, 2, 3], 'token', cache, forge);
 
-    expect(mockGet).toHaveBeenCalledTimes(3);
+    expect(getIssue).toHaveBeenCalledTimes(3);
     expect(cache.size).toBe(3);
   });
 });

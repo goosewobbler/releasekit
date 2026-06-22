@@ -1,10 +1,8 @@
-import { Octokit } from '@octokit/rest';
+import { createFakeForge } from '@releasekit/forge';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fetchExamples } from '../../src/llm/examples/fetcher.js';
 import { parseReleaseBodyToExample, renderExamplesBlock } from '../../src/llm/examples/parser.js';
 import type { Example } from '../../src/llm/examples/types.js';
-
-vi.mock('@octokit/rest', () => ({ Octokit: vi.fn() }));
 
 // ---------------------------------------------------------------------------
 // parseReleaseBodyToExample
@@ -139,11 +137,6 @@ describe('fetchExamples()', () => {
   beforeEach(() => {
     vi.stubEnv('GITHUB_TOKEN', 'test-token');
     vi.stubEnv('GH_TOKEN', '');
-    vi.mocked(Octokit).mockImplementation(
-      class {
-        rest = { repos: { listReleases: vi.fn().mockRejectedValue(new Error('network error')) } };
-      } as unknown as typeof Octokit,
-    );
   });
 
   afterEach(() => {
@@ -164,31 +157,30 @@ describe('fetchExamples()', () => {
   });
 
   it('should use provided githubToken over env', async () => {
-    // If an explicit token is provided, it should not need GITHUB_TOKEN
+    // An explicit token lets fetchExamples proceed past the early token check without an env token.
     vi.stubEnv('GITHUB_TOKEN', '');
     vi.stubEnv('GH_TOKEN', '');
-    // We can't actually call GitHub here, so we just verify it doesn't return early
-    // The Octokit call will fail with a network error; that's caught and returns []
+    const forge = createFakeForge({
+      releases: [{ tagName: 'pkg@1.0.0', draft: false, prerelease: false, body: '### New\n- A feature\n' }],
+    });
     const result = await fetchExamples({
       owner: 'o',
-      repo: 'r',
+      repo: 'r-token',
       packageName: 'pkg',
       count: 1,
       githubToken: 'explicit-token',
+      forge,
     });
-    // Either empty (network error caught) or actual results — both are valid in unit test
-    expect(Array.isArray(result)).toBe(true);
+    // Proceeded (didn't early-return) and surfaced the package-scoped release.
+    expect(result).toHaveLength(1);
   });
 
   it('should return empty array and does not throw on API error', async () => {
-    // fetchExamples catches all errors and returns []
-    const result = await fetchExamples({
-      owner: 'nonexistent-owner-xyz',
-      repo: 'nonexistent-repo-xyz',
-      packageName: 'pkg',
-      count: 1,
-    });
-    expect(Array.isArray(result)).toBe(true);
+    // fetchExamples catches all forge errors and returns []
+    const forge = createFakeForge();
+    vi.spyOn(forge, 'listReleases').mockRejectedValue(new Error('boom'));
+    const result = await fetchExamples({ owner: 'o', repo: 'r-err', packageName: 'pkg', count: 1, forge });
+    expect(result).toEqual([]);
   });
 });
 
@@ -197,21 +189,15 @@ describe('fetchExamples()', () => {
 // ---------------------------------------------------------------------------
 
 describe('fetchExamples() - release matching', () => {
-  let listReleasesMock: ReturnType<typeof vi.fn>;
-
+  // Pagination/page-bounding lives in the forge adapter (covered in packages/forge github.spec.ts);
+  // these tests exercise the notes-level matching/filtering against a flat seeded release list.
   function makeRelease(tagName: string, body = '### New\n- Some feature\n') {
-    return { tag_name: tagName, draft: false, prerelease: false, body };
+    return { tagName, draft: false, prerelease: false, body };
   }
 
   beforeEach(() => {
     vi.stubEnv('GITHUB_TOKEN', 'test-token');
     vi.stubEnv('GH_TOKEN', '');
-    listReleasesMock = vi.fn();
-    vi.mocked(Octokit).mockImplementation(
-      class {
-        rest = { repos: { listReleases: listReleasesMock } };
-      } as unknown as typeof Octokit,
-    );
   });
 
   afterEach(() => {
@@ -220,98 +206,63 @@ describe('fetchExamples() - release matching', () => {
   });
 
   it('should use only package-scoped releases when they exist, ignoring bare version tags', async () => {
-    listReleasesMock.mockResolvedValue({
-      data: [makeRelease('@scope/foo@2.0.0'), makeRelease('@scope/bar@2.0.0'), makeRelease('v2.0.0')],
+    const forge = createFakeForge({
+      releases: [makeRelease('@scope/foo@2.0.0'), makeRelease('@scope/bar@2.0.0'), makeRelease('v2.0.0')],
     });
-
-    const result = await fetchExamples({ owner: 'o', repo: 'r1', packageName: '@scope/foo', count: 3 });
+    const result = await fetchExamples({ owner: 'o', repo: 'r1', packageName: '@scope/foo', count: 3, forge });
     expect(result).toHaveLength(1);
     expect(result[0]?.version).toBe('2.0.0');
   });
 
   it('should fall back to bare version tags when no package-scoped releases exist (single-package repo)', async () => {
-    listReleasesMock.mockResolvedValue({
-      data: [makeRelease('v2.0.0'), makeRelease('v1.0.0')],
-    });
-
-    const result = await fetchExamples({ owner: 'o', repo: 'r2', packageName: 'my-package', count: 3 });
+    const forge = createFakeForge({ releases: [makeRelease('v2.0.0'), makeRelease('v1.0.0')] });
+    const result = await fetchExamples({ owner: 'o', repo: 'r2', packageName: 'my-package', count: 3, forge });
     expect(result).toHaveLength(2);
   });
 
   it('should suppress bare version fallback when isMonorepo is true', async () => {
-    listReleasesMock.mockResolvedValue({
-      data: [makeRelease('@scope/bar@1.0.0'), makeRelease('v2.0.0')],
-    });
-
+    const forge = createFakeForge({ releases: [makeRelease('@scope/bar@1.0.0'), makeRelease('v2.0.0')] });
     const result = await fetchExamples({
       owner: 'o',
       repo: 'r3',
       packageName: '@scope/foo',
       count: 3,
       isMonorepo: true,
+      forge,
     });
     expect(result).toHaveLength(0);
   });
 
   it('should use bare version fallback when isMonorepo is false', async () => {
-    listReleasesMock.mockResolvedValue({
-      data: [makeRelease('v2.0.0'), makeRelease('v1.0.0')],
-    });
-
+    const forge = createFakeForge({ releases: [makeRelease('v2.0.0'), makeRelease('v1.0.0')] });
     const result = await fetchExamples({
       owner: 'o',
       repo: 'r3b',
       packageName: 'my-pkg',
       count: 3,
       isMonorepo: false,
+      forge,
     });
     expect(result).toHaveLength(2);
   });
 
   it('should respect count limit on package-scoped results', async () => {
-    listReleasesMock.mockResolvedValue({
-      data: [makeRelease('my-pkg@3.0.0'), makeRelease('my-pkg@2.0.0'), makeRelease('my-pkg@1.0.0')],
+    const forge = createFakeForge({
+      releases: [makeRelease('my-pkg@3.0.0'), makeRelease('my-pkg@2.0.0'), makeRelease('my-pkg@1.0.0')],
     });
-
-    const result = await fetchExamples({ owner: 'o', repo: 'r4', packageName: 'my-pkg', count: 2 });
+    const result = await fetchExamples({ owner: 'o', repo: 'r4', packageName: 'my-pkg', count: 2, forge });
     expect(result).toHaveLength(2);
-  });
-
-  it('should fetch page 2 when page 1 is full but has no package-scoped matches', async () => {
-    const page1 = Array.from({ length: 100 }, (_, i) => makeRelease(`other-pkg@${100 - i}.0.0`));
-    const page2 = [makeRelease('my-pkg@2.0.0'), makeRelease('my-pkg@1.0.0')];
-
-    listReleasesMock.mockResolvedValueOnce({ data: page1 }).mockResolvedValueOnce({ data: page2 });
-
-    const result = await fetchExamples({ owner: 'o', repo: 'r-pg', packageName: 'my-pkg', count: 2 });
-    expect(result).toHaveLength(2);
-    expect(listReleasesMock).toHaveBeenCalledTimes(2);
-  });
-
-  it('should return the matching releases when the first page is full of unrelated tags', async () => {
-    // Release listing is bounded to a few pages by the forge; the package-scoped matches near the
-    // top of the first page are still surfaced and sliced to `count`.
-    const page1 = Array.from({ length: 100 }, (_, i) =>
-      i < 2 ? makeRelease(`my-pkg@${2 - i}.0.0`) : makeRelease(`other-pkg@${i}.0.0`),
-    );
-
-    listReleasesMock.mockResolvedValue({ data: page1 });
-
-    const result = await fetchExamples({ owner: 'o', repo: 'r-stop', packageName: 'my-pkg', count: 2 });
-    expect(result).toHaveLength(2);
-    expect(result.map((e) => e.version)).toEqual(['2.0.0', '1.0.0']);
   });
 
   it('should skip draft and prerelease entries', async () => {
-    listReleasesMock.mockResolvedValue({
-      data: [
-        { tag_name: 'my-pkg@2.0.0', draft: true, prerelease: false, body: '### New\n- A\n' },
-        { tag_name: 'my-pkg@1.0.0', draft: false, prerelease: true, body: '### New\n- B\n' },
+    const forge = createFakeForge({
+      releases: [
+        { tagName: 'my-pkg@2.0.0', draft: true, prerelease: false, body: '### New\n- A\n' },
+        { tagName: 'my-pkg@1.0.0', draft: false, prerelease: true, body: '### New\n- B\n' },
         makeRelease('my-pkg@0.9.0'),
       ],
     });
-
-    const result = await fetchExamples({ owner: 'o', repo: 'r5', packageName: 'my-pkg', count: 3 });
+    const result = await fetchExamples({ owner: 'o', repo: 'r5', packageName: 'my-pkg', count: 3, forge });
     expect(result).toHaveLength(1);
     expect(result[0]?.version).toBe('0.9.0');
   });

@@ -1,3 +1,4 @@
+export { forgeErrorStatus } from './errors.js';
 export { createFakeForge, FakeForge, type FakeForgeSeed } from './fake.js';
 export { createGitHubForge, GitHubForge } from './github.js';
 export type {
