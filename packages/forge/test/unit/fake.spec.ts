@@ -118,10 +118,10 @@ describe('FakeForge', () => {
     expect(await forge.listReleases()).toEqual(releases);
   });
 
-  it('should return seeded actor permission, and none for unseeded actors', async () => {
-    const forge = createFakeForge({ actorPermissions: { alice: 'admin', bob: 'write' } });
-    expect(await forge.getActorPermission('alice')).toBe('admin');
-    expect(await forge.getActorPermission('bob')).toBe('write');
+  it('should return seeded actor permission (case-insensitively), and none for unseeded actors', async () => {
+    const forge = createFakeForge({ actorPermissions: { Alice: 'admin', bob: 'write' } });
+    expect(await forge.getActorPermission('alice')).toBe('admin'); // seeded as 'Alice'
+    expect(await forge.getActorPermission('BOB')).toBe('write');
     expect(await forge.getActorPermission('stranger')).toBe('none');
   });
 });

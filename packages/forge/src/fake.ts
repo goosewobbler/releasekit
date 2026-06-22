@@ -94,7 +94,11 @@ export class FakeForge implements Forge {
   }
 
   async getActorPermission(username: string): Promise<RepoPermission> {
-    return this.actorPermissions[username] ?? 'none';
+    // GitHub resolves usernames case-insensitively (Alice === alice); match the real adapter so the
+    // fake doesn't diverge. Unseeded → 'none'.
+    const lc = username.toLowerCase();
+    const key = Object.keys(this.actorPermissions).find((k) => k.toLowerCase() === lc);
+    return (key !== undefined ? this.actorPermissions[key] : undefined) ?? 'none';
   }
 
   async listPullRequestsForCommit(commitSha: string): Promise<AssociatedPullRequest[]> {
