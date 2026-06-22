@@ -42,13 +42,17 @@ export function markerData<T>(opts: {
   serialize: (value: T) => string;
   deserialize: (payload: string) => T | null;
 }): MarkerData<T> {
-  const close = opts.close ?? '-->';
+  // The marker format is `<open> <payload> <close>` (space-separated). Bake those spaces into the
+  // delimiters so the opening match is specific: `<!-- base64 ` won't latch onto a stray
+  // `<!-- base64url …` marker (preserving the old regex's specificity without a regex).
+  const open = `${opts.open} `;
+  const close = ` ${opts.close ?? '-->'}`;
   return {
     encode(value) {
-      return `${opts.open} ${opts.serialize(value)} ${close}`;
+      return `${open}${opts.serialize(value)}${close}`;
     },
     decode(body) {
-      const payload = sliceBetween(body, opts.open, close, false);
+      const payload = sliceBetween(body, open, close, false);
       return payload === undefined ? null : opts.deserialize(payload);
     },
   };

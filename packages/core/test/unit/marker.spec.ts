@@ -39,6 +39,13 @@ describe('markerData', () => {
     expect(base64.encode('QUJD')).toBe('<!-- base64 QUJD -->');
     expect(base64.decode('<details>\n<!-- base64 QUJD -->\n</details>')).toBe('QUJD');
   });
+
+  it('should not latch onto a broader-prefixed marker before the real one', () => {
+    // `<!-- base64 ` (with the trailing space) must skip a stray `<!-- base64url … -->` and find the
+    // actual manifest marker that follows.
+    const base64 = markerData<string>({ open: '<!-- base64', serialize: (s) => s, deserialize: (s) => s || null });
+    expect(base64.decode('<!-- base64url not-the-manifest -->\n<!-- base64 QUJD -->')).toBe('QUJD');
+  });
 });
 
 describe('marker region', () => {
