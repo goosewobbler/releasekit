@@ -9,6 +9,7 @@ import type { VersionChangelogEntry } from '@releasekit/core';
 import { shouldMatchPackageTargets, shouldProcessPackage as shouldProcessPackageUtil } from '@releasekit/core';
 import { extractChangelogEntriesFromCommits } from '../changelog/commitParser.js';
 import { BaseVersionError } from '../errors/baseError.js';
+import { StrictReachableError } from '../errors/strictReachableError.js';
 import { createVersionError, VersionErrorCode } from '../errors/versionError.js';
 import { getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { updatePackageVersion } from '../package/packageManagement.js';
@@ -311,6 +312,8 @@ export function createSyncStrategy(config: Config): StrategyFunction {
           changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];
         }
       } catch (error) {
+        // A strictReachable violation must abort the run, not degrade to a minimal entry (#372).
+        if (error instanceof StrictReachableError) throw error;
         log(`Error extracting changelog entries: ${error instanceof Error ? error.message : String(error)}`, 'warning');
         changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];
       }
@@ -569,6 +572,8 @@ export function createSingleStrategy(config: Config): StrategyFunction {
           changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];
         }
       } catch (error) {
+        // A strictReachable violation must abort the run, not degrade to a minimal entry (#372).
+        if (error instanceof StrictReachableError) throw error;
         log(`Error extracting changelog entries: ${error instanceof Error ? error.message : String(error)}`, 'warning');
         // Fall back to minimal entry
         changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];
@@ -680,6 +685,9 @@ export function createAsyncStrategy(config: Config): StrategyFunction {
       baseBranch: config.baseBranch || 'main',
       prereleaseIdentifier: config.prereleaseIdentifier,
       type: config.type,
+      // Without this the per-package resolver always saw strictReachable=false, so the async path
+      // never enforced it — the guard silently no-op'd for per-package repos (#372).
+      strictReachable: config.strictReachable,
     },
   };
 

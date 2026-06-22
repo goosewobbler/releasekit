@@ -24,6 +24,7 @@ import { shouldMatchPackageTargets, shouldProcessPackage as shouldProcessPackage
 import semver from 'semver';
 import { extractChangelogEntriesFromCommits } from '../changelog/commitParser.js';
 import { BaseVersionError } from '../errors/baseError.js';
+import { StrictReachableError } from '../errors/strictReachableError.js';
 import { getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import { updatePackageVersion } from '../package/packageManagement.js';
 import type { Config } from '../types.js';
@@ -244,6 +245,8 @@ async function extractEntries(
     previousVersion = baseline.previousVersion;
     entries = extractChangelogEntriesFromCommits(input.pkgDir, revisionRange);
   } catch (error) {
+    // A strictReachable violation must abort the run, not degrade to a minimal entry (#372).
+    if (error instanceof StrictReachableError) throw error;
     log(`Error extracting changelog entries: ${error instanceof Error ? error.message : String(error)}`, 'warning');
   }
   if (entries.length === 0) {

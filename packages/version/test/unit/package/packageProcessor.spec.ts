@@ -6,6 +6,7 @@ import * as cargoHandler from '../../../src/cargo/cargoHandler.js';
 import * as commitParser from '../../../src/changelog/commitParser.js';
 import * as calculator from '../../../src/core/versionCalculator.js';
 import * as versionCalculatorModule from '../../../src/core/versionCalculator.js';
+import { StrictReachableError } from '../../../src/errors/strictReachableError.js';
 import * as gitTags from '../../../src/git/tagsAndBranches.js';
 import * as tagVerification from '../../../src/git/tagVerification.js';
 import * as packageManagement from '../../../src/package/packageManagement.js';
@@ -1412,6 +1413,51 @@ describe('Package Processor', () => {
 
       // Verify the tag was tracked via JSON output with the correct format
       expect(jsonOutput.addTag).toHaveBeenCalledWith('ver1.1.0');
+    });
+  });
+
+  // #372 — strictReachable must abort the run, not silently degrade. Both tests run with the SAME
+  // strictReachable:true config so the only variable is the error TYPE: an unreachable-baseline
+  // StrictReachableError aborts; a genuine extraction error still degrades to a minimal entry.
+  describe('strictReachable (#372)', () => {
+    beforeEach(() => {
+      // A real per-package tag so the resolver takes the verify-baseline branch (hasRealTag = true).
+      vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('v1.0.0');
+    });
+
+    it('should abort the run with a StrictReachableError when the baseline is unreachable', async () => {
+      vi.spyOn(tagVerification, 'verifyTag').mockReturnValue({
+        exists: true,
+        reachable: false,
+        error: 'exists but is not an ancestor of HEAD',
+      });
+      const processor = new PackageProcessor({
+        ...defaultOptions,
+        config: { ...defaultOptions.config, strictReachable: true },
+        fullConfig: { ...mockConfig, strictReachable: true },
+      });
+
+      await expect(processor.processPackages(mockPackages)).rejects.toBeInstanceOf(StrictReachableError);
+    });
+
+    it('should still degrade a genuine changelog-extraction error to a minimal entry', async () => {
+      // Baseline reachable (no strict violation), but commit parsing throws — the catch must swallow
+      // this and fall back, not abort, even though strictReachable is on.
+      vi.spyOn(tagVerification, 'verifyTag').mockReturnValue({ exists: true, reachable: true });
+      vi.spyOn(commitParser, 'extractChangelogEntriesFromCommits').mockImplementation(() => {
+        throw new Error('git log failed');
+      });
+      const processor = new PackageProcessor({
+        ...defaultOptions,
+        config: { ...defaultOptions.config, strictReachable: true },
+        fullConfig: { ...mockConfig, strictReachable: true },
+      });
+
+      await expect(processor.processPackages(mockPackages)).resolves.toBeDefined();
+      expect(vi.mocked(logging.log)).toHaveBeenCalledWith(
+        expect.stringContaining('Error extracting changelog entries'),
+        'warning',
+      );
     });
   });
 });

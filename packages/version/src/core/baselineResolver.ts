@@ -1,3 +1,4 @@
+import { StrictReachableError } from '../errors/strictReachableError.js';
 import { getLatestStableTag, getLatestStableTagForPackage, getNearestReachableTag } from '../git/tagsAndBranches.js';
 import { verifyTag } from '../git/tagVerification.js';
 import { displayTag } from '../utils/formatting.js';
@@ -116,7 +117,11 @@ export class BaselineResolver {
         revisionRange = `${baseForRange}..HEAD`;
       } else {
         if (!baseRef && strictReachable) {
-          throw new Error(
+          // A dedicated type, not a bare Error: the per-package changelog try/catch in each strategy
+          // degrades genuine extraction failures to a minimal entry, but must rethrow THIS so it
+          // aborts the run (#372) — strictReachable's whole job is to fail loudly on an unreachable
+          // baseline (shallow clone / fetch-depth), not ship a silently whole-history changelog.
+          throw new StrictReachableError(
             `Cannot generate changelog: ref '${baseForRange}' is not reachable from the current commit. ` +
               `When strictReachable is enabled, all refs must be reachable. ` +
               `To allow fallback to all commits, set strictReachable to false.`,

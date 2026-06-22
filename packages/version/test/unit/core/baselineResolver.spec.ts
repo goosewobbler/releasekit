@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BaselineResolver, type BaselineResolverOptions } from '../../../src/core/baselineResolver.js';
+import { StrictReachableError } from '../../../src/errors/strictReachableError.js';
 import {
   getLatestStableTag,
   getLatestStableTagForPackage,
@@ -55,11 +56,14 @@ describe('BaselineResolver.resolve', () => {
     expect(result.baselineUnreachable).toBe(true);
   });
 
-  it('should throw on an unreachable baseline when strictReachable is set', async () => {
+  it('should throw a StrictReachableError on an unreachable baseline when strictReachable is set', async () => {
     vi.mocked(verifyTag).mockReturnValue(unreachable);
-    await expect(new BaselineResolver(makeOpts({ strictReachable: true })).resolve(makeInput())).rejects.toThrow(
-      /not reachable/,
-    );
+    // The type — not just the message — is the contract (#372): the per-package changelog catch in
+    // each strategy distinguishes this from a genuine extraction error by `instanceof` and rethrows
+    // it so the run aborts, instead of degrading to a minimal changelog entry.
+    const promise = new BaselineResolver(makeOpts({ strictReachable: true })).resolve(makeInput());
+    await expect(promise).rejects.toBeInstanceOf(StrictReachableError);
+    await expect(promise).rejects.toThrow(/not reachable/);
   });
 
   it('should not throw under strictReachable when baseRef is set (baseRef takes precedence)', async () => {
