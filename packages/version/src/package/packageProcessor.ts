@@ -6,6 +6,7 @@ import { shouldProcessPackage } from '@releasekit/core';
 import { extractChangelogEntriesFromCommits, extractRepoLevelChangelogEntries } from '../changelog/commitParser.js';
 import { BaselineResolver } from '../core/baselineResolver.js';
 import { calculateVersion } from '../core/versionCalculator.js';
+import { StrictReachableError } from '../errors/strictReachableError.js';
 import { getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import type { Config, VersionConfigBase } from '../types.js';
 import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
@@ -280,6 +281,8 @@ export class PackageProcessor {
           ];
         }
       } catch (error) {
+        // A strictReachable violation must abort the run, not degrade to a minimal entry (#372).
+        if (error instanceof StrictReachableError) throw error;
         log(`Error extracting changelog entries: ${error instanceof Error ? error.message : String(error)}`, 'warning');
         // Fall back to minimal entry
         changelogEntries = [
