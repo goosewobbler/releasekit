@@ -190,6 +190,7 @@ If you use the [label-based trigger](../packages/release/docs/ci-setup.md#label-
 ## Next steps
 
 - **[Architecture](./architecture.md)** — pipeline design, mental model, and how everything fits together
+- **[Release taxonomy](./release-taxonomy.md)** — groups vs prerequisites vs selection, for monorepos with coupled packages
 - **[CI setup guide](../packages/release/docs/ci-setup.md)** — complete workflow recipes
 - **[CLI reference](./cli.md)** — every command and flag
 - **[Configuration reference](./configuration.md)** — all `releasekit.config.json` options

@@ -372,6 +372,36 @@ See [ci-setup.md — CI concurrency caveat](../packages/release/docs/ci-setup.md
 
 ---
 
+## Multi-package coordination
+
+Background for all of these: the [release taxonomy](./release-taxonomy.md) (groups vs. prerequisites vs. selection).
+
+### A whole group released when I only changed one package
+
+**Symptom:** Touching one member of a `version.groups` set released the entire set.
+
+**Cause:** This is by design for **atomic** groups. `fixed` releases all members at a shared version on any change; `independent` releases only changed members but expands a target to the whole group so it never ships partially. Targeting (a `scope:*` label, `--target`, or a commit that hits one member) pulls in the group.
+
+**Fix:** If members should *not* move together, they aren't a group — use `linked` (shared version, changed-only) only if they share a version line, or drop the group entirely and rely on per-package versioning plus `--include-prerequisites` for dependency coupling.
+
+### A changed dependency wasn't released alongside its dependent
+
+**Symptom:** You released package A, but its changed internal dependency B stayed at its old version, so A resolves against an unpublished B.
+
+**Cause:** Prerequisites are **opt-in**. A plain target releases only the targeted packages; the changed transitive dependency is not pulled in automatically.
+
+**Fix:** Add `--include-prerequisites` (`releasekit version`/`release`/`standing-pr update`) or, in standing-pr mode, the `release:with-prerequisites` label on the standing PR. B then publishes first, at its own commit-driven bump. If A and B should *always* ship together regardless of which changed, declare them a group instead.
+
+### Unticking a package in the standing PR did nothing
+
+**Symptom:** You unticked a package in the **Packages to release** checklist, but the release still includes it (or the body re-ticks it).
+
+**Cause:** Usually the workflow is missing the `edited` trigger, so the body edit never re-runs `standing-pr update`. Two other cases re-tick by design: the package is a **lockstep** (`fixed`/`linked`) group member (can't be held back individually), or the release is **sync** (atomic — no checklist applies).
+
+**Fix:** Add `edited` to the workflow's `pull_request: types` plus the `sender.type != 'Bot'` guard (see [CI setup](../packages/release/docs/ci-setup.md)). Confirm the `<!-- rk-sel:… -->` marker comments are intact — the selection is read from those, never the visible text.
+
+---
+
 ## Debugging tools
 
 releasekit ships three flags useful for diagnosing issues:

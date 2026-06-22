@@ -91,6 +91,7 @@ Fresh worktrees need `pnpm install` first. If you change dependencies, run `pnpm
 | File | Purpose |
 |------|---------|
 | [docs/architecture.md](./docs/architecture.md) | Pipeline design and mental model |
+| [docs/release-taxonomy.md](./docs/release-taxonomy.md) | Groups vs. prerequisites vs. selection for multi-package repos |
 | [docs/configuration.md](./docs/configuration.md) | Full config reference (**generated**) |
 | [docs/cli.md](./docs/cli.md) | Every command and flag |
 | [docs/troubleshooting.md](./docs/troubleshooting.md) | Symptom-indexed errors, failed-publish recovery |

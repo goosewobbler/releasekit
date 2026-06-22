@@ -121,6 +121,10 @@ Both modes support `bump:major` as an override and `channel:stable`/`channel:pre
 
 > **In standing-pr strategy, label semantics differ.** Feeder PR labels (`bump:*`, `scope:*`, `channel:*`) are advisory — they're rendered in the preview but don't drive behavior on merge. The standing PR itself is the canonical override surface: add `bump:major` etc. to the standing PR to drive the next release. To bypass the queue and ship a single PR directly, label it `release:immediate`. See [CI setup → Label semantics in standing-pr mode](../packages/release/docs/ci-setup.md#label-semantics-in-standing-pr-mode).
 
+### Coordinating multiple packages
+
+Past "everything moves together," ReleaseKit separates three concerns: **explicit groups** (declared coupling), **derived prerequisites** (changed transitive dependencies, pulled in on demand), and **selection** (which packages to release now — scope labels, CLI targets, or standing-PR checkboxes). They're orthogonal and compose. See the [release taxonomy](./release-taxonomy.md) for when to use each, with worked examples from real consumer repos.
+
 ---
 
 ## LLM enhancement
