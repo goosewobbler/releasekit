@@ -1227,6 +1227,31 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     );
   }
 
+  // Publish-author gate (#403): defense-in-depth behind a branch-protection ruleset (the primary
+  // merge gate). Refuse to publish when the actor who merged the PR isn't authorized to steer
+  // releases — catching a missing/misconfigured ruleset. On an unverifiable permission check we
+  // proceed rather than block a legitimate release (the ruleset already gated the merge). Mirrors
+  // the #337 staleness refusal: a publish that shouldn't happen is stopped here, not retried.
+  const authz = standingPrConfig?.authorization;
+  if (authz?.enforceMergeAuthor) {
+    const merger = getEventActor().mergedBy;
+    if (merger) {
+      let authorized = true;
+      try {
+        authorized = await isAuthorizedActor(forge, merger, undefined, authz);
+      } catch (err) {
+        warn(
+          `Could not verify merger '${merger}' permission — proceeding, since branch protection is the primary gate: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+      if (!authorized) {
+        throw new Error(
+          `Refusing to publish PR #${prNumber}: it was merged by '${merger}', who lacks the required '${authz.requiredPermission}' permission (ci.standingPr.authorization). Restrict who can merge the release branch with a branch-protection ruleset, or set ci.standingPr.authorization.enforceMergeAuthor: false.`,
+        );
+      }
+    }
+  }
+
   // Warn if manifest base is no longer an ancestor of current HEAD (history may be rewritten)
   const currentSha = getHeadSha(cwd);
   try {

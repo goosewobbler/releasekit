@@ -569,6 +569,12 @@ export const StandingPrConfigSchema = z.object({
         .describe(
           'Extra actors authorized regardless of permission level: GitHub usernames. (Team support via "@org/team" entries is added separately and requires an org-read token, not the default GITHUB_TOKEN.)',
         ),
+      enforceMergeAuthor: z
+        .boolean()
+        .default(true)
+        .describe(
+          'Refuse to publish the standing PR when the actor who merged it is not authorized (defense-in-depth behind a branch-protection ruleset, which is the primary merge gate). Set false to rely on branch protection alone.',
+        ),
     })
     .optional()
     .describe(
