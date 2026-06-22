@@ -32,6 +32,8 @@ export class VersionEngine {
   private currentStrategy: StrategyFunction;
   private runtimeTargets: string[] = [];
   private includePrerequisites = false;
+  /** Package names to drop from the release set as the final discovery filter (see VersionRunOptions.exclude). */
+  private excludePackages: string[] = [];
   /** Prereq → target(s) it was pulled in for, captured during prerequisite resolution; used after
    *  `run()` to tag each update's role/prerequisiteOf. Empty unless prerequisites were derived. */
   private prerequisiteOf: Record<string, string[]> = {};
@@ -60,6 +62,7 @@ export class VersionEngine {
       if (runOptions.baseRef) effective.baseRef = runOptions.baseRef;
       if (runOptions.overrideScope) effective.overrideScope = runOptions.overrideScope;
       if (runOptions.includePrerequisites) this.includePrerequisites = true;
+      if (runOptions.exclude?.length) this.excludePackages = runOptions.exclude;
     }
 
     // Default values for required properties
@@ -487,6 +490,16 @@ export class VersionEngine {
           shouldMatchPackageTargets(pkg.packageJson.name, this.runtimeTargets),
         );
         log(`Runtime targets filter: ${beforeCount} → ${mergedPackages.packages.length} packages`, 'info');
+      }
+
+      // Final filter: drop explicitly excluded packages from the release set (standing-PR ad-hoc
+      // deselection). Applied last so it overrides every inclusion above — an excluded package never
+      // gets bumped, even if a target or prerequisite expansion pulled it in. Exact name match.
+      if (this.excludePackages.length > 0) {
+        const excluded = new Set(this.excludePackages);
+        const beforeCount = mergedPackages.packages.length;
+        mergedPackages.packages = mergedPackages.packages.filter((pkg) => !excluded.has(pkg.packageJson.name));
+        log(`Exclude filter: ${beforeCount} → ${mergedPackages.packages.length} packages`, 'info');
       }
 
       // Cache the result for subsequent calls

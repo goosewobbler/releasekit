@@ -23,6 +23,7 @@ Conflating these is the historical source of the `fix(version)` bug cluster (#33
 - **Explicit group** — a declared coordination invariant over related packages: `fixed` (shared version, all move) · `linked` (shared version, changed-only) · `independent` (own version lines, changed-only, atomic).
 - **Prerequisite** — *derived* from the dependency graph at release time; keeps its own commit-driven bump; pulled in only if changed; dependency-ordered.
 - **Selection** — orthogonal *"what to act on now"* (scope labels / checkboxes / CLI). Under this taxonomy, scope labels revert to pure selection — they are not the home for co-release coupling.
+- **Selection region** — the standing-PR ad-hoc selection surface: a GitHub task-list in the PR body (one ticked row per changed package). Unticking holds a package back; the engine drops it via the `exclude` knob (never bumped → no orphan version on `main`), and the choice round-trips by marker slicing so it survives regeneration. A `markerRegion` adapter (see below). Sync releases are atomic and carry none; lockstep group members can't be held back individually.
 
 ## Forge — the hosting platform, distinct from git
 
@@ -34,6 +35,6 @@ Conflating these is the historical source of the `fix(version)` bug cluster (#33
 The AGENTS.md invariant ("machine state embedded in comments uses its own marker line — never parse the human-facing prose") is owned by `@releasekit/core`'s marker codec, in two shapes:
 
 - **`markerData<T>`** — a single typed datum on one `<!-- open payload -->` line (manifest base64 blob; failure-report `status`/`data` fields). `encode(T)→line`, `decode(body)→T|null` by linear delimiter slicing (no backtracking regex → no ReDoS).
-- **`markerRegion`** (`wrapMarkerRegion`/`extractMarkerRegion`) — a span of editable content between a distinct open/close marker pair (the editable release-notes region; the future checkbox-selection block). `notes-region` is an adapter over it.
+- **`markerRegion`** (`wrapMarkerRegion`/`extractMarkerRegion`) — a span of editable content between a distinct open/close marker pair. Two adapters today: `notes-region` (editable release notes) and `selection-region` (the [[Selection region]] task-list; per-row `<!-- rk-sel:NAME -->` identity markers, with the `[x]`/`[ ]` glyph the human toggles).
 
 The *find + idempotent upsert* of the whole comment is a separate concern, owned by the **[[forge]]** (`findComment`/`upsertMarkerComment`). Prose-only bot comments (preview, gate-notify) carry no machine state and just upsert a marker-keyed body.

@@ -34,6 +34,13 @@ export {
   shouldProcessPackage,
 } from './packageUtils.js';
 export { type PrerequisiteResolution, resolvePrerequisites } from './prerequisites.js';
+export {
+  extractSelectionRegion,
+  rkSelMarker,
+  SELECTION_MARKER,
+  SELECTION_MARKER_END,
+  wrapSelectionRegion,
+} from './selectionRegion.js';
 export type {
   VersionChangelogEntry,
   VersionOutput,

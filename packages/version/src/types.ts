@@ -46,6 +46,14 @@ export interface VersionRunOptions {
    * commit-driven bump.
    */
   includePrerequisites?: boolean;
+  /**
+   * Package names to drop from the release set, applied as the final discovery filter — after
+   * `targets`, `packages`, and prerequisite expansion. An excluded package is never bumped, so its
+   * `package.json` is untouched and it produces no update. Used by standing-PR ad-hoc selection: a
+   * maintainer unchecks a package and it falls out of the release entirely (no orphan bump landing
+   * on the base branch with no tag). Exact name match, not a pattern.
+   */
+  exclude?: string[];
 }
 
 export interface GitInfo {
