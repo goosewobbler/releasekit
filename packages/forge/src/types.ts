@@ -108,6 +108,13 @@ export interface ReleaseChanges {
   prerelease: boolean;
 }
 
+/**
+ * A user's permission level on the repository, highest→lowest. Vendor-neutral: GitHub's role names
+ * map directly; another forge's roles would map to the nearest rung. `none` covers an outside/unknown
+ * actor. Used to authorize who may steer the standing PR (selection, labels, merge).
+ */
+export type RepoPermission = 'admin' | 'maintain' | 'write' | 'triage' | 'read' | 'none';
+
 export interface Forge {
   // — Pull requests —
   /** PRs associated with a commit (used to map merge commits back to their PRs). */
@@ -139,6 +146,11 @@ export interface Forge {
   createLabel(label: NewLabel): Promise<CreateLabelResult>;
   /** Replace the full label set on an issue/PR. */
   setLabels(issueNumber: number, labels: string[]): Promise<void>;
+
+  // — Authorization —
+  /** The actor's permission level on the repo (for gating who may steer the standing PR). Returns
+   *  'none' for an unknown/outside actor rather than throwing. */
+  getActorPermission(username: string): Promise<RepoPermission>;
 
   // — Commit status —
   setCommitStatus(status: CommitStatus): Promise<void>;
