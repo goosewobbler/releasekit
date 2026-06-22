@@ -58,7 +58,6 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
-    "@releasekit/forge": "workspace:*",
     "chalk": "catalog:",
     "commander": "catalog:",
     "ejs": "^4.0.1",
@@ -75,6 +74,7 @@
     "@biomejs/biome": "catalog:",
     "@releasekit/config": "workspace:*",
     "@releasekit/core": "workspace:*",
+    "@releasekit/forge": "workspace:*",
     "@types/ejs": "^3.1.5",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",

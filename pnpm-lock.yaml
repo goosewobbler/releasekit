@@ -209,9 +209,6 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.104.1
         version: 0.104.1(zod@4.4.3)
-      '@releasekit/forge':
-        specifier: workspace:*
-        version: link:../forge
       chalk:
         specifier: 'catalog:'
         version: 5.6.2
@@ -255,6 +252,9 @@ importers:
       '@releasekit/core':
         specifier: workspace:*
         version: link:../core
+      '@releasekit/forge':
+        specifier: workspace:*
+        version: link:../forge
       '@types/ejs':
         specifier: ^3.1.5
         version: 3.1.5
@@ -340,9 +340,6 @@ importers:
       '@octokit/rest':
         specifier: 'catalog:'
         version: 22.0.1
-      '@releasekit/forge':
-        specifier: workspace:*
-        version: link:../forge
       '@releasekit/notes':
         specifier: workspace:*
         version: link:../notes
@@ -392,6 +389,9 @@ importers:
       '@releasekit/core':
         specifier: workspace:*
         version: link:../core
+      '@releasekit/forge':
+        specifier: workspace:*
+        version: link:../forge
       '@types/node':
         specifier: 'catalog:'
         version: 22.19.21
