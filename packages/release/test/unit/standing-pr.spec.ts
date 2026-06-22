@@ -273,6 +273,7 @@ describe('runStandingPRUpdate', () => {
         major: 'bump:major',
         minor: 'bump:minor',
         patch: 'bump:patch',
+        withPrerequisites: 'release:with-prerequisites',
       },
     },
     git: { branch: 'main', remote: 'origin', pushMethod: 'auto' },
@@ -363,6 +364,103 @@ describe('runStandingPRUpdate', () => {
 
     expect(result.action).toBe('created');
     expect(forge.createdPullRequests).toHaveLength(1);
+  });
+
+  it('should enable prerequisites in the version run when the with-prerequisites label is present', async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = createMockVersionOutput([{ packageName: '@scope/app', newVersion: '1.2.3' }]);
+    vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    await mockForge({ standingPR: openStandingPR(99, ['release:with-prerequisites']) });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    // The label OR'd `includePrerequisites` into the version run (dry-run call is the first one).
+    const firstCall = vi.mocked(runVersionStep).mock.calls[0]?.[0] as { includePrerequisites?: boolean };
+    expect(firstCall.includePrerequisites).toBe(true);
+  });
+
+  it('should render the PR body grouped by target → its prerequisites', async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([
+        { packageName: '@scope/app', newVersion: '2.0.0' },
+        { packageName: '@scope/core', newVersion: '1.1.0' },
+      ]),
+      strategy: 'async' as const,
+      changelogs: [
+        {
+          packageName: '@scope/app',
+          version: '2.0.0',
+          previousVersion: '1.0.0',
+          revisionRange: '',
+          repoUrl: null,
+          entries: [],
+        },
+        {
+          packageName: '@scope/core',
+          version: '1.1.0',
+          previousVersion: '1.0.0',
+          revisionRange: '',
+          repoUrl: null,
+          entries: [],
+        },
+      ],
+    };
+    versionOutput.updates[0]!.role = 'target';
+    versionOutput.updates[1]!.role = 'prerequisite';
+    versionOutput.updates[1]!.prerequisiteOf = ['@scope/app'];
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const forge = await mockForge({ standingPR: null });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const body = forge.createdPullRequests[0]?.body ?? '';
+    expect(body).toContain('@scope/app');
+    expect(body).toContain('(major)'); // target's overridden bump
+    expect(body).toContain('prerequisite');
+    expect(body).toContain('@scope/core');
+    expect(body).toContain('(minor)'); // prerequisite's own commit-driven bump
+  });
+
+  it('should list a prerequisite whose target has no update entry rather than render an empty body', async () => {
+    // The targeted package (@scope/app) had no releasable change of its own, so the engine never
+    // emits an update for it and it is never tagged 'target'. Its changed prerequisite (@scope/core)
+    // still publishes — the body must show it, not just the intro line.
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.1.0' }]),
+      strategy: 'async' as const,
+      changelogs: [
+        {
+          packageName: '@scope/core',
+          version: '1.1.0',
+          previousVersion: '1.0.0',
+          revisionRange: '',
+          repoUrl: null,
+          entries: [],
+        },
+      ],
+    };
+    versionOutput.updates[0]!.role = 'prerequisite';
+    versionOutput.updates[0]!.prerequisiteOf = ['@scope/app'];
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const forge = await mockForge({ standingPR: null });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const body = forge.createdPullRequests[0]?.body ?? '';
+    expect(body).toContain('@scope/core');
+    expect(body).toContain('(minor)');
   });
 
   it('should bypass the initial skip-pattern guard on a pull_request label event (#336)', async () => {

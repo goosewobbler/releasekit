@@ -57,6 +57,11 @@ export function deriveLabelDefinitions(ciConfig: CIConfig | undefined): LabelDef
       color: COLOR_RELEASE,
       description: 'ReleaseKit: generate editable release notes in the standing PR body',
     },
+    {
+      name: labels.withPrerequisites,
+      color: COLOR_RELEASE,
+      description: "ReleaseKit: also release the targeted packages' changed prerequisites",
+    },
   ];
 
   for (const scopeLabel of Object.keys(scopeLabels)) {

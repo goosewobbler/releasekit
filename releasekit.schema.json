@@ -1149,6 +1149,11 @@
               "type": "string",
               "default": "bump:patch",
               "description": "Label to force a patch bump"
+            },
+            "withPrerequisites": {
+              "type": "string",
+              "default": "release:with-prerequisites",
+              "description": "Label on the standing PR that also releases the changed prerequisites (transitive internal dependencies) of the targeted/scoped packages — each at its own commit-driven bump. Standing-pr mode only."
             }
           },
           "description": "PR label names used for release control. Override to match your repository's label conventions."

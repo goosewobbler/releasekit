@@ -20,6 +20,8 @@ export interface PrerequisiteTargets {
   targets: string[];
   /** The packages the bump/prerelease/stable override applies to (the group-expanded explicit set). */
   overrideScope: string[];
+  /** For each derived prerequisite, the (group-expanded) target(s) that pulled it in. */
+  prerequisiteOf: Record<string, string[]>;
 }
 
 export function resolvePrerequisiteTargets(
@@ -50,6 +52,6 @@ export function resolvePrerequisiteTargets(
   }
   const changed = [...candidateDeps].filter((name) => isChanged(name));
 
-  const { targetSet } = resolvePrerequisites(graph, [...overrideSet], changed);
-  return { targets: [...targetSet], overrideScope: [...overrideSet] };
+  const { targetSet, prerequisiteOf } = resolvePrerequisites(graph, [...overrideSet], changed);
+  return { targets: [...targetSet], overrideScope: [...overrideSet], prerequisiteOf };
 }

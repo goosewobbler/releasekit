@@ -86,4 +86,18 @@ export interface VersionPackageUpdate {
    * expand a scope label that matches part of a group to the whole group).
    */
   group?: string;
+  /**
+   * Role in a `--include-prerequisites` release: `'target'` for an explicitly-selected
+   * (group-expanded) package that receives the bump/prerelease/stable override, `'prerequisite'`
+   * for a changed transitive dependency pulled in to keep the targets installable (it keeps its own
+   * commit-driven bump). Absent on plain releases and for the root lockstep bump — consumers treat
+   * an absent role as a target.
+   */
+  role?: 'target' | 'prerequisite';
+  /**
+   * For a `'prerequisite'` update, the target package(s) it was pulled in for (a shared dependency
+   * can serve several). Lets CI surfaces render "target → its prerequisites" without re-deriving
+   * the dependency graph. Absent for targets.
+   */
+  prerequisiteOf?: string[];
 }

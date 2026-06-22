@@ -86,6 +86,7 @@ describe('runLabelsSync', () => {
       'release:immediate',
       'release:retry',
       'release:preview-notes',
+      'release:with-prerequisites',
       'release',
     ]);
 
