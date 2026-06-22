@@ -106,7 +106,7 @@ of the monorepo versions independently. Each entry under `groups` is a group nam
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `packages` | `string[]` | — | Package patterns (exact names, @scope/*, or globs) whose matched packages form this group. Same matching rules as version.packages. |
-| `sync` | `"fixed"` \| `"linked"` | — | fixed: all members release together at the shared group version. linked: only changed members release, all at the same computed version. |
+| `sync` | `"fixed"` \| `"linked"` \| `"independent"` | — | fixed: all members release together at the shared group version. linked: only changed members release, all at the same computed version. independent: only changed members release, each on its own commit-driven version line (no shared version), but the set ships atomically. |
 
 - **`fixed`** — any releasable change in *any* member releases **all** members at the shared
   group version, computed as `bump(max(member baselines))`. This is the changesets `fixed`

@@ -1,11 +1,14 @@
 /**
  * Version-group resolution.
  *
- * A "version group" binds a set of packages to a shared sync mode:
+ * A "version group" binds a set of packages to a sync mode:
  *  - `fixed`:  any releasable change in any member releases ALL members at the shared group version
  *              (`bump(max(member baselines))`).
  *  - `linked`: only members with releasable changes release, but every releasing member shares the
  *              same computed version.
+ *  - `independent`: only members with releasable changes release, each on its own commit-driven
+ *              version line (no shared version), but the set is atomic — targeting any member pulls
+ *              in the whole group so it never ships a partial subset.
  *
  * The global `version.sync: true` flag is **sugar** for a single implicit `fixed` group containing
  * every workspace package — there is exactly one mechanism, normalized here, not two. This keeps
@@ -25,7 +28,7 @@ export const IMPLICIT_SYNC_GROUP = '__sync__';
 export interface ResolvedGroup {
   /** Config key (or {@link IMPLICIT_SYNC_GROUP} for the desugared `sync: true` group). */
   name: string;
-  sync: 'fixed' | 'linked';
+  sync: 'fixed' | 'linked' | 'independent';
   /** Raw patterns from config. */
   patterns: string[];
   /** Workspace packages that matched this group's patterns. */
@@ -166,15 +169,16 @@ export function hasGroups(config: Config): boolean {
 }
 
 /**
- * Expand a set of `--target` patterns so that targeting any member of a **fixed** group pulls in
- * the whole group. Silently splitting a fixed group would break its invariant (all members release
- * together at the same version), so we expand rather than error.
+ * Expand a set of `--target` patterns so that targeting any member of an **atomic** group (`fixed`
+ * or `independent`) pulls in the whole group. Silently splitting an atomic group breaks its
+ * invariant — fixed members all release at the same version; an independent group's changed members
+ * all release together — so we expand rather than error.
  *
- * Returns the expanded target patterns plus a record of which fixed groups were expanded (for
- * logging). `linked` groups are left untouched — partial targeting of a linked group is well
- * defined (only changed, targeted members release).
+ * Returns the expanded target patterns plus a record of which groups were expanded (for logging).
+ * `linked` groups are left untouched — partial targeting of a linked group is well defined (only
+ * changed, targeted members release).
  */
-export function expandTargetsForFixedGroups(
+export function expandTargetsForAtomicGroups(
   resolution: GroupResolution,
   targets: string[],
 ): { targets: string[]; expandedGroups: string[] } {
@@ -184,7 +188,7 @@ export function expandTargetsForFixedGroups(
   const expandedGroups: string[] = [];
 
   for (const group of resolution.groups) {
-    if (group.sync !== 'fixed') continue;
+    if (group.sync === 'linked') continue;
 
     const someTargeted = group.members.some((m) => shouldMatchPackageTargets(m.packageJson.name, targets));
     const allTargeted = group.members.every((m) => shouldMatchPackageTargets(m.packageJson.name, targets));
@@ -195,7 +199,7 @@ export function expandTargetsForFixedGroups(
       }
       expandedGroups.push(group.name);
       log(
-        `--target hit a strict subset of fixed group "${group.name}"; expanding to all ${group.members.length} ` +
+        `--target hit a strict subset of ${group.sync} group "${group.name}"; expanding to all ${group.members.length} ` +
           `members so the group releases atomically: ${group.members.map((m) => m.packageJson.name).join(', ')}.`,
         'warning',
       );

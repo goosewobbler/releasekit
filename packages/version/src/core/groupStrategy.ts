@@ -39,7 +39,7 @@ import {
 } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { BaselineResolver } from './baselineResolver.js';
-import { expandTargetsForFixedGroups, type ResolvedGroup, resolveGroups } from './groupResolution.js';
+import { expandTargetsForAtomicGroups, type ResolvedGroup, resolveGroups } from './groupResolution.js';
 import { calculateVersion } from './versionCalculator.js';
 import type { PackagesWithRoot } from './versionEngine.js';
 
@@ -141,9 +141,10 @@ function memberBumpRank(plan: MemberPlan): number {
 }
 
 interface GroupComputation {
-  /** The shared version every releasing member is written to. */
+  /** The shared version every releasing member is written to. Empty for `independent` groups, whose
+   *  members each release at their own `MemberPlan.ownNext`. */
   groupVersion: string;
-  /** Members that will be released (all members for fixed, changed members for linked). */
+  /** Members that will be released (all members for fixed; changed members for linked/independent). */
   releasing: MemberPlan[];
   /** Whether the group has any releasable change at all. */
   hasChange: boolean;
@@ -156,6 +157,13 @@ function computeGroup(group: ResolvedGroup, plans: MemberPlan[], config: Config)
   const changedPlans = plans.filter((p) => p.changed);
   if (changedPlans.length === 0) {
     return { groupVersion: '', releasing: [], hasChange: false };
+  }
+
+  // Independent groups have no shared version — each changed member releases on its own
+  // commit-driven line. Only changed members release; atomicity is enforced by target expansion
+  // (the whole group is pulled in) and the partial-subset warning in the caller.
+  if (group.sync === 'independent') {
+    return { groupVersion: '', releasing: changedPlans, hasChange: true };
   }
 
   const maxBaseline = plans.map((p) => p.baseline).sort(semver.rcompare)[0];
@@ -254,39 +262,43 @@ async function releaseGroup(
   computation: GroupComputation,
   config: Config,
   baselineResolver: BaselineResolver,
-): Promise<string[]> {
+): Promise<Array<{ name: string; version: string }>> {
   const { groupVersion, releasing } = computation;
   const formattedPrefix = formatVersionPrefix(config.versionPrefix || 'v');
-  const released: string[] = [];
+  const released: Array<{ name: string; version: string }> = [];
 
   for (const plan of releasing) {
     const pkg = plan.pkg;
     const name = pkg.packageJson.name;
     if (!shouldProcess(pkg, config)) continue;
 
-    // Adoption: a member below the group version jumps to it. Warn loudly when the jump skips
-    // versions — i.e. the group version is strictly beyond what a single major bump of this member
-    // would have produced — so adopters time the migration to a real breaking change. An unchanged
-    // member that is nonetheless released (fixed group) is the routine lockstep case: just log it at
-    // info level, since it doesn't skip any versions for that member.
-    if (semver.valid(plan.baseline) && semver.lt(plan.baseline, groupVersion)) {
+    // Independent members release on their own commit-driven line; fixed/linked members adopt the
+    // shared group version.
+    const version = group.sync === 'independent' ? plan.ownNext : groupVersion;
+
+    // Adoption (fixed/linked only): a member below the shared group version jumps to it. Warn loudly
+    // when the jump skips versions — i.e. the group version is strictly beyond what a single major
+    // bump of this member would have produced — so adopters time the migration to a real breaking
+    // change. An unchanged member that is nonetheless released (fixed group) is the routine lockstep
+    // case: just log it at info level, since it doesn't skip any versions for that member.
+    if (group.sync !== 'independent' && semver.valid(plan.baseline) && semver.lt(plan.baseline, version)) {
       const singleMajorBump = semver.inc(plan.baseline, 'major') ?? plan.baseline;
-      const jumpsMoreThanOneBump = semver.gt(groupVersion, singleMajorBump);
+      const jumpsMoreThanOneBump = semver.gt(version, singleMajorBump);
       if (jumpsMoreThanOneBump) {
         log(
-          `Group "${group.name}": ${name} adopts group version ${groupVersion} (was ${plan.baseline}). ` +
+          `Group "${group.name}": ${name} adopts group version ${version} (was ${plan.baseline}). ` +
             'This skips intermediate versions with no semver event behind the jump — time group ' +
             'migrations to a real breaking change in the family.',
           'warning',
         );
       } else if (!plan.changed) {
-        log(`Group "${group.name}": ${name} rides along to ${groupVersion} (was ${plan.baseline}).`, 'info');
+        log(`Group "${group.name}": ${name} rides along to ${version} (was ${plan.baseline}).`, 'info');
       }
     }
 
     const packageJsonPath = path.join(pkg.dir, 'package.json');
     if (fs.existsSync(packageJsonPath)) {
-      updatePackageVersion(packageJsonPath, groupVersion, config.dryRun);
+      updatePackageVersion(packageJsonPath, version, config.dryRun);
     } else {
       log(`Skipping package.json update for ${name} - no package.json found (Rust-only package)`, 'debug');
     }
@@ -295,13 +307,13 @@ async function releaseGroup(
     // to single/async; group members are package-keyed).
     const cargoTomlPath = path.join(pkg.dir, 'Cargo.toml');
     if (config.cargo?.enabled !== false && fs.existsSync(cargoTomlPath)) {
-      updatePackageVersion(cargoTomlPath, groupVersion, config.dryRun);
+      updatePackageVersion(cargoTomlPath, version, config.dryRun);
     }
 
     // Per-package tag + changelog. Group members always get package-specific tags so each
     // member's release is individually addressable (the group acts atomically at the version level,
     // not the tag level).
-    const tag = formatTag(groupVersion, formattedPrefix, name, config.tagTemplate, true);
+    const tag = formatTag(version, formattedPrefix, name, config.tagTemplate, true);
     addTag(tag);
     setPackageUpdateTag(name, tag);
     setPackageUpdateGroup(name, group.name);
@@ -312,14 +324,14 @@ async function releaseGroup(
       latestTag: plan.latestTag,
       hasRealTag: plan.latestTag !== '',
       usedPackageSpecificTag: plan.usedPackageSpecificTag,
-      nextVersion: groupVersion,
+      nextVersion: version,
       graduationName: name,
       baselineTagPrefix,
       formattedPrefix,
     });
     addChangelogData({
       packageName: name,
-      version: groupVersion,
+      version,
       previousVersion,
       revisionRange,
       repoUrl: readRepoUrl(pkg.dir),
@@ -327,14 +339,14 @@ async function releaseGroup(
     });
 
     if (config.baselineTagTemplate) {
-      addBaselineTag(formatTag(groupVersion, formattedPrefix, name, config.baselineTagTemplate, false));
+      addBaselineTag(formatTag(version, formattedPrefix, name, config.baselineTagTemplate, false));
     }
 
-    released.push(name);
+    released.push({ name, version });
     log(
       config.dryRun
-        ? `[DRY RUN] Group "${group.name}": would release ${name} at ${groupVersion} (tag: ${tag})`
-        : `Group "${group.name}": ${name} prepared at ${groupVersion} (tag: ${tag})`,
+        ? `[DRY RUN] Group "${group.name}": would release ${name} at ${version} (tag: ${tag})`
+        : `Group "${group.name}": ${name} prepared at ${version} (tag: ${tag})`,
       config.dryRun ? 'info' : 'success',
     );
   }
@@ -362,9 +374,10 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
 
       const resolution = resolveGroups(config, packages.packages);
 
-      // --target on a strict subset of a fixed group expands to the whole group so the group's
-      // atomic-release invariant holds. Linked groups and ungrouped packages keep their raw targets.
-      const { targets } = expandTargetsForFixedGroups(resolution, runtimeTargets);
+      // --target on a strict subset of an atomic group (fixed or independent) expands to the whole
+      // group so its atomic-release invariant holds. Linked groups and ungrouped packages keep their
+      // raw targets.
+      const { targets } = expandTargetsForAtomicGroups(resolution, runtimeTargets);
 
       const targetFilter = (pkg: Package): boolean =>
         targets.length === 0 || shouldMatchPackageTargets(pkg.packageJson.name, targets);
@@ -384,32 +397,34 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
           continue;
         }
 
-        // `config.skip` and the target filter both remove members from `members`, so a fixed group
-        // can release with a subset of its declared members — leaving the group at divergent
-        // versions. Warn so the divergence is intentional, not a surprise. Only relevant once the
-        // group is actually releasing (past the no-change guard above).
-        if (group.sync === 'fixed') {
-          const released = new Set(members.map((m) => m.packageJson.name));
-          const notInRelease = group.members.map((m) => m.packageJson.name).filter((name) => !released.has(name));
-          if (notInRelease.length > 0) {
+        // `config.skip` and the target filter both remove members from `members`, so an atomic
+        // (fixed/independent) group can release with a subset of its declared members — breaking its
+        // atomicity. Warn so the partial release is intentional, not a surprise. Only relevant once
+        // the group is actually releasing (past the no-change guard above). Linked groups are exempt:
+        // partial release is their defined behaviour.
+        if (group.sync !== 'linked') {
+          const inRelease = new Set(members.map((m) => m.packageJson.name));
+          const excluded = group.members.map((m) => m.packageJson.name).filter((name) => !inRelease.has(name));
+          if (excluded.length > 0) {
             log(
-              `Group "${group.name}" is fixed but will release without: ${notInRelease.join(', ')}. ` +
-                'They were excluded by config.skip or --target, so the group will end up at divergent versions. ' +
-                'Remove the package from config.skip (or include it via --target) to keep the group atomic.',
+              `Group "${group.name}" (${group.sync}) will release without: ${excluded.join(', ')}. ` +
+                'They were excluded by config.skip or --target, so the group will not ship as a single atomic unit. ' +
+                'Include them (remove from config.skip or add via --target) to keep the group atomic.',
               'warning',
             );
           }
         }
 
         log(
-          `Group "${group.name}" (${group.sync}): releasing ${computation.releasing.length} member(s) at ` +
-            `${computation.groupVersion}.`,
+          group.sync === 'independent'
+            ? `Group "${group.name}" (independent): releasing ${computation.releasing.length} member(s) on their own version lines.`
+            : `Group "${group.name}" (${group.sync}): releasing ${computation.releasing.length} member(s) at ${computation.groupVersion}.`,
           'info',
         );
         const released = await releaseGroup(group, computation, config, baselineResolver);
-        for (const name of released) {
+        for (const { name, version } of released) {
           allReleased.push(name);
-          allVersions.set(name, computation.groupVersion);
+          allVersions.set(name, version);
         }
       }
 

@@ -53,9 +53,9 @@ export const VersionGroupSchema = z.object({
       'Package patterns (exact names, @scope/*, or globs) whose matched packages form this group. Same matching rules as version.packages.',
     ),
   sync: z
-    .enum(['fixed', 'linked'])
+    .enum(['fixed', 'linked', 'independent'])
     .describe(
-      'fixed: all members release together at the shared group version. linked: only changed members release, all at the same computed version.',
+      'fixed: all members release together at the shared group version. linked: only changed members release, all at the same computed version. independent: only changed members release, each on its own commit-driven version line (no shared version), but the set ships atomically.',
     ),
 });
 
@@ -90,7 +90,7 @@ export const VersionConfigSchema = z.object({
     .record(z.string(), VersionGroupSchema)
     .optional()
     .describe(
-      'Named version groups. Each group binds a set of package patterns to a fixed or linked sync mode. fixed: any releasable change in any member releases ALL members at the shared group version (bump(max(member baselines))). linked: only members with releasable changes release, but every releasing member shares the same computed version. Packages not matched by any group version independently. A package may belong to at most one group. Set version.sync to false when using groups.',
+      'Named version groups. Each group binds a set of package patterns to a fixed, linked, or independent sync mode. fixed: any releasable change in any member releases ALL members at the shared group version (bump(max(member baselines))). linked: only members with releasable changes release, but every releasing member shares the same computed version. independent: only members with releasable changes release, each on its own commit-driven version line (no shared version), but the set is atomic — targeting any member pulls in the whole group. Packages not matched by any group version independently. A package may belong to at most one group. Set version.sync to false when using groups.',
     ),
   packages: z.array(z.string()).default([]).describe('Packages to include in versioning'),
   mainPackage: z.string().optional().describe('Package to use for version determination'),

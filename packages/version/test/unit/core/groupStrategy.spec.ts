@@ -421,4 +421,89 @@ describe('createGroupStrategy', () => {
       await expect(strategy(workspace([core]))).rejects.toThrow(/more than one version group/);
     });
   });
+
+  describe('independent groups', () => {
+    it('should release each changed member on its own version line (no shared version)', async () => {
+      const core = mkPackage('@wdio/native-core', '2.3.0');
+      const utils = mkPackage('@wdio/native-utils', '2.3.0');
+
+      // core earns a minor, utils a patch — independent means each keeps its own commit-driven bump
+      // (a fixed/linked group would write the shared 2.4.0 to both).
+      vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
+        if (opts.name === '@wdio/native-core') return '2.4.0';
+        if (opts.name === '@wdio/native-utils') return '2.3.1';
+        return '';
+      });
+
+      const strategy = createGroupStrategy(
+        baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'independent' } } }),
+      );
+      await strategy(workspace([core, utils]));
+
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/wdio-native-core/package.json',
+        '2.4.0',
+        undefined,
+      );
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/wdio-native-utils/package.json',
+        '2.3.1',
+        undefined,
+      );
+      // Still tagged with the group name so CI surfaces treat the set as a unit.
+      expect(jsonOutput.setPackageUpdateGroup).toHaveBeenCalledWith('@wdio/native-core', 'native');
+      expect(jsonOutput.setPackageUpdateGroup).toHaveBeenCalledWith('@wdio/native-utils', 'native');
+    });
+
+    it('should skip unchanged members', async () => {
+      const core = mkPackage('@wdio/native-core', '2.3.0');
+      const utils = mkPackage('@wdio/native-utils', '2.3.0');
+
+      // Only core changed.
+      vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
+        opts.name === '@wdio/native-core' ? '2.4.0' : '',
+      );
+
+      const strategy = createGroupStrategy(
+        baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'independent' } } }),
+      );
+      await strategy(workspace([core, utils]));
+
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/wdio-native-core/package.json',
+        '2.4.0',
+        undefined,
+      );
+      expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
+        '/ws/packages/wdio-native-utils/package.json',
+        expect.anything(),
+        undefined,
+      );
+      expect(jsonOutput.setPackageUpdateGroup).not.toHaveBeenCalledWith('@wdio/native-utils', 'native');
+    });
+
+    it('should warn when an independent group ships without an excluded member', async () => {
+      const core = mkPackage('@wdio/native-core', '2.3.0');
+      const utils = mkPackage('@wdio/native-utils', '2.3.0');
+      const spy = mkPackage('@wdio/native-spy', '2.3.0');
+
+      // core changes; spy is excluded via config.skip, so the atomic set ships partially.
+      vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
+        opts.name === '@wdio/native-core' ? '2.4.0' : '',
+      );
+
+      const strategy = createGroupStrategy(
+        baseConfig({
+          skip: ['@wdio/native-spy'],
+          groups: { native: { packages: ['@wdio/native-*'], sync: 'independent' } },
+        }),
+      );
+      await strategy(workspace([core, utils, spy]));
+
+      expect(logging.log).toHaveBeenCalledWith(
+        expect.stringContaining('will release without: @wdio/native-spy'),
+        'warning',
+      );
+    });
+  });
 });
