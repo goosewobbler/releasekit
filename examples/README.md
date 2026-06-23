@@ -25,7 +25,7 @@ Every workflow here follows these rules — they are the ones most often gotten
 wrong in hand-written workflows:
 
 - **Set up pnpm before `actions/setup-node`.** Hosted GitHub runners do **not**
-  ship pnpm. Add `pnpm/action-setup@v5` *before* `actions/setup-node`, so that
+  ship pnpm. Add `pnpm/action-setup@v6` *before* `actions/setup-node`, so that
   `setup-node`'s `cache: pnpm` can find the binary. Omitting this is the single
   most common failure — and `actionlint` will **not** catch it (see below).
 - **Node 24** in `actions/setup-node`.

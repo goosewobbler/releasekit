@@ -25,7 +25,7 @@ jobs:
 
       # Hosted runners do NOT ship pnpm. This step must come BEFORE setup-node
       # so that setup-node's `cache: pnpm` can find the pnpm binary.
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v6
         with:
