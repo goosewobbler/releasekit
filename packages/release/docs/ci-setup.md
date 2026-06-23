@@ -387,7 +387,7 @@ The in-code gates keep the *manifest* clean, but the merge itself is a GitHub ac
 
 #### Token caveats
 
-- **`@org/team` allow-lists** (the in-code gates) need a token with **`read:org`** scope — a PAT or GitHub App, **not** the default `GITHUB_TOKEN`. Without it, team-membership checks fail closed: the actor isn't authorized and a warning is logged. Username and permission-threshold entries work with the default token.
+- **`@org/team` allow-lists** need a token with **`read:org`** scope — a PAT or GitHub App, **not** the default `GITHUB_TOKEN`. Without it, the team-membership check can't be answered, and the two gate types resolve it differently: the **selection and release-label gates fail _closed_** (the actor isn't treated as authorized; their edit is reverted, with a warning), while the **publish-author gate (`enforceMergeAuthor`) fails _open_** (it warns and proceeds, because the branch ruleset is the primary merge gate — a token misconfiguration shouldn't block a legitimate release). So **don't rely on `enforceMergeAuthor` alone for team-based merge control** — set up the branch ruleset. Username and permission-threshold entries work with the default token.
 - **Creating rulesets** needs an **admin-scoped** token (or just do it in the GitHub UI as an admin).
 
 ### Workflow
