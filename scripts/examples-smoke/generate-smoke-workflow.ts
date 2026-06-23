@@ -170,7 +170,7 @@ export function buildWorkflow(): Record<string, unknown> {
       name: 'Prepare fixtures',
       'runs-on': 'ubuntu-latest',
       steps: [
-        { name: 'Checkout', uses: 'actions/checkout@v6' },
+        { name: 'Checkout', uses: 'actions/checkout@v7' },
         {
           // Sets up pnpm/Node FOR THE RELEASEKIT BUILD only. This toolchain lives
           // in the prepare job; the smoke jobs are separate and start with pnpm
