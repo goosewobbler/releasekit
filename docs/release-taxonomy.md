@@ -77,6 +77,11 @@ prerequisites. Unticking a package that is a prerequisite of a still-ticked targ
 `independent` group, surfaces a ⚠️ warning — you can do it, but you're told what you're splitting.
 Members of a lockstep (`fixed`/`linked`) group can't be held back individually.
 
+In standing-PR mode the checkboxes and scope labels are a **release-control surface** — they decide
+what publishes, and merging the PR is the publish. To restrict who can change them (e.g. let triagers
+label but not steer releases), see
+[Securing the standing PR](../packages/release/docs/ci-setup.md#securing-the-standing-pr).
+
 ## Choosing between them
 
 - The packages are **always** coupled → **group** (and pick the mode by whether they share a version

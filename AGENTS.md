@@ -95,5 +95,5 @@ Fresh worktrees need `pnpm install` first. If you change dependencies, run `pnpm
 | [docs/configuration.md](./docs/configuration.md) | Full config reference (**generated**) |
 | [docs/cli.md](./docs/cli.md) | Every command and flag |
 | [docs/troubleshooting.md](./docs/troubleshooting.md) | Symptom-indexed errors, failed-publish recovery |
-| [packages/release/docs/ci-setup.md](./packages/release/docs/ci-setup.md) | Consumer workflow templates, standing-PR mode |
+| [packages/release/docs/ci-setup.md](./packages/release/docs/ci-setup.md) | Consumer workflow templates, standing-PR mode, securing the standing PR |
 | [docs/action.md](./docs/action.md) | GitHub Action inputs/outputs |

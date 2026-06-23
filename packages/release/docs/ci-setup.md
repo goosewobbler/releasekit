@@ -327,6 +327,68 @@ All `ci.standingPr.*` options:
 | `mergeMethod` | `merge` | `merge` \| `squash` \| `rebase`. Squash recommended — produces a single `chore: release …` commit on main that the skip-pattern guard recognises. |
 | `minAge` | (unset) | Duration string (`6h`, `30m`, `1d`). Until elapsed, the `releasekit/standing-pr` status check reports `pending` with a countdown. Combined with branch protection on the status check, blocks early merges. Time baseline is `firstUpdatedAt` — the PR's first creation timestamp, preserved across updates. |
 | `minPackages` | (unset) | Minimum distinct packages with releasable changes before a standing PR is created. Below the threshold, an open PR is closed with an explanatory comment and no new PR is created until the threshold is met. |
+| `authorization` | (unset) | Restrict who can steer the standing PR — selection checkboxes, release labels, and merge. See [Securing the standing PR](#securing-the-standing-pr). Omit for today's behavior (anyone with the GitHub permission GitHub itself requires for each action). |
+
+### Securing the standing PR
+
+The standing PR is a **release-control surface**, not just a PR. Its release labels (`bump:*`, `scope:*`, `channel:*`) and selection checkboxes decide *what* publishes, and **merging it is the publish**. But GitHub maps all of that onto coarse repo roles: anyone with **Triage** can apply labels, anyone with **Write** can merge. GitHub itself can't express "Triage, but not release-steering," can't restrict labels per-label, can't hide the PR from some actors, and can't gate checkbox edits.
+
+So control is enforced in two places:
+
+- **Selection + release labels** — enforced *in code* by ReleaseKit, because GitHub can't. The manifest comment is authoritative; an unauthorized edit to the checkboxes or release labels is ignored and reconciled back to the manifest on the next update (the box re-ticks, the rogue label is removed, a notice is posted). This is opt-in hardening for teams that delegate triage.
+- **Merge (= publish)** — enforced by a **GitHub branch ruleset** (the primary gate, since merge is the privileged action) plus a publish-time **author check** (`enforceMergeAuthor`, defense-in-depth behind the ruleset).
+
+#### The `authorization` config
+
+```json
+{
+  "ci": {
+    "standingPr": {
+      "authorization": {
+        "requiredPermission": "admin",
+        "allowedActors": ["release-bot", "@acme/releasers"],
+        "enforceMergeAuthor": true
+      }
+    }
+  }
+}
+```
+
+| Field | Default | Purpose |
+|---|---|---|
+| `requiredPermission` | `admin` | Minimum repo permission to steer the standing PR. `admin` \| `maintain` \| `write`. |
+| `allowedActors` | (unset) | Extra actors authorized regardless of permission: GitHub usernames, or `@org/team-slug` to authorize a whole team. |
+| `enforceMergeAuthor` | `true` | Refuse to publish when the merger isn't authorized. Set `false` to rely on the branch ruleset alone. |
+
+Omit `authorization` entirely and ReleaseKit behaves as it always has — anyone with the GitHub permission GitHub requires for each action can perform it.
+
+#### Who can do what
+
+With `authorization` configured (threshold `admin` shown):
+
+| Action | GitHub requires | With `authorization` configured |
+|---|---|---|
+| Tick/untick a selection checkbox | Triage (edit PR body) | Honored only if the editor is authorized; otherwise reverted to the manifest, with a notice. |
+| Add/remove a release label (`bump:*`, `scope:*`, `channel:*`) | Triage | Same — unauthorized changes are reverted and a notice posted. |
+| Add/remove a non-release label (`area:*`, …) | Triage | Unaffected — ReleaseKit only reconciles release-control labels. |
+| Merge the standing PR (**= publish**) | Write | Refused at publish if the merger isn't authorized (`enforceMergeAuthor`); the branch ruleset below is the primary gate. |
+
+#### Branch rulesets (the merge gate)
+
+The in-code gates keep the *manifest* clean, but the merge itself is a GitHub action — gate it with two **repository rulesets** (Settings → Rules → Rulesets). Create them once, by hand or via your IaC/Terraform; they're repo policy and want an admin to apply deliberately.
+
+**1. Lock the release branch** — target `release/next` (your `ci.standingPr.branch`). Enable **Restrict creations**, **Restrict updates**, and **Restrict deletions** so only bypass actors can write the branch — no one can inject a commit that would then be published.
+
+> ⚠️ The release bot pushes this branch, so it **must** be a bypass actor or releases break. ReleaseKit can't infer the bot's identity for you. Create this ruleset in **evaluate** (dry-run) mode first, confirm in the repo's rule insights that the bot isn't tripped, then switch to **active**.
+
+**2. Require review on the default branch** — target `main` (or `~DEFAULT_BRANCH`). Enable **Require a pull request before merging** (≥ 1 approval), **Block force pushes**, and **Restrict deletions**. Since merging the standing PR is the publish, this gates the publish behind review.
+
+**Mapping `allowedActors` to ruleset bypass actors:** a `@org/team-slug` entry maps to a **Team** bypass actor (add the team in the ruleset's *Bypass list*). A plain **username can't** be a ruleset bypass actor — GitHub only exempts roles, teams, and apps — so usernames stay enforced by the in-code gates only. Always keep org/repo admins on the bypass list so you can't lock yourself out.
+
+#### Token caveats
+
+- **`@org/team` allow-lists** (the in-code gates) need a token with **`read:org`** scope — a PAT or GitHub App, **not** the default `GITHUB_TOKEN`. Without it, team-membership checks fail closed: the actor isn't authorized and a warning is logged. Username and permission-threshold entries work with the default token.
+- **Creating rulesets** needs an **admin-scoped** token (or just do it in the GitHub UI as an admin).
 
 ### Workflow
 
