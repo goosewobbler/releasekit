@@ -13,6 +13,7 @@ function makeOctokit() {
     updateRelease: vi.fn(),
     getReleaseByTag: vi.fn(),
     getCollaboratorPermissionLevel: vi.fn(),
+    getMembershipForUserInOrg: vi.fn(),
     pullsList: vi.fn(),
     pullsGet: vi.fn(),
     pullsCreate: vi.fn(),
@@ -35,6 +36,9 @@ function makeOctokit() {
         updateRelease: fns.updateRelease,
         getReleaseByTag: fns.getReleaseByTag,
         getCollaboratorPermissionLevel: fns.getCollaboratorPermissionLevel,
+      },
+      teams: {
+        getMembershipForUserInOrg: fns.getMembershipForUserInOrg,
       },
       pulls: {
         list: fns.pullsList,
@@ -401,6 +405,37 @@ describe('GitHubForge.getActorPermission', () => {
     const { octokit, fns } = makeOctokit();
     fns.getCollaboratorPermissionLevel.mockRejectedValue(Object.assign(new Error('403'), { status: 403 }));
     await expect(new GitHubForge(octokit, 'o', 'r').getActorPermission('alice')).rejects.toThrow('403');
+  });
+});
+
+describe('GitHubForge.isTeamMember', () => {
+  it('should return true for an active member', async () => {
+    const { octokit, fns } = makeOctokit();
+    fns.getMembershipForUserInOrg.mockResolvedValue({ data: { state: 'active' } });
+    expect(await new GitHubForge(octokit, 'o', 'r').isTeamMember('acme', 'releasers', 'alice')).toBe(true);
+    expect(fns.getMembershipForUserInOrg).toHaveBeenCalledWith({
+      org: 'acme',
+      team_slug: 'releasers',
+      username: 'alice',
+    });
+  });
+
+  it('should return false for a pending (not yet active) invite', async () => {
+    const { octokit, fns } = makeOctokit();
+    fns.getMembershipForUserInOrg.mockResolvedValue({ data: { state: 'pending' } });
+    expect(await new GitHubForge(octokit, 'o', 'r').isTeamMember('acme', 'releasers', 'bob')).toBe(false);
+  });
+
+  it('should return false when not a member (404)', async () => {
+    const { octokit, fns } = makeOctokit();
+    fns.getMembershipForUserInOrg.mockRejectedValue(Object.assign(new Error('404'), { status: 404 }));
+    expect(await new GitHubForge(octokit, 'o', 'r').isTeamMember('acme', 'releasers', 'stranger')).toBe(false);
+  });
+
+  it('should rethrow a non-404 (e.g. 403 missing org-read scope) so the caller can surface it', async () => {
+    const { octokit, fns } = makeOctokit();
+    fns.getMembershipForUserInOrg.mockRejectedValue(Object.assign(new Error('403'), { status: 403 }));
+    await expect(new GitHubForge(octokit, 'o', 'r').isTeamMember('acme', 'releasers', 'alice')).rejects.toThrow('403');
   });
 });
 

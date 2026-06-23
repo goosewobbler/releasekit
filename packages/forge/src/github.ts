@@ -135,6 +135,20 @@ export class GitHubForge implements Forge {
     }
   }
 
+  async isTeamMember(org: string, teamSlug: string, username: string): Promise<boolean> {
+    try {
+      const { data } = await this.octokit.rest.teams.getMembershipForUserInOrg({ org, team_slug: teamSlug, username });
+      // A pending invite is not yet a member; only 'active' membership authorizes.
+      return data.state === 'active';
+    } catch (error) {
+      // 404 = not a member. Any other error (403 = the token lacks org-read scope, network, …) can't
+      // be answered — surface it (the caller's gate wrapper warns and fails closed) rather than
+      // silently reporting "not a member", which is indistinguishable from a real non-member.
+      if (forgeErrorStatus(error) === 404) return false;
+      throw error;
+    }
+  }
+
   async findComment(prNumber: number, marker: string): Promise<ForgeComment | null> {
     const iterator = this.octokit.paginate.iterator(this.octokit.rest.issues.listComments, {
       ...this.base,
