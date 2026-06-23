@@ -331,7 +331,7 @@ All `ci.standingPr.*` options:
 
 ### Securing the standing PR
 
-The standing PR is a **release-control surface**, not just a PR. Its release labels (`bump:*`, `scope:*`, `channel:*`) and selection checkboxes decide *what* publishes, and **merging it is the publish**. But GitHub maps all of that onto coarse repo roles: anyone with **Triage** can apply labels, anyone with **Write** can merge. GitHub itself can't express "Triage, but not release-steering," can't restrict labels per-label, can't hide the PR from some actors, and can't gate checkbox edits.
+The standing PR is a **release-control surface**, not just a PR. Its release labels (`bump:*`, `scope:*`, `channel:*`, `release:with-prerequisites`) and selection checkboxes decide *what* publishes, and **merging it is the publish**. But GitHub maps all of that onto coarse repo roles: anyone with **Triage** can apply labels, anyone with **Write** can merge. GitHub itself can't express "Triage, but not release-steering," can't restrict labels per-label, can't hide the PR from some actors, and can't gate checkbox edits.
 
 So control is enforced in two places:
 
@@ -369,7 +369,7 @@ With `authorization` configured (threshold `admin` shown):
 | Action | GitHub requires | With `authorization` configured |
 |---|---|---|
 | Tick/untick a selection checkbox | Triage (edit PR body) | Honored only if the editor is authorized; otherwise reverted to the manifest, with a notice. |
-| Add/remove a release label (`bump:*`, `scope:*`, `channel:*`) | Triage | Same — unauthorized changes are reverted and a notice posted. |
+| Add/remove a release label (`bump:*`, `scope:*`, `channel:*`, `release:with-prerequisites`) | Triage | Same — unauthorized changes are reverted and a notice posted. |
 | Add/remove a non-release label (`area:*`, …) | Triage | Unaffected — ReleaseKit only reconciles release-control labels. |
 | Merge the standing PR (**= publish**) | Write | Refused at publish if the merger isn't authorized (`enforceMergeAuthor`); the branch ruleset below is the primary gate. |
 
