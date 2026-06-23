@@ -1726,6 +1726,124 @@ describe('runStandingPRPublish', () => {
     expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
   });
 
+  const publishConfigWithAuthz = async (authorization: Record<string, unknown>) => {
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValue({
+      ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true, authorization } },
+      git: { branch: 'main' },
+    } as unknown as ReturnType<typeof loadConfig>);
+  };
+
+  const mergedByEvent = async (login: string) => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({
+        pull_request: { head: { ref: 'release/next' }, number: 42, merged: true, merged_by: { login } },
+      }),
+    );
+  };
+
+  it('should refuse to publish when the merger is not authorized (#403)', async () => {
+    await publishConfigWithAuthz({ requiredPermission: 'admin', enforceMergeAuthor: true });
+    await mergedByEvent('rando');
+    await mockForge({
+      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+      actorPermissions: { rando: 'write' }, // below admin
+    });
+
+    await expect(
+      runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/Refusing to publish/);
+
+    const { runPublishStep } = await import('../../src/steps.js');
+    expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
+  });
+
+  it('should publish when the merger is authorized (#403)', async () => {
+    await publishConfigWithAuthz({ requiredPermission: 'admin', enforceMergeAuthor: true });
+    await mergedByEvent('admin-user');
+    await mockForge({
+      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+      actorPermissions: { 'admin-user': 'admin' },
+    });
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+      ReturnType<typeof runPublishStep>
+    >);
+
+    const result = await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(result).not.toBeNull();
+    expect(vi.mocked(runPublishStep)).toHaveBeenCalled();
+  });
+
+  it('should not check the merger when enforceMergeAuthor is false (#403)', async () => {
+    await publishConfigWithAuthz({ requiredPermission: 'admin', enforceMergeAuthor: false });
+    await mergedByEvent('rando'); // unauthorized, but the check is disabled
+    await mockForge({
+      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+      actorPermissions: { rando: 'write' },
+    });
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+      ReturnType<typeof runPublishStep>
+    >);
+
+    const result = await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(result).not.toBeNull();
+    expect(vi.mocked(runPublishStep)).toHaveBeenCalled();
+  });
+
+  it('should publish (fail open) when the merger permission check is unverifiable (#403)', async () => {
+    await publishConfigWithAuthz({ requiredPermission: 'admin', enforceMergeAuthor: true });
+    await mergedByEvent('someone');
+    const forge = await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+    // A transient permission-check failure must not block the publish — the merge ruleset is primary.
+    vi.spyOn(forge, 'getActorPermission').mockRejectedValue(Object.assign(new Error('500'), { status: 500 }));
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+      ReturnType<typeof runPublishStep>
+    >);
+
+    const result = await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(result).not.toBeNull();
+    expect(vi.mocked(runPublishStep)).toHaveBeenCalled(); // failed open
+  });
+
+  it('should treat a Bot merger as authorized via merged_by.type, without a permission call (#403)', async () => {
+    await publishConfigWithAuthz({ requiredPermission: 'admin', enforceMergeAuthor: true });
+    const { readFileSync } = await import('node:fs');
+    // A GitHub App whose login does NOT end in [bot] — recognised by type, not the login suffix.
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({
+        pull_request: {
+          head: { ref: 'release/next' },
+          number: 42,
+          merged: true,
+          merged_by: { login: 'release-bot', type: 'Bot' },
+        },
+      }),
+    );
+    const forge = await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+    const permSpy = vi.spyOn(forge, 'getActorPermission');
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+      ReturnType<typeof runPublishStep>
+    >);
+
+    const result = await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(result).not.toBeNull();
+    expect(vi.mocked(runPublishStep)).toHaveBeenCalled();
+    expect(permSpy).not.toHaveBeenCalled(); // recognised as a bot by type — no permission lookup
+  });
+
   it('should publish when override labels match the manifest, ignoring non-override labels (#337)', async () => {
     const { readFileSync } = await import('node:fs');
     vi.mocked(readFileSync).mockReturnValue(

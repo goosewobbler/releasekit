@@ -1242,6 +1242,11 @@
                     "type": "string"
                   },
                   "description": "Extra actors authorized regardless of permission level: GitHub usernames. (Team support via \"@org/team\" entries is added separately and requires an org-read token, not the default GITHUB_TOKEN.)"
+                },
+                "enforceMergeAuthor": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Refuse to publish the standing PR when the actor who merged it is not authorized (defense-in-depth behind a branch-protection ruleset, which is the primary merge gate). Set false to rely on branch protection alone."
                 }
               },
               "description": "Restrict who can steer the standing PR — its selection checkboxes, release labels, and merge. Omit to allow anyone with the GitHub permission GitHub itself requires for each action (today’s behavior)."
