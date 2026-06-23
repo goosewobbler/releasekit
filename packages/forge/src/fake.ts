@@ -98,8 +98,11 @@ export class FakeForge implements Forge {
   }
 
   async isTeamMember(org: string, teamSlug: string, username: string): Promise<boolean> {
-    const lc = username.toLowerCase();
-    return (this.teamMemberships[`${org}/${teamSlug}`] ?? []).some((m) => m.toLowerCase() === lc);
+    // GitHub resolves org/team slugs AND usernames case-insensitively — match the real adapter.
+    const lcUser = username.toLowerCase();
+    const lcKey = `${org}/${teamSlug}`.toLowerCase();
+    const key = Object.keys(this.teamMemberships).find((k) => k.toLowerCase() === lcKey);
+    return (key ? this.teamMemberships[key] : []).some((m) => m.toLowerCase() === lcUser);
   }
 
   async getActorPermission(username: string): Promise<RepoPermission> {

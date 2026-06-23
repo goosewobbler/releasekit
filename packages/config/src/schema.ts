@@ -567,7 +567,7 @@ export const StandingPrConfigSchema = z.object({
         .array(z.string())
         .optional()
         .describe(
-          'Extra actors authorized regardless of permission level: GitHub usernames, or "@org/team-slug" to authorize a whole team. Team-membership checks need a token with org read:org scope (a PAT or GitHub App), not the default GITHUB_TOKEN; without it, team entries resolve to "not a member".',
+          'Extra actors authorized regardless of permission level: GitHub usernames, or "@org/team-slug" to authorize a whole team. Team-membership checks need a token with read:org scope (a PAT or GitHub App), not the default GITHUB_TOKEN; without it, team entries fail closed — the 403 is surfaced as a warning and the actor is not authorized.',
         ),
       enforceMergeAuthor: z
         .boolean()
