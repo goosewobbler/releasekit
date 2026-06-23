@@ -26,6 +26,8 @@ const MANIFEST_MARKER = '<!-- releasekit-manifest -->';
 const MANIFEST_SCHEMA_VERSION = 2;
 /** Marker for the idempotent "your selection change was ignored" notice posted to an unauthorized editor (#401). */
 const SELECTION_DENIED_MARKER = '<!-- releasekit-selection-denied -->';
+/** Marker for the idempotent "your release-label change was ignored" notice (#402). */
+const LABEL_DENIED_MARKER = '<!-- releasekit-label-denied -->';
 const MANIFEST_SCHEMA_MIN_VERSION = 1;
 
 // The manifest payload rides as a base64 blob in its own marker; base64/JSON/schema decoding (with
@@ -593,16 +595,11 @@ interface StandingPrOverrides {
   conflicts: string[];
 }
 
-/**
- * The override-relevant labels (bump/channel/scope) present on a PR, sorted and de-duplicated.
- * This is the set that actually drives the next release, so it's what the manifest records and what
- * publish compares against the merged PR to detect a stale manifest (#337). The standing-PR marker
- * label and any unrelated labels (area:*, etc.) are deliberately excluded — they don't affect output.
- */
-function extractOverrideLabels(prLabels: string[], ciConfig: CIConfig | undefined): string[] {
+/** The release-control label names (bump/channel/scope/with-prerequisites) — those that drive output. */
+function relevantOverrideLabelNames(ciConfig: CIConfig | undefined): Set<string> {
   const labels = ciConfig?.labels ?? DEFAULT_LABELS;
   const scopeLabels = ciConfig?.scopeLabels ?? {};
-  const relevant = new Set<string>([
+  return new Set<string>([
     labels.major,
     labels.minor,
     labels.patch,
@@ -611,6 +608,16 @@ function extractOverrideLabels(prLabels: string[], ciConfig: CIConfig | undefine
     labels.withPrerequisites,
     ...Object.keys(scopeLabels),
   ]);
+}
+
+/**
+ * The override-relevant labels (bump/channel/scope) present on a PR, sorted and de-duplicated.
+ * This is the set that actually drives the next release, so it's what the manifest records and what
+ * publish compares against the merged PR to detect a stale manifest (#337). The standing-PR marker
+ * label and any unrelated labels (area:*, etc.) are deliberately excluded — they don't affect output.
+ */
+function extractOverrideLabels(prLabels: string[], ciConfig: CIConfig | undefined): string[] {
+  const relevant = relevantOverrideLabelNames(ciConfig);
   return [...new Set(prLabels.filter((l) => relevant.has(l)))].sort();
 }
 
@@ -865,12 +872,45 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   }
 
+  // Label authorization (#402): release-control labels (bump:/scope:/channel:/with-prerequisites and
+  // configured scope:*) on the standing PR drive the next release, but GitHub can't restrict who
+  // applies a label. When authorization is set, the manifest's `overrideLabels` are AUTHORITATIVE; an
+  // unauthorized `labeled`/`unlabeled` event is ignored and the PR's release-control labels are
+  // reconciled back to the authorized set (the rogue label removed; non-release labels like area:*
+  // preserved). `effectiveLabels` then drives override resolution, the label re-apply, and the
+  // manifest below — so the bot's own re-apply can't re-add the rogue label.
+  let effectiveLabels = existingStandingPr?.labels ?? [];
+  if (authz && existingStandingPr && githubContext?.token) {
+    const actor = getEventActor();
+    const isLabelEvent = actor.action === 'labeled' || actor.action === 'unlabeled';
+    if (isLabelEvent && !(await authorizedOrWarn(forgeFor(githubContext), actor, authz))) {
+      const relevant = relevantOverrideLabelNames(ciConfig);
+      const authorizedOverrides = (existingManifest?.overrideLabels ?? []).filter((l) => relevant.has(l));
+      const reconciled = [...new Set([...effectiveLabels.filter((l) => !relevant.has(l)), ...authorizedOverrides])];
+      // Tell the unauthorized labeller their change was ignored — parity with the selection gate
+      // (the label removal is also visible in the timeline, but the comment says why). Idempotent.
+      if (!setsEqual(new Set(effectiveLabels), new Set(reconciled))) {
+        const allowClause = authz.allowedActors?.length ? ', or an allow-listed actor' : '';
+        await forgeFor(githubContext)
+          .upsertMarkerComment(
+            existingStandingPr.number,
+            LABEL_DENIED_MARKER,
+            `${LABEL_DENIED_MARKER}\n\n> ⚠️ **Release-label change ignored.** Only authorized maintainers (\`${authz.requiredPermission}\`+${allowClause}) can change the standing PR's release labels (\`bump:\`/\`scope:\`/\`channel:\`/…). The labels have been reset to the approved set.`,
+          )
+          .catch((err) =>
+            warn(`Could not post label-denied notice: ${err instanceof Error ? err.message : String(err)}`),
+          );
+      }
+      effectiveLabels = reconciled;
+    }
+  }
+
   // Preview-notes opt-in (#200): when the standing PR carries the preview-notes label, generate LLM
   // release notes on demand into an editable region in the PR body. Default path stays LLM-free.
   const previewNotesLabel = (ciConfig?.labels ?? DEFAULT_LABELS).previewNotes;
-  const previewNotesEnabled = (existingStandingPr?.labels ?? []).includes(previewNotesLabel);
+  const previewNotesEnabled = effectiveLabels.includes(previewNotesLabel);
 
-  const overrides = resolveStandingPrLabelOverrides(existingStandingPr?.labels ?? [], ciConfig);
+  const overrides = resolveStandingPrLabelOverrides(effectiveLabels, ciConfig);
   if (overrides.bump) info(`Standing PR label override: bump=${overrides.bump}`);
   if (overrides.target) info(`Standing PR label override: target=${overrides.target}`);
   if (overrides.stable) info(`Standing PR label override: channel:stable`);
@@ -1118,12 +1158,14 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   }
 
   // Apply the standing-PR labels — preserve any maintainer-added labels (e.g. bump:major,
-  // scope:foo) by taking the union of currently-applied labels and the configured set. Without
-  // this, every update would wipe maintainer overrides.
-  if (labels.length > 0) {
+  // scope:foo) by taking the union of the currently-applied labels and the configured set. Without
+  // this, every update would wipe maintainer overrides. Base the union on `effectiveLabels` (not the
+  // raw live labels) so an unauthorized release-control label reconciled out above is removed here
+  // rather than re-added (#402); run even with no configured labels when that reconcile changed the set.
+  const labelsReconciled = !setsEqual(new Set(effectiveLabels), new Set(existingStandingPr?.labels ?? []));
+  if (labels.length > 0 || labelsReconciled) {
     try {
-      const currentLabels = existingStandingPr?.labels ?? [];
-      const mergedLabels = [...new Set([...currentLabels, ...labels])];
+      const mergedLabels = [...new Set([...effectiveLabels, ...labels])];
       await forge.setLabels(prNumber, mergedLabels);
     } catch {
       warn('Failed to apply labels to standing PR');
@@ -1149,7 +1191,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     firstUpdatedAt,
     // Record the labels this manifest was computed under so publish can detect a stale manifest if
     // they're changed after this update without a re-run (#337).
-    overrideLabels: extractOverrideLabels(existingStandingPr?.labels ?? [], ciConfig),
+    overrideLabels: extractOverrideLabels(effectiveLabels, ciConfig),
     // Record any packages held back via the selection region (provenance; the release set in
     // `versionOutput` is already narrowed). Omitted when nothing was deselected.
     deselected: effectiveDeselected.size > 0 ? [...effectiveDeselected].sort() : undefined,

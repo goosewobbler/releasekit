@@ -522,12 +522,13 @@ describe('runStandingPRUpdate', () => {
     } as unknown as ReturnType<typeof loadConfig>);
   };
 
-  const asEditedBy = async (login: string) => {
+  const asActionBy = async (action: string, login: string) => {
     const { readFileSync } = await import('node:fs');
-    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ action: 'edited', sender: { login, type: 'User' } }));
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ action, sender: { login, type: 'User' } }));
     process.env.GITHUB_EVENT_NAME = 'pull_request';
     process.env.GITHUB_EVENT_PATH = '/event.json';
   };
+  const asEditedBy = (login: string) => asActionBy('edited', login);
 
   it('should honour an authorized actor’s checkbox untick (#401)', async () => {
     await withAuthz();
@@ -613,6 +614,92 @@ describe('runStandingPRUpdate', () => {
     // Failed closed → the body's untick is ignored and the authoritative (empty) manifest selection wins.
     const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { exclude?: string[] };
     expect(writeCall.exclude).toEqual([]);
+  });
+
+  it('should ignore + remove an unauthorized actor’s release label, preserving non-release labels (#402)', async () => {
+    await withAuthz();
+    await asActionBy('labeled', 'rando');
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+      strategy: 'async' as const,
+    };
+    vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    // 'rando' (write, below admin) added bump:major; the authoritative manifest has no override.
+    const forge = await mockForge({
+      standingPR: openStandingPR(99, ['release', 'bump:major', 'area:ci']),
+      pullRequests: { 99: { body: '', labels: [] } },
+      actorPermissions: { rando: 'write' },
+      comments: [{ id: 5, prNumber: 99, body: serializeManifest({ ...baseManifest, overrideLabels: [] }) }],
+    });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    // The rogue bump:major is not honoured (no forced bump on the version run)…
+    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { bump?: string };
+    expect(writeCall.bump).toBeUndefined();
+    // …and it is removed from the PR, while non-release labels (area:ci) and the standing label survive.
+    const lastSetLabels = forge.setLabelsCalls.at(-1)?.labels ?? [];
+    expect(lastSetLabels).not.toContain('bump:major');
+    expect(lastSetLabels).toContain('area:ci');
+    expect(lastSetLabels).toContain('release');
+    // The unauthorized labeller is told their label was rejected (idempotent notice).
+    expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-label-denied -->')).toBe(true);
+  });
+
+  it('should restore an authorized label that an unauthorized actor removed (unlabeled) (#402)', async () => {
+    await withAuthz();
+    await asActionBy('unlabeled', 'rando');
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+      strategy: 'async' as const,
+    };
+    vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    // 'rando' (write, below admin) removed bump:major; the authoritative manifest still has it.
+    const forge = await mockForge({
+      standingPR: openStandingPR(99, ['release', 'area:ci']), // bump:major already removed by rando
+      pullRequests: { 99: { body: '', labels: [] } },
+      actorPermissions: { rando: 'write' },
+      comments: [{ id: 5, prNumber: 99, body: serializeManifest({ ...baseManifest, overrideLabels: ['bump:major'] }) }],
+    });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    // The authorized bump:major is RESTORED — honoured in the version run and re-applied to the PR.
+    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { bump?: string };
+    expect(writeCall.bump).toBe('major');
+    const lastSetLabels = forge.setLabelsCalls.at(-1)?.labels ?? [];
+    expect(lastSetLabels).toContain('bump:major'); // restored from the manifest
+    expect(lastSetLabels).toContain('area:ci'); // non-release label preserved
+    expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-label-denied -->')).toBe(true);
+  });
+
+  it('should honour an authorized actor’s release label (#402)', async () => {
+    await withAuthz();
+    await asActionBy('labeled', 'admin-user');
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+      strategy: 'async' as const,
+    };
+    vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    await mockForge({
+      standingPR: openStandingPR(99, ['release', 'bump:major']),
+      pullRequests: { 99: { body: '', labels: [] } },
+      actorPermissions: { 'admin-user': 'admin' },
+    });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { bump?: string };
+    expect(writeCall.bump).toBe('major'); // authorized override honoured
   });
 
   it('should never honour a residual selection region in a sync release (#367)', async () => {
