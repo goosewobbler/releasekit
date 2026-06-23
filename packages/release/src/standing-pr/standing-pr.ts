@@ -17,12 +17,15 @@ import { DEFAULT_LABELS } from '../label-utils.js';
 import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
+import { type EventActor, getEventActor, isAuthorizedActor, type StandingPrAuthorization } from './authorization.js';
 import { extractNotesRegions, mergeNotesRegions, renderNotesRegion } from './notes-region.js';
 import { extractSelection, renderSelectionRegion, selectionWarnings } from './selection-region.js';
 import { postStandingPRStatusSafe } from './status.js';
 
 const MANIFEST_MARKER = '<!-- releasekit-manifest -->';
 const MANIFEST_SCHEMA_VERSION = 2;
+/** Marker for the idempotent "your selection change was ignored" notice posted to an unauthorized editor (#401). */
+const SELECTION_DENIED_MARKER = '<!-- releasekit-selection-denied -->';
 const MANIFEST_SCHEMA_MIN_VERSION = 1;
 
 // The manifest payload rides as a base64 blob in its own marker; base64/JSON/schema decoding (with
@@ -733,6 +736,28 @@ async function closeEmptyQueue(
   return { action: 'noop' };
 }
 
+/** Whether two string sets hold the same members. */
+function setsEqual(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
+  return a.size === b.size && [...a].every((x) => b.has(x));
+}
+
+/**
+ * {@link isAuthorizedActor}, but it never throws. The permission check is a forge API call that can
+ * fail (rate-limit, network, a mis-scoped token — `getActorPermission` rethrows non-404s); on failure
+ * we warn and fail **closed** (treat the actor as unauthorized), so a transient hiccup reverts the
+ * standing PR to its authoritative manifest state rather than crashing the whole update (#401).
+ */
+async function authorizedOrWarn(forge: Forge, actor: EventActor, authz: StandingPrAuthorization): Promise<boolean> {
+  try {
+    return await isAuthorizedActor(forge, actor.login, actor.type, authz);
+  } catch (err) {
+    warn(
+      `Could not verify permission for '${actor.login ?? 'unknown'}' — treating as unauthorized: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return false;
+  }
+}
+
 export async function runStandingPRUpdate(options: StandingPROptions): Promise<StandingPRResult> {
   const cwd = options.projectDir;
 
@@ -780,6 +805,21 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   }
 
+  // Read the standing PR's manifest once up front. Its recorded `deselected` is the AUTHORITATIVE
+  // selection used by the gate below (publish reads the manifest, not the body), and its
+  // `firstUpdatedAt` is preserved when the manifest is rewritten at the end of the run.
+  let existingManifestComment: Awaited<ReturnType<typeof findManifestComment>> = null;
+  let existingManifest: StandingPRManifest | undefined;
+  if (existingStandingPr && githubContext?.token) {
+    try {
+      existingManifestComment = await findManifestComment(forgeFor(githubContext), existingStandingPr.number);
+      if (existingManifestComment) existingManifest = parseManifest(existingManifestComment.body);
+    } catch {
+      // An unreadable/malformed manifest is treated as absent — the gate falls back to an empty
+      // authoritative selection and firstUpdatedAt defaults to the current time below.
+    }
+  }
+
   // Read the standing PR's live body once (reused for the ad-hoc selection region and edited notes).
   // A maintainer ticks/unticks packages and edits notes in place; both are read back by marker
   // slicing so their choices survive this run's regenerate + force-push.
@@ -793,7 +833,37 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   }
   // The maintainer's prior package selection — names whose row was unticked (held back). Reconciled
   // against the actually-changed set after the dry-run below (a name no longer changed is dropped).
-  const priorDeselected = new Set<string>((liveBody && extractSelection(liveBody)?.deselected) || []);
+  //
+  // Authorization (#401): when `ci.standingPr.authorization` is set, the manifest's recorded
+  // selection is AUTHORITATIVE; the live body is only trusted when an authorized actor `edited` it.
+  // Otherwise (an unauthorized edit, or a push/schedule run) we keep the manifest's selection so the
+  // re-render reverts any unauthorized tick/untick. With no policy configured, the body is
+  // authoritative (original behavior).
+  const bodyDeselected = new Set<string>((liveBody && extractSelection(liveBody)?.deselected) || []);
+  const authz = standingPrConfig?.authorization;
+  let priorDeselected = bodyDeselected;
+  if (authz && existingStandingPr && githubContext?.token) {
+    const manifestDeselected = new Set<string>(existingManifest?.deselected ?? []);
+    const actor = getEventActor();
+    const authorizedEdit = actor.action === 'edited' && (await authorizedOrWarn(forgeFor(githubContext), actor, authz));
+    if (!authorizedEdit) {
+      priorDeselected = manifestDeselected;
+      // An unauthorized actor changed the checklist — tell them it was ignored (idempotent comment).
+      if (actor.action === 'edited' && !setsEqual(bodyDeselected, manifestDeselected)) {
+        // Only mention the allow-list when one is actually configured.
+        const allowClause = authz.allowedActors?.length ? ', or an allow-listed actor' : '';
+        await forgeFor(githubContext)
+          .upsertMarkerComment(
+            existingStandingPr.number,
+            SELECTION_DENIED_MARKER,
+            `${SELECTION_DENIED_MARKER}\n\n> ⚠️ **Selection change ignored.** Only authorized maintainers (\`${authz.requiredPermission}\`+${allowClause}) can hold packages back from the release. The **Packages to release** checklist has been reset to the approved selection.`,
+          )
+          .catch((err) =>
+            warn(`Could not post selection-denied notice: ${err instanceof Error ? err.message : String(err)}`),
+          );
+      }
+    }
+  }
 
   // Preview-notes opt-in (#200): when the standing PR carries the preview-notes label, generate LLM
   // release notes on demand into an editable region in the PR body. Default path stays LLM-free.
@@ -1060,20 +1130,10 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   }
 
-  // Find existing manifest to preserve firstUpdatedAt across updates
+  // Preserve firstUpdatedAt across updates, from the manifest read once up front.
   let firstUpdatedAt = new Date().toISOString();
-  const existingManifestComment = await findManifestComment(forge, prNumber);
-  if (existingManifestComment) {
-    try {
-      const existingManifest = parseManifest(existingManifestComment.body);
-      if (existingManifest.firstUpdatedAt) {
-        firstUpdatedAt = existingManifest.firstUpdatedAt;
-      } else {
-        firstUpdatedAt = existingManifest.createdAt;
-      }
-    } catch {
-      // Use current time if the existing manifest can't be parsed
-    }
+  if (existingManifest) {
+    firstUpdatedAt = existingManifest.firstUpdatedAt ?? existingManifest.createdAt;
   }
 
   // Store manifest as a bot comment. `releaseNotes` is intentionally omitted — publishFromManifest
