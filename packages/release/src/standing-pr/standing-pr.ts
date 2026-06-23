@@ -1234,19 +1234,25 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   // the #337 staleness refusal: a publish that shouldn't happen is stopped here, not retried.
   const authz = standingPrConfig?.authorization;
   if (authz?.enforceMergeAuthor) {
-    const merger = getEventActor().mergedBy;
-    if (merger) {
+    const actor = getEventActor();
+    if (!actor.mergedBy) {
+      // No merger in the event (e.g. a manual/dispatch publish, or an inferred PR with no event) —
+      // the gate can't run. Log it so an enforcement gap is visible rather than a silent skip.
+      warn(
+        `enforceMergeAuthor is set but the merging actor is unknown (no merged_by in the event) — skipping the publish-author check for PR #${prNumber}.`,
+      );
+    } else {
       let authorized = true;
       try {
-        authorized = await isAuthorizedActor(forge, merger, undefined, authz);
+        authorized = await isAuthorizedActor(forge, actor.mergedBy, actor.mergedByType, authz);
       } catch (err) {
         warn(
-          `Could not verify merger '${merger}' permission — proceeding, since branch protection is the primary gate: ${err instanceof Error ? err.message : String(err)}`,
+          `Could not verify merger '${actor.mergedBy}' permission — proceeding, since branch protection is the primary gate: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
       if (!authorized) {
         throw new Error(
-          `Refusing to publish PR #${prNumber}: it was merged by '${merger}', who lacks the required '${authz.requiredPermission}' permission (ci.standingPr.authorization). Restrict who can merge the release branch with a branch-protection ruleset, or set ci.standingPr.authorization.enforceMergeAuthor: false.`,
+          `Refusing to publish PR #${prNumber}: it was merged by '${actor.mergedBy}', who lacks the required '${authz.requiredPermission}' permission (ci.standingPr.authorization). Restrict who can merge the release branch with a branch-protection ruleset, or set ci.standingPr.authorization.enforceMergeAuthor: false.`,
         );
       }
     }

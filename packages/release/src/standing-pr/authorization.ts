@@ -30,6 +30,8 @@ export interface EventActor {
   type?: string;
   /** Who merged the PR (`event.pull_request.merged_by.login`), for the publish-author gate. */
   mergedBy?: string;
+  /** The merger's GitHub type (`event.pull_request.merged_by.type`) — `'Bot'` for app/bot actors. */
+  mergedByType?: string;
 }
 
 /** Read the triggering actor (and the merger, for publish) from the GitHub Actions event payload. */
@@ -40,13 +42,14 @@ export function getEventActor(): EventActor {
     const event = JSON.parse(fs.readFileSync(eventPath, 'utf-8')) as {
       action?: string;
       sender?: { login?: string; type?: string };
-      pull_request?: { merged_by?: { login?: string } | null };
+      pull_request?: { merged_by?: { login?: string; type?: string } | null };
     };
     return {
       action: event.action,
       login: event.sender?.login,
       type: event.sender?.type,
       mergedBy: event.pull_request?.merged_by?.login,
+      mergedByType: event.pull_request?.merged_by?.type,
     };
   } catch {
     return {};
