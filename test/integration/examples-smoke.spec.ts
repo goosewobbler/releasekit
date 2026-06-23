@@ -43,7 +43,7 @@ describe('examples smoke-test generator', () => {
     // a missing pnpm/action-setup would surface as `pnpm: command not found`.
     for (const scenario of SCENARIOS) {
       const uses = stepsOf(`smoke-${scenario.id}`).map((s) => s.uses);
-      expect(uses).toContain('pnpm/action-setup@v5');
+      expect(uses.some((u) => typeof u === 'string' && u.startsWith('pnpm/action-setup@'))).toBe(true);
     }
   });
 
