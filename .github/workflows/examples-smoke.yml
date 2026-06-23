@@ -102,7 +102,7 @@ jobs:
     needs: prepare
     steps:
       - name: Download fixture bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: smoke-fixture-minimal
           path: ${{ runner.temp }}/fixture
@@ -125,7 +125,7 @@ jobs:
     needs: prepare
     steps:
       - name: Download fixture bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: smoke-fixture-label-driven
           path: ${{ runner.temp }}/fixture
@@ -148,7 +148,7 @@ jobs:
     needs: prepare
     steps:
       - name: Download fixture bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: smoke-fixture-oidc
           path: ${{ runner.temp }}/fixture
@@ -171,7 +171,7 @@ jobs:
     needs: prepare
     steps:
       - name: Download fixture bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: smoke-fixture-monorepo-rust
           path: ${{ runner.temp }}/fixture
@@ -197,7 +197,7 @@ jobs:
     needs: prepare
     steps:
       - name: Download fixture bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: smoke-fixture-prerelease
           path: ${{ runner.temp }}/fixture
@@ -220,7 +220,7 @@ jobs:
     needs: prepare
     steps:
       - name: Download fixture bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: smoke-fixture-standing-pr
           path: ${{ runner.temp }}/fixture
