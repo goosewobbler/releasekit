@@ -546,6 +546,17 @@ describe('CIConfigSchema', () => {
     expect(() => CIConfigSchema.parse({ releaseStrategy: 'invalid' })).toThrow();
   });
 
+  it('should accept usernames and @org/team entries in standingPr.authorization.allowedActors', () => {
+    const result = CIConfigSchema.parse({
+      standingPr: { authorization: { allowedActors: ['octocat', 'release-bot', '@acme/releasers'] } },
+    });
+    expect(result.standingPr?.authorization?.allowedActors).toEqual(['octocat', 'release-bot', '@acme/releasers']);
+  });
+
+  it('should reject an allowedActors entry like "@octocat" (an @-prefix without the team slash)', () => {
+    expect(() => CIConfigSchema.parse({ standingPr: { authorization: { allowedActors: ['@octocat'] } } })).toThrow();
+  });
+
   it('should reject non-positive minChanges', () => {
     expect(() => CIConfigSchema.parse({ minChanges: 0 })).toThrow();
     expect(() => CIConfigSchema.parse({ minChanges: -1 })).toThrow();

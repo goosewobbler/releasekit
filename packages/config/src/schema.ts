@@ -564,7 +564,15 @@ export const StandingPrConfigSchema = z.object({
           'Minimum repository permission an actor needs to steer the standing PR — tick/untick selection checkboxes, apply release labels, and (with branch protection) merge. Default: admin.',
         ),
       allowedActors: z
-        .array(z.string())
+        .array(
+          // A GitHub username (e.g. `octocat`) or a team as `@org/team-slug`. The `@…/…` form needs
+          // the slash — `@octocat` is neither a username nor a team and would silently match nobody,
+          // so reject it at config-load time. Round-trips into the JSON Schema as `pattern`.
+          z.string().regex(/^(?:[A-Za-z0-9-]+|@[A-Za-z0-9-]+\/[A-Za-z0-9._-]+)$/, {
+            message:
+              'allowedActors entries must be a GitHub username (e.g. "octocat") or a team as "@org/team-slug" (note the slash).',
+          }),
+        )
         .optional()
         .describe(
           'Extra actors authorized regardless of permission level: GitHub usernames, or "@org/team-slug" to authorize a whole team. Team-membership checks need a token with read:org scope (a PAT or GitHub App), not the default GITHUB_TOKEN; without it, team entries fail closed — the 403 is surfaced as a warning and the actor is not authorized.',
