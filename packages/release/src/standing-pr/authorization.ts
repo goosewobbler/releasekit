@@ -61,10 +61,21 @@ function isBot(login: string | undefined, type: string | undefined): boolean {
   return type === 'Bot' || (login !== undefined && login.endsWith('[bot]'));
 }
 
+/** An `allowedActors` entry naming a GitHub team, e.g. `@acme/releasers` → `{ org, team }`. */
+function parseTeamRef(entry: string): { org: string; team: string } | undefined {
+  if (!entry.startsWith('@') || !entry.includes('/')) return undefined;
+  const [org, team] = entry.slice(1).split('/');
+  return org && team ? { org, team } : undefined;
+}
+
 /**
  * Whether `login` may steer the standing PR under `authz`. Bots are always authorized (the tool runs
- * as one). Otherwise the actor passes if explicitly allow-listed, or if their repository permission
- * meets the configured threshold. An unknown actor (no login, or no repo access) is not authorized.
+ * as one). Otherwise the actor passes if explicitly allow-listed by username, if their repository
+ * permission meets the configured threshold, or if they're a member of an allow-listed `@org/team`.
+ * An unknown actor (no login, or no repo access / team membership) is not authorized.
+ *
+ * Checks are ordered cheapest-first — username, then the single permission API call, then team
+ * membership (one API call per `@org/team`, only reached for an actor not already authorized).
  */
 export async function isAuthorizedActor(
   forge: Forge,
@@ -74,10 +85,23 @@ export async function isAuthorizedActor(
 ): Promise<boolean> {
   if (isBot(login, type)) return true;
   if (!login) return false;
-  // GitHub usernames are case-insensitive, so compare case-folded — a `allowedActors: ['Alice']`
-  // entry must still match an event delivering `login: 'alice'`.
+  const entries = authz.allowedActors ?? [];
+
+  // 1. Username allow-list. GitHub usernames are case-insensitive, so compare case-folded — an
+  //    `allowedActors: ['Alice']` entry must still match an event delivering `login: 'alice'`.
   const lc = login.toLowerCase();
-  if (authz.allowedActors?.some((a) => a.toLowerCase() === lc)) return true;
+  if (entries.some((e) => !parseTeamRef(e) && e.toLowerCase() === lc)) return true;
+
+  // 2. Repository permission threshold.
   const permission = await forge.getActorPermission(login);
-  return PERMISSION_RANK[permission] >= PERMISSION_RANK[authz.requiredPermission];
+  if (PERMISSION_RANK[permission] >= PERMISSION_RANK[authz.requiredPermission]) return true;
+
+  // 3. Team membership — last, since it costs an API call per team and a 403 (no org-read scope)
+  //    propagates to the caller's gate wrapper. An `@org/team` member is authorized regardless of
+  //    repo permission.
+  for (const entry of entries) {
+    const ref = parseTeamRef(entry);
+    if (ref && (await forge.isTeamMember(ref.org, ref.team, login))) return true;
+  }
+  return false;
 }

@@ -151,6 +151,9 @@ export interface Forge {
   /** The actor's permission level on the repo (for gating who may steer the standing PR). Returns
    *  'none' for an unknown/outside actor rather than throwing. */
   getActorPermission(username: string): Promise<RepoPermission>;
+  /** Whether `username` is an active member of `org`/`teamSlug`. Returns false when not a member;
+   *  throws on an access error (e.g. a token without org-read scope) so the caller can surface it. */
+  isTeamMember(org: string, teamSlug: string, username: string): Promise<boolean>;
 
   // — Commit status —
   setCommitStatus(status: CommitStatus): Promise<void>;

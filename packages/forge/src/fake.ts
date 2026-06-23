@@ -42,6 +42,8 @@ export interface FakeForgeSeed {
   releasesByTag?: Record<string, ReleaseRef>;
   /** Per-username repo permission. Unseeded usernames resolve to 'none'. */
   actorPermissions?: Record<string, RepoPermission>;
+  /** Team memberships, keyed by `org/team-slug` → member logins. Unseeded teams have no members. */
+  teamMemberships?: Record<string, string[]>;
 }
 
 /**
@@ -61,6 +63,7 @@ export class FakeForge implements Forge {
   private readonly releases: ReleaseSummary[];
   private readonly releasesByTag: Record<string, ReleaseRef>;
   private readonly actorPermissions: Record<string, RepoPermission>;
+  private readonly teamMemberships: Record<string, string[]>;
 
   // Recorded writes, for assertions.
   readonly createdComments: Array<{ prNumber: number; body: string }> = [];
@@ -90,7 +93,13 @@ export class FakeForge implements Forge {
     this.releases = seed.releases ?? [];
     this.releasesByTag = seed.releasesByTag ?? {};
     this.actorPermissions = seed.actorPermissions ?? {};
+    this.teamMemberships = seed.teamMemberships ?? {};
     this.nextCommentId = Math.max(0, ...this.comments.map((c) => c.id)) + 1;
+  }
+
+  async isTeamMember(org: string, teamSlug: string, username: string): Promise<boolean> {
+    const lc = username.toLowerCase();
+    return (this.teamMemberships[`${org}/${teamSlug}`] ?? []).some((m) => m.toLowerCase() === lc);
   }
 
   async getActorPermission(username: string): Promise<RepoPermission> {

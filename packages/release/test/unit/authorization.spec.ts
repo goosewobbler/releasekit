@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import { createFakeForge } from '@releasekit/forge';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getEventActor, isAuthorizedActor, type StandingPrAuthorization } from '../../src/standing-pr/authorization.js';
 
 const authz = (overrides: Partial<StandingPrAuthorization> = {}): StandingPrAuthorization => ({
@@ -43,6 +43,20 @@ describe('isAuthorizedActor', () => {
     const forge = createFakeForge();
     expect(await isAuthorizedActor(forge, undefined, 'User', authz())).toBe(false);
     expect(await isAuthorizedActor(forge, 'stranger', 'User', authz())).toBe(false); // unseeded → 'none'
+  });
+
+  it('should authorize a member of an allow-listed @org/team', async () => {
+    const forge = createFakeForge({ teamMemberships: { 'acme/releasers': ['carol'] } });
+    expect(await isAuthorizedActor(forge, 'carol', 'User', authz({ allowedActors: ['@acme/releasers'] }))).toBe(true);
+    // A non-member with no threshold permission is rejected.
+    expect(await isAuthorizedActor(forge, 'dave', 'User', authz({ allowedActors: ['@acme/releasers'] }))).toBe(false);
+  });
+
+  it('should check team membership only after username + threshold (no team call for an admin)', async () => {
+    const forge = createFakeForge({ actorPermissions: { alice: 'admin' } });
+    const teamSpy = vi.spyOn(forge, 'isTeamMember');
+    expect(await isAuthorizedActor(forge, 'alice', 'User', authz({ allowedActors: ['@acme/releasers'] }))).toBe(true);
+    expect(teamSpy).not.toHaveBeenCalled(); // admin passed the threshold; team membership never queried
   });
 });
 

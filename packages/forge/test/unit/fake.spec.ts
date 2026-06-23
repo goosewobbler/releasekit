@@ -124,4 +124,11 @@ describe('FakeForge', () => {
     expect(await forge.getActorPermission('BOB')).toBe('write');
     expect(await forge.getActorPermission('stranger')).toBe('none');
   });
+
+  it('should resolve seeded team membership case-insensitively', async () => {
+    const forge = createFakeForge({ teamMemberships: { 'acme/releasers': ['Alice'] } });
+    expect(await forge.isTeamMember('acme', 'releasers', 'alice')).toBe(true);
+    expect(await forge.isTeamMember('acme', 'releasers', 'bob')).toBe(false);
+    expect(await forge.isTeamMember('acme', 'other', 'alice')).toBe(false);
+  });
 });
