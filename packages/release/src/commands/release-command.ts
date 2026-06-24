@@ -11,6 +11,11 @@ export function createReleaseCommand(): Command {
     .option('-b, --bump <type>', 'Force bump type (patch|minor|major|prerelease)')
     .option('-p, --prerelease [identifier]', 'Create prerelease version')
     .option('--stable', 'Graduate prerelease packages to stable without bumping', false)
+    .option(
+      '--allow-first-bump',
+      'Acknowledge applying a bump on a first release with an already-stable manifest (silences the overshoot warning)',
+      false,
+    )
     .option('-s, --sync', 'Use synchronized versioning across all packages', false)
     .option('-t, --target <packages>', 'Target specific packages (comma-separated)')
     .option(
@@ -42,6 +47,7 @@ export function createReleaseCommand(): Command {
         bump: opts.bump,
         prerelease: opts.prerelease,
         stable: opts.stable,
+        allowFirstBump: opts.allowFirstBump,
         sync: opts.sync,
         target: opts.target,
         includePrerequisites: opts.includePrerequisites,

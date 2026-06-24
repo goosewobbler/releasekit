@@ -7,6 +7,8 @@ export interface ReleaseOptions {
   bump?: string;
   prerelease?: string | boolean;
   stable?: boolean;
+  /** Acknowledge a first-release bump on an already-stable manifest (silences the #388 overshoot guard). */
+  allowFirstBump?: boolean;
   sync: boolean;
   target?: string;
   /** Also release the changed internal dependencies of `target` packages (and the rest of their groups). */

@@ -23,6 +23,8 @@ export interface VersionRunOptions {
   /** Graduate prerelease packages to stable; skip already-stable packages
    *  unless bump is also set, in which case bump applies to stable packages. */
   stable?: boolean;
+  /** Acknowledge a first-release bump on a stable manifest, silencing the #388 overshoot guard. */
+  allowFirstBump?: boolean;
   dryRun?: boolean;
   sync?: boolean;
   /** Limit release to these package name patterns (comma-split targets from CLI). */
@@ -120,6 +122,9 @@ export interface Config extends VersionConfigBase {
    *  leaked into "Project-wide changes" (#397). Not user config. */
   allWorkspacePackages?: Array<{ name: string; dir: string }>;
   mismatchStrategy?: 'error' | 'warn' | 'ignore' | 'prefer-package' | 'prefer-git';
+  /** Acknowledge a first-release bump on an already-stable manifest, silencing the #388 overshoot
+   *  guard (which otherwise warns, or aborts under mismatchStrategy 'error'). See VersionConfig.allowFirstBump. */
+  allowFirstBump?: boolean;
   strictReachable?: boolean;
   /** Pre-1.0 inferred-breaking bump policy ('spec' | 'strict'). See docs/configuration.md#versionzeromajor. */
   zeroMajor?: 'spec' | 'strict';
@@ -212,6 +217,7 @@ export function toVersionConfig(config: VersionConfig | undefined, gitConfig?: G
     })),
     defaultReleaseType: config.defaultReleaseType as ReleaseType | undefined,
     mismatchStrategy: config.mismatchStrategy,
+    allowFirstBump: config.allowFirstBump,
     zeroMajor: config.zeroMajor,
     versionPrefix: config.versionPrefix ?? '',
     prereleaseIdentifier: config.prereleaseIdentifier,

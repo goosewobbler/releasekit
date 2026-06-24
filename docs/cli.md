@@ -50,6 +50,7 @@ Run the full release pipeline: version, changelog, publish, git, and GitHub Rele
 | `-b, --bump <type>` | `patch` \| `minor` \| `major` \| `prerelease` | auto | Force bump type |
 | `-p, --prerelease [identifier]` | boolean \| string | - | Create prerelease version |
 | `--stable` | boolean | `false` | Graduate prerelease packages to stable without bumping |
+| `--allow-first-bump` | boolean | `false` | Acknowledge applying a bump on a first release with an already-stable manifest (silences the overshoot warning; see [`version.allowFirstBump`](./configuration.md#version)) |
 | `-s, --sync` | boolean | `false` | Use synchronized versioning across all packages |
 | `-t, --target <packages>` | string | all | Target specific packages (comma-separated) |
 | `--include-prerequisites` | boolean | `false` | Also release the changed internal dependencies of `--target` packages (and the rest of their groups) |
@@ -188,6 +189,7 @@ Version a package or packages based on configuration and conventional commits. A
 | `-b, --bump <type>` | `patch` \| `minor` \| `major` \| `prerelease` | auto | Specify bump type |
 | `-p, --prerelease [identifier]` | boolean \| string | - | Create prerelease version |
 | `--stable` | boolean | `false` | Graduate prerelease packages to stable without bumping |
+| `--allow-first-bump` | boolean | `false` | Acknowledge applying a bump on a first release with an already-stable manifest (silences the overshoot warning; see [`version.allowFirstBump`](./configuration.md#version)) |
 | `-s, --sync` | boolean | config | Use synchronized versioning across all packages |
 | `-j, --json` | boolean | `false` | Output results as JSON |
 | `-t, --target <packages>` | string | all | Comma-delimited list of package names to target |
