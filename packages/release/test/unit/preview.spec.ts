@@ -191,6 +191,61 @@ describe('runPreview', () => {
     });
   });
 
+  describe('standing release PR skip (#424)', () => {
+    afterEach(() => {
+      delete process.env.GITHUB_EVENT_PATH;
+    });
+
+    function withHeadRef(ref: string): void {
+      process.env.GITHUB_EVENT_PATH = '/tmp/event.json';
+      mockFsExistsSync.mockReturnValue(true);
+      mockFsReadFileSync.mockReturnValue(JSON.stringify({ pull_request: { head: { ref } } }));
+    }
+
+    it('should skip the preview when the PR is the standing release PR', async () => {
+      // The standing PR's head IS the release branch; its commits already carry the release-prep
+      // bump, so previewing it would double-count the version (#424).
+      mockLoadCIConfig.mockReturnValue({
+        releaseStrategy: 'standing-pr',
+        standingPr: { branch: 'release/next' },
+        releaseTrigger: 'commit',
+      });
+      withHeadRef('release/next');
+
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
+
+      expect(mockRunRelease).not.toHaveBeenCalled();
+      expect(mockPostOrUpdateComment).not.toHaveBeenCalled();
+    });
+
+    it('should honour a custom standing branch name', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseStrategy: 'standing-pr',
+        standingPr: { branch: 'release/queue' },
+        releaseTrigger: 'commit',
+      });
+      withHeadRef('release/queue');
+
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
+
+      expect(mockRunRelease).not.toHaveBeenCalled();
+    });
+
+    it('should still preview a feeder PR in standing-pr mode (head ref is not the release branch)', async () => {
+      mockLoadCIConfig.mockReturnValue({
+        releaseStrategy: 'standing-pr',
+        standingPr: { branch: 'release/next' },
+        releaseTrigger: 'commit',
+      });
+      withHeadRef('feature/login');
+
+      await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
+
+      expect(mockRunRelease).toHaveBeenCalled();
+      expect(mockPostOrUpdateComment).toHaveBeenCalled();
+    });
+  });
+
   describe('options', () => {
     it('should pass config and projectDir options through', async () => {
       await runPreview({ projectDir: '/test', config: '/custom/config.json', dryRun: false, target: '@test/package' });

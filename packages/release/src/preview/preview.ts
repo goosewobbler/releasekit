@@ -38,11 +38,34 @@ interface LabelOverrideResult {
   labelContext: LabelContext;
 }
 
+/** The head ref of the PR this preview run targets, from the Actions event payload, or undefined. */
+function currentPrHeadRef(): string | undefined {
+  const eventPath = process.env.GITHUB_EVENT_PATH;
+  if (!eventPath || !fs.existsSync(eventPath)) return undefined;
+  try {
+    const event = JSON.parse(fs.readFileSync(eventPath, 'utf-8'));
+    return event.pull_request?.head?.ref as string | undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function runPreview(options: PreviewOptions): Promise<void> {
   // Check if preview is enabled in config
   const ciConfig = loadCIConfig({ cwd: options.projectDir, configPath: options.config });
   if (ciConfig?.prPreview === false) {
     info('PR preview is disabled in config (ci.prPreview: false)');
+    return;
+  }
+
+  const strategy = ciConfig?.releaseStrategy ?? 'direct';
+
+  // Don't preview the standing PR itself — its head is the release branch, whose commits already
+  // carry the release-prep bump, so re-analysing double-counts the version (e.g. 0.32.1 → 0.32.2).
+  // The standing PR's manifest comment is authoritative for what it releases; a preview on it is
+  // noise (#424). Mirrors the inverse publish-side guard in standing-pr.ts.
+  if (strategy === 'standing-pr' && currentPrHeadRef() === (ciConfig?.standingPr?.branch ?? 'release/next')) {
+    info('Skipping preview: this PR is the standing release PR (its manifest comment is authoritative).');
     return;
   }
 
@@ -61,8 +84,6 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
 
   // Apply label-driven overrides (pass the forge to avoid creating a second instance)
   const { options: effectiveOptions, labelContext } = await applyLabelOverrides(options, ciConfig, context, forge);
-
-  const strategy = ciConfig?.releaseStrategy ?? 'direct';
 
   // For standing-pr strategy, fetch a read-only snapshot of the current standing PR (link,
   // queued packages, minAge gate state) so the preview can render a true release preview.
