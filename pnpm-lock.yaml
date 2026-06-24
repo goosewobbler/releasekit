@@ -416,6 +416,9 @@ importers:
       '@releasekit/forge':
         specifier: workspace:*
         version: link:../forge
+      '@releasekit/git':
+        specifier: workspace:*
+        version: link:../git
       '@types/node':
         specifier: 'catalog:'
         version: 22.20.0

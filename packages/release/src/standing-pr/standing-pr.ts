@@ -1,10 +1,9 @@
-import { execFileSync, execSync } from 'node:child_process';
-
 import * as fs from 'node:fs';
 import { type CIConfig, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput } from '@releasekit/core';
 import { error, info, markerData, success, warn } from '@releasekit/core';
 import { type Forge, forgeErrorStatus, type PullRequestDetails } from '@releasekit/forge';
+import { createGitCli } from '@releasekit/git';
 import { PipelineError } from '@releasekit/publish';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration, parseDuration } from '../duration.js';
@@ -90,9 +89,9 @@ export interface StandingPRManifest {
   deselected?: string[];
 }
 
-function getHeadSha(cwd: string): string {
+async function getHeadSha(cwd: string): Promise<string> {
   try {
-    return execSync('git rev-parse HEAD', { encoding: 'utf-8', cwd }).trim();
+    return await createGitCli().headSha(cwd);
   } catch (err) {
     throw new Error(`Failed to get HEAD SHA: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -120,51 +119,41 @@ function isStandingPrEventRun(): boolean {
   }
 }
 
-function resetReleaseBranch(branch: string, base: string, cwd: string): void {
-  execSync('git fetch origin', { encoding: 'utf-8', cwd, stdio: 'pipe' });
+async function resetReleaseBranch(branch: string, base: string, cwd: string): Promise<void> {
+  const git = createGitCli();
+  await git.fetch('origin', { cwd });
 
-  // Check if branch exists on remote
-  let remoteExists = false;
-  try {
-    execSync(`git ls-remote --exit-code --heads origin "${branch}"`, { encoding: 'utf-8', cwd, stdio: 'pipe' });
-    remoteExists = true;
-  } catch {
-    remoteExists = false;
-  }
-
-  if (remoteExists) {
-    // Reset existing branch to base
-    try {
-      execSync(`git checkout "${branch}"`, { encoding: 'utf-8', cwd, stdio: 'pipe' });
-    } catch {
-      execSync(`git checkout -b "${branch}"`, { encoding: 'utf-8', cwd, stdio: 'pipe' });
-    }
-    execSync(`git reset --hard "origin/${base}"`, { encoding: 'utf-8', cwd, stdio: 'pipe' });
+  // `remoteBranchExists` replaces the old `git ls-remote --exit-code` probe — it returns a boolean
+  // (never throws on a non-zero exit), so no try/catch is needed to read "does the remote have it".
+  if (await git.remoteBranchExists('origin', branch, cwd)) {
+    // Branch exists on the remote: be on it (create-or-reset the local ref with `-B`, which also
+    // covers the case where the local branch doesn't exist yet) and hard-reset it to the base.
+    await git.checkout(branch, { create: true, cwd });
+    await git.resetHard(`origin/${base}`, cwd);
   } else {
-    // Create branch from base
-    try {
-      execSync(`git checkout -b "${branch}" "origin/${base}"`, { encoding: 'utf-8', cwd, stdio: 'pipe' });
-    } catch {
-      execSync(`git checkout "${branch}"`, { encoding: 'utf-8', cwd, stdio: 'pipe' });
-      execSync(`git reset --hard "origin/${base}"`, { encoding: 'utf-8', cwd, stdio: 'pipe' });
-    }
+    // Branch is absent on the remote: the original `git checkout -b "<branch>" "origin/<base>"`
+    // created it from a start-point. The seam's checkout has no start-point, so create at HEAD with
+    // `-B` then hard-reset to origin/base — equivalent to creating it pointed at origin/base.
+    await git.checkout(branch, { create: true, cwd });
+    await git.resetHard(`origin/${base}`, cwd);
   }
 }
 
-function commitAndForcePush(branch: string, cwd: string): void {
-  execSync('git add -A', { encoding: 'utf-8', cwd, stdio: 'pipe' });
+async function commitAndForcePush(branch: string, cwd: string): Promise<void> {
+  const git = createGitCli();
+  await git.addAll(cwd);
 
   // Check if there's anything to commit
-  const status = execSync('git status --porcelain', { encoding: 'utf-8', cwd }).trim();
+  const status = (await git.status({ porcelain: true, cwd })).trim();
   if (status) {
     // Subject must match `release.ci.skipPatterns` (default 'chore: release ') so a future
     // standing-pr update on this branch noops correctly. Do NOT add `[skip ci]` — when the PR
     // is squash-merged with this single-commit history, the squash inherits this message and
     // suppresses ALL workflow runs on main, including the publish job.
-    execSync('git commit -m "chore: release preparation"', { encoding: 'utf-8', cwd, stdio: 'pipe' });
+    await git.commit('chore: release preparation', { cwd });
   }
 
-  execSync(`git push --force-with-lease origin "${branch}"`, { encoding: 'utf-8', cwd, stdio: 'pipe' });
+  await git.push({ remote: 'origin', ref: branch, forceWithLease: true, cwd });
 }
 
 /**
@@ -172,11 +161,13 @@ function commitAndForcePush(branch: string, cwd: string): void {
  * by the subsequent publish stage land on this commit (which captures the full release state
  * including the polished notes).
  *
- * Uses execFileSync (no shell) and scopes both the diff probe and the commit to the specific
- * file paths so unrelated dirty index state can't pollute the notes commit.
+ * Scopes both the status probe and the commit to the specific file paths so unrelated dirty index
+ * state can't pollute the notes commit.
  */
-function commitNotesFiles(files: string[], versionOutput: VersionOutput, cwd: string): void {
+async function commitNotesFiles(files: string[], versionOutput: VersionOutput, cwd: string): Promise<void> {
   if (files.length === 0) return;
+
+  const git = createGitCli();
 
   // Probe whether ANY of the target paths has tracked changes OR is untracked. `git status
   // --porcelain -- <paths>` is scoped to the listed paths (so unrelated repo-wide dirty state
@@ -188,10 +179,7 @@ function commitNotesFiles(files: string[], versionOutput: VersionOutput, cwd: st
   // notes generation failed" warning even though notes were generated successfully.
   let statusOut: string;
   try {
-    statusOut = execFileSync('git', ['status', '--porcelain', '--', ...files], {
-      cwd,
-      encoding: 'utf-8',
-    }).trim();
+    statusOut = (await git.status({ porcelain: true, paths: files, cwd })).trim();
   } catch (err) {
     warn(`Failed to probe release notes status: ${err instanceof Error ? err.message : String(err)}`);
     return;
@@ -205,7 +193,7 @@ function commitNotesFiles(files: string[], versionOutput: VersionOutput, cwd: st
   // Single atomic git add — either every file is staged or none are, no partial-staging
   // dirty-index window before the subsequent publish step runs.
   try {
-    execFileSync('git', ['add', '--', ...files], { cwd, stdio: 'pipe' });
+    await git.add(files, cwd);
   } catch (err) {
     warn(`Failed to stage release notes files: ${err instanceof Error ? err.message : String(err)}`);
     return;
@@ -219,7 +207,7 @@ function commitNotesFiles(files: string[], versionOutput: VersionOutput, cwd: st
   const version = versionOutput.updates[0]?.newVersion ?? '';
   const message = version ? `chore: release notes for v${version}` : 'chore: release notes';
   try {
-    execFileSync('git', ['commit', '-m', message, '--', ...files], { cwd, stdio: 'pipe' });
+    await git.commit(message, { paths: files, cwd });
     success(`Committed release notes (${files.length} file(s))`);
   } catch (err) {
     warn(`Failed to commit release notes: ${err instanceof Error ? err.message : String(err)}`);
@@ -238,41 +226,42 @@ function commitNotesFiles(files: string[], versionOutput: VersionOutput, cwd: st
  * commit we warn and skip rather than rewriting history. Errors here don't propagate — the
  * publish pipeline's `--tags` push will publish whatever tags we managed to create.
  */
-export function createReleaseTags(tags: string[], cwd: string): void {
+export async function createReleaseTags(tags: string[], cwd: string): Promise<void> {
   if (tags.length === 0) return;
+
+  const git = createGitCli();
 
   // Wrapped per the function contract — errors here must not propagate. A corrupt repo state or
   // permission error reading HEAD shouldn't abort the publish pipeline before tag creation runs.
   let headSha: string;
   try {
-    headSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf-8' }).trim();
+    headSha = await git.headSha(cwd);
   } catch (err) {
     warn(`Failed to resolve HEAD for tag creation: ${err instanceof Error ? err.message : String(err)}`);
     return;
   }
 
   for (const tag of tags) {
-    try {
-      // execFileSync (not execSync) — `refs/tags/${tag}^{}` is a git argument, not a shell
-      // expression. The array form avoids shell parsing entirely if tag names ever contain
-      // metacharacters.
-      const existing = execFileSync('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}^{}`], {
-        cwd,
-        encoding: 'utf-8',
-        stdio: ['ignore', 'pipe', 'ignore'],
-      }).trim();
+    // `refExists` peels the ref with `^{commit}` (like the old `refs/tags/<tag>^{}` rev-parse), so a
+    // present tag resolves to its commit. When present, resolve that commit SHA to keep the
+    // idempotency distinction: at HEAD → skip; at a different commit → warn (don't rewrite history).
+    if (await git.refExists(`refs/tags/${tag}`, cwd)) {
+      let existing = '';
+      try {
+        existing = (await git.log({ range: tag, format: '%H', extraArgs: ['-1'], cwd })).trim();
+      } catch {
+        // Couldn't resolve the existing tag's commit — fall through to the (non-HEAD) warn branch.
+      }
       if (existing === headSha) {
         info(`Tag ${tag} already exists at HEAD, skipping`);
         continue;
       }
       warn(`Tag ${tag} exists at ${existing} but HEAD is ${headSha} — skipping (re-tag manually if intended)`);
       continue;
-    } catch {
-      // Tag doesn't exist; create it below.
     }
 
     try {
-      execFileSync('git', ['tag', '-a', tag, '-m', `Release ${tag}`], { cwd, stdio: 'pipe' });
+      await git.tag(tag, { message: `Release ${tag}`, cwd });
       success(`Created tag: ${tag}`);
     } catch (err) {
       warn(`Failed to create tag ${tag}: ${err instanceof Error ? err.message : String(err)}`);
@@ -368,9 +357,11 @@ function renderChangelogSection(versionOutput: VersionOutput): string {
   return ['<details>', `<summary>${summary}</summary>`, '', ...inner, '', '</details>'].join('\n');
 }
 
-function deleteReleaseBranch(releaseBranch: string, cwd: string): void {
+async function deleteReleaseBranch(releaseBranch: string, cwd: string): Promise<void> {
   try {
-    execSync(`git push origin --delete "${releaseBranch}"`, { encoding: 'utf-8', cwd, stdio: 'pipe' });
+    // `git push origin :<branch>` deletes the remote branch (the delete refspec). The leading `:`
+    // is why this passes the seam's leading-`-` option guard, where `--delete` could not.
+    await createGitCli().push({ remote: 'origin', ref: `:${releaseBranch}`, cwd });
     info(`Deleted release branch '${releaseBranch}'`);
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
@@ -791,7 +782,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
         : 'Label-triggered run: bypassing skip-pattern guard',
     );
   } else {
-    const headSubject = getHeadCommitMessage(cwd);
+    const headSubject = await getHeadCommitMessage(cwd);
     if (headSubject && matchesSkipPattern(headSubject, skipPatterns)) {
       info(`Skipping standing PR update: commit matches skip pattern`);
       return { action: 'noop' };
@@ -967,11 +958,11 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   }
 
   // Capture baseSha before switching branches
-  const baseSha = getHeadSha(cwd);
+  const baseSha = await getHeadSha(cwd);
 
   // Branch management: reset release branch to base
   info(`Resetting release branch '${branch}' to origin/${base}...`);
-  resetReleaseBranch(branch, base, cwd);
+  await resetReleaseBranch(branch, base, cwd);
 
   // A release merge can land on `base` after this run started — e.g. another PR is merged moments
   // before the standing PR. The reset above pulls that commit in, so its version bump is now on HEAD
@@ -980,7 +971,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // bow out — the post-release reconcile (or the next push) rebuilds the standing PR cleanly once the
   // release has tagged. Reconcile runs are exempt: HEAD is a release commit by design there. See #323.
   if (!options.reconcile) {
-    const resetHeadSubject = getHeadCommitMessage(cwd);
+    const resetHeadSubject = await getHeadCommitMessage(cwd);
     if (resetHeadSubject && matchesSkipPattern(resetHeadSubject, skipPatterns)) {
       info('Skipping standing PR update: a release commit landed on the base branch during this run');
       return { action: 'noop' };
@@ -1048,10 +1039,10 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   // Commit and force-push the release branch
   info(`Committing and pushing '${branch}'...`);
-  commitAndForcePush(branch, cwd);
+  await commitAndForcePush(branch, cwd);
 
   // Capture the release branch HEAD SHA for the status check (we're still on the release branch)
-  const releaseBranchSha = getHeadSha(cwd);
+  const releaseBranchSha = await getHeadSha(cwd);
 
   success(`Release branch '${branch}' updated`);
 
@@ -1300,14 +1291,11 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     }
   }
 
-  // Warn if manifest base is no longer an ancestor of current HEAD (history may be rewritten)
-  const currentSha = getHeadSha(cwd);
-  try {
-    execSync(`git merge-base --is-ancestor "${manifest.baseSha}" "${currentSha}"`, {
-      cwd,
-      stdio: 'pipe',
-    });
-  } catch {
+  // Warn if manifest base is no longer an ancestor of current HEAD (history may be rewritten).
+  // `isAncestor` returns false on a non-zero exit (not an ancestor) rather than throwing, so the
+  // old try/catch becomes a plain boolean check.
+  const currentSha = await getHeadSha(cwd);
+  if (!(await createGitCli().isAncestor(manifest.baseSha, currentSha, cwd))) {
     warn(
       `Manifest baseSha (${manifest.baseSha}) is not an ancestor of current HEAD (${currentSha}) — history may have been rewritten`,
     );
@@ -1403,7 +1391,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     // Tags created next land on this commit (which is fine — the tag captures the full release
     // state including notes).
     if (newFiles.length > 0) {
-      commitNotesFiles(newFiles, manifest.versionOutput, cwd);
+      await commitNotesFiles(newFiles, manifest.versionOutput, cwd);
     }
   } catch (err) {
     warn(`Release notes generation failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -1422,7 +1410,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   // so without this the pipeline's `git push --tags` would have nothing to push. Baseline
   // tags (when configured via baselineTagTemplate) are created here too — they live at the
   // same release commit and need to be pushed alongside the consumer tags.
-  createReleaseTags([...manifest.versionOutput.tags, ...(manifest.versionOutput.baselineTags ?? [])], cwd);
+  await createReleaseTags([...manifest.versionOutput.tags, ...(manifest.versionOutput.baselineTags ?? [])], cwd);
 
   const publishOptions: ReleaseOptions = {
     config: options.config,
@@ -1479,7 +1467,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
 
   // Cleanup: delete release branch if configured
   if (deleteBranchOnMerge) {
-    deleteReleaseBranch(releaseBranch, cwd);
+    await deleteReleaseBranch(releaseBranch, cwd);
   }
 
   return {
@@ -1623,7 +1611,7 @@ export async function runStandingPRMerge(
 
   // If not publishing, delete the branch now (otherwise publishFromManifest handles it)
   if (!flags.publish && deleteBranchOnMerge) {
-    deleteReleaseBranch(branch, cwd);
+    await deleteReleaseBranch(branch, cwd);
   }
 
   if (!flags.publish) {

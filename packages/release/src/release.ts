@@ -245,7 +245,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
 
   // Apply skipPatterns: exit early if HEAD commit matches a skip pattern
   if (releaseConfig?.ci?.skipPatterns?.length) {
-    const headCommit = getHeadCommitMessage(options.projectDir);
+    const headCommit = await getHeadCommitMessage(options.projectDir);
     if (headCommit) {
       const matchedPattern = matchesSkipPattern(headCommit, releaseConfig.ci.skipPatterns);
       if (matchedPattern) {

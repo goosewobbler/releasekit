@@ -103,7 +103,7 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
   );
 
   const trigger = ciConfig?.releaseTrigger ?? 'label';
-  const result = computeGateResult({
+  const result = await computeGateResult({
     evaluations,
     prNumbers,
     options,
@@ -128,7 +128,7 @@ interface ComputeGateInput {
   releaseKitConfig: ReleaseKitConfig;
 }
 
-function computeGateResult(input: ComputeGateInput): GateOutput {
+async function computeGateResult(input: ComputeGateInput): Promise<GateOutput> {
   const { evaluations, prNumbers, options, ciConfig, releaseKitConfig } = input;
 
   // Hard errors short-circuit (label conflict on a single PR)
@@ -183,7 +183,7 @@ function computeGateResult(input: ComputeGateInput): GateOutput {
   // winner is picked because it depends on the head commit, not on labels.
   const releaseConfig = releaseKitConfig.release;
   if (releaseConfig?.ci?.skipPatterns?.length) {
-    const headCommit = getHeadCommitMessage(options.projectDir);
+    const headCommit = await getHeadCommitMessage(options.projectDir);
     if (headCommit) {
       const matchedPattern = matchesSkipPattern(headCommit, releaseConfig.ci.skipPatterns);
       if (matchedPattern) {

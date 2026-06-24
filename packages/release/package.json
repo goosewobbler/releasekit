@@ -74,6 +74,7 @@
     "@releasekit/config": "workspace:*",
     "@releasekit/core": "workspace:*",
     "@releasekit/forge": "workspace:*",
+    "@releasekit/git": "workspace:*",
     "@types/node": "catalog:",
     "@types/semver": "catalog:",
     "@vitest/coverage-v8": "catalog:",

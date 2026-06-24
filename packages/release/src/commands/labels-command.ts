@@ -1,6 +1,6 @@
-import { execFileSync } from 'node:child_process';
 import { loadCIConfig } from '@releasekit/config';
 import { EXIT_CODES, error, info, success } from '@releasekit/core';
+import { createGitCli } from '@releasekit/git';
 import { Command } from 'commander';
 import { forgeFor } from '../github.js';
 import { checkLabels, deriveLabelDefinitions, syncLabels } from '../label-definitions.js';
@@ -17,13 +17,16 @@ interface LabelsCommandContext {
  * then `GITHUB_REPOSITORY`, then the `origin` git remote. Token comes from `GITHUB_TOKEN` then
  * `GH_TOKEN`.
  */
-export function resolveLabelsContext(opts: { repo?: string; projectDir?: string }): LabelsCommandContext {
+export async function resolveLabelsContext(opts: {
+  repo?: string;
+  projectDir?: string;
+}): Promise<LabelsCommandContext> {
   const token = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN;
   if (!token) {
     throw new Error('A GitHub token is required. Set GITHUB_TOKEN (or GH_TOKEN).');
   }
 
-  const repoStr = opts.repo ?? process.env.GITHUB_REPOSITORY ?? detectRepoFromGit(opts.projectDir);
+  const repoStr = opts.repo ?? process.env.GITHUB_REPOSITORY ?? (await detectRepoFromGit(opts.projectDir));
   if (!repoStr) {
     throw new Error(
       'Could not determine repository. Use --repo <owner/repo>, set GITHUB_REPOSITORY, or run inside a clone with an origin remote.',
@@ -38,19 +41,18 @@ export function resolveLabelsContext(opts: { repo?: string; projectDir?: string 
   return { owner: parts[0], repo: parts[1], token };
 }
 
-function detectRepoFromGit(projectDir?: string): string | undefined {
+async function detectRepoFromGit(projectDir?: string): Promise<string | undefined> {
   try {
-    const url = execFileSync('git', ['remote', 'get-url', 'origin'], {
-      cwd: projectDir ?? process.cwd(),
-      encoding: 'utf8',
-    }).trim();
+    // remoteUrl returns null (not throws) when the origin remote is absent.
+    const url = await createGitCli().remoteUrl('origin', projectDir ?? process.cwd());
+    if (!url) return undefined;
     // Handle both SSH (git@github.com:owner/repo.git) and HTTPS (https://github.com/owner/repo.git).
     const match = url.match(/github\.com[:/]([^/]+)\/(.+?)(?:\.git)?$/);
     if (match?.[1] && match[2]) {
       return `${match[1]}/${match[2]}`;
     }
   } catch {
-    // No git remote available — fall through to undefined.
+    // git missing / unexpected failure — fall through to undefined.
   }
   return undefined;
 }
@@ -98,7 +100,7 @@ export async function runLabelsSync(options: LabelsSyncOptions): Promise<void> {
   const ciConfig = loadCIConfig({ cwd: options.projectDir, configPath: options.config });
   const definitions = deriveLabelDefinitions(ciConfig);
 
-  const { owner, repo, token } = resolveLabelsContext({ repo: options.repo, projectDir: options.projectDir });
+  const { owner, repo, token } = await resolveLabelsContext({ repo: options.repo, projectDir: options.projectDir });
   const forge = forgeFor({ token, owner, repo });
 
   if (options.check) {
