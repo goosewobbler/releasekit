@@ -138,7 +138,7 @@ describe('renderFailureReport', () => {
     });
     expect(parseFailureReportData(body)).toEqual({ label: 'v0.24.0', published: 1, total: 2 });
     // Detection must survive copy-edits to the human-facing report text.
-    const copyEdited = body.replace('failed partway through', 'did not complete');
+    const copyEdited = body.replace('did not complete', 'failed partway through');
     expect(parseFailureReportData(copyEdited)).toEqual({ label: 'v0.24.0', published: 1, total: 2 });
   });
 
