@@ -95,24 +95,32 @@ export async function pushPackageTag(tag: string, ctx: PipelineContext, setup?: 
 
   const { remote, pushRemote, branch } = resolvedSetup;
 
-  // Push the specific tag ref (carries the underlying commit with it)
-  await execCommand('git', ['push', pushRemote, `refs/tags/${tag}`], {
-    cwd,
-    dryRun,
-    label: `git push ${remote} refs/tags/${tag}`,
-  });
-  output.git.tags.push(tag);
-
-  // Push the branch (idempotent — no-op if remote is already up-to-date)
-  if (output.git.committed && branch) {
-    await execCommand('git', ['push', pushRemote, branch], {
+  // Wrap raw exec failures as GIT_PUSH_ERROR so the failure report labels the stage `git-push`
+  // rather than `unknown` — mirrors runGitPushStage. Without this, a branch push rejected by a
+  // branch ruleset surfaced as "Stage unknown" (#429).
+  try {
+    // Push the specific tag ref (carries the underlying commit with it)
+    await execCommand('git', ['push', pushRemote, `refs/tags/${tag}`], {
       cwd,
       dryRun,
-      label: `git push ${remote} ${branch}`,
+      label: `git push ${remote} refs/tags/${tag}`,
     });
-  }
+    output.git.tags.push(tag);
 
-  output.git.pushed = true;
+    // Push the branch (idempotent — no-op if remote is already up-to-date)
+    if (output.git.committed && branch) {
+      await execCommand('git', ['push', pushRemote, branch], {
+        cwd,
+        dryRun,
+        label: `git push ${remote} ${branch}`,
+      });
+    }
+
+    output.git.pushed = true;
+  } catch (error) {
+    if (error instanceof PublishError) throw error;
+    throw createPublishError(PublishErrorCode.GIT_PUSH_ERROR, error instanceof Error ? error.message : String(error));
+  }
 }
 
 /** Error strategy: THROWS. Push after publish. */

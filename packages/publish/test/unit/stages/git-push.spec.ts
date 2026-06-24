@@ -223,6 +223,31 @@ describe('git-push stage', () => {
     expect(calls.every((c) => !(c[1] as string[]).includes('rev-parse'))).toBe(true);
   });
 
+  it('should wrap a pushPackageTag branch-push failure as GIT_PUSH_ERROR, not unknown (#429)', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    vi.mocked(execCommand).mockImplementation(async (_file, args) => {
+      if (Array.isArray(args) && args[0] === 'rev-parse') return { stdout: 'main\n', stderr: '', exitCode: 0 };
+      // The branch push is rejected by a branch ruleset — a raw exec failure.
+      if (Array.isArray(args) && args[0] === 'push' && args[2] === 'main') {
+        throw new Error('Command failed: git push origin main\nremote: error: GH013: rule violations');
+      }
+      return { stdout: '', stderr: '', exitCode: 0 };
+    });
+
+    let thrown: unknown;
+    try {
+      await pushPackageTag('@scope/pkg@v1.0.0', createContext());
+    } catch (err) {
+      thrown = err;
+    }
+
+    // Must be a GIT_PUSH_ERROR so inferStageName labels the report `git-push` (not `unknown`),
+    // and the remote's message is preserved.
+    expect(thrown).toBeInstanceOf(PublishError);
+    expect((thrown as PublishError).code).toBe('GIT_PUSH_ERROR');
+    expect((thrown as PublishError).message).toContain('git push origin main');
+  });
+
   it('should skip when push disabled in config', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const config = getDefaultConfig();
