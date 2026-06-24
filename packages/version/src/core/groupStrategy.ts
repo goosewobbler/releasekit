@@ -177,6 +177,11 @@ function computeGroup(group: ResolvedGroup, plans: MemberPlan[], config: Config)
   // magnitude, so applying the aggregate directly would graduate the group to a stable release,
   // and the never-regress guard below can't recover it (1.0.0-next.0 < 1.0.0 in semver). Detect
   // that and apply the pre-variant + identifier so the group stays on the prerelease line.
+  //
+  // Two signals, by design: `config.isPrerelease` is the explicit, authoritative request (the user
+  // passed --prerelease / the prerelease channel) — when set, the group belongs on the prerelease
+  // line regardless of per-member magnitudes. The member-scan is the inference fallback for when the
+  // flag isn't set globally but a member's own calculation already produced a prerelease.
   const creatingPrerelease =
     bumpType !== 'prerelease' &&
     !semver.prerelease(maxBaseline) &&

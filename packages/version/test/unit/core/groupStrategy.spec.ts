@@ -290,6 +290,40 @@ describe('createGroupStrategy', () => {
         undefined,
       );
     });
+
+    it('should stay on the prerelease line for a fixed group creating a prerelease from a stable baseline', async () => {
+      // Same premajor-from-stable bug, fixed mode: the aggregate magnitude (stable major) would
+      // graduate to 1.0.0. sync only affects which members release (fixed releases ALL of them, even
+      // the unchanged contract), not the groupVersion computation — so the fix must hold here too.
+      const service = mkPackage('@wdio/flutter-service', '0.0.1');
+      const contract = mkPackage('wdio_flutter', '0.0.1');
+
+      vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
+        if (opts.name === '@wdio/flutter-service') return '1.0.0-next.0';
+        return '';
+      });
+
+      const strategy = createGroupStrategy(
+        baseConfig({
+          prereleaseIdentifier: 'next',
+          groups: { flutter: { packages: ['@wdio/flutter-service', 'wdio_flutter'], sync: 'fixed' } },
+        }),
+      );
+      await strategy(workspace([service, contract]));
+
+      // Fixed → both members release at the shared prerelease version, none graduated to 1.0.0.
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledTimes(2);
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/wdio-flutter-service/package.json',
+        '1.0.0-next.0',
+        undefined,
+      );
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/wdio_flutter/package.json',
+        '1.0.0-next.0',
+        undefined,
+      );
+    });
   });
 
   describe('group baseline = max(member baselines)', () => {
