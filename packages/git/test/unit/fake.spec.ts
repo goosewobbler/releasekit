@@ -99,13 +99,18 @@ describe('FakeGit mutations', () => {
     await git.commit('chore: release', { paths: ['CHANGELOG.md'], skipHooks: true });
     await git.fetch('origin');
     await git.checkout('release/next', { create: true });
+    await git.checkout('main');
     await git.resetHard('origin/main');
 
     expect(git.added).toEqual([['a.ts', 'b.ts']]);
     expect(git.addedAll).toBe(2);
     expect(git.committed).toEqual([{ message: 'chore: release', paths: ['CHANGELOG.md'], skipHooks: true }]);
     expect(git.fetched).toEqual(['origin']);
-    expect(git.checkedOut).toEqual(['release/next']);
+    // Records the create flag, not just the ref.
+    expect(git.checkedOut).toEqual([
+      { ref: 'release/next', create: true },
+      { ref: 'main', create: false },
+    ]);
     expect(git.resetTo).toEqual(['origin/main']);
   });
 

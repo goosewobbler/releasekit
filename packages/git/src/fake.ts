@@ -110,7 +110,9 @@ export class FakeGit implements Git {
   readonly committed: FakeCommitRecord[] = [];
   readonly tagged: FakeTagRecord[] = [];
   readonly fetched: string[] = [];
-  readonly checkedOut: string[] = [];
+  /** Each `checkout` call: the ref and whether `-B` (create) was requested — so consumer tests can
+   *  assert the create flag, not just the ref. */
+  readonly checkedOut: Array<{ ref: string; create: boolean }> = [];
   readonly resetTo: string[] = [];
   readonly pushed: FakePushRecord[] = [];
 
@@ -215,8 +217,8 @@ export class FakeGit implements Git {
     this.fetched.push(remote);
   }
 
-  async checkout(ref: string, _opts: GitCheckoutOptions = {}): Promise<void> {
-    this.checkedOut.push(ref);
+  async checkout(ref: string, opts: GitCheckoutOptions = {}): Promise<void> {
+    this.checkedOut.push({ ref, create: opts.create ?? false });
   }
 
   async resetHard(ref: string, _cwd?: string): Promise<void> {
