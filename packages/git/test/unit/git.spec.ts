@@ -183,7 +183,14 @@ describe('GitCli queries', () => {
   it('should answer remoteBranchExists via ls-remote --exit-code exit code', async () => {
     const yes = makeRunner();
     expect(await new GitCli(yes.run).remoteBranchExists('origin', 'release/next', '/r')).toBe(true);
-    expect(yes.calls[0].args).toEqual(['ls-remote', '--exit-code', '--heads', 'origin', 'release/next']);
+    expect(yes.calls[0].args).toEqual([
+      'ls-remote',
+      '--exit-code',
+      '--heads',
+      '--end-of-options',
+      'origin',
+      'release/next',
+    ]);
 
     const no = makeRunner({ reject: exitError(2) });
     expect(await new GitCli(no.run).remoteBranchExists('origin', 'absent')).toBe(false);
@@ -236,7 +243,7 @@ describe('GitCli mutations', () => {
   it('should fetch from the named remote', async () => {
     const { run, calls } = makeRunner();
     await new GitCli(run).fetch('origin', { cwd: '/r' });
-    expect(calls[0].args).toEqual(['fetch', 'origin']);
+    expect(calls[0].args).toEqual(['fetch', '--end-of-options', 'origin']);
   });
 
   it('should checkout a ref, using -B when create is set', async () => {
@@ -272,7 +279,7 @@ describe('GitCli.push', () => {
   it('should push the remote and ref and pass the default timeout to execFile', async () => {
     const { run, calls } = makeRunner();
     await new GitCli(run).push({ remote: 'origin', ref: 'HEAD:release/next', cwd: '/r' });
-    expect(calls[0].args).toEqual(['push', 'origin', 'HEAD:release/next']);
+    expect(calls[0].args).toEqual(['push', '--end-of-options', 'origin', 'HEAD:release/next']);
     expect(calls[0].options.timeout).toBe(120_000);
   });
 
@@ -285,13 +292,13 @@ describe('GitCli.push', () => {
   it('should prefer --force-with-lease over --force and include --tags', async () => {
     const { run, calls } = makeRunner();
     await new GitCli(run).push({ remote: 'origin', force: true, forceWithLease: true, tags: true });
-    expect(calls[0].args).toEqual(['push', '--force-with-lease', '--tags', 'origin']);
+    expect(calls[0].args).toEqual(['push', '--force-with-lease', '--tags', '--end-of-options', 'origin']);
   });
 
   it('should use --force when only force is set', async () => {
     const { run, calls } = makeRunner();
     await new GitCli(run).push({ remote: 'origin', force: true, ref: 'main' });
-    expect(calls[0].args).toEqual(['push', '--force', 'origin', 'main']);
+    expect(calls[0].args).toEqual(['push', '--force', '--end-of-options', 'origin', 'main']);
   });
 
   it('should throw a GitError noting the timeout when the push is killed', async () => {
@@ -334,7 +341,7 @@ describe('GitCli option-injection guard', () => {
   it('should still run a normal value through the guard unharmed', async () => {
     const { run, calls } = makeRunner();
     await new GitCli(run).fetch('origin');
-    expect(calls[0].args).toEqual(['fetch', 'origin']);
+    expect(calls[0].args).toEqual(['fetch', '--end-of-options', 'origin']);
   });
 });
 

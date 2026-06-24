@@ -237,7 +237,9 @@ export class GitCli implements Git {
   async remoteBranchExists(remote: string, branch: string, cwd?: string): Promise<boolean> {
     assertNotOption(remote, 'remote');
     assertNotOption(branch, 'branch');
-    return this.execSoft(['ls-remote', '--exit-code', '--heads', remote, branch], {
+    // `--end-of-options` terminates option parsing so a remote/branch can never be read as a git
+    // option (e.g. a malicious `--upload-pack=…` → RCE). Belt-and-suspenders with assertNotOption.
+    return this.execSoft(['ls-remote', '--exit-code', '--heads', '--end-of-options', remote, branch], {
       cwd: this.cwd(cwd),
       ignoreOutput: true,
     });
@@ -269,7 +271,8 @@ export class GitCli implements Git {
 
   async fetch(remote: string, opts: GitFetchOptions = {}): Promise<void> {
     assertNotOption(remote, 'remote');
-    await this.exec(['fetch', remote], { cwd: this.cwd(opts.cwd) });
+    // `--end-of-options`: a remote can never be parsed as a git option (`--upload-pack=…` → RCE).
+    await this.exec(['fetch', '--end-of-options', remote], { cwd: this.cwd(opts.cwd) });
   }
 
   async checkout(ref: string, opts: GitCheckoutOptions = {}): Promise<void> {
@@ -298,7 +301,8 @@ export class GitCli implements Git {
     if (opts.forceWithLease) args.push('--force-with-lease');
     else if (opts.force) args.push('--force');
     if (opts.tags) args.push('--tags');
-    args.push(opts.remote);
+    // `--end-of-options`: remote/ref can never be parsed as git options (`--receive-pack=…` → RCE).
+    args.push('--end-of-options', opts.remote);
     if (opts.ref !== undefined) args.push(opts.ref);
     // A push can hang on a stalled network forever; a hard timeout preserves the safety the publish
     // package previously got from its async exec wrapper. execFile kills the child on expiry.
