@@ -295,11 +295,13 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
   let pkgSummary: string;
   if (isSync) {
     pkgSummary = syncVersionRange(versionOutput);
+  } else if (pkgCount === 1) {
+    const only = versionOutput.updates[0];
+    // Annotate the resolved version action (#420) when present; absent on pre-field manifests.
+    const annotation = only?.action ? ` (${only.action})` : '';
+    pkgSummary = `${only?.packageName} ${only?.newVersion}${annotation}`;
   } else {
-    pkgSummary =
-      pkgCount === 1
-        ? `${versionOutput.updates[0]?.packageName} ${versionOutput.updates[0]?.newVersion}`
-        : `${pkgCount} packages`;
+    pkgSummary = `${pkgCount} packages`;
   }
 
   lines.push('<details>', `<summary><b>Release Preview</b> — ${pkgSummary}</summary>`, '');

@@ -42,6 +42,7 @@ export {
   wrapSelectionRegion,
 } from './selectionRegion.js';
 export type {
+  VersionAction,
   VersionChangelogEntry,
   VersionOutput,
   VersionPackageChangelog,

@@ -11,6 +11,7 @@ import {
   printJsonOutput,
   recordPendingWrite,
   setCommitMessage,
+  setPackageUpdateAction,
   setPackageUpdateTag,
   setVersioningStrategy,
   tagPrerequisiteRoles,
@@ -330,6 +331,38 @@ describe('JSON Output Utilities', () => {
 
       freshDisabled.setPackageUpdateTag('pkg', 'pkg@v1.0.0');
       expect(freshDisabled.getJsonData().updates).toEqual([]);
+    });
+  });
+
+  describe('setPackageUpdateAction', () => {
+    it('should set the action and reason on a matching update', () => {
+      enableJsonOutput();
+      addPackageUpdate('my-package', '1.0.0', '/path/to/package.json');
+
+      setPackageUpdateAction('my-package', 'graduated', 'Graduated 1.0.0-next.1 → 1.0.0 (bump ignored).');
+
+      const data = getJsonData();
+      expect(data.updates[0]?.action).toBe('graduated');
+      expect(data.updates[0]?.actionReason).toBe('Graduated 1.0.0-next.1 → 1.0.0 (bump ignored).');
+    });
+
+    it('should leave action and reason undefined when never set (old-manifest tolerance)', () => {
+      enableJsonOutput();
+      addPackageUpdate('my-package', '1.0.0', '/path/to/package.json');
+
+      const data = getJsonData();
+      expect(data.updates[0]?.action).toBeUndefined();
+      expect(data.updates[0]?.actionReason).toBeUndefined();
+    });
+
+    it('should be a no-op for an unknown package name', () => {
+      enableJsonOutput();
+      addPackageUpdate('my-package', '1.0.0', '/path/to/package.json');
+
+      setPackageUpdateAction('other-package', 'bumped', 'Bumped to 1.0.0.');
+
+      const data = getJsonData();
+      expect(data.updates[0]?.action).toBeUndefined();
     });
   });
 

@@ -30,6 +30,15 @@ export interface VersionPackageChangelog {
 }
 
 /**
+ * The resolved action a package's version landed on — purely additive observability (#420), it
+ * never changes which version resolves. `'graduated'` means a prerelease was promoted to stable and
+ * any requested bump was ignored; `'bumped'` is the ordinary commit/label-driven bump;
+ * `'first-release'` is a package with no prior tag. Defined as a string-literal union (core cannot
+ * import the version package, where the deriving logic lives).
+ */
+export type VersionAction = 'first-release' | 'graduated' | 'bumped';
+
+/**
  * The complete JSON output of @releasekit/version --json.
  * This is the primary interchange format between version and notes.
  */
@@ -100,4 +109,14 @@ export interface VersionPackageUpdate {
    * the dependency graph. Absent for targets.
    */
   prerequisiteOf?: string[];
+  /**
+   * The resolved version action for this update (#420): `'graduated'` (prerelease → stable, bump
+   * ignored), `'bumped'` (commit/label-driven), or `'first-release'`. Purely additive observability —
+   * it never affects which version resolved. Optional for backwards compatibility: standing-PR
+   * manifests produced before this field existed won't carry it, so every consumer must tolerate
+   * its absence (render nothing).
+   */
+  action?: VersionAction;
+  /** Short human-readable reason for {@link action} (e.g. `Graduated 1.0.0-next.1 → 1.0.0 (bump ignored).`). Optional, same back-compat rule as {@link action}. */
+  actionReason?: string;
 }
