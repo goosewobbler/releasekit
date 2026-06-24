@@ -233,9 +233,6 @@ importers:
       '@octokit/rest':
         specifier: 'catalog:'
         version: 22.0.1
-      '@releasekit/git':
-        specifier: workspace:*
-        version: link:../git
       chalk:
         specifier: 'catalog:'
         version: 5.6.2
@@ -282,6 +279,9 @@ importers:
       '@releasekit/forge':
         specifier: workspace:*
         version: link:../forge
+      '@releasekit/git':
+        specifier: workspace:*
+        version: link:../git
       '@types/ejs':
         specifier: ^3.1.5
         version: 3.1.5
