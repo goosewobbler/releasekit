@@ -113,6 +113,7 @@ export class PackageProcessor {
       strictReachable: this.config.strictReachable ?? false,
       baseRef: this.fullConfig.baseRef,
       sharedFloorCwd: process.cwd(),
+      sharedChangelogFloor: this.fullConfig.sharedChangelogFloor,
     });
 
     for (const pkg of pkgsToConsider) {

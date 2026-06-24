@@ -23,6 +23,13 @@ export interface BaselineResolverOptions {
   baseRef?: string;
   /** CWD for the repo-level nearest-reachable floor lookup (shared floor). Defaults to `process.cwd()`. */
   sharedFloorCwd?: string;
+  /**
+   * How the repo-level shared floor (C) is bounded in package-specific-tag mode (#398). `'union'`
+   * (default): each package contributes its own range, so the shared block is the union floored by
+   * the oldest baseline. `'sinceLastRelease'`: every package's shared block is floored by the single
+   * global nearest-reachable tag, collapsing the union so global commits don't recur.
+   */
+  sharedChangelogFloor?: 'union' | 'sinceLastRelease';
 }
 
 /**
@@ -187,13 +194,19 @@ export class BaselineResolver {
 
   /**
    * Repo-level shared floor (C): the range for project-wide "shared" entries (CI, infra, shared
-   * packages). For a package whose own range is `'HEAD'` (only a genuinely fresh repo now, since the
-   * per-package floor (B) is itself nearest-reachable-bounded — #370), bound it by the most recent
-   * reachable tag rather than flooding the shared section with full history (#348). `baseRef` (a
-   * PR-scoped run) is passed through unbounded.
+   * packages). `baseRef` (a PR-scoped run) is passed through unbounded.
+   *
+   * In `'sinceLastRelease'` mode (#398) every package's shared block is floored by the single global
+   * nearest-reachable tag, so a genuinely-global commit consumed by the most recent release across
+   * the repo doesn't recur in every later per-package release. In `'union'` mode (default) the
+   * package's own range is used (the union across packages floors by the oldest baseline); a `'HEAD'`
+   * range — only a fresh repo now that the per-package floor is itself bounded (#370) — is floored by
+   * the nearest reachable tag rather than flooding with full history (#348).
    */
   sharedFloor(perPackageRange: string): string {
-    if (perPackageRange !== 'HEAD' || this.opts.baseRef) return perPackageRange;
+    if (this.opts.baseRef) return perPackageRange;
+    if (this.opts.sharedChangelogFloor === 'sinceLastRelease') return this.nearestReachableRange();
+    if (perPackageRange !== 'HEAD') return perPackageRange;
     return this.nearestReachableRange();
   }
 
