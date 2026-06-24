@@ -85,6 +85,8 @@ describe('BaselineResolver.resolve', () => {
     );
     expect(result.revisionRange).toBe('HEAD');
     expect(result.baselineUnreachable).toBe(true);
+    // baseRef short-circuits before the nearest-reachable floor in every variant — assert it here too.
+    expect(getNearestReachableTag).not.toHaveBeenCalled();
   });
 
   it('should keep the full-history fallback for an unreachable baseRef, not the nearest-reachable floor (#370)', async () => {
