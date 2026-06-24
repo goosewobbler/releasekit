@@ -38,11 +38,43 @@ interface LabelOverrideResult {
   labelContext: LabelContext;
 }
 
+interface PullRequestEvent {
+  pull_request?: { head?: { ref?: string }; base?: { sha?: string } };
+}
+
+/** Read and parse the GitHub Actions event payload once, or undefined on any error. */
+function readEventPayload(): PullRequestEvent | undefined {
+  const eventPath = process.env.GITHUB_EVENT_PATH;
+  if (!eventPath || !fs.existsSync(eventPath)) return undefined;
+  try {
+    return JSON.parse(fs.readFileSync(eventPath, 'utf-8')) as PullRequestEvent;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function runPreview(options: PreviewOptions): Promise<void> {
   // Check if preview is enabled in config
   const ciConfig = loadCIConfig({ cwd: options.projectDir, configPath: options.config });
   if (ciConfig?.prPreview === false) {
     info('PR preview is disabled in config (ci.prPreview: false)');
+    return;
+  }
+
+  const strategy = ciConfig?.releaseStrategy ?? 'direct';
+  // Read the Actions event payload once — reused for the standing-PR head-ref guard here and the
+  // advisory baseRef below.
+  const event = readEventPayload();
+
+  // Don't preview the standing PR itself — its head is the release branch, whose commits already
+  // carry the release-prep bump, so re-analysing double-counts the version (e.g. 0.32.1 → 0.32.2).
+  // The standing PR's manifest comment is authoritative for what it releases; a preview on it is
+  // noise (#424). Mirrors the inverse publish-side guard in standing-pr.ts.
+  if (
+    strategy === 'standing-pr' &&
+    event?.pull_request?.head?.ref === (ciConfig?.standingPr?.branch ?? 'release/next')
+  ) {
+    info('Skipping preview: this PR is the standing release PR (its manifest comment is authoritative).');
     return;
   }
 
@@ -61,8 +93,6 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
 
   // Apply label-driven overrides (pass the forge to avoid creating a second instance)
   const { options: effectiveOptions, labelContext } = await applyLabelOverrides(options, ciConfig, context, forge);
-
-  const strategy = ciConfig?.releaseStrategy ?? 'direct';
 
   // For standing-pr strategy, fetch a read-only snapshot of the current standing PR (link,
   // queued packages, minAge gate state) so the preview can render a true release preview.
@@ -104,15 +134,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   // event payload (pull_request.base.sha) — non-fatal if unavailable.
   let prBaseSha: string | undefined;
   if (labelContext.advisoryInStandingPr) {
-    const eventPath = process.env.GITHUB_EVENT_PATH;
-    if (eventPath && fs.existsSync(eventPath)) {
-      try {
-        const event = JSON.parse(fs.readFileSync(eventPath, 'utf-8'));
-        prBaseSha = event.pull_request?.base?.sha as string | undefined;
-      } catch {
-        // Non-fatal: fall back to full commit history
-      }
-    }
+    prBaseSha = event?.pull_request?.base?.sha;
   }
 
   // Run version analysis unless release is skipped or in label mode with no bump label
