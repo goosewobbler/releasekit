@@ -1,38 +1,33 @@
 import { warn } from '@releasekit/core';
 import type { ChangelogEntry, LLMCategory } from '../../core/types.js';
 import { LLMError } from '../../errors/index.js';
-import { extractJsonFromResponse } from '../../utils/json.js';
-import type { ValidationResult } from '../correctiveRetry.js';
-import { withCorrectiveRetry } from '../correctiveRetry.js';
 import type { CategorizeContext, CategorizedEntries, LLMProvider } from '../index.js';
-import type { CompleteResult, LLMMessage } from '../messages.js';
+import type { LLMMessage } from '../messages.js';
 import { resolveSystemPrompt } from '../prompts.js';
 import { buildCategorizeSchema, CategorizeOutputSchema } from '../schemas.js';
 import { getAllowedScopesFromCategories, validateEntryScopes } from '../scopes.js';
-import { groupByCategory } from './shared.js';
+import {
+  buildCategorySection,
+  checkCategoryNames,
+  groupByCategory,
+  parseLLMResult,
+  renderScopeInstruction,
+  runCorrectiveTask,
+  type TaskValidator,
+} from './shared.js';
 
 function buildSystemPrompt(categories: LLMCategory[] | undefined): string {
-  const categorySection =
-    categories && categories.length > 0
-      ? `Categories (use ONLY these exact names):\n${categories
-          .map((c) => {
-            const scopeInfo = c.scopes?.length ? ` Allowed scopes: ${c.scopes.join(', ')}.` : '';
-            return `- "${c.name}": ${c.description}${scopeInfo}`;
-          })
-          .join('\n')}`
-      : `Categories: Group into meaningful categories (e.g., "Core", "UI", "API", "Performance", "Bug Fixes", "Documentation").`;
+  const categorySection = buildCategorySection(
+    categories,
+    `Categories: Group into meaningful categories (e.g., "Core", "UI", "API", "Performance", "Bug Fixes", "Documentation").`,
+  );
 
-  let scopeInstruction = '';
-  if (categories && categories.length > 0) {
-    const scopeMap = getAllowedScopesFromCategories(categories);
-    if (scopeMap.size > 0) {
-      const parts: string[] = [];
-      for (const [catName, scopes] of scopeMap) {
-        parts.push(`For "${catName}", use a scope from: ${scopes.join(', ')}.`);
-      }
-      scopeInstruction = `\n${parts.join('\n')}\nOnly use scopes from these predefined lists. Set scope to null if no scope applies.`;
-    }
-  }
+  // Scope source: explicit category `scopes` arrays via getAllowedScopesFromCategories.
+  const pairs =
+    categories && categories.length > 0
+      ? [...getAllowedScopesFromCategories(categories)].map(([name, scopes]) => ({ name, scopes }))
+      : [];
+  const scopeInstruction = renderScopeInstruction(pairs, '');
 
   return `You are categorizing changelog entries for a software release.
 
@@ -48,36 +43,18 @@ function buildUserPrompt(entries: ChangelogEntry[]): string {
   return `Entries:\n${text}`;
 }
 
-function buildCorrectionMessages(_badContent: string, error: string): LLMMessage[] {
-  return [
-    {
-      role: 'user',
-      content: `Your previous response had an error: ${error}
-
-Please fix the issue and output only valid JSON matching the required schema.`,
-    },
-  ];
-}
-
-function makeValidator(
+export function createCategorizeValidator(
   entries: ChangelogEntry[],
   context: CategorizeContext,
-): (result: CompleteResult) => ValidationResult<CategorizedEntries[]> {
+): TaskValidator<CategorizedEntries[]> {
   // Work with a copy that has scopes cleared (LLM assigns them fresh)
   const cleanEntries = entries.map((e) => ({ ...e, scope: undefined }));
 
   return (result) => {
-    let parsed: unknown;
-    try {
-      parsed =
-        typeof result.structured !== 'undefined'
-          ? result.structured
-          : JSON.parse(extractJsonFromResponse(result.content));
-    } catch (e) {
-      return { valid: false, error: `Invalid JSON: ${e instanceof Error ? e.message : String(e)}` };
-    }
+    const parsed = parseLLMResult(result);
+    if (!parsed.ok) return { valid: false, error: parsed.error };
 
-    const zodResult = CategorizeOutputSchema.safeParse(parsed);
+    const zodResult = CategorizeOutputSchema.safeParse(parsed.data);
     if (!zodResult.success) {
       return { valid: false, error: `Schema error: ${zodResult.error.message}` };
     }
@@ -90,17 +67,11 @@ function makeValidator(
     }
 
     // Validate category names when categories are configured
-    const categoryNames = context.categories?.map((c) => c.name);
-    if (categoryNames?.length) {
-      const invalid = zodResult.data.entries.filter((e) => !categoryNames.includes(e.category)).map((e) => e.category);
-      if (invalid.length > 0) {
-        const unique = [...new Set(invalid)];
-        return {
-          valid: false,
-          error: `Unknown categories: ${unique.join(', ')}. Valid categories: ${categoryNames.join(', ')}`,
-        };
-      }
-    }
+    const categoryError = checkCategoryNames(
+      zodResult.data.entries,
+      context.categories?.map((c) => c.name),
+    );
+    if (categoryError) return { valid: false, error: categoryError };
 
     // Apply scopes from LLM response
     const withScopes: ChangelogEntry[] = cleanEntries.map((entry, i) => {
@@ -140,22 +111,14 @@ export async function categorizeEntries(
     { role: 'user', content: buildUserPrompt(entries) },
   ];
 
-  const schema = buildCategorizeSchema(context.categories ?? []);
-  const validate = makeValidator(entries, context);
-
   try {
-    return await withCorrectiveRetry(
-      (messages, isFirstAttempt) =>
-        provider.complete(
-          messages,
-          isFirstAttempt && provider.capabilities.structuredOutputs
-            ? { schema, toolName: 'categorize_entries' }
-            : undefined,
-        ),
-      validate,
-      buildCorrectionMessages,
+    return await runCorrectiveTask({
+      provider,
       initialMessages,
-    );
+      schema: buildCategorizeSchema(context.categories ?? []),
+      toolName: 'categorize_entries',
+      validate: createCategorizeValidator(entries, context),
+    });
   } catch (error) {
     if (error instanceof LLMError) {
       warn(`categorizeEntries failed after all attempts: ${error.message}. Returning entries under General.`);
