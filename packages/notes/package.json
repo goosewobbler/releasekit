@@ -58,6 +58,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
+    "@releasekit/git": "workspace:*",
     "@octokit/rest": "catalog:",
     "chalk": "catalog:",
     "commander": "catalog:",

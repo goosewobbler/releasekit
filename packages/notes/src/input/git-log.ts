@@ -1,6 +1,6 @@
-import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { createGitCli, type Git } from '@releasekit/git';
 import type { ChangelogEntry, ChangelogInput, PackageChangelog } from '../core/types.js';
 import { InputParseError } from '../errors/index.js';
 
@@ -11,13 +11,13 @@ interface GitLogCommit {
   date: string;
 }
 
-function parseGitLog(fromRef?: string, toRef = 'HEAD'): GitLogCommit[] {
+async function parseGitLog(git: Git, fromRef?: string, toRef = 'HEAD'): Promise<GitLogCommit[]> {
   const range = fromRef ? `${fromRef}..${toRef}` : toRef;
 
   try {
-    const output = execSync(`git log ${range} --pretty=format:"%H|||%s|||%an|||%ad" --date=short`, {
-      encoding: 'utf-8',
-    });
+    // `--format=` (tformat) vs the old `--pretty=format:` differ only by a trailing newline, which
+    // the trim()/split() below absorbs — the parsed result is identical, minus the shell string.
+    const output = await git.log({ range, format: '%H|||%s|||%an|||%ad', extraArgs: ['--date=short'] });
 
     if (!output.trim()) {
       return [];
@@ -79,22 +79,13 @@ function parseConventionalCommit(message: string): ChangelogEntry | null {
   };
 }
 
-function getGitRemoteUrl(): string | null {
-  try {
-    const output = execSync('git remote get-url origin', { encoding: 'utf-8' });
-    return output.trim();
-  } catch {
-    return null;
-  }
+function getGitRemoteUrl(git: Git): Promise<string | null> {
+  return git.remoteUrl('origin');
 }
 
-function getCurrentVersion(): string {
-  try {
-    const output = execSync('git describe --tags --abbrev=0', { encoding: 'utf-8' });
-    return output.trim().replace(/^v/, '');
-  } catch {
-    return '0.0.0';
-  }
+async function getCurrentVersion(git: Git): Promise<string> {
+  const tag = await git.describeTags();
+  return tag ? tag.replace(/^v/, '') : '0.0.0';
 }
 
 function getPackageName(): string {
@@ -111,8 +102,12 @@ function getPackageName(): string {
   return 'package';
 }
 
-export function parseGitLogInput(fromRef?: string, toRef = 'HEAD'): ChangelogInput {
-  const commits = parseGitLog(fromRef, toRef);
+export async function parseGitLogInput(
+  fromRef?: string,
+  toRef = 'HEAD',
+  git: Git = createGitCli(),
+): Promise<ChangelogInput> {
+  const commits = await parseGitLog(git, fromRef, toRef);
 
   const entries: ChangelogEntry[] = [];
 
@@ -129,9 +124,9 @@ export function parseGitLogInput(fromRef?: string, toRef = 'HEAD'): ChangelogInp
     }
   }
 
-  const version = getCurrentVersion();
+  const version = await getCurrentVersion(git);
   const packageName = getPackageName();
-  const repoUrl = getGitRemoteUrl();
+  const repoUrl = await getGitRemoteUrl(git);
 
   const pkg: PackageChangelog = {
     packageName,
