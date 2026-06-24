@@ -194,6 +194,10 @@ describe('runPreview', () => {
   describe('standing release PR skip (#424)', () => {
     afterEach(() => {
       delete process.env.GITHUB_EVENT_PATH;
+      // clearAllMocks() (in beforeEach) clears calls but not return-value impls, so reset the fs
+      // mocks explicitly — otherwise withHeadRef's `existsSync → true` leaks into later tests.
+      mockFsExistsSync.mockReturnValue(false);
+      mockFsReadFileSync.mockReset();
     });
 
     function withHeadRef(ref: string): void {
