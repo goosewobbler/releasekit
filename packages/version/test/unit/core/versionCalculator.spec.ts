@@ -424,6 +424,19 @@ describe('Version Calculator', () => {
       expect(version).toBe('2.0.0');
       expect(logging.log).not.toHaveBeenCalledWith(expect.stringContaining('will publish 2.0.0, not 1.0.0'), 'warning');
     });
+
+    it('should apply the bump silently under mismatchStrategy "ignore" (#388)', async () => {
+      stableFirstReleaseMocks();
+      const config = {
+        ...defaultConfig,
+        stableOnly: true,
+        type: 'major' as const,
+        mismatchStrategy: 'ignore' as const,
+      };
+      const version = await calculateVersion(config as Config, stableFirstReleaseOptions);
+      expect(version).toBe('2.0.0');
+      expect(logging.log).not.toHaveBeenCalledWith(expect.stringContaining('will publish 2.0.0, not 1.0.0'), 'warning');
+    });
   });
 
   describe('Specified version type (explicit bump)', () => {

@@ -46,9 +46,6 @@ export function applyOverrideScope(
 }
 
 /**
- * Calculates the next version number based on the current version and options
- */
-/**
  * First-release overshoot guard (#388): on a first release (no prior tag) with an already-stable
  * manifest, `--stable --bump <type>` APPLIES the bump (1.0.0 → 2.0.0) rather than graduating, which
  * silently overshoots the staged first version. The resolved version is deliberately left unchanged
@@ -73,6 +70,9 @@ function guardFirstReleaseBump(config: Config, name: string | undefined, current
   log(message, 'warning');
 }
 
+/**
+ * Calculates the next version number based on the current version and options
+ */
 export async function calculateVersion(config: Config, options: VersionOptions): Promise<string> {
   const scoped = applyOverrideScope(config, options);
   return calculateVersionInner(scoped.config, scoped.options);
