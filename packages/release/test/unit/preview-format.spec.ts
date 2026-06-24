@@ -134,6 +134,50 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('<summary><b>Release Preview</b> — my-lib 1.0.0 (graduated)</summary>');
   });
 
+  it('should annotate a bumped action in the single-package summary', () => {
+    const bumped: ReleaseOutput = {
+      versionOutput: {
+        dryRun: true,
+        updates: [
+          {
+            packageName: 'my-lib',
+            newVersion: '1.1.0',
+            filePath: 'package.json',
+            action: 'bumped',
+            actionReason: 'Bumped to 1.1.0.',
+          },
+        ],
+        changelogs: [],
+        tags: ['v1.1.0'],
+      },
+      notesGenerated: false,
+    };
+    const result = formatPreviewComment(bumped);
+    expect(result).toContain('<summary><b>Release Preview</b> — my-lib 1.1.0 (bumped)</summary>');
+  });
+
+  it('should annotate a first-release action in the single-package summary', () => {
+    const firstRelease: ReleaseOutput = {
+      versionOutput: {
+        dryRun: true,
+        updates: [
+          {
+            packageName: 'my-lib',
+            newVersion: '1.0.0',
+            filePath: 'package.json',
+            action: 'first-release',
+            actionReason: 'First release (no prior tag).',
+          },
+        ],
+        changelogs: [],
+        tags: ['v1.0.0'],
+      },
+      notesGenerated: false,
+    };
+    const result = formatPreviewComment(firstRelease);
+    expect(result).toContain('<summary><b>Release Preview</b> — my-lib 1.0.0 (first-release)</summary>');
+  });
+
   it('should render the single-package summary cleanly when the action field is absent (old manifest)', () => {
     const noAction: ReleaseOutput = {
       versionOutput: {
