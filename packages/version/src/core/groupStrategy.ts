@@ -35,11 +35,13 @@ import {
   addChangelogData,
   addTag,
   setCommitMessage,
+  setPackageUpdateAction,
   setPackageUpdateGroup,
   setPackageUpdateTag,
   setVersioningStrategy,
 } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
+import { resolveVersionAction } from '../utils/versionAction.js';
 import { BaselineResolver } from './baselineResolver.js';
 import { expandTargetsForAtomicGroups, type ResolvedGroup, resolveGroups } from './groupResolution.js';
 import { calculateVersion } from './versionCalculator.js';
@@ -343,6 +345,14 @@ async function releaseGroup(
     addTag(tag);
     setPackageUpdateTag(name, tag);
     setPackageUpdateGroup(name, group.name);
+    // Resolved version action (#420), derived from the member's own tag facts and the version it
+    // actually resolved to (group version for fixed/linked, own line for independent).
+    const { action: memberAction, reason: memberReason } = resolveVersionAction({
+      hasNoTags: plan.latestTag === '',
+      latestTag: plan.latestTag,
+      nextVersion: version,
+    });
+    setPackageUpdateAction(name, memberAction, memberReason);
 
     const baselineTagPrefix = deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, name);
     const { entries, revisionRange, previousVersion } = await extractEntries(baselineResolver, {
@@ -481,6 +491,13 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
         const tag = formatTag(plan.ownNext, formattedPrefix, name, config.tagTemplate, config.packageSpecificTags);
         addTag(tag);
         setPackageUpdateTag(name, tag);
+        // Resolved version action (#420) for an independently-versioned ungrouped package.
+        const { action: ungroupedAction, reason: ungroupedReason } = resolveVersionAction({
+          hasNoTags: plan.latestTag === '',
+          latestTag: plan.latestTag,
+          nextVersion: plan.ownNext,
+        });
+        setPackageUpdateAction(name, ungroupedAction, ungroupedReason);
         const baselineTagPrefix = deriveBaselineTagPrefix(config.baselineTagTemplate, formattedPrefix, name);
         const { entries, revisionRange, previousVersion } = await extractEntries(baselineResolver, {
           pkgDir: pkg.dir,

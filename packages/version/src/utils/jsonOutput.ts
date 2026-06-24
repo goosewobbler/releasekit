@@ -4,7 +4,7 @@
  */
 
 import fs from 'node:fs';
-import type { VersionChangelogEntry, VersionOutput, VersionPackageChangelog } from '@releasekit/core';
+import type { VersionAction, VersionChangelogEntry, VersionOutput, VersionPackageChangelog } from '@releasekit/core';
 
 /** @deprecated Use {@link VersionOutput} from `@releasekit/core` instead. */
 export type JsonOutputData = VersionOutput;
@@ -122,6 +122,35 @@ export function setPackageUpdateGroup(packageName: string, group: string): void 
   if (!_jsonOutputMode) return;
   const update = _jsonData.updates.find((u) => u.packageName === packageName);
   if (update) update.group = group;
+}
+
+/**
+ * Record the resolved version action (#420) on a package update — `graduated` / `bumped` /
+ * `first-release` plus a short human reason. Purely additive observability; never affects the
+ * resolved version. Called by each strategy after the update record exists. No-op when the update
+ * isn't found (mirrors the other setPackageUpdate* helpers).
+ */
+export function setPackageUpdateAction(packageName: string, action: VersionAction, reason: string): void {
+  if (!_jsonOutputMode) return;
+  const update = _jsonData.updates.find((u) => u.packageName === packageName);
+  if (update) {
+    update.action = action;
+    update.actionReason = reason;
+  }
+}
+
+/**
+ * Record the same resolved version action (#420) on every package update. Used by the sync strategy,
+ * where all packages move in lockstep to the same version against the same baseline, so the action
+ * is identical across the whole unit. Owns the iteration internally so callers don't read back the
+ * (otherwise-private) update list.
+ */
+export function setAllPackageUpdateActions(action: VersionAction, reason: string): void {
+  if (!_jsonOutputMode) return;
+  for (const update of _jsonData.updates) {
+    update.action = action;
+    update.actionReason = reason;
+  }
 }
 
 /**

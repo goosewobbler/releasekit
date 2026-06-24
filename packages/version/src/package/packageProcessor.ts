@@ -14,11 +14,13 @@ import {
   addChangelogData,
   addTag,
   setCommitMessage,
+  setPackageUpdateAction,
   setPackageUpdateTag,
   setSharedEntries,
 } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { getVersionFromManifests } from '../utils/manifestHelpers.js';
+import { resolveVersionAction } from '../utils/versionAction.js';
 import { updatePackageVersion } from './packageManagement.js';
 
 type ChangelogEntry = VersionChangelogEntry;
@@ -430,6 +432,10 @@ export class PackageProcessor {
       // Track tag for JSON output (git ops now handled by publish)
       addTag(packageTag);
       setPackageUpdateTag(name, packageTag);
+      // Resolved version action (#420) — derived from the same tag facts the calculator saw.
+      // `hasNoTags` is `!hasRealTag`: a manifest-fallback synthetic tag isn't a real prior tag.
+      const { action, reason } = resolveVersionAction({ hasNoTags: !hasRealTag, latestTag, nextVersion });
+      setPackageUpdateAction(name, action, reason);
       tags.push(packageTag);
 
       if (this.dryRun) {

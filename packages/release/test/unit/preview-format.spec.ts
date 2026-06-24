@@ -112,6 +112,45 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('<summary><b>Release Preview</b> — my-lib 1.0.0</summary>');
   });
 
+  it('should annotate the resolved version action in the single-package summary when present', () => {
+    const graduated: ReleaseOutput = {
+      versionOutput: {
+        dryRun: true,
+        updates: [
+          {
+            packageName: 'my-lib',
+            newVersion: '1.0.0',
+            filePath: 'package.json',
+            action: 'graduated',
+            actionReason: 'Graduated 1.0.0-next.1 → 1.0.0 (bump ignored).',
+          },
+        ],
+        changelogs: [],
+        tags: ['v1.0.0'],
+      },
+      notesGenerated: false,
+    };
+    const result = formatPreviewComment(graduated);
+    expect(result).toContain('<summary><b>Release Preview</b> — my-lib 1.0.0 (graduated)</summary>');
+  });
+
+  it('should render the single-package summary cleanly when the action field is absent (old manifest)', () => {
+    const noAction: ReleaseOutput = {
+      versionOutput: {
+        dryRun: true,
+        updates: [{ packageName: 'my-lib', newVersion: '1.0.0', filePath: 'package.json' }],
+        changelogs: [],
+        tags: ['v1.0.0'],
+      },
+      notesGenerated: false,
+    };
+    const result = formatPreviewComment(noAction);
+    // No empty parenthetical, no "undefined" leaking from the absent field.
+    expect(result).toContain('<summary><b>Release Preview</b> — my-lib 1.0.0</summary>');
+    expect(result).not.toContain('my-lib 1.0.0 ()');
+    expect(result).not.toContain('undefined');
+  });
+
   it('should not include package table', () => {
     const result = formatPreviewComment(releaseOutput);
     expect(result).not.toContain('### Packages');

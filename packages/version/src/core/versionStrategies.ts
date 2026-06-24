@@ -20,11 +20,14 @@ import {
   addBaselineTag,
   addChangelogData,
   addTag,
+  setAllPackageUpdateActions,
   setCommitMessage,
+  setPackageUpdateAction,
   setPackageUpdateTag,
   setVersioningStrategy,
 } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
+import { resolveVersionAction } from '../utils/versionAction.js';
 import { BaselineResolver } from './baselineResolver.js';
 import { hasExplicitGroups } from './groupResolution.js';
 import { createGroupStrategy } from './groupStrategy.js';
@@ -442,6 +445,15 @@ export function createSyncStrategy(config: Config): StrategyFunction {
           if (pkgName && pkgTag) setPackageUpdateTag(pkgName, pkgTag);
         }
       }
+      // Resolved version action (#420). Every package moves in lockstep to the same nextVersion
+      // against the same latestTag, so the action is identical across the sync unit — record it on
+      // every update record (including the root lockstep bump).
+      const { action: syncAction, reason: syncReason } = resolveVersionAction({
+        hasNoTags: latestTag === '',
+        latestTag,
+        nextVersion,
+      });
+      setAllPackageUpdateActions(syncAction, syncReason);
       setCommitMessage(formattedCommitMessage);
 
       if (!dryRun) {
@@ -642,6 +654,14 @@ export function createSingleStrategy(config: Config): StrategyFunction {
 
       addTag(tagName);
       setPackageUpdateTag(packageName, tagName);
+      // Resolved version action (#420). In single mode an empty `latestTag` means no prior tag
+      // (no manifest-fallback synthetic tag here), matching the baseline resolve's `hasRealTag`.
+      const { action: singleAction, reason: singleReason } = resolveVersionAction({
+        hasNoTags: latestTag === '',
+        latestTag,
+        nextVersion,
+      });
+      setPackageUpdateAction(packageName, singleAction, singleReason);
       setCommitMessage(commitMsg);
 
       if (!dryRun) {

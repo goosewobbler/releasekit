@@ -290,7 +290,10 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
 
   info(`Found ${versionOutput.updates.length} package update(s)`);
   for (const update of versionOutput.updates) {
-    info(`  ${update.packageName} → ${update.newVersion}`);
+    // Annotate the resolved version action when present (#420). Absent on manifests produced
+    // before the field existed — render nothing rather than an empty parenthetical.
+    const annotation = update.action ? ` (${update.action})` : '';
+    info(`  ${update.packageName} → ${update.newVersion}${annotation}`);
   }
 
   // --- Step 2: Notes ---
