@@ -197,9 +197,15 @@ describe('GitCli mutations', () => {
     expect(calls[0].args).toEqual(['add', '--', 'a.ts', 'b.ts']);
   });
 
-  it('should stage everything with add -A when paths is ["-A"]', async () => {
+  it('should stage a literal "-A" path after -- rather than treating it as a flag', async () => {
     const { run, calls } = makeRunner();
     await new GitCli(run).add(['-A']);
+    expect(calls[0].args).toEqual(['add', '--', '-A']);
+  });
+
+  it('should stage everything with add -A via addAll', async () => {
+    const { run, calls } = makeRunner();
+    await new GitCli(run).addAll('/r');
     expect(calls[0].args).toEqual(['add', '-A']);
   });
 
@@ -291,6 +297,44 @@ describe('GitCli.push', () => {
   it('should throw a GitError noting the timeout when the push is killed', async () => {
     const { run } = makeRunner({ reject: timeoutKill() });
     await expect(new GitCli(run).push({ remote: 'origin', timeoutMs: 10 })).rejects.toThrow(/timed out after 10ms/);
+  });
+});
+
+describe('GitCli option-injection guard', () => {
+  it('should refuse a leading-dash remote in fetch and never call the runner', async () => {
+    const { run } = makeRunner();
+    await expect(new GitCli(run).fetch('--upload-pack=evil')).rejects.toBeInstanceOf(GitError);
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('should refuse a leading-dash ref in checkout and never call the runner', async () => {
+    const { run } = makeRunner();
+    await expect(new GitCli(run).checkout('-malicious')).rejects.toThrow(/looks like an option/);
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('should refuse a leading-dash tag name and never call the runner', async () => {
+    const { run } = makeRunner();
+    await expect(new GitCli(run).tag('--force')).rejects.toBeInstanceOf(GitError);
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('should refuse a leading-dash branch in remoteBranchExists and never call the runner', async () => {
+    const { run } = makeRunner();
+    await expect(new GitCli(run).remoteBranchExists('origin', '--output=evil')).rejects.toBeInstanceOf(GitError);
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('should refuse a leading-dash remote in push and never call the runner', async () => {
+    const { run } = makeRunner();
+    await expect(new GitCli(run).push({ remote: '--receive-pack=evil' })).rejects.toBeInstanceOf(GitError);
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('should still run a normal value through the guard unharmed', async () => {
+    const { run, calls } = makeRunner();
+    await new GitCli(run).fetch('origin');
+    expect(calls[0].args).toEqual(['fetch', 'origin']);
   });
 });
 

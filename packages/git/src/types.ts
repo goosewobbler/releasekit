@@ -137,8 +137,10 @@ export interface Git {
   remoteBranchExists(remote: string, branch: string, cwd?: string): Promise<boolean>;
 
   // — Mutations —
-  /** Stage paths (`add -- <paths>`); pass `['-A']` to stage everything (`add -A`). */
+  /** Stage the given pathspecs (`add -- <paths>`). To stage everything, use {@link Git.addAll}. */
   add(paths: string[], cwd?: string): Promise<void>;
+  /** Stage every change in the work tree (`add -A`). */
+  addAll(cwd?: string): Promise<void>;
   /** Create a commit with `message` (`commit -m`), optionally scoped to paths / skipping hooks. */
   commit(message: string, opts?: GitCommitOptions): Promise<void>;
   /** Create a tag `name` — annotated when `message` is given (`tag -a -m`), else lightweight. */

@@ -88,7 +88,8 @@ function ancestryHas(ancestors: FakeGitSeed['ancestors'], ancestor: string, ref:
  */
 export class FakeGit implements Git {
   private readonly isRepo: boolean;
-  private readonly tagsList: string[];
+  // Not readonly: tag() mutates this via push(); the other readonly fields are genuinely immutable.
+  private tagsList: string[];
   private readonly nearestTag: string | null;
   private readonly head: string;
   private readonly branch: string;
@@ -104,6 +105,8 @@ export class FakeGit implements Git {
 
   // Recorded mutations, for assertions.
   readonly added: string[][] = [];
+  /** How many times `addAll()` ("stage everything") was called. */
+  addedAll = 0;
   readonly committed: FakeCommitRecord[] = [];
   readonly tagged: FakeTagRecord[] = [];
   readonly fetched: string[] = [];
@@ -184,6 +187,10 @@ export class FakeGit implements Git {
   }
 
   // — Mutations —
+
+  async addAll(_cwd?: string): Promise<void> {
+    this.addedAll += 1;
+  }
 
   async add(paths: string[], _cwd?: string): Promise<void> {
     this.added.push([...paths]);

@@ -46,6 +46,25 @@ export type GitRunner = (args: string[], options: RunOptions) => Promise<RunResu
 const execFileAsync = promisify(execFile);
 
 /**
+ * Reject a value that git would parse as an option. `execFile('git', argv)` uses no shell, so there is
+ * no shell-injection, but git itself still parses a leading-`-` positional as a flag — so a remote of
+ * `--upload-pack=evil`, or a ref/branch/tag of `--output=…`, becomes argument injection (arbitrary
+ * command execution via `--upload-pack`/`--receive-pack`). A ref/remote/branch/tag name can never
+ * legitimately start with `-`, so we refuse it on the data-flow path *before* it reaches the argv —
+ * this is the barrier that severs the injection (and clears CodeQL's second-order alert).
+ */
+function assertNotOption(value: string, kind: string): void {
+  if (value.startsWith('-')) {
+    throw new GitError(
+      `Refusing to run git: ${kind} '${value}' looks like an option (starts with '-')`,
+      [],
+      undefined,
+      '',
+    );
+  }
+}
+
+/**
  * The default {@link GitRunner}: `execFile('git', args)` — an argv array, so no shell, no
  * interpolation. `ignoreOutput` is part of the runner contract (it lets a custom runner discard
  * stdio for the soft exit-code lookups), but the promisified `execFile` always buffers stdout/stderr
@@ -124,6 +143,7 @@ export class GitCli implements Git {
   }
 
   async remoteUrl(remote: string, cwd?: string): Promise<string | null> {
+    assertNotOption(remote, 'remote');
     try {
       const { stdout } = await this.run(['remote', 'get-url', remote], { cwd: this.cwd(cwd) });
       return stdout.trim();
@@ -167,6 +187,7 @@ export class GitCli implements Git {
   }
 
   async refExists(ref: string, cwd?: string): Promise<boolean> {
+    assertNotOption(ref, 'ref');
     return this.execSoft(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], {
       cwd: this.cwd(cwd),
       ignoreOutput: true,
@@ -174,10 +195,13 @@ export class GitCli implements Git {
   }
 
   async isAncestor(ancestor: string, ref: string, cwd?: string): Promise<boolean> {
+    assertNotOption(ancestor, 'ancestor');
+    assertNotOption(ref, 'ref');
     return this.execSoft(['merge-base', '--is-ancestor', ancestor, ref], { cwd: this.cwd(cwd), ignoreOutput: true });
   }
 
   async countCommits(range: string, opts: GitCountCommitsOptions = {}): Promise<number> {
+    assertNotOption(range, 'range');
     const args = ['rev-list', '--count', range];
     if (opts.path) args.push('--', opts.path);
     const { stdout } = await this.exec(args, { cwd: this.cwd(opts.cwd) });
@@ -185,6 +209,7 @@ export class GitCli implements Git {
   }
 
   async log(opts: GitLogOptions): Promise<string> {
+    if (opts.range !== undefined) assertNotOption(opts.range, 'range');
     const args = ['log'];
     if (opts.format !== undefined) args.push(`--format=${opts.format}`);
     if (opts.extraArgs) args.push(...opts.extraArgs);
@@ -210,6 +235,8 @@ export class GitCli implements Git {
   }
 
   async remoteBranchExists(remote: string, branch: string, cwd?: string): Promise<boolean> {
+    assertNotOption(remote, 'remote');
+    assertNotOption(branch, 'branch');
     return this.execSoft(['ls-remote', '--exit-code', '--heads', remote, branch], {
       cwd: this.cwd(cwd),
       ignoreOutput: true,
@@ -218,10 +245,13 @@ export class GitCli implements Git {
 
   // — Mutations —
 
+  async addAll(cwd?: string): Promise<void> {
+    await this.exec(['add', '-A'], { cwd: this.cwd(cwd) });
+  }
+
   async add(paths: string[], cwd?: string): Promise<void> {
-    // `add -A` is its own flag form; everything else is an explicit pathspec list after `--`.
-    const args = paths.length === 1 && paths[0] === '-A' ? ['add', '-A'] : ['add', '--', ...paths];
-    await this.exec(args, { cwd: this.cwd(cwd) });
+    // Always an explicit pathspec list after `--`; "stage everything" is the dedicated addAll().
+    await this.exec(['add', '--', ...paths], { cwd: this.cwd(cwd) });
   }
 
   async commit(message: string, opts: GitCommitOptions = {}): Promise<void> {
@@ -232,20 +262,24 @@ export class GitCli implements Git {
   }
 
   async tag(name: string, opts: GitTagOptions = {}): Promise<void> {
+    assertNotOption(name, 'tag name');
     const args = opts.message !== undefined ? ['tag', '-a', name, '-m', opts.message] : ['tag', name];
     await this.exec(args, { cwd: this.cwd(opts.cwd) });
   }
 
   async fetch(remote: string, opts: GitFetchOptions = {}): Promise<void> {
+    assertNotOption(remote, 'remote');
     await this.exec(['fetch', remote], { cwd: this.cwd(opts.cwd) });
   }
 
   async checkout(ref: string, opts: GitCheckoutOptions = {}): Promise<void> {
+    assertNotOption(ref, 'ref');
     const args = opts.create ? ['checkout', '-B', ref] : ['checkout', ref];
     await this.exec(args, { cwd: this.cwd(opts.cwd) });
   }
 
   async resetHard(ref: string, cwd?: string): Promise<void> {
+    assertNotOption(ref, 'ref');
     await this.exec(['reset', '--hard', ref], { cwd: this.cwd(cwd) });
   }
 
@@ -258,6 +292,8 @@ export class GitCli implements Git {
   }
 
   async push(opts: GitPushOptions): Promise<void> {
+    assertNotOption(opts.remote, 'remote');
+    if (opts.ref !== undefined) assertNotOption(opts.ref, 'ref');
     const args = ['push'];
     if (opts.forceWithLease) args.push('--force-with-lease');
     else if (opts.force) args.push('--force');

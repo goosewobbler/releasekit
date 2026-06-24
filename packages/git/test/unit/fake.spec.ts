@@ -91,16 +91,18 @@ describe('FakeGit queries', () => {
 });
 
 describe('FakeGit mutations', () => {
-  it('should record adds, commits, fetches, checkouts, and resets', async () => {
+  it('should record adds, addAll, commits, fetches, checkouts, and resets', async () => {
     const git = createFakeGit();
     await git.add(['a.ts', 'b.ts']);
-    await git.add(['-A']);
+    await git.addAll();
+    await git.addAll();
     await git.commit('chore: release', { paths: ['CHANGELOG.md'], skipHooks: true });
     await git.fetch('origin');
     await git.checkout('release/next', { create: true });
     await git.resetHard('origin/main');
 
-    expect(git.added).toEqual([['a.ts', 'b.ts'], ['-A']]);
+    expect(git.added).toEqual([['a.ts', 'b.ts']]);
+    expect(git.addedAll).toBe(2);
     expect(git.committed).toEqual([{ message: 'chore: release', paths: ['CHANGELOG.md'], skipHooks: true }]);
     expect(git.fetched).toEqual(['origin']);
     expect(git.checkedOut).toEqual(['release/next']);
