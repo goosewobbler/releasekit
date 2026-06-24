@@ -21,6 +21,7 @@ import * as path from 'node:path';
 import type { Package } from '@manypkg/get-packages';
 import type { VersionChangelogEntry } from '@releasekit/core';
 import { shouldMatchPackageTargets, shouldProcessPackage as shouldProcessPackageUtil } from '@releasekit/core';
+import type { ReleaseType } from 'semver';
 import semver from 'semver';
 import { extractChangelogEntriesFromCommits } from '../changelog/commitParser.js';
 import { BaseVersionError } from '../errors/baseError.js';
@@ -171,17 +172,34 @@ function computeGroup(group: ResolvedGroup, plans: MemberPlan[], config: Config)
   const maxRank = Math.max(...changedPlans.map(memberBumpRank));
   const bumpType = RANK_TO_TYPE[maxRank] ?? 'patch';
 
+  // A member can be *creating* a prerelease from a stable baseline (premajor/preminor/prepatch —
+  // e.g. 0.0.1 -> 1.0.0-next.0). RANK_TO_TYPE collapses those to a stable major/minor/patch
+  // magnitude, so applying the aggregate directly would graduate the group to a stable release,
+  // and the never-regress guard below can't recover it (1.0.0-next.0 < 1.0.0 in semver). Detect
+  // that and apply the pre-variant + identifier so the group stays on the prerelease line.
+  const creatingPrerelease =
+    bumpType !== 'prerelease' &&
+    !semver.prerelease(maxBaseline) &&
+    (config.isPrerelease || changedPlans.some((p) => semver.valid(p.ownNext) && semver.prerelease(p.ownNext) !== null));
+
   // Apply the aggregate bump once to the highest baseline in the group. For prerelease rank
   // (all changed members are on a prerelease family), pass the identifier so semver.inc
   // increments within the prerelease instead of graduating to a stable release. Members whose
   // own bump already produced a higher version still pull the group version up via the
   // never-regress guard below.
-  let groupVersion =
-    bumpType === 'prerelease'
-      ? config.prereleaseIdentifier
-        ? (semver.inc(maxBaseline, 'prerelease', config.prereleaseIdentifier) ?? maxBaseline)
-        : maxBaseline
-      : (semver.inc(maxBaseline, bumpType) ?? maxBaseline);
+  let groupVersion: string;
+  if (bumpType === 'prerelease') {
+    groupVersion = config.prereleaseIdentifier
+      ? (semver.inc(maxBaseline, 'prerelease', config.prereleaseIdentifier) ?? maxBaseline)
+      : maxBaseline;
+  } else if (creatingPrerelease) {
+    const preBump = `pre${bumpType}` as ReleaseType;
+    groupVersion = config.prereleaseIdentifier
+      ? (semver.inc(maxBaseline, preBump, config.prereleaseIdentifier) ?? maxBaseline)
+      : (semver.inc(maxBaseline, preBump) ?? maxBaseline);
+  } else {
+    groupVersion = semver.inc(maxBaseline, bumpType) ?? maxBaseline;
+  }
 
   // Never let the group version regress below any member's independently-computed next version
   // (covers prerelease increments and members whose own bump already exceeded the aggregate).

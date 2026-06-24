@@ -261,6 +261,35 @@ describe('createGroupStrategy', () => {
         undefined,
       );
     });
+
+    it('should stay on the prerelease line when a member creates a prerelease from a stable baseline', async () => {
+      // Regression: a linked group's first prerelease (premajor 0.0.1 -> 1.0.0-next.0). The
+      // aggregate magnitude is a stable `major`, so without the pre-variant the group graduates to
+      // 1.0.0, and the never-regress guard can't recover it (1.0.0-next.0 < 1.0.0 in semver).
+      const service = mkPackage('@wdio/flutter-service', '0.0.1');
+      const contract = mkPackage('wdio_flutter', '0.0.1');
+
+      // Only the service earned a change — a premajor prerelease.
+      vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
+        if (opts.name === '@wdio/flutter-service') return '1.0.0-next.0';
+        return '';
+      });
+
+      const strategy = createGroupStrategy(
+        baseConfig({
+          prereleaseIdentifier: 'next',
+          groups: { flutter: { packages: ['@wdio/flutter-service', 'wdio_flutter'], sync: 'linked' } },
+        }),
+      );
+      await strategy(workspace([service, contract]));
+
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledTimes(1);
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/wdio-flutter-service/package.json',
+        '1.0.0-next.0',
+        undefined,
+      );
+    });
   });
 
   describe('group baseline = max(member baselines)', () => {
