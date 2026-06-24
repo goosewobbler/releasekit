@@ -58,6 +58,7 @@ export class VersionEngine {
         effective.isPrerelease = true;
       }
       if (runOptions.stable) effective.stableOnly = true;
+      if (runOptions.allowFirstBump) effective.allowFirstBump = true;
       if (runOptions.targets?.length) this.runtimeTargets = runOptions.targets;
       if (runOptions.baseRef) effective.baseRef = runOptions.baseRef;
       if (runOptions.overrideScope) effective.overrideScope = runOptions.overrideScope;

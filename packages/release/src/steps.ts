@@ -20,6 +20,7 @@ export async function runVersionStep(options: ReleaseOptions): Promise<VersionOu
     bump: options.bump as import('semver').ReleaseType | undefined,
     prerelease: options.prerelease,
     stable: options.stable,
+    allowFirstBump: options.allowFirstBump,
     dryRun: options.dryRun,
     sync: options.sync,
     targets,

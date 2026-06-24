@@ -48,6 +48,31 @@ export function applyOverrideScope(
 /**
  * Calculates the next version number based on the current version and options
  */
+/**
+ * First-release overshoot guard (#388): on a first release (no prior tag) with an already-stable
+ * manifest, `--stable --bump <type>` APPLIES the bump (1.0.0 → 2.0.0) rather than graduating, which
+ * silently overshoots the staged first version. The resolved version is deliberately left unchanged
+ * — a bump is sometimes legitimate (importing a package with prior external history) — so this only
+ * makes the case visible/escapable per `mismatchStrategy`: `error` aborts, `ignore` is silent,
+ * everything else (default `warn`) warns. `version.allowFirstBump` (or `--allow-first-bump`)
+ * acknowledges it and stays silent. (prefer-package/prefer-git have no distinct meaning on the
+ * no-tag axis, so they warn like the default — see #388.)
+ */
+function guardFirstReleaseBump(config: Config, name: string | undefined, currentVer: string, type: ReleaseType): void {
+  if (config.allowFirstBump) return;
+  const pkg = name || 'package';
+  const bumped = bumpVersion(currentVer, type);
+  const message =
+    `${pkg} has no prior tag and a stable manifest (${currentVer}); --bump ${type} will publish ${bumped}, not ${currentVer}. ` +
+    `To release ${currentVer}, stage the manifest at a prerelease (e.g. ${currentVer}-next.0, which graduates), ` +
+    `or set version.allowFirstBump (or pass --allow-first-bump) to apply the bump.`;
+  if ((config.mismatchStrategy ?? 'warn') === 'error') {
+    throw new Error(`First-release version overshoot: ${message}`);
+  }
+  if (config.mismatchStrategy === 'ignore') return;
+  log(message, 'warning');
+}
+
 export async function calculateVersion(config: Config, options: VersionOptions): Promise<string> {
   const scoped = applyOverrideScope(config, options);
   return calculateVersionInner(scoped.config, scoped.options);
@@ -213,6 +238,11 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
         // No explicit bump label: skip already-stable packages
         log(`Skipping ${name || 'package'}: already at stable version ${currentVer}`, 'info');
         return '';
+      } else if (hasNoTags) {
+        // Stable manifest + explicit bump on a FIRST release: the bump is APPLIED (e.g. 1.0.0 +
+        // major = 2.0.0), not graduated, silently overshooting the staged first version (#388).
+        // Make it visible/escapable per mismatchStrategy; the resolved version is unchanged.
+        guardFirstReleaseBump(config, name, currentVer, type);
       }
       log(`Stable package with explicit bump label, falling through to normal logic`, 'debug');
       // Stable package with explicit bump label: fall through to normal bump logic

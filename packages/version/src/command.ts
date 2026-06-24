@@ -14,6 +14,11 @@ export function createVersionCommand(): Command {
     .option('-b, --bump <type>', 'Specify bump type (patch|minor|major|prerelease)')
     .option('-p, --prerelease [identifier]', 'Create prerelease version')
     .option('--stable', 'Graduate prerelease packages to stable without bumping', false)
+    .option(
+      '--allow-first-bump',
+      'Acknowledge applying a bump on a first release with an already-stable manifest (silences the overshoot warning)',
+      false,
+    )
     .option('-s, --sync', 'Use synchronized versioning across all packages')
     .option('-j, --json', 'Output results as JSON', false)
     .option('-t, --target <packages>', 'Comma-delimited list of package names to target')
@@ -59,6 +64,7 @@ export function createVersionCommand(): Command {
           bump: options.bump,
           prerelease: options.prerelease,
           stable: options.stable,
+          allowFirstBump: options.allowFirstBump,
           dryRun: options.dryRun,
           sync: options.sync,
           targets: cliTargets.length > 0 ? cliTargets : undefined,

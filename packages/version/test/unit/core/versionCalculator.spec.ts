@@ -373,6 +373,57 @@ describe('Version Calculator', () => {
       expect(versionUtils.bumpVersion).toHaveBeenCalledWith('0.0.0', 'major', 'next');
       expect(version).toBe('1.0.0-next.0');
     });
+
+    // #388: a stable manifest on a first release with --stable applies the bump (1.0.0 → 2.0.0)
+    // rather than graduating, silently overshooting. The guard makes it visible/escapable without
+    // changing the resolved version.
+    function stableFirstReleaseMocks() {
+      vi.spyOn(versionUtils, 'getBestVersionSource').mockResolvedValue({
+        source: 'package',
+        version: '1.0.0',
+        reason: 'No git tag provided',
+      });
+      vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
+        version: '1.0.0',
+        manifestFound: true,
+        manifestPath: '/repo/packages/pkg/package.json',
+        manifestType: 'package.json',
+      });
+      vi.spyOn(semver, 'prerelease').mockReturnValue(null); // stable manifest
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('2.0.0');
+    }
+    const stableFirstReleaseOptions: VersionOptions = {
+      latestTag: '',
+      hasRealTag: false,
+      type: 'major',
+      versionPrefix: 'v',
+      path: '/repo/packages/pkg',
+      name: 'my-pkg',
+    };
+
+    it('should warn but still apply the bump on a first-release stable manifest (#388)', async () => {
+      stableFirstReleaseMocks();
+      const config = { ...defaultConfig, stableOnly: true, type: 'major' as const };
+      const version = await calculateVersion(config as Config, stableFirstReleaseOptions);
+      expect(version).toBe('2.0.0'); // resolved version is unchanged — only made visible
+      expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('will publish 2.0.0, not 1.0.0'), 'warning');
+    });
+
+    it('should abort a first-release stable-manifest bump under mismatchStrategy "error" (#388)', async () => {
+      stableFirstReleaseMocks();
+      const config = { ...defaultConfig, stableOnly: true, type: 'major' as const, mismatchStrategy: 'error' as const };
+      await expect(calculateVersion(config as Config, stableFirstReleaseOptions)).rejects.toThrow(
+        /First-release version overshoot/,
+      );
+    });
+
+    it('should apply the bump silently when allowFirstBump acknowledges it (#388)', async () => {
+      stableFirstReleaseMocks();
+      const config = { ...defaultConfig, stableOnly: true, type: 'major' as const, allowFirstBump: true };
+      const version = await calculateVersion(config as Config, stableFirstReleaseOptions);
+      expect(version).toBe('2.0.0');
+      expect(logging.log).not.toHaveBeenCalledWith(expect.stringContaining('will publish 2.0.0, not 1.0.0'), 'warning');
+    });
   });
 
   describe('Specified version type (explicit bump)', () => {
