@@ -23,6 +23,13 @@ export interface BaselineResolverOptions {
   baseRef?: string;
   /** CWD for the repo-level nearest-reachable floor lookup (shared floor). Defaults to `process.cwd()`. */
   sharedFloorCwd?: string;
+  /**
+   * How the repo-level shared floor (C) is bounded in package-specific-tag mode (#398). `'union'`
+   * (default): each package contributes its own range, so the shared block is the union floored by
+   * the oldest baseline. `'sinceLastRelease'`: every package's shared block is floored by the single
+   * global nearest-reachable tag, collapsing the union so global commits don't recur.
+   */
+  sharedChangelogFloor?: 'union' | 'sinceLastRelease';
 }
 
 /**
@@ -49,19 +56,26 @@ export interface BaselineInput {
 }
 
 export interface PackageBaseline {
-  /** `<floor>..HEAD`, or `'HEAD'` when there is no reachable baseline. */
+  /** `<floor>..HEAD`, floored by the package's own baseline when reachable, else by the nearest
+   *  reachable tag (#370); `'HEAD'` only when the repo has no reachable tag at all (fresh repo). */
   revisionRange: string;
-  /** The floor tag in consumer-facing display form, or `null` when the baseline is unreachable/absent. */
+  /** The package's own previous version in consumer-facing display form, or `null` when its own
+   *  baseline is unreachable/absent — even if the range was floored by a nearest-reachable tag, that
+   *  tag is a noise floor (often another package's), not this package's predecessor, so it isn't
+   *  claimed here. */
   previousVersion: string | null;
-  /** True when a baseline ref was resolved but is unreachable (shallow clone / unpushed / synthetic). */
+  /** True when the package's own baseline ref was resolved but unreachable (shallow clone / unpushed
+   *  / synthetic) — the range was bounded by the nearest reachable tag instead. */
   baselineUnreachable: boolean;
 }
 
 /**
  * Owns the changelog-floor algorithm: the previously-divergent per-call-site logic for "which
  * `<tag>..HEAD` range a package's changelog is collected from, and is that baseline reachable" (the
- * per-package floor, B), plus the repo-level shared floor (C). See `CONTEXT.md` for the three
- * baseline notions; the version source (A) is a separate seam.
+ * per-package floor, B), plus the repo-level shared floor (C). B and C now bound an unreachable /
+ * untagged baseline the same way — by the nearest reachable tag, never full history except in a
+ * fresh repo (#370) — so neither floods. See `CONTEXT.md` for the three baseline notions; the
+ * version source (A) is a separate seam.
  *
  * Constructed once per version run so the shared floor is computed a single time and reused across
  * packages. Receives already-discovered tag facts; does not re-run tag discovery.
@@ -115,39 +129,56 @@ export class BaselineResolver {
       const verification = verifyTag(baseForRange, pkgDir);
       if (verification.exists && verification.reachable) {
         revisionRange = `${baseForRange}..HEAD`;
-      } else {
-        if (!baseRef && strictReachable) {
-          // A dedicated type, not a bare Error: the per-package changelog try/catch in each strategy
-          // degrades genuine extraction failures to a minimal entry, but must rethrow THIS so it
-          // aborts the run (#372) — strictReachable's whole job is to fail loudly on an unreachable
-          // baseline (shallow clone / fetch-depth), not ship a silently whole-history changelog.
-          throw new StrictReachableError(
-            `Cannot generate changelog: ref '${baseForRange}' is not reachable from the current commit. ` +
-              `When strictReachable is enabled, all refs must be reachable. ` +
-              `To allow fallback to all commits, set strictReachable to false.`,
-          );
-        }
-        // Loud, not debug: this silently produces a whole-history changelog (#339). Callers omit
-        // previousVersion when this fires (below) so the changelog doesn't claim an undiffed baseline.
+      } else if (!baseRef && strictReachable) {
+        // A dedicated type, not a bare Error: the per-package changelog try/catch in each strategy
+        // degrades genuine extraction failures to a minimal entry, but must rethrow THIS so it
+        // aborts the run (#372) — strictReachable's whole job is to fail loudly on an unreachable
+        // baseline (shallow clone / fetch-depth), not ship a silently whole-history changelog.
+        throw new StrictReachableError(
+          `Cannot generate changelog: ref '${baseForRange}' is not reachable from the current commit. ` +
+            `When strictReachable is enabled, all refs must be reachable. ` +
+            `To allow fallback to all commits, set strictReachable to false.`,
+        );
+      } else if (baseRef) {
+        // An unreachable `baseRef` keeps the full-history fallback: baseRef scopes the run to a PR's
+        // commits, a different intent from the tag-based release floor, so the nearest-reachable tag
+        // floor (#370) deliberately doesn't apply here — mirrors `sharedFloor` skipping baseRef mode.
         log(
           `Baseline ref '${baseForRange}' could not be verified from HEAD (${verification.error}) — generating ` +
             `the changelog from ALL history instead of since the last release. The ref is likely missing from the ` +
-            `checkout (shallow clone, or never pushed). ${
-              baseRef
-                ? 'Fetch/push the ref to make it available in this checkout.'
-                : 'Fetch/push the tag, or set version.baseRef, to bound it.'
-            }`,
+            `checkout (shallow clone, or never pushed). Fetch/push the ref to make it available in this checkout.`,
           'warning',
         );
         revisionRange = 'HEAD';
         baselineUnreachable = true;
+      } else {
+        // A real tag we can't reach (shallow clone / non-ancestor). Bound the range by the nearest
+        // reachable tag rather than flooding with all history (#370) — the same floor `sharedFloor`
+        // applies. previousVersion is still omitted (below): we diffed the nearest tag, not the
+        // package's own (unreachable) baseline, so we don't claim that baseline.
+        revisionRange = this.nearestReachableRange();
+        baselineUnreachable = true;
+        log(
+          revisionRange === 'HEAD'
+            ? `Baseline ref '${baseForRange}' could not be verified from HEAD (${verification.error}), and no ` +
+                `other reachable tag exists — generating the changelog from ALL history. The ref is likely missing ` +
+                `(shallow clone, or never pushed); fetch/push the tag, or set version.baseRef, to bound it.`
+            : `Baseline ref '${baseForRange}' could not be verified from HEAD (${verification.error}) — bounding the ` +
+                `changelog by the nearest reachable tag instead of the declared baseline. The ref is likely missing ` +
+                `(shallow clone, or never pushed); fetch/push the tag, or set version.baseRef, to bound it precisely.`,
+          'warning',
+        );
       }
     } else if (baseForRange) {
       // No real tag — `baseForRange` is the manifest-fallback's synthetic tag, which isn't a git ref.
-      // The caller's untagged warning (#334) already explained the full-history changelog accurately,
-      // so skip verifyTag: it would emit a second, misleading "shallow clone / unpushed" message.
-      revisionRange = 'HEAD';
+      // Skip verifyTag (it would emit a misleading "shallow clone" message) and bound by the nearest
+      // reachable tag instead of flooding the package's own changelog with all history (#370).
+      revisionRange = this.nearestReachableRange();
       baselineUnreachable = true;
+    } else {
+      // No baseline at all — an untagged package with no manifest version. Still bound by the nearest
+      // reachable tag (#370); a genuinely fresh repo with no tags falls through to full history.
+      revisionRange = this.nearestReachableRange();
     }
 
     // previousVersion is shown to users in the changelog header — strip the baseline-tag scheme back
@@ -163,15 +194,31 @@ export class BaselineResolver {
 
   /**
    * Repo-level shared floor (C): the range for project-wide "shared" entries (CI, infra, shared
-   * packages). For a package whose own range collapsed to `'HEAD'` (untagged, or tag unreachable,
-   * with no baseRef), bound it by the most recent tag reachable from HEAD rather than flooding the
-   * shared section with full history (#348). Computed once per run and reused.
+   * packages). `baseRef` (a PR-scoped run) is passed through unbounded.
+   *
+   * In `'sinceLastRelease'` mode (#398) every package's shared block is floored by the single global
+   * nearest-reachable tag, so a genuinely-global commit consumed by the most recent release across
+   * the repo doesn't recur in every later per-package release. In `'union'` mode (default) the
+   * package's own range is used (the union across packages floors by the oldest baseline); a `'HEAD'`
+   * range — only a fresh repo now that the per-package floor is itself bounded (#370) — is floored by
+   * the nearest reachable tag rather than flooding with full history (#348).
+   */
+  sharedFloor(perPackageRange: string): string {
+    if (this.opts.baseRef) return perPackageRange;
+    if (this.opts.sharedChangelogFloor === 'sinceLastRelease') return this.nearestReachableRange();
+    if (perPackageRange !== 'HEAD') return perPackageRange;
+    return this.nearestReachableRange();
+  }
+
+  /**
+   * The `<tag>..HEAD` range floored by the nearest tag reachable from HEAD, or `'HEAD'` when the repo
+   * has no reachable tag at all. Shared by the per-package floor's fallback (B, #370) and the shared
+   * floor (C, #348) so both bound the same way; computed once per run and cached.
    *
    * Uses `git describe` (prefix-agnostic, reachable by construction) — NOT the semver-tag lookup,
    * which only matches bare-semver tags and collapses to full history in per-package-tag monorepos.
    */
-  sharedFloor(perPackageRange: string): string {
-    if (perPackageRange !== 'HEAD' || this.opts.baseRef) return perPackageRange;
+  private nearestReachableRange(): string {
     if (this.sharedBaselineRange === undefined) {
       const globalTag = getNearestReachableTag(this.opts.sharedFloorCwd ?? process.cwd());
       this.sharedBaselineRange = globalTag ? `${globalTag}..HEAD` : 'HEAD';
