@@ -97,6 +97,11 @@ export interface Config extends VersionConfigBase {
   /** Foundational packages whose changes route to repo-level ("Project-wide changes") in every
    *  package's changelog (exact name or glob). See VersionConfig.sharedPackages. Default: none. */
   sharedPackages?: string[];
+  /** How the repo-level ("Project-wide changes") block is floored in package-specific-tag mode.
+   *  'union' (default): the union of releasing packages' ranges, floored by the oldest baseline.
+   *  'sinceLastRelease': the single global nearest-reachable tag, so global commits don't recur.
+   *  See VersionConfig.sharedChangelogFloor. */
+  sharedChangelogFloor?: 'union' | 'sinceLastRelease';
   mainPackage?: string;
   updateInternalDependencies: 'major' | 'minor' | 'patch' | 'no-internal-update';
   skip?: string[];
@@ -201,6 +206,7 @@ export function toVersionConfig(config: VersionConfig | undefined, gitConfig?: G
     groups: config.groups,
     packages: config.packages ?? [],
     sharedPackages: config.sharedPackages,
+    sharedChangelogFloor: config.sharedChangelogFloor,
     mainPackage: config.mainPackage,
     updateInternalDependencies: config.updateInternalDependencies ?? 'minor',
     skip: config.skip,

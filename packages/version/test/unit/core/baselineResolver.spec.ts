@@ -208,4 +208,27 @@ describe('BaselineResolver.sharedFloor', () => {
     expect(resolver.sharedFloor('HEAD')).toBe('HEAD');
     expect(getNearestReachableTag).not.toHaveBeenCalled();
   });
+
+  it('should keep the per-package range (union floor) in the default union mode', () => {
+    // Default: each releasing package contributes its own range; the union floors by the oldest.
+    const resolver = new BaselineResolver(makeOpts({ sharedChangelogFloor: 'union' }));
+    expect(resolver.sharedFloor('electron-service@v10.0.0..HEAD')).toBe('electron-service@v10.0.0..HEAD');
+    expect(getNearestReachableTag).not.toHaveBeenCalled();
+  });
+
+  it('should floor every package by the global nearest-reachable tag in sinceLastRelease mode (#398)', () => {
+    // Collapses the union: even a package with its OWN bounded (older) range is floored by the single
+    // global nearest tag, so a global commit consumed by the most recent release doesn't recur.
+    vi.mocked(getNearestReachableTag).mockReturnValue('native-types@v2.4.0');
+    const resolver = new BaselineResolver(makeOpts({ sharedChangelogFloor: 'sinceLastRelease' }));
+    expect(resolver.sharedFloor('electron-service@v10.0.0..HEAD')).toBe('native-types@v2.4.0..HEAD');
+    expect(resolver.sharedFloor('tauri-service@v1.1.0..HEAD')).toBe('native-types@v2.4.0..HEAD');
+    expect(getNearestReachableTag).toHaveBeenCalledTimes(1); // cached across packages
+  });
+
+  it('should pass a baseRef run through unbounded even in sinceLastRelease mode (#398)', () => {
+    const resolver = new BaselineResolver(makeOpts({ sharedChangelogFloor: 'sinceLastRelease', baseRef: 'abc123' }));
+    expect(resolver.sharedFloor('abc123..HEAD')).toBe('abc123..HEAD');
+    expect(getNearestReachableTag).not.toHaveBeenCalled();
+  });
 });
