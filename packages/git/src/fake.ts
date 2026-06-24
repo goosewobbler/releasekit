@@ -153,6 +153,12 @@ export class FakeGit implements Git {
     return [...this.tagsList];
   }
 
+  /**
+   * Returns the seeded `nearestTag`. Note the asymmetry with {@link FakeGit.listTags}: `tag()`
+   * appends to the tag list (so `listTags()` reflects newly-created tags) but does NOT update
+   * `nearestTag` — "nearest reachable tag" is a reachability fact the fake can't derive, so seed it
+   * explicitly. A test expecting `describeTags()` to see a tag created via `tag()` must re-seed.
+   */
   async describeTags(_cwd?: string): Promise<string | null> {
     return this.nearestTag;
   }

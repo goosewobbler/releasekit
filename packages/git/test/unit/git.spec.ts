@@ -338,6 +338,20 @@ describe('GitCli option-injection guard', () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it('should refuse a leading-dash commit in diffTreeNames and never call the runner', async () => {
+    const { run } = makeRunner();
+    await expect(new GitCli(run).diffTreeNames('--output=evil')).rejects.toBeInstanceOf(GitError);
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('should refuse a leading-dash pattern in forEachRef and never call the runner', async () => {
+    const { run } = makeRunner();
+    await expect(new GitCli(run).forEachRef({ format: '%(refname)', pattern: '--evil' })).rejects.toBeInstanceOf(
+      GitError,
+    );
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it('should still run a normal value through the guard unharmed', async () => {
     const { run, calls } = makeRunner();
     await new GitCli(run).fetch('origin');

@@ -220,6 +220,7 @@ export class GitCli implements Git {
   }
 
   async diffTreeNames(commitSha: string, cwd?: string): Promise<string[]> {
+    assertNotOption(commitSha, 'commit');
     const { stdout } = await this.exec(['diff-tree', '--no-commit-id', '--name-only', '-r', commitSha], {
       cwd: this.cwd(cwd),
     });
@@ -227,6 +228,9 @@ export class GitCli implements Git {
   }
 
   async forEachRef(opts: GitForEachRefOptions): Promise<string[]> {
+    // `format`/`sort` are flag values by design; `pattern` is a positional ref, so guard it like
+    // every other user-controlled positional (a leading-`-` pattern would be read as an option).
+    if (opts.pattern !== undefined) assertNotOption(opts.pattern, 'pattern');
     const args = ['for-each-ref', `--format=${opts.format}`];
     if (opts.sort) args.push(`--sort=${opts.sort}`);
     if (opts.pattern) args.push(opts.pattern);
