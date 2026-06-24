@@ -123,20 +123,12 @@ async function resetReleaseBranch(branch: string, base: string, cwd: string): Pr
   const git = createGitCli();
   await git.fetch('origin', { cwd });
 
-  // `remoteBranchExists` replaces the old `git ls-remote --exit-code` probe — it returns a boolean
-  // (never throws on a non-zero exit), so no try/catch is needed to read "does the remote have it".
-  if (await git.remoteBranchExists('origin', branch, cwd)) {
-    // Branch exists on the remote: be on it (create-or-reset the local ref with `-B`, which also
-    // covers the case where the local branch doesn't exist yet) and hard-reset it to the base.
-    await git.checkout(branch, { create: true, cwd });
-    await git.resetHard(`origin/${base}`, cwd);
-  } else {
-    // Branch is absent on the remote: the original `git checkout -b "<branch>" "origin/<base>"`
-    // created it from a start-point. The seam's checkout has no start-point, so create at HEAD with
-    // `-B` then hard-reset to origin/base — equivalent to creating it pointed at origin/base.
-    await git.checkout(branch, { create: true, cwd });
-    await git.resetHard(`origin/${base}`, cwd);
-  }
+  // `checkout -B` creates-or-resets the local branch and switches to it — covering both "the branch
+  // already exists" and "it doesn't" — and the hard-reset then points it at the base. This replaces
+  // the old ls-remote probe + branched logic (`checkout`/`checkout -b`/`reset`), whose remote-exists
+  // and remote-absent paths both reduced to exactly these two operations, so the probe was wasted I/O.
+  await git.checkout(branch, { create: true, cwd });
+  await git.resetHard(`origin/${base}`, cwd);
 }
 
 async function commitAndForcePush(branch: string, cwd: string): Promise<void> {
