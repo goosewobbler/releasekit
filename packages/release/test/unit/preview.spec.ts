@@ -1130,7 +1130,8 @@ describe('runPreview', () => {
 
         await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
-        // fs.existsSync/readFileSync should not have been called because immediate mode is not advisory
+        // The event payload is read once (for the standing-PR guard), but immediate mode is not
+        // advisory, so prBaseSha is never extracted from it — baseRef stays undefined.
         const callArg = mockRunRelease.mock.calls[0]?.[0] as { baseRef?: string } | undefined;
         expect(callArg?.baseRef).toBeUndefined();
       });
