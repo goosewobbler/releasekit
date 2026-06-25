@@ -1,5 +1,8 @@
 # @releasekit/core
 
+> [!WARNING]
+> 🚧 **Pre-1.0.0** — ReleaseKit is evolving fast and **💥 breaking changes are common**; it's **🚫 not production-ready** until `v1.0.0`. 📌 Pin exact versions. See the [main README](../../README.md) for details.
+
 Shared types and utilities for ReleaseKit packages.
 
 ## Overview

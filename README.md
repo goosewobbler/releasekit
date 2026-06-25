@@ -31,6 +31,11 @@ Releases to npm, crates.io, and pub.dev today, with more ecosystems on the way.
    Independent CLIs, piped via a VersionOutput JSON contract — run one stage or all three.
 ```
 
+> [!WARNING]
+> ### 🚧 Pre-1.0.0 — here be dragons 🐉
+>
+> ReleaseKit is **under active development** and evolving fast while the core feature set settles. **💥 Breaking changes are common between releases** and aren't always gated behind a major bump while we're pre-`1.0.0`. It's **🚫 not recommended for production** yet — if you're trying it out, **📌 pin an exact version** and skim the release notes before upgrading. 🧪 Once the API stabilises, `v1.0.0` will mark the switch to semver-stable guarantees. 🎯
+
 ## Why ReleaseKit
 
 - **One config, every ecosystem** — npm (JavaScript/TypeScript), crates.io (Rust), and pub.dev (Dart/Flutter) packages release from the same `releasekit.config.json`, including mixed monorepos. The pipeline is registry-agnostic — new ecosystems plug in without changing your workflow.
