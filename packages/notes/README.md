@@ -1,5 +1,8 @@
 # @releasekit/notes
 
+> [!WARNING]
+> 🚧 **Pre-1.0.0** — ReleaseKit is evolving fast and **💥 breaking changes are common**; it's **🚫 not production-ready** until `v1.0.0`. 📌 Pin exact versions. See the [main README](../../README.md) for details.
+
 [![@releasekit/notes](https://img.shields.io/badge/@releasekit-notes-9feaf9?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@releasekit/notes)
 [![Version](https://img.shields.io/npm/v/@releasekit/notes?color=28a745&labelColor=1a1a1a)](https://www.npmjs.com/package/@releasekit/notes)
 [![Downloads](https://img.shields.io/npm/dw/@releasekit/notes?color=6f42c1&labelColor=1a1a1a)](https://www.npmjs.com/package/@releasekit/notes)
