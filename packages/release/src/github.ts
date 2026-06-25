@@ -1,6 +1,6 @@
-import { execFileSync } from 'node:child_process';
 import type { CIConfig } from '@releasekit/config';
 import { createGitHubForge, type Forge } from '@releasekit/forge';
+import { createGitCli } from '@releasekit/git';
 
 export const MARKER = '<!-- releasekit-preview -->';
 
@@ -33,20 +33,18 @@ export async function findMergedPRsForCommit(forge: Forge, commitSha: string): P
  * no release tags exist. Returns a deduped list of PR numbers.
  */
 export async function findMergedPRsSinceLastRelease(forge: Forge, projectDir: string): Promise<number[]> {
-  let range: string;
-  try {
-    const lastTag = execFileSync('git', ['describe', '--tags', '--abbrev=0'], {
-      cwd: projectDir,
-      encoding: 'utf8',
-    }).trim();
-    range = `${lastTag}..HEAD`;
-  } catch {
-    range = '-50';
-  }
+  const git = createGitCli();
+  // describeTags returns null (not throws) when no tags exist — fall back to the last 50 commits.
+  // `-50` is a count flag, not a range, so it rides in extraArgs (the seam rejects a `-`-leading
+  // range as a would-be option); a real `<tag>..HEAD` range goes in `range`.
+  const lastTag = await git.describeTags(projectDir);
+  const logOpts = lastTag
+    ? { range: `${lastTag}..HEAD`, format: '%H', cwd: projectDir }
+    : { format: '%H', extraArgs: ['-50'], cwd: projectDir };
 
   let mergeShas: string[];
   try {
-    const output = execFileSync('git', ['log', '--format=%H', range], { cwd: projectDir, encoding: 'utf8' }).trim();
+    const output = (await git.log(logOpts)).trim();
     mergeShas = output ? output.split('\n').filter(Boolean) : [];
   } catch {
     return [];

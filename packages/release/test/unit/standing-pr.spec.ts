@@ -1,4 +1,5 @@
 import { createFakeForge, type FakeForge, type FakeForgeSeed } from '@releasekit/forge';
+import { FakeGit, type GitLogOptions } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderFailureReport, renderResolvedReport } from '../../src/failure-report/failure-report.js';
 import { renderNotesRegion } from '../../src/standing-pr/notes-region.js';
@@ -15,16 +16,61 @@ import {
   serializeManifest,
 } from '../../src/standing-pr/standing-pr.js';
 
-vi.mock('node:child_process', async (importOriginal) => {
-  // `@releasekit/publish` now bundles `@releasekit/git`, whose GitCli does `promisify(execFile)` at
-  // module-eval time — so the real `execFile` must be present even though sync calls are stubbed.
-  const actual = await importOriginal<typeof import('node:child_process')>();
-  return {
-    ...actual,
-    execSync: vi.fn().mockReturnValue(''),
-    execFileSync: vi.fn().mockReturnValue(''),
-  };
+/**
+ * A {@link FakeGit} the standing-PR specs can steer per-call. The production code reaches git through
+ * two formatted `log` reads that need independent control:
+ *  - `getHeadCommitMessage` (`--format=%s`) — the HEAD commit subject the skip-pattern guards key on;
+ *    `nextSubject` is a queue so a single test can return different subjects across the two guard
+ *    calls (the #323 / #336 mid-run-reset scenarios).
+ *  - `createReleaseTags`' tag→commit resolution (`--format=%H`) — answered with the seeded HEAD SHA so
+ *    a present tag reads as "at HEAD".
+ * Everything else (commit/tag/push/checkout/reset/fetch/add) is the real FakeGit recorder, so specs
+ * assert on `committed`/`tagged`/`pushed`/`checkedOut`/`resetTo`/`fetched`/`addedAll`/`added`.
+ */
+class ControllableGit extends FakeGit {
+  /** Queued HEAD subjects for successive `--format=%s` reads; the last value sticks once drained. */
+  subjects: string[] = [];
+  /** Commit an existing tag resolves to under `--format=%H`. Defaults to HEAD ("tag at HEAD"). */
+  tagCommitSha?: string;
+  /** When set, the `--format=%H` tag-resolution read throws (git couldn't resolve the tag). */
+  tagResolveThrows = false;
+
+  override async log(opts: GitLogOptions): Promise<string> {
+    if (opts.format === '%s') {
+      // getHeadCommitMessage — return the next queued subject (keep the last once the queue drains).
+      return this.subjects.length > 1 ? (this.subjects.shift() ?? '') : (this.subjects[0] ?? '');
+    }
+    if (opts.format === '%H') {
+      // createReleaseTags resolves an existing tag's commit — default to HEAD ("tag at HEAD").
+      if (this.tagResolveThrows) throw new Error('cannot resolve tag');
+      return `${this.tagCommitSha ?? (await this.headSha(opts.cwd))}\n`;
+    }
+    return super.log(opts);
+  }
+}
+
+// The git execution seam: `createGitCli()` hands back the current ControllableGit so specs can both
+// steer reads (HEAD subject/SHA) and assert recorded mutations. Re-pointed in each beforeEach.
+let fakeGit: ControllableGit;
+vi.mock('@releasekit/git', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@releasekit/git')>();
+  return { ...actual, createGitCli: () => fakeGit };
 });
+
+/** Build a fresh ControllableGit (default HEAD subject = a non-release commit) and make it current. */
+function setupGit(seed: { headSha?: string; subject?: string; remoteBranches?: Record<string, string[]> } = {}) {
+  fakeGit = new ControllableGit({
+    headSha: seed.headSha ?? 'abc123',
+    remoteBranches: seed.remoteBranches,
+  });
+  fakeGit.subjects = [seed.subject ?? 'feat: some feature'];
+  return fakeGit;
+}
+
+/** Recorded remote-branch deletions: `deleteReleaseBranch` pushes a `:<branch>` delete refspec. */
+function branchDeletePushes() {
+  return fakeGit.pushed.filter((p) => p.ref?.startsWith(':'));
+}
 
 vi.mock('node:fs', () => ({
   default: {
@@ -90,105 +136,67 @@ const baseManifest: StandingPRManifest = {
 describe('createReleaseTags', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    setupGit();
   });
 
   it('should be a no-op for an empty tag list', async () => {
-    const { execSync, execFileSync } = await import('node:child_process');
-    createReleaseTags([], '/tmp/test');
-    expect(execSync).not.toHaveBeenCalled();
-    expect(execFileSync).not.toHaveBeenCalled();
+    await createReleaseTags([], '/tmp/test');
+    expect(fakeGit.tagged).toHaveLength(0);
   });
 
   it('should create a tag when none exists', async () => {
-    const { execFileSync } = await import('node:child_process');
-    // git rev-parse HEAD
-    vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
-    // git rev-parse --verify (doesn't exist) — throws
-    vi.mocked(execFileSync).mockImplementationOnce(() => {
-      throw new Error('not found');
-    });
-    // git tag -a (succeeds)
-    vi.mocked(execFileSync).mockReturnValueOnce('');
+    // No existing ref seeded → refExists is false → the tag is created.
+    await createReleaseTags(['v1.2.3'], '/tmp/test');
 
-    createReleaseTags(['v1.2.3'], '/tmp/test');
-
-    expect(execFileSync).toHaveBeenLastCalledWith(
-      'git',
-      ['tag', '-a', 'v1.2.3', '-m', 'Release v1.2.3'],
-      expect.anything(),
-    );
+    expect(fakeGit.tagged).toContainEqual({ name: 'v1.2.3', message: 'Release v1.2.3' });
   });
 
   it('should skip creation when the tag already points at HEAD', async () => {
-    const { execFileSync } = await import('node:child_process');
-    vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
-    // tag exists at HEAD
-    vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
+    // Tag exists and resolves to HEAD (the %H read defaults to the seeded HEAD SHA) → no creation.
+    fakeGit = new ControllableGit({ headSha: 'abc123', existingRefs: ['refs/tags/v1.2.3'] });
+    fakeGit.subjects = ['feat: some feature'];
 
-    createReleaseTags(['v1.2.3'], '/tmp/test');
+    await createReleaseTags(['v1.2.3'], '/tmp/test');
 
-    // Two calls only: rev-parse HEAD, rev-parse refs/tags/...^{}. No `git tag -a`.
-    expect(execFileSync).toHaveBeenCalledTimes(2);
-    expect(execFileSync).not.toHaveBeenCalledWith('git', expect.arrayContaining(['tag', '-a']), expect.anything());
+    expect(fakeGit.tagged).toHaveLength(0);
   });
 
   it('should not recreate a tag that points at a different commit', async () => {
-    const { execFileSync } = await import('node:child_process');
-    vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
-    vi.mocked(execFileSync).mockReturnValueOnce('othersha\n');
+    // Tag exists but resolves to a different commit than HEAD → warn and skip (no rewrite).
+    fakeGit = new ControllableGit({ headSha: 'abc123', existingRefs: ['refs/tags/v1.2.3'] });
+    fakeGit.subjects = ['feat: some feature'];
+    fakeGit.tagCommitSha = 'othersha';
 
-    createReleaseTags(['v1.2.3'], '/tmp/test');
+    await createReleaseTags(['v1.2.3'], '/tmp/test');
 
-    expect(execFileSync).not.toHaveBeenCalledWith('git', expect.arrayContaining(['tag', '-a']), expect.anything());
+    expect(fakeGit.tagged).toHaveLength(0);
   });
 
   it('should process multiple tags independently', async () => {
-    const { execFileSync } = await import('node:child_process');
-    // git rev-parse HEAD
-    vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
-    // tag 1: doesn't exist
-    vi.mocked(execFileSync).mockImplementationOnce(() => {
-      throw new Error('not found');
-    });
-    // tag 1: git tag -a (succeeds)
-    vi.mocked(execFileSync).mockReturnValueOnce('');
-    // tag 2: exists at HEAD
-    vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
+    // Tag 1 absent (created); tag 2 exists at HEAD (skipped).
+    fakeGit = new ControllableGit({ headSha: 'abc123', existingRefs: ['refs/tags/@scope/pkg@v1.2.3'] });
+    fakeGit.subjects = ['feat: some feature'];
 
-    createReleaseTags(['v1.2.3', '@scope/pkg@v1.2.3'], '/tmp/test');
+    await createReleaseTags(['v1.2.3', '@scope/pkg@v1.2.3'], '/tmp/test');
 
-    expect(execFileSync).toHaveBeenCalledWith(
-      'git',
-      ['tag', '-a', 'v1.2.3', '-m', 'Release v1.2.3'],
-      expect.anything(),
-    );
-    // Exactly one `git tag -a` invocation — the second tag was already at HEAD.
-    const tagCalls = vi.mocked(execFileSync).mock.calls.filter((c) => c[1]?.[0] === 'tag');
-    expect(tagCalls).toHaveLength(1);
+    // Exactly one tag created — the second was already at HEAD.
+    expect(fakeGit.tagged).toEqual([{ name: 'v1.2.3', message: 'Release v1.2.3' }]);
   });
 
   it('should not throw when tag creation fails', async () => {
-    const { execFileSync } = await import('node:child_process');
-    vi.mocked(execFileSync).mockReturnValueOnce('headsha\n');
-    vi.mocked(execFileSync).mockImplementationOnce(() => {
-      throw new Error('not found');
-    });
-    vi.mocked(execFileSync).mockImplementationOnce(() => {
-      throw new Error('git tag failed');
-    });
+    // No existing ref → creation is attempted, but the tag write rejects; the error must not propagate.
+    vi.spyOn(fakeGit, 'tag').mockRejectedValue(new Error('git tag failed'));
 
-    expect(() => createReleaseTags(['v1.2.3'], '/tmp/test')).not.toThrow();
+    await expect(createReleaseTags(['v1.2.3'], '/tmp/test')).resolves.toBeUndefined();
   });
 
   it('should not throw when HEAD lookup fails', async () => {
-    const { execFileSync } = await import('node:child_process');
-    vi.mocked(execFileSync).mockImplementationOnce(() => {
-      throw new Error('fatal: not a git repository');
-    });
+    vi.spyOn(fakeGit, 'headSha').mockRejectedValue(new Error('fatal: not a git repository'));
+    const tagSpy = vi.spyOn(fakeGit, 'tag');
 
-    expect(() => createReleaseTags(['v1.2.3'], '/tmp/test')).not.toThrow();
-    // Bails at HEAD lookup — only one call.
-    expect(execFileSync).toHaveBeenCalledTimes(1);
+    await expect(createReleaseTags(['v1.2.3'], '/tmp/test')).resolves.toBeUndefined();
+    // Bails at HEAD lookup — never reaches tag creation.
+    expect(tagSpy).not.toHaveBeenCalled();
   });
 });
 
@@ -294,8 +302,9 @@ describe('runStandingPRUpdate', () => {
     const { loadConfig } = await import('@releasekit/config');
     vi.mocked(loadConfig).mockReturnValue(defaultConfig as ReturnType<typeof loadConfig>);
 
-    const { execSync } = await import('node:child_process');
-    vi.mocked(execSync).mockReturnValue('abc123\n');
+    // HEAD SHA defaults to 'abc123' (the status-check sha the gate assertions key on); the HEAD
+    // subject defaults to a non-release commit so the skip-pattern guards pass.
+    setupGit();
   });
 
   afterEach(() => {
@@ -303,8 +312,7 @@ describe('runStandingPRUpdate', () => {
   });
 
   it('should return noop when HEAD commit matches skip pattern', async () => {
-    const { execSync } = await import('node:child_process');
-    vi.mocked(execSync).mockReturnValueOnce('chore: release @scope/core v1.2.3');
+    fakeGit.subjects = ['chore: release @scope/core v1.2.3'];
 
     const result = await runStandingPRUpdate({
       projectDir: '/test',
@@ -320,15 +328,9 @@ describe('runStandingPRUpdate', () => {
     // Top-of-function guard sees a non-release HEAD (passes), but after resetting to origin/main a
     // release commit is now HEAD — a release merged mid-run. The post-reset recheck must bow out so
     // the standing PR doesn't double-bump off the just-merged-but-untagged version bump.
-    const { execSync } = await import('node:child_process');
-    let logCalls = 0;
-    vi.mocked(execSync).mockImplementation((cmd: string) => {
-      if (typeof cmd === 'string' && cmd.includes('git log -1 --pretty=%s')) {
-        logCalls += 1;
-        return logCalls === 1 ? 'feat: something (#320)' : 'chore: release v0.29.0 (#318)';
-      }
-      return 'abc123\n';
-    });
+    // The first HEAD-subject read (top guard) is a normal commit; the second (post-reset recheck)
+    // is a release commit — modelling a release that merged onto base mid-run.
+    fakeGit.subjects = ['feat: something (#320)', 'chore: release v0.29.0 (#318)'];
 
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '0.29.0' }]);
@@ -348,8 +350,7 @@ describe('runStandingPRUpdate', () => {
   it('should bypass the skip-pattern guard when reconcile is set', async () => {
     // HEAD is a release commit (matches the skip pattern) — the post-release reconcile scenario.
     // Without reconcile this would noop; with reconcile it must proceed and create the PR.
-    const { execSync } = await import('node:child_process');
-    vi.mocked(execSync).mockReturnValue('chore: release @scope/core v1.2.3');
+    fakeGit.subjects = ['chore: release @scope/core v1.2.3'];
 
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
@@ -742,18 +743,13 @@ describe('runStandingPRUpdate', () => {
     // skip pattern) — the first guard would noop. A label-triggered run must proceed. The post-reset
     // HEAD is a normal commit, so the post-reset guard (not bypassed for label runs) passes.
     // HEAD is the release-prep commit until the branch is reset to origin/main, after which it's a
-    // normal commit. Keying on the reset (not call count) keeps this correct whether or not the
-    // first guard runs its git-log call — the whole point is that the bypass skips that call.
-    const { execSync } = await import('node:child_process');
-    let resetDone = false;
-    vi.mocked(execSync).mockImplementation((cmd: string) => {
-      if (typeof cmd === 'string') {
-        if (cmd.includes('reset --hard')) resetDone = true;
-        if (cmd.includes('git log -1 --pretty=%s')) {
-          return resetDone ? 'feat: something (#320)' : 'chore: release preparation';
-        }
+    // normal commit. Keying on the reset (resetTo recorded by resetReleaseBranch) keeps this correct
+    // whether or not the first guard runs its HEAD-subject read — the bypass is supposed to skip it.
+    vi.spyOn(fakeGit, 'log').mockImplementation(async (opts) => {
+      if (opts.format === '%s') {
+        return fakeGit.resetTo.length > 0 ? 'feat: something (#320)' : 'chore: release preparation';
       }
-      return 'abc123\n';
+      return '';
     });
 
     const { readFileSync } = await import('node:fs');
@@ -1633,8 +1629,7 @@ describe('runStandingPRPublish', () => {
       git: { branch: 'main' },
     } as ReturnType<typeof loadConfig>);
 
-    const { execSync } = await import('node:child_process');
-    vi.mocked(execSync).mockReturnValue('abc123\n');
+    setupGit();
   });
 
   afterEach(() => {
@@ -2050,15 +2045,11 @@ describe('runStandingPRPublish', () => {
       ReturnType<typeof runPublishStep>
     >);
 
-    const { execSync } = await import('node:child_process');
-
     await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    const deleteCalls = vi
-      .mocked(execSync)
-      .mock.calls.filter((c) => typeof c[0] === 'string' && c[0].includes('--delete'));
+    const deleteCalls = branchDeletePushes();
     expect(deleteCalls).toHaveLength(1);
-    expect(deleteCalls[0][0]).toContain('release/next');
+    expect(deleteCalls[0]?.ref).toBe(':release/next');
   });
 
   it('should skip branch deletion when deleteBranchOnMerge is false', async () => {
@@ -2082,14 +2073,9 @@ describe('runStandingPRPublish', () => {
       ReturnType<typeof runPublishStep>
     >);
 
-    const { execSync } = await import('node:child_process');
-
     await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    const deleteCalls = vi
-      .mocked(execSync)
-      .mock.calls.filter((c) => typeof c[0] === 'string' && c[0].includes('--delete'));
-    expect(deleteCalls).toHaveLength(0);
+    expect(branchDeletePushes()).toHaveLength(0);
   });
 
   it('should return null when no GitHub context is available for a merged release PR', async () => {
@@ -2142,8 +2128,7 @@ describe('publishFromManifest', () => {
       git: { branch: 'main' },
     } as ReturnType<typeof loadConfig>);
 
-    const { execSync } = await import('node:child_process');
-    vi.mocked(execSync).mockReturnValue('abc123\n');
+    setupGit();
   });
 
   afterEach(() => {
@@ -2215,8 +2200,7 @@ describe('runStandingPRMerge', () => {
       git: { branch: 'main' },
     } as ReturnType<typeof loadConfig>);
 
-    const { execSync } = await import('node:child_process');
-    vi.mocked(execSync).mockReturnValue('abc123\n');
+    setupGit();
   });
 
   afterEach(() => {
@@ -2357,15 +2341,11 @@ describe('runStandingPRMerge', () => {
       ReturnType<typeof runPublishStep>
     >);
 
-    const { execSync } = await import('node:child_process');
-
     await runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: true });
 
-    const deleteCalls = vi
-      .mocked(execSync)
-      .mock.calls.filter((c) => typeof c[0] === 'string' && c[0].includes('--delete'));
+    const deleteCalls = branchDeletePushes();
     expect(deleteCalls).toHaveLength(1);
-    expect(deleteCalls[0][0]).toContain('release/next');
+    expect(deleteCalls[0]?.ref).toBe(':release/next');
   });
 
   it('should skip branch deletion when deleteBranchOnMerge is false', async () => {
@@ -2385,27 +2365,18 @@ describe('runStandingPRMerge', () => {
       ReturnType<typeof runPublishStep>
     >);
 
-    const { execSync } = await import('node:child_process');
-
     await runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: true });
 
-    const deleteCalls = vi
-      .mocked(execSync)
-      .mock.calls.filter((c) => typeof c[0] === 'string' && c[0].includes('--delete'));
-    expect(deleteCalls).toHaveLength(0);
+    expect(branchDeletePushes()).toHaveLength(0);
   });
 
   it('should delete branch even when publish flag is false and deleteBranchOnMerge is true', async () => {
     await mockForge({ standingPR: openStandingPR(42) });
 
-    const { execSync } = await import('node:child_process');
-
     await runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false });
 
-    const deleteCalls = vi
-      .mocked(execSync)
-      .mock.calls.filter((c) => typeof c[0] === 'string' && c[0].includes('--delete'));
+    const deleteCalls = branchDeletePushes();
     expect(deleteCalls).toHaveLength(1);
-    expect(deleteCalls[0][0]).toContain('release/next');
+    expect(deleteCalls[0]?.ref).toBe(':release/next');
   });
 });

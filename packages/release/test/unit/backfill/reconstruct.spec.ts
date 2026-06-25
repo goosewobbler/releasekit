@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { FakeGit } from '@releasekit/git';
 import * as version from '@releasekit/version';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { reconstructChangelogs, versionFromTag } from '../../../src/backfill/reconstruct.js';
@@ -12,8 +12,13 @@ vi.mock('@releasekit/version', () => ({
   ]),
 }));
 
-// reconstruct shells out to `git log` for each tag's date; mock it so the tests don't touch git.
-vi.mock('node:child_process', () => ({ execFileSync: vi.fn(() => '2024-01-15\n') }));
+// reconstruct reads each tag's commit date through the git seam (`log({ format: '%cd' })`); a
+// seeded FakeGit stands in so the tests don't touch git. `'*'` is the catch-all for any tag range.
+let fakeGit: FakeGit;
+vi.mock('@releasekit/git', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@releasekit/git')>();
+  return { ...actual, createGitCli: () => fakeGit };
+});
 
 describe('reconstructChangelogs', () => {
   beforeEach(() => {
@@ -22,11 +27,11 @@ describe('reconstructChangelogs', () => {
       { type: 'feat', description: range },
     ]);
     vi.mocked(version.listGlobalTags).mockResolvedValue([]);
-    vi.mocked(execFileSync).mockReturnValue('2024-01-15\n');
+    fakeGit = new FakeGit({ commits: { '*': '2024-01-15\n' } });
   });
 
   it("should stamp each version with the tag's commit date, trimmed", async () => {
-    vi.mocked(execFileSync).mockReturnValue('2023-09-30\n');
+    fakeGit = new FakeGit({ commits: { '*': '2023-09-30\n' } });
     vi.mocked(version.listPackageTags).mockResolvedValue(['pkg@v1.0.0']);
 
     const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p', packageSpecificTags: true });
@@ -35,9 +40,7 @@ describe('reconstructChangelogs', () => {
   });
 
   it('should leave the date undefined when git cannot resolve the tag', async () => {
-    vi.mocked(execFileSync).mockImplementation(() => {
-      throw new Error('fatal: ambiguous argument');
-    });
+    vi.spyOn(fakeGit, 'log').mockRejectedValue(new Error('fatal: ambiguous argument'));
     vi.mocked(version.listPackageTags).mockResolvedValue(['pkg@v1.0.0']);
 
     const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p', packageSpecificTags: true });
