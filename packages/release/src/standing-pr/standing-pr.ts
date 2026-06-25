@@ -894,10 +894,11 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const previewNotesEnabled = effectiveLabels.includes(previewNotesLabel);
 
   const overrides = resolveStandingPrLabelOverrides(effectiveLabels, ciConfig);
+  const overrideLabelNames = ciConfig?.labels ?? DEFAULT_LABELS;
   if (overrides.bump) info(`Standing PR label override: bump=${overrides.bump}`);
   if (overrides.target) info(`Standing PR label override: target=${overrides.target}`);
-  if (overrides.stable) info(`Standing PR label override: release:graduate`);
-  if (overrides.prerelease) info(`Standing PR label override: channel:prerelease`);
+  if (overrides.stable) info(`Standing PR label override: ${overrideLabelNames.graduate}`);
+  if (overrides.prerelease) info(`Standing PR label override: ${overrideLabelNames.prerelease}`);
   for (const conflict of overrides.conflicts) warn(conflict);
 
   // Use the version.sync setting from config; fall back to false (per-package versioning)
