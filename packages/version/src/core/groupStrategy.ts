@@ -84,7 +84,12 @@ interface MemberPlan {
 
 function cleanBaseline(version: string | undefined): string {
   if (!version) return '0.0.0';
-  return semver.valid(semver.coerce(version) ?? '') ?? semver.clean(version) ?? '0.0.0';
+  // semver.coerce() strips the prerelease (1.0.0-next.0 -> 1.0.0), which would graduate a linked or
+  // fixed group off its prerelease line on every increment. Parse prerelease-preserving first:
+  // clean() for a bare semver, then coerce({ includePrerelease }) only to pull it from a tag prefix.
+  return (
+    semver.valid(semver.clean(version) ?? '') ?? semver.coerce(version, { includePrerelease: true })?.version ?? '0.0.0'
+  );
 }
 
 /**
