@@ -81,6 +81,7 @@
     "@biomejs/biome": "catalog:",
     "@releasekit/config": "workspace:*",
     "@releasekit/core": "workspace:*",
+    "@releasekit/git": "workspace:*",
     "@types/figlet": "^1.5.5",
     "@types/node": "catalog:",
     "@types/semver": "catalog:",

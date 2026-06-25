@@ -304,14 +304,14 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
     if (branchPattern && branchPattern.length > 0) {
       log(`Branch pattern configured, processing`, 'debug');
       // Get current branch and handle branch pattern matching
-      const currentBranch = getCurrentBranch();
+      const currentBranch = await getCurrentBranch();
       log(`Current branch: ${currentBranch}`, 'debug');
 
       // Important: We need to make this call to match test expectations
       // Always call lastMergeBranchName even if we don't use the result
       if (baseBranch) {
         log(`Calling lastMergeBranchName with baseBranch: ${baseBranch}`, 'debug');
-        lastMergeBranchName(branchPattern, baseBranch);
+        await lastMergeBranchName(branchPattern, baseBranch);
       }
 
       // Match pattern against current or lastBranch
@@ -361,7 +361,8 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
       // default tag-detection recognises — so accumulated historical feats inflate the bump magnitude
       // (a docs-only window bumps minor instead of patch). Guard the tag with rev-parse so an absent
       // ref falls back to the unbounded default rather than throwing. See #330.
-      const bumpFrom = config.baseRef ?? (latestTag && refExists(latestTag, pkgPath) ? latestTag : undefined);
+      const latestTagReachable = !!latestTag && (await refExists(latestTag, pkgPath));
+      const bumpFrom = config.baseRef ?? (latestTagReachable ? latestTag : undefined);
       if (bumpFrom) {
         bumper.commits({ from: bumpFrom });
       }
@@ -383,7 +384,7 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
         // commitCheckPath overrides pkgPath for this check (used by sync mode to count
         // commits from the repo root rather than a single workspace package directory).
         const checkPath = commitCheckPath || pkgPath || cwd();
-        const commitsLength = getCommitsLength(checkPath, versionSource.version); // Use the actual tag from version source
+        const commitsLength = await getCommitsLength(checkPath, versionSource.version); // Use the actual tag from version source
         log(`Commits since ${versionSource.version}: ${commitsLength}`, 'debug');
         if (commitsLength === 0) {
           log(

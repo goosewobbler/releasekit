@@ -501,6 +501,9 @@ importers:
       '@releasekit/core':
         specifier: workspace:*
         version: link:../core
+      '@releasekit/git':
+        specifier: workspace:*
+        version: link:../git
       '@types/figlet':
         specifier: ^1.5.5
         version: 1.7.0

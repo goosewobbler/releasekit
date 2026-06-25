@@ -154,7 +154,7 @@ describe('Package Processor', () => {
 
     // Baseline tag verification — default to a valid, reachable baseline so changelog ranges
     // resolve to `<tag>..HEAD`. Tests exercising the all-history fallback (#339) override this.
-    vi.spyOn(tagVerification, 'verifyTag').mockReturnValue({ exists: true, reachable: true });
+    vi.spyOn(tagVerification, 'verifyTag').mockResolvedValue({ exists: true, reachable: true });
 
     // Calculator mock - fix to return a Promise
     vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
@@ -413,7 +413,7 @@ describe('Package Processor', () => {
         return `${formattedPrefix}${tag.slice(baselineTagPrefix.length)}`;
       });
       // Baseline resolves as a ref but can't be verified from HEAD (shallow clone / unpushed tag).
-      vi.spyOn(tagVerification, 'verifyTag').mockReturnValue({ exists: false, reachable: false, error: 'not found' });
+      vi.spyOn(tagVerification, 'verifyTag').mockResolvedValue({ exists: false, reachable: false, error: 'not found' });
 
       const processor = new PackageProcessor({
         ...defaultOptions,
@@ -574,10 +574,10 @@ describe('Package Processor', () => {
       // The injected getLatestTag (git-semver-tags, bare-semver only) returns '' for such repos —
       // sourcing the floor from it collapsed the range to full history, the bug this guards against.
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
-      vi.spyOn(gitTags, 'getNearestReachableTag').mockReturnValue('wdio-dioxus-bridge@v1.0.0-next.2');
+      vi.spyOn(gitTags, 'getNearestReachableTag').mockResolvedValue('wdio-dioxus-bridge@v1.0.0-next.2');
       vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
       vi.spyOn(versionCalculatorModule, 'calculateVersion').mockResolvedValue('1.1.0');
-      const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockReturnValue([]);
+      const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockResolvedValue([]);
 
       const processor = new PackageProcessor({
         ...defaultOptions,
@@ -597,10 +597,10 @@ describe('Package Processor', () => {
 
     it('should fall back to HEAD range for shared entries when no tag is reachable (#348)', async () => {
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
-      vi.spyOn(gitTags, 'getNearestReachableTag').mockReturnValue('');
+      vi.spyOn(gitTags, 'getNearestReachableTag').mockResolvedValue('');
       vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
       vi.spyOn(versionCalculatorModule, 'calculateVersion').mockResolvedValue('1.1.0');
-      const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockReturnValue([]);
+      const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockResolvedValue([]);
 
       const processor = new PackageProcessor({
         ...defaultOptions,
@@ -613,7 +613,7 @@ describe('Package Processor', () => {
     });
 
     it('should classify against the full workspace, not the release set, so a non-releasing package does not leak into shared (#397)', async () => {
-      const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockReturnValue([]);
+      const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockResolvedValue([]);
       const processor = new PackageProcessor({
         ...defaultOptions,
         fullConfig: {
@@ -638,7 +638,7 @@ describe('Package Processor', () => {
     });
 
     it('should route a configured sharedPackages package to repo-level via its dir (#406)', async () => {
-      const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockReturnValue([]);
+      const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockResolvedValue([]);
       const processor = new PackageProcessor({
         ...defaultOptions,
         fullConfig: {
@@ -659,7 +659,7 @@ describe('Package Processor', () => {
     });
 
     it('should treat no package as shared when sharedPackages is unset — no hardcoded names (#406)', async () => {
-      const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockReturnValue([]);
+      const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockResolvedValue([]);
       const processor = new PackageProcessor({
         ...defaultOptions,
         fullConfig: {
@@ -685,7 +685,7 @@ describe('Package Processor', () => {
         if (_dir.includes('package-a')) return [pkgAEntry];
         return [];
       });
-      vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockReturnValue([repoLevelEntry]);
+      vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockResolvedValue([repoLevelEntry]);
 
       const processor = new PackageProcessor({ ...defaultOptions });
       await processor.processPackages(mockPackages);
@@ -1491,7 +1491,7 @@ describe('Package Processor', () => {
     });
 
     it('should abort the run with a StrictReachableError when the baseline is unreachable', async () => {
-      vi.spyOn(tagVerification, 'verifyTag').mockReturnValue({
+      vi.spyOn(tagVerification, 'verifyTag').mockResolvedValue({
         exists: true,
         reachable: false,
         error: 'exists but is not an ancestor of HEAD',
@@ -1508,7 +1508,7 @@ describe('Package Processor', () => {
     it('should still degrade a genuine changelog-extraction error to a minimal entry', async () => {
       // Baseline reachable (no strict violation), but commit parsing throws — the catch must swallow
       // this and fall back, not abort, even though strictReachable is on.
-      vi.spyOn(tagVerification, 'verifyTag').mockReturnValue({ exists: true, reachable: true });
+      vi.spyOn(tagVerification, 'verifyTag').mockResolvedValue({ exists: true, reachable: true });
       vi.spyOn(commitParser, 'extractChangelogEntriesFromCommits').mockImplementation(() => {
         throw new Error('git log failed');
       });

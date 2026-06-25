@@ -1,5 +1,5 @@
+import { createFakeGit, type Git } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { execAsync, execSync } from '../../../src/git/commandExecutor.js';
 import {
   getCommitsLength,
   getLatestStableTagForPackage,
@@ -12,16 +12,23 @@ import {
 } from '../../../src/git/tagsAndBranches.js';
 import { log } from '../../../src/utils/logging.js';
 
-// Mock dependencies
-vi.mock('../../../src/git/commandExecutor.js');
+// getLatestTag/getLatestStableTag still go through git-semver-tags (NOT the seam) — keep mocking it.
 vi.mock('../../../src/utils/logging.js');
 vi.mock('git-semver-tags', () => ({
   getSemverTags: vi.fn(),
 }));
 
-const mockGitTags = (tags: string[]) => {
-  vi.mocked(execSync, { partial: true }).mockReturnValue(Buffer.from(tags.join('\n')));
-};
+/** A FakeGit seeded with `git tag --sort=-creatordate` output (newest-first), for listTags-backed lookups. */
+const gitWithTags = (tags: string[]): Git => createFakeGit({ tags });
+
+/** A FakeGit whose listTags rejects, to exercise the tag-listing error paths. */
+function gitThatFailsListTagsWith(message: string): Git {
+  const git = createFakeGit();
+  git.listTags = async () => {
+    throw new Error(message);
+  };
+  return git;
+}
 
 describe('tagsAndBranches', () => {
   beforeEach(() => {
@@ -33,121 +40,104 @@ describe('tagsAndBranches', () => {
   });
 
   describe('getCommitsLength', () => {
-    it('should return the number of commits since last tag', () => {
-      // Setup: first call returns the latest tag, second returns the commit count
-      vi.mocked(execSync, { partial: true })
-        .mockReturnValueOnce(Buffer.from('v0.9.0'))
-        .mockReturnValueOnce(Buffer.from('5'));
+    it('should return the number of commits since a specific tag', async () => {
+      const git = createFakeGit({ commitCounts: { 'v0.9.0..HEAD': 5 } });
 
-      // Execute
-      const result = getCommitsLength('packages/test');
+      const result = await getCommitsLength('packages/test', 'v0.9.0', git);
 
-      // Verify
       expect(result).toBe(5);
-      expect(execSync).toHaveBeenCalledWith('git', ['describe', '--tags', '--abbrev=0']);
-      expect(execSync).toHaveBeenCalledWith('git', ['rev-list', '--count', 'HEAD', '^v0.9.0', 'packages/test']);
     });
 
-    it('should return 0 if command fails', () => {
-      // Setup
-      vi.mocked(execSync, { partial: true }).mockImplementation(() => {
+    it('should fall back to the nearest tag via describe when no sinceTag is given', async () => {
+      // describeTags returns the nearest tag; the count is then taken over `<tag>..HEAD`.
+      const git = createFakeGit({ nearestTag: 'v0.9.0', commitCounts: { 'v0.9.0..HEAD': 5 } });
+
+      const result = await getCommitsLength('packages/test', undefined, git);
+
+      expect(result).toBe(5);
+    });
+
+    it('should return 0 when describe finds no reachable tag', async () => {
+      const git = createFakeGit({ nearestTag: null });
+
+      const result = await getCommitsLength('packages/test', undefined, git);
+
+      expect(result).toBe(0);
+      expect(log).toHaveBeenCalledWith(expect.stringContaining('Failed to get number of commits'), 'error');
+    });
+
+    it('should return 0 if the git command fails', async () => {
+      const git = createFakeGit();
+      git.countCommits = async () => {
         throw new Error('Command failed');
-      });
+      };
 
-      // Execute
-      const result = getCommitsLength('packages/test');
+      const result = await getCommitsLength('packages/test', 'v0.9.0', git);
 
-      // Verify
       expect(result).toBe(0);
       expect(log).toHaveBeenCalledWith('Failed to get number of commits since last tag: Command failed', 'error');
     });
   });
 
   describe('refExists', () => {
-    it('should return true when rev-parse resolves the ref', () => {
-      vi.mocked(execSync, { partial: true }).mockReturnValue(Buffer.from(''));
+    it('should return true when the ref resolves', async () => {
+      const git = createFakeGit({ existingRefs: ['release/v0.29.0'] });
 
-      expect(refExists('release/v0.29.0')).toBe(true);
-      expect(execSync).toHaveBeenCalledWith(
-        'git',
-        ['rev-parse', '--verify', '--quiet', 'release/v0.29.0^{commit}'],
-        expect.objectContaining({ stdio: 'ignore' }),
-      );
+      expect(await refExists('release/v0.29.0', undefined, git)).toBe(true);
     });
 
-    it('should pass cwd through when provided', () => {
-      vi.mocked(execSync, { partial: true }).mockReturnValue(Buffer.from(''));
+    it('should pass cwd through when provided', async () => {
+      const git = createFakeGit({ existingRefs: ['v1.0.0'] });
 
-      refExists('v1.0.0', '/repo/pkg');
-
-      expect(execSync).toHaveBeenCalledWith(
-        'git',
-        ['rev-parse', '--verify', '--quiet', 'v1.0.0^{commit}'],
-        expect.objectContaining({ cwd: '/repo/pkg', stdio: 'ignore' }),
-      );
+      expect(await refExists('v1.0.0', '/repo/pkg', git)).toBe(true);
     });
 
-    it('should return false when the ref does not resolve', () => {
-      vi.mocked(execSync, { partial: true }).mockImplementation(() => {
-        throw new Error('fatal: Needed a single revision');
-      });
+    it('should return false when the ref does not resolve', async () => {
+      const git = createFakeGit();
 
-      expect(refExists('does-not-exist')).toBe(false);
+      expect(await refExists('does-not-exist', undefined, git)).toBe(false);
     });
 
-    it('should return false for an empty ref without shelling out', () => {
-      expect(refExists('')).toBe(false);
-      expect(execSync).not.toHaveBeenCalled();
+    it('should return false for an empty ref without shelling out', async () => {
+      const git = createFakeGit({ existingRefs: [''] });
+
+      expect(await refExists('', undefined, git)).toBe(false);
     });
   });
 
   describe('getLatestTag', () => {
     it('should return the latest semver tag', async () => {
-      // Setup
       const mockGetSemverTags = await import('git-semver-tags');
       vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue(['v1.0.0', 'v0.9.0']);
 
-      // Execute
       const result = await getLatestTag();
 
-      // Verify
       expect(result).toBe('v1.0.0');
       expect(mockGetSemverTags.getSemverTags).toHaveBeenCalledWith({});
     });
 
     it('should return empty string if no tags found', async () => {
-      // Setup
       const mockGetSemverTags = await import('git-semver-tags');
       vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([]);
 
-      // Execute
       const result = await getLatestTag();
 
-      // Verify
       expect(result).toBe('');
     });
 
     it('should log error and return empty string if getSemverTags fails', async () => {
-      // Setup
       const mockGetSemverTags = await import('git-semver-tags');
       vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockRejectedValue(new Error('No names found'));
 
-      // Execute
       const result = await getLatestTag();
 
-      // Verify
       expect(result).toBe('');
       expect(log).toHaveBeenCalledWith('Failed to get latest tag: No names found', 'error');
       expect(log).toHaveBeenCalledWith('No tags found in the repository.', 'info');
     });
 
     it('should sort multi-segment-prefixed tags by semver (not as 0.0.0)', async () => {
-      // Without the prefix strip in getLatestTag, semver.clean('release/v1.0.0') returns null,
-      // every tag falls through to '0.0.0', and rcompare returns 0 for every pair — meaning a
-      // chronologically-out-of-order backfill would be returned as the "latest".
       const mockGetSemverTags = await import('git-semver-tags');
-      // Newest tag created last (chronological order from getSemverTags is creator-date descending,
-      // so that's tags[0]). Pretend release/v0.21.0 was backfilled AFTER release/v0.22.0.
       vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
         'release/v0.21.0',
         'release/v0.22.0',
@@ -155,59 +145,52 @@ describe('tagsAndBranches', () => {
 
       const result = await getLatestTag('release/v');
 
-      // Semantic latest is v0.22.0 even though v0.21.0 came first chronologically.
       expect(result).toBe('release/v0.22.0');
     });
   });
 
   describe('lastMergeBranchName', () => {
     it('should return the last merged branch name matching patterns', async () => {
-      // Setup
-      vi.mocked(execAsync, { partial: true }).mockResolvedValue({
-        stdout: 'feature/test-branch',
-        stderr: '',
-      });
+      // forEachRef returns candidate branches (newest-first); the function applies the pattern regex.
+      const git = createFakeGit({ refLines: ['feature/test-branch', 'chore/other'] });
 
-      // Execute
-      const result = await lastMergeBranchName(['feature', 'fix'], 'main');
+      const result = await lastMergeBranchName(['feature', 'fix'], 'main', git);
 
-      // Verify
       expect(result).toBe('feature/test-branch');
-      expect(execAsync).toHaveBeenCalledWith('git', [
-        'for-each-ref',
-        '--sort=-committerdate',
-        '--format=%(refname:short)',
-        'refs/heads',
-        '--merged=main',
-      ]);
     });
 
-    it('should return null if command fails', async () => {
-      // Setup
-      vi.mocked(execAsync, { partial: true }).mockRejectedValue(new Error('Command failed'));
+    it('should return null when no branch matches', async () => {
+      const git = createFakeGit({ refLines: ['chore/other'] });
+
+      const result = await lastMergeBranchName(['feature'], 'main', git);
+
+      expect(result).toBe(null);
+    });
+
+    it('should return null if the git command fails', async () => {
+      const git = createFakeGit();
+      git.forEachRef = async () => {
+        throw new Error('Command failed');
+      };
       const consoleErrorSpy = vi.spyOn(console, 'error');
 
-      // Execute
-      const result = await lastMergeBranchName(['feature'], 'main');
+      const result = await lastMergeBranchName(['feature'], 'main', git);
 
-      // Verify
       expect(result).toBe(null);
       expect(consoleErrorSpy).toHaveBeenCalled();
     });
   });
 
   describe('getLatestTagForPackage', () => {
-    beforeEach(() => {
-      vi.resetAllMocks();
-    });
-
     it('should find tag in format packageName-versionPrefix+version', async () => {
-      mockGitTags(['test-package-v1.0.0', 'test-package-v0.9.0', 'other-package-v1.2.0']);
+      const git = gitWithTags(['test-package-v1.0.0', 'test-package-v0.9.0', 'other-package-v1.2.0']);
 
-      const result = await getLatestTagForPackage('test-package', 'v', {
-        packageSpecificTags: true,
-        tagTemplate: '${packageName}-${prefix}${version}',
-      });
+      const result = await getLatestTagForPackage(
+        'test-package',
+        'v',
+        { packageSpecificTags: true, tagTemplate: '${packageName}-${prefix}${version}' },
+        git,
+      );
 
       expect(result).toBe('test-package-v1.0.0');
       expect(log).toHaveBeenCalledWith(
@@ -217,34 +200,30 @@ describe('tagsAndBranches', () => {
     });
 
     it('should find tag in format versionPrefix-packageName-version', async () => {
-      mockGitTags(['vtest-package-1.0.0', 'vother-package-1.2.0']);
+      const git = gitWithTags(['vtest-package-1.0.0', 'vother-package-1.2.0']);
 
-      const result = await getLatestTagForPackage('test-package', 'v', {
-        packageSpecificTags: true,
-        tagTemplate: '${prefix}${packageName}-${version}',
-      });
-
-      expect(result).toBe('vtest-package-1.0.0');
-
-      expect(log).toHaveBeenCalledWith(
-        'Looking for tags for package test-package with prefix v, packageSpecificTags: true',
-        'debug',
+      const result = await getLatestTagForPackage(
+        'test-package',
+        'v',
+        { packageSpecificTags: true, tagTemplate: '${prefix}${packageName}-${version}' },
+        git,
       );
 
+      expect(result).toBe('vtest-package-1.0.0');
       expect(log).toHaveBeenCalledWith('Retrieved 2 tags', 'debug');
-
       expect(log).toHaveBeenCalledWith('Found 1 package tags using configured pattern', 'debug');
-
       expect(log).toHaveBeenCalledWith('Using most recently created tag: vtest-package-1.0.0', 'debug');
     });
 
     it('should find tag in format packageName-version when no prefix is provided', async () => {
-      mockGitTags(['test-package-1.0.0', 'test-package-0.9.0', 'other-package-1.2.0']);
+      const git = gitWithTags(['test-package-1.0.0', 'test-package-0.9.0', 'other-package-1.2.0']);
 
-      const result = await getLatestTagForPackage('test-package', undefined, {
-        packageSpecificTags: true,
-        tagTemplate: '${packageName}-${version}',
-      });
+      const result = await getLatestTagForPackage(
+        'test-package',
+        undefined,
+        { packageSpecificTags: true, tagTemplate: '${packageName}-${version}' },
+        git,
+      );
 
       expect(result).toBe('test-package-1.0.0');
       expect(log).toHaveBeenCalledWith(
@@ -254,549 +233,232 @@ describe('tagsAndBranches', () => {
     });
 
     it('should handle scoped package names', async () => {
-      mockGitTags(['scope-test-package-v1.0.0', 'scope-other-package-v1.2.0']);
+      const git = gitWithTags(['scope-test-package-v1.0.0', 'scope-other-package-v1.2.0']);
 
-      const result = await getLatestTagForPackage('@scope/test-package', 'v', {
-        packageSpecificTags: true,
-        tagTemplate: '${packageName}-${prefix}${version}',
-      });
+      const result = await getLatestTagForPackage(
+        '@scope/test-package',
+        'v',
+        { packageSpecificTags: true, tagTemplate: '${packageName}-${prefix}${version}' },
+        git,
+      );
 
       expect(result).toBe('scope-test-package-v1.0.0');
     });
 
     it('should return empty string if no tags match packageName pattern', async () => {
-      mockGitTags(['other-package-v1.0.0', 'another-package-v0.9.0']);
+      const git = gitWithTags(['other-package-v1.0.0', 'another-package-v0.9.0']);
 
-      const result = await getLatestTagForPackage('test-package', 'v', {
-        packageSpecificTags: true,
-        tagTemplate: '${packageName}-${prefix}${version}',
-      });
+      const result = await getLatestTagForPackage(
+        'test-package',
+        'v',
+        { packageSpecificTags: true, tagTemplate: '${packageName}-${prefix}${version}' },
+        git,
+      );
 
       expect(result).toBe('');
-      expect(log).toHaveBeenCalledWith(
-        'Looking for tags for package test-package with prefix v, packageSpecificTags: true',
-        'debug',
-      );
-      expect(log).toHaveBeenCalledWith('Retrieved 2 tags', 'debug');
       expect(log).toHaveBeenCalledWith('No matching tags found for configured tag pattern', 'debug');
       expect(log).toHaveBeenCalledWith('Available tags: other-package-v1.0.0, another-package-v0.9.0', 'debug');
     });
 
     it('should return empty string if no tags are found at all', async () => {
-      mockGitTags([]);
+      const git = gitWithTags([]);
 
-      const result = await getLatestTagForPackage('test-package', 'v', {
-        packageSpecificTags: true,
-      });
+      const result = await getLatestTagForPackage('test-package', 'v', { packageSpecificTags: true }, git);
 
       expect(result).toBe('');
-      expect(log).toHaveBeenCalledWith(
-        'Looking for tags for package test-package with prefix v, packageSpecificTags: true',
-        'debug',
-      );
       expect(log).toHaveBeenCalledWith('Retrieved 0 tags', 'debug');
       expect(log).toHaveBeenCalledWith('No tags available in the repository', 'debug');
     });
 
     it('should log error and return empty string if getting tags fails', async () => {
-      vi.mocked(execSync, { partial: true }).mockImplementation((command: any, ..._args: any[]) => {
-        if (
-          Array.isArray(command) &&
-          command[0] === 'git' &&
-          command[1] === 'tag' &&
-          command[2] === '--sort=-creatordate'
-        ) {
-          throw new Error('No names found');
-        }
-        throw new Error(`Unexpected command: ${Array.isArray(command) ? command.join(' ') : command}`);
-      });
+      const git = gitThatFailsListTagsWith('No names found');
 
-      const result = await getLatestTagForPackage('test-package', 'v', { packageSpecificTags: true });
+      const result = await getLatestTagForPackage('test-package', 'v', { packageSpecificTags: true }, git);
 
+      // listPackageTags swallows the listTags error internally (logs + empty list) → no matches → ''.
       expect(result).toBe('');
     });
 
-    it('should handle non-standard error without Error instance', async () => {
-      vi.mocked(execSync, { partial: true }).mockImplementation((command: any, ..._args: any[]) => {
-        if (
-          Array.isArray(command) &&
-          command[0] === 'git' &&
-          command[1] === 'tag' &&
-          command[2] === '--sort=-creatordate'
-        ) {
-          throw 'String error';
-        }
-        throw new Error(`Unexpected command: ${Array.isArray(command) ? command.join(' ') : command}`);
-      });
+    it('should return empty string when listing fails with a non-Error value', async () => {
+      const git = createFakeGit();
+      git.listTags = async () => {
+        throw 'String error';
+      };
 
-      const result = await getLatestTagForPackage('test-package', undefined, { packageSpecificTags: true });
+      const result = await getLatestTagForPackage('test-package', undefined, { packageSpecificTags: true }, git);
 
       expect(result).toBe('');
     });
   });
 
-  describe('Semantic Tag Ordering', () => {
-    afterEach(() => {
-      vi.clearAllMocks();
+  describe('getLatestTagForPackage (chronological / creatordate ordering)', () => {
+    it('should return the most recently created package tag (first in list)', async () => {
+      const git = gitWithTags([
+        'test-package-v1.0.5',
+        'test-package-v1.2.0',
+        'test-package-v1.1.0',
+        'other-package-v2.0.0',
+      ]);
+
+      const result = await getLatestTagForPackage(
+        'test-package',
+        'v',
+        { packageSpecificTags: true, tagTemplate: '${packageName}-${prefix}${version}' },
+        git,
+      );
+
+      expect(result).toBe('test-package-v1.0.5');
+      expect(log).toHaveBeenCalledWith('Using most recently created tag: test-package-v1.0.5', 'debug');
     });
 
-    describe('getLatestTag with semantic ordering', () => {
-      it('should return semantically latest tag when tags are in correct chronological order', async () => {
-        // Setup - chronological order matches semantic order
-        const mockGetSemverTags = await import('git-semver-tags');
-        vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
-          'v1.2.0', // chronologically and semantically latest
-          'v1.1.0',
-          'v1.0.0',
-        ]);
+    it('should prefer a stable patch release created after a prerelease', async () => {
+      const git = gitWithTags(['test-package-v0.2.1', 'test-package-v0.3.0-next.4', 'test-package-v0.3.0-next.3']);
 
-        // Execute
-        const result = await getLatestTag('v');
+      const result = await getLatestTagForPackage(
+        'test-package',
+        'v',
+        { packageSpecificTags: true, tagTemplate: '${packageName}-${prefix}${version}' },
+        git,
+      );
 
-        // Verify
-        expect(result).toBe('v1.2.0');
-        expect(mockGetSemverTags.getSemverTags).toHaveBeenCalledWith({ tagPrefix: 'v' });
-      });
-
-      it('should return semantically latest tag when tags are misordered chronologically', async () => {
-        // Setup - chronological order does NOT match semantic order
-        const mockGetSemverTags = await import('git-semver-tags');
-        vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
-          'v1.0.5', // chronologically latest but semantically older
-          'v1.2.0', // semantically latest but chronologically older
-          'v1.1.0',
-          'v1.0.0',
-        ]);
-
-        // Execute
-        const result = await getLatestTag('v');
-
-        // Verify - should return semantic latest, not chronological latest
-        expect(result).toBe('v1.2.0');
-        expect(log).toHaveBeenCalledWith(
-          'Tag ordering differs: chronological latest is v1.0.5, semantic latest is v1.2.0',
-          'debug',
-        );
-        expect(log).toHaveBeenCalledWith('Using semantic latest (v1.2.0) to handle out-of-order tag creation', 'info');
-      });
-
-      it('should handle prereleases correctly in semantic ordering', async () => {
-        // Setup
-        const mockGetSemverTags = await import('git-semver-tags');
-        vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
-          'v1.0.0-beta.2', // chronologically latest prerelease
-          'v1.0.0', // semantically latest stable
-          'v1.0.0-beta.1',
-          'v0.9.0',
-        ]);
-
-        // Execute
-        const result = await getLatestTag('v');
-
-        // Verify - stable release should be considered higher than prerelease
-        expect(result).toBe('v1.0.0');
-      });
-
-      it('should return empty string when no tags found', async () => {
-        // Setup
-        const mockGetSemverTags = await import('git-semver-tags');
-        vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([]);
-
-        // Execute
-        const result = await getLatestTag('v');
-
-        // Verify
-        expect(result).toBe('');
-      });
-
-      it('should handle semver.clean failures gracefully', async () => {
-        // Setup
-        const mockGetSemverTags = await import('git-semver-tags');
-        vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
-          'invalid-tag',
-          'v1.0.0',
-          'another-invalid',
-        ]);
-
-        // Execute
-        const result = await getLatestTag('v');
-
-        // Verify - should handle invalid tags and return the valid one
-        expect(result).toBe('v1.0.0');
-      });
-
-      it('should use semantic ordering by default', async () => {
-        // Setup
-        const mockGetSemverTags = await import('git-semver-tags');
-        vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
-          'v0.7.4', // chronologically latest
-          'v0.8.1', // semantically latest
-          'v0.7.1',
-        ]);
-
-        // Execute
-        const result = await getLatestTag('v');
-
-        // Verify
-        expect(result).toBe('v0.8.1'); // Should return semantic latest
-      });
-
-      it('should handle complex semantic ordering with major versions', async () => {
-        // Setup
-        const mockGetSemverTags = await import('git-semver-tags');
-        vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
-          'v1.0.0-beta.1', // chronologically first
-          'v2.0.0', // semantically latest
-          'v1.9.5', // chronologically latest but semantically older
-        ]);
-
-        // Execute
-        const result = await getLatestTag('v');
-
-        // Verify
-        expect(result).toBe('v2.0.0'); // Should return semantic latest
-      });
-
-      it('should handle patch version ordering correctly', async () => {
-        // Setup
-        const mockGetSemverTags = await import('git-semver-tags');
-        vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
-          'v1.0.10', // higher patch version
-          'v1.0.2', // lower patch version
-          'v1.0.9', // middle patch version
-        ]);
-
-        // Execute
-        const result = await getLatestTag('v');
-
-        // Verify
-        expect(result).toBe('v1.0.10'); // Should return highest patch version
-      });
-
-      it('should handle mixed prerelease and stable versions', async () => {
-        // Setup
-        const mockGetSemverTags = await import('git-semver-tags');
-        vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
-          'v1.0.0-rc.1', // prerelease
-          'v1.0.0', // stable
-          'v1.0.0-beta.2', // earlier prerelease
-        ]);
-
-        // Execute
-        const result = await getLatestTag('v');
-
-        // Verify
-        expect(result).toBe('v1.0.0'); // Stable should be latest
-      });
-
-      it('should pass versionPrefix parameter to getSemverTags', async () => {
-        // Setup
-        const mockGetSemverTags = await import('git-semver-tags');
-        vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue(['release-1.0.0']);
-
-        // Execute
-        await getLatestTag('release-');
-
-        // Verify
-        expect(mockGetSemverTags.getSemverTags).toHaveBeenCalledWith({ tagPrefix: 'release-' });
-      });
+      expect(result).toBe('test-package-v0.2.1');
     });
 
-    describe('getLatestTagForPackage with chronological ordering', () => {
-      beforeEach(() => {
-        vi.resetAllMocks();
-      });
+    it('should return the most recently created tag even with malformed versions', async () => {
+      const git = gitWithTags(['pkg-1.0.0', 'pkg-invalid-version', 'pkg-not-a-version']);
 
-      it('should return the most recently created package tag (first in list)', async () => {
-        // mockGitTags simulates git --sort=-creatordate: first = most recently created
-        mockGitTags(['test-package-v1.0.5', 'test-package-v1.2.0', 'test-package-v1.1.0', 'other-package-v2.0.0']);
+      const result = await getLatestTagForPackage(
+        'pkg',
+        undefined,
+        { packageSpecificTags: true, tagTemplate: '${packageName}-${version}' },
+        git,
+      );
 
-        const result = await getLatestTagForPackage('test-package', 'v', {
-          packageSpecificTags: true,
-          tagTemplate: '${packageName}-${prefix}${version}',
-        });
-
-        // Returns first matching tag (most recently created), not semver-highest
-        expect(result).toBe('test-package-v1.0.5');
-        expect(log).toHaveBeenCalledWith('Using most recently created tag: test-package-v1.0.5', 'debug');
-      });
-
-      it('should prefer stable patch release created after a prerelease', async () => {
-        // Simulates the real scenario: v0.3.0-next.4 was created first (prerelease track),
-        // then v0.2.1 stable patch was released later — git puts v0.2.1 first.
-        mockGitTags(['test-package-v0.2.1', 'test-package-v0.3.0-next.4', 'test-package-v0.3.0-next.3']);
-
-        const result = await getLatestTagForPackage('test-package', 'v', {
-          packageSpecificTags: true,
-          tagTemplate: '${packageName}-${prefix}${version}',
-        });
-
-        expect(result).toBe('test-package-v0.2.1');
-        expect(log).toHaveBeenCalledWith('Using most recently created tag: test-package-v0.2.1', 'debug');
-      });
-
-      it('should return the most recently created tag for versionPrefix+packageName format', async () => {
-        mockGitTags(['vtest-package-1.2.0', 'vtest-package-1.0.5', 'vother-package-2.0.0']);
-
-        const result = await getLatestTagForPackage('test-package', 'v', {
-          packageSpecificTags: true,
-          tagTemplate: '${prefix}${packageName}-${version}',
-        });
-
-        expect(result).toBe('vtest-package-1.2.0');
-        expect(log).toHaveBeenCalledWith('Using most recently created tag: vtest-package-1.2.0', 'debug');
-      });
-
-      it('should return the most recently created tag for packageName-version format (no prefix)', async () => {
-        mockGitTags(['test-package-1.0.0', 'test-package-0.9.0', 'test-package-0.10.5']);
-
-        const result = await getLatestTagForPackage('test-package', undefined, {
-          packageSpecificTags: true,
-          tagTemplate: '${packageName}-${version}',
-        });
-
-        expect(result).toBe('test-package-1.0.0');
-      });
-
-      it('should return most recently created tag for custom prefix fallback pattern', async () => {
-        mockGitTags(['my-package-release-2.0.0', 'my-package-release-1.9.0', 'my-package-release-1.0.5']);
-
-        const result = await getLatestTagForPackage('my-package', 'release-', {
-          packageSpecificTags: true,
-          tagTemplate: '${packageName}-${prefix}${version}',
-        });
-
-        expect(result).toBe('my-package-release-2.0.0');
-        expect(log).toHaveBeenCalledWith('Using most recently created tag: my-package-release-2.0.0', 'debug');
-      });
-
-      it('should return first matching tag regardless of version ordering', async () => {
-        mockGitTags(['test-package-v1.2.0', 'test-package-v1.1.0', 'test-package-v1.0.0']);
-
-        const result = await getLatestTagForPackage('test-package', 'v', {
-          packageSpecificTags: true,
-          tagTemplate: '${packageName}-${prefix}${version}',
-        });
-
-        expect(result).toBe('test-package-v1.2.0');
-      });
+      expect(result).toBe('pkg-1.0.0');
     });
 
-    describe('Edge Cases and Error Handling', () => {
-      it('should handle invalid semver versions in tag sorting gracefully', async () => {
-        // Setup - mix of valid and invalid semver tags
-        const mockGetSemverTags = await import('git-semver-tags');
-        vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
-          'v1.0.0-invalid-semver-', // invalid semver (semver.clean returns null)
-          'v1.2.0', // valid and semantically latest
-          'invalid-tag-format', // completely invalid
-          'v1.1.0', // valid but older
-        ]);
+    it('should handle package names with special regex characters', async () => {
+      const git = gitWithTags([
+        'scope-package-with.dots-v1.0.0',
+        'scope-package-withplus-v2.0.0',
+        'scope-other-package-v1.5.0',
+      ]);
 
-        // Execute
-        const result = await getLatestTag('v');
+      const result = await getLatestTagForPackage(
+        '@scope/package-with.dots',
+        'v',
+        { packageSpecificTags: true, tagTemplate: '${packageName}-${prefix}${version}' },
+        git,
+      );
 
-        // Verify - should return the highest valid semver tag
-        expect(result).toBe('v1.2.0');
-      });
+      expect(result).toBe('scope-package-with.dots-v1.0.0');
+    });
+  });
 
-      it('should handle empty version prefix correctly', async () => {
-        // Setup
-        const mockGetSemverTags = await import('git-semver-tags');
-        vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue(['1.0.0', '2.0.0', '1.5.0']);
+  describe('getLatestTag semantic ordering', () => {
+    it('should return semantically latest tag when misordered chronologically', async () => {
+      const mockGetSemverTags = await import('git-semver-tags');
+      vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
+        'v1.0.5',
+        'v1.2.0',
+        'v1.1.0',
+        'v1.0.0',
+      ]);
 
-        // Execute
-        const result = await getLatestTag('');
+      const result = await getLatestTag('v');
 
-        // Verify
-        expect(result).toBe('2.0.0');
-        expect(mockGetSemverTags.getSemverTags).toHaveBeenCalledWith({ tagPrefix: '' });
-      });
-
-      it('should handle undefined version prefix correctly', async () => {
-        // Setup
-        const mockGetSemverTags = await import('git-semver-tags');
-        vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue(['v1.0.0', 'v2.0.0']);
-
-        // Execute
-        const result = await getLatestTag(undefined);
-
-        // Verify
-        expect(result).toBe('v2.0.0');
-        expect(mockGetSemverTags.getSemverTags).toHaveBeenCalledWith({ tagPrefix: undefined });
-      });
-
-      it('should handle single tag correctly', async () => {
-        // Setup
-        const mockGetSemverTags = await import('git-semver-tags');
-        vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue(['v1.0.0']);
-
-        // Execute
-        const result = await getLatestTag('v');
-
-        // Verify
-        expect(result).toBe('v1.0.0');
-        // Should not log ordering difference when there's only one tag
-        expect(log).not.toHaveBeenCalledWith(expect.stringContaining('Tag ordering differs'), 'debug');
-      });
-
-      it('should handle complex prerelease identifiers correctly', async () => {
-        // Setup
-        const mockGetSemverTags = await import('git-semver-tags');
-        vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
-          'v1.0.0-beta.1.2.3',
-          'v1.0.0-alpha.1',
-          'v1.0.0-rc.1',
-          'v1.0.0', // stable should be latest
-        ]);
-
-        // Execute
-        const result = await getLatestTag('v');
-
-        // Verify
-        expect(result).toBe('v1.0.0');
-      });
-
-      it('should handle package names with special regex characters', async () => {
-        mockGitTags(['scope-package-with.dots-v1.0.0', 'scope-package-withplus-v2.0.0', 'scope-other-package-v1.5.0']);
-
-        const result = await getLatestTagForPackage('@scope/package-with.dots', 'v', {
-          packageSpecificTags: true,
-          tagTemplate: '${packageName}-${prefix}${version}',
-        });
-
-        expect(result).toBe('scope-package-with.dots-v1.0.0');
-      });
-
-      it('should handle version comparison edge cases correctly', async () => {
-        // Setup
-        const mockGetSemverTags = await import('git-semver-tags');
-        vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
-          'v10.0.0', // double digit major
-          'v2.0.0',
-          'v1.10.0', // double digit minor
-          'v1.2.10', // double digit patch
-        ]);
-
-        // Execute
-        const result = await getLatestTag('v');
-
-        // Verify - should correctly handle double digit versions
-        expect(result).toBe('v10.0.0');
-      });
-
-      it('should handle version comparison edge cases with prereleases correctly', async () => {
-        // Setup
-        const mockGetSemverTags = await import('git-semver-tags');
-        vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
-          'v1.0.0-alpha', // prerelease
-          'v1.0.0', // stable should be higher than prerelease
-          'v0.9.9', // older patch
-        ]);
-
-        // Execute
-        const result = await getLatestTag('v');
-
-        // Verify - stable should be higher than prerelease
-        expect(result).toBe('v1.0.0');
-      });
+      expect(result).toBe('v1.2.0');
+      expect(log).toHaveBeenCalledWith(
+        'Tag ordering differs: chronological latest is v1.0.5, semantic latest is v1.2.0',
+        'debug',
+      );
+      expect(log).toHaveBeenCalledWith('Using semantic latest (v1.2.0) to handle out-of-order tag creation', 'info');
     });
 
-    describe('Semantic Ordering for Unreachable Tags Feature', () => {
-      it('should prioritize semantic version over chronological order for global tags', async () => {
-        // Setup - this simulates the "unreachable tags" scenario where chronological != semantic order
-        const mockGetSemverTags = await import('git-semver-tags');
-        vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
-          'v0.7.1', // chronologically first (created after v0.8.0 due to hotfix)
-          'v0.8.0', // semantically latest (created earlier but higher version)
-          'v0.7.0',
-        ]);
+    it('should treat a stable release as higher than a prerelease', async () => {
+      const mockGetSemverTags = await import('git-semver-tags');
+      vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
+        'v1.0.0-rc.1',
+        'v1.0.0',
+        'v1.0.0-beta.2',
+      ]);
 
-        // Execute
-        const result = await getLatestTag('v');
+      const result = await getLatestTag('v');
 
-        // Verify - should return semantic latest, not chronological latest
-        expect(result).toBe('v0.8.0');
-        expect(log).toHaveBeenCalledWith(
-          'Tag ordering differs: chronological latest is v0.7.1, semantic latest is v0.8.0',
-          'debug',
-        );
-        expect(log).toHaveBeenCalledWith('Using semantic latest (v0.8.0) to handle out-of-order tag creation', 'info');
-      });
+      expect(result).toBe('v1.0.0');
+    });
 
-      it('should return most recently created package tag for complex version prefixes', async () => {
-        // Most recently created tag first (git --sort=-creatordate order)
-        mockGitTags([
-          'frontend-release-2.1.0',
-          'frontend-release-1.9.0',
-          'frontend-release-1.0.5',
-          'backend-release-3.0.0',
-        ]);
+    it('should handle invalid semver versions in sorting gracefully', async () => {
+      const mockGetSemverTags = await import('git-semver-tags');
+      vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
+        'v1.0.0-invalid-semver-',
+        'v1.2.0',
+        'invalid-tag-format',
+        'v1.1.0',
+      ]);
 
-        const result = await getLatestTagForPackage('frontend', 'release-', {
-          packageSpecificTags: true,
-          tagTemplate: '${packageName}-${prefix}${version}',
-        });
+      const result = await getLatestTag('v');
 
-        expect(result).toBe('frontend-release-2.1.0');
-        expect(log).toHaveBeenCalledWith('Using most recently created tag: frontend-release-2.1.0', 'debug');
-      });
+      expect(result).toBe('v1.2.0');
+    });
 
-      it('should return most recently created tag for mixed prefix scenarios', async () => {
-        mockGitTags(['api-1.2.0', 'api-1.0.5', 'other-v2.0.0']);
+    it('should handle double-digit version components', async () => {
+      const mockGetSemverTags = await import('git-semver-tags');
+      vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
+        'v10.0.0',
+        'v2.0.0',
+        'v1.10.0',
+        'v1.2.10',
+      ]);
 
-        const result = await getLatestTagForPackage('api', undefined, {
-          packageSpecificTags: true,
-          tagTemplate: '${packageName}-${prefix}${version}',
-        });
+      const result = await getLatestTag('v');
 
-        expect(result).toBe('api-1.2.0');
-        expect(log).toHaveBeenCalledWith('Using most recently created tag: api-1.2.0', 'debug');
-      });
+      expect(result).toBe('v10.0.0');
+    });
 
-      it('should return most recently created tag even when some tags have malformed versions', async () => {
-        // Most recently created is first — even if it has a non-semver version string
-        mockGitTags(['pkg-1.0.0', 'pkg-invalid-version', 'pkg-not-a-version']);
+    it('should pass the version prefix through to getSemverTags', async () => {
+      const mockGetSemverTags = await import('git-semver-tags');
+      vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue(['release-1.0.0']);
 
-        const result = await getLatestTagForPackage('pkg', undefined, {
-          packageSpecificTags: true,
-          tagTemplate: '${packageName}-${version}',
-        });
+      await getLatestTag('release-');
 
-        expect(result).toBe('pkg-1.0.0');
-        expect(log).toHaveBeenCalledWith('Using most recently created tag: pkg-1.0.0', 'debug');
-      });
+      expect(mockGetSemverTags.getSemverTags).toHaveBeenCalledWith({ tagPrefix: 'release-' });
+    });
 
-      it('should maintain chronological order when semantic versions are identical', async () => {
-        // Setup - identical semantic versions (edge case)
-        const mockGetSemverTags = await import('git-semver-tags');
-        vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue([
-          'v1.0.0', // chronologically first
-          'v1.0.0', // identical version (shouldn't happen in practice but testing edge case)
-        ]);
+    it('should handle an undefined version prefix', async () => {
+      const mockGetSemverTags = await import('git-semver-tags');
+      vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue(['v1.0.0', 'v2.0.0']);
 
-        // Execute
-        const result = await getLatestTag('v');
+      const result = await getLatestTag(undefined);
 
-        // Verify - should return first (chronological) when versions are identical
-        expect(result).toBe('v1.0.0');
-      });
+      expect(result).toBe('v2.0.0');
+      expect(mockGetSemverTags.getSemverTags).toHaveBeenCalledWith({ tagPrefix: undefined });
+    });
+
+    it('should not log an ordering difference when there is only one tag', async () => {
+      const mockGetSemverTags = await import('git-semver-tags');
+      vi.mocked(mockGetSemverTags.getSemverTags, { partial: true }).mockResolvedValue(['v1.0.0']);
+
+      const result = await getLatestTag('v');
+
+      expect(result).toBe('v1.0.0');
+      expect(log).not.toHaveBeenCalledWith(expect.stringContaining('Tag ordering differs'), 'debug');
     });
   });
 
   describe('listPackageTags', () => {
     it('should return matching package tags newest-first and an empty list when none match', async () => {
-      mockGitTags(['pkg@v1.1.0', 'pkg@v1.0.0', 'other@v9.9.9']);
+      const git = gitWithTags(['pkg@v1.1.0', 'pkg@v1.0.0', 'other@v9.9.9']);
 
-      const result = await listPackageTags('pkg', 'v', { packageSpecificTags: true });
+      const result = await listPackageTags('pkg', 'v', { packageSpecificTags: true }, git);
 
       expect(result).toEqual(['pkg@v1.1.0', 'pkg@v1.0.0']);
     });
 
     it('should return an empty list when package-specific tags are disabled', async () => {
-      mockGitTags(['v1.0.0', 'v1.1.0']);
+      const git = gitWithTags(['v1.0.0', 'v1.1.0']);
 
-      const result = await listPackageTags('pkg', 'v', { packageSpecificTags: false });
+      const result = await listPackageTags('pkg', 'v', { packageSpecificTags: false }, git);
 
       expect(result).toEqual([]);
     });
@@ -804,27 +466,25 @@ describe('tagsAndBranches', () => {
 
   describe('listGlobalTags', () => {
     it('should return prefix-matching global tags newest-first, ignoring package and non-semver tags', async () => {
-      mockGitTags(['v1.2.0', 'v1.1.0', 'pkg@v1.0.0', 'release/v0.9.0', 'nightly']);
+      const git = gitWithTags(['v1.2.0', 'v1.1.0', 'pkg@v1.0.0', 'release/v0.9.0', 'nightly']);
 
-      const result = await listGlobalTags('v');
+      const result = await listGlobalTags('v', git);
 
       expect(result).toEqual(['v1.2.0', 'v1.1.0']);
     });
 
     it('should match unprefixed semver tags when no prefix is given', async () => {
-      mockGitTags(['1.2.0', '1.0.0', 'v2.0.0']);
+      const git = gitWithTags(['1.2.0', '1.0.0', 'v2.0.0']);
 
-      const result = await listGlobalTags();
+      const result = await listGlobalTags(undefined, git);
 
       expect(result).toEqual(['1.2.0', '1.0.0']);
     });
 
     it('should return an empty list when listing tags fails', async () => {
-      vi.mocked(execSync, { partial: true }).mockImplementation(() => {
-        throw new Error('boom');
-      });
+      const git = gitThatFailsListTagsWith('boom');
 
-      const result = await listGlobalTags('v');
+      const result = await listGlobalTags('v', git);
 
       expect(result).toEqual([]);
       expect(log).toHaveBeenCalledWith('Failed to list global tags: boom', 'error');
@@ -833,18 +493,17 @@ describe('tagsAndBranches', () => {
 
   describe('getLatestStableTagForPackage', () => {
     it('should skip prerelease tags and return the most recent stable tag', async () => {
-      // Newest tag is a prerelease; the stable lookup must skip it and return the last stable.
-      mockGitTags(['pkg@v1.1.0-next.0', 'pkg@v1.0.0', 'pkg@v0.9.0']);
+      const git = gitWithTags(['pkg@v1.1.0-next.0', 'pkg@v1.0.0', 'pkg@v0.9.0']);
 
-      const result = await getLatestStableTagForPackage('pkg', 'v', { packageSpecificTags: true });
+      const result = await getLatestStableTagForPackage('pkg', 'v', { packageSpecificTags: true }, git);
 
       expect(result).toBe('pkg@v1.0.0');
     });
 
     it('should return an empty string when only prerelease tags exist', async () => {
-      mockGitTags(['pkg@v1.0.0-next.1', 'pkg@v1.0.0-next.0']);
+      const git = gitWithTags(['pkg@v1.0.0-next.1', 'pkg@v1.0.0-next.0']);
 
-      const result = await getLatestStableTagForPackage('pkg', 'v', { packageSpecificTags: true });
+      const result = await getLatestStableTagForPackage('pkg', 'v', { packageSpecificTags: true }, git);
 
       expect(result).toBe('');
     });

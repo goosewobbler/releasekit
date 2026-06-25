@@ -126,7 +126,7 @@ export class BaselineResolver {
       // A real tag (or explicit baseRef): verify it. Existence alone isn't enough — a tag from a
       // shallow clone or a non-ancestor branch can `rev-parse` but produce a meaningless range, so
       // require ancestry (#339).
-      const verification = verifyTag(baseForRange, pkgDir);
+      const verification = await verifyTag(baseForRange, pkgDir);
       if (verification.exists && verification.reachable) {
         revisionRange = `${baseForRange}..HEAD`;
       } else if (!baseRef && strictReachable) {
@@ -156,7 +156,7 @@ export class BaselineResolver {
         // reachable tag rather than flooding with all history (#370) — the same floor `sharedFloor`
         // applies. previousVersion is still omitted (below): we diffed the nearest tag, not the
         // package's own (unreachable) baseline, so we don't claim that baseline.
-        revisionRange = this.nearestReachableRange();
+        revisionRange = await this.nearestReachableRange();
         baselineUnreachable = true;
         log(
           revisionRange === 'HEAD'
@@ -173,12 +173,12 @@ export class BaselineResolver {
       // No real tag — `baseForRange` is the manifest-fallback's synthetic tag, which isn't a git ref.
       // Skip verifyTag (it would emit a misleading "shallow clone" message) and bound by the nearest
       // reachable tag instead of flooding the package's own changelog with all history (#370).
-      revisionRange = this.nearestReachableRange();
+      revisionRange = await this.nearestReachableRange();
       baselineUnreachable = true;
     } else {
       // No baseline at all — an untagged package with no manifest version. Still bound by the nearest
       // reachable tag (#370); a genuinely fresh repo with no tags falls through to full history.
-      revisionRange = this.nearestReachableRange();
+      revisionRange = await this.nearestReachableRange();
     }
 
     // previousVersion is shown to users in the changelog header — strip the baseline-tag scheme back
@@ -203,7 +203,7 @@ export class BaselineResolver {
    * range — only a fresh repo now that the per-package floor is itself bounded (#370) — is floored by
    * the nearest reachable tag rather than flooding with full history (#348).
    */
-  sharedFloor(perPackageRange: string): string {
+  async sharedFloor(perPackageRange: string): Promise<string> {
     if (this.opts.baseRef) return perPackageRange;
     if (this.opts.sharedChangelogFloor === 'sinceLastRelease') return this.nearestReachableRange();
     if (perPackageRange !== 'HEAD') return perPackageRange;
@@ -218,9 +218,9 @@ export class BaselineResolver {
    * Uses `git describe` (prefix-agnostic, reachable by construction) — NOT the semver-tag lookup,
    * which only matches bare-semver tags and collapses to full history in per-package-tag monorepos.
    */
-  private nearestReachableRange(): string {
+  private async nearestReachableRange(): Promise<string> {
     if (this.sharedBaselineRange === undefined) {
-      const globalTag = getNearestReachableTag(this.opts.sharedFloorCwd ?? process.cwd());
+      const globalTag = await getNearestReachableTag(this.opts.sharedFloorCwd ?? process.cwd());
       this.sharedBaselineRange = globalTag ? `${globalTag}..HEAD` : 'HEAD';
     }
     return this.sharedBaselineRange;

@@ -241,7 +241,7 @@ export class PackageProcessor {
         revisionRange = baseline.revisionRange;
         previousVersion = baseline.previousVersion;
 
-        changelogEntries = extractChangelogEntriesFromCommits(pkgPath, revisionRange);
+        changelogEntries = await extractChangelogEntriesFromCommits(pkgPath, revisionRange);
 
         // Also extract repo-level commits (those touching no package dir, plus declared shared
         // packages whose changes belong project-wide). Classify against the FULL discovered
@@ -262,9 +262,9 @@ export class PackageProcessor {
         // Bound the repo-level ("shared") entries by the run's nearest-reachable floor when this
         // package's own range collapsed to full history (untagged / unreachable), so a single
         // untagged package doesn't flood "Project-wide changes" with the entire history (#348).
-        const sharedRevisionRange = baselineResolver.sharedFloor(revisionRange);
+        const sharedRevisionRange = await baselineResolver.sharedFloor(revisionRange);
 
-        const repoLevelEntries = extractRepoLevelChangelogEntries(
+        const repoLevelEntries = await extractRepoLevelChangelogEntries(
           pkgPath,
           sharedRevisionRange,
           allPackageDirs,

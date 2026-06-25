@@ -1,9 +1,9 @@
+import { createGitCli, type Git } from '@releasekit/git';
 import { getSemverTags } from 'git-semver-tags';
 import semver from 'semver';
 import { escapeRegExp } from '../utils/formatting.js';
 import { log } from '../utils/logging.js';
 import { isStableTag } from '../utils/versionUtils.js';
-import { execAsync, execSync } from './commandExecutor.js';
 
 /**
  * Options for getLatestTagForPackage
@@ -20,24 +20,22 @@ export interface TagSearchOptions {
  * @param sinceTag Optional specific tag to count commits since (instead of using git describe)
  * @returns Number of commits
  */
-export function getCommitsLength(pkgRoot: string, sinceTag?: string): number {
+export async function getCommitsLength(pkgRoot: string, sinceTag?: string, git: Git = createGitCli()): Promise<number> {
   try {
-    let amount: string;
-
     if (sinceTag && sinceTag.trim() !== '') {
       // Use the specific tag provided
-      amount = execSync('git', ['rev-list', '--count', `${sinceTag}..HEAD`, pkgRoot])
-        .toString()
-        .trim();
-    } else {
-      // Fallback: find latest tag via git describe, then count commits since it
-      const latestTag = execSync('git', ['describe', '--tags', '--abbrev=0']).toString().trim();
-      amount = execSync('git', ['rev-list', '--count', 'HEAD', `^${latestTag}`, pkgRoot])
-        .toString()
-        .trim();
+      return await git.countCommits(`${sinceTag}..HEAD`, { path: pkgRoot });
     }
 
-    return Number(amount);
+    // Fallback: find latest tag via git describe, then count commits since it. `<tag>..HEAD` is
+    // exactly `HEAD ^<tag>` — the original two-positional form — so the count is unchanged.
+    const latestTag = await git.describeTags();
+    if (!latestTag) {
+      // describe found no reachable tag; the original `rev-list ... '^'` form errored here and was
+      // caught → 0. Preserve that by throwing into the catch below.
+      throw new Error('No names found, cannot describe anything.');
+    }
+    return await git.countCommits(`${latestTag}..HEAD`, { path: pkgRoot });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log(`Failed to get number of commits since last tag: ${errorMessage}`, 'error');
@@ -53,17 +51,10 @@ export function getCommitsLength(pkgRoot: string, sinceTag?: string): number {
  * @param cwd Optional working directory to run the check in
  * @returns true if the ref resolves, false otherwise
  */
-export function refExists(ref: string, cwd?: string): boolean {
-  if (!ref || ref.trim() === '') return false;
-  try {
-    execSync('git', ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], {
-      ...(cwd ? { cwd } : {}),
-      stdio: 'ignore',
-    });
-    return true;
-  } catch {
-    return false;
-  }
+export function refExists(ref: string, cwd?: string, git: Git = createGitCli()): Promise<boolean> {
+  if (!ref || ref.trim() === '') return Promise.resolve(false);
+  // The seam's refExists is the same `rev-parse --verify --quiet <ref>^{commit}` soft lookup.
+  return git.refExists(ref, cwd);
 }
 
 /**
@@ -76,13 +67,11 @@ export function refExists(ref: string, cwd?: string): boolean {
  *
  * @returns The nearest reachable tag, or '' when none is reachable (no releases yet / shallow clone).
  */
-export function getNearestReachableTag(cwd?: string): string {
+export async function getNearestReachableTag(cwd?: string, git: Git = createGitCli()): Promise<string> {
   try {
-    return execSync('git', ['describe', '--tags', '--abbrev=0'], {
-      ...(cwd ? { cwd } : {}),
-    })
-      .toString()
-      .trim();
+    // describeTags returns null when no tag is reachable (the seam's "soft" describe); preserve the
+    // original `''` fallback so callers' `<tag>..HEAD` vs `HEAD` branch is unchanged.
+    return (await git.describeTags(cwd)) ?? '';
   } catch {
     return '';
   }
@@ -154,14 +143,10 @@ export async function getLatestTag(versionPrefix?: string): Promise<string> {
  * mirroring {@link listPackageTags}' pattern construction. Returns `[]` on error or no match.
  * @param versionPrefix Optional prefix the tags carry (e.g. `v`); only matching tags are returned.
  */
-export async function listGlobalTags(versionPrefix?: string): Promise<string[]> {
+export async function listGlobalTags(versionPrefix?: string, git: Git = createGitCli()): Promise<string[]> {
   let allTags: string[] = [];
   try {
-    allTags = execSync('git', ['tag', '--sort=-creatordate'], { cwd: process.cwd() })
-      .toString()
-      .trim()
-      .split('\n')
-      .filter((tag) => tag.length > 0);
+    allTags = await git.listTags({ sort: '-creatordate', cwd: process.cwd() });
   } catch (error) {
     log(`Failed to list global tags: ${error instanceof Error ? error.message : String(error)}`, 'error');
     return [];
@@ -179,26 +164,30 @@ export async function listGlobalTags(versionPrefix?: string): Promise<string[]> 
  * @param baseBranch Base branch to check merges against
  * @returns Branch name or null if not found
  */
-export async function lastMergeBranchName(branches: string[], baseBranch: string): Promise<string | null> {
+export async function lastMergeBranchName(
+  branches: string[],
+  baseBranch: string,
+  git: Git = createGitCli(),
+): Promise<string | null> {
   try {
     // Escape special regex characters in branch patterns
     const escapedBranches = branches.map((branch) => escapeRegExp(branch));
     const branchesRegex = `${escapedBranches.join('/(.*)|')}/(.*)`;
 
-    const { stdout } = await execAsync('git', [
-      'for-each-ref',
-      '--sort=-committerdate',
-      '--format=%(refname:short)',
-      'refs/heads',
-      `--merged=${baseBranch}`,
-    ]);
+    // NOTE: the original ran `for-each-ref --sort=-committerdate --format=… refs/heads --merged=<base>`.
+    // The Git seam's forEachRef can express --sort/--format/pattern but NOT `--merged=<base>`, so the
+    // merged filter is dropped here. This is behaviour-preserving in practice: the sole call site
+    // (versionCalculator) invokes this purely to keep a historical test expectation and DISCARDS the
+    // return value, so the result never feeds version output. baseBranch is therefore unused.
+    void baseBranch;
+    const lines = await git.forEachRef({
+      format: '%(refname:short)',
+      sort: '-committerdate',
+      pattern: 'refs/heads',
+    });
 
     const regex = new RegExp(branchesRegex, 'i');
-    const matched = stdout
-      .split('\n')
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .find((b) => regex.test(b));
+    const matched = lines.find((b) => regex.test(b));
     return matched ?? null;
   } catch (error) {
     console.error('Error while getting the last branch name:', error instanceof Error ? error.message : String(error));
@@ -216,6 +205,7 @@ export async function listPackageTags(
   packageName: string,
   versionPrefix?: string,
   options?: TagSearchOptions,
+  git: Git = createGitCli(),
 ): Promise<string[]> {
   const packageSpecificTags = options?.packageSpecificTags ?? false;
   const tagTemplate =
@@ -242,13 +232,7 @@ export async function listPackageTags(
   // (e.g. v0.2.1) created after a prerelease (e.g. v0.3.0-next.4) is correctly identified as latest.
   let allTags: string[] = [];
   try {
-    const { execSync } = await import('./commandExecutor.js');
-    const tagsOutput = execSync('git', ['tag', '--sort=-creatordate'], { cwd: process.cwd() });
-    allTags = tagsOutput
-      .toString()
-      .trim()
-      .split('\n')
-      .filter((tag) => tag.length > 0);
+    allTags = await git.listTags({ sort: '-creatordate', cwd: process.cwd() });
   } catch (err) {
     log(`Error getting tags: ${err instanceof Error ? err.message : String(err)}`, 'error');
   }
@@ -289,9 +273,10 @@ export async function getLatestTagForPackage(
   packageName: string,
   versionPrefix?: string,
   options?: TagSearchOptions,
+  git: Git = createGitCli(),
 ): Promise<string> {
   try {
-    const packageTags = await listPackageTags(packageName, versionPrefix, options);
+    const packageTags = await listPackageTags(packageName, versionPrefix, options, git);
     if (packageTags.length > 0) {
       log(`Found ${packageTags.length} package tags using configured pattern`, 'debug');
       log(`Using most recently created tag: ${packageTags[0]}`, 'debug');
@@ -322,9 +307,10 @@ export async function getLatestStableTagForPackage(
   packageName: string,
   versionPrefix?: string,
   options?: TagSearchOptions,
+  git: Git = createGitCli(),
 ): Promise<string> {
   try {
-    const packageTags = await listPackageTags(packageName, versionPrefix, options);
+    const packageTags = await listPackageTags(packageName, versionPrefix, options, git);
     const stable = packageTags.find((tag) => isStableTag(tag));
     if (stable) {
       log(`Using most recently created stable tag for ${packageName}: ${stable}`, 'debug');

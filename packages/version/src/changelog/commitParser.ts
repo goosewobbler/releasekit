@@ -5,7 +5,7 @@
  */
 
 import type { VersionChangelogEntry } from '@releasekit/core';
-import { execSync } from '../git/commandExecutor.js';
+import { createGitCli, type Git } from '@releasekit/git';
 import { log } from '../utils/logging.js';
 
 type ChangelogEntry = VersionChangelogEntry;
@@ -23,10 +23,22 @@ export interface CommitWithHash {
   entry: ChangelogEntry;
 }
 
-export function extractChangelogEntriesWithHash(projectDir: string, revisionRange: string): CommitWithHash[] {
+export async function extractChangelogEntriesWithHash(
+  projectDir: string,
+  revisionRange: string,
+  git: Git = createGitCli(),
+): Promise<CommitWithHash[]> {
   try {
-    const args = ['log', revisionRange, '--pretty=format:%H|||%B---COMMIT_DELIMITER---', '--no-merges', '--', '.'];
-    const output = execSync('git', args, { cwd: projectDir, encoding: 'utf8' }).toString();
+    // `--format=` (tformat) vs the old `--pretty=format:` differ only by a trailing newline, which
+    // the delimiter split/trim below absorbs — the parsed result is identical. `--` `.` restricts to
+    // commits touching this directory.
+    const output = await git.log({
+      range: revisionRange,
+      format: '%H|||%B---COMMIT_DELIMITER---',
+      extraArgs: ['--no-merges'],
+      paths: ['.'],
+      cwd: projectDir,
+    });
 
     const commits = output.split('---COMMIT_DELIMITER---').filter((commit) => commit.trim() !== '');
 
@@ -48,10 +60,19 @@ export function extractChangelogEntriesWithHash(projectDir: string, revisionRang
   }
 }
 
-export function extractAllChangelogEntriesWithHash(projectDir: string, revisionRange: string): CommitWithHash[] {
+export async function extractAllChangelogEntriesWithHash(
+  projectDir: string,
+  revisionRange: string,
+  git: Git = createGitCli(),
+): Promise<CommitWithHash[]> {
   try {
-    const args = ['log', revisionRange, '--pretty=format:%H|||%B---COMMIT_DELIMITER---', '--no-merges'];
-    const output = execSync('git', args, { cwd: projectDir, encoding: 'utf8' }).toString();
+    // No path filter — repo-wide history (used to classify repo-level vs package commits).
+    const output = await git.log({
+      range: revisionRange,
+      format: '%H|||%B---COMMIT_DELIMITER---',
+      extraArgs: ['--no-merges'],
+      cwd: projectDir,
+    });
 
     const commits = output.split('---COMMIT_DELIMITER---').filter((commit) => commit.trim() !== '');
 
@@ -81,26 +102,20 @@ export function extractAllChangelogEntriesWithHash(projectDir: string, revisionR
  * @param sharedPackageDirs Array of shared package directory paths that should be treated as repo-level (e.g., ['packages/config', 'packages/core'])
  * @returns true if the commit touches any non-shared package directory
  */
-export function commitTouchesAnyPackage(
+export async function commitTouchesAnyPackage(
   projectDir: string,
   commitHash: string,
   packageDirs: string[],
   sharedPackageDirs: string[] = [],
-): boolean {
+  git: Git = createGitCli(),
+): Promise<boolean> {
   try {
-    // Get the list of files changed in this commit
-    const output = execSync('git', ['diff-tree', '--no-commit-id', '--name-only', '-r', commitHash], {
-      cwd: projectDir,
-      encoding: 'utf8',
-    })
-      .toString()
-      .trim();
+    // Get the list of files changed in this commit (already trimmed/split, empties dropped).
+    const changedFiles = await git.diffTreeNames(commitHash, projectDir);
 
-    if (!output) {
+    if (changedFiles.length === 0) {
       return false;
     }
-
-    const changedFiles = output.split('\n');
 
     // Check if any changed file is within any non-shared package directory
     return changedFiles.some((file) => {
@@ -132,21 +147,24 @@ export function commitTouchesAnyPackage(
  * @param sharedPackageDirs Array of shared package directory paths that should be treated as repo-level
  * @returns Array of repo-level changelog entries
  */
-export function extractRepoLevelChangelogEntries(
+export async function extractRepoLevelChangelogEntries(
   projectDir: string,
   revisionRange: string,
   packageDirs: string[],
   sharedPackageDirs: string[] = [],
-): ChangelogEntry[] {
+  git: Git = createGitCli(),
+): Promise<ChangelogEntry[]> {
   try {
     // Get all commits with hashes
-    const allCommits = extractAllChangelogEntriesWithHash(projectDir, revisionRange);
+    const allCommits = await extractAllChangelogEntriesWithHash(projectDir, revisionRange, git);
 
-    // Filter to only commits that don't touch any non-shared package directory
-    const repoLevelCommits = allCommits.filter((commit) => {
-      const touchesPackage = commitTouchesAnyPackage(projectDir, commit.hash, packageDirs, sharedPackageDirs);
-      return !touchesPackage;
-    });
+    // Filter to only commits that don't touch any non-shared package directory. The touches-package
+    // check is async (diff-tree per commit), so resolve them all first, then filter synchronously to
+    // preserve order.
+    const touches = await Promise.all(
+      allCommits.map((commit) => commitTouchesAnyPackage(projectDir, commit.hash, packageDirs, sharedPackageDirs, git)),
+    );
+    const repoLevelCommits = allCommits.filter((_commit, i) => !touches[i]);
 
     if (repoLevelCommits.length > 0) {
       log(
@@ -168,8 +186,12 @@ export function extractRepoLevelChangelogEntries(
  * @param revisionRange Git revision range (e.g., "v1.0.0..v1.1.0" or tag name)
  * @returns Array of changelog entries
  */
-export function extractChangelogEntriesFromCommits(projectDir: string, revisionRange: string): ChangelogEntry[] {
-  return extractCommitsFromGitLog(projectDir, revisionRange, true);
+export function extractChangelogEntriesFromCommits(
+  projectDir: string,
+  revisionRange: string,
+  git: Git = createGitCli(),
+): Promise<ChangelogEntry[]> {
+  return extractCommitsFromGitLog(projectDir, revisionRange, true, git);
 }
 
 /**
@@ -178,17 +200,28 @@ export function extractChangelogEntriesFromCommits(projectDir: string, revisionR
  * @param revisionRange Git revision range (e.g., "v1.0.0..v1.1.0" or tag name)
  * @returns Array of changelog entries (including global commits not tied to any package)
  */
-export function extractAllChangelogEntries(projectDir: string, revisionRange: string): ChangelogEntry[] {
-  return extractCommitsFromGitLog(projectDir, revisionRange, false);
+export function extractAllChangelogEntries(
+  projectDir: string,
+  revisionRange: string,
+  git: Git = createGitCli(),
+): Promise<ChangelogEntry[]> {
+  return extractCommitsFromGitLog(projectDir, revisionRange, false, git);
 }
 
-function extractCommitsFromGitLog(projectDir: string, revisionRange: string, filterToPath: boolean): ChangelogEntry[] {
+async function extractCommitsFromGitLog(
+  projectDir: string,
+  revisionRange: string,
+  filterToPath: boolean,
+  git: Git = createGitCli(),
+): Promise<ChangelogEntry[]> {
   try {
-    const args = ['log', revisionRange, '--pretty=format:%B---COMMIT_DELIMITER---', '--no-merges'];
-    if (filterToPath) {
-      args.push('--', '.');
-    }
-    const output = execSync('git', args, { cwd: projectDir, encoding: 'utf8' }).toString();
+    const output = await git.log({
+      range: revisionRange,
+      format: '%B---COMMIT_DELIMITER---',
+      extraArgs: ['--no-merges'],
+      paths: filterToPath ? ['.'] : undefined,
+      cwd: projectDir,
+    });
 
     // Split by commit delimiter and remove empty commits
     const commits = output.split('---COMMIT_DELIMITER---').filter((commit) => commit.trim() !== '');

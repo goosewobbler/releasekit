@@ -372,7 +372,7 @@ export class VersionEngine {
         } catch {
           // No tag resolvable — getCommitsLength falls back to git describe / full history.
         }
-        return getCommitsLength(pkg.dir, tag) > 0 ? pkg.packageJson.name : null;
+        return (await getCommitsLength(pkg.dir, tag)) > 0 ? pkg.packageJson.name : null;
       }),
     );
     return new Set(results.filter((name): name is string => name !== null));

@@ -1,15 +1,31 @@
+import { createFakeGit, type Git } from '@releasekit/git';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { execSync } from '../../../src/git/commandExecutor.js';
 import { verifyTag } from '../../../src/git/tagVerification.js';
 import { log } from '../../../src/utils/logging.js';
 import { getBestVersionSource, VersionMismatchError } from '../../../src/utils/versionUtils.js';
 
-// Mock dependencies
-vi.mock('../../../src/git/commandExecutor.js');
+// Mock logging only; git execution is driven through an injected FakeGit.
 vi.mock('../../../src/utils/logging.js');
 
-const mockExecSync = vi.mocked(execSync);
 const mockLog = vi.mocked(log);
+
+/**
+ * A FakeGit seeded so a tag both exists (refExists) and is reachable from HEAD (isAncestor). Mirrors
+ * the old "tag exists, rev-parse + merge-base both succeed" mock.
+ */
+function gitWithReachableTag(tag: string): Git {
+  return createFakeGit({ existingRefs: [tag], ancestors: { HEAD: [tag] } });
+}
+
+/** A FakeGit where the tag exists but is NOT an ancestor of HEAD. */
+function gitWithUnreachableTag(tag: string): Git {
+  return createFakeGit({ existingRefs: [tag] });
+}
+
+/** A FakeGit where the tag is absent entirely (refExists → false). */
+function gitWithMissingTag(): Git {
+  return createFakeGit();
+}
 
 describe('Tag Verification', () => {
   beforeEach(() => {
@@ -18,34 +34,17 @@ describe('Tag Verification', () => {
   });
 
   describe('verifyTag', () => {
-    it('should return exists: true when tag exists and is reachable', () => {
-      mockExecSync.mockImplementation(() => Buffer.from('abc123'));
-
-      const result = verifyTag('v1.0.0', '/test/path');
+    it('should return exists: true when tag exists and is reachable', async () => {
+      const result = await verifyTag('v1.0.0', '/test/path', gitWithReachableTag('v1.0.0'));
 
       expect(result).toEqual({
         exists: true,
         reachable: true,
       });
-      expect(mockExecSync).toHaveBeenCalledWith('git', ['rev-parse', '--verify', 'v1.0.0'], {
-        cwd: '/test/path',
-        stdio: 'ignore',
-      });
-      expect(mockExecSync).toHaveBeenCalledWith('git', ['merge-base', '--is-ancestor', 'v1.0.0', 'HEAD'], {
-        cwd: '/test/path',
-        stdio: 'ignore',
-      });
     });
 
-    it('should return reachable: false when ref exists but is not an ancestor of HEAD', () => {
-      // First call (rev-parse) succeeds; second call (merge-base --is-ancestor) fails with exit 1
-      mockExecSync
-        .mockImplementationOnce(() => Buffer.from('abc123'))
-        .mockImplementationOnce(() => {
-          throw new Error('exit code 1');
-        });
-
-      const result = verifyTag('deadbeef', '/test/path');
+    it('should return reachable: false when ref exists but is not an ancestor of HEAD', async () => {
+      const result = await verifyTag('deadbeef', '/test/path', gitWithUnreachableTag('deadbeef'));
 
       expect(result).toEqual({
         exists: true,
@@ -54,13 +53,8 @@ describe('Tag Verification', () => {
       });
     });
 
-    it('should return exists: false when tag does not exist', () => {
-      const error = new Error('unknown revision or path not in the working tree');
-      mockExecSync.mockImplementation(() => {
-        throw error;
-      });
-
-      const result = verifyTag('v1.0.0', '/test/path');
+    it('should return exists: false when tag does not exist', async () => {
+      const result = await verifyTag('v1.0.0', '/test/path', gitWithMissingTag());
 
       expect(result).toEqual({
         exists: false,
@@ -69,85 +63,56 @@ describe('Tag Verification', () => {
       });
     });
 
-    it('should return exists: false for bad revision errors', () => {
-      const error = new Error("bad revision 'v1.0.0'");
-      mockExecSync.mockImplementation(() => {
-        throw error;
-      });
+    it('should surface a git error when refExists throws unexpectedly', async () => {
+      // refExists only throws when git itself is missing/fails unexpectedly (e.g. binary not found).
+      const git = createFakeGit();
+      git.refExists = async () => {
+        throw new Error('git binary not found');
+      };
 
-      const result = verifyTag('v1.0.0', '/test/path');
-
-      expect(result).toEqual({
-        exists: false,
-        reachable: false,
-        error: "Ref 'v1.0.0' not found in repository",
-      });
-    });
-
-    it('should return exists: false for "No such ref" errors', () => {
-      const error = new Error('No such ref: v1.0.0');
-      mockExecSync.mockImplementation(() => {
-        throw error;
-      });
-
-      const result = verifyTag('v1.0.0', '/test/path');
+      const result = await verifyTag('v1.0.0', '/test/path', git);
 
       expect(result).toEqual({
         exists: false,
         reachable: false,
-        error: "Ref 'v1.0.0' not found in repository",
+        error: 'Git error: git binary not found',
       });
     });
 
-    it('should return exists: false for other git errors', () => {
-      const error = new Error('fatal: not a git repository');
-      mockExecSync.mockImplementation(() => {
-        throw error;
-      });
-
-      const result = verifyTag('v1.0.0', '/test/path');
-
-      expect(result).toEqual({
-        exists: false,
-        reachable: false,
-        error: 'Git error: fatal: not a git repository',
-      });
-    });
-
-    it('should return exists: false for empty tag name', () => {
-      const result = verifyTag('', '/test/path');
+    it('should return exists: false for empty tag name', async () => {
+      const git = createFakeGit();
+      const result = await verifyTag('', '/test/path', git);
 
       expect(result).toEqual({
         exists: false,
         reachable: false,
         error: 'Empty tag name',
       });
-      expect(mockExecSync).not.toHaveBeenCalled();
+      // No git call for an empty tag.
+      expect(git.added).toEqual([]);
     });
 
-    it('should return exists: false for whitespace-only tag name', () => {
-      const result = verifyTag('   ', '/test/path');
+    it('should return exists: false for whitespace-only tag name', async () => {
+      const result = await verifyTag('   ', '/test/path', createFakeGit({ existingRefs: ['   '] }));
 
       expect(result).toEqual({
         exists: false,
         reachable: false,
         error: 'Empty tag name',
       });
-      expect(mockExecSync).not.toHaveBeenCalled();
     });
   });
 
   describe('getBestVersionSource', () => {
-    beforeEach(() => {
-      // Reset mocks for each test
-      vi.resetAllMocks();
-    });
-
     it('should use package version when it is newer than git tag', async () => {
-      // Mock execSync to succeed (tag exists)
-      mockExecSync.mockImplementation(() => Buffer.from('abc123'));
-
-      const result = await getBestVersionSource('v1.0.0', '1.1.0', '/test/path');
+      const result = await getBestVersionSource(
+        'v1.0.0',
+        '1.1.0',
+        '/test/path',
+        'error',
+        false,
+        gitWithReachableTag('v1.0.0'),
+      );
 
       expect(result).toEqual({
         source: 'package',
@@ -161,10 +126,14 @@ describe('Tag Verification', () => {
     });
 
     it('should use git tag when it is newer than package version', async () => {
-      // Mock execSync to succeed (tag exists)
-      mockExecSync.mockImplementation(() => Buffer.from('abc123'));
-
-      const result = await getBestVersionSource('v1.2.0', '1.0.0', '/test/path', 'warn');
+      const result = await getBestVersionSource(
+        'v1.2.0',
+        '1.0.0',
+        '/test/path',
+        'warn',
+        false,
+        gitWithReachableTag('v1.2.0'),
+      );
 
       expect(result.source).toBe('git');
       expect(result.version).toBe('v1.2.0');
@@ -176,10 +145,14 @@ describe('Tag Verification', () => {
     });
 
     it('should use git tag when versions are equal', async () => {
-      // Mock execSync to succeed (tag exists)
-      mockExecSync.mockImplementation(() => Buffer.from('abc123'));
-
-      const result = await getBestVersionSource('v1.0.0', '1.0.0', '/test/path');
+      const result = await getBestVersionSource(
+        'v1.0.0',
+        '1.0.0',
+        '/test/path',
+        'error',
+        false,
+        gitWithReachableTag('v1.0.0'),
+      );
 
       expect(result).toEqual({
         source: 'git',
@@ -189,12 +162,7 @@ describe('Tag Verification', () => {
     });
 
     it('should fallback to package version when tag is unreachable', async () => {
-      // Mock execSync to fail (tag doesn't exist)
-      mockExecSync.mockImplementation(() => {
-        throw new Error('unknown revision or path not in the working tree');
-      });
-
-      const result = await getBestVersionSource('v1.0.0', '1.0.0', '/test/path');
+      const result = await getBestVersionSource('v1.0.0', '1.0.0', '/test/path', 'error', false, gitWithMissingTag());
 
       expect(result).toEqual({
         source: 'package',
@@ -208,34 +176,19 @@ describe('Tag Verification', () => {
     });
 
     it('should throw error when tag is unreachable and strictReachable is true', async () => {
-      // Mock execSync to fail (tag doesn't exist)
-      mockExecSync.mockImplementation(() => {
-        throw new Error('unknown revision or path not in the working tree');
-      });
-
-      await expect(getBestVersionSource('v1.0.0', '1.0.0', '/test/path', 'error', true)).rejects.toThrow(
-        "Git tag 'v1.0.0' is not reachable from the current commit",
-      );
+      await expect(
+        getBestVersionSource('v1.0.0', '1.0.0', '/test/path', 'error', true, gitWithMissingTag()),
+      ).rejects.toThrow("Git tag 'v1.0.0' is not reachable from the current commit");
     });
 
     it('should throw error when tag is unreachable, strictReachable is true, and no package version', async () => {
-      // Mock execSync to fail (tag doesn't exist)
-      mockExecSync.mockImplementation(() => {
-        throw new Error('unknown revision or path not in the working tree');
-      });
-
-      await expect(getBestVersionSource('v1.0.0', undefined, '/test/path', 'error', true)).rejects.toThrow(
-        "Git tag 'v1.0.0' is not reachable from the current commit",
-      );
+      await expect(
+        getBestVersionSource('v1.0.0', undefined, '/test/path', 'error', true, gitWithMissingTag()),
+      ).rejects.toThrow("Git tag 'v1.0.0' is not reachable from the current commit");
     });
 
     it('should fallback to package version when strictReachable is false (default)', async () => {
-      // Mock execSync to fail (tag doesn't exist)
-      mockExecSync.mockImplementation(() => {
-        throw new Error('unknown revision or path not in the working tree');
-      });
-
-      const result = await getBestVersionSource('v1.0.0', '1.0.0', '/test/path', 'error', false);
+      const result = await getBestVersionSource('v1.0.0', '1.0.0', '/test/path', 'error', false, gitWithMissingTag());
 
       expect(result).toEqual({
         source: 'package',
@@ -265,12 +218,7 @@ describe('Tag Verification', () => {
     });
 
     it('should use initial version when tag unreachable and no package version', async () => {
-      // Mock execSync to fail (tag doesn't exist)
-      mockExecSync.mockImplementation(() => {
-        throw new Error('unknown revision or path not in the working tree');
-      });
-
-      const result = await getBestVersionSource('v1.0.0', undefined, '/test/path');
+      const result = await getBestVersionSource('v1.0.0', undefined, '/test/path', 'error', false, gitWithMissingTag());
 
       expect(result).toEqual({
         source: 'initial',
@@ -304,10 +252,14 @@ describe('Tag Verification', () => {
     });
 
     it('should handle package-specific tags correctly', async () => {
-      // Mock execSync to succeed (tag exists)
-      mockExecSync.mockImplementation(() => Buffer.from('abc123'));
-
-      const result = await getBestVersionSource('my-package@v1.0.0', '1.1.0', '/test/path');
+      const result = await getBestVersionSource(
+        'my-package@v1.0.0',
+        '1.1.0',
+        '/test/path',
+        'error',
+        false,
+        gitWithReachableTag('my-package@v1.0.0'),
+      );
 
       expect(result).toEqual({
         source: 'package',
@@ -317,10 +269,14 @@ describe('Tag Verification', () => {
     });
 
     it('should fallback to git tag when version comparison fails', async () => {
-      // Mock execSync to succeed (tag exists)
-      mockExecSync.mockImplementation(() => Buffer.from('abc123'));
-
-      const result = await getBestVersionSource('v1.0.0', 'invalid-version', '/test/path');
+      const result = await getBestVersionSource(
+        'v1.0.0',
+        'invalid-version',
+        '/test/path',
+        'error',
+        false,
+        gitWithReachableTag('v1.0.0'),
+      );
 
       expect(result).toEqual({
         source: 'git',
@@ -334,10 +290,14 @@ describe('Tag Verification', () => {
     });
 
     it('should use git tag when no package version to compare', async () => {
-      // Mock execSync to succeed (tag exists)
-      mockExecSync.mockImplementation(() => Buffer.from('abc123'));
-
-      const result = await getBestVersionSource('v1.0.0', undefined, '/test/path');
+      const result = await getBestVersionSource(
+        'v1.0.0',
+        undefined,
+        '/test/path',
+        'error',
+        false,
+        gitWithReachableTag('v1.0.0'),
+      );
 
       expect(result).toEqual({
         source: 'git',
@@ -348,10 +308,14 @@ describe('Tag Verification', () => {
 
     describe('version mismatch detection', () => {
       it('should detect mismatch when git tag is stable but package is prerelease (same major)', async () => {
-        // Mock execSync to succeed (tag exists)
-        mockExecSync.mockImplementation(() => Buffer.from('abc123'));
-
-        const result = await getBestVersionSource('v1.0.0', '1.0.0-beta.1', '/test/path', 'warn');
+        const result = await getBestVersionSource(
+          'v1.0.0',
+          '1.0.0-beta.1',
+          '/test/path',
+          'warn',
+          false,
+          gitWithReachableTag('v1.0.0'),
+        );
 
         expect(result.source).toBe('git');
         expect(result.version).toBe('v1.0.0');
@@ -361,10 +325,14 @@ describe('Tag Verification', () => {
       });
 
       it('should use prefer-package strategy to use package version on mismatch', async () => {
-        // Mock execSync to succeed (tag exists)
-        mockExecSync.mockImplementation(() => Buffer.from('abc123'));
-
-        const result = await getBestVersionSource('v1.0.0', '1.0.0-beta.1', '/test/path', 'prefer-package');
+        const result = await getBestVersionSource(
+          'v1.0.0',
+          '1.0.0-beta.1',
+          '/test/path',
+          'prefer-package',
+          false,
+          gitWithReachableTag('v1.0.0'),
+        );
 
         expect(result.source).toBe('package');
         expect(result.version).toBe('1.0.0-beta.1');
@@ -372,28 +340,26 @@ describe('Tag Verification', () => {
       });
 
       it('should throw VersionMismatchError on mismatch with error strategy', async () => {
-        // Mock execSync to succeed (tag exists)
-        mockExecSync.mockImplementation(() => Buffer.from('abc123'));
-
-        await expect(getBestVersionSource('v1.0.0', '1.0.0-beta.1', '/test/path', 'error')).rejects.toThrow(
-          VersionMismatchError,
-        );
+        await expect(
+          getBestVersionSource('v1.0.0', '1.0.0-beta.1', '/test/path', 'error', false, gitWithReachableTag('v1.0.0')),
+        ).rejects.toThrow(VersionMismatchError);
       });
 
       it('should throw VersionMismatchError by default (error is the default strategy)', async () => {
-        // Mock execSync to succeed (tag exists)
-        mockExecSync.mockImplementation(() => Buffer.from('abc123'));
-
-        await expect(getBestVersionSource('v1.0.0', '1.0.0-beta.1', '/test/path')).rejects.toThrow(
-          VersionMismatchError,
-        );
+        await expect(
+          getBestVersionSource('v1.0.0', '1.0.0-beta.1', '/test/path', 'error', false, gitWithReachableTag('v1.0.0')),
+        ).rejects.toThrow(VersionMismatchError);
       });
 
       it('should detect major version difference as significant mismatch', async () => {
-        // Mock execSync to succeed (tag exists)
-        mockExecSync.mockImplementation(() => Buffer.from('abc123'));
-
-        const result = await getBestVersionSource('v2.0.0', '1.0.0', '/test/path', 'warn');
+        const result = await getBestVersionSource(
+          'v2.0.0',
+          '1.0.0',
+          '/test/path',
+          'warn',
+          false,
+          gitWithReachableTag('v2.0.0'),
+        );
 
         expect(result.source).toBe('git');
         expect(result.mismatch?.detected).toBe(true);
@@ -401,10 +367,14 @@ describe('Tag Verification', () => {
       });
 
       it('should detect minor version difference as significant mismatch', async () => {
-        // Mock execSync to succeed (tag exists)
-        mockExecSync.mockImplementation(() => Buffer.from('abc123'));
-
-        const result = await getBestVersionSource('v1.5.0', '1.0.0', '/test/path', 'warn');
+        const result = await getBestVersionSource(
+          'v1.5.0',
+          '1.0.0',
+          '/test/path',
+          'warn',
+          false,
+          gitWithReachableTag('v1.5.0'),
+        );
 
         expect(result.source).toBe('git');
         expect(result.mismatch?.detected).toBe(true);
@@ -412,21 +382,29 @@ describe('Tag Verification', () => {
       });
 
       it('should not flag patch difference as major mismatch', async () => {
-        // Mock execSync to succeed (tag exists)
-        mockExecSync.mockImplementation(() => Buffer.from('abc123'));
-
-        const result = await getBestVersionSource('v1.0.5', '1.0.0', '/test/path');
+        const result = await getBestVersionSource(
+          'v1.0.5',
+          '1.0.0',
+          '/test/path',
+          'error',
+          false,
+          gitWithReachableTag('v1.0.5'),
+        );
 
         expect(result.source).toBe('git');
         expect(result.mismatch?.detected).toBeFalsy();
       });
 
       it('should use package version when it is newer than prerelease tag', async () => {
-        // Mock execSync to succeed (tag exists)
-        mockExecSync.mockImplementation(() => Buffer.from('abc123'));
-
         // Package 1.0.0 is greater than tag 1.0.0-beta.1
-        const result = await getBestVersionSource('v1.0.0-beta.1', '1.0.0', '/test/path', 'warn');
+        const result = await getBestVersionSource(
+          'v1.0.0-beta.1',
+          '1.0.0',
+          '/test/path',
+          'warn',
+          false,
+          gitWithReachableTag('v1.0.0-beta.1'),
+        );
 
         expect(result.source).toBe('package');
         expect(result.version).toBe('1.0.0');
@@ -434,11 +412,16 @@ describe('Tag Verification', () => {
       });
 
       it('should support ignore strategy (silent)', async () => {
-        // Mock execSync to succeed (tag exists)
-        mockExecSync.mockImplementation(() => Buffer.from('abc123'));
         mockLog.mockClear();
 
-        const result = await getBestVersionSource('v2.0.0', '1.0.0', '/test/path', 'ignore');
+        const result = await getBestVersionSource(
+          'v2.0.0',
+          '1.0.0',
+          '/test/path',
+          'ignore',
+          false,
+          gitWithReachableTag('v2.0.0'),
+        );
 
         expect(result.source).toBe('git');
         // Should not log warnings with ignore strategy
@@ -447,10 +430,14 @@ describe('Tag Verification', () => {
       });
 
       it('should support prefer-git strategy explicitly', async () => {
-        // Mock execSync to succeed (tag exists)
-        mockExecSync.mockImplementation(() => Buffer.from('abc123'));
-
-        const result = await getBestVersionSource('v1.0.0', '1.0.0-beta.1', '/test/path', 'prefer-git');
+        const result = await getBestVersionSource(
+          'v1.0.0',
+          '1.0.0-beta.1',
+          '/test/path',
+          'prefer-git',
+          false,
+          gitWithReachableTag('v1.0.0'),
+        );
 
         expect(result.source).toBe('git');
         expect(result.version).toBe('v1.0.0');
