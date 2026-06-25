@@ -14,9 +14,15 @@ vi.mock('@releasekit/config', () => ({
   loadConfig: (...args: unknown[]) => ({ ...mockLoadReleaseKitConfig(...args), ci: mockLoadCIConfig() }),
 }));
 
-vi.mock('node:child_process', () => ({
-  execSync: vi.fn().mockReturnValue('feat: some feature\n'),
-}));
+vi.mock('node:child_process', async (importOriginal) => {
+  // `@releasekit/publish` now bundles `@releasekit/git`, whose GitCli does `promisify(execFile)` at
+  // module-eval time — so the real `execFile` must be present even though only `execSync` is stubbed.
+  const actual = await importOriginal<typeof import('node:child_process')>();
+  return {
+    ...actual,
+    execSync: vi.fn().mockReturnValue('feat: some feature\n'),
+  };
+});
 
 vi.mock('../../src/github.js', () => ({
   forgeFor: (...args: unknown[]) => mockForgeFor(...args),

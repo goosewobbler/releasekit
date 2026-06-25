@@ -15,10 +15,16 @@ import {
   serializeManifest,
 } from '../../src/standing-pr/standing-pr.js';
 
-vi.mock('node:child_process', () => ({
-  execSync: vi.fn().mockReturnValue(''),
-  execFileSync: vi.fn().mockReturnValue(''),
-}));
+vi.mock('node:child_process', async (importOriginal) => {
+  // `@releasekit/publish` now bundles `@releasekit/git`, whose GitCli does `promisify(execFile)` at
+  // module-eval time — so the real `execFile` must be present even though sync calls are stubbed.
+  const actual = await importOriginal<typeof import('node:child_process')>();
+  return {
+    ...actual,
+    execSync: vi.fn().mockReturnValue(''),
+    execFileSync: vi.fn().mockReturnValue(''),
+  };
+});
 
 vi.mock('node:fs', () => ({
   default: {

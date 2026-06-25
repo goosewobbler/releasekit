@@ -1,8 +1,9 @@
 import * as path from 'node:path';
 import { info, success } from '@releasekit/core';
+import { createGitCli } from '@releasekit/git';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext } from '../types.js';
-import { execCommand, execCommandSafe } from '../utils/exec.js';
+import { runGit } from '../utils/git.js';
 
 /** Error strategy: THROWS. Git is a prerequisite — failure halts pipeline. */
 export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
@@ -10,6 +11,7 @@ export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
   const dryRun = cliOptions.dryRun;
   const skipHooks = config.git.skipHooks ?? false;
   const skipCommit = cliOptions.skipGitCommit ?? false;
+  const git = createGitCli();
 
   if (!input.commitMessage) {
     info('No commit message provided, skipping git commit');
@@ -29,11 +31,7 @@ export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
     }
 
     try {
-      await execCommand('git', ['add', ...filePaths], {
-        cwd,
-        dryRun,
-        label: `git add ${filePaths.length} file(s)`,
-      });
+      await runGit(dryRun, `git add ${filePaths.length} file(s)`, () => git.add(filePaths, cwd));
     } catch (error) {
       throw createPublishError(
         PublishErrorCode.GIT_COMMIT_ERROR,
@@ -42,18 +40,10 @@ export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
     }
 
     // Create commit
-    const commitArgs = ['commit'];
-    if (skipHooks) {
-      commitArgs.push('--no-verify');
-    }
-    commitArgs.push('-m', input.commitMessage);
-
     try {
-      await execCommand('git', commitArgs, {
-        cwd,
-        dryRun,
-        label: `git commit -m "${input.commitMessage}"`,
-      });
+      await runGit(dryRun, `git commit -m "${input.commitMessage}"`, () =>
+        git.commit(input.commitMessage as string, { cwd, skipHooks }),
+      );
       ctx.output.git.committed = true;
       if (!dryRun) {
         success('Created git commit');
@@ -72,14 +62,13 @@ export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
   for (const tag of allTags) {
     if (!dryRun) {
       // Check if tag already exists before creating
-      const checkResult = await execCommandSafe('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}`], { cwd });
-      if (checkResult.exitCode === 0) {
-        const [tagDerefResult, headResult] = await Promise.all([
-          execCommandSafe('git', ['rev-parse', `refs/tags/${tag}^{}`], { cwd }),
-          execCommandSafe('git', ['rev-parse', 'HEAD'], { cwd }),
+      if (await git.refExists(`refs/tags/${tag}`, cwd)) {
+        // The seam has no "resolve a tag's commit", so resolve the tag's commit via log and
+        // compare to HEAD (mirrors release/standing-pr's createReleaseTags idempotency check).
+        const [tagCommitSha, headSha] = await Promise.all([
+          git.log({ range: tag, format: '%H', extraArgs: ['-1'], cwd }).then((out) => out.trim()),
+          git.headSha(cwd),
         ]);
-        const tagCommitSha = tagDerefResult.stdout.trim();
-        const headSha = headResult.stdout.trim();
         if (tagCommitSha === headSha) {
           info(`Tag ${tag} already exists at current commit, skipping`);
           ctx.output.git.tags.push(tag);
@@ -94,11 +83,7 @@ export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
 
     try {
       const tagMessage = `Release ${tag}`;
-      await execCommand('git', ['tag', '-a', tag, '-m', tagMessage], {
-        cwd,
-        dryRun,
-        label: `git tag ${tag}`,
-      });
+      await runGit(dryRun, `git tag ${tag}`, () => git.tag(tag, { message: tagMessage, cwd }));
       ctx.output.git.tags.push(tag);
       if (!dryRun) {
         success(`Created tag: ${tag}`);

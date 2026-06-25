@@ -1,11 +1,12 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { buildDependencyGraph, debug, type GraphPackage } from '@releasekit/core';
+import { createGitCli } from '@releasekit/git';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext } from '../types.js';
 import { hasCargoAuth } from '../utils/auth.js';
 import { CRATES_IO_API_TIMEOUT_MS, CRATES_IO_USER_AGENT, extractPathDeps, parseCargoToml } from '../utils/cargo.js';
-import { execCommand, execCommandSafe } from '../utils/exec.js';
+import { execCommand } from '../utils/exec.js';
 import type { Registry, RegistryTarget } from './types.js';
 
 const ALREADY_PUBLISHED_PATTERN = /already exists on crates\.io index|already uploaded/i;
@@ -42,8 +43,8 @@ async function isCratePublished(name: string, version: string): Promise<boolean>
 // Check if git working directory has uncommitted changes
 async function isGitWorkingDirDirty(cwd: string): Promise<boolean> {
   try {
-    const result = await execCommandSafe('git', ['status', '--porcelain'], { cwd, dryRun: false });
-    return result.exitCode === 0 && result.stdout.trim().length > 0;
+    const status = await createGitCli().status({ porcelain: true, cwd });
+    return status.trim().length > 0;
   } catch {
     return false;
   }
