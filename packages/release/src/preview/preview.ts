@@ -64,7 +64,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   // Check if preview is enabled in config
   const ciConfig = loadCIConfig({ cwd: options.projectDir, configPath: options.config });
   if (ciConfig?.prPreview?.enabled === false) {
-    info('PR preview is disabled in config (ci.prPreview: false)');
+    info('PR preview is disabled in config (ci.prPreview.enabled: false)');
     return;
   }
 

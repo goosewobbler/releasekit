@@ -70,12 +70,16 @@ export async function runRefreshAfterRelease(options: RefreshAfterReleaseOptions
       // Only refresh PRs that already have a preview — never manufacture one on a PR that opted out.
       if (!(await forge.findComment(pr.number, MARKER))) continue;
       eligible.push(pr);
+      // Open PRs come back most-recently-updated first, so the first MAX_FEEDER_PR_REFRESH are exactly
+      // the set we refresh. Stop probing once one past the cap is in hand — bounds the per-PR
+      // findComment calls instead of fetching comments for every open PR on a busy repo.
+      if (eligible.length > MAX_FEEDER_PR_REFRESH) break;
     }
 
     let toRefresh = eligible;
     if (eligible.length > MAX_FEEDER_PR_REFRESH) {
       warn(
-        `${eligible.length} open PRs have a preview; refreshing the ${MAX_FEEDER_PR_REFRESH} most recently updated and skipping the rest.`,
+        `More than ${MAX_FEEDER_PR_REFRESH} open PRs have a preview; refreshing the ${MAX_FEEDER_PR_REFRESH} most recently updated and skipping the rest.`,
       );
       toRefresh = eligible.slice(0, MAX_FEEDER_PR_REFRESH);
     }

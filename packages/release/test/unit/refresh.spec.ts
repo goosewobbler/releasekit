@@ -122,12 +122,15 @@ describe('runRefreshAfterRelease', () => {
     it('should cap the number of refreshed PRs at 50 and warn', async () => {
       const { warn } = await import('@releasekit/core');
       const many = Array.from({ length: 55 }, (_, i) => pr(i + 1));
-      mockForgeFor.mockReturnValue(fakeForge(many));
+      const forge = fakeForge(many);
+      mockForgeFor.mockReturnValue(forge);
 
       await runRefreshAfterRelease({ projectDir: '/p' });
 
       expect(mockRunPreview).toHaveBeenCalledTimes(50);
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('55'));
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('More than 50'));
+      // Probing stops one past the cap rather than checking every open PR's comments.
+      expect(forge.findComment).toHaveBeenCalledTimes(51);
     });
 
     it('should continue refreshing remaining PRs when one runPreview throws', async () => {
