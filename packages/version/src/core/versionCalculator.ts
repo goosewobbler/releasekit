@@ -8,7 +8,7 @@ import { Bumper } from 'conventional-recommended-bump';
 import type { ReleaseType } from 'semver';
 import semver from 'semver';
 import { getCurrentBranch } from '../git/repository.js';
-import { getCommitsLength, lastMergeBranchName, refExists } from '../git/tagsAndBranches.js';
+import { getCommitsLength, refExists } from '../git/tagsAndBranches.js';
 import type { Config, VersionOptions } from '../types.js';
 import { buildTagStripPatternFromTemplate, escapeRegExp } from '../utils/formatting.js';
 import { log } from '../utils/logging.js';
@@ -87,7 +87,6 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
     versionPrefix,
     prereleaseIdentifier: configPrereleaseIdentifier,
     branchPattern,
-    baseBranch,
     mismatchStrategy,
     strictReachable,
   } = config;
@@ -307,14 +306,7 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
       const currentBranch = await getCurrentBranch();
       log(`Current branch: ${currentBranch}`, 'debug');
 
-      // Important: We need to make this call to match test expectations
-      // Always call lastMergeBranchName even if we don't use the result
-      if (baseBranch) {
-        log(`Calling lastMergeBranchName with baseBranch: ${baseBranch}`, 'debug');
-        await lastMergeBranchName(branchPattern, baseBranch);
-      }
-
-      // Match pattern against current or lastBranch
+      // Match pattern against the current branch.
       const branchToCheck = currentBranch;
       log(`Branch to check: ${branchToCheck}`, 'debug');
       let branchVersionType: ReleaseType | undefined;

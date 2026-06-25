@@ -159,43 +159,6 @@ export async function listGlobalTags(versionPrefix?: string, git: Git = createGi
 }
 
 /**
- * Get the name of the last merged branch matching the specified patterns
- * @param branches Branch patterns to match
- * @param baseBranch Base branch to check merges against
- * @returns Branch name or null if not found
- */
-export async function lastMergeBranchName(
-  branches: string[],
-  baseBranch: string,
-  git: Git = createGitCli(),
-): Promise<string | null> {
-  try {
-    // Escape special regex characters in branch patterns
-    const escapedBranches = branches.map((branch) => escapeRegExp(branch));
-    const branchesRegex = `${escapedBranches.join('/(.*)|')}/(.*)`;
-
-    // NOTE: the original ran `for-each-ref --sort=-committerdate --format=… refs/heads --merged=<base>`.
-    // The Git seam's forEachRef can express --sort/--format/pattern but NOT `--merged=<base>`, so the
-    // merged filter is dropped here. This is behaviour-preserving in practice: the sole call site
-    // (versionCalculator) invokes this purely to keep a historical test expectation and DISCARDS the
-    // return value, so the result never feeds version output. baseBranch is therefore unused.
-    void baseBranch;
-    const lines = await git.forEachRef({
-      format: '%(refname:short)',
-      sort: '-committerdate',
-      pattern: 'refs/heads',
-    });
-
-    const regex = new RegExp(branchesRegex, 'i');
-    const matched = lines.find((b) => regex.test(b));
-    return matched ?? null;
-  } catch (error) {
-    console.error('Error while getting the last branch name:', error instanceof Error ? error.message : String(error));
-    return null;
-  }
-}
-
-/**
  * List a package's tags (those matching its tag template), most-recently-created first.
  *
  * Returns an empty array when package-specific tags are disabled (callers fall back to the global

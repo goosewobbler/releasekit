@@ -5,7 +5,6 @@ import {
   getLatestStableTagForPackage,
   getLatestTag,
   getLatestTagForPackage,
-  lastMergeBranchName,
   listGlobalTags,
   listPackageTags,
   refExists,
@@ -146,38 +145,6 @@ describe('tagsAndBranches', () => {
       const result = await getLatestTag('release/v');
 
       expect(result).toBe('release/v0.22.0');
-    });
-  });
-
-  describe('lastMergeBranchName', () => {
-    it('should return the last merged branch name matching patterns', async () => {
-      // forEachRef returns candidate branches (newest-first); the function applies the pattern regex.
-      const git = createFakeGit({ refLines: ['feature/test-branch', 'chore/other'] });
-
-      const result = await lastMergeBranchName(['feature', 'fix'], 'main', git);
-
-      expect(result).toBe('feature/test-branch');
-    });
-
-    it('should return null when no branch matches', async () => {
-      const git = createFakeGit({ refLines: ['chore/other'] });
-
-      const result = await lastMergeBranchName(['feature'], 'main', git);
-
-      expect(result).toBe(null);
-    });
-
-    it('should return null if the git command fails', async () => {
-      const git = createFakeGit();
-      git.forEachRef = async () => {
-        throw new Error('Command failed');
-      };
-      const consoleErrorSpy = vi.spyOn(console, 'error');
-
-      const result = await lastMergeBranchName(['feature'], 'main', git);
-
-      expect(result).toBe(null);
-      expect(consoleErrorSpy).toHaveBeenCalled();
     });
   });
 
