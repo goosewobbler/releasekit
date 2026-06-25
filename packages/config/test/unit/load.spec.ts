@@ -69,7 +69,7 @@ describe('loadConfig', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(
       JSON.stringify({
-        version: { versionStrategy: 'invalid-strategy' },
+        version: { zeroMajor: 'invalid-strategy' },
       }),
     );
 

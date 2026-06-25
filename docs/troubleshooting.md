@@ -46,27 +46,6 @@ Set the appropriate strategy in `releasekit.config.json` under `version.mismatch
 
 ---
 
-### Branch pattern matched but no defaultReleaseType set
-
-**Symptom:** The version stage logs that a branch pattern matched but no `defaultReleaseType` is set, and no version bump is applied.
-
-**Cause:** `version.branchPatterns` contains an entry whose pattern matches the current branch, but the entry is missing a `defaultReleaseType` field. Without it, the stage cannot determine a bump level from the branch name alone.
-
-**Fix:** Add `defaultReleaseType` to the matching `branchPatterns` entry:
-
-```json
-{
-  "version": {
-    "branchPatterns": [
-      { "pattern": "feature/*", "defaultReleaseType": "minor" },
-      { "pattern": "fix/*",     "defaultReleaseType": "patch" }
-    ]
-  }
-}
-```
-
----
-
 ## Notes stage
 
 ### LLM API key is not set. Returning entries ungrouped.

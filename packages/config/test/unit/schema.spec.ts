@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  BranchPatternSchema,
   CargoPublishConfigSchema,
   CIConfigSchema,
   GitConfigSchema,
@@ -67,26 +66,6 @@ describe('MonorepoConfigSchema', () => {
   });
 });
 
-describe('BranchPatternSchema', () => {
-  it('should require pattern and releaseType', () => {
-    const result = BranchPatternSchema.parse({
-      pattern: 'release/*',
-      releaseType: 'minor',
-    });
-    expect(result.pattern).toBe('release/*');
-    expect(result.releaseType).toBe('minor');
-  });
-
-  it('should reject invalid releaseType', () => {
-    expect(() =>
-      BranchPatternSchema.parse({
-        pattern: 'release/*',
-        releaseType: 'invalid',
-      }),
-    ).toThrow();
-  });
-});
-
 describe('VersionConfigSchema', () => {
   it('should apply defaults', () => {
     const result = VersionConfigSchema.parse({});
@@ -96,8 +75,6 @@ describe('VersionConfigSchema', () => {
     expect(result.preset).toBe('conventional');
     expect(result.sync).toBe(true);
     expect(result.packages).toEqual([]);
-    expect(result.updateInternalDependencies).toBe('minor');
-    expect(result.versionStrategy).toBe('commitMessage');
     expect(result.mismatchStrategy).toBe('warn');
     expect(result.versionPrefix).toBe('');
     expect(result.zeroMajor).toBe('spec');
@@ -110,18 +87,6 @@ describe('VersionConfigSchema', () => {
 
   it('should reject an unknown zeroMajor value', () => {
     expect(() => VersionConfigSchema.parse({ zeroMajor: 'always' })).toThrow();
-  });
-
-  it('should accept branchPatterns', () => {
-    const result = VersionConfigSchema.parse({
-      versionStrategy: 'branchPattern',
-      branchPatterns: [
-        { pattern: 'main', releaseType: 'minor' },
-        { pattern: 'feature/*', releaseType: 'patch' },
-      ],
-    });
-    expect(result.versionStrategy).toBe('branchPattern');
-    expect(result.branchPatterns).toHaveLength(2);
   });
 
   it('should accept a baselineTagTemplate that contains ${version}', () => {
@@ -731,7 +696,7 @@ describe('ReleaseKitConfigSchema', () => {
   it('should reject invalid nested values', () => {
     expect(() =>
       ReleaseKitConfigSchema.parse({
-        version: { versionStrategy: 'invalid' },
+        version: { zeroMajor: 'invalid' },
       }),
     ).toThrow();
   });

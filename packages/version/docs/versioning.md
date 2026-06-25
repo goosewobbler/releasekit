@@ -4,9 +4,9 @@
 
 ## How the Next Version is Calculated
 
-There are two primary methods the tool uses to decide the version bump (e.g., patch, minor, major), configured via the `versionStrategy` option in `releasekit.config.json`:
+The tool decides the version bump (e.g., patch, minor, major) from your Git history using Conventional Commits:
 
-### 1. Conventional Commits (`versionStrategy: "conventional"`)
+### Conventional Commits
 
 This is the default strategy. `releasekit-version` analyzes Git commit messages since the last Git tag that follows semver patterns. It uses the [conventional-commits](https://www.conventionalcommits.org/) specification to determine the bump:
 
@@ -34,36 +34,6 @@ The specific preset used for analysis (e.g., "angular", "conventional") can be s
 
 -   [https://www.conventionalcommits.org/](https://www.conventionalcommits.org/)
 -   [https://github.com/conventional-changelog/conventional-changelog](https://github.com/conventional-changelog/conventional-changelog)
-
-### 2. Branch Pattern (`versionStrategy: "branchPattern"`)
-
-This strategy uses the name of the current Git branch (or the most recently merged branch matching a pattern, if applicable) to determine the version bump.
-
-You define patterns in the `branchPattern` array in `releasekit.config.json`. Each pattern is a string like `"prefix:bumptype"`.
-
-**Example `releasekit.config.json`:**
-
-```json
-{
-  "versionStrategy": "branchPattern",
-  "branchPattern": [
-    "feature:minor",
-    "hotfix:patch",
-    "fix:patch",
-    "release:major" 
-  ],
-  "baseBranch": "main" 
-}
-```
-
-**How it works:**
-
-1.  The tool checks the current branch name.
-2.  It might also look for the most recently merged branch into `baseBranch` that matches any pattern in `branchPattern`.
-3.  It compares the relevant branch name (current or last merged) against the prefixes in `branchPattern`.
-4.  If a match is found (e.g., current branch is `feature/add-login`), it applies the corresponding bump type (`minor` in this case).
-
-This allows you to enforce version bumps based on your branching workflow (e.g., all branches starting with `feature/` result in a minor bump).
 
 ## Package Type Support
 
@@ -436,7 +406,7 @@ While primarily used for single packages now, `releasekit-version` retains optio
 
 This is the default if the `sync` flag is present and true.
 
--   **Behaviour:** The tool calculates **one** version bump based on the overall history (or branch pattern). This single new version is applied to **all** packages within the repository (or just the root `package.json` if not a structured monorepo). A single Git tag is created.
+-   **Behaviour:** The tool calculates **one** version bump based on the overall history. This single new version is applied to **all** packages within the repository (or just the root `package.json` if not a structured monorepo). A single Git tag is created.
 -   **Tag Behaviour:** 
     - In **multi-package monorepos**: Creates global tags like `v1.2.3` regardless of `packageSpecificTags` setting
     - In **single-package repositories**: Respects the `packageSpecificTags` setting - can create either `v1.2.3` or `package-name@v1.2.3`

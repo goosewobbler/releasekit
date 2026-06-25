@@ -116,13 +116,11 @@ describe('Package Processor', () => {
   // Mock config
   const mockConfig: Config = {
     sync: false,
-    updateInternalDependencies: 'patch',
     preset: 'conventional',
     versionPrefix: 'v',
     tagTemplate: '${prefix}${version}',
     baseBranch: 'main',
     packages: [],
-    branchPattern: ['feature/*'],
     commitMessage: 'chore(release): version ${version}',
   };
 
@@ -137,7 +135,6 @@ describe('Package Processor', () => {
     dryRun: false,
     getLatestTag: mockGetLatestTag,
     config: {
-      branchPattern: ['feature/*'],
       baseBranch: 'main',
       prereleaseIdentifier: undefined,
       type: undefined,

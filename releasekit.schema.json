@@ -167,17 +167,6 @@
           "type": "string",
           "description": "Package to use for version determination"
         },
-        "updateInternalDependencies": {
-          "type": "string",
-          "enum": [
-            "major",
-            "minor",
-            "patch",
-            "no-internal-update"
-          ],
-          "default": "minor",
-          "description": "How to bump internal dependencies"
-        },
         "skip": {
           "type": "array",
           "items": {
@@ -188,53 +177,6 @@
         "commitMessage": {
           "type": "string",
           "description": "Template for release commit messages"
-        },
-        "versionStrategy": {
-          "type": "string",
-          "enum": [
-            "branchPattern",
-            "commitMessage"
-          ],
-          "default": "commitMessage",
-          "description": "Strategy for determining version bumps"
-        },
-        "branchPatterns": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "pattern": {
-                "type": "string",
-                "description": "Glob or regex matched against the branch name (e.g. 'release/*')"
-              },
-              "releaseType": {
-                "type": "string",
-                "enum": [
-                  "major",
-                  "minor",
-                  "patch",
-                  "prerelease"
-                ],
-                "description": "Version bump type applied when this pattern matches"
-              }
-            },
-            "required": [
-              "pattern",
-              "releaseType"
-            ]
-          },
-          "description": "Branch name patterns for version determination"
-        },
-        "defaultReleaseType": {
-          "type": "string",
-          "enum": [
-            "major",
-            "minor",
-            "patch",
-            "prerelease"
-          ],
-          "description": "Default release type when no pattern matches"
         },
         "mismatchStrategy": {
           "type": "string",

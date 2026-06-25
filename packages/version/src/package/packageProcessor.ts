@@ -189,7 +189,6 @@ export class PackageProcessor {
         versionPrefix: formattedPrefix,
         path: pkgPath,
         name,
-        branchPattern: this.config.branchPattern,
         baseBranch: this.config.baseBranch,
         prereleaseIdentifier: this.config.prereleaseIdentifier,
         type: this.config.type,
