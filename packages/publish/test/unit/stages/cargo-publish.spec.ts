@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { createFakeGit, type FakeGit, type FakeGitSeed } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDefaultConfig } from '../../../src/config.js';
 import { runCargoPublishStage } from '../../../src/stages/cargo-publish.js';
@@ -11,9 +12,23 @@ vi.mock('../../../src/utils/exec.js', async () => {
   return {
     ...actual,
     execCommand: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 }),
-    execCommandSafe: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 1 }), // not published
   };
 });
+
+// The cargo stage's working-dir dirty-check goes through `@releasekit/git`. Seed the fake per test;
+// the default (empty status) reads as a clean tree.
+let fakeGit: FakeGit;
+vi.mock('@releasekit/git', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@releasekit/git')>();
+  return {
+    ...actual,
+    createGitCli: () => fakeGit,
+  };
+});
+
+function seedGit(seed: FakeGitSeed = {}): void {
+  fakeGit = createFakeGit(seed);
+}
 
 vi.mock('../../../src/utils/auth.js', () => ({
   hasCargoAuth: vi.fn().mockReturnValue(true),
@@ -68,11 +83,11 @@ describe('cargo-publish stage', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     // Reset default mock return values after clearAllMocks
-    const { execCommand, execCommandSafe } = await import('../../../src/utils/exec.js');
+    const { execCommand } = await import('../../../src/utils/exec.js');
     const { hasCargoAuth } = await import('../../../src/utils/auth.js');
     vi.mocked(execCommand).mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
-    vi.mocked(execCommandSafe).mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
     vi.mocked(hasCargoAuth).mockReturnValue(true);
+    seedGit(); // clean working tree by default
     // crates.io published-check defaults to "not published"
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 404 } as Response));
   });
@@ -311,19 +326,14 @@ describe('cargo-publish stage', () => {
   });
 
   it('should pass --allow-dirty when git working directory is dirty', async () => {
-    const { execCommand, execCommandSafe } = await import('../../../src/utils/exec.js');
+    const { execCommand } = await import('../../../src/utils/exec.js');
     const dir = createTmpDir();
     const crateDir = path.join(dir, 'crates', 'my-crate');
     fs.mkdirSync(crateDir, { recursive: true });
     fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "my-crate"\nversion = "0.5.0"\n');
 
-    // Mock git status to return dirty working directory
-    vi.mocked(execCommandSafe).mockImplementation(async (cmd, args) => {
-      if (cmd === 'git' && args?.[0] === 'status' && args?.[1] === '--porcelain') {
-        return { stdout: 'M some-file.txt', stderr: '', exitCode: 0 };
-      }
-      return { stdout: '', stderr: '', exitCode: 1 }; // not published
-    });
+    // Seed git status to report a dirty working directory
+    seedGit({ status: 'M some-file.txt' });
 
     const ctx = createContext(dir);
     await runCargoPublishStage(ctx);
@@ -335,19 +345,14 @@ describe('cargo-publish stage', () => {
   });
 
   it('should not pass --allow-dirty when git working directory is clean', async () => {
-    const { execCommand, execCommandSafe } = await import('../../../src/utils/exec.js');
+    const { execCommand } = await import('../../../src/utils/exec.js');
     const dir = createTmpDir();
     const crateDir = path.join(dir, 'crates', 'my-crate');
     fs.mkdirSync(crateDir, { recursive: true });
     fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "my-crate"\nversion = "0.5.0"\n');
 
-    // Mock git status to return clean working directory
-    vi.mocked(execCommandSafe).mockImplementation(async (cmd, args) => {
-      if (cmd === 'git' && args?.[0] === 'status' && args?.[1] === '--porcelain') {
-        return { stdout: '', stderr: '', exitCode: 0 };
-      }
-      return { stdout: '', stderr: '', exitCode: 1 }; // not published
-    });
+    // Seed git status to report a clean working directory (default, but explicit here)
+    seedGit({ status: '' });
 
     const ctx = createContext(dir);
     await runCargoPublishStage(ctx);

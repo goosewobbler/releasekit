@@ -337,6 +337,9 @@ importers:
       '@releasekit/core':
         specifier: workspace:*
         version: link:../core
+      '@releasekit/git':
+        specifier: workspace:*
+        version: link:../git
       '@types/node':
         specifier: 'catalog:'
         version: 22.20.0
