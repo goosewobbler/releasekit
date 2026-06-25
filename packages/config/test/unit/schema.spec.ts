@@ -503,7 +503,7 @@ describe('CIConfigSchema', () => {
     const result = CIConfigSchema.parse({});
     expect(result.releaseStrategy).toBe('direct');
     expect(result.releaseTrigger).toBe('label');
-    expect(result.prPreview).toBe(true);
+    expect(result.prPreview).toEqual({ enabled: true, refreshAfterRelease: false });
     expect(result.autoRelease).toBe(false);
     expect(result.skipPatterns).toEqual(['chore: release ']);
     expect(result.minChanges).toBe(1);
@@ -530,7 +530,7 @@ describe('CIConfigSchema', () => {
       minChanges: 3,
     });
     expect(result.releaseStrategy).toBe('direct');
-    expect(result.prPreview).toBe(false);
+    expect(result.prPreview).toEqual({ enabled: false, refreshAfterRelease: false });
     expect(result.autoRelease).toBe(true);
     expect(result.skipPatterns).toEqual(['chore(deps):', 'ci:']);
     expect(result.minChanges).toBe(3);
@@ -540,6 +540,41 @@ describe('CIConfigSchema', () => {
     for (const strategy of ['manual', 'direct', 'standing-pr'] as const) {
       expect(CIConfigSchema.parse({ releaseStrategy: strategy }).releaseStrategy).toBe(strategy);
     }
+  });
+
+  it('should normalize prPreview: true to the canonical object', () => {
+    expect(CIConfigSchema.parse({ prPreview: true }).prPreview).toEqual({
+      enabled: true,
+      refreshAfterRelease: false,
+    });
+  });
+
+  it('should normalize prPreview: false to the canonical object (shorthand kept)', () => {
+    expect(CIConfigSchema.parse({ prPreview: false }).prPreview).toEqual({
+      enabled: false,
+      refreshAfterRelease: false,
+    });
+  });
+
+  it('should default an empty prPreview object to enabled with refresh off', () => {
+    expect(CIConfigSchema.parse({ prPreview: {} }).prPreview).toEqual({
+      enabled: true,
+      refreshAfterRelease: false,
+    });
+  });
+
+  it('should honor prPreview.refreshAfterRelease in the object form', () => {
+    expect(CIConfigSchema.parse({ prPreview: { refreshAfterRelease: true } }).prPreview).toEqual({
+      enabled: true,
+      refreshAfterRelease: true,
+    });
+  });
+
+  it('should allow disabling previews while the object form is used', () => {
+    expect(CIConfigSchema.parse({ prPreview: { enabled: false } }).prPreview).toEqual({
+      enabled: false,
+      refreshAfterRelease: false,
+    });
   });
 
   it('should reject invalid releaseStrategy', () => {
@@ -689,7 +724,7 @@ describe('ReleaseKitConfigSchema', () => {
     expect(result.version?.preset).toBe('conventional');
     expect(result.publish?.npm.enabled).toBe(true);
     expect(result.notes?.changelog).toMatchObject({ mode: 'packages' });
-    expect(result.ci?.prPreview).toBe(true);
+    expect(result.ci?.prPreview).toEqual({ enabled: true, refreshAfterRelease: false });
     expect(result.ci?.autoRelease).toBe(false);
   });
 

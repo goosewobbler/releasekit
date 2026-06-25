@@ -29,6 +29,15 @@ export interface AssociatedPullRequest {
   mergedAt: string | null;
 }
 
+/** An open PR, enough to decide whether to refresh its preview (skip drafts/the standing PR) and to
+ *  scope that preview's analysis (`baseSha`) without an event payload. */
+export interface OpenPullRequest {
+  number: number;
+  headRef: string;
+  draft: boolean;
+  baseSha: string;
+}
+
 /** An issue as returned by the issues endpoint (a PR is also an issue). */
 export interface IssueDetails {
   body: string;
@@ -123,6 +132,8 @@ export interface Forge {
   findStandingPR(branch: string): Promise<StandingPullRequest | null>;
   /** Recently-closed PRs whose head is `branch`, most-recently-updated first. */
   listRecentlyClosedPullRequests(branch: string, limit: number): Promise<AssociatedPullRequest[]>;
+  /** All open PRs (number, head ref, draft flag, base SHA), most-recently-updated first, page-capped. */
+  listOpenPullRequests(): Promise<OpenPullRequest[]>;
   /** Issue view of a PR (body, title, labels, and whether it is a PR). */
   getIssue(issueNumber: number): Promise<IssueDetails>;
   /** PR view (body + labels). */

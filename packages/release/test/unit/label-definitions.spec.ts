@@ -20,7 +20,7 @@ function ciConfig(overrides: Partial<CIConfig> = {}): CIConfig {
   return {
     releaseStrategy: 'direct',
     releaseTrigger: 'label',
-    prPreview: true,
+    prPreview: { enabled: true, refreshAfterRelease: false },
     autoRelease: false,
     skipPatterns: ['chore: release '],
     minChanges: 1,

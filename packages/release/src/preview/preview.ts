@@ -31,6 +31,13 @@ export interface PreviewOptions {
   stable?: boolean;
   bump?: string;
   target?: string;
+  /**
+   * Explicit base SHA for the advisory standing-pr commit-range scoping. The single-PR preview path
+   * reads this from the GitHub Actions `pull_request` event payload, but a post-release refresh runs
+   * on a push/dispatch event with no such payload — so the refresh runner supplies it per PR. Takes
+   * precedence over the event payload when set.
+   */
+  baseSha?: string;
 }
 
 interface LabelOverrideResult {
@@ -56,7 +63,7 @@ function readEventPayload(): PullRequestEvent | undefined {
 export async function runPreview(options: PreviewOptions): Promise<void> {
   // Check if preview is enabled in config
   const ciConfig = loadCIConfig({ cwd: options.projectDir, configPath: options.config });
-  if (ciConfig?.prPreview === false) {
+  if (ciConfig?.prPreview?.enabled === false) {
     info('PR preview is disabled in config (ci.prPreview: false)');
     return;
   }
@@ -134,7 +141,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   // event payload (pull_request.base.sha) — non-fatal if unavailable.
   let prBaseSha: string | undefined;
   if (labelContext.advisoryInStandingPr) {
-    prBaseSha = event?.pull_request?.base?.sha;
+    prBaseSha = options.baseSha ?? event?.pull_request?.base?.sha;
   }
 
   // Run version analysis unless release is skipped or in label mode with no bump label

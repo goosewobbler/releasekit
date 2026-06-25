@@ -438,10 +438,18 @@ function renderCi(prop: SchemaProperty): void {
   emitBlank();
 
   const topProps = Object.fromEntries(
-    Object.entries(prop.properties ?? {}).filter(([k]) => k !== 'labels' && k !== 'standingPr'),
+    Object.entries(prop.properties ?? {}).filter(([k]) => k !== 'labels' && k !== 'standingPr' && k !== 'prPreview'),
   );
   emit(propsTable(topProps));
   emitBlank();
+
+  const prPreview = prop.properties?.prPreview;
+  if (prPreview?.oneOf) {
+    emit('### `ci.prPreview`', '');
+    emit(ensurePeriod(prPreview.description), '');
+    renderOneOfBooleanObject('ci.prPreview', prPreview);
+    emitBlank();
+  }
 
   const labels = prop.properties?.labels;
   if (labels) {

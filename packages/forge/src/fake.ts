@@ -8,6 +8,7 @@ import type {
   NewLabel,
   NewPullRequest,
   NewRelease,
+  OpenPullRequest,
   PullRequestChanges,
   PullRequestDetails,
   PullRequestRef,
@@ -33,6 +34,7 @@ interface FakeComment {
 export interface FakeForgeSeed {
   standingPR?: StandingPullRequest | null;
   recentlyClosedPRs?: AssociatedPullRequest[];
+  openPullRequests?: OpenPullRequest[];
   pullRequestsForCommit?: Record<string, AssociatedPullRequest[]>;
   issues?: Record<number, IssueDetails>;
   pullRequests?: Record<number, PullRequestDetails>;
@@ -55,6 +57,7 @@ export interface FakeForgeSeed {
 export class FakeForge implements Forge {
   standingPR: StandingPullRequest | null;
   private readonly recentlyClosedPRs: AssociatedPullRequest[];
+  private readonly openPullRequests: OpenPullRequest[];
   private readonly pullRequestsForCommit: Record<string, AssociatedPullRequest[]>;
   private readonly issues: Record<number, IssueDetails>;
   private readonly pullRequestDetails: Record<number, PullRequestDetails>;
@@ -85,6 +88,7 @@ export class FakeForge implements Forge {
   constructor(seed: FakeForgeSeed = {}) {
     this.standingPR = seed.standingPR ?? null;
     this.recentlyClosedPRs = seed.recentlyClosedPRs ?? [];
+    this.openPullRequests = seed.openPullRequests ?? [];
     this.pullRequestsForCommit = seed.pullRequestsForCommit ?? {};
     this.issues = seed.issues ?? {};
     this.pullRequestDetails = seed.pullRequests ?? {};
@@ -123,6 +127,10 @@ export class FakeForge implements Forge {
 
   async listRecentlyClosedPullRequests(_branch: string, limit: number): Promise<AssociatedPullRequest[]> {
     return this.recentlyClosedPRs.slice(0, limit);
+  }
+
+  async listOpenPullRequests(): Promise<OpenPullRequest[]> {
+    return [...this.openPullRequests];
   }
 
   async getIssue(issueNumber: number): Promise<IssueDetails> {

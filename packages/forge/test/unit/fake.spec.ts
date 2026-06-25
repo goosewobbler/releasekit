@@ -16,6 +16,14 @@ describe('FakeForge', () => {
     expect(await forge.getReleaseByTag('absent')).toBeNull();
   });
 
+  it('should return seeded open pull requests', async () => {
+    const open = [{ number: 7, headRef: 'feat/x', draft: false, baseSha: 'abc123' }];
+    const forge = createFakeForge({ openPullRequests: open });
+
+    expect(await forge.listOpenPullRequests()).toEqual(open);
+    expect(await createFakeForge().listOpenPullRequests()).toEqual([]);
+  });
+
   it('should record writes for assertions', async () => {
     const forge = createFakeForge();
     const ref = await forge.createPullRequest({ title: 't', body: 'b', head: 'h', base: 'm' });

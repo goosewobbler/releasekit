@@ -332,7 +332,7 @@ describe('loadCIConfig', () => {
     );
 
     const result = loadCIConfig();
-    expect(result?.prPreview).toBe(false);
+    expect(result?.prPreview).toEqual({ enabled: false, refreshAfterRelease: false });
     expect(result?.autoRelease).toBe(true);
   });
 

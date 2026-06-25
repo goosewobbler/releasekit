@@ -6,6 +6,7 @@ import { Command } from 'commander';
 import { createBackfillCommand } from './commands/backfill-command.js';
 import { createGateCommand } from './commands/gate-command.js';
 import { createPreviewCommand } from './commands/preview-command.js';
+import { createRefreshAfterReleaseCommand } from './commands/refresh-after-release-command.js';
 import { createReleaseCommand } from './commands/release-command.js';
 import { createStandingPRCommand } from './commands/standing-pr-command.js';
 
@@ -18,6 +19,7 @@ export function createReleaseProgram(): Command {
     .addCommand(createReleaseCommand())
     .addCommand(createGateCommand())
     .addCommand(createStandingPRCommand())
+    .addCommand(createRefreshAfterReleaseCommand())
     .addCommand(createBackfillCommand());
 }
 
