@@ -65,8 +65,14 @@ export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
       if (await git.refExists(`refs/tags/${tag}`, cwd)) {
         // The seam has no "resolve a tag's commit", so resolve the tag's commit via log and
         // compare to HEAD (mirrors release/standing-pr's createReleaseTags idempotency check).
+        // A log failure resolves to '' so it falls through to the GIT_TAG_ERROR throw below —
+        // preserving the old execCommandSafe boundary (empty stdout on non-zero exit) rather than
+        // letting a raw GitError escape the PublishError contract.
         const [tagCommitSha, headSha] = await Promise.all([
-          git.log({ range: tag, format: '%H', extraArgs: ['-1'], cwd }).then((out) => out.trim()),
+          git
+            .log({ range: tag, format: '%H', extraArgs: ['-1'], cwd })
+            .then((out) => out.trim())
+            .catch(() => ''),
           git.headSha(cwd),
         ]);
         if (tagCommitSha === headSha) {

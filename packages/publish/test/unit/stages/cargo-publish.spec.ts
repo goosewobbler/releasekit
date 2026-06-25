@@ -12,7 +12,6 @@ vi.mock('../../../src/utils/exec.js', async () => {
   return {
     ...actual,
     execCommand: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 }),
-    execCommandSafe: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 1 }), // not published
   };
 });
 
@@ -84,10 +83,9 @@ describe('cargo-publish stage', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     // Reset default mock return values after clearAllMocks
-    const { execCommand, execCommandSafe } = await import('../../../src/utils/exec.js');
+    const { execCommand } = await import('../../../src/utils/exec.js');
     const { hasCargoAuth } = await import('../../../src/utils/auth.js');
     vi.mocked(execCommand).mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
-    vi.mocked(execCommandSafe).mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
     vi.mocked(hasCargoAuth).mockReturnValue(true);
     seedGit(); // clean working tree by default
     // crates.io published-check defaults to "not published"
