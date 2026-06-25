@@ -1,6 +1,6 @@
 {
   "name": "@releasekit/version",
-  "version": "0.32.1",
+  "version": "0.33.0",
   "description": "Semantic versioning based on Git history and conventional commits",
   "type": "module",
   "module": "./dist/index.js",
