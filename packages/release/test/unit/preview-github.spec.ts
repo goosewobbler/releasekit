@@ -1,4 +1,5 @@
 import { createFakeForge } from '@releasekit/forge';
+import { FakeGit, type FakeGitSeed } from '@releasekit/git';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   fetchPRLabels,
@@ -8,12 +9,21 @@ import {
   postOrUpdateComment,
 } from '../../src/github.js';
 
-vi.mock('node:child_process', () => ({
-  execFileSync: vi.fn(),
-}));
+// The git seam: `createGitCli()` returns the current FakeGit so the merge-PR lookup is driven by
+// seeded `describeTags` (nearest tag) and `log` (commit SHAs) instead of spawning git.
+let fakeGit: FakeGit;
+vi.mock('@releasekit/git', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@releasekit/git')>();
+  return { ...actual, createGitCli: () => fakeGit };
+});
 
 describe('findMergedPRsSinceLastRelease', () => {
   afterEach(() => vi.clearAllMocks());
+
+  function setGit(seed: FakeGitSeed) {
+    fakeGit = new FakeGit(seed);
+    return fakeGit;
+  }
 
   function createPRLookupForge(prsByCommit: Record<string, number[]>) {
     const pullRequestsForCommit: Record<string, { number: number; mergedAt: string | null }[]> = {};
@@ -24,10 +34,8 @@ describe('findMergedPRsSinceLastRelease', () => {
   }
 
   it('should return PR numbers from merge commits since last tag', async () => {
-    const { execFileSync } = await import('node:child_process');
-    vi.mocked(execFileSync)
-      .mockReturnValueOnce('v1.0.0\n') // git describe
-      .mockReturnValueOnce('abc123\ndef456\n'); // git log
+    // nearest tag → range `v1.0.0..HEAD`; `log` for that range yields the two merge SHAs.
+    setGit({ nearestTag: 'v1.0.0', commits: { 'v1.0.0..HEAD': 'abc123\ndef456\n' } });
 
     const forge = createPRLookupForge({ abc123: [10], def456: [20] });
     const result = await findMergedPRsSinceLastRelease(forge, '/project');
@@ -37,8 +45,7 @@ describe('findMergedPRsSinceLastRelease', () => {
   });
 
   it('should deduplicate PR numbers across merge commits', async () => {
-    const { execFileSync } = await import('node:child_process');
-    vi.mocked(execFileSync).mockReturnValueOnce('v1.0.0\n').mockReturnValueOnce('abc123\ndef456\n');
+    setGit({ nearestTag: 'v1.0.0', commits: { 'v1.0.0..HEAD': 'abc123\ndef456\n' } });
 
     const forge = createPRLookupForge({ abc123: [10], def456: [10] });
     const result = await findMergedPRsSinceLastRelease(forge, '/project');
@@ -47,24 +54,22 @@ describe('findMergedPRsSinceLastRelease', () => {
   });
 
   it('should fall back to last 50 merge commits when no tags exist', async () => {
-    const { execFileSync } = await import('node:child_process');
-    vi.mocked(execFileSync)
-      .mockImplementationOnce(() => {
-        throw new Error('no tags');
-      }) // git describe fails
-      .mockReturnValueOnce('abc123\n'); // git log with -50
+    // No reachable tag (describeTags → null) → the `-50` extraArgs path; `'*'` catch-all seeds log.
+    setGit({ nearestTag: null, commits: { '*': 'abc123\n' } });
+    const logSpy = vi.spyOn(fakeGit, 'log');
 
     const forge = createPRLookupForge({ abc123: [99] });
     const result = await findMergedPRsSinceLastRelease(forge, '/project');
 
     expect(result).toEqual([99]);
-    const calls = vi.mocked(execFileSync).mock.calls;
-    expect(calls[1][1]).toContain('-50');
+    // The fallback passes `-50` as a count flag (not a range) so the seam doesn't reject it.
+    const logOpts = logSpy.mock.calls[0]?.[0];
+    expect(logOpts).toMatchObject({ extraArgs: ['-50'] });
+    expect(logOpts?.range).toBeUndefined();
   });
 
   it('should return empty array when no merge commits in range', async () => {
-    const { execFileSync } = await import('node:child_process');
-    vi.mocked(execFileSync).mockReturnValueOnce('v1.0.0\n').mockReturnValueOnce('');
+    setGit({ nearestTag: 'v1.0.0', commits: { 'v1.0.0..HEAD': '' } });
 
     const forge = createPRLookupForge({});
     const result = await findMergedPRsSinceLastRelease(forge, '/project');
@@ -73,12 +78,8 @@ describe('findMergedPRsSinceLastRelease', () => {
   });
 
   it('should return empty array when git log throws', async () => {
-    const { execFileSync } = await import('node:child_process');
-    vi.mocked(execFileSync)
-      .mockReturnValueOnce('v1.0.0\n')
-      .mockImplementationOnce(() => {
-        throw new Error('git error');
-      });
+    setGit({ nearestTag: 'v1.0.0' });
+    vi.spyOn(fakeGit, 'log').mockRejectedValue(new Error('git error'));
 
     const forge = createPRLookupForge({});
     const result = await findMergedPRsSinceLastRelease(forge, '/project');

@@ -1,8 +1,8 @@
-import { execSync } from 'node:child_process';
+import { createGitCli } from '@releasekit/git';
 
-export function getHeadCommitMessage(cwd?: string): string | null {
+export async function getHeadCommitMessage(cwd?: string): Promise<string | null> {
   try {
-    return execSync('git log -1 --pretty=%s', { encoding: 'utf-8', cwd }).trim();
+    return (await createGitCli().log({ format: '%s', extraArgs: ['-1'], cwd })).trim();
   } catch {
     return null;
   }
