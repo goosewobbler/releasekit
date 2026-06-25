@@ -268,7 +268,7 @@ async function extractEntries(
     });
     revisionRange = baseline.revisionRange;
     previousVersion = baseline.previousVersion;
-    entries = extractChangelogEntriesFromCommits(input.pkgDir, revisionRange);
+    entries = await extractChangelogEntriesFromCommits(input.pkgDir, revisionRange);
   } catch (error) {
     // A strictReachable violation must abort the run, not degrade to a minimal entry (#372).
     if (error instanceof StrictReachableError) throw error;

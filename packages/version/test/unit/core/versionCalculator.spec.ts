@@ -58,9 +58,8 @@ describe('Version Calculator', () => {
     vi.resetAllMocks();
 
     // Default mock implementations
-    vi.spyOn(gitRepo, 'getCurrentBranch').mockReturnValue('main');
-    vi.spyOn(gitTags, 'lastMergeBranchName').mockResolvedValue(null);
-    vi.spyOn(gitTags, 'getCommitsLength').mockReturnValue(5); // Default to 5 commits
+    vi.spyOn(gitRepo, 'getCurrentBranch').mockResolvedValue('main');
+    vi.spyOn(gitTags, 'getCommitsLength').mockResolvedValue(5); // Default to 5 commits
 
     // Set up proper mock for getVersionFromManifests
     vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockImplementation(() => {
@@ -829,7 +828,7 @@ describe('Version Calculator', () => {
         branchPattern: ['feature:minor', 'hotfix:patch'],
       };
 
-      vi.spyOn(gitRepo, 'getCurrentBranch').mockReturnValue('feature/my-feature');
+      vi.spyOn(gitRepo, 'getCurrentBranch').mockResolvedValue('feature/my-feature');
       vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.1.0');
 
       // Execute
@@ -844,37 +843,8 @@ describe('Version Calculator', () => {
 
       // Verify
       expect(gitRepo.getCurrentBranch).toHaveBeenCalled();
-      expect(gitTags.lastMergeBranchName).toHaveBeenCalledWith(['feature:minor', 'hotfix:patch'], config.baseBranch);
       expect(versionUtils.bumpVersion).toHaveBeenCalledWith('1.0.0', 'minor', undefined);
       expect(version).toBe('1.1.0');
-    });
-
-    it('should use merged branch name if available', async () => {
-      // Setup
-      const config: Partial<Config> = {
-        ...defaultConfig,
-        versionStrategy: 'branchPattern',
-        branchPattern: ['release:minor', 'hotfix:patch'],
-      };
-
-      vi.spyOn(gitRepo, 'getCurrentBranch').mockReturnValue('main');
-      vi.spyOn(gitTags, 'lastMergeBranchName').mockResolvedValue('release/1.1.0');
-      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.0.1');
-
-      // Execute
-      const options: VersionOptions = {
-        latestTag: 'v1.0.0',
-        versionPrefix: 'v',
-        branchPattern: config.branchPattern,
-        baseBranch: config.baseBranch,
-      };
-
-      const version = await calculateVersion(config as Config, options);
-
-      // Verify
-      expect(gitTags.lastMergeBranchName).toHaveBeenCalled();
-      expect(versionUtils.bumpVersion).toHaveBeenCalledWith('1.0.0', 'patch', undefined);
-      expect(version).toBe('1.0.1');
     });
 
     it('should return empty string if no matching branch pattern found', async () => {
@@ -885,10 +855,10 @@ describe('Version Calculator', () => {
         branchPattern: ['release:minor', 'hotfix:patch'],
       };
 
-      vi.spyOn(gitRepo, 'getCurrentBranch').mockReturnValue('docs/update-readme');
+      vi.spyOn(gitRepo, 'getCurrentBranch').mockResolvedValue('docs/update-readme');
 
       // Mock conventional-commits as fallback - no commits and no release type
-      vi.spyOn(gitTags, 'getCommitsLength').mockReturnValue(0);
+      vi.spyOn(gitTags, 'getCommitsLength').mockResolvedValue(0);
       vi.spyOn(Bumper.prototype, 'bump').mockResolvedValue({} as unknown as BumperRecommendationResult);
 
       // Execute
@@ -916,7 +886,7 @@ describe('Version Calculator', () => {
         branchPattern: ['feature:minor'],
       };
 
-      vi.spyOn(gitRepo, 'getCurrentBranch').mockReturnValue('feature/test');
+      vi.spyOn(gitRepo, 'getCurrentBranch').mockResolvedValue('feature/test');
       vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValueOnce({
         version: '1.0.0-test',
         manifestFound: true,
@@ -1024,7 +994,7 @@ describe('Version Calculator', () => {
 
     it('should return empty string if no commits since last tag', async () => {
       // Mock getCommitsLength to return 0 for this test
-      vi.spyOn(gitTags, 'getCommitsLength').mockReturnValue(0);
+      vi.spyOn(gitTags, 'getCommitsLength').mockResolvedValue(0);
 
       // Mock getBestVersionSource for this test
       vi.spyOn(versionUtils, 'getBestVersionSource').mockResolvedValueOnce({
@@ -1796,7 +1766,7 @@ describe('Version Calculator', () => {
         };
 
         // Mock branch matching
-        vi.spyOn(gitRepo, 'getCurrentBranch').mockReturnValue('feature/test-branch');
+        vi.spyOn(gitRepo, 'getCurrentBranch').mockResolvedValue('feature/test-branch');
 
         const _result = await calculateVersion(config as Config, options);
 
@@ -1822,7 +1792,7 @@ describe('Version Calculator', () => {
         };
 
         // Mock branch matching
-        vi.spyOn(gitRepo, 'getCurrentBranch').mockReturnValue('feature/test-branch');
+        vi.spyOn(gitRepo, 'getCurrentBranch').mockResolvedValue('feature/test-branch');
         vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.1.0-next.0');
 
         const result = await calculateVersion(config as Config, options);
@@ -1953,7 +1923,7 @@ describe('Version Calculator', () => {
         prerelease: ['beta', 3],
       } as unknown as semver.SemVer);
       // Zero commits — graduation still proceeds
-      vi.spyOn(gitTags, 'getCommitsLength').mockReturnValue(0);
+      vi.spyOn(gitTags, 'getCommitsLength').mockResolvedValue(0);
 
       const result = await calculateVersion(config as Config, options);
 

@@ -5,7 +5,7 @@ export default defineConfig({
   format: ['esm'],
   platform: 'node',
   bundle: true,
-  dts: { resolve: ['@releasekit/core', '@releasekit/config'] },
-  noExternal: ['@releasekit/core', '@releasekit/config'],
+  dts: { resolve: ['@releasekit/core', '@releasekit/config', '@releasekit/git'] },
+  noExternal: ['@releasekit/core', '@releasekit/config', '@releasekit/git'],
   external: [/^[^.]/],
 } as Options);

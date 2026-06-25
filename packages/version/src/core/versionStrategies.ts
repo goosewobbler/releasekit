@@ -309,7 +309,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         revisionRange = baseline.revisionRange;
         previousVersion = baseline.previousVersion;
 
-        changelogEntries = extractChangelogEntriesFromCommits(mainPkgPath, revisionRange);
+        changelogEntries = await extractChangelogEntriesFromCommits(mainPkgPath, revisionRange);
 
         if (changelogEntries.length === 0) {
           changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];
@@ -576,7 +576,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         revisionRange = baseline.revisionRange;
         previousVersion = baseline.previousVersion;
 
-        changelogEntries = extractChangelogEntriesFromCommits(pkgPath, revisionRange);
+        changelogEntries = await extractChangelogEntriesFromCommits(pkgPath, revisionRange);
 
         // If we have no entries but we're definitely changing versions,
         // add a minimal entry about the version change

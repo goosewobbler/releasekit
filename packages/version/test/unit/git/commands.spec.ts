@@ -1,14 +1,14 @@
+import { createFakeGit, FakeGit, type Git } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GitError, GitErrorCode } from '../../../src/errors/gitError.js';
-import * as commandExecutor from '../../../src/git/commandExecutor.js';
 // Import types only to avoid conflicts
 import type { GitCommitOptions, GitProcessOptions, GitTagOptions } from '../../../src/git/commands.js';
 import * as repository from '../../../src/git/repository.js';
 import * as jsonOutput from '../../../src/utils/jsonOutput.js';
 import * as logging from '../../../src/utils/logging.js';
 
-// Mock dependencies
-vi.mock('../../../src/git/commandExecutor.js');
+// Mock dependencies. The repository check is mocked so command tests don't touch the filesystem;
+// the actual git mutations are driven through an injected FakeGit and asserted on its recorders.
 vi.mock('../../../src/git/repository.js');
 vi.mock('../../../src/utils/logging.js');
 vi.mock('../../../src/utils/jsonOutput.js');
@@ -19,12 +19,21 @@ vi.mock('node:process', () => ({
 // Import the actual commands module
 import * as commands from '../../../src/git/commands.js';
 
+/** A Git whose tag() rejects, to exercise the TAG_ALREADY_EXISTS specialization. */
+function gitThatFailsTagWith(message: string): Git {
+  const git = createFakeGit();
+  git.tag = async () => {
+    throw new Error(message);
+  };
+  return git;
+}
+
 describe('Git Commands', () => {
   beforeEach(() => {
     vi.resetAllMocks();
 
     // Mock repository check to return true by default
-    vi.mocked(repository.isGitRepository, { partial: true }).mockReturnValue(true);
+    vi.mocked(repository.isGitRepository, { partial: true }).mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -33,48 +42,44 @@ describe('Git Commands', () => {
   });
 
   describe('Basic git operations', () => {
-    it('should execute gitAdd with correct command', async () => {
+    it('should execute gitAdd with correct files', async () => {
       const files = ['file1.js', 'file2.js'];
-      const mockExecResult = { stdout: 'success', stderr: '' };
+      const git = createFakeGit();
 
-      vi.mocked(commandExecutor.execAsync, { partial: true }).mockResolvedValue(mockExecResult);
+      await commands.gitAdd(files, git);
 
-      const result = await commands.gitAdd(files);
-
-      expect(commandExecutor.execAsync).toHaveBeenCalledWith('git', ['add', 'file1.js', 'file2.js']);
-      expect(result).toBe(mockExecResult);
+      expect(git.added).toEqual([['file1.js', 'file2.js']]);
     });
 
-    it('should execute gitCommit with correct command and options', async () => {
+    it('should execute gitCommit with correct message and options', async () => {
       const options: GitCommitOptions = {
         message: 'test commit',
         skipHooks: true,
       };
+      const git = createFakeGit();
 
-      vi.mocked(commandExecutor.execAsync, { partial: true }).mockResolvedValue({
-        stdout: '',
-        stderr: '',
-      });
+      await commands.gitCommit(options, git);
 
-      await commands.gitCommit(options);
-
-      expect(commandExecutor.execAsync).toHaveBeenCalledWith('git', ['commit', '--no-verify', '-m', 'test commit']);
+      expect(git.committed).toEqual([{ message: 'test commit', paths: undefined, skipHooks: true }]);
     });
 
-    it('should execute createGitTag with correct command', async () => {
+    it('should reject unsupported amend/author/date commit options', async () => {
+      const git = createFakeGit();
+
+      await expect(commands.gitCommit({ message: 'm', amend: true }, git)).rejects.toThrow(GitError);
+      expect(git.committed).toEqual([]);
+    });
+
+    it('should execute createGitTag with an annotated message', async () => {
       const options: GitTagOptions = {
         tag: 'v1.0.0',
         message: 'Version 1.0.0',
       };
+      const git = createFakeGit();
 
-      vi.mocked(commandExecutor.execAsync, { partial: true }).mockResolvedValue({
-        stdout: '',
-        stderr: '',
-      });
+      await commands.createGitTag(options, git);
 
-      await commands.createGitTag(options);
-
-      expect(commandExecutor.execAsync).toHaveBeenCalledWith('git', ['tag', '-a', '-m', 'Version 1.0.0', 'v1.0.0']);
+      expect(git.tagged).toEqual([{ name: 'v1.0.0', message: 'Version 1.0.0' }]);
     });
 
     it('should throw TAG_ALREADY_EXISTS error when tag already exists', async () => {
@@ -82,23 +87,27 @@ describe('Git Commands', () => {
         tag: 'v1.0.0',
         message: 'Version 1.0.0',
       };
+      const git = gitThatFailsTagWith("fatal: tag 'v1.0.0' already exists");
 
-      const mockError = new Error("fatal: tag 'v1.0.0' already exists");
-      vi.mocked(commandExecutor.execAsync, { partial: true }).mockRejectedValue(mockError);
-
-      const { GitError, GitErrorCode } = await import('../../../src/errors/gitError.js');
-
-      await expect(commands.createGitTag(options)).rejects.toThrow(GitError);
-      await expect(commands.createGitTag(options)).rejects.toMatchObject({
+      await expect(commands.createGitTag(options, git)).rejects.toThrow(GitError);
+      await expect(commands.createGitTag(options, git)).rejects.toMatchObject({
         code: GitErrorCode.TAG_ALREADY_EXISTS,
         message: expect.stringContaining("Tag 'v1.0.0' already exists in the repository"),
+      });
+    });
+
+    it('should re-throw other tag failures as a generic git error', async () => {
+      const git = gitThatFailsTagWith('fatal: some other failure');
+
+      await expect(commands.createGitTag({ tag: 'v1.0.0', message: 'm' }, git)).rejects.toMatchObject({
+        code: GitErrorCode.GIT_ERROR,
       });
     });
   });
 
   describe('gitProcess', () => {
     it('should check for git repository', async () => {
-      vi.mocked(repository.isGitRepository, { partial: true }).mockReturnValue(false);
+      vi.mocked(repository.isGitRepository, { partial: true }).mockResolvedValue(false);
 
       const options: GitProcessOptions = {
         files: ['file1.js'],
@@ -106,13 +115,29 @@ describe('Git Commands', () => {
         commitMessage: 'test commit',
       };
 
-      await expect(commands.gitProcess(options)).rejects.toThrow(GitError);
-      await expect(commands.gitProcess(options)).rejects.toMatchObject({
+      await expect(commands.gitProcess(options, createFakeGit())).rejects.toThrow(GitError);
+      await expect(commands.gitProcess(options, createFakeGit())).rejects.toMatchObject({
         code: GitErrorCode.NOT_GIT_REPO,
       });
     });
 
-    it('should log actions in dry run mode', async () => {
+    it('should add, commit, and tag when not a dry run', async () => {
+      const git = createFakeGit();
+      const options: GitProcessOptions = {
+        files: ['file1.js'],
+        nextTag: 'v1.0.0',
+        commitMessage: 'test commit',
+      };
+
+      await commands.gitProcess(options, git);
+
+      expect(git.added).toEqual([['file1.js']]);
+      expect(git.committed).toEqual([{ message: 'test commit', paths: undefined, skipHooks: undefined }]);
+      expect(git.tagged).toEqual([{ name: 'v1.0.0', message: expect.stringContaining('New Version v1.0.0') }]);
+    });
+
+    it('should log actions in dry run mode without writing', async () => {
+      const git = createFakeGit();
       const options: GitProcessOptions = {
         files: ['file1.js'],
         nextTag: 'v1.0.0',
@@ -120,7 +145,12 @@ describe('Git Commands', () => {
         dryRun: true,
       };
 
-      await commands.gitProcess(options);
+      await commands.gitProcess(options, git);
+
+      // Dry run: nothing is written through the seam.
+      expect(git.added).toEqual([]);
+      expect(git.committed).toEqual([]);
+      expect(git.tagged).toEqual([]);
 
       expect(logging.log).toHaveBeenCalledWith('[DRY RUN] Would add files:', 'info');
       expect(logging.log).toHaveBeenCalledWith('  - file1.js', 'info');
@@ -142,36 +172,31 @@ describe('Git Commands', () => {
       );
     });
 
-    it('should log success message when tag is created', async () => {
-      // Mock gitProcess to prevent actual execution
-      const originalGitProcess = commands.gitProcess;
-      vi.spyOn(commands, 'gitProcess').mockImplementation(() => Promise.resolve());
+    it('should record commit message and tag for JSON output and write through the seam', async () => {
+      const git = createFakeGit();
 
-      try {
-        await commands.createGitCommitAndTag(['file1.js'], 'v1.0.0', 'test commit');
+      await commands.createGitCommitAndTag(['file1.js'], 'v1.0.0', 'test commit', false, false, git);
 
-        expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('test commit');
-        expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.0.0');
-        expect(logging.log).toHaveBeenCalledWith('Created tag: v1.0.0', 'success');
-      } finally {
-        // Restore the original function
-        vi.spyOn(commands, 'gitProcess').mockImplementation(originalGitProcess);
-      }
+      expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('test commit');
+      expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.0.0');
+      expect(logging.log).toHaveBeenCalledWith('Created tag: v1.0.0', 'success');
+      expect(git.committed).toHaveLength(1);
+      expect(git.tagged).toEqual([{ name: 'v1.0.0', message: expect.stringContaining('New Version v1.0.0') }]);
     });
 
-    it('should not log success message in dry run mode', async () => {
-      // Mock gitProcess to prevent actual execution
-      const originalGitProcess = commands.gitProcess;
-      vi.spyOn(commands, 'gitProcess').mockImplementation(() => Promise.resolve());
+    it('should not write or log success in dry run mode', async () => {
+      const git = createFakeGit();
 
-      try {
-        await commands.createGitCommitAndTag(['file1.js'], 'v1.0.0', 'test commit', false, true);
+      await commands.createGitCommitAndTag(['file1.js'], 'v1.0.0', 'test commit', false, true, git);
 
-        expect(logging.log).not.toHaveBeenCalledWith('Created tag: v1.0.0', 'success');
-      } finally {
-        // Restore the original function
-        vi.spyOn(commands, 'gitProcess').mockImplementation(originalGitProcess);
-      }
+      expect(logging.log).not.toHaveBeenCalledWith('Created tag: v1.0.0', 'success');
+      expect(git.added).toEqual([]);
+      expect(git.committed).toEqual([]);
+      expect(git.tagged).toEqual([]);
     });
+  });
+
+  it('exports a FakeGit usable as the injected seam', () => {
+    expect(createFakeGit()).toBeInstanceOf(FakeGit);
   });
 });

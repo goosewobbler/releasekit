@@ -1,13 +1,14 @@
 import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { execSync } from './commandExecutor.js';
+import { createGitCli, type Git } from '@releasekit/git';
 
 /**
  * Check if a directory is a git repository
  * @param directory Directory to check
+ * @param git Injected git seam (defaults to the real CLI adapter)
  * @returns True if directory is a git repository
  */
-export function isGitRepository(directory: string): boolean {
+export async function isGitRepository(directory: string, git: Git = createGitCli()): Promise<boolean> {
   const gitDir = join(directory, '.git');
 
   // Check if .git directory exists
@@ -21,20 +22,15 @@ export function isGitRepository(directory: string): boolean {
     return false;
   }
 
-  // Final check: run git command
-  try {
-    execSync('git', ['rev-parse', '--is-inside-work-tree'], { cwd: directory });
-    return true;
-  } catch (_error) {
-    return false;
-  }
+  // Final check: run git command (soft lookup — a non-repo exits non-zero → false).
+  return git.isRepository(directory);
 }
 
 /**
  * Get current branch name
+ * @param git Injected git seam (defaults to the real CLI adapter)
  * @returns Current branch name
  */
-export function getCurrentBranch(): string {
-  const result = execSync('git', ['rev-parse', '--abbrev-ref', 'HEAD']);
-  return result.toString().trim();
+export function getCurrentBranch(git: Git = createGitCli()): Promise<string> {
+  return git.currentBranch();
 }

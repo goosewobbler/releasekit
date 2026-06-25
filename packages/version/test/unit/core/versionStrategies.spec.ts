@@ -6,9 +6,9 @@ import * as commitParser from '../../../src/changelog/commitParser.js';
 import * as calculator from '../../../src/core/versionCalculator.js';
 import type { PackagesWithRoot } from '../../../src/core/versionEngine.js';
 import * as strategies from '../../../src/core/versionStrategies.js';
-import * as commandExecutor from '../../../src/git/commandExecutor.js';
 import * as gitCommands from '../../../src/git/commands.js';
 import * as gitTags from '../../../src/git/tagsAndBranches.js';
+import * as tagVerification from '../../../src/git/tagVerification.js';
 import * as packageManagement from '../../../src/package/packageManagement.js';
 import { PackageProcessor } from '../../../src/package/packageProcessor.js';
 import type { Config } from '../../../src/types.js';
@@ -19,7 +19,7 @@ import * as logging from '../../../src/utils/logging.js';
 // Mock dependencies
 vi.mock('../../../src/git/commands.js');
 vi.mock('../../../src/git/tagsAndBranches.js');
-vi.mock('../../../src/git/commandExecutor.js');
+vi.mock('../../../src/git/tagVerification.js');
 vi.mock('../../../src/utils/logging.js');
 vi.mock('../../../src/core/versionCalculator.js');
 vi.mock('../../../src/package/packageManagement.js');
@@ -118,10 +118,11 @@ describe('Version Strategies', () => {
         return `${formattedPrefix}${tag.slice(baselineTagPrefix.length)}`;
       },
     );
-    vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockReturnValue([
+    vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockResolvedValue([
       { type: 'added', description: 'New feature' },
     ]);
-    vi.mocked(commandExecutor.execSync, { partial: true }).mockReturnValue(Buffer.from(''));
+    // Default: the baseline tag verifies as reachable, so the range is bounded `<tag>..HEAD`.
+    vi.mocked(tagVerification.verifyTag, { partial: true }).mockResolvedValue({ exists: true, reachable: true });
 
     // Setup PackageProcessor mock
     vi.mocked(PackageProcessor.prototype.processPackages, { partial: true }).mockResolvedValue({
@@ -533,12 +534,11 @@ describe('Version Strategies', () => {
       });
 
       it('should warn loudly and omit previousVersion when the baseline tag is unverifiable (#339)', async () => {
-        // rev-parse on the baseline fails (e.g. shallow clone / unpushed tag); other git calls succeed.
-        vi.mocked(commandExecutor.execSync, { partial: true }).mockImplementation((_cmd, args) => {
-          if (Array.isArray(args) && args.includes('rev-parse')) {
-            throw new Error('fatal: Needed a single revision');
-          }
-          return Buffer.from('');
+        // The baseline tag fails verification (e.g. shallow clone / unpushed tag).
+        vi.mocked(tagVerification.verifyTag, { partial: true }).mockResolvedValue({
+          exists: true,
+          reachable: false,
+          error: 'exists but is not an ancestor of HEAD',
         });
 
         const config: Partial<Config> = { ...defaultConfig, sync: true };
@@ -613,9 +613,11 @@ describe('Version Strategies', () => {
       });
 
       it('should fall back to HEAD when baseRef cannot be resolved by git', async () => {
-        // Make the rev-parse --verify call fail for the baseRef
-        vi.mocked(commandExecutor.execSync, { partial: true }).mockImplementationOnce(() => {
-          throw new Error('fatal: bad object nonexistent-sha');
+        // The baseRef fails verification (bad object).
+        vi.mocked(tagVerification.verifyTag, { partial: true }).mockResolvedValue({
+          exists: false,
+          reachable: false,
+          error: "Ref 'nonexistent-sha' not found in repository",
         });
 
         const config: Partial<Config> = {
@@ -707,7 +709,7 @@ describe('Version Strategies', () => {
       });
 
       it('should create fallback changelog entry when no commits found', async () => {
-        vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockReturnValue([]);
+        vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockResolvedValue([]);
 
         const config: Partial<Config> = {
           ...defaultConfig,
@@ -768,12 +770,11 @@ describe('Version Strategies', () => {
     });
 
     it('should warn and omit previousVersion when the baseline tag is unverifiable (#339)', async () => {
-      // rev-parse on the baseline fails (shallow clone / unpushed tag); other git calls succeed.
-      vi.mocked(commandExecutor.execSync, { partial: true }).mockImplementation((_cmd, args) => {
-        if (Array.isArray(args) && args.includes('rev-parse')) {
-          throw new Error('fatal: Needed a single revision');
-        }
-        return Buffer.from('');
+      // The baseline tag fails verification (shallow clone / unpushed tag).
+      vi.mocked(tagVerification.verifyTag, { partial: true }).mockResolvedValue({
+        exists: true,
+        reachable: false,
+        error: 'exists but is not an ancestor of HEAD',
       });
 
       const config: Partial<Config> = { ...defaultConfig, mainPackage: 'package-a' };

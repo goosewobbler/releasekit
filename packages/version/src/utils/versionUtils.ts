@@ -4,6 +4,7 @@
 
 import fs from 'node:fs';
 import { parseCargoToml } from '@releasekit/config';
+import { createGitCli, type Git } from '@releasekit/git';
 import type { ReleaseType } from 'semver';
 import semver from 'semver';
 
@@ -268,6 +269,7 @@ export async function getBestVersionSource(
   cwd: string,
   mismatchStrategy: 'error' | 'warn' | 'ignore' | 'prefer-package' | 'prefer-git' = 'error',
   strictReachable = false,
+  git: Git = createGitCli(),
 ): Promise<VersionSourceResult> {
   // No tag provided - use package version or fallback to initial
   if (!tagName?.trim()) {
@@ -277,7 +279,7 @@ export async function getBestVersionSource(
   }
 
   // Verify tag existence and reachability
-  const verification = verifyTag(tagName, cwd);
+  const verification = await verifyTag(tagName, cwd, git);
 
   // Tag unreachable - handle based on strictReachable flag
   if (!verification.exists || !verification.reachable) {

@@ -6,8 +6,8 @@ import * as commitParser from '../../../src/changelog/commitParser.js';
 import { createGroupStrategy } from '../../../src/core/groupStrategy.js';
 import * as calculator from '../../../src/core/versionCalculator.js';
 import type { PackagesWithRoot } from '../../../src/core/versionEngine.js';
-import * as commandExecutor from '../../../src/git/commandExecutor.js';
 import * as gitTags from '../../../src/git/tagsAndBranches.js';
+import * as tagVerification from '../../../src/git/tagVerification.js';
 import * as packageManagement from '../../../src/package/packageManagement.js';
 import type { Config } from '../../../src/types.js';
 import * as formatting from '../../../src/utils/formatting.js';
@@ -15,7 +15,7 @@ import * as jsonOutput from '../../../src/utils/jsonOutput.js';
 import * as logging from '../../../src/utils/logging.js';
 
 vi.mock('../../../src/git/tagsAndBranches.js');
-vi.mock('../../../src/git/commandExecutor.js');
+vi.mock('../../../src/git/tagVerification.js');
 vi.mock('../../../src/utils/logging.js');
 vi.mock('../../../src/core/versionCalculator.js');
 vi.mock('../../../src/package/packageManagement.js');
@@ -63,8 +63,8 @@ describe('createGroupStrategy', () => {
     vi.mocked(path.join, { partial: true }).mockImplementation((...args) => args.join('/'));
     vi.mocked(gitTags.getLatestTag).mockResolvedValue('');
     vi.mocked(gitTags.getLatestTagForPackage).mockResolvedValue('');
-    vi.mocked(commandExecutor.execSync, { partial: true }).mockReturnValue(Buffer.from(''));
-    vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockReturnValue([
+    vi.mocked(tagVerification.verifyTag, { partial: true }).mockResolvedValue({ exists: true, reachable: true });
+    vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockResolvedValue([
       { type: 'added', description: 'New feature' },
     ]);
     // formatting helpers are not module-mocked — spy on the real (pure) implementations.

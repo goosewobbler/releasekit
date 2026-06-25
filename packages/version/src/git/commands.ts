@@ -1,8 +1,8 @@
 import { cwd } from 'node:process';
+import { createGitCli, type Git } from '@releasekit/git';
 import { createGitError, GitError, GitErrorCode } from '../errors/gitError.js';
 import { addTag, setCommitMessage } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
-import { execAsync } from './commandExecutor.js';
 import { isGitRepository } from './repository.js';
 
 /**
@@ -40,47 +40,43 @@ export type GitProcessOptions = {
 /**
  * Add files to git staging
  * @param files Files to add
- * @returns Promise with exec result
+ * @param git Injected git seam (defaults to the real CLI adapter)
  */
-export async function gitAdd(files: string[]) {
-  return execAsync('git', ['add', ...files]);
+export async function gitAdd(files: string[], git: Git = createGitCli()): Promise<void> {
+  await git.add(files);
 }
 
 /**
  * Create a git commit
  * @param options Commit options
- * @returns Promise with exec result
+ * @param git Injected git seam (defaults to the real CLI adapter)
+ *
+ * NOTE: `amend`/`author`/`date` are not expressible through the Git seam's commit options (only
+ * message, skipHooks, and paths are). No call path ever sets them — `gitProcess` only passes
+ * `message` + `skipHooks` — so this preserves behaviour. If a future caller sets one, fail loudly
+ * rather than silently dropping it.
  */
-export async function gitCommit(options: GitCommitOptions) {
-  const args = ['commit'];
-  if (options.amend) {
-    args.push('--amend');
+export async function gitCommit(options: GitCommitOptions, git: Git = createGitCli()): Promise<void> {
+  if (options.amend || options.author || options.date) {
+    throw createGitError(
+      GitErrorCode.GIT_ERROR,
+      'gitCommit: amend/author/date are not supported by the git seam; remove them or extend the seam.',
+    );
   }
-  if (options.author) {
-    args.push('--author', options.author);
-  }
-  if (options.date) {
-    args.push('--date', options.date);
-  }
-  if (options.skipHooks) {
-    args.push('--no-verify');
-  }
-  args.push('-m', options.message);
-
-  return execAsync('git', args);
+  await git.commit(options.message, { skipHooks: options.skipHooks });
 }
 
 /**
  * Create a git tag
  * @param options Tag options
- * @returns Promise with exec result
+ * @param git Injected git seam (defaults to the real CLI adapter)
  */
-export async function createGitTag(options: GitTagOptions) {
+export async function createGitTag(options: GitTagOptions, git: Git = createGitCli()): Promise<void> {
   const { tag, message = '' } = options;
-  const args = ['tag', '-a', '-m', message, tag];
 
   try {
-    return await execAsync('git', args);
+    // Annotated tag (`tag -a -m <message>`), matching the original `tag -a -m <msg> <tag>`.
+    await git.tag(tag, { message });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
 
@@ -101,28 +97,34 @@ export async function createGitTag(options: GitTagOptions) {
  * Execute git add, commit, and tag in a single process
  * @param options Git process options
  */
-export async function gitProcess(options: GitProcessOptions) {
+export async function gitProcess(options: GitProcessOptions, git: Git = createGitCli()) {
   const { files, nextTag, commitMessage, skipHooks, dryRun } = options;
 
-  if (!isGitRepository(cwd())) {
+  if (!(await isGitRepository(cwd(), git))) {
     throw createGitError(GitErrorCode.NOT_GIT_REPO);
   }
 
   try {
     if (!dryRun) {
-      await gitAdd(files);
+      await gitAdd(files, git);
 
-      await gitCommit({
-        message: commitMessage,
-        skipHooks,
-      });
+      await gitCommit(
+        {
+          message: commitMessage,
+          skipHooks,
+        },
+        git,
+      );
 
       if (nextTag) {
         const tagMessage = `New Version ${nextTag} generated at ${new Date().toISOString()}`;
-        await createGitTag({
-          tag: nextTag,
-          message: tagMessage,
-        });
+        await createGitTag(
+          {
+            tag: nextTag,
+            message: tagMessage,
+          },
+          git,
+        );
       }
     } else {
       log('[DRY RUN] Would add files:', 'info');
@@ -172,6 +174,7 @@ export async function createGitCommitAndTag(
   commitMessage: string,
   skipHooks?: boolean,
   dryRun?: boolean,
+  git: Git = createGitCli(),
 ): Promise<void> {
   try {
     // Validate inputs
@@ -189,13 +192,16 @@ export async function createGitCommitAndTag(
       addTag(nextTag);
     }
 
-    await gitProcess({
-      files,
-      nextTag,
-      commitMessage,
-      skipHooks,
-      dryRun,
-    });
+    await gitProcess(
+      {
+        files,
+        nextTag,
+        commitMessage,
+        skipHooks,
+        dryRun,
+      },
+      git,
+    );
 
     if (!dryRun) {
       log(`Created tag: ${nextTag}`, 'success');

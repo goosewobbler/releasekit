@@ -91,7 +91,7 @@ export async function reconstructChangelogs(opts: ReconstructOptions): Promise<R
         previousVersion: prev?.version ?? null,
         revisionRange,
         repoUrl: opts.repoUrl ?? null,
-        entries: extractChangelogEntriesFromCommits(opts.pkgPath, revisionRange),
+        entries: await extractChangelogEntriesFromCommits(opts.pkgPath, revisionRange),
       },
     });
   }
