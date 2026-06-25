@@ -287,7 +287,7 @@ The `ci` section controls automation behavior:
 
     // Customise PR label names
     "labels": {
-      "stable": "channel:stable",
+      "graduate": "release:graduate",
       "prerelease": "channel:prerelease",
       "skip": "release:skip",
       "immediate": "release:immediate",
@@ -312,7 +312,7 @@ The `ci` section controls automation behavior:
 
 **`commit`** — Conventional commits drive the bump type automatically. Every merge can trigger a release. Use the `release:skip` label to prevent a release, or `bump:major` to override the commit-derived bump to major.
 
-Both modes support `channel:stable` and `channel:prerelease` as channel modifiers. `channel:stable` alone graduates any prerelease packages to their stable base version and skips packages that are already stable — no bump label required. `channel:prerelease` must be combined with a `bump:*` label — alone, it does not trigger a release.
+Both modes support `release:graduate` and `channel:prerelease`. `release:graduate` alone graduates any prerelease packages to their stable base version and skips packages that are already stable — no bump label required (it's a standalone release-flow trigger). `channel:prerelease` is a channel modifier and must be combined with a `bump:*` label — alone, it does not trigger a release.
 
 > **Standing-pr strategy is different.** When `releaseStrategy: "standing-pr"`, labels on **feeder PRs** are advisory only — the standing PR itself is the canonical override surface (add `bump:major` etc. to the standing PR to drive the next release). To bypass the queue and ship one PR directly, label it `release:immediate`. See [CI setup → Label semantics in standing-pr mode](./docs/ci-setup.md#label-semantics-in-standing-pr-mode).
 
@@ -361,7 +361,7 @@ Multiple scope labels are combined with OR logic. Without a `release:*` label, c
 
 In label trigger mode, conflicting labels will block the release and post a comment explaining the issue:
 - Multiple bump labels (`bump:major` + `bump:minor` + `bump:patch`) → blocked
-- Conflicting release type (`channel:stable` + `channel:prerelease`) → blocked (both modes)
+- Conflicting release type (`release:graduate` + `channel:prerelease`) → blocked (both modes)
 
 **How it works:**
 

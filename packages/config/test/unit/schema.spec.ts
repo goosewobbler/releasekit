@@ -508,7 +508,7 @@ describe('CIConfigSchema', () => {
     expect(result.skipPatterns).toEqual(['chore: release ']);
     expect(result.minChanges).toBe(1);
     expect(result.labels).toEqual({
-      stable: 'channel:stable',
+      graduate: 'release:graduate',
       prerelease: 'channel:prerelease',
       skip: 'release:skip',
       immediate: 'release:immediate',
@@ -575,7 +575,7 @@ describe('CIConfigSchema', () => {
   it('should accept custom label names', () => {
     const result = CIConfigSchema.parse({
       labels: {
-        stable: 'stable',
+        graduate: 'graduate',
         prerelease: 'pre',
         skip: 'no-release',
         major: 'breaking',
@@ -583,7 +583,7 @@ describe('CIConfigSchema', () => {
         patch: 'fix',
       },
     });
-    expect(result.labels.stable).toBe('stable');
+    expect(result.labels.graduate).toBe('graduate');
     expect(result.labels.prerelease).toBe('pre');
     expect(result.labels.skip).toBe('no-release');
     expect(result.labels.major).toBe('breaking');
@@ -592,8 +592,8 @@ describe('CIConfigSchema', () => {
   });
 
   it('should apply label defaults for partial labels config', () => {
-    const result = CIConfigSchema.parse({ labels: { stable: 'custom-stable' } });
-    expect(result.labels.stable).toBe('custom-stable');
+    const result = CIConfigSchema.parse({ labels: { graduate: 'custom-graduate' } });
+    expect(result.labels.graduate).toBe('custom-graduate');
     expect(result.labels.prerelease).toBe('channel:prerelease');
     expect(result.labels.skip).toBe('release:skip');
     expect(result.labels.major).toBe('bump:major');

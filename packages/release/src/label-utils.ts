@@ -1,5 +1,5 @@
 export interface LabelConfig {
-  stable: string;
+  graduate: string;
   prerelease: string;
   skip: string;
   immediate: string;
@@ -12,7 +12,7 @@ export interface LabelConfig {
 }
 
 export const DEFAULT_LABELS: LabelConfig = {
-  stable: 'channel:stable',
+  graduate: 'release:graduate',
   prerelease: 'channel:prerelease',
   skip: 'release:skip',
   immediate: 'release:immediate',
@@ -28,7 +28,7 @@ export interface LabelConflictResult {
   bumpConflict: boolean;
   bumpLabelsPresent: string[];
   prereleaseConflict: boolean;
-  hasStable: boolean;
+  hasGraduate: boolean;
   hasPrerelease: boolean;
 }
 
@@ -41,15 +41,15 @@ export function detectLabelConflicts(prLabels: string[], labels: LabelConfig = D
 
   const bumpConflict = bumpLabelsPresent.length > 1;
 
-  const hasStable = prLabels.includes(labels.stable);
+  const hasGraduate = prLabels.includes(labels.graduate);
   const hasPrerelease = prLabels.includes(labels.prerelease);
-  const prereleaseConflict = hasStable && hasPrerelease;
+  const prereleaseConflict = hasGraduate && hasPrerelease;
 
   return {
     bumpConflict,
     bumpLabelsPresent,
     prereleaseConflict,
-    hasStable,
+    hasGraduate,
     hasPrerelease,
   };
 }
@@ -67,10 +67,10 @@ export function detectLabelConflicts(prLabels: string[], labels: LabelConfig = D
  * prerelease (`2.0.0-next.0` → `2.0.0-next.1`), use the prerelease label alone (no `bump:*`),
  * which returns `'prerelease'`.
  *
- * `channel:stable` wins over everything and returns undefined (graduation is bump-less).
+ * `release:graduate` wins over everything and returns undefined (graduation is bump-less).
  */
 export function composeBumpFromLabels(prLabels: string[], labels: LabelConfig = DEFAULT_LABELS): string | undefined {
-  if (prLabels.includes(labels.stable)) return undefined;
+  if (prLabels.includes(labels.graduate)) return undefined;
 
   if (prLabels.includes(labels.prerelease)) {
     if (prLabels.includes(labels.major)) return 'premajor';

@@ -6,7 +6,7 @@ import { checkLabels, deriveLabelDefinitions, type LabelDefinition, syncLabels }
 // A fully-defaulted CIConfig.labels block (mirrors CILabelsConfigSchema defaults). Tests build
 // on this so a rename only has to override the field under test.
 const DEFAULT_LABELS_CONFIG = {
-  stable: 'channel:stable',
+  graduate: 'release:graduate',
   prerelease: 'channel:prerelease',
   skip: 'release:skip',
   immediate: 'release:immediate',
@@ -41,7 +41,7 @@ describe('deriveLabelDefinitions', () => {
         'bump:patch',
         'bump:minor',
         'bump:major',
-        'channel:stable',
+        'release:graduate',
         'channel:prerelease',
         'release:skip',
         'release:immediate',

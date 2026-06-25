@@ -30,7 +30,7 @@ export interface PREvaluation {
  * Evaluate a single PR's labels against the gate's release rules.
  *
  * In `label` trigger mode:
- *  - `bump:*` or `channel:stable` ⇒ release
+ *  - `bump:*` or `release:graduate` ⇒ release
  *  - `channel:prerelease` alone ⇒ NO release (requires `bump:*`)
  *  - No release labels ⇒ no release
  *  - Conflicting labels on the same PR ⇒ blocked
@@ -60,7 +60,7 @@ export function evaluatePR(
     labelConfig.major,
     labelConfig.minor,
     labelConfig.patch,
-    labelConfig.stable,
+    labelConfig.graduate,
     labelConfig.prerelease,
     labelConfig.immediate,
   ]);
@@ -120,7 +120,7 @@ export function evaluatePR(
       labels,
       shouldRelease: false,
       blocked: true,
-      reason: `PR #${prNumber} has conflicting release labels: ${labelConfig.stable} + ${labelConfig.prerelease}`,
+      reason: `PR #${prNumber} has conflicting release labels: ${labelConfig.graduate} + ${labelConfig.prerelease}`,
       hasReleaseIntent,
       scope,
       target,
@@ -133,11 +133,11 @@ export function evaluatePR(
     const hasBumpLabel = labels.some(
       (l) => l === labelConfig.major || l === labelConfig.minor || l === labelConfig.patch,
     );
-    const hasStableLabel = labels.includes(labelConfig.stable);
+    const hasGraduateLabel = labels.includes(labelConfig.graduate);
     const hasPrereleaseLabel = labels.includes(labelConfig.prerelease);
 
-    if (hasBumpLabel || hasStableLabel) {
-      const isStable = hasStableLabel && !hasPrereleaseLabel;
+    if (hasBumpLabel || hasGraduateLabel) {
+      const isGraduation = hasGraduateLabel && !hasPrereleaseLabel;
       return {
         prNumber,
         labels,
@@ -145,8 +145,8 @@ export function evaluatePR(
         bump,
         scope,
         target,
-        stable: isStable,
-        reason: hasStableLabel ? `${labelConfig.stable} label found` : `bump label found: ${bump}`,
+        stable: isGraduation,
+        reason: hasGraduateLabel ? `${labelConfig.graduate} label found` : `bump label found: ${bump}`,
         hasReleaseIntent,
       };
     }
@@ -171,7 +171,7 @@ export function evaluatePR(
       scope,
       target,
       stable: false,
-      reason: `No release labels found (need bump:* or ${labelConfig.stable})`,
+      reason: `No release labels found (need bump:* or ${labelConfig.graduate})`,
       hasReleaseIntent,
     };
   }

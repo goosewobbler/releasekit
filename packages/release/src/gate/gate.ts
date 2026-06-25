@@ -256,7 +256,7 @@ function buildNotifyBody(e: PREvaluation, labelConfig: LabelConfig): string {
   const actionLines = e.blocked
     ? [
         'Remove the conflicting labels so only one bump label remains (or only one of',
-        `\`${labelConfig.stable}\` / \`${labelConfig.prerelease}\`), then re-run the release workflow.`,
+        `\`${labelConfig.graduate}\` / \`${labelConfig.prerelease}\`), then re-run the release workflow.`,
       ]
     : [
         `Add a bump label (\`${labelConfig.major}\`, \`${labelConfig.minor}\`, or \`${labelConfig.patch}\`) and re-run the release workflow.`,

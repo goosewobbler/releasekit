@@ -67,7 +67,7 @@ describe('Gate', () => {
           major: 'bump:major',
           minor: 'bump:minor',
           patch: 'bump:patch',
-          stable: 'channel:stable',
+          graduate: 'release:graduate',
           prerelease: 'channel:prerelease',
           skip: 'release:skip',
           immediate: 'release:immediate',
@@ -177,9 +177,9 @@ describe('Gate', () => {
     expect(result.shouldRelease).toBe(false);
   });
 
-  it('should return blocked: true when channel:prerelease + channel:stable conflict', async () => {
+  it('should return blocked: true when channel:prerelease + release:graduate conflict', async () => {
     mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
-    mockFetchPRLabels.mockResolvedValue(['channel:prerelease', 'channel:stable']);
+    mockFetchPRLabels.mockResolvedValue(['channel:prerelease', 'release:graduate']);
 
     const result = await runGate();
 
@@ -205,9 +205,9 @@ describe('Gate', () => {
     expect(result.bump).toBe('patch');
   });
 
-  it('should return bump undefined when only channel:stable label', async () => {
+  it('should return bump undefined when only release:graduate label', async () => {
     mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
-    mockFetchPRLabels.mockResolvedValue(['channel:stable']);
+    mockFetchPRLabels.mockResolvedValue(['release:graduate']);
 
     const result = await runGate();
 
@@ -227,21 +227,21 @@ describe('Gate', () => {
     expect(result.stable).toBe(false);
   });
 
-  it('should return stable: true when bump:patch and channel:stable labels present (stable takes precedence over bump)', async () => {
+  it('should return stable: true when bump:patch and release:graduate labels present (stable takes precedence over bump)', async () => {
     mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
-    mockFetchPRLabels.mockResolvedValue(['bump:patch', 'channel:stable']);
+    mockFetchPRLabels.mockResolvedValue(['bump:patch', 'release:graduate']);
 
     const result = await runGate();
 
     expect(result.shouldRelease).toBe(true);
-    // channel:stable causes detectBumpFromLabels to return undefined (auto-detect from commits)
+    // release:graduate causes detectBumpFromLabels to return undefined (auto-detect from commits)
     expect(result.bump).toBeUndefined();
     expect(result.stable).toBe(true);
   });
 
-  it('should return stable: false when channel:stable and channel:prerelease conflict', async () => {
+  it('should return stable: false when release:graduate and channel:prerelease conflict', async () => {
     mockFindMergedPRsSinceLastRelease.mockResolvedValue([123]);
-    mockFetchPRLabels.mockResolvedValue(['channel:stable', 'channel:prerelease']);
+    mockFetchPRLabels.mockResolvedValue(['release:graduate', 'channel:prerelease']);
 
     const result = await runGate();
 
@@ -333,7 +333,7 @@ describe('Gate', () => {
             major: 'bump:major',
             minor: 'bump:minor',
             patch: 'bump:patch',
-            stable: 'channel:stable',
+            graduate: 'release:graduate',
             prerelease: 'channel:prerelease',
             skip: 'release:skip',
             immediate: 'release:immediate',
@@ -465,7 +465,7 @@ describe('Gate', () => {
           major: 'bump:major',
           minor: 'bump:minor',
           patch: 'bump:patch',
-          stable: 'channel:stable',
+          graduate: 'release:graduate',
           prerelease: 'channel:prerelease',
           skip: 'release:skip',
           immediate: 'release:immediate',
@@ -501,7 +501,7 @@ describe('Gate', () => {
           major: 'bump:major',
           minor: 'bump:minor',
           patch: 'bump:patch',
-          stable: 'channel:stable',
+          graduate: 'release:graduate',
           prerelease: 'channel:prerelease',
           skip: 'release:skip',
           immediate: 'release:immediate',
@@ -619,7 +619,7 @@ describe('Gate', () => {
             major: 'bump:major',
             minor: 'bump:minor',
             patch: 'bump:patch',
-            stable: 'channel:stable',
+            graduate: 'release:graduate',
             prerelease: 'channel:prerelease',
             skip: 'release:skip',
             immediate: 'release:immediate',

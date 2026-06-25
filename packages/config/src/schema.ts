@@ -510,7 +510,12 @@ export const NotesConfigSchema = z.object({
 });
 
 export const CILabelsConfigSchema = z.object({
-  stable: z.string().default('channel:stable').describe('Label to graduate a prerelease to stable'),
+  graduate: z
+    .string()
+    .default('release:graduate')
+    .describe(
+      'Label that graduates a prerelease to its stable base version (e.g. 1.0.0-next.6 → 1.0.0). A standalone release trigger in label/direct mode; in standing-pr mode it sets the next merge to graduate.',
+    ),
   prerelease: z.string().default('channel:prerelease').describe('Label to create a prerelease'),
   skip: z.string().default('release:skip').describe('Label to suppress a release on this PR'),
   immediate: z
@@ -638,7 +643,7 @@ export const CIConfigSchema = z.object({
     .default(1)
     .describe('Minimum number of packages with releasable changes required to trigger a release.'),
   labels: CILabelsConfigSchema.default({
-    stable: 'channel:stable',
+    graduate: 'release:graduate',
     prerelease: 'channel:prerelease',
     skip: 'release:skip',
     immediate: 'release:immediate',

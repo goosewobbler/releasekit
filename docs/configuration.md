@@ -400,7 +400,7 @@ PR label names used for release control. Override to match your repository's lab
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `stable` | string | `"channel:stable"` | Label to graduate a prerelease to stable |
+| `graduate` | string | `"release:graduate"` | Label that graduates a prerelease to its stable base version (e.g. 1.0.0-next.6 → 1.0.0). A standalone release trigger in label/direct mode; in standing-pr mode it sets the next merge to graduate. |
 | `prerelease` | string | `"channel:prerelease"` | Label to create a prerelease |
 | `skip` | string | `"release:skip"` | Label to suppress a release on this PR |
 | `immediate` | string | `"release:immediate"` | Label to bypass the standing PR for one merge — triggers a direct release. Standing-pr mode only. |

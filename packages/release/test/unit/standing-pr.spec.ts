@@ -279,7 +279,7 @@ describe('runStandingPRUpdate', () => {
       skipPatterns: ['chore: release '],
       minChanges: 1,
       labels: {
-        stable: 'channel:stable',
+        graduate: 'release:graduate',
         prerelease: 'channel:prerelease',
         skip: 'release:skip',
         immediate: 'release:immediate',
@@ -1443,12 +1443,12 @@ describe('runStandingPRUpdate', () => {
       expect(manifest.overrideLabels).toEqual(['bump:major', 'channel:prerelease']);
     });
 
-    it('should drop the bump under channel:stable (graduation is bump-less, matching the SSOT)', async () => {
-      const { runVersionStepMock } = await setupWithStandingPRLabels(['release', 'bump:major', 'channel:stable']);
+    it('should drop the bump under release:graduate (graduation is bump-less, matching the SSOT)', async () => {
+      const { runVersionStepMock } = await setupWithStandingPRLabels(['release', 'bump:major', 'release:graduate']);
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-      // channel:stable wins — bump is dropped (not leaked as 'major'), consistent with
+      // release:graduate wins — bump is dropped (not leaked as 'major'), consistent with
       // composeBumpFromLabels returning undefined for stable.
       expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ stable: true });
       expect(runVersionStepMock.mock.calls[0]?.[0]?.bump).toBeUndefined();

@@ -310,7 +310,7 @@ describe('runPreview', () => {
       });
 
       it('should take priority over stable PR label', async () => {
-        mockFetchPRLabels.mockResolvedValue(['channel:stable']);
+        mockFetchPRLabels.mockResolvedValue(['release:graduate']);
 
         await runPreview({ projectDir: '/test', dryRun: false, prerelease: 'beta', target: '@test/package' });
 
@@ -554,8 +554,8 @@ describe('runPreview', () => {
     });
 
     describe('stable/prerelease conflicts', () => {
-      it('should block release when channel:stable and channel:prerelease both present', async () => {
-        mockFetchPRLabels.mockResolvedValue(['channel:stable', 'channel:prerelease', 'bump:minor']);
+      it('should block release when release:graduate and channel:prerelease both present', async () => {
+        mockFetchPRLabels.mockResolvedValue(['release:graduate', 'channel:prerelease', 'bump:minor']);
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
 
         await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
@@ -621,21 +621,21 @@ describe('runPreview', () => {
 
     describe('stable label', () => {
       it('should graduate prerelease to stable when stable label is present', async () => {
-        mockFetchPRLabels.mockResolvedValue(['channel:stable', 'bump:minor']);
+        mockFetchPRLabels.mockResolvedValue(['release:graduate', 'bump:minor']);
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
         mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'beta' });
 
         await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         const callArgs = mockRunRelease.mock.calls[0][0];
-        // Per gate semantics: channel:stable causes bump to be auto-detected from commits.
+        // Per gate semantics: release:graduate causes bump to be auto-detected from commits.
         // bump label magnitude is not propagated when graduation is the primary intent.
         expect(callArgs.bump).toBeUndefined();
         expect(callArgs.stable).toBe(true);
       });
 
       it('should run release analysis but not set bump when stable label present without bump label', async () => {
-        mockFetchPRLabels.mockResolvedValue(['channel:stable']);
+        mockFetchPRLabels.mockResolvedValue(['release:graduate']);
         mockLoadCIConfig.mockReturnValue({ releaseTrigger: 'label' });
         mockDetectPrerelease.mockReturnValue({ isPrerelease: true, identifier: 'beta' });
 
@@ -718,7 +718,7 @@ describe('runPreview', () => {
 
     it('should NOT release in label mode for scope-only PR — gate requires bump or stable label', async () => {
       // Aligned with gate semantics: in label trigger mode, scope alone does not trigger
-      // a release. The user must add bump:* or channel:stable. Conventional-commits-driven
+      // a release. The user must add bump:* or release:graduate. Conventional-commits-driven
       // bumps are only supported in commit trigger mode.
       mockLoadCIConfig.mockReturnValue({
         releaseTrigger: 'label',
@@ -832,7 +832,7 @@ describe('runPreview', () => {
         releaseTrigger: 'label',
         scopeLabels: { 'scope:all': '@releasekit/*' },
         labels: {
-          stable: 'channel:stable',
+          graduate: 'release:graduate',
           prerelease: 'channel:prerelease',
           skip: 'release:skip',
           immediate: 'release:immediate',
@@ -1010,7 +1010,7 @@ describe('runPreview', () => {
         releaseStrategy: 'standing-pr',
         releaseTrigger: 'label',
         labels: {
-          stable: 'channel:stable',
+          graduate: 'release:graduate',
           prerelease: 'channel:prerelease',
           skip: 'release:skip',
           immediate: 'release:immediate',
@@ -1081,7 +1081,7 @@ describe('runPreview', () => {
         releaseStrategy: 'direct',
         releaseTrigger: 'label',
         labels: {
-          stable: 'channel:stable',
+          graduate: 'release:graduate',
           prerelease: 'channel:prerelease',
           skip: 'release:skip',
           immediate: 'release:immediate',

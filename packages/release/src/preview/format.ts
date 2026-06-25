@@ -37,7 +37,7 @@ export interface LabelContext {
   prerelease?: boolean;
   stable?: boolean;
   labels?: {
-    stable: string;
+    graduate: string;
     prerelease: string;
     skip: string;
     immediate: string;
@@ -128,7 +128,7 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
     }
     if (labelContext.stable) {
       descriptor.push('stable');
-      sources.push(`\`${labelContext.labels?.stable ?? 'channel:stable'}\``);
+      sources.push(`\`${labelContext.labels?.graduate ?? 'release:graduate'}\``);
     }
 
     const releasePart = descriptor.length > 0 ? `**${descriptor.join(' ')}** release` : 'release';
@@ -152,7 +152,7 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
     const seen: string[] = [];
     if (labelContext.bumpLabel) seen.push(`\`bump:${labelContext.bumpLabel}\``);
     if (labelContext.scopeLabels?.length) seen.push(...labelContext.scopeLabels.map((s) => `\`${s}\``));
-    if (labelContext.stable) seen.push(`\`${labelContext.labels?.stable ?? 'channel:stable'}\``);
+    if (labelContext.stable) seen.push(`\`${labelContext.labels?.graduate ?? 'release:graduate'}\``);
     if (labelContext.prerelease) seen.push(`\`${labelContext.labels?.prerelease ?? 'channel:prerelease'}\``);
     const seenStr = seen.length ? ` (saw: ${seen.join(', ')})` : '';
     const immediateLabel = labelContext.labels?.immediate ?? 'release:immediate';
@@ -182,11 +182,11 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
   // Show prereleaseConflict error regardless of trigger mode
   if (labelContext.prereleaseConflict) {
     const labels = labelContext.labels;
-    const stableLabel = labels?.stable ?? 'channel:stable';
+    const graduateLabel = labels?.graduate ?? 'release:graduate';
     const prereleaseLabel = labels?.prerelease ?? 'channel:prerelease';
     lines.push(
       '> **Error:** Conflicting release type labels detected.',
-      `> **Note:** Please use only one of \`${stableLabel}\` or \`${prereleaseLabel}\` at a time.`,
+      `> **Note:** Please use only one of \`${graduateLabel}\` or \`${prereleaseLabel}\` at a time.`,
       '',
     );
     return lines;

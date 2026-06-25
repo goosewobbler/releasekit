@@ -761,7 +761,7 @@ describe('runRelease', () => {
     it('should block release when prerelease + stable conflict detected without scopeLabels', async () => {
       mockLoadCIConfig.mockReturnValue({});
       mockFindMergedPRsForCommit.mockResolvedValue([123]);
-      mockFetchPRLabels.mockResolvedValue(['channel:stable', 'channel:prerelease']);
+      mockFetchPRLabels.mockResolvedValue(['release:graduate', 'channel:prerelease']);
 
       const { runRelease } = await import('../../src/release.js');
       const result = await runRelease(defaultOptions);
@@ -776,7 +776,7 @@ describe('runRelease', () => {
         },
       });
       mockFindMergedPRsForCommit.mockResolvedValue([123]);
-      mockFetchPRLabels.mockResolvedValue(['scope:shared', 'channel:stable', 'channel:prerelease']);
+      mockFetchPRLabels.mockResolvedValue(['scope:shared', 'release:graduate', 'channel:prerelease']);
 
       const { runRelease } = await import('../../src/release.js');
       const result = await runRelease(defaultOptions);
@@ -847,7 +847,7 @@ describe('runRelease', () => {
         },
       });
       mockFindMergedPRsForCommit.mockResolvedValue([123]);
-      mockFetchPRLabels.mockResolvedValue(['channel:stable', 'channel:prerelease']);
+      mockFetchPRLabels.mockResolvedValue(['release:graduate', 'channel:prerelease']);
 
       const { runRelease } = await import('../../src/release.js');
       const result = await runRelease({ ...defaultOptions, dryRun: true });
