@@ -504,9 +504,6 @@ describe('CIConfigSchema', () => {
     expect(result.releaseStrategy).toBe('direct');
     expect(result.releaseTrigger).toBe('label');
     expect(result.prPreview).toEqual({ enabled: true, refreshAfterRelease: false });
-    expect(result.autoRelease).toBe(false);
-    expect(result.skipPatterns).toEqual(['chore: release ']);
-    expect(result.minChanges).toBe(1);
     expect(result.labels).toEqual({
       stable: 'channel:stable',
       prerelease: 'channel:prerelease',
@@ -525,15 +522,9 @@ describe('CIConfigSchema', () => {
     const result = CIConfigSchema.parse({
       releaseStrategy: 'direct',
       prPreview: false,
-      autoRelease: true,
-      skipPatterns: ['chore(deps):', 'ci:'],
-      minChanges: 3,
     });
     expect(result.releaseStrategy).toBe('direct');
     expect(result.prPreview).toEqual({ enabled: false, refreshAfterRelease: false });
-    expect(result.autoRelease).toBe(true);
-    expect(result.skipPatterns).toEqual(['chore(deps):', 'ci:']);
-    expect(result.minChanges).toBe(3);
   });
 
   it('should accept all releaseStrategy values', () => {
@@ -590,11 +581,6 @@ describe('CIConfigSchema', () => {
 
   it('should reject an allowedActors entry like "@octocat" (an @-prefix without the team slash)', () => {
     expect(() => CIConfigSchema.parse({ standingPr: { authorization: { allowedActors: ['@octocat'] } } })).toThrow();
-  });
-
-  it('should reject non-positive minChanges', () => {
-    expect(() => CIConfigSchema.parse({ minChanges: 0 })).toThrow();
-    expect(() => CIConfigSchema.parse({ minChanges: -1 })).toThrow();
   });
 
   it('should accept all releaseTrigger values', () => {
@@ -717,7 +703,7 @@ describe('ReleaseKitConfigSchema', () => {
       version: { preset: 'conventional' },
       publish: { npm: { enabled: true } },
       notes: { changelog: { mode: 'packages' } },
-      ci: { prPreview: true, autoRelease: false },
+      ci: { prPreview: true },
     });
     expect(result.git?.remote).toBe('origin');
     expect(result.monorepo?.mode).toBe('packages');
@@ -725,7 +711,6 @@ describe('ReleaseKitConfigSchema', () => {
     expect(result.publish?.npm.enabled).toBe(true);
     expect(result.notes?.changelog).toMatchObject({ mode: 'packages' });
     expect(result.ci?.prPreview).toEqual({ enabled: true, refreshAfterRelease: false });
-    expect(result.ci?.autoRelease).toBe(false);
   });
 
   it('should reject invalid nested values', () => {

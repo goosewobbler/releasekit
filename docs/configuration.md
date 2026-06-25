@@ -49,7 +49,6 @@ Monorepo configuration.
 | `mode` | `"root"` \| `"packages"` \| `"both"` | — | Changelog aggregation mode |
 | `rootPath` | string | — | Path to root changelog |
 | `packagesPath` | string | — | Path to packages directory |
-| `mainPackage` | string | — | Main package name for versioning |
 
 ---
 
@@ -388,9 +387,6 @@ CI automation configuration for release triggers, PR previews, and label managem
 |-----|------|---------|-------------|
 | `releaseStrategy` | `"manual"` \| `"direct"` \| `"standing-pr"` | `"direct"` | How releases are delivered. 'direct': release on merge to main. 'manual': releases triggered manually (e.g. workflow_dispatch). 'standing-pr': changes accumulate in a release PR; gate mode acts as the immediate-release evaluator, firing only for merges labelled with the immediate label. |
 | `releaseTrigger` | `"commit"` \| `"label"` | `"label"` | What triggers a release. 'label': a PR bump label (bump:patch/minor/major) is required. 'commit': conventional commits drive the bump automatically; every merge can trigger a release. |
-| `autoRelease` | boolean | `false` | Automatically trigger a release when CI conditions are met, without manual intervention. |
-| `skipPatterns` | `string[]` | `["chore: release "]` | Commit message prefixes that suppress a release. The default matches the release commit template to prevent release loops. |
-| `minChanges` | integer | `1` | Minimum number of packages with releasable changes required to trigger a release. |
 | `scopeLabels` | object | — | Map of scope labels to package patterns. When a PR has a label matching a key, only packages matching the corresponding pattern are released. |
 
 ### `ci.prPreview`

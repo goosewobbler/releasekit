@@ -21,9 +21,6 @@ function ciConfig(overrides: Partial<CIConfig> = {}): CIConfig {
     releaseStrategy: 'direct',
     releaseTrigger: 'label',
     prPreview: { enabled: true, refreshAfterRelease: false },
-    autoRelease: false,
-    skipPatterns: ['chore: release '],
-    minChanges: 1,
     labels: DEFAULT_LABELS_CONFIG,
     ...overrides,
   } as CIConfig;

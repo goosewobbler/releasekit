@@ -25,7 +25,6 @@ export const MonorepoConfigSchema = z.object({
   mode: z.enum(['root', 'packages', 'both']).optional().describe('Changelog aggregation mode'),
   rootPath: z.string().optional().describe('Path to root changelog'),
   packagesPath: z.string().optional().describe('Path to packages directory'),
-  mainPackage: z.string().optional().describe('Main package name for versioning'),
 });
 
 export const BranchPatternSchema = z.object({
@@ -639,22 +638,6 @@ export const CIConfigSchema = z.object({
     .describe(
       'PR preview comments showing what would be released if the PR is merged. `true`/`false` toggles them; the object form additionally enables `refreshAfterRelease` to refresh feeder-PR previews after a release.',
     ),
-  autoRelease: z
-    .boolean()
-    .default(false)
-    .describe('Automatically trigger a release when CI conditions are met, without manual intervention.'),
-  skipPatterns: z
-    .array(z.string())
-    .default(['chore: release '])
-    .describe(
-      'Commit message prefixes that suppress a release. The default matches the release commit template to prevent release loops.',
-    ),
-  minChanges: z
-    .number()
-    .int()
-    .positive()
-    .default(1)
-    .describe('Minimum number of packages with releasable changes required to trigger a release.'),
   labels: CILabelsConfigSchema.default({
     stable: 'channel:stable',
     prerelease: 'channel:prerelease',
