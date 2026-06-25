@@ -1,5 +1,5 @@
-import { execFileSync } from 'node:child_process';
 import type { VersionPackageChangelog } from '@releasekit/core';
+import { createGitCli } from '@releasekit/git';
 import { extractChangelogEntriesFromCommits, listGlobalTags, listPackageTags } from '@releasekit/version';
 import semver from 'semver';
 
@@ -16,10 +16,10 @@ export function versionFromTag(tag: string): string | null {
  * when the version was actually released. Returns undefined if git can't resolve it, so the caller
  * falls back to the pipeline's default (today). Uses `--date=short` (universal) rather than `%cs`.
  */
-function tagDate(tag: string, cwd: string): string | undefined {
+async function tagDate(tag: string, cwd: string): Promise<string | undefined> {
   try {
     return (
-      execFileSync('git', ['log', '-1', '--date=short', '--format=%cd', tag], { cwd, encoding: 'utf8' }).trim() ||
+      (await createGitCli().log({ range: tag, format: '%cd', extraArgs: ['-1', '--date=short'], cwd })).trim() ||
       undefined
     );
   } catch {
@@ -84,7 +84,7 @@ export async function reconstructChangelogs(opts: ReconstructOptions): Promise<R
     const revisionRange = prev ? `${prev.tag}..${tag}` : tag;
     reconstructed.push({
       tag,
-      date: tagDate(tag, opts.pkgPath),
+      date: await tagDate(tag, opts.pkgPath),
       changelog: {
         packageName: opts.packageName,
         version,

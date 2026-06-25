@@ -1,4 +1,5 @@
 import type { VersionOutput } from '@releasekit/core';
+import { FakeGit } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReleaseOptions } from '../../src/types.js';
 
@@ -14,9 +15,18 @@ vi.mock('@releasekit/config', () => ({
   loadConfig: (...args: unknown[]) => ({ ...mockLoadReleaseKitConfig(...args), ci: mockLoadCIConfig() }),
 }));
 
-vi.mock('node:child_process', () => ({
-  execSync: vi.fn().mockReturnValue('feat: some feature\n'),
-}));
+// The git seam backs `getHeadCommitMessage` (the skip-pattern guard's HEAD-subject read). A fresh
+// FakeGit per test, seeded via `gitCommits` (the `'*'` catch-all), drives `log({ format: '%s' })`.
+let fakeGit: FakeGit;
+let gitLogSpy: ReturnType<typeof vi.spyOn> | undefined;
+function setGitSubject(subject: string) {
+  fakeGit = new FakeGit({ commits: { '*': `${subject}\n` } });
+  gitLogSpy = vi.spyOn(fakeGit, 'log');
+}
+vi.mock('@releasekit/git', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@releasekit/git')>();
+  return { ...actual, createGitCli: () => fakeGit };
+});
 
 vi.mock('../../src/github.js', () => ({
   forgeFor: (...args: unknown[]) => mockForgeFor(...args),
@@ -159,6 +169,9 @@ describe('runRelease', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+
+    // Default HEAD subject is a non-release commit so the skip-pattern guard passes.
+    setGitSubject('feat: some feature');
 
     // Default mock setup
     mockForgeFor.mockReturnValue({});
@@ -525,8 +538,7 @@ describe('runRelease', () => {
 
   describe('release config: skipPatterns', () => {
     it('should return null when HEAD commit matches a skip pattern', async () => {
-      const { execSync } = await import('node:child_process');
-      vi.mocked(execSync).mockReturnValue('chore(deps): bump some-dep from 1.0.0 to 2.0.0\n' as never);
+      setGitSubject('chore(deps): bump some-dep from 1.0.0 to 2.0.0');
       mockLoadReleaseKitConfig.mockReturnValue({ release: { ci: { skipPatterns: ['chore(deps):'] } } });
 
       const result = await runRelease(defaultOptions);
@@ -536,8 +548,7 @@ describe('runRelease', () => {
     });
 
     it('should continue when HEAD commit does not match any skip pattern', async () => {
-      const { execSync } = await import('node:child_process');
-      vi.mocked(execSync).mockReturnValue('feat: add new feature\n' as never);
+      setGitSubject('feat: add new feature');
       mockLoadReleaseKitConfig.mockReturnValue({ release: { ci: { skipPatterns: ['chore(deps):'] } } });
 
       const result = await runRelease(defaultOptions);
@@ -555,10 +566,9 @@ describe('runRelease', () => {
     });
 
     it('should continue when git log fails', async () => {
-      const { execSync } = await import('node:child_process');
-      vi.mocked(execSync).mockImplementation(() => {
-        throw new Error('not a git repo');
-      });
+      // getHeadCommitMessage swallows a git failure and returns null → the guard is skipped.
+      setGitSubject('feat: ignored');
+      vi.spyOn(fakeGit, 'log').mockRejectedValue(new Error('not a git repo'));
       mockLoadReleaseKitConfig.mockReturnValue({ release: { ci: { skipPatterns: ['chore(deps):'] } } });
 
       const result = await runRelease(defaultOptions);
@@ -567,15 +577,12 @@ describe('runRelease', () => {
     });
 
     it('should pass projectDir as cwd to git log', async () => {
-      const { execSync } = await import('node:child_process');
       mockLoadReleaseKitConfig.mockReturnValue({ release: { ci: { skipPatterns: ['chore(deps):'] } } });
 
       await runRelease({ ...defaultOptions, projectDir: '/custom/project' });
 
-      expect(execSync).toHaveBeenCalledWith(
-        'git log -1 --pretty=%s',
-        expect.objectContaining({ cwd: '/custom/project' }),
-      );
+      // getHeadCommitMessage reads the HEAD subject via `log({ format: '%s' })`, scoped to projectDir.
+      expect(gitLogSpy).toHaveBeenCalledWith(expect.objectContaining({ format: '%s', cwd: '/custom/project' }));
     });
   });
 
