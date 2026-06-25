@@ -1804,7 +1804,7 @@ describe('Version Calculator', () => {
     });
   });
 
-  describe('stableOnly mode (channel:stable without bump label)', () => {
+  describe('stableOnly mode (release:graduate without bump label)', () => {
     it('should graduate a prerelease package to its stable base version', async () => {
       const config: Partial<Config> = {
         ...defaultConfig,
@@ -1836,7 +1836,7 @@ describe('Version Calculator', () => {
       const config: Partial<Config> = {
         ...defaultConfig,
         stableOnly: true,
-        // No type — channel:stable alone, no bump:* label
+        // No type — release:graduate alone, no bump:* label
       };
 
       const options: VersionOptions = {
@@ -1853,7 +1853,7 @@ describe('Version Calculator', () => {
       expect(versionUtils.bumpVersion).not.toHaveBeenCalled();
     });
 
-    it('should apply bump label to an already-stable package (channel:stable + bump:minor)', async () => {
+    it('should apply bump label to an already-stable package (release:graduate + bump:minor)', async () => {
       const config: Partial<Config> = {
         ...defaultConfig,
         stableOnly: true,
