@@ -355,6 +355,41 @@ describe('createGroupStrategy', () => {
         undefined,
       );
     });
+
+    it('should increment within the prerelease for a fixed group when the latest tag is a prerelease', async () => {
+      // Same interrupted-release baseline as the linked case, but `fixed` releases ALL members at the
+      // shared group version — so a stable-baseline regression here would silently write the wrong
+      // version to every member. Both must land on 1.0.0-next.1, not graduate to 2.0.0-next.0.
+      const service = mkPackage('@wdio/flutter-service', '0.0.1');
+      const contract = mkPackage('wdio_flutter', '0.0.1');
+
+      vi.mocked(gitTags.getLatestTagForPackage).mockImplementation(async (name) =>
+        name === '@wdio/flutter-service' ? 'wdio-flutter-service@v1.0.0-next.0' : '',
+      );
+      vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
+        opts.name === '@wdio/flutter-service' ? '1.0.0-next.1' : '',
+      );
+
+      const strategy = createGroupStrategy(
+        baseConfig({
+          prereleaseIdentifier: 'next',
+          groups: { flutter: { packages: ['@wdio/flutter-service', 'wdio_flutter'], sync: 'fixed' } },
+        }),
+      );
+      await strategy(workspace([service, contract]));
+
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledTimes(2);
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/wdio-flutter-service/package.json',
+        '1.0.0-next.1',
+        undefined,
+      );
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/wdio_flutter/package.json',
+        '1.0.0-next.1',
+        undefined,
+      );
+    });
   });
 
   describe('group baseline = max(member baselines)', () => {
