@@ -616,10 +616,28 @@ export const CIConfigSchema = z.object({
       "What triggers a release. 'label': a PR bump label (bump:patch/minor/major) is required. 'commit': conventional commits drive the bump automatically; every merge can trigger a release.",
     ),
   prPreview: z
-    .boolean()
+    .union([
+      z.boolean(),
+      z.object({
+        enabled: z.boolean().default(true).describe('Whether PR preview comments are posted.'),
+        refreshAfterRelease: z
+          .boolean()
+          .default(false)
+          .describe(
+            'After a release completes, replay the preview comment on still-open feeder PRs so their "what would release" estimate is not left stale against the moved baseline. Cosmetic and best-effort — a failure here never fails the release. Requires the refresh-after-release step in your release workflow.',
+          ),
+      }),
+    ])
     .default(true)
+    // Normalize the boolean shorthand and the object form to one canonical shape so every consumer
+    // reads `prPreview.enabled` / `prPreview.refreshAfterRelease` without re-checking the input type.
+    .transform((v) =>
+      typeof v === 'boolean'
+        ? { enabled: v, refreshAfterRelease: false }
+        : { enabled: v.enabled ?? true, refreshAfterRelease: v.refreshAfterRelease ?? false },
+    )
     .describe(
-      'Enable PR preview comments showing what would be released if the PR is merged. Set to false to disable.',
+      'PR preview comments showing what would be released if the PR is merged. `true`/`false` toggles them; the object form additionally enables `refreshAfterRelease` to refresh feeder-PR previews after a release.',
     ),
   autoRelease: z
     .boolean()

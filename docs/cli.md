@@ -134,6 +134,30 @@ releasekit standing-pr merge --publish
 
 ---
 
+## `releasekit refresh-after-release`
+
+Run as the final step of a release/publish job to refresh state that goes stale when a release moves
+`main`. Two parts, with different criticality:
+
+- **Standing-PR reconcile** (standing-pr mode only) — re-runs the standing-PR update with
+  `--reconcile` so a manual/direct release that bypassed the standing PR doesn't leave its manifest
+  stating already-published versions. A failure here fails the job.
+- **Feeder-PR preview refresh** (opt-in via `ci.prPreview.refreshAfterRelease`) — replays the
+  preview comment on still-open PRs that already have one, so their prediction reflects the
+  post-release baseline. Best-effort: skips drafts, the standing PR, and PRs without a preview;
+  bounded to 50 PRs; per-PR failures only warn.
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `-c, --config <path>` | string | auto-discovered | Path to config file |
+| `--project-dir <path>` | string | `cwd` | Project directory |
+
+```bash
+releasekit refresh-after-release
+```
+
+---
+
 ## `releasekit labels`
 
 Create and reconcile the GitHub labels ReleaseKit relies on (`bump:*`, `channel:*`, `release:*`, configured `scope:*`, and the standing-PR labels). The label names honour `ci.labels` renames and `ci.scopeLabels`; descriptions and colours are canonical.

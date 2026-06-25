@@ -11,6 +11,7 @@ import type {
   NewLabel,
   NewPullRequest,
   NewRelease,
+  OpenPullRequest,
   PullRequestChanges,
   PullRequestDetails,
   PullRequestRef,
@@ -25,6 +26,9 @@ const REPO_PERMISSIONS: readonly RepoPermission[] = ['admin', 'maintain', 'write
 
 /** Releases are listed at most this many pages deep (100/page) — bounds the examples fetch. */
 const MAX_RELEASE_PAGES = 3;
+
+/** Open PRs are listed at most this many pages deep (100/page) — bounds the post-release refresh. */
+const MAX_OPEN_PR_PAGES = 5;
 
 type LabelLike = string | { name?: string | null };
 
@@ -87,6 +91,25 @@ export class GitHubForge implements Forge {
       per_page: limit,
     });
     return data.map((pr) => ({ number: pr.number, mergedAt: pr.merged_at }));
+  }
+
+  async listOpenPullRequests(): Promise<OpenPullRequest[]> {
+    const prs: OpenPullRequest[] = [];
+    for (let page = 1; page <= MAX_OPEN_PR_PAGES; page++) {
+      const { data } = await this.octokit.rest.pulls.list({
+        ...this.base,
+        state: 'open',
+        sort: 'updated',
+        direction: 'desc',
+        per_page: 100,
+        page,
+      });
+      for (const pr of data) {
+        prs.push({ number: pr.number, headRef: pr.head.ref, draft: pr.draft ?? false, baseSha: pr.base.sha });
+      }
+      if (data.length < 100) break;
+    }
+    return prs;
   }
 
   async getIssue(issueNumber: number): Promise<IssueDetails> {

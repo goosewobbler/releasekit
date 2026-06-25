@@ -274,7 +274,7 @@ describe('runStandingPRUpdate', () => {
       },
       releaseStrategy: 'standing-pr',
       releaseTrigger: 'label',
-      prPreview: true,
+      prPreview: { enabled: true, refreshAfterRelease: false },
       autoRelease: false,
       skipPatterns: ['chore: release '],
       minChanges: 1,

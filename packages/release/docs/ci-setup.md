@@ -26,7 +26,8 @@ on:
 
 permissions:
   contents: write
-  id-token: write   # for npm OIDC trusted publishing
+  id-token: write       # for npm OIDC trusted publishing
+  pull-requests: write  # only needed if you enable ci.prPreview.refreshAfterRelease (below)
 
 jobs:
   release:
@@ -51,6 +52,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # For OIDC trusted publishing (recommended) — no NPM_TOKEN needed.
           # For token-based publishing: NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Optional: after the release moves `main`, refresh the "what would release" preview on still-open
+      # PRs (they otherwise stay frozen at the pre-release baseline). No-op unless you enable
+      # `ci.prPreview.refreshAfterRelease`. See "PR Preview Comments" below.
+      - run: pnpm exec releasekit refresh-after-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 > **Using npm?** Drop the `pnpm/action-setup` step, set `cache: npm` on `setup-node`, and replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
@@ -130,7 +138,7 @@ on:
 permissions:
   contents: write
   id-token: write
-  pull-requests: read
+  pull-requests: write  # `read` is enough for release alone; `write` is needed to refresh previews after release
 
 jobs:
   release:
@@ -151,6 +159,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm exec releasekit release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Optional: refresh open-PR previews against the post-release baseline.
+      # No-op unless ci.prPreview.refreshAfterRelease is enabled.
+      - run: pnpm exec releasekit refresh-after-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -253,6 +267,26 @@ jobs:
 > **Using npm?** Drop the `pnpm/action-setup` step, set `cache: npm` on `setup-node`, and replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
 
 A ready-to-use template is available at [`templates/workflows/release-preview.yml`](../../../templates/workflows/release-preview.yml).
+
+### Keeping previews fresh after a release
+
+A preview is computed on `pull_request` events. When a release moves `main`, GitHub does **not**
+re-fire those events on other open PRs, so each one's prediction stays frozen at the *pre-release*
+baseline until it's pushed again. Enable a post-release refresh to fix this:
+
+```jsonc
+{
+  "ci": {
+    "prPreview": { "enabled": true, "refreshAfterRelease": true }
+  }
+}
+```
+
+With `refreshAfterRelease` on, add a `refresh-after-release` step to your release job (see the
+[Minimal](#minimal-setup-push-to-main) and [Label-Based](#label-based-trigger) examples). After each
+release it replays the preview on still-open PRs that already have one — skipping drafts, the standing
+PR, and PRs without a preview, and bounded to 50 PRs per run. It's best-effort: a per-PR failure only
+warns. (`ci.prPreview: true` remains valid shorthand for `{ "enabled": true }`.)
 
 ---
 

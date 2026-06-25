@@ -139,7 +139,7 @@ describe('runPreview', () => {
     });
 
     it('should skip when CI config disables preview', async () => {
-      mockLoadCIConfig.mockReturnValue({ prPreview: false });
+      mockLoadCIConfig.mockReturnValue({ prPreview: { enabled: false, refreshAfterRelease: false } });
 
       await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
@@ -148,7 +148,10 @@ describe('runPreview', () => {
     });
 
     it('should run when CI config enables preview', async () => {
-      mockLoadCIConfig.mockReturnValue({ prPreview: true, releaseTrigger: 'commit' });
+      mockLoadCIConfig.mockReturnValue({
+        prPreview: { enabled: true, refreshAfterRelease: false },
+        releaseTrigger: 'commit',
+      });
 
       await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 

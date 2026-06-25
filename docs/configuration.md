@@ -388,11 +388,22 @@ CI automation configuration for release triggers, PR previews, and label managem
 |-----|------|---------|-------------|
 | `releaseStrategy` | `"manual"` \| `"direct"` \| `"standing-pr"` | `"direct"` | How releases are delivered. 'direct': release on merge to main. 'manual': releases triggered manually (e.g. workflow_dispatch). 'standing-pr': changes accumulate in a release PR; gate mode acts as the immediate-release evaluator, firing only for merges labelled with the immediate label. |
 | `releaseTrigger` | `"commit"` \| `"label"` | `"label"` | What triggers a release. 'label': a PR bump label (bump:patch/minor/major) is required. 'commit': conventional commits drive the bump automatically; every merge can trigger a release. |
-| `prPreview` | boolean | `true` | Enable PR preview comments showing what would be released if the PR is merged. Set to false to disable. |
 | `autoRelease` | boolean | `false` | Automatically trigger a release when CI conditions are met, without manual intervention. |
 | `skipPatterns` | `string[]` | `["chore: release "]` | Commit message prefixes that suppress a release. The default matches the release commit template to prevent release loops. |
 | `minChanges` | integer | `1` | Minimum number of packages with releasable changes required to trigger a release. |
 | `scopeLabels` | object | — | Map of scope labels to package patterns. When a PR has a label matching a key, only packages matching the corresponding pattern are released. |
+
+### `ci.prPreview`
+
+PR preview comments showing what would be released if the PR is merged. `true`/`false` toggles them; the object form additionally enables `refreshAfterRelease` to refresh feeder-PR previews after a release.
+
+Set to `false` to disable.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `enabled` | boolean | `true` | Whether PR preview comments are posted. |
+| `refreshAfterRelease` | boolean | `false` | After a release completes, replay the preview comment on still-open feeder PRs so their "what would release" estimate is not left stale against the moved baseline. Cosmetic and best-effort — a failure here never fails the release. Requires the refresh-after-release step in your release workflow. |
+
 
 ### `ci.labels`
 

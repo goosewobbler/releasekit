@@ -13,6 +13,7 @@ export type {
   NewLabel,
   NewPullRequest,
   NewRelease,
+  OpenPullRequest,
   PullRequestChanges,
   PullRequestDetails,
   PullRequestRef,
