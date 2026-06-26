@@ -167,7 +167,6 @@ export function createNotesCommand(): Command {
 
         if (options.monorepo) {
           const monoMode = options.monorepo as 'root' | 'packages' | 'both';
-          config.monorepo = { ...config.monorepo, mode: monoMode };
           // Wire --monorepo through to the changelog's location mode. Release notes use a per-version
           // directory rather than location modes, so they're unaffected.
           if (config.changelog !== false && !options.changelogMode) {

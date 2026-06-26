@@ -52,15 +52,6 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "mode": {
-          "type": "string",
-          "enum": [
-            "root",
-            "packages",
-            "both"
-          ],
-          "description": "Changelog aggregation mode"
-        },
         "rootPath": {
           "type": "string",
           "description": "Path to root changelog"
