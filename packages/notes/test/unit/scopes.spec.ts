@@ -66,9 +66,10 @@ describe('resolveAllowedScopes()', () => {
     expect(resolveAllowedScopes({ mode: 'none' })).toEqual([]);
   });
 
-  it('should return package names for packages mode', () => {
-    const result = resolveAllowedScopes({ mode: 'packages' }, undefined, ['@acme/core', '@acme/ui']);
-    expect(result).toEqual(['@acme/core', '@acme/ui']);
+  it('should return package names and their short forms for packages mode', () => {
+    const result = resolveAllowedScopes({ mode: 'packages' }, undefined, ['@acme/core', 'standalone']);
+    // Full name, unscoped form, and bare short name — so a commit scoped `core` matches `@acme/core`.
+    expect(result).toEqual(expect.arrayContaining(['@acme/core', 'acme/core', 'core', 'standalone']));
   });
 
   it('should return empty array for packages mode without package names', () => {
