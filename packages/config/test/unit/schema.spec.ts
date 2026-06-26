@@ -54,15 +54,10 @@ describe('MonorepoConfigSchema', () => {
     expect(result).toEqual({});
   });
 
-  it('should accept valid mode values', () => {
-    for (const mode of ['root', 'packages', 'both'] as const) {
-      const result = MonorepoConfigSchema.parse({ mode });
-      expect(result.mode).toBe(mode);
-    }
-  });
-
-  it('should reject invalid mode', () => {
-    expect(() => MonorepoConfigSchema.parse({ mode: 'invalid' })).toThrow();
+  it('should accept rootPath and packagesPath', () => {
+    const result = MonorepoConfigSchema.parse({ rootPath: 'CHANGELOG.md', packagesPath: 'packages' });
+    expect(result.rootPath).toBe('CHANGELOG.md');
+    expect(result.packagesPath).toBe('packages');
   });
 });
 
@@ -664,14 +659,14 @@ describe('ReleaseKitConfigSchema', () => {
   it('should accept all sections', () => {
     const result = ReleaseKitConfigSchema.parse({
       git: { remote: 'origin' },
-      monorepo: { mode: 'packages' },
+      monorepo: { rootPath: 'CHANGELOG.md' },
       version: { preset: 'conventional' },
       publish: { npm: { enabled: true } },
       notes: { changelog: { mode: 'packages' } },
       ci: { prPreview: true },
     });
     expect(result.git?.remote).toBe('origin');
-    expect(result.monorepo?.mode).toBe('packages');
+    expect(result.monorepo?.rootPath).toBe('CHANGELOG.md');
     expect(result.version?.preset).toBe('conventional');
     expect(result.publish?.npm.enabled).toBe(true);
     expect(result.notes?.changelog).toMatchObject({ mode: 'packages' });

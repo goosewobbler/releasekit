@@ -22,7 +22,6 @@ export const GitConfigSchema = z.object({
 });
 
 export const MonorepoConfigSchema = z.object({
-  mode: z.enum(['root', 'packages', 'both']).optional().describe('Changelog aggregation mode'),
   rootPath: z.string().optional().describe('Path to root changelog'),
   packagesPath: z.string().optional().describe('Path to packages directory'),
 });

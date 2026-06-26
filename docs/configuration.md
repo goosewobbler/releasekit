@@ -46,7 +46,6 @@ Monorepo configuration.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `mode` | `"root"` \| `"packages"` \| `"both"` | — | Changelog aggregation mode |
 | `rootPath` | string | — | Path to root changelog |
 | `packagesPath` | string | — | Path to packages directory |
 

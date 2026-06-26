@@ -106,6 +106,13 @@ describe('loadConfig', () => {
     expect(() => loadConfig()).toThrow(/version no longer supports/);
   });
 
+  it('should throw a migration error for the removed monorepo.mode', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ monorepo: { mode: 'packages' } }));
+
+    expect(() => loadConfig()).toThrow(/monorepo\.mode was removed/);
+  });
+
   it('should parse JSONC with comments', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(`{
