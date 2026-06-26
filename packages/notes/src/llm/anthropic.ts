@@ -44,23 +44,27 @@ export class AnthropicProvider extends BaseLLMProvider {
       .filter((m) => m.role !== 'system')
       .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
+    const signal = this.timeoutSignal(options);
     try {
       if (options?.schema) {
         const toolName = options.toolName ?? 'emit_release_notes';
-        const response = await this.client.messages.create({
-          model: this.model,
-          max_tokens: this.getMaxTokens(options),
-          system: systemMsg?.content,
-          tools: [
-            {
-              name: toolName,
-              description: 'Emit structured release notes data as JSON',
-              input_schema: options.schema as Anthropic.Tool['input_schema'],
-            },
-          ],
-          tool_choice: { type: 'tool', name: toolName },
-          messages: nonSystemMessages,
-        });
+        const response = await this.client.messages.create(
+          {
+            model: this.model,
+            max_tokens: this.getMaxTokens(options),
+            system: systemMsg?.content,
+            tools: [
+              {
+                name: toolName,
+                description: 'Emit structured release notes data as JSON',
+                input_schema: options.schema as Anthropic.Tool['input_schema'],
+              },
+            ],
+            tool_choice: { type: 'tool', name: toolName },
+            messages: nonSystemMessages,
+          },
+          { signal },
+        );
 
         const toolBlock = response.content.find((b) => b.type === 'tool_use');
         if (toolBlock?.type === 'tool_use') {
@@ -71,12 +75,15 @@ export class AnthropicProvider extends BaseLLMProvider {
         throw new LLMError('Expected tool_use block in Anthropic response');
       }
 
-      const response = await this.client.messages.create({
-        model: this.model,
-        max_tokens: this.getMaxTokens(options),
-        system: systemMsg?.content,
-        messages: nonSystemMessages,
-      });
+      const response = await this.client.messages.create(
+        {
+          model: this.model,
+          max_tokens: this.getMaxTokens(options),
+          system: systemMsg?.content,
+          messages: nonSystemMessages,
+        },
+        { signal },
+      );
 
       const firstBlock = response.content[0];
 
@@ -87,7 +94,7 @@ export class AnthropicProvider extends BaseLLMProvider {
       return { content: firstBlock.text };
     } catch (error) {
       if (error instanceof LLMError) throw error;
-
+      if (signal.aborted) throw new LLMError(`Anthropic request timed out after ${this.getTimeout(options)}ms`);
       throw new LLMError(`Anthropic API error: ${error instanceof Error ? error.message : String(error)}`);
     }
   }

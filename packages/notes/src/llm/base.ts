@@ -15,6 +15,15 @@ export abstract class BaseLLMProvider implements LLMProvider {
     return options?.timeout ?? LLM_DEFAULTS.timeout;
   }
 
+  /**
+   * An AbortSignal that fires after the configured request timeout. Pass it to the provider's
+   * request (SDK `{ signal }` request option, or fetch's `signal`). When it fires the request
+   * aborts; providers check `signal.aborted` in their catch to surface a clear timeout error.
+   */
+  protected timeoutSignal(options?: CompleteOptions): AbortSignal {
+    return AbortSignal.timeout(this.getTimeout(options));
+  }
+
   protected getMaxTokens(options?: CompleteOptions): number {
     return options?.maxTokens ?? LLM_DEFAULTS.maxTokens;
   }

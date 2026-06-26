@@ -37,4 +37,20 @@ describe('OllamaProvider', () => {
 
     expect(result.structured).toEqual({ ok: true });
   });
+
+  it('should surface a clear timeout error when the request exceeds the configured timeout', async () => {
+    // A fetch that never resolves on its own — it only settles when the request's abort signal fires.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url, opts: { signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            opts.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'TimeoutError')));
+          }),
+      ),
+    );
+    const provider = new OllamaProvider({ model: 'test-model', apiKey: 'k' });
+
+    await expect(provider.complete([{ role: 'user', content: 'hi' }], { timeout: 5 })).rejects.toThrow(/timed out/);
+  });
 });

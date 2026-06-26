@@ -73,6 +73,7 @@ export class OllamaProvider extends BaseLLMProvider {
       requestBody.format = options.schema as Record<string, unknown>;
     }
 
+    const signal = this.timeoutSignal(options);
     try {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -85,6 +86,7 @@ export class OllamaProvider extends BaseLLMProvider {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody),
+        signal,
       });
 
       if (!response.ok) {
@@ -124,7 +126,7 @@ export class OllamaProvider extends BaseLLMProvider {
       return { content };
     } catch (error) {
       if (error instanceof LLMError) throw error;
-
+      if (signal.aborted) throw new LLMError(`Ollama request timed out after ${this.getTimeout(options)}ms`);
       throw new LLMError(`Ollama error: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
