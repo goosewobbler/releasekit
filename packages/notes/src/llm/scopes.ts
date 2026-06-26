@@ -87,8 +87,9 @@ export function validateEntryScopes(
   entries: ChangelogEntry[],
   scopeConfig: ScopeConfig | undefined,
   categories?: LLMCategory[],
+  packageNames?: string[],
 ): ScopeValidationResult {
-  const allowedScopes = resolveAllowedScopes(scopeConfig, categories);
+  const allowedScopes = resolveAllowedScopes(scopeConfig, categories, packageNames);
   if (allowedScopes === null) return { valid: true, entries, errors: [] };
 
   const caseSensitive = scopeConfig?.rules?.caseSensitive ?? false;

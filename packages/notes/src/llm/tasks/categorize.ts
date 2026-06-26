@@ -83,7 +83,7 @@ export function createCategorizeValidator(
     // Validate scopes. The validator applies `invalidScopeAction` (default `remove`) and
     // returns `valid: true` — scope mismatches don't trigger an LLM retry, since the configured
     // action defines the resolution. Surface a warning so disallowed scopes stay visible.
-    const scopeResult = validateEntryScopes(withScopes, context.scopes, context.categories);
+    const scopeResult = validateEntryScopes(withScopes, context.scopes, context.categories, context.packageNames);
     if (scopeResult.errors.length > 0) {
       const offenders = [...new Set(scopeResult.errors.map((e) => e.providedScope))];
       warn(

@@ -121,7 +121,7 @@ export function createEnhanceAndCategorizeValidator(
     // returns `valid: true` once the action has been applied — we don't retry the LLM for
     // scope mismatches, since the configured action defines the resolution. We do surface a
     // warning so users can see which scopes the LLM produced that didn't match the allow list.
-    const scopeResult = validateEntryScopes(enhancedEntries, context.scopes, context.categories);
+    const scopeResult = validateEntryScopes(enhancedEntries, context.scopes, context.categories, context.packageNames);
     if (scopeResult.errors.length > 0) {
       const offenders = [...new Set(scopeResult.errors.map((e) => e.providedScope))];
       warn(

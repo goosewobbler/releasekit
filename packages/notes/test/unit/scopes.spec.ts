@@ -173,6 +173,21 @@ describe('validateEntryScopes()', () => {
     expect(result.errors).toHaveLength(0);
   });
 
+  it('should use packageNames as the allow-list for packages mode', () => {
+    const result = validateEntryScopes(entries, { mode: 'packages' }, undefined, ['CI', 'core']);
+    expect(result.valid).toBe(true);
+    // 'CI' is a workspace package name → kept; 'InvalidScope' is not → removed (default action).
+    expect(result.entries[0]?.scope).toBe('CI');
+    expect(result.entries[1]?.scope).toBeUndefined();
+    expect(result.errors).toHaveLength(1);
+  });
+
+  it('should strip all scopes in packages mode when no packageNames are provided', () => {
+    const result = validateEntryScopes(entries, { mode: 'packages' });
+    expect(result.entries[0]?.scope).toBeUndefined();
+    expect(result.entries[1]?.scope).toBeUndefined();
+  });
+
   it('should strip all scopes for none mode (and remain valid — invalidScopeAction defines resolution)', () => {
     const result = validateEntryScopes(entries, { mode: 'none' });
     expect(result.valid).toBe(true);
