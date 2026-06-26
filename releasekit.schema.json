@@ -265,8 +265,7 @@
           "properties": {
             "push": {
               "type": "boolean",
-              "default": true,
-              "description": "Push tags and commits to remote"
+              "description": "Push tags and commits to remote. When unset, inherits the top-level git.push (which defaults to push)."
             },
             "pushMethod": {
               "type": "string",
