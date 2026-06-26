@@ -107,7 +107,6 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       const {
         versionPrefix,
         tagTemplate,
-        baseBranch,
         commitMessage = `chore: release \${packageName} v\${version}`,
         prereleaseIdentifier,
         dryRun,
@@ -193,7 +192,6 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       const nextVersion = await calculateVersion(config, {
         latestTag,
         versionPrefix: formattedPrefix,
-        baseBranch,
         prereleaseIdentifier,
         path: versionSourcePath,
         commitCheckPath: repoRoot,
@@ -534,7 +532,6 @@ export function createSingleStrategy(config: Config): StrategyFunction {
       nextVersion = await calculateVersion(config, {
         latestTag,
         versionPrefix: formattedPrefix,
-        baseBranch: config.baseBranch,
         prereleaseIdentifier: config.prereleaseIdentifier,
         path: pkgPath,
         name: packageName,
@@ -698,7 +695,6 @@ export function createAsyncStrategy(config: Config): StrategyFunction {
     fullConfig: config,
     // Extract common version configuration properties
     config: {
-      baseBranch: config.baseBranch || 'main',
       prereleaseIdentifier: config.prereleaseIdentifier,
       type: config.type,
       // Without this the per-package resolver always saw strictReachable=false, so the async path

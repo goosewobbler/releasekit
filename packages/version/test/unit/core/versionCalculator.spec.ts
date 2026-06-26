@@ -50,7 +50,6 @@ describe('Version Calculator', () => {
     preset: 'angular',
     versionPrefix: 'v',
     tagTemplate: '${' + 'prefix}${' + 'version}',
-    baseBranch: 'main',
   };
 
   beforeEach(() => {

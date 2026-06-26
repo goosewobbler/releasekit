@@ -87,7 +87,6 @@ describe('Version Strategies', () => {
     preset: 'conventional-commits',
     versionPrefix: 'v',
     tagTemplate: '${' + 'prefix}${' + 'version}',
-    baseBranch: 'main',
   };
 
   beforeEach(() => {
