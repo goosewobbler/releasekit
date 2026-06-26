@@ -12,7 +12,11 @@ export abstract class BaseLLMProvider implements LLMProvider {
   abstract complete(messages: LLMMessage[], options?: CompleteOptions): Promise<CompleteResult>;
 
   protected getTimeout(options?: CompleteOptions): number {
-    return options?.timeout ?? LLM_DEFAULTS.timeout;
+    const timeout = options?.timeout ?? LLM_DEFAULTS.timeout;
+    // Guard against a 0 / negative / non-finite timeout: `AbortSignal.timeout(0)` aborts every call
+    // before a request is sent, and a negative/non-finite value throws *before* the provider's try
+    // block (bypassing the best-effort fallback). Fall back to the default in those cases.
+    return Number.isFinite(timeout) && timeout > 0 ? timeout : LLM_DEFAULTS.timeout;
   }
 
   /**

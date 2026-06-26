@@ -53,4 +53,17 @@ describe('OllamaProvider', () => {
 
     await expect(provider.complete([{ role: 'user', content: 'hi' }], { timeout: 5 })).rejects.toThrow(/timed out/);
   });
+
+  it('should clamp a 0 / invalid timeout to the default rather than aborting every request', async () => {
+    // Before the clamp, timeout: 0 produced an already-expired AbortSignal that aborted every call.
+    mockFetch('{ "ok": true }');
+    const provider = new OllamaProvider({ model: 'test-model', apiKey: 'k' });
+
+    const result = await provider.complete([{ role: 'user', content: 'hi' }], {
+      schema: { type: 'object' },
+      timeout: 0,
+    });
+
+    expect(result.structured).toEqual({ ok: true });
+  });
 });
