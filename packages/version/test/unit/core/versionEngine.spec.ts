@@ -51,7 +51,6 @@ describe('Version Engine', () => {
     sync: true,
     versionPrefix: 'v',
     tagTemplate: '${' + 'packageName}@${' + 'prefix}${' + 'version}',
-    baseBranch: 'main',
     packages: [],
   };
 
@@ -91,7 +90,6 @@ describe('Version Engine', () => {
         sync: true,
         versionPrefix: 'v',
         tagTemplate: '${' + 'packageName}@${' + 'prefix}${' + 'version}',
-        baseBranch: 'main',
         packages: [],
       };
 

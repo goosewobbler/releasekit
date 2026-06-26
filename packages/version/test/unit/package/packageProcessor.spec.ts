@@ -119,7 +119,6 @@ describe('Package Processor', () => {
     preset: 'conventional',
     versionPrefix: 'v',
     tagTemplate: '${prefix}${version}',
-    baseBranch: 'main',
     packages: [],
     commitMessage: 'chore(release): version ${version}',
   };
@@ -135,7 +134,6 @@ describe('Package Processor', () => {
     dryRun: false,
     getLatestTag: mockGetLatestTag,
     config: {
-      baseBranch: 'main',
       prereleaseIdentifier: undefined,
       type: undefined,
     },

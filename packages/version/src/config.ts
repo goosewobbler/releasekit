@@ -4,7 +4,7 @@ import { toVersionConfig } from './types.js';
 
 export function loadConfig(options?: LoadOptions): Config {
   const fullConfig = loadReleaseKitConfig(options);
-  return toVersionConfig(fullConfig.version, fullConfig.git);
+  return toVersionConfig(fullConfig.version);
 }
 
 export type { LoadOptions } from '@releasekit/config';
