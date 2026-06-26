@@ -197,6 +197,7 @@ async function processWithLLM(
   context: TemplateContext,
   llmConfig: LLMConfig,
   examples: Example[],
+  packageNames: string[],
 ): Promise<TemplateContext> {
   const tasks = llmConfig.tasks ?? {};
   const llmContext = {
@@ -209,6 +210,7 @@ async function processWithLLM(
     scopes: llmConfig.scopes,
     prompts: llmConfig.prompts,
     examples,
+    packageNames,
   };
 
   const enhanced: EnhancedData = {
@@ -453,8 +455,11 @@ export async function runPipeline(
       }));
     }
 
+    const allPackageNames = contexts.map((c) => c.packageName);
     contexts = await Promise.all(
-      contexts.map((ctx) => processWithLLM(ctx, llmConfig, examplesByPackage.get(ctx.packageName) ?? [])),
+      contexts.map((ctx) =>
+        processWithLLM(ctx, llmConfig, examplesByPackage.get(ctx.packageName) ?? [], allPackageNames),
+      ),
     );
   }
 
