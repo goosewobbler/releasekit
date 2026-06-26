@@ -13,10 +13,14 @@ export abstract class BaseLLMProvider implements LLMProvider {
 
   protected getTimeout(options?: CompleteOptions): number {
     const timeout = options?.timeout ?? LLM_DEFAULTS.timeout;
-    // Guard against a 0 / negative / non-finite timeout: `AbortSignal.timeout(0)` aborts every call
-    // before a request is sent, and a negative/non-finite value throws *before* the provider's try
-    // block (bypassing the best-effort fallback). Fall back to the default in those cases.
-    return Number.isFinite(timeout) && timeout > 0 ? timeout : LLM_DEFAULTS.timeout;
+    // Guard the value passed to `AbortSignal.timeout()`, which runs while building the signal —
+    // *before* the provider's try block, so a bad value would throw past the best-effort fallback.
+    //   - 0 / negative / non-finite → use the default (0 would abort every call before a request).
+    //   - above the timer ceiling (2^31-1 ms ≈ 24.8 days) → clamp, not throw/overflow. A huge value
+    //     means "effectively no timeout", so clamping preserves intent rather than dropping to 60s.
+    const MAX_TIMEOUT_MS = 2_147_483_647;
+    if (!Number.isFinite(timeout) || timeout <= 0) return LLM_DEFAULTS.timeout;
+    return Math.min(timeout, MAX_TIMEOUT_MS);
   }
 
   /**

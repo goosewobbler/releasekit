@@ -66,4 +66,18 @@ describe('OllamaProvider', () => {
 
     expect(result.structured).toEqual({ ok: true });
   });
+
+  it('should clamp an over-large timeout to the timer ceiling rather than throwing', async () => {
+    // A value past the 2^31-1 ms timer ceiling makes AbortSignal.timeout() throw/overflow while
+    // building the signal — before the request try block — bypassing the best-effort fallback.
+    mockFetch('{ "ok": true }');
+    const provider = new OllamaProvider({ model: 'test-model', apiKey: 'k' });
+
+    const result = await provider.complete([{ role: 'user', content: 'hi' }], {
+      schema: { type: 'object' },
+      timeout: Number.MAX_SAFE_INTEGER,
+    });
+
+    expect(result.structured).toEqual({ ok: true });
+  });
 });
