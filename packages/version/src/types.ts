@@ -1,4 +1,4 @@
-import type { GitConfig, VersionConfig, VersionGroup } from '@releasekit/config';
+import type { VersionConfig, VersionGroup } from '@releasekit/config';
 import type { ReleaseType } from 'semver';
 
 /**
@@ -67,7 +67,6 @@ export interface VersionConfigBase {
   versionPrefix: string;
   type?: ReleaseType;
   prereleaseIdentifier?: string;
-  baseBranch?: string;
   path?: string;
   /** Override the directory used for commit-count checks. When set, commit counting
    *  uses this path instead of `path`. Useful in sync mode where the version is read
@@ -178,7 +177,7 @@ export interface PackageVersion {
   dryRun?: boolean;
 }
 
-export function toVersionConfig(config: VersionConfig | undefined, gitConfig?: GitConfig): Config {
+export function toVersionConfig(config: VersionConfig | undefined): Config {
   if (!config) {
     return {
       tagTemplate: 'v{version}',
@@ -187,7 +186,6 @@ export function toVersionConfig(config: VersionConfig | undefined, gitConfig?: G
       sync: true,
       packages: [],
       versionPrefix: '',
-      baseBranch: gitConfig?.branch,
     };
   }
 
@@ -209,7 +207,6 @@ export function toVersionConfig(config: VersionConfig | undefined, gitConfig?: G
     zeroMajor: config.zeroMajor,
     versionPrefix: config.versionPrefix ?? '',
     prereleaseIdentifier: config.prereleaseIdentifier,
-    baseBranch: gitConfig?.branch,
     cargo: config.cargo,
     pub: config.pub,
   };

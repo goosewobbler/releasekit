@@ -120,6 +120,13 @@ describe('loadConfig', () => {
     expect(() => loadConfig()).toThrow(/monorepo\.mainPackage was removed/);
   });
 
+  it('should throw a migration error for the removed monorepo.mode', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ monorepo: { mode: 'packages' } }));
+
+    expect(() => loadConfig()).toThrow(/monorepo\.mode was removed/);
+  });
+
   it('should parse JSONC with comments', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(`{
@@ -254,6 +261,34 @@ describe('loadPublishConfig', () => {
 
     const result = loadPublishConfig();
     expect(result?.git?.remote).toBe('origin');
+  });
+
+  it('should not let a publish.git block override an explicit top-level git.push: false', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(
+      JSON.stringify({
+        git: { push: false },
+        publish: { git: { remote: 'upstream' } },
+      }),
+    );
+
+    // The publish.git block doesn't set push, so it must inherit the top-level git.push: false —
+    // not be silently flipped back to true by a default.
+    const result = loadPublishConfig();
+    expect(result?.git?.push).toBe(false);
+  });
+
+  it('should let publish.git.push explicitly override top-level git.push', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(
+      JSON.stringify({
+        git: { push: false },
+        publish: { git: { push: true } },
+      }),
+    );
+
+    const result = loadPublishConfig();
+    expect(result?.git?.push).toBe(true);
   });
 
   it('should inherit skipHooks from top-level git config', () => {

@@ -49,7 +49,6 @@ const baseConfig = (overrides: Partial<Config>): Config =>
     packages: [],
     tagTemplate: '${prefix}${version}',
     versionPrefix: '',
-    baseBranch: 'main',
     ...overrides,
   }) as Config;
 

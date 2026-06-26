@@ -22,7 +22,6 @@ export const GitConfigSchema = z.object({
 });
 
 export const MonorepoConfigSchema = z.object({
-  mode: z.enum(['root', 'packages', 'both']).optional().describe('Changelog aggregation mode'),
   rootPath: z.string().optional().describe('Path to root changelog'),
   packagesPath: z.string().optional().describe('Path to packages directory'),
 });
@@ -150,7 +149,10 @@ export const PubPublishConfigSchema = z.object({
 });
 
 export const PublishGitConfigSchema = z.object({
-  push: z.boolean().default(true).describe('Push tags and commits to remote'),
+  push: z
+    .boolean()
+    .optional()
+    .describe('Push tags and commits to remote. When unset, inherits the top-level git.push (which defaults to push).'),
   pushMethod: z.enum(['auto', 'ssh', 'https']).optional().describe('Push method override'),
   remote: z.string().optional().describe('Remote name override'),
   branch: z.string().optional().describe('Branch name override'),

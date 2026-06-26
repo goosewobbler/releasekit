@@ -1,7 +1,7 @@
 # @releasekit/version
 
 > [!WARNING]
-> 🚧 **Pre-1.0.0** — ReleaseKit is evolving fast and **💥 breaking changes are common**; it's **🚫 not production-ready** until `v1.0.0`. 📌 Pin exact versions. See the [main README](../../README.md) for details.
+> 🚧 **Pre-1.0.0** — ReleaseKit is evolving fast and **💥 breaking changes are common**; it's **not production-ready** until `v1.0.0`. Pin exact versions. See the [main README](../../README.md) for details.
 
 Semantic versioning based on Git history and conventional commits.
 

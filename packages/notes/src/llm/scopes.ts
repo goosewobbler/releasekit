@@ -29,6 +29,23 @@ export function getAllowedScopesFromCategories(categories: LLMCategory[]): Map<s
 }
 
 /**
+ * Expand workspace package names into the scope forms a conventional-commit might use: the full
+ * name, the unscoped form (`@acme/core` → `acme/core`), and the bare short name
+ * (`@acme/core` → `core`). Commit scopes are typically short (`core`), not the full npm name, so
+ * `scopes.mode: 'packages'` must accept all three to avoid stripping a valid package scope.
+ */
+function expandPackageScopes(packageNames: string[]): string[] {
+  const forms = new Set<string>();
+  for (const name of packageNames) {
+    forms.add(name);
+    forms.add(name.replace(/^@/, ''));
+    const slash = name.lastIndexOf('/');
+    forms.add(slash >= 0 ? name.slice(slash + 1) : name);
+  }
+  return [...forms];
+}
+
+/**
  * Build the complete allowed scope list from config + categories.
  * Returns `null` for unrestricted, `[]` for none, populated array for restricted/packages.
  */
@@ -39,7 +56,7 @@ export function resolveAllowedScopes(
 ): string[] | null {
   if (!scopeConfig || scopeConfig.mode === 'unrestricted') return null;
   if (scopeConfig.mode === 'none') return [];
-  if (scopeConfig.mode === 'packages') return packageNames ?? [];
+  if (scopeConfig.mode === 'packages') return expandPackageScopes(packageNames ?? []);
 
   if (scopeConfig.mode === 'restricted') {
     const explicit = scopeConfig.rules?.allowed ?? [];
@@ -87,8 +104,9 @@ export function validateEntryScopes(
   entries: ChangelogEntry[],
   scopeConfig: ScopeConfig | undefined,
   categories?: LLMCategory[],
+  packageNames?: string[],
 ): ScopeValidationResult {
-  const allowedScopes = resolveAllowedScopes(scopeConfig, categories);
+  const allowedScopes = resolveAllowedScopes(scopeConfig, categories, packageNames);
   if (allowedScopes === null) return { valid: true, entries, errors: [] };
 
   const caseSensitive = scopeConfig?.rules?.caseSensitive ?? false;

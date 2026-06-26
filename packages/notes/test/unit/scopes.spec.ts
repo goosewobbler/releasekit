@@ -66,9 +66,10 @@ describe('resolveAllowedScopes()', () => {
     expect(resolveAllowedScopes({ mode: 'none' })).toEqual([]);
   });
 
-  it('should return package names for packages mode', () => {
-    const result = resolveAllowedScopes({ mode: 'packages' }, undefined, ['@acme/core', '@acme/ui']);
-    expect(result).toEqual(['@acme/core', '@acme/ui']);
+  it('should return package names and their short forms for packages mode', () => {
+    const result = resolveAllowedScopes({ mode: 'packages' }, undefined, ['@acme/core', 'standalone']);
+    // Full name, unscoped form, and bare short name — so a commit scoped `core` matches `@acme/core`.
+    expect(result).toEqual(expect.arrayContaining(['@acme/core', 'acme/core', 'core', 'standalone']));
   });
 
   it('should return empty array for packages mode without package names', () => {
@@ -171,6 +172,21 @@ describe('validateEntryScopes()', () => {
     expect(result.valid).toBe(true);
     expect(result.entries).toBe(entries);
     expect(result.errors).toHaveLength(0);
+  });
+
+  it('should use packageNames as the allow-list for packages mode', () => {
+    const result = validateEntryScopes(entries, { mode: 'packages' }, undefined, ['CI', 'core']);
+    expect(result.valid).toBe(true);
+    // 'CI' is a workspace package name → kept; 'InvalidScope' is not → removed (default action).
+    expect(result.entries[0]?.scope).toBe('CI');
+    expect(result.entries[1]?.scope).toBeUndefined();
+    expect(result.errors).toHaveLength(1);
+  });
+
+  it('should strip all scopes in packages mode when no packageNames are provided', () => {
+    const result = validateEntryScopes(entries, { mode: 'packages' });
+    expect(result.entries[0]?.scope).toBeUndefined();
+    expect(result.entries[1]?.scope).toBeUndefined();
   });
 
   it('should strip all scopes for none mode (and remain valid — invalidScopeAction defines resolution)', () => {

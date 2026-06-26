@@ -25,6 +25,8 @@ export interface LLMContext {
   packageName?: string;
   version?: string;
   previousVersion?: string;
+  /** Workspace package names — the allow-list for `scopes.mode: 'packages'` scope validation. */
+  packageNames?: string[];
 }
 
 export type { Example } from './examples/types.js';

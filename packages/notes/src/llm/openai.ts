@@ -46,6 +46,7 @@ export class OpenAIProvider extends BaseLLMProvider {
   async complete(messages: LLMMessage[], options?: CompleteOptions): Promise<CompleteResult> {
     debugLogMessages(this.name, messages);
 
+    const signal = this.timeoutSignal(options);
     try {
       const openaiMessages = messages.map((m) => ({ role: m.role, content: m.content }));
 
@@ -68,7 +69,7 @@ export class OpenAIProvider extends BaseLLMProvider {
         }),
       };
 
-      const response = await this.client.chat.completions.create(requestParams);
+      const response = await this.client.chat.completions.create(requestParams, { signal });
 
       const content = response.choices[0]?.message?.content;
 
@@ -91,7 +92,7 @@ export class OpenAIProvider extends BaseLLMProvider {
       return { content };
     } catch (error) {
       if (error instanceof LLMError) throw error;
-
+      if (signal.aborted) throw new LLMError(`OpenAI request timed out after ${this.getTimeout(options)}ms`);
       throw new LLMError(`OpenAI API error: ${error instanceof Error ? error.message : String(error)}`);
     }
   }

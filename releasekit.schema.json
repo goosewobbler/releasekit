@@ -52,15 +52,6 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "mode": {
-          "type": "string",
-          "enum": [
-            "root",
-            "packages",
-            "both"
-          ],
-          "description": "Changelog aggregation mode"
-        },
         "rootPath": {
           "type": "string",
           "description": "Path to root changelog"
@@ -265,8 +256,7 @@
           "properties": {
             "push": {
               "type": "boolean",
-              "default": true,
-              "description": "Push tags and commits to remote"
+              "description": "Push tags and commits to remote. When unset, inherits the top-level git.push (which defaults to push)."
             },
             "pushMethod": {
               "type": "string",

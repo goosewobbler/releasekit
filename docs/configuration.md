@@ -46,7 +46,6 @@ Monorepo configuration.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `mode` | `"root"` \| `"packages"` \| `"both"` | — | Changelog aggregation mode |
 | `rootPath` | string | — | Path to root changelog |
 | `packagesPath` | string | — | Path to packages directory |
 
@@ -149,7 +148,7 @@ Git publishing options.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `push` | boolean | `true` | Push tags and commits to remote |
+| `push` | boolean | — | Push tags and commits to remote. When unset, inherits the top-level git.push (which defaults to push). |
 | `pushMethod` | `"auto"` \| `"ssh"` \| `"https"` | — | Push method override |
 | `remote` | string | — | Remote name override |
 | `branch` | string | — | Branch name override |

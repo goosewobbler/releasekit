@@ -101,6 +101,16 @@ function assertNoRemovedTopLevelFields(config: unknown): void {
   }
 }
 
+/**
+ * `monorepo.mode` was removed — it never drove behaviour (changelog aggregation is controlled by
+ * notes.changelog.mode). Fail loudly with migration guidance rather than silently stripping it.
+ */
+function assertNoRemovedMonorepoMode(config: unknown): void {
+  if (isRecord(config) && isRecord(config.monorepo) && 'mode' in config.monorepo) {
+    throw new ConfigError('monorepo.mode was removed — changelog aggregation is controlled by notes.changelog.mode.');
+  }
+}
+
 function loadConfigFile(configPath: string): ReleaseKitConfig {
   if (!fs.existsSync(configPath)) {
     return {};
@@ -113,6 +123,7 @@ function loadConfigFile(configPath: string): ReleaseKitConfig {
     assertNoRemovedReleaseNotesFields(substituted);
     assertNoRemovedVersionFields(substituted);
     assertNoRemovedTopLevelFields(substituted);
+    assertNoRemovedMonorepoMode(substituted);
     return ReleaseKitConfigSchema.parse(substituted);
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
