@@ -35,11 +35,15 @@ export function deriveLabelDefinitions(ciConfig: CIConfig | undefined): LabelDef
     { name: labels.patch, color: COLOR_BUMP, description: 'ReleaseKit: request a patch version bump' },
     { name: labels.minor, color: COLOR_BUMP, description: 'ReleaseKit: request a minor version bump' },
     { name: labels.major, color: COLOR_BUMP, description: 'ReleaseKit: request a major version bump' },
-    { name: labels.stable, color: COLOR_CHANNEL, description: 'ReleaseKit: release to the stable channel' },
     {
       name: labels.prerelease,
       color: COLOR_CHANNEL,
       description: 'ReleaseKit: release to the prerelease channel',
+    },
+    {
+      name: labels.graduate,
+      color: COLOR_RELEASE,
+      description: 'ReleaseKit: graduate a prerelease to its stable base version',
     },
     { name: labels.skip, color: COLOR_RELEASE, description: 'ReleaseKit: skip the release for this change' },
     {

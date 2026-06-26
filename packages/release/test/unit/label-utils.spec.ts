@@ -22,9 +22,9 @@ describe('composeBumpFromLabels', () => {
     expect(composeBumpFromLabels(['channel:prerelease'])).toBe('prerelease');
   });
 
-  it('should return undefined when channel:stable is present (graduation is bump-less), even with a bump label', () => {
-    expect(composeBumpFromLabels(['channel:stable'])).toBeUndefined();
-    expect(composeBumpFromLabels(['channel:stable', 'bump:major'])).toBeUndefined();
+  it('should return undefined when release:graduate is present (graduation is bump-less), even with a bump label', () => {
+    expect(composeBumpFromLabels(['release:graduate'])).toBeUndefined();
+    expect(composeBumpFromLabels(['release:graduate', 'bump:major'])).toBeUndefined();
   });
 
   it('should return undefined when no bump or channel labels are present', () => {

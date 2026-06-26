@@ -586,7 +586,7 @@ function relevantOverrideLabelNames(ciConfig: CIConfig | undefined): Set<string>
     labels.major,
     labels.minor,
     labels.patch,
-    labels.stable,
+    labels.graduate,
     labels.prerelease,
     labels.withPrerequisites,
     ...Object.keys(scopeLabels),
@@ -624,15 +624,15 @@ function resolveStandingPrLabelOverrides(prLabels: string[], ciConfig: CIConfig 
   else if (prLabels.includes(labels.minor)) bump = 'minor';
   else if (prLabels.includes(labels.patch)) bump = 'patch';
 
-  // Channel modifiers
-  const hasStable = prLabels.includes(labels.stable);
+  // Graduate / prerelease release-type
+  const hasGraduate = prLabels.includes(labels.graduate);
   const hasPrerelease = prLabels.includes(labels.prerelease);
   let stable: boolean | undefined;
   let prerelease: boolean | undefined;
-  if (hasStable && hasPrerelease) {
-    conflicts.push(`Conflicting channel labels on standing PR (${labels.stable} and ${labels.prerelease})`);
+  if (hasGraduate && hasPrerelease) {
+    conflicts.push(`Conflicting release-type labels on standing PR (${labels.graduate} and ${labels.prerelease})`);
   } else {
-    if (hasStable) stable = true;
+    if (hasGraduate) stable = true;
     if (hasPrerelease) prerelease = true;
   }
 
@@ -647,7 +647,7 @@ function resolveStandingPrLabelOverrides(prLabels: string[], ciConfig: CIConfig 
 
   // Compose the bump to match composeBumpFromLabels (the label→bump SSOT), kept inline here
   // because this path layers its own conflict detection on top:
-  //   - channel:stable wins and drops the bump — graduation is bump-less, so don't leak a stale
+  //   - release:graduate wins and drops the bump — graduation is bump-less, so don't leak a stale
   //     magnitude into { bump, stable } (engine ignores it today, but the contract must hold).
   //   - prerelease + magnitude escalates to a fresh line (premajor → 2.0.0-next.0) rather than
   //     incrementing an existing prerelease (#335).
@@ -894,10 +894,11 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const previewNotesEnabled = effectiveLabels.includes(previewNotesLabel);
 
   const overrides = resolveStandingPrLabelOverrides(effectiveLabels, ciConfig);
+  const overrideLabelNames = ciConfig?.labels ?? DEFAULT_LABELS;
   if (overrides.bump) info(`Standing PR label override: bump=${overrides.bump}`);
   if (overrides.target) info(`Standing PR label override: target=${overrides.target}`);
-  if (overrides.stable) info(`Standing PR label override: channel:stable`);
-  if (overrides.prerelease) info(`Standing PR label override: channel:prerelease`);
+  if (overrides.stable) info(`Standing PR label override: ${overrideLabelNames.graduate}`);
+  if (overrides.prerelease) info(`Standing PR label override: ${overrideLabelNames.prerelease}`);
   for (const conflict of overrides.conflicts) warn(conflict);
 
   // Use the version.sync setting from config; fall back to false (per-package versioning)

@@ -212,7 +212,7 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
     }
 
     // Handle stableOnly mode: graduate prerelease → stable base; skip already-stable packages.
-    // This is triggered by `channel:stable` without a bump label.
+    // This is triggered by `release:graduate` without a bump label.
     log(`Checking stableOnly mode: ${config.stableOnly}`, 'debug');
     if (config.stableOnly) {
       log(`StableOnly mode activated`, 'debug');

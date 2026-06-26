@@ -54,8 +54,8 @@ describe('evaluatePR — label mode', () => {
     expect(result.bump).toBe('prepatch');
   });
 
-  it('should return shouldRelease=true with stable=true and bump=undefined for channel:stable alone', () => {
-    const result = evaluatePR(1, ['channel:stable'], DEFAULT_LABELS, labelMode);
+  it('should return shouldRelease=true with stable=true and bump=undefined for release:graduate alone', () => {
+    const result = evaluatePR(1, ['release:graduate'], DEFAULT_LABELS, labelMode);
     expect(result.shouldRelease).toBe(true);
     expect(result.stable).toBe(true);
     // Stable graduation auto-detects magnitude from commits — bump intentionally undefined.
@@ -70,11 +70,11 @@ describe('evaluatePR — label mode', () => {
     expect(result.reason).toContain('minor');
   });
 
-  it('should return blocked=true for channel:stable + channel:prerelease on the same PR', () => {
-    const result = evaluatePR(1, ['channel:stable', 'channel:prerelease'], DEFAULT_LABELS, labelMode);
+  it('should return blocked=true for release:graduate + channel:prerelease on the same PR', () => {
+    const result = evaluatePR(1, ['release:graduate', 'channel:prerelease'], DEFAULT_LABELS, labelMode);
     expect(result.blocked).toBe(true);
     expect(result.shouldRelease).toBe(false);
-    expect(result.reason).toContain('channel:stable');
+    expect(result.reason).toContain('release:graduate');
     expect(result.reason).toContain('channel:prerelease');
   });
 
@@ -86,7 +86,7 @@ describe('evaluatePR — label mode', () => {
     expect(result.shouldRelease).toBe(false);
     // Scope label still counts as release intent — user gets a notify comment.
     expect(result.hasReleaseIntent).toBe(true);
-    expect(result.reason).toMatch(/no release labels|need bump|channel:stable/i);
+    expect(result.reason).toMatch(/no release labels|need bump|release:graduate/i);
   });
 
   it('should return hasReleaseIntent=false when no release-related labels present', () => {
@@ -141,8 +141,8 @@ describe('evaluatePR — commit mode', () => {
     expect(result.shouldRelease).toBe(true);
   });
 
-  it('should block on channel:stable + channel:prerelease conflict in commit mode', () => {
-    const result = evaluatePR(1, ['channel:stable', 'channel:prerelease'], DEFAULT_LABELS, commitMode);
+  it('should block on release:graduate + channel:prerelease conflict in commit mode', () => {
+    const result = evaluatePR(1, ['release:graduate', 'channel:prerelease'], DEFAULT_LABELS, commitMode);
     expect(result.blocked).toBe(true);
   });
 });

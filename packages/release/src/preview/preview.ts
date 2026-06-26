@@ -353,7 +353,7 @@ async function applyLabelOverrides(
       prLabels.includes(labels.patch) ||
       prLabels.includes(labels.minor) ||
       prLabels.includes(labels.major) ||
-      prLabels.includes(labels.stable);
+      prLabels.includes(labels.graduate);
 
     if (willRelease) {
       const scopeLabelsConfigured = Object.keys(scopeLabels).length > 0;
@@ -372,7 +372,7 @@ async function applyLabelOverrides(
     if (prLabels.includes(labels.major)) labelContext.bumpLabel = 'major';
     else if (prLabels.includes(labels.minor)) labelContext.bumpLabel = 'minor';
     else if (prLabels.includes(labels.patch)) labelContext.bumpLabel = 'patch';
-    if (prLabels.includes(labels.stable)) labelContext.stable = true;
+    if (prLabels.includes(labels.graduate)) labelContext.stable = true;
     if (prLabels.includes(labels.prerelease)) labelContext.prerelease = true;
     return { options: result, labelContext };
   }
@@ -391,7 +391,7 @@ async function applyLabelOverrides(
     if (conflict.prereleaseConflict) {
       labelContext.prereleaseConflict = true;
       labelContext.noBumpLabel = true;
-      warn(`Conflicting labels "${labels.stable}" and "${labels.prerelease}" detected — release blocked`);
+      warn(`Conflicting labels "${labels.graduate}" and "${labels.prerelease}" detected — release blocked`);
     }
     if (!labelContext.noBumpLabel) {
       // Carry the COMPOSED bump (e.g. premajor) so a major+prerelease on an existing
@@ -403,7 +403,7 @@ async function applyLabelOverrides(
         labelContext.bumpLabel = magnitude;
         result.bump = composedBump;
       }
-      if (prLabels.includes(labels.stable)) {
+      if (prLabels.includes(labels.graduate)) {
         labelContext.stable = true;
         result.stable = true;
       } else if (prLabels.includes(labels.prerelease)) {
@@ -429,7 +429,7 @@ async function applyLabelOverrides(
         warn(`Conflicting bump labels detected (${conflict.bumpLabelsPresent.join(', ')}) — release blocked`);
       }
       if (conflict.prereleaseConflict) {
-        warn(`Conflicting labels "${labels.stable}" and "${labels.prerelease}" detected — release blocked`);
+        warn(`Conflicting labels "${labels.graduate}" and "${labels.prerelease}" detected — release blocked`);
       }
     } else {
       // Releasing — carry the gate's COMPOSED bump (e.g. premajor) verbatim so the preview
@@ -463,7 +463,7 @@ async function applyLabelOverrides(
   const conflict = detectLabelConflicts(prLabels, labels);
 
   if (conflict.prereleaseConflict) {
-    warn(`Conflicting labels "${labels.stable}" and "${labels.prerelease}" detected — release blocked`);
+    warn(`Conflicting labels "${labels.graduate}" and "${labels.prerelease}" detected — release blocked`);
     labelContext.noBumpLabel = true;
     labelContext.prereleaseConflict = true;
   }
@@ -481,9 +481,9 @@ async function applyLabelOverrides(
 
   // Stable/prerelease modifiers (commit mode only — label mode handles them in evaluation).
   if (!options.stable && options.prerelease === undefined) {
-    if (!(conflict.hasStable && conflict.hasPrerelease)) {
-      if (conflict.hasStable) {
-        info(`PR label "${labels.stable}" detected — using stable release preview`);
+    if (!(conflict.hasGraduate && conflict.hasPrerelease)) {
+      if (conflict.hasGraduate) {
+        info(`PR label "${labels.graduate}" detected — using stable release preview`);
         result.stable = true;
         labelContext.stable = true;
       } else if (conflict.hasPrerelease) {

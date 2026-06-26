@@ -149,17 +149,17 @@ describe('fetchPRLabels', () => {
   }
 
   it('should return label names from PR', async () => {
-    const forge = forgeWithLabels(['channel:stable', 'bug']);
+    const forge = forgeWithLabels(['release:graduate', 'bug']);
 
     const labels = await fetchPRLabels(forge, 1);
-    expect(labels).toEqual(['channel:stable', 'bug']);
+    expect(labels).toEqual(['release:graduate', 'bug']);
   });
 
   it('should handle string labels', async () => {
-    const forge = forgeWithLabels(['channel:stable', 'enhancement']);
+    const forge = forgeWithLabels(['release:graduate', 'enhancement']);
 
     const labels = await fetchPRLabels(forge, 1);
-    expect(labels).toEqual(['channel:stable', 'enhancement']);
+    expect(labels).toEqual(['release:graduate', 'enhancement']);
   });
 
   it('should return empty array when no labels', async () => {

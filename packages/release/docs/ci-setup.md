@@ -76,7 +76,7 @@ Only release when a PR is merged with a release label. Conventional commits dete
 | `bump:patch` | Bump patch version |
 | `bump:minor` | Bump minor version |
 | `bump:major` | Bump major version |
-| `channel:stable` | Graduate a prerelease to stable |
+| `release:graduate` | Graduate a prerelease to stable |
 | `channel:prerelease` | Create a prerelease (requires bump:* label) |
 | `release:skip` | Suppress release on this PR |
 
@@ -107,10 +107,10 @@ In CI, add `--check`: it exits non-zero on a missing label, catching the silent 
 | `channel:prerelease` + `bump:minor` | `1.0.0-next.6` | `1.1.0-next.0` — starts a fresh minor prerelease line |
 | `channel:prerelease` + `bump:major` | `1.0.0-next.6` | `2.0.0-next.0` — starts a fresh major prerelease line |
 | `channel:prerelease` alone | any | No release — add a `bump:*` label |
-| `channel:stable` alone | `1.0.0-next.6` | `1.0.0` |
-| `channel:stable` alone | `1.0.0` | No release — already at stable version |
-| `channel:stable` + any `bump:*` | `1.0.0-next.6` | `1.0.0` — bump label is ignored during stable promotion |
-| `channel:stable` + `bump:minor` | `1.0.0` | `1.1.0` — bump applies to already-stable packages |
+| `release:graduate` alone | `1.0.0-next.6` | `1.0.0` |
+| `release:graduate` alone | `1.0.0` | No release — already at stable version |
+| `release:graduate` + any `bump:*` | `1.0.0-next.6` | `1.0.0` — bump label is ignored during stable promotion |
+| `release:graduate` + `bump:minor` | `1.0.0` | `1.1.0` — bump applies to already-stable packages |
 
 > **`channel:prerelease` + `bump:*` escalates — it starts a *fresh* prerelease line at the chosen
 > magnitude, even when the package is already on a prerelease.** So `bump:major` + `channel:prerelease`
@@ -121,11 +121,13 @@ In CI, add `--check`: it exits non-zero on a missing label, catching the silent 
 
 > **`channel:prerelease` is a channel modifier, never a standalone release trigger.** It does
 > nothing without a `bump:*` label in label/direct mode (it can't pick a magnitude on its own), and
-> in standing-pr mode it simply sets the channel for the next merge. `channel:stable` is the one
-> channel label that can stand alone in label/direct mode — but only because graduating a prerelease
-> resolves to exactly one version (`1.0.0-next.6` → `1.0.0`); on an already-stable package it's a
-> no-op. In standing-pr mode the *merge* is the trigger, so both channel labels are pure modifiers
-> there.
+> in standing-pr mode it simply sets the channel for the next merge. Graduating a prerelease to its
+> stable base version is a distinct, standalone action carried by the `release:graduate` *flow*
+> label (`1.0.0-next.6` → `1.0.0`); it can stand alone in label/direct mode because graduation
+> resolves to exactly one version, and on an already-stable package it's a no-op. In standing-pr
+> mode the *merge* is the trigger, so `channel:prerelease` and `release:graduate` both act as
+> modifiers on the next merge. (The `release:` namespace is deliberate — graduation is a release
+> *decision*, not a channel selection.)
 
 ```yaml
 # .github/workflows/release.yml
@@ -607,7 +609,7 @@ jobs:
 2. **Merge → publish:** Maintainers merge the standing PR when ready. The `pull_request.closed` trigger fires `standing-pr publish`, which reads the release manifest from the bot's PR comment and publishes the packages — no second version analysis is run, so the publish reflects exactly what was reviewed.
 3. **Recurring re-evaluation:** The hourly `schedule` trigger re-runs `update`, which is essentially free when nothing has changed but advances the `minAge` countdown so the status check transitions from `pending` to `success` as time passes.
 
-Use `channel:stable` and `channel:prerelease` labels on **the standing PR itself** to control release type during merge.
+Use `release:graduate` and `channel:prerelease` labels on **the standing PR itself** to control release type during merge.
 
 ### Lifecycle and edge cases
 
@@ -631,7 +633,7 @@ Labels behave differently in standing-pr mode than in direct mode. There are two
 
 **1. Feeder PRs (PRs being merged into `main`)** — labels are **advisory**.
 
-`bump:*`, `scope:*`, `channel:stable`, and `channel:prerelease` on a feeder PR are shown in the preview comment so reviewers know they were noticed, but they do **not** drive behavior on merge. Bumps for the standing PR come from conventional commits across the union of queued changes; scope is global (the standing PR aggregates everything).
+`bump:*`, `scope:*`, `release:graduate`, and `channel:prerelease` on a feeder PR are shown in the preview comment so reviewers know they were noticed, but they do **not** drive behavior on merge. Bumps for the standing PR come from conventional commits across the union of queued changes; scope is global (the standing PR aggregates everything).
 
 **2. The standing PR itself** — labels are the **canonical override surface**.
 
@@ -641,7 +643,7 @@ A maintainer can edit labels directly on the standing PR (via the GitHub UI or `
 |---|---|
 | `bump:patch` / `bump:minor` / `bump:major` | Forces that bump magnitude, overriding what conventional commits would otherwise produce. |
 | `scope:foo` (per `ci.scopeLabels`) | Limits the release to scoped packages on the next update. |
-| `channel:stable` | Graduates a prerelease to stable. |
+| `release:graduate` | Graduates a prerelease to stable. |
 | `channel:prerelease` | Switches the standing PR to prerelease versioning. |
 
 Conflicts (e.g. both `bump:patch` and `bump:major`) surface as a `pending` `releasekit/standing-pr` status check on the release branch and a workflow warning. The override is dropped (falls back to commit-driven) until the conflict is resolved by removing one of the labels.
@@ -733,7 +735,7 @@ Standing-pr mode handles both batched and one-off releases through a single work
 | Routine feature — batch with others | Merge PR without a label. Bumps come from conventional commits. |
 | Critical fix that needs to ship now | Add `release:immediate` (optionally `+ bump:patch`) to the PR. |
 | Adjust the standing PR's bump magnitude | Add `bump:major` (etc.) to the standing PR itself; the next update applies it. |
-| Promote accumulated prereleases to stable | Add `channel:stable` to the standing PR and merge it. |
+| Promote accumulated prereleases to stable | Add `release:graduate` to the standing PR and merge it. |
 | Retry a publish that failed partway | Add `release:retry` to the **merged** standing PR. |
 
 ---

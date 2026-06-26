@@ -601,7 +601,7 @@ describe('formatPreviewComment', () => {
           noBumpLabel: false,
           immediate: true,
           labels: {
-            stable: 'channel:stable',
+            graduate: 'release:graduate',
             prerelease: 'channel:prerelease',
             skip: 'release:skip',
             immediate: 'release:immediate',
@@ -626,7 +626,7 @@ describe('formatPreviewComment', () => {
           immediate: true,
           bumpLabel: 'minor',
           labels: {
-            stable: 'channel:stable',
+            graduate: 'release:graduate',
             prerelease: 'channel:prerelease',
             skip: 'release:skip',
             immediate: 'release:immediate',
@@ -652,7 +652,7 @@ describe('formatPreviewComment', () => {
           prerelease: true,
           scopeLabels: ['scope:docs'],
           labels: {
-            stable: 'channel:stable',
+            graduate: 'release:graduate',
             prerelease: 'channel:prerelease',
             skip: 'release:skip',
             immediate: 'release:immediate',
@@ -677,7 +677,7 @@ describe('formatPreviewComment', () => {
           immediate: true,
           scopeLabels: ['scope:all'],
           labels: {
-            stable: 'channel:stable',
+            graduate: 'release:graduate',
             prerelease: 'channel:prerelease',
             skip: 'release:skip',
             immediate: 'release:immediate',
@@ -732,7 +732,7 @@ describe('formatPreviewComment', () => {
           bumpLabel: 'patch',
           scopeLabels: ['scope:all'],
           labels: {
-            stable: 'channel:stable',
+            graduate: 'release:graduate',
             prerelease: 'channel:prerelease',
             skip: 'release:skip',
             immediate: 'release:immediate',
@@ -758,7 +758,7 @@ describe('formatPreviewComment', () => {
           noBumpLabel: false,
           advisoryInStandingPr: true,
           labels: {
-            stable: 'channel:stable',
+            graduate: 'release:graduate',
             prerelease: 'channel:prerelease',
             skip: 'release:skip',
             immediate: 'release:immediate',

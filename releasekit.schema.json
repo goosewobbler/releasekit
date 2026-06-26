@@ -1063,10 +1063,10 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "stable": {
+            "graduate": {
               "type": "string",
-              "default": "channel:stable",
-              "description": "Label to graduate a prerelease to stable"
+              "default": "release:graduate",
+              "description": "Label that graduates a prerelease to its stable base version (e.g. 1.0.0-next.6 → 1.0.0). A standalone release trigger in label/direct mode; in standing-pr mode it sets the next merge to graduate."
             },
             "prerelease": {
               "type": "string",

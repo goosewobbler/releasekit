@@ -53,7 +53,7 @@ describe('runLabelsSync', () => {
     // Default config implies the 8 reserved labels + the default 'release' standing-PR label.
     expect(forge.createdLabels.length).toBeGreaterThan(0);
     const created = forge.createdLabels.map((l) => l.name);
-    expect(created).toEqual(expect.arrayContaining(['bump:minor', 'channel:stable', 'release:skip', 'release']));
+    expect(created).toEqual(expect.arrayContaining(['bump:minor', 'release:graduate', 'release:skip', 'release']));
     expect(exitSpy).not.toHaveBeenCalled();
   });
 
@@ -80,7 +80,7 @@ describe('runLabelsSync', () => {
       'bump:patch',
       'bump:minor',
       'bump:major',
-      'channel:stable',
+      'release:graduate',
       'channel:prerelease',
       'release:skip',
       'release:immediate',
