@@ -82,7 +82,7 @@ describe('Config', () => {
         path.join(dir, 'releasekit.config.json'),
         JSON.stringify({
           version: {
-            updateInternalDependencies: 'invalid-value',
+            zeroMajor: 'invalid-value',
           },
         }),
       );

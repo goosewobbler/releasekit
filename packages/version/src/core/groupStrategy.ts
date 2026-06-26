@@ -119,7 +119,6 @@ async function planMember(
   const ownNext = await calculateVersion(config, {
     latestTag,
     versionPrefix: formattedPrefix,
-    branchPattern: config.branchPattern,
     baseBranch: config.baseBranch,
     prereleaseIdentifier: config.prereleaseIdentifier,
     path: pkg.dir,

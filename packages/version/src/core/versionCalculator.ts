@@ -7,7 +7,6 @@ import { sanitizePackageName, shouldMatchPackageTargets } from '@releasekit/core
 import { Bumper } from 'conventional-recommended-bump';
 import type { ReleaseType } from 'semver';
 import semver from 'semver';
-import { getCurrentBranch } from '../git/repository.js';
 import { getCommitsLength, refExists } from '../git/tagsAndBranches.js';
 import type { Config, VersionOptions } from '../types.js';
 import { buildTagStripPatternFromTemplate, escapeRegExp } from '../utils/formatting.js';
@@ -86,7 +85,6 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
     preset = 'angular',
     versionPrefix,
     prereleaseIdentifier: configPrereleaseIdentifier,
-    branchPattern,
     mismatchStrategy,
     strictReachable,
   } = config;
@@ -298,50 +296,7 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
       return result;
     }
 
-    // 2. Handle branch pattern versioning (if configured)
-    log(`Checking branch pattern: ${JSON.stringify(branchPattern)}`, 'debug');
-    if (branchPattern && branchPattern.length > 0) {
-      log(`Branch pattern configured, processing`, 'debug');
-      // Get current branch and handle branch pattern matching
-      const currentBranch = await getCurrentBranch();
-      log(`Current branch: ${currentBranch}`, 'debug');
-
-      // Match pattern against the current branch.
-      const branchToCheck = currentBranch;
-      log(`Branch to check: ${branchToCheck}`, 'debug');
-      let branchVersionType: ReleaseType | undefined;
-
-      for (const pattern of branchPattern) {
-        log(`Checking pattern: ${pattern}`, 'debug');
-        if (!pattern.includes(':')) {
-          log(`Invalid branch pattern "${pattern}" - missing colon. Skipping.`, 'warning');
-          continue;
-        }
-        const [patternRegex, releaseType] = pattern.split(':') as [string, ReleaseType];
-        log(`Pattern regex: ${patternRegex}, release type: ${releaseType}`, 'debug');
-        if (new RegExp(patternRegex).test(branchToCheck)) {
-          branchVersionType = releaseType;
-          log(`Using branch pattern ${patternRegex} for version type ${releaseType}`, 'debug');
-          break;
-        }
-      }
-
-      log(`Branch version type: ${branchVersionType}`, 'debug');
-      if (branchVersionType) {
-        const currentVersion = getCurrentVersionFromSource();
-        log(`Current version for branch pattern: ${currentVersion}`, 'debug');
-        log(`Applying ${branchVersionType} bump based on branch pattern`, 'debug');
-        const isPrereleaseBumpType = ['prerelease', 'premajor', 'preminor', 'prepatch'].includes(branchVersionType);
-        log(`Is prerelease bump type: ${isPrereleaseBumpType}`, 'debug');
-        const prereleaseId = config.isPrerelease || isPrereleaseBumpType ? normalizedPrereleaseId : undefined;
-        log(`Prerelease ID: ${prereleaseId}`, 'debug');
-        const result = bumpVersion(currentVersion, branchVersionType, prereleaseId);
-        log(`Branch pattern version: ${result}`, 'debug');
-        return result;
-      }
-    }
-
-    // 3. Fallback to conventional-commits
+    // 2. Fallback to conventional-commits
     log(`Falling back to conventional commits`, 'debug');
     try {
       log(`Creating bumper with preset: ${preset}`, 'debug');

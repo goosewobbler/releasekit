@@ -67,7 +67,6 @@ export interface VersionConfigBase {
   versionPrefix: string;
   type?: ReleaseType;
   prereleaseIdentifier?: string;
-  branchPattern?: string[];
   baseBranch?: string;
   path?: string;
   /** Override the directory used for commit-count checks. When set, commit counting
@@ -105,12 +104,8 @@ export interface Config extends VersionConfigBase {
    *  See VersionConfig.sharedChangelogFloor. */
   sharedChangelogFloor?: 'union' | 'sinceLastRelease';
   mainPackage?: string;
-  updateInternalDependencies: 'major' | 'minor' | 'patch' | 'no-internal-update';
   skip?: string[];
   commitMessage?: string;
-  versionStrategy?: 'branchPattern' | 'commitMessage';
-  branchPatterns?: BranchPattern[];
-  defaultReleaseType?: ReleaseType;
   dryRun?: boolean;
   latestTag?: string;
   isPrerelease?: boolean;
@@ -141,11 +136,6 @@ export interface Config extends VersionConfigBase {
     enabled?: boolean;
     paths?: string[];
   };
-}
-
-export interface BranchPattern {
-  pattern: string;
-  releaseType: ReleaseType;
 }
 
 export type PkgJson = {
@@ -196,7 +186,6 @@ export function toVersionConfig(config: VersionConfig | undefined, gitConfig?: G
       preset: 'conventional',
       sync: true,
       packages: [],
-      updateInternalDependencies: 'minor',
       versionPrefix: '',
       baseBranch: gitConfig?.branch,
     };
@@ -213,15 +202,8 @@ export function toVersionConfig(config: VersionConfig | undefined, gitConfig?: G
     sharedPackages: config.sharedPackages,
     sharedChangelogFloor: config.sharedChangelogFloor,
     mainPackage: config.mainPackage,
-    updateInternalDependencies: config.updateInternalDependencies ?? 'minor',
     skip: config.skip,
     commitMessage: config.commitMessage,
-    versionStrategy: config.versionStrategy,
-    branchPatterns: config.branchPatterns?.map((bp: { pattern: string; releaseType: string }) => ({
-      pattern: bp.pattern,
-      releaseType: bp.releaseType as ReleaseType,
-    })),
-    defaultReleaseType: config.defaultReleaseType as ReleaseType | undefined,
     mismatchStrategy: config.mismatchStrategy,
     allowFirstBump: config.allowFirstBump,
     zeroMajor: config.zeroMajor,

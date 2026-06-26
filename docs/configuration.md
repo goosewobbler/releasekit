@@ -67,11 +67,8 @@ Versioning configuration.
 | `sharedPackages` | `string[]` | — | Foundational packages whose changes belong in every package’s changelog. A commit touching only a shared package (exact name or glob) is classified as repo-level and surfaced under "Project-wide changes" rather than attributed to that one package. Default: none — no package is treated as shared unless declared. |
 | `sharedChangelogFloor` | `"union"` \| `"sinceLastRelease"` | `"union"` | How the "Project-wide changes" block is bounded in package-specific-tag mode. "union" (default): repo-level commits accrue from the union of the releasing packages' ranges, floored by the OLDEST unreleased baseline — so a genuinely-global commit recurs in every release until the oldest-baselined package is released past it. "sinceLastRelease": floor the block by the single nearest tag reachable across the repo, so global commits already shown by the most recent release don't recur (recommended for per-package-tag monorepos). No effect in sync mode, where one shared tag already consumes repo-level commits on each release. |
 | `mainPackage` | string | — | Package to use for version determination |
-| `updateInternalDependencies` | `"major"` \| `"minor"` \| `"patch"` \| `"no-internal-update"` | `"minor"` | How to bump internal dependencies |
 | `skip` | `string[]` | — | Packages to exclude from versioning |
 | `commitMessage` | string | — | Template for release commit messages |
-| `versionStrategy` | `"branchPattern"` \| `"commitMessage"` | `"commitMessage"` | Strategy for determining version bumps |
-| `defaultReleaseType` | `"major"` \| `"minor"` \| `"patch"` \| `"prerelease"` | — | Default release type when no pattern matches |
 | `mismatchStrategy` | `"error"` \| `"warn"` \| `"ignore"` \| `"prefer-package"` \| `"prefer-git"` | `"warn"` | How to handle version mismatches |
 | `versionPrefix` | string | `""` | Prefix for version tags |
 | `prereleaseIdentifier` | string | — | Identifier for prerelease versions (e.g., 'alpha', 'beta') |
@@ -88,15 +85,6 @@ How a **commit-inferred** breaking change (`feat!:` / `BREAKING CHANGE:`) bumps 
 - `"strict"`: bumps the next major — `0.24.0` → `1.0.0` (the semantic-release convention).
 
 Inferred path only. Explicit overrides (`--bump major`, `bump:major` on the standing PR, `release:immediate` + `bump:major` on a feeder PR) always graduate to `1.0.0` — cutting 1.0 stays a deliberate act.
-
-**`version.branchPatterns`** — Branch name patterns for version determination.
-
-Array of objects with the following properties:
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `pattern` | string | — | Glob or regex matched against the branch name (e.g. 'release/*') |
-| `releaseType` | `"major"` \| `"minor"` \| `"patch"` \| `"prerelease"` | — | Version bump type applied when this pattern matches |
 
 ### `version.groups`
 

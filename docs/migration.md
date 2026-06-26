@@ -31,7 +31,7 @@ remove the old tool.
 | `@semantic-release/release-notes-generator` | `@releasekit/notes` stage |
 | `@semantic-release/npm` | `publish.npm` config |
 | `@semantic-release/github` | `publish.githubRelease` config |
-| `branches` config | `version.branchPatterns` |
+| `branches` config | Release branch via `git.branch`; prerelease channels via the `channel:prerelease` label |
 | `SEMANTIC_RELEASE_PACKAGE` env var | `--target` flag or `version.packages` config |
 | `.releaserc` / `release.config.js` | `releasekit.config.json` |
 

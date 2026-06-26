@@ -16,7 +16,6 @@ const mockConfig: Partial<Config> = {
   dryRun: false,
   tagTemplate: 'v{version}',
   preset: 'conventional',
-  updateInternalDependencies: 'minor',
 };
 
 const TWO_PACKAGES = {

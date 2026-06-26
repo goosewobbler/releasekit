@@ -16,7 +16,6 @@ const baseConfig = (overrides: Partial<Config> = {}): Config =>
     preset: 'conventional',
     packages: [],
     tagTemplate: '',
-    updateInternalDependencies: 'minor',
     versionPrefix: '',
     ...overrides,
   }) as Config;

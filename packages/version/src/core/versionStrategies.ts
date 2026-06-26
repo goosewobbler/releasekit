@@ -108,7 +108,6 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         versionPrefix,
         tagTemplate,
         baseBranch,
-        branchPattern,
         commitMessage = `chore: release \${packageName} v\${version}`,
         prereleaseIdentifier,
         dryRun,
@@ -194,7 +193,6 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       const nextVersion = await calculateVersion(config, {
         latestTag,
         versionPrefix: formattedPrefix,
-        branchPattern,
         baseBranch,
         prereleaseIdentifier,
         path: versionSourcePath,
@@ -536,7 +534,6 @@ export function createSingleStrategy(config: Config): StrategyFunction {
       nextVersion = await calculateVersion(config, {
         latestTag,
         versionPrefix: formattedPrefix,
-        branchPattern: config.branchPattern,
         baseBranch: config.baseBranch,
         prereleaseIdentifier: config.prereleaseIdentifier,
         path: pkgPath,
@@ -701,7 +698,6 @@ export function createAsyncStrategy(config: Config): StrategyFunction {
     fullConfig: config,
     // Extract common version configuration properties
     config: {
-      branchPattern: config.branchPattern || [],
       baseBranch: config.baseBranch || 'main',
       prereleaseIdentifier: config.prereleaseIdentifier,
       type: config.type,

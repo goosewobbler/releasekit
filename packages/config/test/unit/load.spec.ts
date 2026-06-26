@@ -69,7 +69,7 @@ describe('loadConfig', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(
       JSON.stringify({
-        version: { versionStrategy: 'invalid-strategy' },
+        version: { zeroMajor: 'invalid-strategy' },
       }),
     );
 
@@ -97,6 +97,13 @@ describe('loadConfig', () => {
     );
 
     expect(() => loadConfig()).not.toThrow();
+  });
+
+  it('should throw a migration error for removed version fields', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ version: { versionStrategy: 'branchPattern' } }));
+
+    expect(() => loadConfig()).toThrow(/version no longer supports/);
   });
 
   it('should parse JSONC with comments', () => {

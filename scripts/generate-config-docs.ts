@@ -137,7 +137,7 @@ function renderVersion(prop: SchemaProperty): void {
   emit(ensurePeriod(prop.description), '');
 
   const topProps = Object.fromEntries(
-    Object.entries(prop.properties ?? {}).filter(([k]) => k !== 'cargo' && k !== 'branchPatterns' && k !== 'groups'),
+    Object.entries(prop.properties ?? {}).filter(([k]) => k !== 'cargo' && k !== 'groups'),
   );
   emit(propsTable(topProps));
   emitBlank();
@@ -156,14 +156,6 @@ function renderVersion(prop: SchemaProperty): void {
     'Inferred path only. Explicit overrides (`--bump major`, `bump:major` on the standing PR, `release:immediate` + `bump:major` on a feeder PR) always graduate to `1.0.0` — cutting 1.0 stays a deliberate act.',
     '',
   );
-
-  const bp = prop.properties?.branchPatterns;
-  if (bp?.items?.properties) {
-    emit(`**\`version.branchPatterns\`** — ${ensurePeriod(bp.description)}`, '');
-    emit('Array of objects with the following properties:', '');
-    emit(propsTable(bp.items.properties));
-    emitBlank();
-  }
 
   const groups = prop.properties?.groups;
   const groupItem = typeof groups?.additionalProperties === 'object' ? groups.additionalProperties : undefined;

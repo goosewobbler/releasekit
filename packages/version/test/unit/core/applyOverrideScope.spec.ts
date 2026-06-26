@@ -9,7 +9,6 @@ const cfg = (overrideScope?: string[]): Config =>
     preset: 'conventional',
     sync: false,
     packages: [],
-    updateInternalDependencies: 'minor',
     versionPrefix: 'v',
     type: 'major',
     isPrerelease: true,

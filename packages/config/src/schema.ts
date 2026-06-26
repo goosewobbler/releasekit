@@ -27,13 +27,6 @@ export const MonorepoConfigSchema = z.object({
   packagesPath: z.string().optional().describe('Path to packages directory'),
 });
 
-export const BranchPatternSchema = z.object({
-  pattern: z.string().describe("Glob or regex matched against the branch name (e.g. 'release/*')"),
-  releaseType: z
-    .enum(['major', 'minor', 'patch', 'prerelease'])
-    .describe('Version bump type applied when this pattern matches'),
-});
-
 export const VersionCargoConfigSchema = z.object({
   enabled: z.boolean().default(true).describe('Enable Cargo.toml version handling'),
   paths: z.array(z.string()).optional().describe('Directories to search for Cargo.toml files'),
@@ -105,21 +98,8 @@ export const VersionConfigSchema = z.object({
       'How the "Project-wide changes" block is bounded in package-specific-tag mode. "union" (default): repo-level commits accrue from the union of the releasing packages\' ranges, floored by the OLDEST unreleased baseline — so a genuinely-global commit recurs in every release until the oldest-baselined package is released past it. "sinceLastRelease": floor the block by the single nearest tag reachable across the repo, so global commits already shown by the most recent release don\'t recur (recommended for per-package-tag monorepos). No effect in sync mode, where one shared tag already consumes repo-level commits on each release.',
     ),
   mainPackage: z.string().optional().describe('Package to use for version determination'),
-  updateInternalDependencies: z
-    .enum(['major', 'minor', 'patch', 'no-internal-update'])
-    .default('minor')
-    .describe('How to bump internal dependencies'),
   skip: z.array(z.string()).optional().describe('Packages to exclude from versioning'),
   commitMessage: z.string().optional().describe('Template for release commit messages'),
-  versionStrategy: z
-    .enum(['branchPattern', 'commitMessage'])
-    .default('commitMessage')
-    .describe('Strategy for determining version bumps'),
-  branchPatterns: z.array(BranchPatternSchema).optional().describe('Branch name patterns for version determination'),
-  defaultReleaseType: z
-    .enum(['major', 'minor', 'patch', 'prerelease'])
-    .optional()
-    .describe('Default release type when no pattern matches'),
   mismatchStrategy: z
     .enum(['error', 'warn', 'ignore', 'prefer-package', 'prefer-git'])
     .default('warn')
