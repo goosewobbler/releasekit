@@ -16,7 +16,9 @@ export function mergeGitConfig(topLevel?: GitConfig, packageLevel?: PublishGitCo
     branch: packageLevel.branch ?? base.branch,
     pushMethod: packageLevel.pushMethod ?? base.pushMethod,
     httpsTokenEnv: packageLevel.httpsTokenEnv ?? base.httpsTokenEnv,
-    push: packageLevel.push,
+    // Fall back to the top-level git.push when publish.git doesn't set it — otherwise a `publish.git`
+    // block (even one not mentioning push) would silently override a top-level `git.push: false`.
+    push: packageLevel.push ?? base.push,
     skipHooks: packageLevel.skipHooks ?? base.skipHooks,
   };
 }

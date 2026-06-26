@@ -242,6 +242,34 @@ describe('loadPublishConfig', () => {
     expect(result?.git?.remote).toBe('origin');
   });
 
+  it('should not let a publish.git block override an explicit top-level git.push: false', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(
+      JSON.stringify({
+        git: { push: false },
+        publish: { git: { remote: 'upstream' } },
+      }),
+    );
+
+    // The publish.git block doesn't set push, so it must inherit the top-level git.push: false —
+    // not be silently flipped back to true by a default.
+    const result = loadPublishConfig();
+    expect(result?.git?.push).toBe(false);
+  });
+
+  it('should let publish.git.push explicitly override top-level git.push', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(
+      JSON.stringify({
+        git: { push: false },
+        publish: { git: { push: true } },
+      }),
+    );
+
+    const result = loadPublishConfig();
+    expect(result?.git?.push).toBe(true);
+  });
+
   it('should inherit skipHooks from top-level git config', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(
