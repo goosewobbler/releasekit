@@ -327,13 +327,12 @@ describe('loadCIConfig', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(
       JSON.stringify({
-        ci: { prPreview: false, autoRelease: true },
+        ci: { prPreview: false },
       }),
     );
 
     const result = loadCIConfig();
     expect(result?.prPreview).toEqual({ enabled: false, refreshAfterRelease: false });
-    expect(result?.autoRelease).toBe(true);
   });
 
   it('should return undefined when no CI config', () => {

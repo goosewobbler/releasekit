@@ -68,10 +68,6 @@
         "packagesPath": {
           "type": "string",
           "description": "Path to packages directory"
-        },
-        "mainPackage": {
-          "type": "string",
-          "description": "Main package name for versioning"
         }
       },
       "description": "Monorepo configuration"
@@ -1120,27 +1116,6 @@
             }
           ],
           "description": "PR preview comments showing what would be released if the PR is merged. `true`/`false` toggles them; the object form additionally enables `refreshAfterRelease` to refresh feeder-PR previews after a release."
-        },
-        "autoRelease": {
-          "type": "boolean",
-          "default": false,
-          "description": "Automatically trigger a release when CI conditions are met, without manual intervention."
-        },
-        "skipPatterns": {
-          "type": "array",
-          "default": [
-            "chore: release "
-          ],
-          "items": {
-            "type": "string"
-          },
-          "description": "Commit message prefixes that suppress a release. The default matches the release commit template to prevent release loops."
-        },
-        "minChanges": {
-          "type": "integer",
-          "minimum": 1,
-          "default": 1,
-          "description": "Minimum number of packages with releasable changes required to trigger a release."
         },
         "labels": {
           "type": "object",
