@@ -80,4 +80,17 @@ describe('OllamaProvider', () => {
 
     expect(result.structured).toEqual({ ok: true });
   });
+
+  it('should treat a sub-millisecond timeout as the default rather than aborting every request', async () => {
+    // 0.5ms is finite and > 0 but floors to a 0ms (already-expired) signal in the timer.
+    mockFetch('{ "ok": true }');
+    const provider = new OllamaProvider({ model: 'test-model', apiKey: 'k' });
+
+    const result = await provider.complete([{ role: 'user', content: 'hi' }], {
+      schema: { type: 'object' },
+      timeout: 0.5,
+    });
+
+    expect(result.structured).toEqual({ ok: true });
+  });
 });
