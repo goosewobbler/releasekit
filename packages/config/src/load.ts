@@ -80,6 +80,28 @@ function assertNoRemovedVersionFields(config: unknown): void {
 }
 
 /**
+ * `ci.autoRelease` was removed (it had no effect), and the top-level `ci.skipPatterns` / `ci.minChanges`
+ * were shadowed dead duplicates — the live settings are `release.ci.skipPatterns` / `release.ci.minChanges`.
+ * `monorepo.mainPackage` duplicated `version.mainPackage`. Fail loudly with migration guidance rather than
+ * silently stripping these (which also diverges from the JSON schema's unknown-key rejection).
+ */
+function assertNoRemovedTopLevelFields(config: unknown): void {
+  if (!isRecord(config)) return;
+  if (isRecord(config.ci)) {
+    const removed = ['autoRelease', 'skipPatterns', 'minChanges'].filter((k) => k in (config.ci as object));
+    if (removed.length > 0) {
+      throw new ConfigError(
+        `ci no longer supports ${removed.join(', ')}. autoRelease was removed (it had no effect); ` +
+          'skipPatterns and minChanges live under release.ci (release.ci.skipPatterns / release.ci.minChanges).',
+      );
+    }
+  }
+  if (isRecord(config.monorepo) && 'mainPackage' in config.monorepo) {
+    throw new ConfigError('monorepo.mainPackage was removed — use version.mainPackage instead.');
+  }
+}
+
+/**
  * `monorepo.mode` was removed — it never drove behaviour (changelog aggregation is controlled by
  * notes.changelog.mode). Fail loudly with migration guidance rather than silently stripping it.
  */
@@ -100,6 +122,7 @@ function loadConfigFile(configPath: string): ReleaseKitConfig {
     const substituted = substituteInObject(parsed);
     assertNoRemovedReleaseNotesFields(substituted);
     assertNoRemovedVersionFields(substituted);
+    assertNoRemovedTopLevelFields(substituted);
     assertNoRemovedMonorepoMode(substituted);
     return ReleaseKitConfigSchema.parse(substituted);
   } catch (error: unknown) {

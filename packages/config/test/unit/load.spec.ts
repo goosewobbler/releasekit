@@ -106,6 +106,20 @@ describe('loadConfig', () => {
     expect(() => loadConfig()).toThrow(/version no longer supports/);
   });
 
+  it('should throw a migration error for removed ci fields', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ ci: { skipPatterns: ['chore: release '] } }));
+
+    expect(() => loadConfig()).toThrow(/ci no longer supports/);
+  });
+
+  it('should throw a migration error for the removed monorepo.mainPackage', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ monorepo: { mainPackage: 'core' } }));
+
+    expect(() => loadConfig()).toThrow(/monorepo\.mainPackage was removed/);
+  });
+
   it('should throw a migration error for the removed monorepo.mode', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(JSON.stringify({ monorepo: { mode: 'packages' } }));
