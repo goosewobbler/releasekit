@@ -59,6 +59,26 @@ function assertNoRemovedReleaseNotesFields(config: unknown): void {
   );
 }
 
+/**
+ * Branch-pattern versioning (`versionStrategy` / `branchPatterns` / `defaultReleaseType`) and
+ * `updateInternalDependencies` were removed — they were unwired and did nothing. Fail loudly with
+ * migration guidance instead of letting Zod silently strip them (which would also diverge from the
+ * generated JSON schema, where editors/CI reject the same unknown keys).
+ */
+function assertNoRemovedVersionFields(config: unknown): void {
+  if (!isRecord(config) || !isRecord(config.version)) return;
+  const v = config.version;
+  const removed = ['versionStrategy', 'branchPatterns', 'defaultReleaseType', 'updateInternalDependencies'].filter(
+    (k) => k in v,
+  );
+  if (removed.length === 0) return;
+  throw new ConfigError(
+    `version no longer supports ${removed.join(', ')}. Branch-pattern versioning was never functional — ` +
+      'use Conventional Commits or --bump for version bumps. For coupled packages use version.groups; to ' +
+      "release a package's changed dependencies use release:with-prerequisites / --include-prerequisites.",
+  );
+}
+
 function loadConfigFile(configPath: string): ReleaseKitConfig {
   if (!fs.existsSync(configPath)) {
     return {};
@@ -69,6 +89,7 @@ function loadConfigFile(configPath: string): ReleaseKitConfig {
     const parsed = parseJsonc(content);
     const substituted = substituteInObject(parsed);
     assertNoRemovedReleaseNotesFields(substituted);
+    assertNoRemovedVersionFields(substituted);
     return ReleaseKitConfigSchema.parse(substituted);
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
