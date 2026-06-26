@@ -164,8 +164,15 @@ export async function runGitPushStage(ctx: PipelineContext): Promise<void> {
       }
     }
 
-    // Push commits — branch resolution is deferred to here so a tags-only push
-    // never triggers the detached-HEAD guard unnecessarily.
+    // Push the load-bearing tags first. They carry the release commit, gate the GitHub release,
+    // and are what consumers and `release/*` baselines point at — so push them before the branch
+    // ref, whose push can lose a race to a concurrent push and would otherwise strand the tags.
+    if (output.git.tags.length > 0) {
+      await runGit(dryRun, `git push ${remote} --tags`, () => git.push({ remote: pushRemote, tags: true, cwd }));
+    }
+
+    // Push the branch only when this runner created the release commit locally. Branch resolution
+    // is deferred to here so a tags-only push never triggers the detached-HEAD guard unnecessarily.
     let branch: string | undefined;
     if (output.git.committed) {
       branch = config.git.branch;
@@ -179,11 +186,6 @@ export async function runGitPushStage(ctx: PipelineContext): Promise<void> {
         }
       }
       await runGit(dryRun, `git push ${remote} ${branch}`, () => git.push({ remote: pushRemote, ref: branch, cwd }));
-    }
-
-    // Push tags
-    if (output.git.tags.length > 0) {
-      await runGit(dryRun, `git push ${remote} --tags`, () => git.push({ remote: pushRemote, tags: true, cwd }));
     }
 
     ctx.output.git.pushed = true;

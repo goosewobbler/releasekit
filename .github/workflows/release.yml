@@ -155,6 +155,7 @@ jobs:
     permissions:
       id-token: write
       contents: write
+      pull-requests: write # post the partial-publish failure report on the merged standing PR
     with:
       packages: all
       bump: ${{ needs.check-labels.outputs.bump || 'auto' }}
@@ -172,6 +173,7 @@ jobs:
     permissions:
       id-token: write
       contents: write
+      pull-requests: write # post the partial-publish failure report on the merged standing PR
     with:
       packages: ${{ inputs.packages }}
       bump: ${{ inputs.bump }}
@@ -193,6 +195,7 @@ jobs:
     permissions:
       id-token: write
       contents: write
+      pull-requests: write # post the partial-publish failure report on the merged standing PR
     with:
       packages: all
       bump: auto

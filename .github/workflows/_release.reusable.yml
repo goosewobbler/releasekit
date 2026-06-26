@@ -40,6 +40,7 @@ on:
 permissions:
   id-token: write
   contents: write
+  pull-requests: write # post the partial-publish failure report on the merged standing PR
 
 env:
   TURBO_TELEMETRY_DISABLED: 1

@@ -162,7 +162,10 @@ describe('pipeline', () => {
 
     expect(runGitCommitStage).not.toHaveBeenCalled();
     expect(runGitPushStage).toHaveBeenCalled();
-    expect(result.git.committed).toBe(true);
+    // `committed` stays false: the caller already landed the commit on the remote (the standing-PR
+    // merge), so this runner has no local commit to push. The push stage pushes only the tags;
+    // marking `committed` would make it push the branch and race a concurrent push to it.
+    expect(result.git.committed).toBe(false);
     expect(result.git.tags).toEqual(['v1.0.0', 'pkg-a@v1.0.0']);
   });
 

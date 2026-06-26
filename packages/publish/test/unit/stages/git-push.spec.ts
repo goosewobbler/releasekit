@@ -78,10 +78,10 @@ describe('git-push stage', () => {
 
     await runGitPushStage(ctx);
 
-    // branch push then tags push, both to the plain remote name.
+    // tags push then branch push, both to the plain remote name.
     expect(fakeGit.pushed).toEqual([
-      expect.objectContaining({ remote: 'origin', ref: 'main' }),
       expect.objectContaining({ remote: 'origin', tags: true }),
+      expect.objectContaining({ remote: 'origin', ref: 'main' }),
     ]);
     expect(ctx.output.git.pushed).toBe(true);
   });
@@ -96,9 +96,9 @@ describe('git-push stage', () => {
     await runGitPushStage(ctx);
 
     const authedUrl = 'https://x-access-token:gh_test_token@github.com/org/repo.git';
-    // Both pushes target the authed URL as the remote.
-    expect(fakeGit.pushed[0]).toEqual(expect.objectContaining({ remote: authedUrl, ref: 'main' }));
-    expect(fakeGit.pushed[1]).toEqual(expect.objectContaining({ remote: authedUrl, tags: true }));
+    // Both pushes target the authed URL as the remote (tags first, then branch).
+    expect(fakeGit.pushed[0]).toEqual(expect.objectContaining({ remote: authedUrl, tags: true }));
+    expect(fakeGit.pushed[1]).toEqual(expect.objectContaining({ remote: authedUrl, ref: 'main' }));
   });
 
   it('should not attempt token auth when httpsTokenEnv is not configured', async () => {
@@ -109,8 +109,8 @@ describe('git-push stage', () => {
 
     // No remoteUrl read happened (no authed rewrite); pushes target the plain remote name.
     expect(fakeGit.pushed).toEqual([
-      expect.objectContaining({ remote: 'origin', ref: 'main' }),
       expect.objectContaining({ remote: 'origin', tags: true }),
+      expect.objectContaining({ remote: 'origin', ref: 'main' }),
     ]);
   });
 
@@ -124,8 +124,8 @@ describe('git-push stage', () => {
     await runGitPushStage(ctx);
 
     expect(fakeGit.pushed).toEqual([
-      expect.objectContaining({ remote: 'origin', ref: 'main' }),
       expect.objectContaining({ remote: 'origin', tags: true }),
+      expect.objectContaining({ remote: 'origin', ref: 'main' }),
     ]);
 
     delete process.env.MY_TOKEN;
@@ -136,7 +136,8 @@ describe('git-push stage', () => {
     const ctx = createContext();
     await runGitPushStage(ctx);
 
-    expect(fakeGit.pushed[0]).toEqual(expect.objectContaining({ remote: 'origin', ref: 'feature/my-branch' }));
+    // Tags push is pushed[0]; the branch push (resolved via currentBranch) is pushed[1].
+    expect(fakeGit.pushed[1]).toEqual(expect.objectContaining({ remote: 'origin', ref: 'feature/my-branch' }));
   });
 
   it('should throw a clear error when in detached HEAD state', async () => {
@@ -173,7 +174,8 @@ describe('git-push stage', () => {
 
     await runGitPushStage(ctx);
 
-    expect(fakeGit.pushed[0]).toEqual(expect.objectContaining({ remote: 'origin', ref: 'release/v2' }));
+    // Tags push is pushed[0]; the branch push (from explicit config) is pushed[1].
+    expect(fakeGit.pushed[1]).toEqual(expect.objectContaining({ remote: 'origin', ref: 'release/v2' }));
     expect(currentBranchSpy).not.toHaveBeenCalled();
   });
 
