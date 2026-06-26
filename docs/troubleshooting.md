@@ -358,7 +358,7 @@ See [ci-setup.md — CI concurrency caveat](../packages/release/docs/ci-setup.md
 **Cause:** Two common cases:
 
 - **Label trigger mode:** the merged PR has no `bump:*` label. Without a bump label, the label trigger exits cleanly.
-- **Commit mode:** all commits since the last tag match `release.ci.skipPatterns` (default `["chore: release "]`) or are non-releasable types under the preset.
+- **Commit mode:** all commits since the last tag match `release.ci.skipPatterns` (configure this explicitly, e.g. `["chore: release "]`, to suppress release commits) or are non-releasable types under the preset.
 
 **Fix:** In label mode, ensure the merged PR carries a `bump:patch`, `bump:minor`, or `bump:major` label. In commit mode, confirm releasable commits (`feat:`, `fix:`) exist since the last tag with `git log <last-tag>..HEAD --oneline`. Run with `--dry-run --verbose` to see the commit analysis without making changes.
 
