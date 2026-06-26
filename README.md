@@ -34,7 +34,7 @@ Releases to npm, crates.io, and pub.dev today, with more ecosystems on the way.
 > [!WARNING]
 > ### 🚧 Pre-1.0.0 — here be dragons 🐉
 >
-> ReleaseKit is **under active development** and evolving fast while the core feature set settles. **💥 Breaking changes are common between releases** and aren't always gated behind a major bump while we're pre-`1.0.0`. It's **🚫 not recommended for production** yet — if you're trying it out, **📌 pin an exact version** and skim the release notes before upgrading. 🧪 Once the API stabilises, `v1.0.0` will mark the switch to semver-stable guarantees. 🎯
+> ReleaseKit is **under active development** and evolving fast while the core feature set settles. **💥 Breaking changes are common between releases** and aren't always gated behind a major bump while we're pre-`1.0.0`. It's **not recommended for production** yet — if you're trying it out, **pin an exact version** and skim the release notes before upgrading. 🧪 Once the API stabilises, `v1.0.0` will mark the switch to semver-stable guarantees.
 
 ## Why ReleaseKit
 
