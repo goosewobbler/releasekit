@@ -486,6 +486,38 @@ describe('createGroupStrategy', () => {
         undefined,
       );
     });
+
+    it('should advance the prerelease when the aggregate rank is itself prerelease and no identifier is set (#460)', async () => {
+      // The changed member earns a *prerelease-rank* bump (its own line increments), while a higher
+      // member's prerelease tag sets the group baseline (1.0.0-next.0). Pre-fix, the prerelease-rank
+      // branch returned the baseline unchanged when no identifier was set, and never-regress couldn't
+      // raise it (the changed member's own next sits below the group baseline) — republishing
+      // 1.0.0-next.0. It must advance to 1.0.0-next.1.
+      const service = mkPackage('@wdio/flutter-service', '1.0.0-next.0');
+      const contract = mkPackage('wdio_flutter', '0.9.0-next.0');
+
+      vi.mocked(gitTags.getLatestTagForPackage).mockImplementation(async (name) =>
+        name === '@wdio/flutter-service' ? 'wdio-flutter-service@v1.0.0-next.0' : '',
+      );
+      // Only the contract changed — a within-prerelease increment on its own (lower) line.
+      vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
+        opts.name === 'wdio_flutter' ? '0.9.0-next.1' : '',
+      );
+
+      const strategy = createGroupStrategy(
+        baseConfig({
+          isPrerelease: true, // no prereleaseIdentifier configured
+          groups: { flutter: { packages: ['@wdio/flutter-service', 'wdio_flutter'], sync: 'linked' } },
+        }),
+      );
+      await strategy(workspace([service, contract]));
+
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/wdio_flutter/package.json',
+        '1.0.0-next.1',
+        undefined,
+      );
+    });
   });
 
   describe('group baseline = max(member baselines)', () => {
