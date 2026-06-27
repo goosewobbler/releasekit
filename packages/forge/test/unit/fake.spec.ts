@@ -179,6 +179,28 @@ describe('FakeForge', () => {
     });
   });
 
+  it('should discover an issue seeded only via the issues map (#462 review)', async () => {
+    const forge = createFakeForge({
+      issues: { 7: { body: 'b', title: 't', labels: ['release:draft'], isPullRequest: false } },
+    });
+    expect(await forge.findOpenIssueByLabel('release:draft')).toMatchObject({ number: 7 });
+    // A seeded PR carrying the label must NOT be discoverable as an issue.
+    const withPr = createFakeForge({
+      issues: { 8: { body: 'b', title: 't', labels: ['release:draft'], isPullRequest: true } },
+    });
+    expect(await withPr.findOpenIssueByLabel('release:draft')).toBeNull();
+  });
+
+  it('should return the newest (highest-numbered) matching open issue (#462 review)', async () => {
+    const forge = createFakeForge({
+      openIssues: [
+        { number: 3, url: 'u3', labels: ['release:draft'] },
+        { number: 9, url: 'u9', labels: ['release:draft'] },
+      ],
+    });
+    expect(await forge.findOpenIssueByLabel('release:draft')).toEqual({ number: 9, url: 'u9' });
+  });
+
   it('should share the number space between issues and PRs', async () => {
     const forge = createFakeForge();
     const pr = await forge.createPullRequest({ title: 't', body: 'b', head: 'h', base: 'm' });

@@ -270,29 +270,27 @@ describe('GitHubForge', () => {
       });
     });
 
-    it('should find the first open issue by label, skipping PRs', async () => {
+    it('should find the first open issue by label across pages, skipping PRs', async () => {
       const { octokit, fns } = makeOctokit();
       // listForRepo returns issues AND PRs; a PR carries a `pull_request` field and must be skipped.
-      fns.issuesListForRepo.mockResolvedValue({
-        data: [
-          { number: 5, html_url: 'pr-url', pull_request: {} },
-          { number: 8, html_url: 'issue-url' },
-        ],
-      });
+      // A first page full of label-carrying PRs must not hide the issue on a later page.
+      fns.iterator.mockReturnValue(
+        pages([{ number: 5, html_url: 'pr-url', pull_request: {} }], [{ number: 8, html_url: 'issue-url' }]),
+      );
       const ref = await new GitHubForge(octokit, 'o', 'r').findOpenIssueByLabel('release:draft');
       expect(ref).toEqual({ number: 8, url: 'issue-url' });
-      expect(fns.issuesListForRepo).toHaveBeenCalledWith({
+      expect(fns.iterator).toHaveBeenCalledWith(fns.issuesListForRepo, {
         owner: 'o',
         repo: 'r',
         state: 'open',
         labels: 'release:draft',
-        per_page: 20,
+        per_page: 100,
       });
     });
 
     it('should return null when no open issue carries the label', async () => {
       const { octokit, fns } = makeOctokit();
-      fns.issuesListForRepo.mockResolvedValue({ data: [{ number: 5, html_url: 'pr-url', pull_request: {} }] });
+      fns.iterator.mockReturnValue(pages([{ number: 5, html_url: 'pr-url', pull_request: {} }]));
       expect(await new GitHubForge(octokit, 'o', 'r').findOpenIssueByLabel('release:draft')).toBeNull();
     });
   });

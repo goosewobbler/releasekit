@@ -153,17 +153,22 @@ export class GitHubForge implements Forge {
   }
 
   async findOpenIssueByLabel(label: string): Promise<IssueRef | null> {
-    // listForRepo returns issues AND PRs; a PR carries a `pull_request` field, so filter those out —
-    // we only want a real issue. `state: 'open'` + `labels` narrows server-side; default sort is
-    // newest-first, so the first match is the most recent.
-    const { data } = await this.octokit.rest.issues.listForRepo({
+    // listForRepo returns issues AND PRs; a PR carries a `pull_request` field, so skip those — we
+    // only want a real issue. Paginate rather than read one page, so a page full of label-carrying
+    // PRs (or an older reusable issue) can't hide the issue and leave the caller stacking a duplicate
+    // (#462 review). Default sort is newest-first, so the first real issue we reach is the most recent.
+    const iterator = this.octokit.paginate.iterator(this.octokit.rest.issues.listForRepo, {
       ...this.base,
       state: 'open',
       labels: label,
-      per_page: 20,
+      per_page: 100,
     });
-    const issue = data.find((item) => !item.pull_request);
-    return issue ? { number: issue.number, url: issue.html_url } : null;
+    for await (const response of iterator) {
+      for (const issue of response.data) {
+        if (!issue.pull_request) return { number: issue.number, url: issue.html_url };
+      }
+    }
+    return null;
   }
 
   async getActorPermission(username: string): Promise<RepoPermission> {

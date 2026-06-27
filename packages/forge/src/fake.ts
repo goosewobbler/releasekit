@@ -101,6 +101,14 @@ export class FakeForge implements Forge {
     this.pullRequestsForCommit = seed.pullRequestsForCommit ?? {};
     this.issues = seed.issues ?? {};
     this.openIssues = [...(seed.openIssues ?? [])];
+    // An issue seeded via the `issues` map (for getIssue) should also be discoverable by
+    // findOpenIssueByLabel, matching GitHub — auto-register the non-PR ones not already listed.
+    for (const [num, details] of Object.entries(this.issues)) {
+      const n = Number(num);
+      if (!details.isPullRequest && !this.openIssues.some((i) => i.number === n)) {
+        this.openIssues.push({ number: n, url: `https://github.com/fake/fake/issues/${n}`, labels: details.labels });
+      }
+    }
     this.pullRequestDetails = seed.pullRequests ?? {};
     this.comments = [...(seed.comments ?? [])];
     this.labelNames = [...(seed.labelNames ?? [])];
@@ -190,8 +198,10 @@ export class FakeForge implements Forge {
   }
 
   async findOpenIssueByLabel(label: string): Promise<IssueRef | null> {
-    const issue = this.openIssues.find((i) => i.labels.includes(label));
-    return issue ? { number: issue.number, url: issue.url } : null;
+    // GitHub returns newest-first; approximate "newest" with the highest number so multiple seeded
+    // matches resolve the way production would (#462 review).
+    const matches = this.openIssues.filter((i) => i.labels.includes(label)).sort((a, b) => b.number - a.number);
+    return matches[0] ? { number: matches[0].number, url: matches[0].url } : null;
   }
 
   async findComment(prNumber: number, marker: string): Promise<FakeComment | null> {
