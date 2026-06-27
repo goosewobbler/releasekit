@@ -26,15 +26,49 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-/** Whether two version outputs name the same publishable packages at the same versions. */
+/**
+ * Canonical fingerprint of everything a release will publish — the full update set (including the
+ * root lockstep bump), tags, baseline tags, commit message, changelog entries, and strategy. Order-
+ * independent arrays are sorted so a reordering alone never reads as drift.
+ */
+function planFingerprint(v: VersionOutput): string {
+  const byName = <T extends { packageName: string }>(arr: readonly T[]) =>
+    [...arr].sort((a, b) => a.packageName.localeCompare(b.packageName));
+  return JSON.stringify({
+    strategy: v.strategy ?? null,
+    commitMessage: v.commitMessage ?? null,
+    tags: [...v.tags].sort(),
+    baselineTags: [...(v.baselineTags ?? [])].sort(),
+    updates: byName(v.updates),
+    changelogs: byName(v.changelogs),
+    sharedEntries: v.sharedEntries ?? [],
+  });
+}
+
+/**
+ * Whether two version outputs would publish the *same artifacts* — compared over the full plan, not
+ * just the publishable name@version projection. A recompute at the pinned baseSha can keep identical
+ * package versions yet differ in tags, commit message, the root update, or changelog shape (drifted
+ * flags or config); the narrow check would wave those through and publish a plan the human never
+ * reviewed (#463 review).
+ */
 function samePlan(a: VersionOutput | undefined, b: VersionOutput): boolean {
   if (!a) return false;
-  const key = (v: VersionOutput) =>
-    publishableUpdates(v)
-      .map((u) => `${u.packageName}@${u.newVersion}`)
-      .sort()
-      .join(',');
-  return key(a) === key(b);
+  return planFingerprint(a) === planFingerprint(b);
+}
+
+/**
+ * Whether a marker comment body actually decodes to a release manifest. Guards the `--draft` reuse
+ * path against an unrelated issue that was hand-labelled `release:draft` and happens to carry a
+ * marker-prefixed comment: without this, `--draft` would overwrite that issue's title/body (#463 review).
+ */
+function isReleaseManifestComment(body: string): boolean {
+  try {
+    parseManifest(body);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** The human-facing tracking-issue body: a how-to preamble plus the editable per-package notes. */
@@ -102,10 +136,12 @@ export async function runReleaseDraft(options: ReleaseOptions): Promise<ReleaseO
   const manifestComment = serializeManifest(manifest);
 
   // Reuse the existing draft only if it's actually ours — an open issue carrying the label AND a
-  // release manifest comment. A human-labelled, unrelated issue must not have its title/body
-  // overwritten with a release draft (#463 review); fall through to creating a fresh draft instead.
+  // comment that decodes to a real release manifest. A human-labelled, unrelated issue (even one with
+  // an accidental marker-prefixed comment) must not have its title/body overwritten with a release
+  // draft (#463 review); fall through to creating a fresh draft instead.
   const existing = await forge.findOpenIssueByLabel(DRAFT_LABEL);
-  const reusable = existing && (await forge.findComment(existing.number, MANIFEST_MARKER)) ? existing : null;
+  const existingManifest = existing ? await forge.findComment(existing.number, MANIFEST_MARKER) : undefined;
+  const reusable = existing && existingManifest && isReleaseManifestComment(existingManifest.body) ? existing : null;
   let issueNumber: number;
   if (reusable) {
     await forge.updateIssue(reusable.number, { title, body });

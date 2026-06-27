@@ -1,6 +1,7 @@
 import type { VersionOutput } from '@releasekit/core';
 import { createFakeForge, type FakeForge } from '@releasekit/forge';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { serializeManifest } from '../../src/standing-pr/standing-pr.js';
 
 // --- Mocks ---
 
@@ -40,6 +41,16 @@ const versionOutput: VersionOutput = {
   commitMessage: 'chore: release 1.2.0',
   tags: ['v1.2.0'],
 };
+
+const manifest = {
+  schemaVersion: 2 as const,
+  versionOutput,
+  releaseNotes: {},
+  notesFiles: [],
+  createdAt: '2026-01-01T00:00:00.000Z',
+  baseSha: 'sha-draft',
+};
+const validManifestComment = serializeManifest(manifest);
 
 const baseOptions = {
   dryRun: false,
@@ -99,8 +110,8 @@ describe('runReleaseDraft', () => {
   it('should reuse the existing open draft issue (with a manifest comment) instead of stacking a new one', async () => {
     const seeded = createFakeForge({
       openIssues: [{ number: 7, url: 'u', labels: [DRAFT_LABEL] }],
-      // A real draft carries the manifest comment — that's what marks it as ours to reuse.
-      comments: [{ id: 1, body: '<!-- releasekit-manifest -->\nx', prNumber: 7 }],
+      // A real draft carries a decodable manifest comment — that's what marks it as ours to reuse.
+      comments: [{ id: 1, body: validManifestComment, prNumber: 7 }],
     });
     mockForgeFor.mockReturnValue(seeded);
 
@@ -124,6 +135,21 @@ describe('runReleaseDraft', () => {
     expect(seeded.updatedIssues.map((u) => u.issueNumber)).not.toContain(7);
   });
 
+  it('should NOT reuse an issue whose marker comment is not a valid manifest (#463 review)', async () => {
+    // Hand-labelled issue with an accidental marker-prefixed comment that does not decode to a manifest.
+    const seeded = createFakeForge({
+      openIssues: [{ number: 7, url: 'u', labels: [DRAFT_LABEL] }],
+      comments: [{ id: 1, body: '<!-- releasekit-manifest -->\nnot-a-real-manifest', prNumber: 7 }],
+    });
+    mockForgeFor.mockReturnValue(seeded);
+
+    await runReleaseDraft(baseOptions);
+
+    // The invalid marker comment must not make #7 look reusable — a fresh draft is created.
+    expect(seeded.createdIssues).toHaveLength(1);
+    expect(seeded.updatedIssues.map((u) => u.issueNumber)).not.toContain(7);
+  });
+
   it('should create no issue when there are no releasable changes', async () => {
     mockRunRelease.mockResolvedValue(null);
     const result = await runReleaseDraft(baseOptions);
@@ -139,16 +165,6 @@ describe('runReleaseDraft', () => {
 
 describe('publishFromDraft', () => {
   let publishFromDraft: typeof import('../../src/draft/draft.js').publishFromDraft;
-  let serializeManifest: typeof import('../../src/standing-pr/standing-pr.js').serializeManifest;
-
-  const manifest = {
-    schemaVersion: 2 as const,
-    versionOutput,
-    releaseNotes: {},
-    notesFiles: [],
-    createdAt: '2026-01-01T00:00:00.000Z',
-    baseSha: 'sha-draft',
-  };
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -157,7 +173,6 @@ describe('publishFromDraft', () => {
     mockRunRelease.mockResolvedValue({ versionOutput, notesGenerated: true });
     const mod = await import('../../src/draft/draft.js');
     publishFromDraft = mod.publishFromDraft;
-    ({ serializeManifest } = await import('../../src/standing-pr/standing-pr.js'));
   });
 
   function forgeWithDraft(body: string): FakeForge {
@@ -207,6 +222,21 @@ describe('publishFromDraft', () => {
 
     await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(/differs from the reviewed draft/);
     // Only the preview ran — no real publish.
+    expect(mockRunRelease).toHaveBeenCalledTimes(1);
+    expect(forge.updatedIssues).not.toContainEqual({ issueNumber: 9, changes: { state: 'closed' } });
+  });
+
+  it('should refuse when only tags/commit-message drift even though name@version matches (#463 review)', async () => {
+    // Same publishable name@version as the manifest, but different tags + commit message — the narrow
+    // name@version check would have waved this through; the full-plan fingerprint catches it.
+    mockRunRelease.mockReset();
+    mockRunRelease.mockResolvedValueOnce({
+      versionOutput: { ...versionOutput, tags: ['v9.9.9'], commitMessage: 'chore: a different release' },
+    });
+    const forge = forgeWithDraft('## Release Notes');
+    mockForgeFor.mockReturnValue(forge);
+
+    await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(/differs from the reviewed draft/);
     expect(mockRunRelease).toHaveBeenCalledTimes(1);
     expect(forge.updatedIssues).not.toContainEqual({ issueNumber: 9, changes: { state: 'closed' } });
   });
