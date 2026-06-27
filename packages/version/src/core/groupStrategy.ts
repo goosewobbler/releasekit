@@ -204,7 +204,15 @@ function computeGroup(group: ResolvedGroup, plans: MemberPlan[], config: Config)
   // bump already produced a higher version still pull the group version up via the never-regress
   // guard below.
   let groupVersion: string;
-  if (bumpType === 'prerelease' || stayOnPrereleaseLine) {
+  if (stayOnPrereleaseLine) {
+    // maxBaseline is guaranteed a prerelease here, so incrementing it never regresses a stable
+    // release. A missing identifier still advances the existing prerelease counter
+    // (1.0.0-next.0 -> 1.0.0-next.1), so an explicit prerelease never re-emits the published
+    // baseline when prereleaseIdentifier is unset (#460).
+    groupVersion = config.prereleaseIdentifier
+      ? (semver.inc(maxBaseline, 'prerelease', config.prereleaseIdentifier) ?? maxBaseline)
+      : (semver.inc(maxBaseline, 'prerelease') ?? maxBaseline);
+  } else if (bumpType === 'prerelease') {
     groupVersion = config.prereleaseIdentifier
       ? (semver.inc(maxBaseline, 'prerelease', config.prereleaseIdentifier) ?? maxBaseline)
       : maxBaseline;

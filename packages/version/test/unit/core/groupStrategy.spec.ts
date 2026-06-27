@@ -457,6 +457,35 @@ describe('createGroupStrategy', () => {
         undefined,
       );
     });
+
+    it('should still advance the prerelease when no prereleaseIdentifier is configured (#460)', async () => {
+      // Same manifest-lags-tag scenario, but with no configured prereleaseIdentifier. The group must
+      // still increment the existing prerelease (1.0.0-next.0 -> 1.0.0-next.1) rather than re-emit the
+      // published baseline — never-regress can't help (ownNext sits below maxBaseline).
+      const service = mkPackage('@wdio/flutter-service', '0.0.1');
+      const contract = mkPackage('wdio_flutter', '0.0.1');
+
+      vi.mocked(gitTags.getLatestTagForPackage).mockImplementation(async (name) =>
+        name === '@wdio/flutter-service' ? 'wdio-flutter-service@v1.0.0-next.0' : '',
+      );
+      vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
+        opts.name === '@wdio/flutter-service' ? '0.0.2-next.0' : '',
+      );
+
+      const strategy = createGroupStrategy(
+        baseConfig({
+          isPrerelease: true, // no prereleaseIdentifier configured
+          groups: { flutter: { packages: ['@wdio/flutter-service', 'wdio_flutter'], sync: 'linked' } },
+        }),
+      );
+      await strategy(workspace([service, contract]));
+
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/wdio-flutter-service/package.json',
+        '1.0.0-next.1',
+        undefined,
+      );
+    });
   });
 
   describe('group baseline = max(member baselines)', () => {
