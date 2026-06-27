@@ -3,8 +3,11 @@ import type {
   CommitStatus,
   CreateLabelResult,
   Forge,
+  IssueChanges,
   IssueDetails,
+  IssueRef,
   MergeMethod,
+  NewIssue,
   NewLabel,
   NewPullRequest,
   NewRelease,
@@ -37,6 +40,8 @@ export interface FakeForgeSeed {
   openPullRequests?: OpenPullRequest[];
   pullRequestsForCommit?: Record<string, AssociatedPullRequest[]>;
   issues?: Record<number, IssueDetails>;
+  /** Open issues (not PRs) discoverable via `findOpenIssueByLabel`. */
+  openIssues?: Array<{ number: number; url: string; labels: string[] }>;
   pullRequests?: Record<number, PullRequestDetails>;
   comments?: FakeComment[];
   labelNames?: string[];
@@ -60,6 +65,7 @@ export class FakeForge implements Forge {
   private readonly openPullRequests: OpenPullRequest[];
   private readonly pullRequestsForCommit: Record<string, AssociatedPullRequest[]>;
   private readonly issues: Record<number, IssueDetails>;
+  private openIssues: Array<{ number: number; url: string; labels: string[] }>;
   private readonly pullRequestDetails: Record<number, PullRequestDetails>;
   comments: FakeComment[];
   labelNames: string[];
@@ -75,6 +81,8 @@ export class FakeForge implements Forge {
   readonly createdPullRequests: NewPullRequest[] = [];
   readonly updatedPullRequests: Array<{ prNumber: number; changes: PullRequestChanges }> = [];
   readonly mergedPullRequests: Array<{ prNumber: number; method: MergeMethod }> = [];
+  readonly createdIssues: NewIssue[] = [];
+  readonly updatedIssues: Array<{ issueNumber: number; changes: IssueChanges }> = [];
   readonly createdLabels: NewLabel[] = [];
   readonly setLabelsCalls: Array<{ issueNumber: number; labels: string[] }> = [];
   readonly commitStatuses: CommitStatus[] = [];
@@ -82,7 +90,8 @@ export class FakeForge implements Forge {
   readonly updatedReleases: Array<{ releaseId: number; release: ReleaseChanges }> = [];
 
   private nextCommentId: number;
-  private nextPrNumber = 42;
+  // Issues and PRs share one number space on GitHub — one counter backs both.
+  private nextNumber = 42;
   private nextReleaseId = 1;
 
   constructor(seed: FakeForgeSeed = {}) {
@@ -91,6 +100,7 @@ export class FakeForge implements Forge {
     this.openPullRequests = seed.openPullRequests ?? [];
     this.pullRequestsForCommit = seed.pullRequestsForCommit ?? {};
     this.issues = seed.issues ?? {};
+    this.openIssues = [...(seed.openIssues ?? [])];
     this.pullRequestDetails = seed.pullRequests ?? {};
     this.comments = [...(seed.comments ?? [])];
     this.labelNames = [...(seed.labelNames ?? [])];
@@ -143,7 +153,7 @@ export class FakeForge implements Forge {
 
   async createPullRequest(pr: NewPullRequest): Promise<PullRequestRef> {
     this.createdPullRequests.push(pr);
-    const number = this.nextPrNumber++;
+    const number = this.nextNumber++;
     return { number, url: `https://github.com/fake/fake/pull/${number}` };
   }
 
@@ -153,6 +163,35 @@ export class FakeForge implements Forge {
 
   async mergePullRequest(prNumber: number, method: MergeMethod): Promise<void> {
     this.mergedPullRequests.push({ prNumber, method });
+  }
+
+  async createIssue(issue: NewIssue): Promise<IssueRef> {
+    this.createdIssues.push(issue);
+    const number = this.nextNumber++;
+    const url = `https://github.com/fake/fake/issues/${number}`;
+    const labels = issue.labels ?? [];
+    this.openIssues.push({ number, url, labels });
+    // Reflect the new issue in getIssue, so a draft round-trip (create → read back) works.
+    this.issues[number] = { body: issue.body, title: issue.title, labels, isPullRequest: false };
+    return { number, url };
+  }
+
+  async updateIssue(issueNumber: number, changes: IssueChanges): Promise<void> {
+    this.updatedIssues.push({ issueNumber, changes });
+    const existing = this.issues[issueNumber];
+    if (existing) {
+      if (changes.body !== undefined) existing.body = changes.body;
+      if (changes.title !== undefined) existing.title = changes.title;
+    }
+    // Closing drops it from open-issue discovery.
+    if (changes.state === 'closed') {
+      this.openIssues = this.openIssues.filter((i) => i.number !== issueNumber);
+    }
+  }
+
+  async findOpenIssueByLabel(label: string): Promise<IssueRef | null> {
+    const issue = this.openIssues.find((i) => i.labels.includes(label));
+    return issue ? { number: issue.number, url: issue.url } : null;
   }
 
   async findComment(prNumber: number, marker: string): Promise<FakeComment | null> {

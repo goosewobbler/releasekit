@@ -6,8 +6,11 @@ import type {
   CreateLabelResult,
   Forge,
   ForgeComment,
+  IssueChanges,
   IssueDetails,
+  IssueRef,
   MergeMethod,
+  NewIssue,
   NewLabel,
   NewPullRequest,
   NewRelease,
@@ -138,6 +141,29 @@ export class GitHubForge implements Forge {
 
   async mergePullRequest(prNumber: number, method: MergeMethod): Promise<void> {
     await this.octokit.rest.pulls.merge({ ...this.base, pull_number: prNumber, merge_method: method });
+  }
+
+  async createIssue(issue: NewIssue): Promise<IssueRef> {
+    const { data } = await this.octokit.rest.issues.create({ ...this.base, ...issue });
+    return { number: data.number, url: data.html_url };
+  }
+
+  async updateIssue(issueNumber: number, changes: IssueChanges): Promise<void> {
+    await this.octokit.rest.issues.update({ ...this.base, issue_number: issueNumber, ...changes });
+  }
+
+  async findOpenIssueByLabel(label: string): Promise<IssueRef | null> {
+    // listForRepo returns issues AND PRs; a PR carries a `pull_request` field, so filter those out —
+    // we only want a real issue. `state: 'open'` + `labels` narrows server-side; default sort is
+    // newest-first, so the first match is the most recent.
+    const { data } = await this.octokit.rest.issues.listForRepo({
+      ...this.base,
+      state: 'open',
+      labels: label,
+      per_page: 20,
+    });
+    const issue = data.find((item) => !item.pull_request);
+    return issue ? { number: issue.number, url: issue.html_url } : null;
   }
 
   async getActorPermission(username: string): Promise<RepoPermission> {

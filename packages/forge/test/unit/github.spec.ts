@@ -20,6 +20,9 @@ function makeOctokit() {
     pullsUpdate: vi.fn().mockResolvedValue({}),
     pullsMerge: vi.fn().mockResolvedValue({}),
     issuesGet: vi.fn(),
+    issuesCreate: vi.fn(),
+    issuesUpdate: vi.fn().mockResolvedValue({}),
+    issuesListForRepo: vi.fn(),
     createComment: vi.fn().mockResolvedValue({}),
     updateComment: vi.fn().mockResolvedValue({}),
     createLabel: vi.fn().mockResolvedValue({}),
@@ -49,6 +52,9 @@ function makeOctokit() {
       },
       issues: {
         get: fns.issuesGet,
+        create: fns.issuesCreate,
+        update: fns.issuesUpdate,
+        listForRepo: fns.issuesListForRepo,
         createComment: fns.createComment,
         updateComment: fns.updateComment,
         listComments: { __ref: 'listComments' },
@@ -230,6 +236,64 @@ describe('GitHubForge', () => {
       const { octokit, fns } = makeOctokit();
       await new GitHubForge(octokit, 'o', 'r').mergePullRequest(7, 'squash');
       expect(fns.pullsMerge).toHaveBeenCalledWith({ owner: 'o', repo: 'r', pull_number: 7, merge_method: 'squash' });
+    });
+  });
+
+  describe('issues', () => {
+    it('should map a created issue to {number,url}', async () => {
+      const { octokit, fns } = makeOctokit();
+      fns.issuesCreate.mockResolvedValue({ data: { number: 21, html_url: 'issue-url' } });
+      const ref = await new GitHubForge(octokit, 'o', 'r').createIssue({
+        title: 't',
+        body: 'b',
+        labels: ['release:draft'],
+      });
+      expect(ref).toEqual({ number: 21, url: 'issue-url' });
+      expect(fns.issuesCreate).toHaveBeenCalledWith({
+        owner: 'o',
+        repo: 'r',
+        title: 't',
+        body: 'b',
+        labels: ['release:draft'],
+      });
+    });
+
+    it('should update an issue (body / close via state)', async () => {
+      const { octokit, fns } = makeOctokit();
+      await new GitHubForge(octokit, 'o', 'r').updateIssue(21, { body: 'edited', state: 'closed' });
+      expect(fns.issuesUpdate).toHaveBeenCalledWith({
+        owner: 'o',
+        repo: 'r',
+        issue_number: 21,
+        body: 'edited',
+        state: 'closed',
+      });
+    });
+
+    it('should find the first open issue by label, skipping PRs', async () => {
+      const { octokit, fns } = makeOctokit();
+      // listForRepo returns issues AND PRs; a PR carries a `pull_request` field and must be skipped.
+      fns.issuesListForRepo.mockResolvedValue({
+        data: [
+          { number: 5, html_url: 'pr-url', pull_request: {} },
+          { number: 8, html_url: 'issue-url' },
+        ],
+      });
+      const ref = await new GitHubForge(octokit, 'o', 'r').findOpenIssueByLabel('release:draft');
+      expect(ref).toEqual({ number: 8, url: 'issue-url' });
+      expect(fns.issuesListForRepo).toHaveBeenCalledWith({
+        owner: 'o',
+        repo: 'r',
+        state: 'open',
+        labels: 'release:draft',
+        per_page: 20,
+      });
+    });
+
+    it('should return null when no open issue carries the label', async () => {
+      const { octokit, fns } = makeOctokit();
+      fns.issuesListForRepo.mockResolvedValue({ data: [{ number: 5, html_url: 'pr-url', pull_request: {} }] });
+      expect(await new GitHubForge(octokit, 'o', 'r').findOpenIssueByLabel('release:draft')).toBeNull();
     });
   });
 
