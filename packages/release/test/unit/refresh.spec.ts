@@ -227,4 +227,24 @@ describe('runRefreshAfterRelease', () => {
       expect(mockRunPreview).not.toHaveBeenCalled();
     });
   });
+
+  describe('refreshFeederPreviews (direct)', () => {
+    it('should refresh eligible feeder PRs when called directly', async () => {
+      mockForgeFor.mockReturnValue(fakeForge([pr(10)]));
+      const { refreshFeederPreviews } = await import('../../src/preview/refresh.js');
+
+      await refreshFeederPreviews({ projectDir: '/p' });
+
+      expect(mockRunPreview).toHaveBeenCalledWith(expect.objectContaining({ pr: '10' }));
+    });
+
+    it('should never throw, so the orchestrator can call it without a guard', async () => {
+      mockLoadCIConfig.mockImplementation(() => {
+        throw new Error('config parse error');
+      });
+      const { refreshFeederPreviews } = await import('../../src/preview/refresh.js');
+
+      await expect(refreshFeederPreviews({ projectDir: '/p' })).resolves.toBeUndefined();
+    });
+  });
 });
