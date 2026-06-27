@@ -57,6 +57,8 @@ Run the full release pipeline: version, changelog, publish, git, and GitHub Rele
 | `--scope <name>` | string | - | Resolve scope name to target packages from `ci.scopeLabels` config |
 | `--branch <name>` | string | current | Override the git branch used for push |
 | `--npm-auth <method>` | `auto` \| `oidc` \| `token` | `auto` | NPM auth method |
+| `--draft` | boolean | `false` | Manual mode: compute the release and open a tracking issue with editable notes for review, instead of publishing |
+| `--from-draft <number>` | number | - | Manual mode: publish from a reviewed draft tracking issue (applies its edited notes), then close it |
 | `--skip-notes` | boolean | `false` | Skip changelog generation |
 | `--skip-publish` | boolean | `false` | Skip registry publishing and git operations |
 | `--skip-git` | boolean | `false` | Skip git commit/tag/push |
@@ -67,11 +69,28 @@ Run the full release pipeline: version, changelog, publish, git, and GitHub Rele
 | `-q, --quiet` | boolean | `false` | Suppress non-error output |
 | `--project-dir <path>` | string | `cwd` | Project directory |
 
-`--stable` and `--prerelease` are mutually exclusive.
+`--stable` and `--prerelease` are mutually exclusive, as are `--draft` and `--from-draft`.
 
 ```bash
 releasekit release --dry-run
 ```
+
+### Draft-then-dispatch (manual mode)
+
+Manual mode has no standing PR, so there is no PR body to review release notes in before they ship. `--draft` / `--from-draft` add a two-phase review surface:
+
+```bash
+# Phase 1 — compute the release and open a "Release draft" tracking issue (labelled
+# `release:draft`) holding the editable per-package notes. Nothing is published.
+releasekit release --draft
+
+# A human edits the notes in the issue body, keeping the <!-- releasekit-notes... --> markers.
+
+# Phase 2 — publish exactly that release with the edited notes, then close the issue.
+releasekit release --from-draft 123
+```
+
+Re-running `--draft` updates the same open draft issue in place (it never stacks). The draft is pinned to the commit it was computed at: if `main` moves before you dispatch, `--from-draft` refuses and asks you to re-run `--draft`. Both phases need a `GITHUB_TOKEN` with `issues: write`.
 
 ---
 

@@ -9,6 +9,7 @@ import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from './gi
 import { fetchPRLabels, findMergedPRsForCommit, forgeFor } from './github.js';
 import { DEFAULT_LABELS, detectLabelConflicts } from './label-utils.js';
 import { refreshFeederPreviews } from './preview/refresh.js';
+import { mergeNotesRegions } from './standing-pr/notes-region.js';
 import { runNotesStep, runPublishStep, runVersionStep } from './steps.js';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
 import { publishableUpdates } from './version-display.js';
@@ -310,6 +311,13 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
     notesFiles = notesResult.files;
     notesGenerated = true;
     success('Release notes generated');
+  }
+
+  // Human-edited notes win per package (manual-mode draft dispatch, #319). Merged here so the
+  // edits flow into both the publish step's release-body map and the returned releaseNotes.
+  if (options.editedNotes && Object.keys(options.editedNotes).length > 0) {
+    releaseNotes = mergeNotesRegions(releaseNotes ?? {}, options.editedNotes);
+    info(`Using human-edited release notes for ${Object.keys(options.editedNotes).length} package(s) from the draft.`);
   }
 
   // --- Step 3: Publish ---
