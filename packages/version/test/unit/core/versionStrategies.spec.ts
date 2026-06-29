@@ -721,7 +721,7 @@ describe('Version Strategies', () => {
 
         expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
           expect.objectContaining({
-            entries: [{ type: 'changed', description: 'Update version to 1.1.0', synthetic: true }],
+            entries: [{ type: 'changed', description: 'Update version to 1.1.0' }],
           }),
         );
       });

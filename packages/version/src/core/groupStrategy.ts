@@ -258,6 +258,7 @@ async function extractEntries(
   let revisionRange = 'HEAD';
   let entries: ChangelogEntry[] = [];
   let previousVersion: string | null = null;
+  let extractionFailed = false;
   try {
     const baseline = await resolver.resolve({
       pkgDir: input.pkgDir,
@@ -276,9 +277,17 @@ async function extractEntries(
     // A strictReachable violation must abort the run, not degrade to a minimal entry (#372).
     if (error instanceof StrictReachableError) throw error;
     log(`Error extracting changelog entries: ${error instanceof Error ? error.message : String(error)}`, 'warning');
+    extractionFailed = true;
   }
   if (entries.length === 0) {
-    entries = [{ type: 'changed', description: `Update version to ${input.nextVersion}`, synthetic: true }];
+    // A clean empty extraction is a genuine lockstep carry — a group member bumped to stay in sync
+    // with no commits of its own. Flag it synthetic so the preview collapses it into "Also bumped"
+    // rather than a full "Update version to X" block (#468). An extraction *failure* is not the same
+    // as "no changes": leave it unflagged so the bump still renders a visible block instead of
+    // vanishing as a no-change carry (#469).
+    const fallback: ChangelogEntry = { type: 'changed', description: `Update version to ${input.nextVersion}` };
+    if (!extractionFailed) fallback.synthetic = true;
+    entries = [fallback];
   }
   return { entries, revisionRange, previousVersion };
 }

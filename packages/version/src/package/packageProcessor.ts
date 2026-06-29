@@ -285,7 +285,6 @@ export class PackageProcessor {
             {
               type: 'changed',
               description: `Update version to ${nextVersion}`,
-              synthetic: true,
             },
           ];
         }
@@ -298,7 +297,6 @@ export class PackageProcessor {
           {
             type: 'changed',
             description: `Update version to ${nextVersion}`,
-            synthetic: true,
           },
         ];
       }

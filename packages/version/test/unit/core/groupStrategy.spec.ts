@@ -655,4 +655,65 @@ describe('createGroupStrategy', () => {
       expect(logging.log).not.toHaveBeenCalledWith(expect.stringContaining('will release without'), 'warning');
     });
   });
+
+  describe('synthetic carry entries (#469)', () => {
+    it('should flag a lockstep carry synthetic while the changed member keeps real entries', async () => {
+      const core = mkPackage('@wdio/native-core', '2.3.0'); // the driver — has a commit
+      const utils = mkPackage('@wdio/native-utils', '2.3.0'); // a carry — no commits of its own
+
+      // The whole fixed group bumps because core changed; utils is only carried along.
+      vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
+        opts.name === '@wdio/native-core' ? '2.4.0' : '',
+      );
+      vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockImplementation(
+        async (pkgDir: string) =>
+          pkgDir.endsWith('native-core') ? [{ type: 'added', description: 'New core feature' }] : [],
+      );
+
+      const strategy = createGroupStrategy(
+        baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
+      );
+      await strategy(workspace([core, utils]));
+
+      // The changed member keeps its real (unflagged) entry.
+      expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
+        expect.objectContaining({
+          packageName: '@wdio/native-core',
+          entries: [{ type: 'added', description: 'New core feature' }],
+        }),
+      );
+      // The carry gets a synthetic placeholder so the preview can collapse it into "Also bumped".
+      expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
+        expect.objectContaining({
+          packageName: '@wdio/native-utils',
+          entries: [expect.objectContaining({ type: 'changed', synthetic: true })],
+        }),
+      );
+    });
+
+    it('should leave the fallback unflagged when extraction fails (an error is not a no-change carry)', async () => {
+      const core = mkPackage('@wdio/native-core', '2.3.0');
+
+      vi.mocked(calculator.calculateVersion).mockResolvedValue('2.4.0');
+      // Extraction throws — we could not read the changes, which is *not* the same as "no changes".
+      vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockRejectedValue(
+        new Error('git failed'),
+      );
+
+      const strategy = createGroupStrategy(
+        baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
+      );
+      await strategy(workspace([core]));
+
+      const call = vi
+        .mocked(jsonOutput.addChangelogData)
+        .mock.calls.find(([arg]) => arg.packageName === '@wdio/native-core');
+      expect(call?.[0].entries).toHaveLength(1);
+      // Plain version-bump entry with no synthetic key — the bump stays visible despite the warning.
+      expect(call?.[0].entries[0]).toEqual({
+        type: 'changed',
+        description: expect.stringContaining('Update version to'),
+      });
+    });
+  });
 });
