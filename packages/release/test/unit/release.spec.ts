@@ -10,6 +10,12 @@ const mockLoadCIConfig = vi.fn();
 const mockForgeFor = vi.fn();
 const mockFindMergedPRsForCommit = vi.fn();
 const mockFetchPRLabels = vi.fn();
+const mockRefreshFeederPreviews = vi.fn();
+
+vi.mock('../../src/preview/refresh.js', () => ({
+  refreshFeederPreviews: (...args: unknown[]) => mockRefreshFeederPreviews(...args),
+  runRefreshAfterRelease: vi.fn(),
+}));
 
 vi.mock('@releasekit/config', () => ({
   loadConfig: (...args: unknown[]) => ({ ...mockLoadReleaseKitConfig(...args), ci: mockLoadCIConfig() }),
@@ -973,6 +979,23 @@ describe('runRelease', () => {
           'scope:electron': '@wdio/electron-*',
         }),
       ).toThrow('Scope "unknown" not found in ci.scopeLabels. Available: scope:electron');
+    });
+  });
+
+  describe('feeder-preview refresh (#459)', () => {
+    it('should refresh feeder previews in-process after a successful release', async () => {
+      await runRelease(defaultOptions);
+      expect(mockRefreshFeederPreviews).toHaveBeenCalledWith(expect.objectContaining({ projectDir: '/test/project' }));
+    });
+
+    it('should not refresh feeder previews on a dry run', async () => {
+      await runRelease({ ...defaultOptions, dryRun: true });
+      expect(mockRefreshFeederPreviews).not.toHaveBeenCalled();
+    });
+
+    it('should not refresh feeder previews when publish is skipped', async () => {
+      await runRelease({ ...defaultOptions, skipPublish: true });
+      expect(mockRefreshFeederPreviews).not.toHaveBeenCalled();
     });
   });
 });

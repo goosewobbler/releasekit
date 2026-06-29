@@ -385,7 +385,7 @@ Set to `false` to disable.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `enabled` | boolean | `true` | Whether PR preview comments are posted. |
-| `refreshAfterRelease` | boolean | `false` | After a release completes, replay the preview comment on still-open feeder PRs so their "what would release" estimate is not left stale against the moved baseline. Cosmetic and best-effort — a failure here never fails the release. Requires the refresh-after-release step in your release workflow. |
+| `refreshAfterRelease` | boolean | `false` | After a release completes, replay the preview comment on still-open feeder PRs so their "what would release" estimate is not left stale against the moved baseline. Cosmetic and best-effort — a failure here never fails the release. Driven automatically in-process after a successful release (both the direct and standing-PR publish paths); the standalone `refresh-after-release` command also performs it for setups that run it as a separate step. |
 
 
 ### `ci.labels`

@@ -8,6 +8,7 @@ import { postFailureReport, resolveFailureReportIfPresent } from './failure-repo
 import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from './git.js';
 import { fetchPRLabels, findMergedPRsForCommit, forgeFor } from './github.js';
 import { DEFAULT_LABELS, detectLabelConflicts } from './label-utils.js';
+import { refreshFeederPreviews } from './preview/refresh.js';
 import { runNotesStep, runPublishStep, runVersionStep } from './steps.js';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
 import { publishableUpdates } from './version-display.js';
@@ -342,6 +343,11 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
           `Failed to resolve prior publish-failure report: ${resolveErr instanceof Error ? resolveErr.message : String(resolveErr)}`,
         );
       }
+
+      // The release moved `main`: refresh still-open feeder PRs' "what would release" preview in
+      // process (opt-in via ci.prPreview.refreshAfterRelease) so they aren't left stale against the
+      // new baseline. Best-effort and never throws — must not fail an already-successful release.
+      await refreshFeederPreviews({ config: options.config, projectDir: options.projectDir });
     }
   }
 

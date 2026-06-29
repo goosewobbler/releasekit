@@ -15,21 +15,22 @@ export interface RefreshAfterReleaseOptions {
 const MAX_FEEDER_PR_REFRESH = 50;
 
 /**
- * Post-release cleanup of state that goes stale when a release moves `main`. Run as the final step of
- * a release/publish job. Two halves with deliberately different failure semantics:
+ * Post-release cleanup of state that goes stale when a release moves `main`. Two halves with
+ * deliberately different failure semantics:
  *
  * 1. **Standing-PR reconcile (release-critical).** A direct/manual/immediate release that bypasses
  *    the standing PR leaves its manifest computed against the old baseline — and the `chore: release `
  *    commit suppresses the normal push-triggered update. Reusing the existing `--reconcile` path
  *    re-syncs it. A failure here propagates: a stale standing PR can hold already-published versions.
- * 2. **Feeder-PR preview refresh (cosmetic, opt-in).** Other open PRs' "what would release" estimate
- *    is frozen at the pre-release baseline until they're pushed again. Replaying the (idempotent)
- *    preview brings them current. Best-effort — any failure only warns, never fails the release.
+ *    This half pushes the release branch, so it needs a workflow-triggering credential — hence it
+ *    lives in this CLI step rather than being driven from the orchestrator.
+ * 2. **Feeder-PR preview refresh (cosmetic, opt-in).** Delegated to {@link refreshFeederPreviews},
+ *    which the release orchestrator also calls in-process after a successful publish (so a consumer
+ *    no longer needs this CLI step purely for the cosmetic half).
  */
 export async function runRefreshAfterRelease(options: RefreshAfterReleaseOptions): Promise<void> {
   const ciConfig = loadCIConfig({ cwd: options.projectDir, configPath: options.config });
   const strategy = ciConfig?.releaseStrategy ?? 'direct';
-  const branch = ciConfig?.standingPr?.branch ?? 'release/next';
 
   // — Half 1: reconcile the standing PR (RELEASE-CRITICAL) —
   // Only standing-pr mode has a standing PR. No try/catch: a failure must fail the job rather than
@@ -47,18 +48,32 @@ export async function runRefreshAfterRelease(options: RefreshAfterReleaseOptions
   }
 
   // — Half 2: refresh feeder-PR previews (COSMETIC, opt-in, never fatal) —
-  const prPreview = ciConfig?.prPreview;
-  if (!prPreview?.enabled || !prPreview.refreshAfterRelease) {
-    return;
-  }
+  await refreshFeederPreviews(options);
+}
 
-  const context = getGitHubContext();
-  if (!context?.token) {
-    warn('Cannot refresh feeder-PR previews: no GitHub token in the environment.');
-    return;
-  }
-
+/**
+ * Replay the (idempotent) "what would release" preview comment on still-open feeder PRs after a
+ * release moves `main`, so their estimate isn't frozen at the pre-release baseline. Cosmetic and
+ * opt-in (`ci.prPreview.refreshAfterRelease`); a pure forge-API operation (no git push) needing only
+ * a `pull-requests: write` token. Best-effort — it **never throws**, so the release orchestrator can
+ * drive it in-process after any successful publish (the standing-PR publish path as well as the
+ * direct/scoped path) without risking the release.
+ */
+export async function refreshFeederPreviews(options: RefreshAfterReleaseOptions): Promise<void> {
   try {
+    const ciConfig = loadCIConfig({ cwd: options.projectDir, configPath: options.config });
+    const prPreview = ciConfig?.prPreview;
+    if (!prPreview?.enabled || !prPreview.refreshAfterRelease) {
+      return;
+    }
+    const branch = ciConfig?.standingPr?.branch ?? 'release/next';
+
+    const context = getGitHubContext();
+    if (!context?.token) {
+      warn('Cannot refresh feeder-PR previews: no GitHub token in the environment.');
+      return;
+    }
+
     const forge = forgeFor(context);
     const repo = `${context.owner}/${context.repo}`;
     const open = await forge.listOpenPullRequests();
@@ -108,7 +123,7 @@ export async function runRefreshAfterRelease(options: RefreshAfterReleaseOptions
       }
     }
   } catch (err) {
-    // The entire feeder refresh is best-effort — enumeration/forge errors only warn.
+    // Best-effort — config/enumeration/forge errors only warn, never fail the release.
     warn(`Feeder-PR preview refresh failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 }

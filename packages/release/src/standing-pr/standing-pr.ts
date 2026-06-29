@@ -13,6 +13,7 @@ import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from '../g
 import { forgeFor } from '../github.js';
 import { deriveLabelDefinitions, syncLabels } from '../label-definitions.js';
 import { DEFAULT_LABELS } from '../label-utils.js';
+import { refreshFeederPreviews } from '../preview/refresh.js';
 import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
@@ -1457,6 +1458,10 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   // Publish succeeded — clear any prior failure report on this PR (resolves it and the supersede
   // warning that would otherwise show on the next standing PR).
   await resolveFailureReportIfPresent(forge, prNumber, manifest.versionOutput);
+
+  // The standing-PR publish moved `main` just like a direct release, so still-open feeder PRs'
+  // previews go stale here too. Refresh them in-process (opt-in, best-effort, never throws).
+  await refreshFeederPreviews({ config: options.config, projectDir: cwd });
 
   // Cleanup: delete release branch if configured
   if (deleteBranchOnMerge) {

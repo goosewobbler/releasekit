@@ -98,6 +98,11 @@ vi.mock('../../src/github.js', () => ({
   forgeFor: vi.fn(),
 }));
 
+vi.mock('../../src/preview/refresh.js', () => ({
+  refreshFeederPreviews: vi.fn(),
+  runRefreshAfterRelease: vi.fn(),
+}));
+
 function createMockVersionOutput(updates: { packageName: string; newVersion: string }[] = []) {
   return {
     dryRun: false,
@@ -1788,6 +1793,9 @@ describe('runStandingPRPublish', () => {
       { '@scope/core': '- regenerated at publish time' },
       expect.arrayContaining(['RELEASE_NOTES.md', ...baseManifest.notesFiles]),
     );
+    // The publish moved `main`, so feeder-PR previews are refreshed in-process (#459).
+    const { refreshFeederPreviews } = await import('../../src/preview/refresh.js');
+    expect(vi.mocked(refreshFeederPreviews)).toHaveBeenCalledWith(expect.objectContaining({ projectDir: '/test' }));
   });
 
   it('should refuse to publish when override labels diverge from the manifest (#337)', async () => {
