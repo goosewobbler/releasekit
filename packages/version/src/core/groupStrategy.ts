@@ -253,12 +253,13 @@ async function extractEntries(
     graduationName: string;
     baselineTagPrefix: string | undefined;
     formattedPrefix: string;
+    /** True when this member earned no releasable change of its own — a fixed-group ride-along. */
+    isCarry: boolean;
   },
 ): Promise<{ entries: ChangelogEntry[]; revisionRange: string; previousVersion: string | null }> {
   let revisionRange = 'HEAD';
   let entries: ChangelogEntry[] = [];
   let previousVersion: string | null = null;
-  let extractionFailed = false;
   try {
     const baseline = await resolver.resolve({
       pkgDir: input.pkgDir,
@@ -277,16 +278,17 @@ async function extractEntries(
     // A strictReachable violation must abort the run, not degrade to a minimal entry (#372).
     if (error instanceof StrictReachableError) throw error;
     log(`Error extracting changelog entries: ${error instanceof Error ? error.message : String(error)}`, 'warning');
-    extractionFailed = true;
   }
   if (entries.length === 0) {
-    // A clean empty extraction is a genuine lockstep carry — a group member bumped to stay in sync
-    // with no commits of its own. Flag it synthetic so the preview collapses it into "Also bumped"
-    // rather than a full "Update version to X" block (#468). An extraction *failure* is not the same
-    // as "no changes": leave it unflagged so the bump still renders a visible block instead of
-    // vanishing as a no-change carry (#469).
+    // No changelog entries to show. Flag the placeholder synthetic only for a genuine lockstep
+    // carry — a member that earned no releasable change of its own and is written purely to stay at
+    // the fixed-group version (`isCarry`). The preview collapses those into "Also bumped" rather
+    // than a full "Update version to X" block (#468). A member that DID earn a change yet still came
+    // back empty means extraction couldn't read its commits — extractChangelogEntriesFromCommits
+    // swallows git failures and returns [] (#469) — so leave it unflagged and let the bump render a
+    // visible block instead of vanishing as a no-change carry.
     const fallback: ChangelogEntry = { type: 'changed', description: `Update version to ${input.nextVersion}` };
-    if (!extractionFailed) fallback.synthetic = true;
+    if (input.isCarry) fallback.synthetic = true;
     entries = [fallback];
   }
   return { entries, revisionRange, previousVersion };
@@ -376,6 +378,7 @@ async function releaseGroup(
       graduationName: name,
       baselineTagPrefix,
       formattedPrefix,
+      isCarry: !plan.changed,
     });
     addChangelogData({
       packageName: name,
@@ -520,6 +523,9 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
           graduationName: name,
           baselineTagPrefix,
           formattedPrefix,
+          // Ungrouped packages reach here only when changed (see the `!plan.changed` guard above),
+          // so they are never lockstep carries.
+          isCarry: false,
         });
         addChangelogData({
           packageName: name,

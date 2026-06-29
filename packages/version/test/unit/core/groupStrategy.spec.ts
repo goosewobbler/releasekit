@@ -691,14 +691,15 @@ describe('createGroupStrategy', () => {
       );
     });
 
-    it('should leave the fallback unflagged when extraction fails (an error is not a no-change carry)', async () => {
+    it('should leave a changed member unflagged when its extraction comes back empty (swallowed git failure, #469)', async () => {
       const core = mkPackage('@wdio/native-core', '2.3.0');
 
+      // core earned a real bump, so it is NOT a carry...
       vi.mocked(calculator.calculateVersion).mockResolvedValue('2.4.0');
-      // Extraction throws — we could not read the changes, which is *not* the same as "no changes".
-      vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockRejectedValue(
-        new Error('git failed'),
-      );
+      // ...yet extraction returns [] — extractChangelogEntriesFromCommits swallows git failures and
+      // returns an empty list rather than throwing, so a changed member can still come back empty.
+      // That must not be mistaken for a no-change carry.
+      vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockResolvedValue([]);
 
       const strategy = createGroupStrategy(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
@@ -709,7 +710,7 @@ describe('createGroupStrategy', () => {
         .mocked(jsonOutput.addChangelogData)
         .mock.calls.find(([arg]) => arg.packageName === '@wdio/native-core');
       expect(call?.[0].entries).toHaveLength(1);
-      // Plain version-bump entry with no synthetic key — the bump stays visible despite the warning.
+      // Plain version-bump entry with no synthetic key — the bump stays visible, not collapsed.
       expect(call?.[0].entries[0]).toEqual({
         type: 'changed',
         description: expect.stringContaining('Update version to'),
