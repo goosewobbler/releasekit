@@ -97,7 +97,12 @@ export const VersionConfigSchema = z.object({
       'How the "Project-wide changes" block is bounded in package-specific-tag mode. "union" (default): repo-level commits accrue from the union of the releasing packages\' ranges, floored by the OLDEST unreleased baseline — so a genuinely-global commit recurs in every release until the oldest-baselined package is released past it. "sinceLastRelease": floor the block by the single nearest tag reachable across the repo, so global commits already shown by the most recent release don\'t recur (recommended for per-package-tag monorepos). No effect in sync mode, where one shared tag already consumes repo-level commits on each release.',
     ),
   mainPackage: z.string().optional().describe('Package to use for version determination'),
-  skip: z.array(z.string()).optional().describe('Packages to exclude from versioning'),
+  skip: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'Packages to exclude from versioning (glob patterns or exact names). Private packages ("private": true) are skipped automatically — see includePrivate — so they do not need to be listed here.',
+    ),
   includePrivate: z
     .boolean()
     .default(false)

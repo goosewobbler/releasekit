@@ -159,7 +159,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Packages to exclude from versioning"
+          "description": "Packages to exclude from versioning (glob patterns or exact names). Private packages (\"private\": true) are skipped automatically — see includePrivate — so they do not need to be listed here."
         },
         "includePrivate": {
           "type": "boolean",
