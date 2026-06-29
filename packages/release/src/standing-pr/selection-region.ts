@@ -159,6 +159,13 @@ export function cascadeDeselection(hierarchy: SelectionHierarchy, deselected: Re
   const deselectedPrimaries = new Set(
     hierarchy.units.filter((u) => deselected.has(u.primaryName)).map((u) => u.primaryName),
   );
+  // A directly held-back *child* only reaches here from a legacy flat body the first run after
+  // `primaryPackages` is enabled (streamlined children carry no marker, so steady state never has
+  // one). Escalate it to holding its whole unit: a package a maintainer held back must never silently
+  // ship, and holding the unit keeps the render coherent (the primary shows unticked) (#471).
+  for (const [child, owners] of hierarchy.childOwners) {
+    if (deselected.has(child)) for (const owner of owners) deselectedPrimaries.add(owner);
+  }
   for (const p of deselectedPrimaries) effective.add(p);
   for (const orphan of hierarchy.orphans) if (deselected.has(orphan.packageName)) effective.add(orphan.packageName);
   for (const [child, owners] of hierarchy.childOwners) {

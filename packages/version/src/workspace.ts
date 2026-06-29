@@ -10,6 +10,8 @@ import { VersionEngine } from './core/versionEngine.js';
 export async function getWorkspacePackageNames(options: { cwd?: string; configPath?: string } = {}): Promise<string[]> {
   const config = loadConfig({ cwd: options.cwd, configPath: options.configPath });
   const engine = new VersionEngine(config, { dryRun: true });
-  const { packages } = await engine.getWorkspacePackages();
+  // Discover packages from the SAME root the config was loaded from — otherwise discovery would fall
+  // back to process.cwd() and could match primaries against a different workspace than configured.
+  const { packages } = await engine.getWorkspacePackages(options.cwd);
   return packages.map((p) => p.packageJson.name).filter((name): name is string => Boolean(name));
 }

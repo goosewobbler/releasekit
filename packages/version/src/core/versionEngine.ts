@@ -381,14 +381,12 @@ export class VersionEngine {
   /**
    * Get workspace packages information - with caching for performance
    */
-  public async getWorkspacePackages(): Promise<PackagesWithRoot> {
+  public async getWorkspacePackages(workspaceRoot: string = cwd()): Promise<PackagesWithRoot> {
     try {
       // Return cached result if available for better performance
       if (this.workspaceCache) {
         return this.workspaceCache;
       }
-
-      const workspaceRoot = cwd();
 
       // 1. Discover packages with package.json (existing behavior)
       const npmPackages = getPackagesSync(workspaceRoot) as PackagesWithRoot;

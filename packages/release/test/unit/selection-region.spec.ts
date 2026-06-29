@@ -343,6 +343,17 @@ describe('selection-region', () => {
         const h = computeHierarchy(updates, cfg({ allPackageNames: [...tauriAll, '@scope/loner'] }));
         expect([...cascadeDeselection(h, new Set(['@scope/loner']))]).toEqual(['@scope/loner']);
       });
+
+      it('should escalate a legacy directly-held child to holding its whole unit (transition fail-safe)', () => {
+        // First run after primaryPackages is enabled, a child unticked in the old flat body arrives
+        // here directly — it must hold its whole unit so the held-back package never silently ships.
+        const h = computeHierarchy(tauriUpdates, cfg());
+        expect([...cascadeDeselection(h, new Set(['@wdio/tauri-plugin']))].sort()).toEqual([
+          '@wdio/tauri-plugin',
+          '@wdio/tauri-service',
+          'tauri-plugin-wdio-webdriver',
+        ]);
+      });
     });
 
     describe('renderSelectionRegion (hierarchical)', () => {
