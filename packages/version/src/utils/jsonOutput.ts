@@ -5,7 +5,13 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import type { VersionAction, VersionChangelogEntry, VersionOutput, VersionPackageChangelog } from '@releasekit/core';
+import {
+  deriveReleaseChannel,
+  type VersionAction,
+  type VersionChangelogEntry,
+  type VersionOutput,
+  type VersionPackageChangelog,
+} from '@releasekit/core';
 
 /** @deprecated Use {@link VersionOutput} from `@releasekit/core` instead. */
 export type JsonOutputData = VersionOutput;
@@ -105,7 +111,15 @@ export function setVersioningStrategy(strategy: 'sync' | 'single' | 'async' | 'g
 export function addPackageUpdate(packageName: string, newVersion: string, filePath: string, isRoot?: boolean): void {
   if (!_jsonOutputMode) return;
 
-  const update = { packageName, newVersion, filePath, ...(isRoot ? { isRoot } : {}) };
+  // Channel is derived per-package from the resolved version (#485) so every consumer (preview,
+  // standing PR, #486/#487) reads a single authoritative value rather than re-deriving it.
+  const update = {
+    packageName,
+    newVersion,
+    filePath,
+    channel: deriveReleaseChannel(newVersion),
+    ...(isRoot ? { isRoot } : {}),
+  };
   // Resolve to an absolute path before keying so a mix of absolute and relative filePaths for the
   // same directory still dedupes (callers don't all pass the same path form for every manifest write).
   const dir = path.dirname(path.resolve(filePath));

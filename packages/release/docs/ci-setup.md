@@ -97,9 +97,9 @@ In CI, add `--check`: it exits non-zero on a missing label, catching the silent 
 | `bump:patch` | `1.0.0` | `1.0.1` |
 | `bump:minor` | `1.0.0` | `1.1.0` |
 | `bump:major` | `1.0.0` | `2.0.0` |
-| `bump:patch` | `1.0.0-next.6` | `1.0.1` — graduates prerelease to stable patch |
-| `bump:minor` | `1.0.0-next.6` | `1.1.0` — graduates prerelease to stable minor |
-| `bump:major` | `1.0.0-next.6` | `2.0.0` — graduates prerelease to stable major |
+| `bump:patch` | `1.0.0-next.6` | `1.0.0-next.7` — advances the prerelease (no graduation) |
+| `bump:minor` | `1.0.0-next.6` | `1.1.0-next.0` — escalates the prerelease base (no graduation) |
+| `bump:major` | `1.0.0-next.6` | `2.0.0-next.0` — escalates the prerelease base (no graduation) |
 | `channel:prerelease` + `bump:patch` | `1.0.0` | `1.0.1-next.0` |
 | `channel:prerelease` + `bump:minor` | `1.0.0` | `1.1.0-next.0` |
 | `channel:prerelease` + `bump:major` | `1.0.0` | `2.0.0-next.0` |
@@ -111,6 +111,14 @@ In CI, add `--check`: it exits non-zero on a missing label, catching the silent 
 | `release:graduate` alone | `1.0.0` | No release — already at stable version |
 | `release:graduate` + any `bump:*` | `1.0.0-next.6` | `1.0.0` — bump label is ignored during stable promotion |
 | `release:graduate` + `bump:minor` | `1.0.0` | `1.1.0` — bump applies to already-stable packages |
+
+> **Each package's channel is derived from its *current* version, and the default advances along it
+> — a `-next` package never graduates to stable without an explicit `release:graduate`.** A standing
+> PR with permanently-mixed maturity (mature stable packages alongside incubating `-next` ones) is
+> normal: each package walks its own line, so the same merge can ship `10.2.0` (stable) and
+> `1.1.0-next.0` (prerelease) at once. A `bump:*` label sets the *magnitude* but not the channel — on
+> a prerelease it escalates within the line (above), it does not promote. Use `release:graduate` to
+> promote, `channel:prerelease` to drag a stable package onto a prerelease line.
 
 > **`channel:prerelease` + `bump:*` escalates — it starts a *fresh* prerelease line at the chosen
 > magnitude, even when the package is already on a prerelease.** So `bump:major` + `channel:prerelease`

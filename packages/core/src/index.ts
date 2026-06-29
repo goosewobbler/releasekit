@@ -41,11 +41,13 @@ export {
   SELECTION_MARKER_END,
   wrapSelectionRegion,
 } from './selectionRegion.js';
-export type {
-  VersionAction,
-  VersionChangelogEntry,
-  VersionOutput,
-  VersionPackageChangelog,
-  VersionPackageUpdate,
+export {
+  deriveReleaseChannel,
+  type ReleaseChannel,
+  type VersionAction,
+  type VersionChangelogEntry,
+  type VersionOutput,
+  type VersionPackageChangelog,
+  type VersionPackageUpdate,
 } from './types.js';
 export { sanitizePackageName } from './utils.js';
