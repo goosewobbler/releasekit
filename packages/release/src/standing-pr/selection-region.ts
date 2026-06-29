@@ -302,7 +302,12 @@ function renderFlatSection(
 }
 
 /** Flat render split into channel sections (#487): stable then prereleases, each a self-contained
- *  flat list. A single-channel PR drops the headings and renders exactly as before. */
+ *  flat list. A single-channel PR drops the headings and renders exactly as before.
+ *
+ *  Caveat: the `↳ prerequisite` nesting in `renderFlatSection` only holds when a target and its
+ *  prerequisite share a channel. A cross-channel prerequisite (e.g. a `-next` dependency of a stable
+ *  target) lands in its own channel section and renders as a flat row without the `↳` label —
+ *  channel grouping wins over prerequisite nesting in that rare mixed-maturity case. */
 function renderFlat(
   lines: string[],
   updates: Update[],
