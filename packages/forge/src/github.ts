@@ -6,8 +6,11 @@ import type {
   CreateLabelResult,
   Forge,
   ForgeComment,
+  IssueChanges,
   IssueDetails,
+  IssueRef,
   MergeMethod,
+  NewIssue,
   NewLabel,
   NewPullRequest,
   NewRelease,
@@ -138,6 +141,34 @@ export class GitHubForge implements Forge {
 
   async mergePullRequest(prNumber: number, method: MergeMethod): Promise<void> {
     await this.octokit.rest.pulls.merge({ ...this.base, pull_number: prNumber, merge_method: method });
+  }
+
+  async createIssue(issue: NewIssue): Promise<IssueRef> {
+    const { data } = await this.octokit.rest.issues.create({ ...this.base, ...issue });
+    return { number: data.number, url: data.html_url };
+  }
+
+  async updateIssue(issueNumber: number, changes: IssueChanges): Promise<void> {
+    await this.octokit.rest.issues.update({ ...this.base, issue_number: issueNumber, ...changes });
+  }
+
+  async findOpenIssueByLabel(label: string): Promise<IssueRef | null> {
+    // listForRepo returns issues AND PRs; a PR carries a `pull_request` field, so skip those — we
+    // only want a real issue. Paginate rather than read one page, so a page full of label-carrying
+    // PRs (or an older reusable issue) can't hide the issue and leave the caller stacking a duplicate
+    // (#462 review). Default sort is newest-first, so the first real issue we reach is the most recent.
+    const iterator = this.octokit.paginate.iterator(this.octokit.rest.issues.listForRepo, {
+      ...this.base,
+      state: 'open',
+      labels: label,
+      per_page: 100,
+    });
+    for await (const response of iterator) {
+      for (const issue of response.data) {
+        if (!issue.pull_request) return { number: issue.number, url: issue.html_url };
+      }
+    }
+    return null;
   }
 
   async getActorPermission(username: string): Promise<RepoPermission> {

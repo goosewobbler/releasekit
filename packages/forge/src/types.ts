@@ -47,6 +47,26 @@ export interface IssueDetails {
   isPullRequest: boolean;
 }
 
+/** A reference to an issue after creation/lookup. */
+export interface IssueRef {
+  number: number;
+  url: string;
+}
+
+export type IssueState = 'open' | 'closed';
+
+export interface NewIssue {
+  title: string;
+  body: string;
+  labels?: string[];
+}
+
+export interface IssueChanges {
+  title?: string;
+  body?: string;
+  state?: IssueState;
+}
+
 export interface PullRequestDetails {
   body: string;
   labels: string[];
@@ -141,6 +161,14 @@ export interface Forge {
   createPullRequest(pr: NewPullRequest): Promise<PullRequestRef>;
   updatePullRequest(prNumber: number, changes: PullRequestChanges): Promise<void>;
   mergePullRequest(prNumber: number, method: MergeMethod): Promise<void>;
+
+  // — Issues —
+  createIssue(issue: NewIssue): Promise<IssueRef>;
+  /** Update an issue's title/body, or close it (`state: 'closed'`). */
+  updateIssue(issueNumber: number, changes: IssueChanges): Promise<void>;
+  /** The most-recent open issue (not a PR) carrying `label`, or null — for idempotent reuse of a
+   *  single standing issue (e.g. the manual-mode release draft) instead of stacking new ones. */
+  findOpenIssueByLabel(label: string): Promise<IssueRef | null>;
 
   // — Marker comments —
   /** The first comment whose body starts with `marker` (id + body), or null. */
