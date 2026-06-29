@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs';
+import path from 'node:path';
 import type { VersionAction, VersionChangelogEntry, VersionOutput, VersionPackageChangelog } from '@releasekit/core';
 
 /** @deprecated Use {@link VersionOutput} from `@releasekit/core` instead. */
@@ -91,16 +92,36 @@ export function setVersioningStrategy(strategy: 'sync' | 'single' | 'async' | 'g
 /**
  * Add a package update to the JSON output
  * @param isRoot True when this is the workspace-root package.json bumped in lockstep (sync mode)
+ *
+ * A hybrid package (one directory carrying both a `package.json` and a native manifest like
+ * `Cargo.toml`/`pubspec.yaml`) is a SINGLE package — npm owns its identity. Every strategy writes the
+ * `package.json` first, then syncs the sibling native manifest to the same version; that second write
+ * must not register a second update under the crate/pub name, or the package surfaces twice
+ * downstream — a phantom selection row / extra changelog entry under its crate name (#476). Dedupe by
+ * directory, mirroring discovery's dir-keyed merge (`mergePackageLists`): npm wins, so a `package.json`
+ * supersedes a previously-recorded native sibling and a native sibling is dropped once a `package.json`
+ * for the same directory exists.
  */
 export function addPackageUpdate(packageName: string, newVersion: string, filePath: string, isRoot?: boolean): void {
   if (!_jsonOutputMode) return;
 
-  _jsonData.updates.push({
-    packageName,
-    newVersion,
-    filePath,
-    ...(isRoot ? { isRoot } : {}),
-  });
+  const update = { packageName, newVersion, filePath, ...(isRoot ? { isRoot } : {}) };
+  // Resolve to an absolute path before keying so a mix of absolute and relative filePaths for the
+  // same directory still dedupes (callers don't all pass the same path form for every manifest write).
+  const dir = path.dirname(path.resolve(filePath));
+  const existingIndex = _jsonData.updates.findIndex((u) => path.dirname(path.resolve(u.filePath)) === dir);
+  if (existingIndex !== -1) {
+    // Only let an incoming package.json replace an already-recorded native sibling; otherwise keep
+    // the existing record (the package.json, or the first native manifest) and drop this duplicate.
+    const incomingIsPackageJson = path.basename(filePath) === 'package.json';
+    const existingIsPackageJson = path.basename(_jsonData.updates[existingIndex].filePath) === 'package.json';
+    if (incomingIsPackageJson && !existingIsPackageJson) {
+      _jsonData.updates[existingIndex] = update;
+    }
+    return;
+  }
+
+  _jsonData.updates.push(update);
 }
 
 /**
