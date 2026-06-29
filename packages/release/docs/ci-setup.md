@@ -415,13 +415,15 @@ With `authorization` configured (threshold `admin` shown):
 
 The in-code gates keep the *manifest* clean, but the merge itself is a GitHub action — gate it with two **repository rulesets** (Settings → Rules → Rulesets). Create them once, by hand or via your IaC/Terraform; they're repo policy and want an admin to apply deliberately.
 
+> **Rulesets require the right plan.** They're available on **public** repositories on any plan, and on **private** repositories only with **GitHub Pro / Team / Enterprise** — a private repo on Free has no rulesets at all. The **evaluate** (dry-run) enforcement mode mentioned below is **Enterprise-only**.
+
 **1. Lock the release branch** — target `release/next` (your `ci.standingPr.branch`). Enable **Restrict creations**, **Restrict updates**, and **Restrict deletions** so only bypass actors can write the branch — no one can inject a commit that would then be published.
 
-> ⚠️ The release bot pushes this branch, so it **must** be a bypass actor or releases break. ReleaseKit can't infer the bot's identity for you. Create this ruleset in **evaluate** (dry-run) mode first, confirm in the repo's rule insights that the bot isn't tripped, then switch to **active**.
+> ⚠️ The release bot pushes (and force-pushes) this branch, so it **must** be on the ruleset's *Bypass list* or releases break — ReleaseKit can't infer the bot's identity for you. **Add the bot as a bypass actor before the ruleset goes `active`.** On **GitHub Enterprise** you can instead create it in **evaluate** (dry-run) mode first and confirm in the repo's *rule insights* that the bot isn't tripped, then switch to active — but **evaluate mode is Enterprise-only**, so on every other plan add the bypass actor first and create the ruleset directly as `active`. (A bypass actor's force-push is not blocked by the lock, so the standing-PR refresh keeps working.)
 
 **2. Require review on the default branch** — target `main` (or `~DEFAULT_BRANCH`). Enable **Require a pull request before merging** (≥ 1 approval), **Block force pushes**, and **Restrict deletions**. Since merging the standing PR is the publish, this gates the publish behind review.
 
-**Mapping `allowedActors` to ruleset bypass actors:** a `@org/team-slug` entry maps to a **Team** bypass actor (add the team in the ruleset's *Bypass list*). A plain **username can't** be a ruleset bypass actor — GitHub only exempts roles, teams, and apps — so usernames stay enforced by the in-code gates only. Always keep org/repo admins on the bypass list so you can't lock yourself out.
+**Mapping `allowedActors` to ruleset bypass actors:** a `@org/team-slug` entry maps to a **Team** bypass actor and a plain **username** maps to a **User** bypass actor — add either to the ruleset's *Bypass list*. (GitHub also exposes repository **roles** and **Apps**, which is how a bot running as a GitHub App or the Actions bot is exempted.) Always keep org/repo admins on the bypass list so you can't lock yourself out.
 
 #### Token caveats
 
