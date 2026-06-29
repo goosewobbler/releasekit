@@ -1,11 +1,13 @@
-import type { VersionOutput } from '@releasekit/core';
+import type { ReleaseChannel, VersionOutput } from '@releasekit/core';
 import {
+  deriveReleaseChannel,
   extractSelectionRegion,
   matchesPackageTarget,
   rkSelMarker,
   shouldMatchPackageTargets,
   wrapSelectionRegion,
 } from '@releasekit/core';
+import { getDistTag } from '@releasekit/publish';
 
 type Update = VersionOutput['updates'][number];
 
@@ -25,8 +27,62 @@ const REGION_HINT =
   '> Untick a package to hold it back from the next release, then save — the bot re-runs and updates this PR. ' +
   'Keep the `<!-- rk-sel... -->` marker comments; they identify each row.';
 
+/** Render order for channel sections — stable first, prereleases after (#487). */
+const CHANNEL_ORDER: readonly ReleaseChannel[] = ['stable', 'prerelease'] as const;
+
+/** Section headings shown only when a standing PR mixes channels; a single-channel PR drops them so
+ *  the flat list renders byte-for-byte as before. Each prerelease row carries its own dist-tag, so the
+ *  heading stays generic rather than naming one tag. */
+const SECTION_HEADING: Record<ReleaseChannel, string> = {
+  stable: '#### Stable — advancing on `latest`',
+  prerelease: '#### Prereleases — advancing on their pre-release dist-tag',
+};
+
 function checkbox(selected: boolean): string {
   return selected ? '[x]' : '[ ]';
+}
+
+/** The channel a row sits on: the per-package value stamped by #485, falling back to deriving it from
+ *  the version for manifests written before that field existed (old PRs still open). */
+function channelOf(update: Update): ReleaseChannel {
+  return update.channel ?? deriveReleaseChannel(update.newVersion);
+}
+
+/** A release unit's channel is its primary's; an unchanged primary (no `primaryUpdate`) inherits it
+ *  from its members, which are single-channel by construction for `linked`/`fixed` groups. */
+function unitChannel(unit: ReleaseUnit): ReleaseChannel {
+  if (unit.primaryUpdate) return channelOf(unit.primaryUpdate);
+  const child = unit.children[0];
+  return child ? channelOf(child) : 'stable';
+}
+
+/** Bucket items by channel, preserving input order within each bucket. */
+function byChannel<T>(items: readonly T[], key: (item: T) => ReleaseChannel): Map<ReleaseChannel, T[]> {
+  const map = new Map<ReleaseChannel, T[]>();
+  for (const item of items) {
+    const k = key(item);
+    const list = map.get(k);
+    if (list) list.push(item);
+    else map.set(k, [item]);
+  }
+  return map;
+}
+
+/** Push a section heading, ensuring a blank line separates it from the rows above. */
+function pushSectionHeading(lines: string[], channel: ReleaseChannel): void {
+  if (lines[lines.length - 1] !== '') lines.push('');
+  lines.push(SECTION_HEADING[channel], '');
+}
+
+/** The `→ <version>` label for a row. A prerelease row also surfaces the dist-tag channel it advances
+ *  on (npm publishes a prerelease under its preid, e.g. `1.0.0-next.1` → `next`), so a mixed PR shows
+ *  per-package maturity at a glance. */
+function versionDisplay(update: Update): string {
+  if (channelOf(update) !== 'prerelease') return update.newVersion;
+  // SEAM (#486): the per-package "graduate to stable" affordance — gated on a `graduate:<package>`
+  // label — attaches to prerelease rows here once that mechanism merges. #487 renders the channel
+  // grouping + dist-tag only; it deliberately renders no affordance yet.
+  return `${update.newVersion} · \`${getDistTag(update.newVersion)}\``;
 }
 
 function row(
@@ -37,7 +93,7 @@ function row(
   const indent = opts.indent ? '  ' : '';
   const name = opts.bold ? `**\`${update.packageName}\`**` : `\`${update.packageName}\``;
   const prefix = opts.prefix ?? '';
-  return `${indent}- ${checkbox(selected)} ${prefix}${name} → ${update.newVersion} ${rkSelMarker(update.packageName)}`;
+  return `${indent}- ${checkbox(selected)} ${prefix}${name} → ${versionDisplay(update)} ${rkSelMarker(update.packageName)}`;
 }
 
 /** Config controlling the hierarchical (release-unit) render. Absent / empty `primaryPackages` keeps
@@ -184,14 +240,14 @@ export function validatePrimaryPackages(
 /** A primary's task-list row: bold name, interactive checkbox, identity marker. Renders `— no change`
  *  when the primary anchors its unit without bumping. */
 function primaryRow(unit: ReleaseUnit, selected: boolean): string {
-  const label = unit.primaryUpdate ? `→ ${unit.primaryUpdate.newVersion}` : '— no change';
+  const label = unit.primaryUpdate ? `→ ${versionDisplay(unit.primaryUpdate)}` : '— no change';
   return `- ${checkbox(selected)} **\`${unit.primaryName}\`** ${label} ${rkSelMarker(unit.primaryName)}`;
 }
 
 /** A streamlined child: a plain bullet (never a task item, so GitHub can't make it interactive and
  *  fight the cascade) and intentionally markerless — its state is derived from its primary each run. */
 function childBullet(child: Update): string {
-  return `  - \`${child.packageName}\` → ${child.newVersion} · coupled`;
+  return `  - \`${child.packageName}\` → ${versionDisplay(child)} · coupled`;
 }
 
 /**
@@ -215,7 +271,9 @@ function attachChangelog(
   if (block) lines.push(block);
 }
 
-function renderFlat(
+/** Render the flat (no-primary) rows for a single channel's updates: target → its derived
+ *  prerequisites where those roles are present, otherwise plain per-package rows. */
+function renderFlatSection(
   lines: string[],
   updates: Update[],
   selected: (name: string) => boolean,
@@ -243,6 +301,71 @@ function renderFlat(
   }
 }
 
+/** Flat render split into channel sections (#487): stable then prereleases, each a self-contained
+ *  flat list. A single-channel PR drops the headings and renders exactly as before. */
+function renderFlat(
+  lines: string[],
+  updates: Update[],
+  selected: (name: string) => boolean,
+  rowChangelog?: RowChangelogRenderer,
+): void {
+  const updatesByChannel = byChannel(updates, channelOf);
+  const channels = CHANNEL_ORDER.filter((c) => (updatesByChannel.get(c)?.length ?? 0) > 0);
+  const showHeadings = channels.length > 1;
+  for (const channel of channels) {
+    if (showHeadings) pushSectionHeading(lines, channel);
+    renderFlatSection(lines, updatesByChannel.get(channel) ?? [], selected, rowChangelog);
+  }
+}
+
+/** Render one release unit (primary row + its coupled members), streamlined or granular. */
+function renderUnit(
+  lines: string[],
+  unit: ReleaseUnit,
+  selected: (name: string) => boolean,
+  streamlined: boolean,
+  rowChangelog?: RowChangelogRenderer,
+): void {
+  lines.push(primaryRow(unit, selected(unit.primaryName)));
+  const heldBack = !selected(unit.primaryName);
+  if (streamlined) {
+    if (unit.children.length > 0) {
+      // Children inside a collapsed pane as plain bullets — a blank line after <summary> lets GitHub
+      // render the nested markdown list.
+      lines.push(`  <details><summary>ships ${unit.children.length} coupled</summary>`, '');
+      for (const child of unit.children) lines.push(childBullet(child));
+      lines.push('  </details>');
+    }
+    // The streamlined unit ships primary + coupled members together, so its changelog aggregates
+    // them all — a shared prerequisite re-appears under every owning unit (self-contained by design).
+    attachChangelog(
+      lines,
+      rowChangelog,
+      [unit.primaryName, ...unit.children.map((c) => c.packageName)],
+      heldBack,
+      '  ',
+    );
+  } else {
+    // granular: every package toggles on its own, so each row carries only its own changes.
+    attachChangelog(lines, rowChangelog, [unit.primaryName], heldBack, '  ');
+    for (const child of unit.children) {
+      lines.push(row(child, selected(child.packageName), { indent: true }));
+      attachChangelog(lines, rowChangelog, [child.packageName], !selected(child.packageName), '    ');
+    }
+  }
+}
+
+/** Render an orphan — a changed package outside every known unit — as a flat top-level checkbox. */
+function renderOrphan(
+  lines: string[],
+  orphan: Update,
+  selected: (name: string) => boolean,
+  rowChangelog?: RowChangelogRenderer,
+): void {
+  lines.push(row(orphan, selected(orphan.packageName)));
+  attachChangelog(lines, rowChangelog, [orphan.packageName], !selected(orphan.packageName), '  ');
+}
+
 function renderHierarchical(
   lines: string[],
   updates: Update[],
@@ -252,39 +375,18 @@ function renderHierarchical(
 ): void {
   const hierarchy = computeHierarchy(updates, primary);
   const streamlined = primary.selection !== 'granular';
-  for (const unit of hierarchy.units) {
-    lines.push(primaryRow(unit, selected(unit.primaryName)));
-    const heldBack = !selected(unit.primaryName);
-    if (streamlined) {
-      if (unit.children.length > 0) {
-        // Children inside a collapsed pane as plain bullets — a blank line after <summary> lets GitHub
-        // render the nested markdown list.
-        lines.push(`  <details><summary>ships ${unit.children.length} coupled</summary>`, '');
-        for (const child of unit.children) lines.push(childBullet(child));
-        lines.push('  </details>');
-      }
-      // The streamlined unit ships primary + coupled members together, so its changelog aggregates
-      // them all — a shared prerequisite re-appears under every owning unit (self-contained by design).
-      attachChangelog(
-        lines,
-        rowChangelog,
-        [unit.primaryName, ...unit.children.map((c) => c.packageName)],
-        heldBack,
-        '  ',
-      );
-    } else {
-      // granular: every package toggles on its own, so each row carries only its own changes.
-      attachChangelog(lines, rowChangelog, [unit.primaryName], heldBack, '  ');
-      for (const child of unit.children) {
-        lines.push(row(child, selected(child.packageName), { indent: true }));
-        attachChangelog(lines, rowChangelog, [child.packageName], !selected(child.packageName), '    ');
-      }
-    }
-  }
-  // Orphans — changed packages outside every known unit — stay flat top-level checkboxes (fail-safe).
-  for (const orphan of hierarchy.orphans) {
-    lines.push(row(orphan, selected(orphan.packageName)));
-    attachChangelog(lines, rowChangelog, [orphan.packageName], !selected(orphan.packageName), '  ');
+  // A unit stays intact and lands in its primary's channel section (#487); orphans land in their own.
+  const unitsByChannel = byChannel(hierarchy.units, unitChannel);
+  const orphansByChannel = byChannel(hierarchy.orphans, channelOf);
+  const channels = CHANNEL_ORDER.filter(
+    (c) => (unitsByChannel.get(c)?.length ?? 0) > 0 || (orphansByChannel.get(c)?.length ?? 0) > 0,
+  );
+  const showHeadings = channels.length > 1;
+  for (const channel of channels) {
+    if (showHeadings) pushSectionHeading(lines, channel);
+    for (const unit of unitsByChannel.get(channel) ?? []) renderUnit(lines, unit, selected, streamlined, rowChangelog);
+    // Orphans stay flat top-level checkboxes (fail-safe), grouped under their own channel.
+    for (const orphan of orphansByChannel.get(channel) ?? []) renderOrphan(lines, orphan, selected, rowChangelog);
   }
 }
 
@@ -294,7 +396,12 @@ function renderHierarchical(
  * beneath (streamlined: read-only bullets in a collapsed pane; granular: per-child checkboxes).
  * Otherwise rows render flat, grouping target → derived prerequisites when those roles are present.
  * Every row is ticked unless its package is in `deselected`. When `rowChangelog` is supplied, each
- * row gets its co-located collapsed changelog covering exactly the package(s) that row gates. Returns
+ * row gets its co-located collapsed changelog covering exactly the package(s) that row gates.
+ *
+ * Rows are grouped into channel sections (#487): a **Stable** section (advancing on `latest`) and a
+ * **Prereleases** section (advancing on each row's pre-release dist-tag). The hierarchy/flat render is
+ * preserved *within* each section — a unit lands in its primary's channel. When every package shares
+ * one channel the headings are dropped, so single-channel PRs render byte-for-byte as before. Returns
  * the marker-wrapped block.
  */
 export function renderSelectionRegion(
