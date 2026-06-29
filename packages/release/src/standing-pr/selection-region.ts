@@ -6,7 +6,6 @@ import {
   shouldMatchPackageTargets,
   wrapSelectionRegion,
 } from '@releasekit/core';
-import semver from 'semver';
 
 type Update = VersionOutput['updates'][number];
 
@@ -26,29 +25,11 @@ const REGION_HINT =
   '> Untick a package to hold it back from the next release, then save — the bot re-runs and updates this PR. ' +
   'Keep the `<!-- rk-sel... -->` marker comments; they identify each row.';
 
-/** A ` (minor)`-style bump suffix derived from the package's previous→new version, when known. */
-export function bumpSuffix(versionOutput: VersionOutput, packageName: string, newVersion: string): string {
-  const previous = versionOutput.changelogs.find((c) => c.packageName === packageName)?.previousVersion;
-  if (!previous) return '';
-  // `previousVersion` can carry a package-specific tag prefix (e.g. `name@v1.2.3`) in repos using
-  // `packageSpecificTags` — not valid semver, so a bare `semver.diff` throws and would crash the
-  // whole standing-PR render. Strip to the part after the last `@`, then diff inside a guard: a
-  // cosmetic bump suffix must never abort the update (regressed packageSpecificTags repos on 0.31.0).
-  const prev = previous.includes('@') ? previous.slice(previous.lastIndexOf('@') + 1) : previous;
-  try {
-    const kind = semver.diff(prev, newVersion);
-    return kind ? ` (${kind})` : '';
-  } catch {
-    return '';
-  }
-}
-
 function checkbox(selected: boolean): string {
   return selected ? '[x]' : '[ ]';
 }
 
 function row(
-  versionOutput: VersionOutput,
   update: VersionOutput['updates'][number],
   selected: boolean,
   opts: { indent?: boolean; bold?: boolean; prefix?: string } = {},
@@ -56,8 +37,7 @@ function row(
   const indent = opts.indent ? '  ' : '';
   const name = opts.bold ? `**\`${update.packageName}\`**` : `\`${update.packageName}\``;
   const prefix = opts.prefix ?? '';
-  const suffix = bumpSuffix(versionOutput, update.packageName, update.newVersion);
-  return `${indent}- ${checkbox(selected)} ${prefix}${name} → ${update.newVersion}${suffix} ${rkSelMarker(update.packageName)}`;
+  return `${indent}- ${checkbox(selected)} ${prefix}${name} → ${update.newVersion} ${rkSelMarker(update.packageName)}`;
 }
 
 /** Config controlling the hierarchical (release-unit) render. Absent / empty `primaryPackages` keeps
@@ -203,35 +183,26 @@ export function validatePrimaryPackages(
 
 /** A primary's task-list row: bold name, interactive checkbox, identity marker. Renders `— no change`
  *  when the primary anchors its unit without bumping. */
-function primaryRow(versionOutput: VersionOutput, unit: ReleaseUnit, selected: boolean): string {
-  const label = unit.primaryUpdate
-    ? `→ ${unit.primaryUpdate.newVersion}${bumpSuffix(versionOutput, unit.primaryName, unit.primaryUpdate.newVersion)}`
-    : '— no change';
+function primaryRow(unit: ReleaseUnit, selected: boolean): string {
+  const label = unit.primaryUpdate ? `→ ${unit.primaryUpdate.newVersion}` : '— no change';
   return `- ${checkbox(selected)} **\`${unit.primaryName}\`** ${label} ${rkSelMarker(unit.primaryName)}`;
 }
 
 /** A streamlined child: a plain bullet (never a task item, so GitHub can't make it interactive and
  *  fight the cascade) and intentionally markerless — its state is derived from its primary each run. */
-function childBullet(versionOutput: VersionOutput, child: Update): string {
-  return `  - \`${child.packageName}\` → ${child.newVersion}${bumpSuffix(versionOutput, child.packageName, child.newVersion)} · coupled`;
+function childBullet(child: Update): string {
+  return `  - \`${child.packageName}\` → ${child.newVersion} · coupled`;
 }
 
-function renderFlat(
-  lines: string[],
-  versionOutput: VersionOutput,
-  updates: Update[],
-  selected: (name: string) => boolean,
-): void {
+function renderFlat(lines: string[], updates: Update[], selected: (name: string) => boolean): void {
   const prerequisites = updates.filter((u) => u.role === 'prerequisite');
   const rendered = new Set<string>();
   if (prerequisites.length > 0) {
     for (const target of updates.filter((u) => u.role === 'target')) {
-      lines.push(row(versionOutput, target, selected(target.packageName), { bold: true }));
+      lines.push(row(target, selected(target.packageName), { bold: true }));
       rendered.add(target.packageName);
       for (const prereq of prerequisites.filter((p) => p.prerequisiteOf?.includes(target.packageName))) {
-        lines.push(
-          row(versionOutput, prereq, selected(prereq.packageName), { indent: true, prefix: '↳ prerequisite ' }),
-        );
+        lines.push(row(prereq, selected(prereq.packageName), { indent: true, prefix: '↳ prerequisite ' }));
         rendered.add(prereq.packageName);
       }
     }
@@ -239,13 +210,12 @@ function renderFlat(
   // Flat rows for the plain-async case, and for any prerequisite whose target had no update entry of
   // its own (it would otherwise be silently dropped).
   for (const update of updates.filter((u) => !rendered.has(u.packageName))) {
-    lines.push(row(versionOutput, update, selected(update.packageName)));
+    lines.push(row(update, selected(update.packageName)));
   }
 }
 
 function renderHierarchical(
   lines: string[],
-  versionOutput: VersionOutput,
   updates: Update[],
   selected: (name: string) => boolean,
   primary: PrimaryConfig,
@@ -253,24 +223,24 @@ function renderHierarchical(
   const hierarchy = computeHierarchy(updates, primary);
   const streamlined = primary.selection !== 'granular';
   for (const unit of hierarchy.units) {
-    lines.push(primaryRow(versionOutput, unit, selected(unit.primaryName)));
+    lines.push(primaryRow(unit, selected(unit.primaryName)));
     if (unit.children.length === 0) continue;
     if (streamlined) {
       // Children inside a collapsed pane as plain bullets — a blank line after <summary> lets GitHub
       // render the nested markdown list.
       lines.push(`  <details><summary>ships ${unit.children.length} coupled</summary>`, '');
-      for (const child of unit.children) lines.push(childBullet(versionOutput, child));
+      for (const child of unit.children) lines.push(childBullet(child));
       lines.push('  </details>');
     } else {
       // granular: every child keeps its own interactive, marker'd checkbox indented under the primary.
       for (const child of unit.children) {
-        lines.push(row(versionOutput, child, selected(child.packageName), { indent: true }));
+        lines.push(row(child, selected(child.packageName), { indent: true }));
       }
     }
   }
   // Orphans — changed packages outside every known unit — stay flat top-level checkboxes (fail-safe).
   for (const orphan of hierarchy.orphans) {
-    lines.push(row(versionOutput, orphan, selected(orphan.packageName)));
+    lines.push(row(orphan, selected(orphan.packageName)));
   }
 }
 
@@ -282,7 +252,6 @@ function renderHierarchical(
  * Every row is ticked unless its package is in `deselected`. Returns the marker-wrapped block.
  */
 export function renderSelectionRegion(
-  versionOutput: VersionOutput,
   updates: VersionOutput['updates'],
   deselected: ReadonlySet<string>,
   primary?: PrimaryConfig,
@@ -291,9 +260,9 @@ export function renderSelectionRegion(
   const lines: string[] = [REGION_HEADING, '', REGION_HINT, ''];
 
   if (primary && primary.primaryPackages.length > 0) {
-    renderHierarchical(lines, versionOutput, updates, selected, primary);
+    renderHierarchical(lines, updates, selected, primary);
   } else {
-    renderFlat(lines, versionOutput, updates, selected);
+    renderFlat(lines, updates, selected);
   }
 
   return wrapSelectionRegion(lines.join('\n'));

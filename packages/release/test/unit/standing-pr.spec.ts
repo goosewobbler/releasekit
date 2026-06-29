@@ -439,10 +439,10 @@ describe('runStandingPRUpdate', () => {
 
     const body = forge.createdPullRequests[0]?.body ?? '';
     expect(body).toContain('@scope/app');
-    expect(body).toContain('(major)'); // target's overridden bump
+    expect(body).toContain('→ 2.0.0'); // target row
     expect(body).toContain('prerequisite');
     expect(body).toContain('@scope/core');
-    expect(body).toContain('(minor)'); // prerequisite's own commit-driven bump
+    expect(body).toContain('→ 1.1.0'); // prerequisite row
   });
 
   it('should list a prerequisite whose target has no update entry rather than render an empty body', async () => {
@@ -477,7 +477,7 @@ describe('runStandingPRUpdate', () => {
 
     const body = forge.createdPullRequests[0]?.body ?? '';
     expect(body).toContain('@scope/core');
-    expect(body).toContain('(minor)');
+    expect(body).toContain('→ 1.1.0');
   });
 
   it('should exclude a package the maintainer unticked in the selection region (#367)', async () => {
