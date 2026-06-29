@@ -311,14 +311,19 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
 
   // Changelog section
   const sharedEntries = versionOutput.sharedEntries?.length ? versionOutput.sharedEntries : undefined;
-  const hasPackageChangelogs = versionOutput.changelogs.some((cl) => cl.entries.length > 0);
+  // A changelog whose entries are *all* synthetic `Update version to X` placeholders (a sync/
+  // lockstep carry with no commits of its own) has nothing real to show — treat it like an empty
+  // changelog so the package collapses into the "Also bumped" list below rather than rendering a
+  // full block of placeholder noise (#468).
+  const hasRealEntries = (cl: VersionPackageChangelog) => cl.entries.some((e) => !e.synthetic);
+  const hasPackageChangelogs = versionOutput.changelogs.some(hasRealEntries);
 
-  // Packages bumped via sync versioning have no individual changelog entries but are still in
-  // updates — collect them so they remain visible even though they don't drive the changelog.
-  const packagesWithChangelog = new Set(
-    versionOutput.changelogs.filter((cl) => cl.entries.length > 0).map((cl) => cl.packageName),
-  );
-  const syncBumpedOnly = versionOutput.updates.filter((u) => !packagesWithChangelog.has(u.packageName));
+  // Packages carried along by sync versioning (no real changes of their own) are still in updates —
+  // collect them so they remain visible as a compact list even though they don't drive the
+  // changelog. The root lockstep bump is excluded: it isn't a publishable package, just the
+  // workspace root version tracking the release.
+  const packagesWithChangelog = new Set(versionOutput.changelogs.filter(hasRealEntries).map((cl) => cl.packageName));
+  const syncBumpedOnly = versionOutput.updates.filter((u) => !u.isRoot && !packagesWithChangelog.has(u.packageName));
 
   if (sharedEntries || hasPackageChangelogs || syncBumpedOnly.length > 0) {
     lines.push('### Changelog', '');
@@ -330,9 +335,9 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
       lines.push('</details>', '');
     }
 
-    // Per-package entries — only rendered when the package has unique changes
+    // Per-package entries — only rendered when the package has real (non-synthetic) changes
     for (const changelog of versionOutput.changelogs) {
-      if (changelog.entries.length > 0) {
+      if (hasRealEntries(changelog)) {
         lines.push(...formatPackageChangelog(changelog));
       }
     }
@@ -341,9 +346,8 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
     if (syncBumpedOnly.length > 0) {
       if (isSync) {
         // Sync mode: every package moves to the same version — say that once in the heading
-        // and list bare names. The root lockstep bump is excluded: it isn't a publishable
-        // package, just the workspace root version tracking the release.
-        const syncListed = syncBumpedOnly.filter((u) => !u.isRoot);
+        // and list bare names (the root lockstep bump is already excluded from syncBumpedOnly).
+        const syncListed = syncBumpedOnly;
         if (syncListed.length > 0) {
           // Claim "All packages" only when the list covers every publishable package —
           // packages with their own changelog entries render above and drop out of this list.

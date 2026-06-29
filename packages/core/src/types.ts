@@ -15,6 +15,19 @@ export interface VersionChangelogEntry {
   scope?: string;
   originalType?: string;
   breaking?: boolean;
+  /**
+   * True when this entry is a fabricated `Update version to X` placeholder minted by the
+   * version-groups engine for a lockstep carry — a group member bumped only to stay in sync, with
+   * no commits of its own. It is not derived from a real commit. The preview formatter treats a
+   * changelog whose entries are *all* synthetic as "no real changes" and collapses the package into
+   * the "Also bumped" list instead of rendering a full block of placeholder noise (#468).
+   *
+   * Only the groups engine sets it, and only on a clean empty extraction: an independently-released
+   * package (single/async strategy) or an extraction-error fallback keeps its visible block, since
+   * neither is a no-change carry. Optional and additive — absent means a real entry, so manifests
+   * written before this field existed render exactly as before.
+   */
+  synthetic?: boolean;
 }
 
 /**
