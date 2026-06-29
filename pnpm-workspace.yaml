@@ -3,7 +3,7 @@ packages:
   - test/*
 
 catalog:
-  '@biomejs/biome': ^2.5.0
+  '@biomejs/biome': ^2.5.1
   '@manypkg/get-packages': ^3.1.0
   'minimatch': ^10.0.0
   '@octokit/rest': ^22.0.1
