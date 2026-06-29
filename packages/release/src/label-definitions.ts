@@ -1,6 +1,6 @@
 import type { CIConfig } from '@releasekit/config';
 import type { Forge } from '@releasekit/forge';
-import { DEFAULT_LABELS } from './label-utils.js';
+import { DEFAULT_LABELS, graduatePackageLabel } from './label-utils.js';
 
 /**
  * Canonical definition of a label ReleaseKit relies on. `name` honours `ci.labels` renames
@@ -25,8 +25,16 @@ const COLOR_STANDING = 'ededed'; // grey — standing PR markers (matches legacy
  * labels. Honours `ci.labels` renames and `ci.scopeLabels`. The result is deduped by name —
  * if a rename collides with another label (or a scope label reuses a reserved name) the first
  * definition wins, so we never emit two definitions for the same label name.
+ *
+ * `graduatablePackages` (#486) seeds the per-package `graduate:<package>` labels — GitHub can only
+ * apply labels that already exist, so the standing-PR update passes the names of packages currently
+ * on a prerelease line so a maintainer can pick one from the label picker. Callers without that
+ * context (the label-sync command) omit it; those labels are then minted lazily on the next update.
  */
-export function deriveLabelDefinitions(ciConfig: CIConfig | undefined): LabelDefinition[] {
+export function deriveLabelDefinitions(
+  ciConfig: CIConfig | undefined,
+  graduatablePackages: string[] = [],
+): LabelDefinition[] {
   const labels = ciConfig?.labels ?? DEFAULT_LABELS;
   const scopeLabels = ciConfig?.scopeLabels ?? {};
   const standingPrLabels = ciConfig?.standingPr?.labels ?? ['release'];
@@ -73,6 +81,17 @@ export function deriveLabelDefinitions(ciConfig: CIConfig | undefined): LabelDef
       name: scopeLabel,
       color: COLOR_SCOPE,
       description: 'ReleaseKit: scope the release to a subset of packages',
+    });
+  }
+
+  // Per-package graduate labels (#486): one `graduate:<package>` per package currently on a
+  // prerelease line, so a maintainer can graduate just that package (and its lockstep group) to
+  // stable from the GitHub label picker. Channel-blue like the prerelease label — they steer channel.
+  for (const pkg of graduatablePackages) {
+    definitions.push({
+      name: graduatePackageLabel(pkg, labels),
+      color: COLOR_CHANNEL,
+      description: 'ReleaseKit: graduate this prerelease package to its stable base version',
     });
   }
 

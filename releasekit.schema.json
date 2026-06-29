@@ -1063,6 +1063,11 @@
               "default": "release:graduate",
               "description": "Label that graduates a prerelease to its stable base version (e.g. 1.0.0-next.6 → 1.0.0). A standalone release trigger in label/direct mode; in standing-pr mode it sets the next merge to graduate."
             },
+            "graduatePackagePrefix": {
+              "type": "string",
+              "default": "graduate:",
+              "description": "Prefix for per-package graduate labels on the standing PR. A `graduate:<package>` label graduates just that prerelease package (and, atomically, any fixed/linked group it belongs to) to its stable base version on the next update, while other prerelease packages stay on their line. The whole-batch `graduate` label still graduates everything. Standing-pr mode only."
+            },
             "prerelease": {
               "type": "string",
               "default": "channel:prerelease",

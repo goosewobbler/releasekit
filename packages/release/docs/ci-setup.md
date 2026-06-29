@@ -655,7 +655,8 @@ A maintainer can edit labels directly on the standing PR (via the GitHub UI or `
 |---|---|
 | `bump:patch` / `bump:minor` / `bump:major` | Forces that bump magnitude, overriding what conventional commits would otherwise produce. |
 | `scope:foo` (per `ci.scopeLabels`) | Limits the release to scoped packages on the next update. |
-| `release:graduate` | Graduates a prerelease to stable. |
+| `release:graduate` | Graduates **every** queued prerelease to its stable base version. |
+| `graduate:<package>` | Graduates **just that** prerelease package (and, atomically, any `fixed`/`linked` group it belongs to) to stable on the next update — other prerelease packages keep advancing their line. The label is per-package (`graduate:@scope/core`); ReleaseKit seeds one for every package currently on a prerelease line so it appears in the GitHub label picker. Prefix configurable via `ci.labels.graduatePackagePrefix`. |
 | `channel:prerelease` | Switches the standing PR to prerelease versioning. |
 
 Conflicts (e.g. both `bump:patch` and `bump:major`) surface as a `pending` `releasekit/standing-pr` status check on the release branch and a workflow warning. The override is dropped (falls back to commit-driven) until the conflict is resolved by removing one of the labels.
@@ -751,7 +752,8 @@ Standing-pr mode handles both batched and one-off releases through a single work
 | Routine feature — batch with others | Merge PR without a label. Bumps come from conventional commits. |
 | Critical fix that needs to ship now | Add `release:immediate` (optionally `+ bump:patch`) to the PR. |
 | Adjust the standing PR's bump magnitude | Add `bump:major` (etc.) to the standing PR itself; the next update applies it. |
-| Promote accumulated prereleases to stable | Add `release:graduate` to the standing PR and merge it. |
+| Promote **all** accumulated prereleases to stable | Add `release:graduate` to the standing PR and merge it. |
+| Promote **one** prerelease package to stable (others stay prerelease) | Add `graduate:<package>` to the standing PR (e.g. `graduate:@scope/core`); others keep advancing their line. |
 | Retry a publish that failed partway | Add `release:retry` to the **merged** standing PR. |
 
 ---

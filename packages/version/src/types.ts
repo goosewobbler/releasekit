@@ -23,6 +23,14 @@ export interface VersionRunOptions {
   /** Graduate prerelease packages to stable; skip already-stable packages
    *  unless bump is also set, in which case bump applies to stable packages. */
   stable?: boolean;
+  /**
+   * Per-package graduation (#486): package name patterns to graduate to stable on this run, leaving
+   * every other prerelease package on its own line. Drives `stableOnly` scoped to just these packages
+   * (see {@link Config.graduateScope}). Distinct from the global `stable` flag, which graduates ALL
+   * prereleases. When both are set, `stable` wins (graduate everything). Empty/undefined → no
+   * per-package graduation.
+   */
+  graduate?: string[];
   /** Acknowledge a first-release bump on a stable manifest, silencing the #388 overshoot guard. */
   allowFirstBump?: boolean;
   dryRun?: boolean;
@@ -119,6 +127,11 @@ export interface Config extends VersionConfigBase {
   /** Runtime override: package patterns the forced bump/prerelease/stable applies to. When set,
    *  non-matching packages ignore the override and compute commit-driven. See VersionRunOptions.overrideScope. */
   overrideScope?: string[];
+  /** Runtime override (#486): package patterns to graduate to stable. Set together with `stableOnly`
+   *  by per-package graduation; a package outside this scope keeps `stableOnly` cleared and advances
+   *  along its own line. `undefined`/empty with `stableOnly` set means "graduate every prerelease"
+   *  (the global `release:graduate` path). See VersionRunOptions.graduate. */
+  graduateScope?: string[];
   /** Runtime (engine-populated): the FULL discovered workspace — every package's name+dir, before
    *  the release-set filters (targets/exclude/config.packages). The repo-level changelog classifier
    *  uses this so a commit touching a non-releasing package's dir is attributed to that package, not

@@ -508,6 +508,12 @@ export const CILabelsConfigSchema = z.object({
     .describe(
       'Label that graduates a prerelease to its stable base version (e.g. 1.0.0-next.6 → 1.0.0). A standalone release trigger in label/direct mode; in standing-pr mode it sets the next merge to graduate.',
     ),
+  graduatePackagePrefix: z
+    .string()
+    .default('graduate:')
+    .describe(
+      'Prefix for per-package graduate labels on the standing PR. A `graduate:<package>` label graduates just that prerelease package (and, atomically, any fixed/linked group it belongs to) to its stable base version on the next update, while other prerelease packages stay on their line. The whole-batch `graduate` label still graduates everything. Standing-pr mode only.',
+    ),
   prerelease: z.string().default('channel:prerelease').describe('Label to create a prerelease'),
   skip: z.string().default('release:skip').describe('Label to suppress a release on this PR'),
   immediate: z
@@ -656,6 +662,7 @@ export const CIConfigSchema = z.object({
     ),
   labels: CILabelsConfigSchema.default({
     graduate: 'release:graduate',
+    graduatePackagePrefix: 'graduate:',
     prerelease: 'channel:prerelease',
     skip: 'release:skip',
     immediate: 'release:immediate',

@@ -149,6 +149,39 @@ describe('Per-package release channel — advance along the current line (#485)'
     });
   });
 
+  describe('per-package graduation via graduateScope (#486)', () => {
+    it('should graduate a package inside graduateScope to its stable base', async () => {
+      baselineAt('1.0.0-next.5');
+      // stableOnly + graduateScope covering this package → graduate (bump ignored).
+      const config = { ...baseConfig, stableOnly: true, graduateScope: ['my-pkg'] } as Config;
+      const next = await calculateVersion(config, options({ name: 'my-pkg' }));
+      expect(next).toBe('1.0.0');
+    });
+
+    it('should leave a package outside graduateScope on its prerelease line', async () => {
+      baselineAt('1.0.0-next.5');
+      inferredBump('patch');
+      // stableOnly is set, but graduateScope excludes this package → it advances its line, not graduates.
+      const config = { ...baseConfig, stableOnly: true, graduateScope: ['other-pkg'] } as Config;
+      const next = await calculateVersion(config, options({ name: 'my-pkg' }));
+      expect(next).toBe('1.0.0-next.6');
+    });
+
+    it('should graduate one package and advance another in a mixed run (some stay prerelease)', async () => {
+      const config = { ...baseConfig, stableOnly: true, graduateScope: ['graduating-pkg'] } as Config;
+
+      baselineAt('1.0.0-next.5');
+      const graduated = await calculateVersion(config, options({ name: 'graduating-pkg' }));
+
+      baselineAt('2.3.0-next.1');
+      inferredBump('minor');
+      const staysPre = await calculateVersion(config, options({ name: 'staying-pkg', latestTag: 'v2.3.0-next.1' }));
+
+      expect(graduated).toBe('1.0.0');
+      expect(staysPre).toBe('2.4.0-next.0');
+    });
+  });
+
   describe('explicit channel:prerelease (isPrerelease) is unchanged by this default', () => {
     it('should create a fresh prerelease from a stable package (10.1.0 + minor -> 10.2.0-next.0)', async () => {
       baselineAt('10.1.0');

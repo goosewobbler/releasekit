@@ -58,6 +58,14 @@ export class VersionEngine {
         effective.isPrerelease = true;
       }
       if (runOptions.stable) effective.stableOnly = true;
+      // Per-package graduation (#486): graduate only the named packages, leaving other prereleases on
+      // their line. Sets stableOnly + graduateScope; applyOverrideScope clears stableOnly for any
+      // package outside the scope. The global `stable` flag wins — when it's set we graduate ALL
+      // prereleases, so a per-package scope would only narrow it (don't set graduateScope then).
+      if (!runOptions.stable && runOptions.graduate?.length) {
+        effective.stableOnly = true;
+        effective.graduateScope = runOptions.graduate;
+      }
       if (runOptions.allowFirstBump) effective.allowFirstBump = true;
       if (runOptions.targets?.length) this.runtimeTargets = runOptions.targets;
       if (runOptions.baseRef) effective.baseRef = runOptions.baseRef;

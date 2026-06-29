@@ -110,7 +110,7 @@ How the bump type is determined. Configure under `ci.releaseTrigger`.
 
 **`label`** (default) — A PR label (`bump:patch`, `bump:minor`, or `bump:major`) must be present for a release to fire. The label controls the bump type. PRs without a release label are silently skipped, giving reviewers direct control over when and at what level a release ships.
 
-Both modes support `bump:major` as an override, `channel:prerelease` as a channel modifier, and `release:graduate` to graduate a prerelease to its stable base version.
+Both modes support `bump:major` as an override, `channel:prerelease` as a channel modifier, and `release:graduate` to graduate a prerelease to its stable base version. In standing-PR mode a `graduate:<package>` label graduates a single prerelease package (and, atomically, any `fixed`/`linked` group it belongs to) while the rest stay on their own line.
 
 | | Commit trigger | Label trigger |
 |---|---|---|

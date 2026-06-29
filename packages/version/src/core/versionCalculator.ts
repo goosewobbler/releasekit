@@ -61,19 +61,34 @@ export function applyOverrideScope(
   config: Config,
   options: VersionOptions,
 ): { config: Config; options: VersionOptions } {
-  const { overrideScope } = config;
+  const { overrideScope, graduateScope } = config;
+  let scoped: { config: Config; options: VersionOptions } = { config, options };
   // `type` / `isPrerelease` / `stableOnly` are the engine's runtime override fields (folded from
   // runOptions bump/prerelease/stable) — none is a static config-file setting, so clearing them to
   // their "not specified" sentinel reverts an out-of-scope package to commit-driven calculation.
   // When `options.name` is absent (a single-package repo) there's nothing to match against, so the
   // override applies — scoping is only meaningful across multiple packages.
   if (overrideScope?.length && options.name && !shouldMatchPackageTargets(options.name, overrideScope)) {
-    return {
-      config: { ...config, type: undefined, isPrerelease: undefined, stableOnly: undefined },
-      options: { ...options, type: undefined },
+    scoped = {
+      config: { ...scoped.config, type: undefined, isPrerelease: undefined, stableOnly: undefined },
+      options: { ...scoped.options, type: undefined },
     };
   }
-  return { config, options };
+  // Per-package graduation (#486): `graduateScope` membership is AUTHORITATIVE for `stableOnly`. A
+  // package in scope graduates — re-assert `stableOnly` even when the `overrideScope` clearing above
+  // stripped it, because a graduate target can be a transitive prerequisite that sits OUTSIDE
+  // `overrideScope` when `release:with-prerequisites` is also active; without this re-assert the
+  // explicit graduation would be silently lost. A package out of scope keeps its line — clear
+  // `stableOnly`. Gate ONLY `stableOnly` (graduation is bump-less, so any `type`/`isPrerelease` the
+  // overrideScope branch cleared stays cleared — that's fine, graduation ignores them). `graduateScope`
+  // is only ever set together with `stableOnly: true` (the engine folds them from `runOptions.graduate`),
+  // so re-asserting `true` here can't fabricate a graduation the run didn't ask for. An empty
+  // `graduateScope` with `stableOnly` set means "graduate everything" (global release:graduate) — no-op.
+  if (graduateScope?.length && options.name) {
+    const inGraduateScope = shouldMatchPackageTargets(options.name, graduateScope);
+    scoped = { ...scoped, config: { ...scoped.config, stableOnly: inGraduateScope ? true : undefined } };
+  }
+  return scoped;
 }
 
 /**
