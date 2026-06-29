@@ -1961,14 +1961,17 @@ describe('runStandingPRUpdate', () => {
       expect(forge.createdLabels.some((l) => l.name === 'graduate:@scope/a')).toBe(false);
     });
 
-    it('should flag a conflict when a per-package graduate meets channel:prerelease', async () => {
+    it('should name the offending graduate label in the conflict when it meets channel:prerelease', async () => {
       const { forge } = await setupGraduation(['release', 'graduate:@scope/b', 'channel:prerelease'], '@scope/b');
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
       const lastStatus = forge.commitStatuses.at(-1);
       expect(lastStatus?.state).toBe('pending');
-      expect(lastStatus?.description).toMatch(/graduate/i);
+      // The specific stale graduate label is surfaced (not an opaque "release-type labels conflict")
+      // so the maintainer knows exactly what to remove — and it survives the 140-char status truncation.
+      expect(lastStatus?.description).toContain('graduate:@scope/b');
+      expect(lastStatus?.description).toContain('channel:prerelease');
     });
   });
 

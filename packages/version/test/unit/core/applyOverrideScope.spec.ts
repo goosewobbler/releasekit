@@ -112,3 +112,41 @@ describe('applyOverrideScope — graduateScope (#486)', () => {
     expect(input.stableOnly).toBe(true);
   });
 });
+
+// `release:with-prerequisites` scopes the bump override to the explicit targets (overrideScope), while
+// `graduate:<pkg>` can target a transitive prerequisite that sits OUTSIDE that overrideScope. The two
+// scopes interact: graduateScope must win for stableOnly so the explicit graduation isn't lost (#486).
+const comboCfg = (): Config =>
+  ({
+    tagTemplate: '${prefix}${version}',
+    preset: 'conventional',
+    sync: false,
+    packages: [],
+    versionPrefix: 'v',
+    stableOnly: true,
+    overrideScope: ['@scope/target'],
+    graduateScope: ['@scope/prereq'],
+  }) as Config;
+
+describe('applyOverrideScope — graduateScope + overrideScope combo (#486)', () => {
+  it('should keep stableOnly for a graduated prerequisite outside overrideScope', () => {
+    // @scope/prereq is outside overrideScope (so block 1 strips its bump override) but inside
+    // graduateScope — it must still graduate (stableOnly survives the overrideScope clearing).
+    const { config } = applyOverrideScope(comboCfg(), opts('@scope/prereq'));
+    expect(config.stableOnly).toBe(true);
+    // The bump override is gone (it's outside overrideScope) — graduation is bump-less, so that's fine.
+    expect(config.type).toBeUndefined();
+    expect(config.isPrerelease).toBeUndefined();
+  });
+
+  it('should clear stableOnly for a non-graduated prerequisite outside both scopes (stays on its line)', () => {
+    const { config } = applyOverrideScope(comboCfg(), opts('@scope/other-prereq'));
+    expect(config.stableOnly).toBeUndefined();
+  });
+
+  it('should clear stableOnly for an in-overrideScope target that was not graduated', () => {
+    // The explicit target keeps its bump override but does NOT graduate — it wasn't asked to.
+    const { config } = applyOverrideScope(comboCfg(), opts('@scope/target'));
+    expect(config.stableOnly).toBeUndefined();
+  });
+});

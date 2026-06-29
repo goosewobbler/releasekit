@@ -74,13 +74,19 @@ export function applyOverrideScope(
       options: { ...scoped.options, type: undefined },
     };
   }
-  // Per-package graduation (#486): graduate only the packages in `graduateScope`; every other
-  // prerelease keeps its line. Gate ONLY the `stableOnly` graduation here — unlike `overrideScope`,
-  // a graduate is bump-less, so leave any bump/prerelease the run also carries untouched. An empty
-  // `graduateScope` with `stableOnly` set means "graduate everything" (the global release:graduate
-  // path), so this clause is a no-op then.
-  if (graduateScope?.length && options.name && !shouldMatchPackageTargets(options.name, graduateScope)) {
-    scoped = { ...scoped, config: { ...scoped.config, stableOnly: undefined } };
+  // Per-package graduation (#486): `graduateScope` membership is AUTHORITATIVE for `stableOnly`. A
+  // package in scope graduates — re-assert `stableOnly` even when the `overrideScope` clearing above
+  // stripped it, because a graduate target can be a transitive prerequisite that sits OUTSIDE
+  // `overrideScope` when `release:with-prerequisites` is also active; without this re-assert the
+  // explicit graduation would be silently lost. A package out of scope keeps its line — clear
+  // `stableOnly`. Gate ONLY `stableOnly` (graduation is bump-less, so any `type`/`isPrerelease` the
+  // overrideScope branch cleared stays cleared — that's fine, graduation ignores them). `graduateScope`
+  // is only ever set together with `stableOnly: true` (the engine folds them from `runOptions.graduate`),
+  // so re-asserting `true` here can't fabricate a graduation the run didn't ask for. An empty
+  // `graduateScope` with `stableOnly` set means "graduate everything" (global release:graduate) — no-op.
+  if (graduateScope?.length && options.name) {
+    const inGraduateScope = shouldMatchPackageTargets(options.name, graduateScope);
+    scoped = { ...scoped, config: { ...scoped.config, stableOnly: inGraduateScope ? true : undefined } };
   }
   return scoped;
 }

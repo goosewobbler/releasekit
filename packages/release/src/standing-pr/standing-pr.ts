@@ -644,12 +644,18 @@ function resolveStandingPrLabelOverrides(prLabels: string[], ciConfig: CIConfig 
   // stable. The whole-batch `release:graduate` (stable) supersedes them — it graduates everything, so
   // a per-package subset would only narrow it; drop the per-package set then. `channel:prerelease`
   // forces a prerelease line, which directly contradicts graduating, so flag it as a conflict.
+  const graduateLabels = stable ? [] : prLabels.filter((l) => isGraduatePackageLabel(l, labels));
   const graduate = stable
     ? []
-    : prLabels.map((l) => graduatedPackageFromLabel(l, labels)).filter((p): p is string => p !== undefined);
+    : graduateLabels.map((l) => graduatedPackageFromLabel(l, labels)).filter((p): p is string => p !== undefined);
   if (graduate.length > 0 && hasPrerelease) {
+    // Name the offending graduate label(s) up front so the (140-char-truncated) status check tells the
+    // maintainer exactly what to remove — the alternative is an opaque "release-type labels conflict".
+    // Calling out that a graduate label lingers after its package graduated also points at the likely
+    // cause: a leftover `graduate:<package>` colliding with a newly-added prerelease channel.
     conflicts.push(
-      `Conflicting release-type labels on standing PR (per-package graduate and ${labels.prerelease}) — a package can't graduate and stay prerelease`,
+      `Conflicting release-type labels: ${graduateLabels.map((l) => `\`${l}\``).join(', ')} graduate to stable while ` +
+        `\`${labels.prerelease}\` forces a prerelease — remove one. (A graduate label lingers after its package graduates, so it may be a stale leftover.)`,
     );
   }
 
