@@ -182,11 +182,18 @@ export class BaselineResolver {
     }
 
     // previousVersion is shown to users in the changelog header — strip the baseline-tag scheme back
-    // to its consumer-facing form so `release/v0.22.0` appears as `v0.22.0`. Omit it when we fell
-    // back to all-history so the changelog doesn't claim a baseline it never diffed against (#339).
+    // to its consumer-facing form so `release/v0.22.0` appears as `v0.22.0`. On graduation with no
+    // prior stable tag, `changelogBaseTag` widens to '' (so the range spans the whole prerelease
+    // line) but the package's real predecessor is still its prerelease `latestTag` — fall back to it
+    // for the label so a graduating package reads `<prerelease> → <stable>` instead of being
+    // mislabeled a first release (#474). Kept in tag form: `generateCompareUrl` rebuilds the `to` tag
+    // from it, so a bare value would break compare links. Omit it when we fell back to all-history so
+    // the changelog doesn't claim a baseline it never diffed against (#339); a genuine first release
+    // (no tag at all) leaves both empty and stays null.
+    const previousTag = changelogBaseTag || latestTag;
     const previousVersion =
-      changelogBaseTag && !baselineUnreachable
-        ? displayTag(changelogBaseTag, input.baselineTagPrefix, input.formattedPrefix)
+      previousTag && !baselineUnreachable
+        ? displayTag(previousTag, input.baselineTagPrefix, input.formattedPrefix)
         : null;
 
     return { revisionRange, previousVersion, baselineUnreachable };

@@ -167,8 +167,33 @@ describe('BaselineResolver.resolve', () => {
       makeInput({ latestTag: 'v1.0.0-next.1', nextVersion: '1.0.0' }),
     );
     expect(result.revisionRange).toBe('v0.9.0..HEAD');
-    expect(result.previousVersion).toBeNull();
+    // Range floors by the nearest reachable tag (#370); the LABEL still falls back to the prerelease
+    // predecessor rather than rendering N/A (#474) — the two are decoupled.
+    expect(result.previousVersion).toBe('v1.0.0-next.1');
     expect(verifyTag).not.toHaveBeenCalled();
+  });
+
+  it('should label previousVersion with the prerelease predecessor when graduating with no prior stable tag (#474)', async () => {
+    // Graduation widens the range to the whole prerelease line by re-basing onto the last stable tag,
+    // but with no prior stable that lookup returns '' — so the package's only predecessor is its
+    // prerelease latestTag. Fall back to it for the label (kept in tag form so generateCompareUrl can
+    // rebuild the `to` tag) instead of rendering N/A and mislabeling a graduating package a first
+    // release. Realistic floor: git describe finds the prerelease tag itself as the nearest reachable.
+    vi.mocked(getLatestStableTag).mockResolvedValue('');
+    vi.mocked(getNearestReachableTag).mockResolvedValue('v1.1.0-next.0');
+    const result = await new BaselineResolver(makeOpts()).resolve(
+      makeInput({ latestTag: 'v1.1.0-next.0', nextVersion: '1.1.0' }),
+    );
+    expect(result.previousVersion).toBe('v1.1.0-next.0');
+    expect(result.baselineUnreachable).toBe(false);
+  });
+
+  it('should still leave previousVersion null for a genuine first release with no prior tag (#474)', async () => {
+    // The fallback only kicks in when there IS a tag to fall back to: with no tag at all, both
+    // changelogBaseTag and latestTag are empty, so a true first release stays null → N/A.
+    vi.mocked(getNearestReachableTag).mockResolvedValue('');
+    const result = await new BaselineResolver(makeOpts()).resolve(makeInput({ latestTag: '', hasRealTag: false }));
+    expect(result.previousVersion).toBeNull();
   });
 
   it('should strip a baseline marker tag back to consumer form for previousVersion (#330)', async () => {
