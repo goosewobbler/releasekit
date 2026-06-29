@@ -1093,8 +1093,15 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   }
 
   // The flat, de-duplicated combined footer — every change once, grouped by type. Driven by the write
-  // output (already excludes held-back packages, so it mirrors what publishes). Config-gated, default-on.
-  const footer = standingPrConfig?.combinedChangelogFooter !== false ? renderCombinedFooter(versionOutput) : '';
+  // output (already excludes held-back packages, so it mirrors what publishes). The gate is a
+  // redundancy control, never a drop-data control: sync releases carry no per-row changelogs, so the
+  // footer is their only changelog surface and always renders; and when the gate suppresses the full
+  // footer in non-sync mode we still surface project-wide (shared) entries, which have no per-row home.
+  const footerEnabled = standingPrConfig?.combinedChangelogFooter !== false;
+  const footer =
+    footerEnabled || versionOutput.strategy === 'sync'
+      ? renderCombinedFooter(versionOutput)
+      : renderCombinedFooter(versionOutput, { sharedOnly: true });
 
   const body = renderPrBody(versionOutput, { supersedeWarning, notesRegion, renderSelectionBlock, footer });
 

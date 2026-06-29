@@ -186,16 +186,24 @@ export function makeRowChangelogRenderer(changelogs: VersionOutput['changelogs']
  * flat and de-duplicated across packages, grouped by change type. Driven by the *write* output, which
  * already excludes held-back packages, so the footer always reflects exactly what will publish.
  * Returns `''` when there are no real entries.
+ *
+ * `sharedOnly` narrows it to the project-wide (`sharedEntries`) changes — those with no per-row home.
+ * It's how the caller keeps shared entries visible when the maintainer disables the full footer: the
+ * redundant per-package summary is dropped (it's covered per-row), but project-wide changes survive.
  */
-export function renderCombinedFooter(versionOutput: VersionOutput): string {
+export function renderCombinedFooter(versionOutput: VersionOutput, opts: { sharedOnly?: boolean } = {}): string {
   const attributed: AttributedEntry[] = [];
-  for (const cl of versionOutput.changelogs) {
-    for (const entry of cl.entries) attributed.push({ entry, pkg: cl.packageName });
+  if (!opts.sharedOnly) {
+    for (const cl of versionOutput.changelogs) {
+      for (const entry of cl.entries) attributed.push({ entry, pkg: cl.packageName });
+    }
   }
   for (const entry of versionOutput.sharedEntries ?? []) attributed.push({ entry });
   const deduped = dedupe(attributed);
   if (deduped.length === 0) return '';
   const n = deduped.length;
-  const summary = `Show all changes (${n} ${n === 1 ? 'change' : 'changes'}, de-duplicated)`;
+  const summary = opts.sharedOnly
+    ? `Show project-wide changes (${n} ${n === 1 ? 'change' : 'changes'})`
+    : `Show all changes (${n} ${n === 1 ? 'change' : 'changes'}, de-duplicated)`;
   return wrapDetails(summary, renderGrouped(deduped), '');
 }

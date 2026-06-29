@@ -1164,9 +1164,92 @@ describe('runStandingPRUpdate', () => {
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     const body = forge.createdPullRequests[0]?.body ?? '';
-    // No footer, but the per-row changelog still rides with the row.
+    // No footer at all (no shared entries to home), but the per-row changelog still rides with the row.
     expect(body).not.toContain('Show all changes');
+    expect(body).not.toContain('Show project-wide changes');
     expect(body).toContain('<details><summary>Changelog (1 entry)</summary>');
+  });
+
+  it('should always render the combined changelog in sync mode even when the footer is disabled', async () => {
+    // Sync releases carry no per-row changelogs, so the footer is the only changelog surface — the
+    // gate must not strip it, or merging the PR would publish with the changelog gone from the body.
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValueOnce({
+      ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true, combinedChangelogFooter: false } },
+      git: { branch: 'main' },
+      release: { ci: { skipPatterns: ['chore: release '] } },
+    } as unknown as ReturnType<typeof loadConfig>);
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+      strategy: 'sync' as const,
+      changelogs: [
+        {
+          packageName: '@scope/core',
+          version: '1.2.3',
+          previousVersion: '1.2.2',
+          revisionRange: '',
+          repoUrl: null,
+          entries: [{ type: 'feat', description: 'Sync-only feature' }],
+        },
+      ],
+    };
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const forge = await mockForge({ standingPR: null });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const body = forge.createdPullRequests[0]?.body ?? '';
+    expect(body).toContain('Show all changes');
+    expect(body).toContain('Sync-only feature');
+  });
+
+  it('should still surface project-wide shared entries when the footer is disabled in non-sync mode', async () => {
+    // Shared (project-wide) entries have no per-row home, so disabling the footer must not drop them —
+    // only the redundant per-package summary is suppressed.
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValueOnce({
+      ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true, combinedChangelogFooter: false } },
+      git: { branch: 'main' },
+      release: { ci: { skipPatterns: ['chore: release '] } },
+    } as unknown as ReturnType<typeof loadConfig>);
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+      strategy: 'async' as const,
+      changelogs: [
+        {
+          packageName: '@scope/core',
+          version: '1.2.3',
+          previousVersion: '1.2.2',
+          revisionRange: '',
+          repoUrl: null,
+          entries: [{ type: 'feat', description: 'Per-package change' }],
+        },
+      ],
+      sharedEntries: [{ type: 'fix', description: 'Project-wide CI fix' }],
+    };
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const forge = await mockForge({ standingPR: null });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const body = forge.createdPullRequests[0]?.body ?? '';
+    // The de-duplicated per-package summary is suppressed, but project-wide entries get their own block.
+    expect(body).not.toContain('Show all changes');
+    expect(body).toContain('Show project-wide changes (1 change)');
+    expect(body).toContain('Project-wide CI fix');
+    // The per-row changelog still carries the package's own change.
+    expect(body).toContain('<details><summary>Changelog (1 entry)</summary>');
+    expect(body).toContain('Per-package change');
   });
 
   it('should grey a held-back row’s changelog and exclude it from the combined footer', async () => {

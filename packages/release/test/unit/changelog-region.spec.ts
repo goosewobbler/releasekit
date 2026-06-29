@@ -110,6 +110,28 @@ describe('changelog-region', () => {
     it('should return empty string when there are no real entries', () => {
       expect(renderCombinedFooter(output({ changelogs: [cl('@scope/a', [])] }))).toBe('');
     });
+
+    it('should render only project-wide shared entries in sharedOnly mode', () => {
+      const footer = renderCombinedFooter(
+        output({
+          changelogs: [cl('@scope/a', [{ type: 'feat', description: 'Package feature' }])],
+          sharedEntries: [{ type: 'fix', description: 'Shared infra' }],
+        }),
+        { sharedOnly: true },
+      );
+      expect(footer).toContain('Show project-wide changes (1 change)');
+      expect(footer).toContain('- Shared infra');
+      // The per-package change is covered per-row, so it is excluded from this shared-only block.
+      expect(footer).not.toContain('Package feature');
+    });
+
+    it('should return empty string in sharedOnly mode when there are no shared entries', () => {
+      const footer = renderCombinedFooter(
+        output({ changelogs: [cl('@scope/a', [{ type: 'feat', description: 'Package feature' }])] }),
+        { sharedOnly: true },
+      );
+      expect(footer).toBe('');
+    });
   });
 
   describe('per-row attachment via renderSelectionRegion', () => {
