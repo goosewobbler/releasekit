@@ -19,7 +19,15 @@ import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
 import { type EventActor, getEventActor, isAuthorizedActor, type StandingPrAuthorization } from './authorization.js';
 import { extractNotesRegions, mergeNotesRegions, renderNotesRegion } from './notes-region.js';
-import { extractSelection, renderSelectionRegion, selectionWarnings } from './selection-region.js';
+import {
+  cascadeDeselection,
+  computeHierarchy,
+  extractSelection,
+  type PrimaryConfig,
+  renderSelectionRegion,
+  selectionWarnings,
+  validatePrimaryPackages,
+} from './selection-region.js';
 import { postStandingPRStatusSafe } from './status.js';
 
 export const MANIFEST_MARKER = '<!-- releasekit-manifest -->';
@@ -980,22 +988,48 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const dryUpdates = publishableUpdates(versionOutputDry);
   const groups = releaseKitConfig.version?.groups ?? {};
   const changedNames = new Set(dryUpdates.map((u) => u.packageName));
+  // Release-unit selection (#464): with `primaryPackages` configured the list renders primaries as
+  // parent rows with their coupled members nested beneath. Resolving primaries — including ones not
+  // bumping this run — needs the full workspace package list, loaded lazily only when the feature is
+  // on. Sync releases never render a selection region, so this is all skipped for them.
+  const primaryPackages = standingPrConfig?.primaryPackages ?? [];
+  const selectionMode = standingPrConfig?.selection ?? 'streamlined';
+  let primaryConfig: PrimaryConfig | undefined;
+  if (primaryPackages.length > 0 && versionOutputDry.strategy !== 'sync') {
+    const { getWorkspacePackageNames } = await import('@releasekit/version');
+    const allPackageNames = await getWorkspacePackageNames({ cwd, configPath: options.config });
+    primaryConfig = { primaryPackages, selection: selectionMode, groups, allPackageNames };
+    for (const w of validatePrimaryPackages(primaryPackages, allPackageNames, releaseKitConfig.version?.skip ?? [])) {
+      warn(`Selection: ${w}`);
+    }
+  }
+
   const effectiveDeselected = new Set<string>();
   // Sync releases ship atomically and never render a selection region, so ignore any deselection —
   // a residual region (e.g. a body left over from before the repo switched to sync) must not
   // silently narrow a sync release into a partial one. Same guard the selection-block render uses.
   if (versionOutputDry.strategy !== 'sync') {
-    for (const name of priorDeselected) {
-      if (!changedNames.has(name)) continue;
-      const update = dryUpdates.find((u) => u.packageName === name);
-      const groupSync = update?.group ? groups[update.group]?.sync : undefined;
-      if (groupSync === 'fixed' || groupSync === 'linked') {
-        warn(
-          `Selection: ignoring held-back \`${name}\` — lockstep group \`${update?.group}\` members release together.`,
-        );
-        continue;
+    if (primaryConfig && primaryConfig.selection !== 'granular') {
+      // Streamlined units: a held-back primary cascades to its whole closure (reference-counted, so a
+      // shared child keeps releasing while any owner does). This supersedes the per-package lockstep
+      // guard below — the entire group is held together, never split — so no partial-group warning.
+      const hierarchy = computeHierarchy(dryUpdates, primaryConfig);
+      for (const name of cascadeDeselection(hierarchy, new Set(priorDeselected))) effectiveDeselected.add(name);
+    } else {
+      // Flat / granular selection: honour a held-back row per package, but never for a lockstep
+      // (fixed/linked) member — those release together, so its untick is ignored (re-renders ticked).
+      for (const name of priorDeselected) {
+        if (!changedNames.has(name)) continue;
+        const update = dryUpdates.find((u) => u.packageName === name);
+        const groupSync = update?.group ? groups[update.group]?.sync : undefined;
+        if (groupSync === 'fixed' || groupSync === 'linked') {
+          warn(
+            `Selection: ignoring held-back \`${name}\` — lockstep group \`${update?.group}\` members release together.`,
+          );
+          continue;
+        }
+        effectiveDeselected.add(name);
       }
-      effectiveDeselected.add(name);
     }
   }
 
@@ -1107,7 +1141,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // of a still-selected target) ride below the region and surface in the run log.
   let selectionBlock: string | undefined;
   if (versionOutputDry.strategy !== 'sync') {
-    const region = renderSelectionRegion(versionOutputDry, dryUpdates, effectiveDeselected);
+    const region = renderSelectionRegion(versionOutputDry, dryUpdates, effectiveDeselected, primaryConfig);
     const warnings = selectionWarnings(dryUpdates, effectiveDeselected, groups);
     for (const w of warnings) warn(`Selection: ${w.reason}`);
     selectionBlock = warnings.length > 0 ? `${region}\n\n${warnings.map((w) => `> ⚠️ ${w.reason}`).join('\n')}` : region;

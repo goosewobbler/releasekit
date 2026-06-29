@@ -586,6 +586,18 @@ export const StandingPrConfigSchema = z.object({
     .describe(
       'Restrict who can steer the standing PR — its selection checkboxes, release labels, and merge. Omit to allow anyone with the GitHub permission GitHub itself requires for each action (today’s behavior).',
     ),
+  primaryPackages: z
+    .array(z.string())
+    .default([])
+    .describe(
+      'Packages that drive releases — rendered as parent rows in the standing-PR selection list, with their coupled group-mates and changed prerequisites nested beneath, so one parent toggle holds back the whole release unit. Glob patterns or exact names. Empty (default) → flat per-package list (current behavior).',
+    ),
+  selection: z
+    .enum(['streamlined', 'granular'])
+    .default('streamlined')
+    .describe(
+      'How the selection list renders when primaryPackages is set. streamlined: one checkbox per primary, coupled members shown read-only in a collapsed pane, and a held-back primary cascades to its unit. granular: every package keeps its own checkbox, nested under its primary, with no cascade. No effect when primaryPackages is empty.',
+    ),
 });
 
 export const CIConfigSchema = z.object({

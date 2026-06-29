@@ -1192,6 +1192,23 @@
                 }
               },
               "description": "Restrict who can steer the standing PR — its selection checkboxes, release labels, and merge. Omit to allow anyone with the GitHub permission GitHub itself requires for each action (today’s behavior)."
+            },
+            "primaryPackages": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "description": "Packages that drive releases — rendered as parent rows in the standing-PR selection list, with their coupled group-mates and changed prerequisites nested beneath, so one parent toggle holds back the whole release unit. Glob patterns or exact names. Empty (default) → flat per-package list (current behavior)."
+            },
+            "selection": {
+              "type": "string",
+              "enum": [
+                "streamlined",
+                "granular"
+              ],
+              "default": "streamlined",
+              "description": "How the selection list renders when primaryPackages is set. streamlined: one checkbox per primary, coupled members shown read-only in a collapsed pane, and a held-back primary cascades to its unit. granular: every package keeps its own checkbox, nested under its primary, with no cascade. No effect when primaryPackages is empty."
             }
           },
           "description": "Configuration for the standing release PR feature (ci.releaseStrategy: 'standing-pr')."
