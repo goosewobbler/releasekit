@@ -117,6 +117,51 @@ describe('JSON Output Utilities', () => {
         filePath: '/path/to/packages/a/package.json',
       });
     });
+
+    // A hybrid package (one dir, both package.json + a native manifest) is a single package — npm
+    // owns its identity. Without dir-keyed dedup the native sibling's write registers a second
+    // update under its crate/pub name and the package surfaces twice downstream (#476).
+    it('should keep one update per directory for a hybrid, with npm winning regardless of write order', () => {
+      enableJsonOutput();
+      // package.json written first (the order every strategy uses), then the Cargo.toml sibling.
+      addPackageUpdate('@scope/x-y', '1.1.0', '/ws/packages/x/package.json');
+      addPackageUpdate('x-y', '1.1.0', '/ws/packages/x/Cargo.toml');
+
+      const data = getJsonData();
+      expect(data.updates).toHaveLength(1);
+      expect(data.updates[0]).toEqual({
+        packageName: '@scope/x-y',
+        newVersion: '1.1.0',
+        filePath: '/ws/packages/x/package.json',
+      });
+    });
+
+    it('should let a package.json supersede a native sibling recorded first (order-independent npm-wins)', () => {
+      enableJsonOutput();
+      addPackageUpdate('x-y', '1.1.0', '/ws/packages/x/Cargo.toml');
+      addPackageUpdate('@scope/x-y', '1.1.0', '/ws/packages/x/package.json');
+
+      const data = getJsonData();
+      expect(data.updates).toHaveLength(1);
+      expect(data.updates[0]).toEqual({
+        packageName: '@scope/x-y',
+        newVersion: '1.1.0',
+        filePath: '/ws/packages/x/package.json',
+      });
+    });
+
+    it('should still record the update for a native-only package (no package.json sibling)', () => {
+      enableJsonOutput();
+      addPackageUpdate('pure-crate', '2.0.0', '/ws/crates/pure/Cargo.toml');
+
+      const data = getJsonData();
+      expect(data.updates).toHaveLength(1);
+      expect(data.updates[0]).toEqual({
+        packageName: 'pure-crate',
+        newVersion: '2.0.0',
+        filePath: '/ws/crates/pure/Cargo.toml',
+      });
+    });
   });
 
   describe('addChangelogData', () => {
@@ -305,10 +350,12 @@ describe('JSON Output Utilities', () => {
       expect(data.updates[0]?.tag).toBeUndefined();
     });
 
-    it('should only set tag on the first matching update when duplicates exist', () => {
+    it('should only set tag on the first matching update when same-named updates exist', () => {
       enableJsonOutput();
-      addPackageUpdate('my-package', '1.1.0', '/path/to/package.json');
-      addPackageUpdate('my-package', '1.1.0', '/path/to/Cargo.toml');
+      // Different directories, so dir-keyed dedup keeps both; setPackageUpdateTag still tags only the
+      // first match by name.
+      addPackageUpdate('my-package', '1.1.0', '/path/to/a/package.json');
+      addPackageUpdate('my-package', '1.1.0', '/path/to/b/package.json');
 
       setPackageUpdateTag('my-package', 'my-package@v1.1.0');
 
