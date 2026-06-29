@@ -609,6 +609,12 @@ export const StandingPrConfigSchema = z.object({
     .describe(
       'How the selection list renders when primaryPackages is set. streamlined: one checkbox per primary, coupled members shown read-only in a collapsed pane, and a held-back primary cascades to its unit. granular: every package keeps its own checkbox, nested under its primary, with no cascade. No effect when primaryPackages is empty.',
     ),
+  combinedChangelogFooter: z
+    .boolean()
+    .default(true)
+    .describe(
+      'Append a single collapsed footer to the standing PR that lists every change once — flat and de-duplicated across packages, grouped by change type (Added/Fixed/Changed) — so a change touching several packages appears once. It complements the per-row changelogs co-located with each releasable row. Set false to omit it and rely on the per-row changelogs alone.',
+    ),
 });
 
 export const CIConfigSchema = z.object({

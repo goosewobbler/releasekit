@@ -1038,10 +1038,11 @@ describe('runStandingPRUpdate', () => {
     expect(body).not.toContain('my-monorepo');
   });
 
-  it('should include a ### Changelog section in the PR body with changelog entries', async () => {
+  it('should co-locate a per-row changelog with the package row and add a flat deduped footer', async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = {
       ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+      strategy: 'async' as const,
       changelogs: [
         {
           packageName: '@scope/core',
@@ -1065,26 +1066,89 @@ describe('runStandingPRUpdate', () => {
 
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    const body = forge.createdPullRequests[0]?.body;
-    expect(body).toContain('### Changelog');
+    const body = forge.createdPullRequests[0]?.body ?? '';
+    // The single combined "### Changelog" blob and per-package version headers are gone.
+    expect(body).not.toContain('### Changelog');
+    expect(body).not.toContain('@scope/core — 1.2.2 → 1.2.3');
+    // Per-row changelog: a collapsed pane co-located with the row, grouped by change type.
+    const rowIdx = body.indexOf('- [x] `@scope/core` → 1.2.3');
+    const perRowIdx = body.indexOf('<details><summary>Changelog (2 entries)</summary>');
+    expect(rowIdx).toBeGreaterThanOrEqual(0);
+    expect(perRowIdx).toBeGreaterThan(rowIdx);
     expect(body).toContain('**Added**');
     expect(body).toContain('Add new widget');
     expect(body).toContain('**Fixed**');
     expect(body).toContain('Fix broken export');
-    expect(body).toContain('@scope/core — 1.2.2 → 1.2.3');
+    // Combined footer: a single flat, de-duplicated block (default-on), below the selection region.
+    expect(body).toContain('<details><summary>Show all changes (2 changes, de-duplicated)</summary>');
+    expect(body.indexOf('Show all changes')).toBeGreaterThan(perRowIdx);
   });
 
-  it('should render the changelog header with a bare previous version when previousVersion is a package tag', async () => {
+  it('should de-duplicate a shared change across packages once in the combined footer', async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    // The same commit lands an identical entry in two packages — the footer collapses it to one line
+    // with inline scope attribution, while each package keeps its own per-row changelog copy.
+    const shared = { type: 'fix', description: 'Patch the shared serializer' };
     const versionOutput = {
-      ...createMockVersionOutput([{ packageName: '@wdio/electron-service', newVersion: '10.2.0' }]),
+      ...createMockVersionOutput([
+        { packageName: '@scope/a', newVersion: '1.1.0' },
+        { packageName: '@scope/b', newVersion: '1.1.0' },
+      ]),
+      strategy: 'async' as const,
       changelogs: [
         {
-          packageName: '@wdio/electron-service',
-          version: '10.2.0',
-          // Stored as the consumer tag (compare-URL generation depends on it); the header must strip it.
-          previousVersion: 'wdio-electron-service@v10.1.0',
-          revisionRange: 'wdio-electron-service@v10.1.0..HEAD',
+          packageName: '@scope/a',
+          version: '1.1.0',
+          previousVersion: '1.0.0',
+          revisionRange: '',
+          repoUrl: null,
+          entries: [shared],
+        },
+        {
+          packageName: '@scope/b',
+          version: '1.1.0',
+          previousVersion: '1.0.0',
+          revisionRange: '',
+          repoUrl: null,
+          entries: [shared],
+        },
+      ],
+    };
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const forge = await mockForge({ standingPR: null });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const body = forge.createdPullRequests[0]?.body ?? '';
+    const footerStart = body.indexOf('Show all changes');
+    const footer = body.slice(footerStart);
+    // One footer line for the shared change, attributed to both packages.
+    const occurrences = footer.split('Patch the shared serializer').length - 1;
+    expect(occurrences).toBe(1);
+    expect(footer).toContain('_(a, b)_');
+  });
+
+  it('should omit the combined footer when ci.standingPr.combinedChangelogFooter is false', async () => {
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValueOnce({
+      ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true, combinedChangelogFooter: false } },
+      git: { branch: 'main' },
+      release: { ci: { skipPatterns: ['chore: release '] } },
+    } as unknown as ReturnType<typeof loadConfig>);
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+      strategy: 'async' as const,
+      changelogs: [
+        {
+          packageName: '@scope/core',
+          version: '1.2.3',
+          previousVersion: '1.2.2',
+          revisionRange: '',
           repoUrl: null,
           entries: [{ type: 'feat', description: 'Add new widget' }],
         },
@@ -1099,9 +1163,72 @@ describe('runStandingPRUpdate', () => {
 
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    const body = forge.createdPullRequests[0]?.body;
-    expect(body).toContain('@wdio/electron-service — 10.1.0 → 10.2.0');
-    expect(body).not.toContain('wdio-electron-service@v10.1.0 → 10.2.0');
+    const body = forge.createdPullRequests[0]?.body ?? '';
+    // No footer, but the per-row changelog still rides with the row.
+    expect(body).not.toContain('Show all changes');
+    expect(body).toContain('<details><summary>Changelog (1 entry)</summary>');
+  });
+
+  it('should grey a held-back row’s changelog and exclude it from the combined footer', async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const dryOutput = {
+      ...createMockVersionOutput([
+        { packageName: '@scope/a', newVersion: '1.1.0' },
+        { packageName: '@scope/b', newVersion: '2.0.0' },
+      ]),
+      strategy: 'async' as const,
+      changelogs: [
+        {
+          packageName: '@scope/a',
+          version: '1.1.0',
+          previousVersion: '1.0.0',
+          revisionRange: '',
+          repoUrl: null,
+          entries: [{ type: 'feat', description: 'Ship A feature' }],
+        },
+        {
+          packageName: '@scope/b',
+          version: '2.0.0',
+          previousVersion: '1.0.0',
+          revisionRange: '',
+          repoUrl: null,
+          entries: [{ type: 'fix', description: 'Fix B bug' }],
+        },
+      ],
+    };
+    // The write run excludes the held-back package (@scope/b), mirroring the engine's `exclude`.
+    const writeOutput = {
+      ...createMockVersionOutput([{ packageName: '@scope/a', newVersion: '1.1.0' }]),
+      strategy: 'async' as const,
+      changelogs: [dryOutput.changelogs[0]],
+    };
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(dryOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(writeOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const priorBody = [
+      '<!-- releasekit-selection -->',
+      '',
+      '- [x] `@scope/a` → 1.1.0 <!-- rk-sel:@scope/a -->',
+      '- [ ] `@scope/b` → 2.0.0 <!-- rk-sel:@scope/b -->',
+      '',
+      '<!-- releasekit-selection-end -->',
+    ].join('\n');
+    const forge = await mockForge({
+      standingPR: openStandingPR(99),
+      pullRequests: { 99: { body: priorBody, labels: [] } },
+    });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const body = forge.updatedPullRequests[0]?.changes.body ?? '';
+    // Held-back row's changelog is greyed and flagged, but still shown next to the unticked row.
+    expect(body).toContain('<s>Changelog (1 entry)</s> — held back');
+    // The footer reflects only what publishes — @scope/a's change is in, @scope/b's is not.
+    const footer = body.slice(body.indexOf('Show all changes'));
+    expect(footer).toContain('Ship A feature');
+    expect(footer).not.toContain('Fix B bug');
   });
 
   it("should truncate the PR body when the changelog would exceed GitHub's limit (#333)", async () => {
