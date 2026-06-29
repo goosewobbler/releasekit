@@ -106,8 +106,10 @@ export function addPackageUpdate(packageName: string, newVersion: string, filePa
   if (!_jsonOutputMode) return;
 
   const update = { packageName, newVersion, filePath, ...(isRoot ? { isRoot } : {}) };
-  const dir = path.dirname(filePath);
-  const existingIndex = _jsonData.updates.findIndex((u) => path.dirname(u.filePath) === dir);
+  // Resolve to an absolute path before keying so a mix of absolute and relative filePaths for the
+  // same directory still dedupes (callers don't all pass the same path form for every manifest write).
+  const dir = path.dirname(path.resolve(filePath));
+  const existingIndex = _jsonData.updates.findIndex((u) => path.dirname(path.resolve(u.filePath)) === dir);
   if (existingIndex !== -1) {
     // Only let an incoming package.json replace an already-recorded native sibling; otherwise keep
     // the existing record (the package.json, or the first native manifest) and drop this duplicate.

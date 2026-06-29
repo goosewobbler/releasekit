@@ -162,6 +162,18 @@ describe('JSON Output Utilities', () => {
         filePath: '/ws/crates/pure/Cargo.toml',
       });
     });
+
+    it('should dedupe a hybrid when manifest paths are not string-identical for the same directory', () => {
+      enableJsonOutput();
+      addPackageUpdate('@scope/x-y', '1.1.0', '/ws/packages/x/package.json');
+      // Same directory, written via a non-normalized path form — keying on path.dirname alone would
+      // miss this and re-admit the crate-name duplicate; resolving first dedupes it (#476).
+      addPackageUpdate('x-y', '1.1.0', '/ws/packages/./x/Cargo.toml');
+
+      const data = getJsonData();
+      expect(data.updates).toHaveLength(1);
+      expect(data.updates[0].packageName).toBe('@scope/x-y');
+    });
   });
 
   describe('addChangelogData', () => {
