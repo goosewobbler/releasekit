@@ -379,6 +379,35 @@ export class VersionEngine {
   }
 
   /**
+   * True when a directory carries a still-publishable native manifest — a Cargo crate whose
+   * `publish` isn't `false`/`[]`, or a pub package whose `publish_to` isn't `none`. Lets the private
+   * filter keep a hybrid alive when its npm side is `private` but its crate/pub side still publishes;
+   * a private test-app hybrid whose crate is `publish = false` is still (correctly) dropped. A parse
+   * failure counts as not-publishable so a malformed manifest never resurrects a private package.
+   */
+  private isNativelyPublishable(packageDir: string): boolean {
+    const cargoPath = path.join(packageDir, 'Cargo.toml');
+    if (fs.existsSync(cargoPath)) {
+      try {
+        const pkg = parseCargoToml(cargoPath).package;
+        const publish = pkg?.publish;
+        if (pkg?.name && publish !== false && !(Array.isArray(publish) && publish.length === 0)) return true;
+      } catch {
+        // Unparseable Cargo.toml — fall through; don't claim publishable on a parse failure.
+      }
+    }
+    const pubspecPath = path.join(packageDir, 'pubspec.yaml');
+    if (fs.existsSync(pubspecPath)) {
+      try {
+        if (parsePubspec(pubspecPath).publish_to !== 'none') return true;
+      } catch {
+        // Unparseable pubspec — fall through.
+      }
+    }
+    return false;
+  }
+
+  /**
    * Get workspace packages information - with caching for performance
    */
   public async getWorkspacePackages(workspaceRoot: string = cwd()): Promise<PackagesWithRoot> {
@@ -423,6 +452,31 @@ export class VersionEngine {
         name: p.packageJson.name,
         dir: p.dir,
       }));
+
+      // Skip npm packages marked `"private": true` — npm refuses to publish them, so by default they
+      // never belong in the release set. Mirrors the Cargo `publish = false` / pub `publish_to: none`
+      // skips applied during native discovery, and runs before prerequisite and group expansion so a
+      // private package can't be pulled in transitively. Two exemptions keep it honest:
+      //  - a private package named EXACTLY in version.packages is a deliberate escape hatch (a broad
+      //    glob does NOT exempt — it would silently disable the skip for everything it matches); and
+      //  - a hybrid whose native sibling is still publishable (Cargo `publish` ≠ false / pub
+      //    `publish_to` ≠ none) is kept — npm `private` only suppresses the npm publish, not the
+      //    crates.io / pub.dev one, and dropping it here would silently skip a publishable crate.
+      // Opt out wholesale with version.includePrivate.
+      if (!this.config.includePrivate) {
+        const namedExactly = new Set(this.config.packages ?? []);
+        const beforeCount = mergedPackages.packages.length;
+        mergedPackages.packages = mergedPackages.packages.filter((pkg) => {
+          if (pkg.packageJson.private !== true) return true;
+          if (namedExactly.has(pkg.packageJson.name)) return true;
+          if (this.isNativelyPublishable(pkg.dir)) return true;
+          log(`Skipping private npm package ${pkg.packageJson.name}: package.json "private": true`, 'debug');
+          return false;
+        });
+        if (mergedPackages.packages.length !== beforeCount) {
+          log(`Private filter: ${beforeCount} → ${mergedPackages.packages.length} packages`, 'debug');
+        }
+      }
 
       // --include-prerequisites: expand the explicit targets to the full release set (their changed
       // transitive dependencies + the rest of any group they belong to) and scope the bump/prerelease/

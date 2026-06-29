@@ -424,6 +424,62 @@ describe('Version Engine', () => {
         '@wdio/native-utils',
       ]);
     });
+
+    it('should exclude private npm packages from the release set by default', async () => {
+      // A private package can't be published to any registry, so it never belongs in the release
+      // set — discovery drops it without a version.skip entry (#477).
+      vi.mocked(getPackagesSync, { partial: true }).mockReturnValue({
+        root: '/test/workspace',
+        tool: 'pnpm' as any,
+        rootDir: '/test/workspace',
+        packages: [
+          {
+            dir: '/test/workspace/packages/a',
+            relativeDir: 'packages/a',
+            packageJson: { name: 'package-a', version: '1.0.0' },
+          },
+          {
+            dir: '/test/workspace/apps/example',
+            relativeDir: 'apps/example',
+            packageJson: { name: 'example-app', version: '1.0.0', private: true },
+          },
+        ],
+      });
+
+      const engine = new VersionEngine(defaultConfig as Config);
+      const result = await engine.getWorkspacePackages();
+
+      expect(result.packages.map((p) => p.packageJson.name)).toEqual(['package-a']);
+      expect(log).toHaveBeenCalledWith(
+        'Skipping private npm package example-app: package.json "private": true',
+        'debug',
+      );
+    });
+
+    it('should include private npm packages when includePrivate is true', async () => {
+      vi.mocked(getPackagesSync, { partial: true }).mockReturnValue({
+        root: '/test/workspace',
+        tool: 'pnpm' as any,
+        rootDir: '/test/workspace',
+        packages: [
+          {
+            dir: '/test/workspace/packages/a',
+            relativeDir: 'packages/a',
+            packageJson: { name: 'package-a', version: '1.0.0' },
+          },
+          {
+            dir: '/test/workspace/apps/example',
+            relativeDir: 'apps/example',
+            packageJson: { name: 'example-app', version: '1.0.0', private: true },
+          },
+        ],
+      });
+
+      const engine = new VersionEngine({ ...defaultConfig, includePrivate: true } as Config);
+      const result = await engine.getWorkspacePackages();
+
+      expect(result.packages.map((p) => p.packageJson.name).sort()).toEqual(['example-app', 'package-a']);
+    });
   });
 
   describe('Run method', () => {
@@ -846,6 +902,81 @@ describe('Version Engine', () => {
 
       expect(result.packages).toHaveLength(1);
       expect(result.packages[0].packageJson.name).toBe('@test/private-pkg');
+    });
+
+    it('should skip a private npm package matched only by a glob in version.packages', async () => {
+      vi.mocked(getPackagesSync).mockReturnValue({
+        root: '/test/workspace',
+        packages: [
+          {
+            dir: '/test/workspace/packages/private-pkg',
+            relativeDir: 'packages/private-pkg',
+            packageJson: { name: '@test/private-pkg', version: '0.1.0', private: true },
+          },
+        ],
+      });
+
+      // A broad glob must NOT exempt a private package — only an exact name is the escape hatch.
+      const engine = new VersionEngine({ ...defaultConfig, packages: ['@test/*'] } as Config);
+      const result = await engine.getWorkspacePackages();
+
+      expect(result.packages.find((p) => p.packageJson.name === '@test/private-pkg')).toBeUndefined();
+    });
+
+    it('should keep a private hybrid whose Cargo.toml is still publishable', async () => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-priv-hybrid-pub-'));
+      try {
+        const dir = path.join(tmp, 'packages', 'x');
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(
+          path.join(dir, 'package.json'),
+          JSON.stringify({ name: '@test/x', version: '1.0.0', private: true }),
+        );
+        fs.writeFileSync(path.join(dir, 'Cargo.toml'), '[package]\nname = "x"\nversion = "1.0.0"\n');
+        vi.mocked(mockCwd, { partial: true }).mockReturnValue(tmp);
+        vi.mocked(getPackagesSync).mockReturnValue({
+          root: tmp,
+          packages: [
+            { dir, relativeDir: 'packages/x', packageJson: { name: '@test/x', version: '1.0.0', private: true } },
+          ],
+        });
+
+        // npm `private` only suppresses the npm publish — the publishable crate must still ship.
+        const engine = new VersionEngine(defaultConfig as Config);
+        const result = await engine.getWorkspacePackages();
+
+        expect(result.packages.find((p) => p.packageJson.name === '@test/x')).toBeDefined();
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+
+    it('should skip a private hybrid whose Cargo.toml is publish = false', async () => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-priv-hybrid-nopub-'));
+      try {
+        const dir = path.join(tmp, 'packages', 'x');
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(
+          path.join(dir, 'package.json'),
+          JSON.stringify({ name: '@test/x', version: '1.0.0', private: true }),
+        );
+        fs.writeFileSync(path.join(dir, 'Cargo.toml'), '[package]\nname = "x"\nversion = "1.0.0"\npublish = false\n');
+        vi.mocked(mockCwd, { partial: true }).mockReturnValue(tmp);
+        vi.mocked(getPackagesSync).mockReturnValue({
+          root: tmp,
+          packages: [
+            { dir, relativeDir: 'packages/x', packageJson: { name: '@test/x', version: '1.0.0', private: true } },
+          ],
+        });
+
+        // Private npm + unpublishable crate = unpublishable everywhere → still dropped.
+        const engine = new VersionEngine(defaultConfig as Config);
+        const result = await engine.getWorkspacePackages();
+
+        expect(result.packages.find((p) => p.packageJson.name === '@test/x')).toBeUndefined();
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
     });
   });
 });

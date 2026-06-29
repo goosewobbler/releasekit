@@ -97,7 +97,18 @@ export const VersionConfigSchema = z.object({
       'How the "Project-wide changes" block is bounded in package-specific-tag mode. "union" (default): repo-level commits accrue from the union of the releasing packages\' ranges, floored by the OLDEST unreleased baseline — so a genuinely-global commit recurs in every release until the oldest-baselined package is released past it. "sinceLastRelease": floor the block by the single nearest tag reachable across the repo, so global commits already shown by the most recent release don\'t recur (recommended for per-package-tag monorepos). No effect in sync mode, where one shared tag already consumes repo-level commits on each release.',
     ),
   mainPackage: z.string().optional().describe('Package to use for version determination'),
-  skip: z.array(z.string()).optional().describe('Packages to exclude from versioning'),
+  skip: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'Packages to exclude from versioning (glob patterns or exact names). Private packages ("private": true) are skipped automatically — see includePrivate — so they do not need to be listed here.',
+    ),
+  includePrivate: z
+    .boolean()
+    .default(false)
+    .describe(
+      'Include npm packages marked "private": true (in package.json) in the release flow. Default false: private packages are skipped at discovery — they cannot be published to any registry, mirroring the Cargo `publish = false` and pub `publish_to: none` skips already applied during discovery. Set true to version a private package for internal tracking. Packages explicitly named in version.packages are always included regardless of this setting.',
+    ),
   commitMessage: z.string().optional().describe('Template for release commit messages'),
   mismatchStrategy: z
     .enum(['error', 'warn', 'ignore', 'prefer-package', 'prefer-git'])
