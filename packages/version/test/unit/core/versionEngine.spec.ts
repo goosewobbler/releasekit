@@ -184,6 +184,16 @@ describe('Version Engine', () => {
       expect(getPackagesSync).toHaveBeenCalledWith('/test/workspace');
     });
 
+    it('should discover from an explicit workspaceRoot instead of process cwd', async () => {
+      // The standing-PR primary-package resolver loads config and discovers packages from the same
+      // caller-provided root; without honouring the argument, discovery would silently fall back to
+      // process.cwd() and could match a different workspace (#471).
+      const engine = new VersionEngine(defaultConfig as Config);
+      await engine.getWorkspacePackages('/custom/root');
+
+      expect(getPackagesSync).toHaveBeenCalledWith('/custom/root');
+    });
+
     it('should filter packages based on packages config', async () => {
       const config = {
         ...defaultConfig,

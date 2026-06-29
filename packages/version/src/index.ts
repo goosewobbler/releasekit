@@ -20,3 +20,4 @@ export {
   type VersionActionInput,
   type VersionActionResult,
 } from './utils/versionAction.js';
+export { getWorkspacePackageNames } from './workspace.js';
