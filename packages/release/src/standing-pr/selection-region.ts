@@ -194,16 +194,44 @@ function childBullet(child: Update): string {
   return `  - \`${child.packageName}\` → ${child.newVersion} · coupled`;
 }
 
-function renderFlat(lines: string[], updates: Update[], selected: (name: string) => boolean): void {
+/**
+ * Renders the collapsed per-row changelog for the package(s) a checkbox gates, indented to nest under
+ * its row, returning `''` when those packages have no changelog entries. Injected by the caller so
+ * selection-region stays free of changelog formatting (the implementation lives in
+ * `changelog-region.ts`). #487 reuses it unchanged when it regroups *where* rows are placed.
+ */
+export type RowChangelogRenderer = (packageNames: string[], heldBack: boolean, indent: string) => string;
+
+/** Append a per-row changelog block (if any) for the packages a row gates. No-op without a renderer. */
+function attachChangelog(
+  lines: string[],
+  rowChangelog: RowChangelogRenderer | undefined,
+  packageNames: string[],
+  heldBack: boolean,
+  indent: string,
+): void {
+  if (!rowChangelog) return;
+  const block = rowChangelog(packageNames, heldBack, indent);
+  if (block) lines.push(block);
+}
+
+function renderFlat(
+  lines: string[],
+  updates: Update[],
+  selected: (name: string) => boolean,
+  rowChangelog?: RowChangelogRenderer,
+): void {
   const prerequisites = updates.filter((u) => u.role === 'prerequisite');
   const rendered = new Set<string>();
   if (prerequisites.length > 0) {
     for (const target of updates.filter((u) => u.role === 'target')) {
       lines.push(row(target, selected(target.packageName), { bold: true }));
       rendered.add(target.packageName);
+      attachChangelog(lines, rowChangelog, [target.packageName], !selected(target.packageName), '  ');
       for (const prereq of prerequisites.filter((p) => p.prerequisiteOf?.includes(target.packageName))) {
         lines.push(row(prereq, selected(prereq.packageName), { indent: true, prefix: '↳ prerequisite ' }));
         rendered.add(prereq.packageName);
+        attachChangelog(lines, rowChangelog, [prereq.packageName], !selected(prereq.packageName), '    ');
       }
     }
   }
@@ -211,6 +239,7 @@ function renderFlat(lines: string[], updates: Update[], selected: (name: string)
   // its own (it would otherwise be silently dropped).
   for (const update of updates.filter((u) => !rendered.has(u.packageName))) {
     lines.push(row(update, selected(update.packageName)));
+    attachChangelog(lines, rowChangelog, [update.packageName], !selected(update.packageName), '  ');
   }
 }
 
@@ -219,28 +248,43 @@ function renderHierarchical(
   updates: Update[],
   selected: (name: string) => boolean,
   primary: PrimaryConfig,
+  rowChangelog?: RowChangelogRenderer,
 ): void {
   const hierarchy = computeHierarchy(updates, primary);
   const streamlined = primary.selection !== 'granular';
   for (const unit of hierarchy.units) {
     lines.push(primaryRow(unit, selected(unit.primaryName)));
-    if (unit.children.length === 0) continue;
+    const heldBack = !selected(unit.primaryName);
     if (streamlined) {
-      // Children inside a collapsed pane as plain bullets — a blank line after <summary> lets GitHub
-      // render the nested markdown list.
-      lines.push(`  <details><summary>ships ${unit.children.length} coupled</summary>`, '');
-      for (const child of unit.children) lines.push(childBullet(child));
-      lines.push('  </details>');
+      if (unit.children.length > 0) {
+        // Children inside a collapsed pane as plain bullets — a blank line after <summary> lets GitHub
+        // render the nested markdown list.
+        lines.push(`  <details><summary>ships ${unit.children.length} coupled</summary>`, '');
+        for (const child of unit.children) lines.push(childBullet(child));
+        lines.push('  </details>');
+      }
+      // The streamlined unit ships primary + coupled members together, so its changelog aggregates
+      // them all — a shared prerequisite re-appears under every owning unit (self-contained by design).
+      attachChangelog(
+        lines,
+        rowChangelog,
+        [unit.primaryName, ...unit.children.map((c) => c.packageName)],
+        heldBack,
+        '  ',
+      );
     } else {
-      // granular: every child keeps its own interactive, marker'd checkbox indented under the primary.
+      // granular: every package toggles on its own, so each row carries only its own changes.
+      attachChangelog(lines, rowChangelog, [unit.primaryName], heldBack, '  ');
       for (const child of unit.children) {
         lines.push(row(child, selected(child.packageName), { indent: true }));
+        attachChangelog(lines, rowChangelog, [child.packageName], !selected(child.packageName), '    ');
       }
     }
   }
   // Orphans — changed packages outside every known unit — stay flat top-level checkboxes (fail-safe).
   for (const orphan of hierarchy.orphans) {
     lines.push(row(orphan, selected(orphan.packageName)));
+    attachChangelog(lines, rowChangelog, [orphan.packageName], !selected(orphan.packageName), '  ');
   }
 }
 
@@ -249,20 +293,23 @@ function renderHierarchical(
  * `primaryPackages`) it renders release units — primaries as parent rows with coupled members nested
  * beneath (streamlined: read-only bullets in a collapsed pane; granular: per-child checkboxes).
  * Otherwise rows render flat, grouping target → derived prerequisites when those roles are present.
- * Every row is ticked unless its package is in `deselected`. Returns the marker-wrapped block.
+ * Every row is ticked unless its package is in `deselected`. When `rowChangelog` is supplied, each
+ * row gets its co-located collapsed changelog covering exactly the package(s) that row gates. Returns
+ * the marker-wrapped block.
  */
 export function renderSelectionRegion(
   updates: VersionOutput['updates'],
   deselected: ReadonlySet<string>,
   primary?: PrimaryConfig,
+  rowChangelog?: RowChangelogRenderer,
 ): string {
   const selected = (name: string) => !deselected.has(name);
   const lines: string[] = [REGION_HEADING, '', REGION_HINT, ''];
 
   if (primary && primary.primaryPackages.length > 0) {
-    renderHierarchical(lines, updates, selected, primary);
+    renderHierarchical(lines, updates, selected, primary, rowChangelog);
   } else {
-    renderFlat(lines, updates, selected);
+    renderFlat(lines, updates, selected, rowChangelog);
   }
 
   return wrapSelectionRegion(lines.join('\n'));

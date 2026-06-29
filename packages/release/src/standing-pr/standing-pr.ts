@@ -16,8 +16,9 @@ import { DEFAULT_LABELS } from '../label-utils.js';
 import { refreshFeederPreviews } from '../preview/refresh.js';
 import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
-import { publishableUpdates, syncVersionDisplay, toDisplayVersion } from '../version-display.js';
+import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
 import { type EventActor, getEventActor, isAuthorizedActor, type StandingPrAuthorization } from './authorization.js';
+import { makeRowChangelogRenderer, renderCombinedFooter } from './changelog-region.js';
 import { extractNotesRegions, mergeNotesRegions, renderNotesRegion } from './notes-region.js';
 import {
   cascadeDeselection,
@@ -270,97 +271,6 @@ export async function createReleaseTags(tags: string[], cwd: string): Promise<vo
   }
 }
 
-// Renders the release notes section content (without editable markers).
-const CHANGELOG_TYPE_LABELS: Record<string, string> = {
-  feat: 'Added',
-  fix: 'Fixed',
-  added: 'Added',
-  changed: 'Changed',
-  fixed: 'Fixed',
-  perf: 'Performance',
-  refactor: 'Refactored',
-  security: 'Security',
-  docs: 'Documentation',
-  chore: 'Chores',
-  test: 'Tests',
-  build: 'Build',
-  ci: 'CI',
-  revert: 'Reverts',
-  style: 'Styles',
-};
-
-function renderChangelogEntries(entries: VersionOutput['changelogs'][number]['entries']): string[] {
-  const grouped = new Map<string, typeof entries>();
-  for (const entry of entries) {
-    let group = grouped.get(entry.type);
-    if (!group) {
-      group = [];
-      grouped.set(entry.type, group);
-    }
-    group.push(entry);
-  }
-  const lines: string[] = [];
-  const renderedTypes = new Set<string>();
-  for (const type of Object.keys(CHANGELOG_TYPE_LABELS)) {
-    const group = grouped.get(type);
-    if (group?.length) {
-      lines.push(`**${CHANGELOG_TYPE_LABELS[type]}**`, '');
-      for (const e of group) {
-        lines.push(
-          `- ${e.description}${e.scope ? ` (\`${e.scope}\`)` : ''}${e.issueIds?.length ? ` ${e.issueIds.join(', ')}` : ''}`,
-        );
-      }
-      lines.push('');
-      renderedTypes.add(type);
-    }
-  }
-  for (const [type, group] of grouped) {
-    if (!renderedTypes.has(type) && group?.length) {
-      const label = type.charAt(0).toUpperCase() + type.slice(1);
-      lines.push(`**${label}**`, '');
-      for (const e of group) {
-        lines.push(
-          `- ${e.description}${e.scope ? ` (\`${e.scope}\`)` : ''}${e.issueIds?.length ? ` ${e.issueIds.join(', ')}` : ''}`,
-        );
-      }
-      lines.push('');
-    }
-  }
-  return lines;
-}
-
-function renderChangelogSection(versionOutput: VersionOutput): string {
-  const sharedEntries = versionOutput.sharedEntries ?? [];
-  const hasPackageEntries = versionOutput.changelogs.some((cl) => cl.entries.length > 0);
-  if (sharedEntries.length === 0 && !hasPackageEntries) return '';
-
-  const totalEntries = sharedEntries.length + versionOutput.changelogs.reduce((acc, cl) => acc + cl.entries.length, 0);
-
-  const inner: string[] = ['### Changelog', ''];
-
-  if (sharedEntries.length > 0) {
-    inner.push('#### Project-wide changes', '');
-    inner.push(...renderChangelogEntries(sharedEntries));
-  }
-
-  for (const cl of versionOutput.changelogs) {
-    if (cl.entries.length === 0) continue;
-    inner.push(
-      `#### ${cl.packageName} — ${cl.previousVersion ? toDisplayVersion(cl.previousVersion) : 'N/A'} → ${cl.version}`,
-      '',
-    );
-    inner.push(...renderChangelogEntries(cl.entries));
-  }
-
-  if (inner[inner.length - 1] === '') inner.pop();
-
-  // Wrap in <details> — standing-PR changelogs can run to hundreds of entries across
-  // many packages and dominate the PR body. Collapsed-by-default keeps the package
-  // table immediately visible while still letting reviewers expand to inspect.
-  const summary = `Show changelog (${totalEntries} ${totalEntries === 1 ? 'entry' : 'entries'})`;
-  return ['<details>', `<summary>${summary}</summary>`, '', ...inner, '', '</details>'].join('\n');
-}
-
 async function deleteReleaseBranch(releaseBranch: string, cwd: string): Promise<void> {
   try {
     // `git push origin :<branch>` deletes the remote branch (the delete refspec). The leading `:`
@@ -389,15 +299,29 @@ function truncateAtLineBoundary(text: string, maxChars: number): string {
   return lastNewline > 0 ? slice.slice(0, lastNewline) : slice;
 }
 
-function renderPrBody(
-  versionOutput: VersionOutput,
-  supersedeWarning?: string[],
-  notesRegion?: string,
-  selectionBlock?: string,
-): string {
-  // Build the body around a given changelog section so we can re-render with a truncated changelog
-  // if the full one would exceed GitHub's limit, without disturbing the editable notes region.
-  const build = (changelogSection: string): string => {
+const TRUNCATION_NOTICE =
+  "> **Changelog truncated** — the full changelog exceeded GitHub's PR-body limit and was shortened here. " +
+  "Each package's complete changelog is in its `CHANGELOG.md`. This usually means a package has no prior " +
+  'release tag, so its changelog spans the entire git history — create baseline tags to scope it.';
+
+interface RenderPrBodyOptions {
+  supersedeWarning?: string[];
+  notesRegion?: string;
+  /**
+   * Renders the selection block; `withChangelogs` toggles the per-row changelogs co-located with each
+   * row. Undefined for sync releases, which carry no selection region (they publish atomically).
+   */
+  renderSelectionBlock?: (withChangelogs: boolean) => string;
+  /** The flat, de-duplicated combined footer, already rendered; `''` when disabled or empty. */
+  footer: string;
+}
+
+function renderPrBody(versionOutput: VersionOutput, options: RenderPrBodyOptions): string {
+  const { supersedeWarning, notesRegion, renderSelectionBlock, footer } = options;
+
+  // Build the body around a given selection block + footer so we can re-render with progressively
+  // trimmed changelogs if the full one would exceed GitHub's limit, without disturbing the notes region.
+  const build = (selectionBlock: string | undefined, footerSection: string, extraNotice?: string): string => {
     const lines: string[] = ['## Release', ''];
 
     // While a prior release remains partially published, lead with the supersede warning so the
@@ -412,7 +336,7 @@ function renderPrBody(
     if (selectionBlock) {
       // Non-sync releases render the interactive selection region in place of a static list — it is
       // the package list (ticked rows = will release), built from the full changed set upstream so a
-      // held-back package still shows as an unticked row. Includes the prerequisite grouping.
+      // held-back package still shows as an unticked row. Each row carries its own changelog inline.
       lines.push(selectionBlock);
     } else if (versionOutput.strategy === 'sync') {
       // Sync releases move as one unit — lead with the version; a per-row version column
@@ -433,7 +357,8 @@ function renderPrBody(
       }
     }
 
-    if (changelogSection) lines.push('', changelogSection, '');
+    if (footerSection) lines.push('', footerSection, '');
+    if (extraNotice) lines.push('', extraNotice, '');
     // The editable release-notes region (opt-in via the preview-notes label) sits below the changelog
     // and above the merge instructions, so a reviewer reads/edits it in the natural place.
     if (notesRegion) lines.push('', notesRegion, '');
@@ -442,24 +367,34 @@ function renderPrBody(
     return lines.join('\n');
   };
 
-  const changelog = renderChangelogSection(versionOutput);
-  const body = build(changelog);
-  if (body.length <= STANDING_PR_BODY_CAP || !changelog) return body;
+  // Level 0 — the full body: per-row changelogs (non-sync) plus the combined deduped footer.
+  const fullSelection = renderSelectionBlock?.(true);
+  const full = build(fullSelection, footer);
+  if (full.length <= STANDING_PR_BODY_CAP) return full;
 
-  // Too long: truncate the changelog and point to each package's CHANGELOG.md for the rest. The
-  // root cause is almost always a package with no baseline tag (#333/#334) — say so.
-  const notice =
-    "> **Changelog truncated** — the full changelog exceeded GitHub's PR-body limit and was shortened here. " +
-    "Each package's complete changelog is in its `CHANGELOG.md`. This usually means a package has no prior " +
-    'release tag, so its changelog spans the entire git history — create baseline tags to scope it.';
-  // 8 = 4 (\n\n before + \n\n after from push('', section, '')) + 2 (\n\n between truncated changelog and notice) + 2 safety margin
-  const room = STANDING_PR_BODY_CAP - build('').length - notice.length - 8;
-  // No room for any changelog: the non-changelog content (package table / notes region) already
-  // fills the budget. Drop the changelog entirely rather than appending the notice, which would only
-  // add to the overflow. (A package table that alone exceeds the cap would need its own truncation —
-  // that's thousands of packages and out of scope here.)
-  if (room <= 0) return build('');
-  return build(`${truncateAtLineBoundary(changelog, room)}\n\n${notice}`);
+  if (renderSelectionBlock) {
+    // Non-sync: always keep the rows (the PR must stay usable); shed changelog volume in stages.
+    // Level 1 — keep the per-row changelogs, drop the redundant deduped footer.
+    if (footer) {
+      const body = build(fullSelection, '');
+      if (body.length <= STANDING_PR_BODY_CAP) return body;
+    }
+    // Level 2 — drop the per-row changelogs too (bare rows) and point reviewers at CHANGELOG.md.
+    const bareSelection = renderSelectionBlock(false);
+    const body = build(bareSelection, '', TRUNCATION_NOTICE);
+    if (body.length <= STANDING_PR_BODY_CAP) return body;
+    // Level 3 — even the notice overflows (thousands of rows): bare rows only.
+    return build(bareSelection, '');
+  }
+
+  // Sync: the footer is the only changelog — truncate it at a line boundary and append the notice.
+  if (footer) {
+    // 8 = 4 (\n\n around the footer) + 2 (\n\n before the notice) + 2 safety margin.
+    const room = STANDING_PR_BODY_CAP - build(undefined, '').length - TRUNCATION_NOTICE.length - 8;
+    if (room <= 0) return build(undefined, '');
+    return build(undefined, `${truncateAtLineBoundary(footer, room)}\n\n${TRUNCATION_NOTICE}`);
+  }
+  return build(undefined, '');
 }
 
 export function serializeManifest(m: StandingPRManifest): string {
@@ -1141,16 +1076,34 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // The interactive selection region — the package list for non-sync releases. Rendered from the
   // full changed set (dry run) so a held-back package still shows as an unticked row; sync releases
   // are atomic and carry none. Coherence warnings (partial independent group, held-back prerequisite
-  // of a still-selected target) ride below the region and surface in the run log.
-  let selectionBlock: string | undefined;
+  // of a still-selected target) ride below the region and surface in the run log. Each row carries
+  // its own co-located changelog; the renderer is re-invokable with changelogs on/off so the body-cap
+  // fallback can shed per-row changelogs while keeping the rows.
+  let renderSelectionBlock: ((withChangelogs: boolean) => string) | undefined;
   if (versionOutputDry.strategy !== 'sync') {
-    const region = renderSelectionRegion(dryUpdates, effectiveDeselected, primaryConfig);
     const warnings = selectionWarnings(dryUpdates, effectiveDeselected, groups);
     for (const w of warnings) warn(`Selection: ${w.reason}`);
-    selectionBlock = warnings.length > 0 ? `${region}\n\n${warnings.map((w) => `> ⚠️ ${w.reason}`).join('\n')}` : region;
+    const warningSuffix = warnings.length > 0 ? `\n\n${warnings.map((w) => `> ⚠️ ${w.reason}`).join('\n')}` : '';
+    // Per-row changelogs are sourced from the DRY changelogs (the full changed set) so a held-back
+    // row still shows its greyed changelog — the write output omits held-back packages entirely.
+    const rowChangelog = makeRowChangelogRenderer(versionOutputDry.changelogs);
+    renderSelectionBlock = (withChangelogs) =>
+      renderSelectionRegion(dryUpdates, effectiveDeselected, primaryConfig, withChangelogs ? rowChangelog : undefined) +
+      warningSuffix;
   }
 
-  const body = renderPrBody(versionOutput, supersedeWarning, notesRegion, selectionBlock);
+  // The flat, de-duplicated combined footer — every change once, grouped by type. Driven by the write
+  // output (already excludes held-back packages, so it mirrors what publishes). The gate is a
+  // redundancy control, never a drop-data control: sync releases carry no per-row changelogs, so the
+  // footer is their only changelog surface and always renders; and when the gate suppresses the full
+  // footer in non-sync mode we still surface project-wide (shared) entries, which have no per-row home.
+  const footerEnabled = standingPrConfig?.combinedChangelogFooter !== false;
+  const footer =
+    footerEnabled || versionOutput.strategy === 'sync'
+      ? renderCombinedFooter(versionOutput)
+      : renderCombinedFooter(versionOutput, { sharedOnly: true });
+
+  const body = renderPrBody(versionOutput, { supersedeWarning, notesRegion, renderSelectionBlock, footer });
 
   let prNumber: number;
   let prUrl: string;
