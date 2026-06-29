@@ -79,6 +79,20 @@ describe('changelog-region', () => {
       expect(footer).toContain('_(a, b)_');
     });
 
+    it('should keep same-description changes with different scopes as distinct lines', () => {
+      const footer = renderCombinedFooter(
+        output({
+          changelogs: [
+            cl('@scope/a', [{ type: 'fix', description: 'Fix edge case', scope: 'cli' }]),
+            cl('@scope/b', [{ type: 'fix', description: 'Fix edge case', scope: 'router' }]),
+          ],
+        }),
+      );
+      expect(footer).toContain('(`cli`)');
+      expect(footer).toContain('(`router`)');
+      expect(footer).toContain('Show all changes (2 changes, de-duplicated)');
+    });
+
     it('should fold project-wide shared entries into the flat type buckets', () => {
       const footer = renderCombinedFooter(
         output({
