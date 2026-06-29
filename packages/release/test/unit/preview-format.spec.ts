@@ -882,6 +882,102 @@ describe('formatPreviewComment', () => {
     });
   });
 
+  // --- Synthetic version-bump entries (#468) ---
+
+  describe('synthetic version-bump entries (#468)', () => {
+    // A sync/lockstep carry: a bumped package with no commits of its own gets a fabricated
+    // `Update version to X` placeholder from the version engine. The preview must collapse these
+    // into the "Also bumped" list, not render full changelog blocks of placeholder noise.
+    const syntheticEntry = (v: string) => ({
+      type: 'changed',
+      description: `Update version to ${v}`,
+      synthetic: true,
+    });
+
+    const mixedOutput: VersionOutput = {
+      dryRun: true,
+      strategy: 'group',
+      updates: [
+        { packageName: 'root', newVersion: '1.1.0', filePath: 'package.json', isRoot: true },
+        { packageName: 'embedded-driver', newVersion: '1.1.0', filePath: 'packages/embedded/package.json' },
+        { packageName: 'bridge', newVersion: '1.1.0', filePath: 'packages/bridge/package.json' },
+        { packageName: 'service', newVersion: '1.1.0', filePath: 'packages/service/package.json' },
+      ],
+      changelogs: [
+        {
+          packageName: 'embedded-driver',
+          version: '1.1.0',
+          previousVersion: '1.0.0',
+          revisionRange: 'v1.0.0..HEAD',
+          repoUrl: null,
+          entries: [{ type: 'added', description: 'implement W3C Actions API' }],
+        },
+        {
+          packageName: 'bridge',
+          version: '1.1.0',
+          previousVersion: '1.0.0',
+          revisionRange: 'v1.0.0..HEAD',
+          repoUrl: null,
+          entries: [syntheticEntry('1.1.0')],
+        },
+        {
+          packageName: 'service',
+          version: '1.1.0',
+          previousVersion: '1.0.0',
+          revisionRange: 'v1.0.0..HEAD',
+          repoUrl: null,
+          entries: [syntheticEntry('1.1.0')],
+        },
+      ],
+      tags: [],
+    };
+
+    it('should collapse synthetic-only packages into "Also bumped" instead of full blocks', () => {
+      const result = formatPreviewComment({ versionOutput: mixedOutput, notesGenerated: false });
+      // The package with real changes renders a full block...
+      expect(result).toContain('<summary><b>embedded-driver</b> 1.0.0 → 1.1.0</summary>');
+      expect(result).toContain('implement W3C Actions API');
+      // ...the synthetic-only carries do not — no placeholder noise leaks into the changelog.
+      expect(result).not.toContain('Update version to');
+      expect(result).not.toContain('<summary><b>bridge</b>');
+      expect(result).not.toContain('<summary><b>service</b>');
+      // ...they appear instead as a compact "Also bumped" list.
+      expect(result).toContain('**Also bumped** (sync versioning)');
+      expect(result).toContain('- `bridge` → 1.1.0');
+      expect(result).toContain('- `service` → 1.1.0');
+      // The root lockstep bump is never listed.
+      expect(result).not.toContain('- `root`');
+    });
+
+    it('should show a "no individual changes" heading when every package is synthetic-only', () => {
+      const allSynthetic: VersionOutput = {
+        ...mixedOutput,
+        changelogs: mixedOutput.changelogs.map((cl) => ({ ...cl, entries: [syntheticEntry('1.1.0')] })),
+      };
+      const result = formatPreviewComment({ versionOutput: allSynthetic, notesGenerated: false });
+      expect(result).toContain('**Bumped** (sync versioning — no individual changes)');
+      expect(result).not.toContain('Update version to');
+      expect(result).not.toContain('<summary><b>embedded-driver</b>');
+    });
+
+    it('should keep rendering legacy placeholder entries that lack the synthetic flag (back-compat)', () => {
+      // Manifests written before the flag existed carry the same placeholder text with no flag —
+      // absence must mean "real entry", so they still render as before (no silent disappearance).
+      const legacy: VersionOutput = {
+        ...mixedOutput,
+        changelogs: [
+          {
+            ...mixedOutput.changelogs[1], // bridge
+            entries: [{ type: 'changed', description: 'Update version to 1.1.0' }],
+          },
+        ],
+      };
+      const result = formatPreviewComment({ versionOutput: legacy, notesGenerated: false });
+      expect(result).toContain('<summary><b>bridge</b> 1.0.0 → 1.1.0</summary>');
+      expect(result).toContain('Update version to 1.1.0');
+    });
+  });
+
   // --- Label context banners ---
 
   describe('label context banners', () => {

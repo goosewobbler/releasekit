@@ -15,6 +15,15 @@ export interface VersionChangelogEntry {
   scope?: string;
   originalType?: string;
   breaking?: boolean;
+  /**
+   * True when this entry is a fabricated `Update version to X` placeholder, minted for a package
+   * that bumped without any conventional commits of its own (a sync/lockstep carry). It is not
+   * derived from a real commit. The preview formatter treats a changelog whose entries are *all*
+   * synthetic as "no real changes" and collapses the package into the "Also bumped" list instead
+   * of rendering a full block of placeholder noise (#468). Optional and additive: absent means a
+   * real entry, so manifests written before this field existed render exactly as before.
+   */
+  synthetic?: boolean;
 }
 
 /**

@@ -278,7 +278,7 @@ async function extractEntries(
     log(`Error extracting changelog entries: ${error instanceof Error ? error.message : String(error)}`, 'warning');
   }
   if (entries.length === 0) {
-    entries = [{ type: 'changed', description: `Update version to ${input.nextVersion}` }];
+    entries = [{ type: 'changed', description: `Update version to ${input.nextVersion}`, synthetic: true }];
   }
   return { entries, revisionRange, previousVersion };
 }

@@ -308,13 +308,13 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         changelogEntries = await extractChangelogEntriesFromCommits(mainPkgPath, revisionRange);
 
         if (changelogEntries.length === 0) {
-          changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];
+          changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}`, synthetic: true }];
         }
       } catch (error) {
         // A strictReachable violation must abort the run, not degrade to a minimal entry (#372).
         if (error instanceof StrictReachableError) throw error;
         log(`Error extracting changelog entries: ${error instanceof Error ? error.message : String(error)}`, 'warning');
-        changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];
+        changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}`, synthetic: true }];
       }
 
       // Build the commit message package name from all updated workspace packages.
@@ -575,14 +575,14 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         // If we have no entries but we're definitely changing versions,
         // add a minimal entry about the version change
         if (changelogEntries.length === 0) {
-          changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];
+          changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}`, synthetic: true }];
         }
       } catch (error) {
         // A strictReachable violation must abort the run, not degrade to a minimal entry (#372).
         if (error instanceof StrictReachableError) throw error;
         log(`Error extracting changelog entries: ${error instanceof Error ? error.message : String(error)}`, 'warning');
         // Fall back to minimal entry
-        changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];
+        changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}`, synthetic: true }];
       }
 
       // Determine repo URL from package.json or git config
