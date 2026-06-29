@@ -68,7 +68,8 @@ export type ReleaseChannel = 'stable' | 'prerelease';
  * field) re-derive the channel with this.
  */
 export function deriveReleaseChannel(version: string): ReleaseChannel {
-  const core = version.split('+', 1)[0] ?? version;
+  const buildIdx = version.indexOf('+');
+  const core = buildIdx === -1 ? version : version.slice(0, buildIdx);
   return core.includes('-') ? 'prerelease' : 'stable';
 }
 
