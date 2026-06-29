@@ -391,4 +391,143 @@ describe('selection-region', () => {
       ]);
     });
   });
+
+  // --- Channel-grouped sections (#487) ---
+
+  describe('channel-grouped sections (#487)', () => {
+    const STABLE = '#### Stable — advancing on `latest`';
+    const PRERELEASE = '#### Prereleases — advancing on their pre-release dist-tag';
+
+    it('should split a mixed PR into a Stable then a Prereleases section', () => {
+      const updates: Update[] = [
+        { packageName: '@scope/a', newVersion: '1.1.0', filePath: '', channel: 'stable' },
+        { packageName: '@scope/b', newVersion: '2.0.0-next.1', filePath: '', channel: 'prerelease' },
+      ];
+      const region = renderSelectionRegion(updates, new Set());
+
+      expect(region).toContain(STABLE);
+      expect(region).toContain(PRERELEASE);
+      // Stable section precedes the prerelease section, and each row sits under its own heading.
+      expect(region.indexOf(STABLE)).toBeLessThan(region.indexOf(PRERELEASE));
+      expect(region.indexOf(STABLE)).toBeLessThan(region.indexOf('rk-sel:@scope/a'));
+      expect(region.indexOf('rk-sel:@scope/a')).toBeLessThan(region.indexOf(PRERELEASE));
+      expect(region.indexOf(PRERELEASE)).toBeLessThan(region.indexOf('rk-sel:@scope/b'));
+    });
+
+    it('should surface the target version and dist-tag channel on each prerelease row', () => {
+      const updates: Update[] = [
+        { packageName: '@scope/a', newVersion: '1.1.0', filePath: '', channel: 'stable' },
+        { packageName: '@scope/b', newVersion: '2.0.0-next.1', filePath: '', channel: 'prerelease' },
+        { packageName: '@scope/c', newVersion: '3.0.0-beta.4', filePath: '', channel: 'prerelease' },
+      ];
+      const region = renderSelectionRegion(updates, new Set());
+
+      expect(region).toContain('- [x] `@scope/a` → 1.1.0 <!-- rk-sel:@scope/a -->');
+      expect(region).toContain('- [x] `@scope/b` → 2.0.0-next.1 · `next` <!-- rk-sel:@scope/b -->');
+      expect(region).toContain('- [x] `@scope/c` → 3.0.0-beta.4 · `beta` <!-- rk-sel:@scope/c -->');
+    });
+
+    it('should render a stable-only PR with no section headings (back-compat)', () => {
+      const updates: Update[] = [
+        { packageName: '@scope/a', newVersion: '1.1.0', filePath: '', channel: 'stable' },
+        { packageName: '@scope/b', newVersion: '2.0.0', filePath: '', channel: 'stable' },
+      ];
+      const region = renderSelectionRegion(updates, new Set());
+
+      expect(region).not.toContain(STABLE);
+      expect(region).not.toContain(PRERELEASE);
+      expect(region).toContain('- [x] `@scope/a` → 1.1.0 <!-- rk-sel:@scope/a -->');
+      expect(region).toContain('- [x] `@scope/b` → 2.0.0 <!-- rk-sel:@scope/b -->');
+    });
+
+    it('should render a prerelease-only PR with no section headings but keep per-row dist-tags', () => {
+      const updates: Update[] = [
+        { packageName: '@scope/a', newVersion: '1.1.0-next.0', filePath: '', channel: 'prerelease' },
+        { packageName: '@scope/b', newVersion: '2.0.0-next.3', filePath: '', channel: 'prerelease' },
+      ];
+      const region = renderSelectionRegion(updates, new Set());
+
+      expect(region).not.toContain(STABLE);
+      expect(region).not.toContain(PRERELEASE);
+      expect(region).toContain('- [x] `@scope/a` → 1.1.0-next.0 · `next` <!-- rk-sel:@scope/a -->');
+      expect(region).toContain('- [x] `@scope/b` → 2.0.0-next.3 · `next` <!-- rk-sel:@scope/b -->');
+    });
+
+    it('should derive the channel from the version when the update carries none (old manifest)', () => {
+      // No `channel` field (pre-#485 manifest): the section split falls back to deriveReleaseChannel.
+      const updates: Update[] = [
+        { packageName: '@scope/a', newVersion: '1.1.0', filePath: '' },
+        { packageName: '@scope/b', newVersion: '2.0.0-next.1', filePath: '' },
+      ];
+      const region = renderSelectionRegion(updates, new Set());
+
+      expect(region).toContain(STABLE);
+      expect(region).toContain(PRERELEASE);
+      expect(region).toContain('- [x] `@scope/b` → 2.0.0-next.1 · `next` <!-- rk-sel:@scope/b -->');
+    });
+
+    it('should round-trip a deselection through render → extract across channel sections', () => {
+      const updates: Update[] = [
+        { packageName: '@scope/a', newVersion: '1.1.0', filePath: '', channel: 'stable' },
+        { packageName: '@scope/b', newVersion: '2.0.0-next.1', filePath: '', channel: 'prerelease' },
+      ];
+      const body = `## Release\n\n${renderSelectionRegion(updates, new Set(['@scope/b']))}\n\nfooter`;
+      // The prerelease row's dist-tag suffix sits before the marker, so identity round-trips unchanged.
+      expect(extractSelection(body)).toEqual({ deselected: ['@scope/b'] });
+    });
+
+    describe('hierarchical (release units)', () => {
+      const groups = { ui: { sync: 'linked' as const, packages: ['@scope/ui-*'] } };
+      const allNames = ['@scope/ui-core', '@scope/ui-theme', '@scope/cli'];
+      const cfg = (over: Partial<PrimaryConfig> = {}): PrimaryConfig => ({
+        primaryPackages: ['@scope/ui-core', '@scope/cli'],
+        selection: 'streamlined',
+        groups,
+        allPackageNames: allNames,
+        ...over,
+      });
+
+      it('should place a stable unit and a prerelease unit in their primary’s channel section', () => {
+        const updates: Update[] = [
+          { packageName: '@scope/cli', newVersion: '4.2.0', filePath: '', channel: 'stable' },
+          {
+            packageName: '@scope/ui-core',
+            newVersion: '1.0.0-next.2',
+            filePath: '',
+            group: 'ui',
+            channel: 'prerelease',
+          },
+          {
+            packageName: '@scope/ui-theme',
+            newVersion: '1.0.0-next.2',
+            filePath: '',
+            group: 'ui',
+            channel: 'prerelease',
+          },
+        ];
+        const region = renderSelectionRegion(updates, new Set(), cfg());
+
+        expect(region).toContain(STABLE);
+        expect(region).toContain(PRERELEASE);
+        // The stable primary lands in the Stable section; the prerelease unit (primary + coupled
+        // member) lands whole in the Prereleases section under its primary's channel.
+        expect(region.indexOf(STABLE)).toBeLessThan(region.indexOf('rk-sel:@scope/cli'));
+        expect(region.indexOf('rk-sel:@scope/cli')).toBeLessThan(region.indexOf(PRERELEASE));
+        expect(region).toContain('- [x] **`@scope/ui-core`** → 1.0.0-next.2 · `next` <!-- rk-sel:@scope/ui-core -->');
+        expect(region).toContain('  - `@scope/ui-theme` → 1.0.0-next.2 · `next` · coupled');
+        expect(region.indexOf(PRERELEASE)).toBeLessThan(region.indexOf('rk-sel:@scope/ui-core'));
+      });
+
+      it('should drop headings when every unit shares one channel', () => {
+        const updates: Update[] = [
+          { packageName: '@scope/cli', newVersion: '4.2.0', filePath: '', channel: 'stable' },
+          { packageName: '@scope/ui-core', newVersion: '1.1.0', filePath: '', group: 'ui', channel: 'stable' },
+          { packageName: '@scope/ui-theme', newVersion: '1.1.0', filePath: '', group: 'ui', channel: 'stable' },
+        ];
+        const region = renderSelectionRegion(updates, new Set(), cfg());
+        expect(region).not.toContain(STABLE);
+        expect(region).not.toContain(PRERELEASE);
+      });
+    });
+  });
 });
