@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { buildDependencyGraph, debug, type GraphPackage } from '@releasekit/core';
+import { buildDependencyGraph, debug, type GraphPackage, isPrivatePackageJson } from '@releasekit/core';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext } from '../types.js';
 import { detectNpmAuth } from '../utils/auth.js';
@@ -117,19 +117,23 @@ export const npmRegistry: Registry<NpmTarget, NpmSession> = {
     }
 
     const pkgJsonPath = path.resolve(ctx.cwd, target.filePath);
+    let pkgJson: { private?: unknown } | undefined;
     try {
-      const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
-      debug(`Package.json files field: ${JSON.stringify(pkgJson.files)}`);
-      debug(`Package.json version: ${pkgJson.version}`);
-      debug(`Package.json name: ${pkgJson.name}`);
-
-      if (pkgJson.private) {
-        debug(`Skipping private package: ${target.packageName}`);
-        return { reason: 'Package is private' };
-      }
+      const parsed = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
+      pkgJson = parsed;
+      debug(`Package.json files field: ${JSON.stringify(parsed.files)}`);
+      debug(`Package.json version: ${parsed.version}`);
+      debug(`Package.json name: ${parsed.name}`);
     } catch (error) {
       // A genuinely unreadable/malformed package.json — log and continue with empty metadata.
       debug(`Failed to read package.json: ${error}`);
+    }
+
+    // Validate `private` OUTSIDE the parse try/catch: a quoted `"private": "true"` must abort the
+    // publish, not get swallowed as a "malformed package.json" and then published (irreversible).
+    if (isPrivatePackageJson(pkgJson, pkgJsonPath)) {
+      debug(`Skipping private package: ${target.packageName}`);
+      return { reason: 'Package is private' };
     }
     return undefined;
   },

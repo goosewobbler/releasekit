@@ -4,7 +4,7 @@
 
 import path from 'node:path';
 import type { Package } from '@manypkg/get-packages';
-import { log, matchesPackageTarget as matchTarget } from '@releasekit/core';
+import { isPrivatePackageJson, log, matchesPackageTarget as matchTarget } from '@releasekit/core';
 import { minimatch } from 'minimatch';
 
 /**
@@ -14,7 +14,7 @@ export function filterPackagesByConfig(packages: Package[], configTargets: strin
   if (configTargets.length === 0) {
     log('No config targets specified, returning all non-private packages', 'debug');
     return packages.filter((pkg) => {
-      if (pkg.packageJson.private) {
+      if (isPrivatePackageJson(pkg.packageJson, path.join(pkg.dir, 'package.json'))) {
         log(`Package "${pkg.packageJson.name || pkg.dir}" is private and will be excluded from release`, 'warn');
         return false;
       }

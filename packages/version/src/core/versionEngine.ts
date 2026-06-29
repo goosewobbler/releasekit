@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import { cwd } from 'node:process';
 import { getPackagesSync, type Package, type Packages } from '@manypkg/get-packages';
 import { filterPackagesByConfig, parseCargoToml, parsePubspec } from '@releasekit/config';
-import { shouldMatchPackageTargets } from '@releasekit/core';
+import { isPrivatePackageJson, shouldMatchPackageTargets } from '@releasekit/core';
 import { minimatch } from 'minimatch';
 import * as yaml from 'yaml';
 import { GitError } from '../errors/gitError.js';
@@ -467,7 +467,7 @@ export class VersionEngine {
         const namedExactly = new Set(this.config.packages ?? []);
         const beforeCount = mergedPackages.packages.length;
         mergedPackages.packages = mergedPackages.packages.filter((pkg) => {
-          if (pkg.packageJson.private !== true) return true;
+          if (!isPrivatePackageJson(pkg.packageJson, path.join(pkg.dir, 'package.json'))) return true;
           if (namedExactly.has(pkg.packageJson.name)) return true;
           if (this.isNativelyPublishable(pkg.dir)) return true;
           log(`Skipping private npm package ${pkg.packageJson.name}: package.json "private": true`, 'debug');

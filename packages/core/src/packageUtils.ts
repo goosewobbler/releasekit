@@ -56,3 +56,30 @@ export function shouldProcessPackage(packageName: string, skip: string[] = []): 
 
   return !shouldMatchPackageTargets(packageName, skip);
 }
+
+/**
+ * Whether a parsed package.json marks the package private (npm refuses to publish these).
+ *
+ * Returns `true` ONLY for the boolean `true`. A non-boolean `private` — most insidiously the quoted
+ * `"private": "true"` — is treated as a hard configuration error rather than guessed at: a truthy
+ * read would silently skip a `"private": "false"` string, and a strict `=== true` read would let a
+ * `"private": "true"` string slip through and get **published** (irreversible). So we throw instead.
+ * This trap is npm-specific: Cargo `publish = false` (TOML boolean/array) and pub `publish_to: none`
+ * (YAML string) are typed by their formats, whereas JSON gives `private` no schema guard.
+ *
+ * @param pkgJsonPath path to the offending package.json, used verbatim in the error so the fix is obvious.
+ */
+export function isPrivatePackageJson(pkgJson: { private?: unknown } | null | undefined, pkgJsonPath: string): boolean {
+  const value = pkgJson?.private;
+  // Absent (or JSON `null`) means not private — matches npm and both legacy read paths.
+  if (value === undefined || value === null) {
+    return false;
+  }
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  throw new Error(
+    `${pkgJsonPath}: "private" must be a boolean, got ${typeof value} ${JSON.stringify(value)}. ` +
+      'Use `"private": true` (no quotes).',
+  );
+}

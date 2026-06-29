@@ -29,6 +29,7 @@ export {
   wrapNotesRegion,
 } from './notesRegion.js';
 export {
+  isPrivatePackageJson,
   matchesPackageTarget,
   shouldMatchPackageTargets,
   shouldProcessPackage,

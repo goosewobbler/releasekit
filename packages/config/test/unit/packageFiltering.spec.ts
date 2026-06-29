@@ -1,11 +1,15 @@
 import type { Package } from '@manypkg/get-packages';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Mock the logger
-vi.mock('@releasekit/core', () => ({
-  log: vi.fn(),
-  matchesPackageTarget: vi.fn(),
-}));
+// Mock the logger + package matcher, but keep the real isPrivatePackageJson (it's under test here).
+vi.mock('@releasekit/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@releasekit/core')>();
+  return {
+    log: vi.fn(),
+    matchesPackageTarget: vi.fn(),
+    isPrivatePackageJson: actual.isPrivatePackageJson,
+  };
+});
 
 // Import after mocking
 import { log, matchesPackageTarget } from '@releasekit/core';
@@ -68,6 +72,18 @@ describe('filterPackagesByConfig', () => {
       expect(log).toHaveBeenCalledWith('No config targets specified, returning all non-private packages', 'debug');
       expect(log).toHaveBeenCalledWith('Package "private-pkg-1" is private and will be excluded from release', 'warn');
       expect(log).toHaveBeenCalledWith('Package "private-pkg-2" is private and will be excluded from release', 'warn');
+    });
+
+    it('should throw on a quoted "private": "true" rather than silently publishing it', () => {
+      const pkg = {
+        dir: '/workspace/packages/leaky',
+        relativeDir: 'packages/leaky',
+        packageJson: { name: '@scope/leaky', version: '1.0.0', private: 'true' },
+      } as unknown as Package;
+
+      expect(() => filterPackagesByConfig([pkg], [], workspaceRoot)).toThrow(
+        '/workspace/packages/leaky/package.json: "private" must be a boolean, got string "true". Use `"private": true` (no quotes).',
+      );
     });
   });
 
