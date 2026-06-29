@@ -43,6 +43,12 @@ export interface ReleaseOptions {
   npmAuth?: 'auto' | 'oidc' | 'token';
   /** When set, scope commit analysis (bump type + changelog) to commits after this SHA. */
   baseRef?: string;
+  /**
+   * Per-package human-edited release notes that win over freshly generated notes (edited wins per
+   * package, new packages fall back to fresh). Set by the manual-mode draft dispatch (#319) from the
+   * edited tracking-issue body; not a CLI flag.
+   */
+  editedNotes?: Record<string, string>;
 }
 
 export interface ReleaseOutput {

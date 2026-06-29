@@ -1,5 +1,6 @@
 import { EXIT_CODES } from '@releasekit/core';
 import { Command, Option } from 'commander';
+import { publishFromDraft, runReleaseDraft } from '../draft/draft.js';
 import { runRelease } from '../release.js';
 import type { ReleaseOptions } from '../types.js';
 
@@ -26,6 +27,15 @@ export function createReleaseCommand(): Command {
     .option('--scope <name>', 'Resolve scope name to target packages from ci.scopeLabels config')
     .option('--branch <name>', 'Override the git branch used for push')
     .addOption(new Option('--npm-auth <method>', 'NPM auth method').choices(['auto', 'oidc', 'token']).default('auto'))
+    .option(
+      '--draft',
+      'Manual mode: compute the release and open a tracking issue with editable notes for review, instead of publishing (#319)',
+      false,
+    )
+    .option(
+      '--from-draft <number>',
+      'Manual mode: publish from a reviewed draft tracking issue (applies its edited notes), then close it',
+    )
     .option('--skip-notes', 'Skip changelog generation', false)
     .option('--skip-publish', 'Skip registry publishing and git operations', false)
     .option('--skip-git', 'Skip git commit/tag/push', false)
@@ -39,6 +49,20 @@ export function createReleaseCommand(): Command {
       if (opts.stable && opts.prerelease) {
         console.error('Error: Cannot use both --stable and --prerelease at the same time');
         process.exit(EXIT_CODES.INPUT_ERROR);
+      }
+
+      if (opts.draft && opts.fromDraft !== undefined) {
+        console.error('Error: Cannot use both --draft and --from-draft at the same time');
+        process.exit(EXIT_CODES.INPUT_ERROR);
+      }
+
+      let fromDraftNumber: number | undefined;
+      if (opts.fromDraft !== undefined) {
+        fromDraftNumber = Number(opts.fromDraft);
+        if (!Number.isInteger(fromDraftNumber) || fromDraftNumber <= 0) {
+          console.error(`Error: --from-draft expects a positive issue number, got "${opts.fromDraft}"`);
+          process.exit(EXIT_CODES.INPUT_ERROR);
+        }
       }
 
       const options: ReleaseOptions = {
@@ -66,7 +90,12 @@ export function createReleaseCommand(): Command {
       };
 
       try {
-        const result = await runRelease(options);
+        const result =
+          fromDraftNumber !== undefined
+            ? await publishFromDraft(fromDraftNumber, options)
+            : opts.draft
+              ? await runReleaseDraft(options)
+              : await runRelease(options);
 
         if (options.json && result) {
           console.log(JSON.stringify(result, null, 2));

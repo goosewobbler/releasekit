@@ -998,4 +998,16 @@ describe('runRelease', () => {
       expect(mockRefreshFeederPreviews).not.toHaveBeenCalled();
     });
   });
+
+  describe('editedNotes (manual-mode draft dispatch, #319)', () => {
+    it('should merge editedNotes over generated notes before publish (edited wins per package)', async () => {
+      await runRelease({ ...defaultOptions, editedNotes: { 'test-pkg': '- edited by human' } });
+
+      // runPublishStep forwards releaseNotes as the 3rd positional to the publish pipeline.
+      const publishOptions = vi.mocked(mockPublishRunPipeline).mock.calls[0]?.[2] as {
+        releaseNotes?: Record<string, string>;
+      };
+      expect(publishOptions.releaseNotes).toMatchObject({ 'test-pkg': '- edited by human' });
+    });
+  });
 });

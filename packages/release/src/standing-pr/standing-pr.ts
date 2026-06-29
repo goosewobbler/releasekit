@@ -22,7 +22,7 @@ import { extractNotesRegions, mergeNotesRegions, renderNotesRegion } from './not
 import { extractSelection, renderSelectionRegion, selectionWarnings } from './selection-region.js';
 import { postStandingPRStatusSafe } from './status.js';
 
-const MANIFEST_MARKER = '<!-- releasekit-manifest -->';
+export const MANIFEST_MARKER = '<!-- releasekit-manifest -->';
 const MANIFEST_SCHEMA_VERSION = 2;
 /** Marker for the idempotent "your selection change was ignored" notice posted to an unauthorized editor (#401). */
 const SELECTION_DENIED_MARKER = '<!-- releasekit-selection-denied -->';
