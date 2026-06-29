@@ -88,6 +88,14 @@ vi.mock('@releasekit/config', () => ({
   }),
 }));
 
+// The standing-PR primary-package path lazily imports `getWorkspacePackageNames` to resolve declared
+// primaries (incl. unchanged ones) against the workspace. Mock it so the test never hits a real fs;
+// defaults to empty (no primaries → flat render) for every test that doesn't opt in.
+const mockGetWorkspacePackageNames = vi.fn<(...args: unknown[]) => Promise<string[]>>().mockResolvedValue([]);
+vi.mock('@releasekit/version', () => ({
+  getWorkspacePackageNames: (...args: unknown[]) => mockGetWorkspacePackageNames(...args),
+}));
+
 vi.mock('../../src/steps.js', () => ({
   runVersionStep: vi.fn(),
   runNotesStep: vi.fn(),
@@ -508,6 +516,99 @@ describe('runStandingPRUpdate', () => {
     const updatedBody = forge.updatedPullRequests[0]?.changes.body ?? '';
     expect(updatedBody).toContain('- [ ] `@scope/b`');
     expect(updatedBody).toContain('- [x] `@scope/a`');
+  });
+
+  // --- Release-unit selection: primaryPackages wiring (#464) ---
+
+  // Config with `@wdio/tauri-service` as a primary over a linked `tauri` group, and the workspace
+  // resolver returning both packages so the primary (changed here) anchors the plugin as its child.
+  const withPrimaries = async () => {
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValue({
+      ci: {
+        standingPr: {
+          branch: 'release/next',
+          deleteBranchOnMerge: true,
+          primaryPackages: ['@wdio/tauri-service'],
+          selection: 'streamlined',
+        },
+      },
+      git: { branch: 'main' },
+      release: { ci: { skipPatterns: ['chore: release '] } },
+      version: { groups: { tauri: { sync: 'linked', packages: ['@wdio/tauri-*'] } } },
+    } as unknown as ReturnType<typeof import('@releasekit/config').loadConfig>);
+    mockGetWorkspacePackageNames.mockResolvedValue(['@wdio/tauri-service', '@wdio/tauri-plugin']);
+  };
+
+  const tauriVersionOutput = {
+    dryRun: false,
+    strategy: 'group',
+    updates: [
+      {
+        packageName: '@wdio/tauri-service',
+        newVersion: '1.4.0',
+        filePath: 'packages/svc/package.json',
+        group: 'tauri',
+      },
+      { packageName: '@wdio/tauri-plugin', newVersion: '1.4.0', filePath: 'packages/plg/package.json', group: 'tauri' },
+    ],
+    changelogs: [],
+    tags: [],
+    commitMessage: 'chore: release tauri',
+    sharedEntries: [],
+  };
+
+  it('should render a streamlined release unit with read-only coupled children (#464)', async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    await withPrimaries();
+    vi.mocked(runVersionStep).mockResolvedValue(
+      tauriVersionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>,
+    );
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const forge = await mockForge({ standingPR: null });
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const body = forge.createdPullRequests[0]?.body ?? '';
+    expect(body).toContain('- [x] **`@wdio/tauri-service`**');
+    expect(body).toContain('<details><summary>ships 1 coupled</summary>');
+    expect(body).toContain('- `@wdio/tauri-plugin`');
+    expect(body).toContain('· coupled');
+    // The child is read-only: no task-list checkbox and no identity marker (its state is derived).
+    expect(body).not.toContain('rk-sel:@wdio/tauri-plugin');
+  });
+
+  it('should cascade a held-back primary to exclude its whole unit from the write (#464)', async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    await withPrimaries();
+    vi.mocked(runVersionStep).mockResolvedValue(
+      tauriVersionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>,
+    );
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    // The live body has the primary unticked; the child carries no marker (streamlined).
+    const priorBody = [
+      '<!-- releasekit-selection -->',
+      '',
+      '- [ ] **`@wdio/tauri-service`** → 1.4.0 <!-- rk-sel:@wdio/tauri-service -->',
+      '  <details><summary>ships 1 coupled</summary>',
+      '',
+      '  - `@wdio/tauri-plugin` → 1.4.0 · coupled',
+      '  </details>',
+      '',
+      '<!-- releasekit-selection-end -->',
+    ].join('\n');
+    // Sets up the live PR state runStandingPRUpdate reads; the assertion is on the write-step args.
+    await mockForge({
+      standingPR: openStandingPR(99),
+      pullRequests: { 99: { body: priorBody, labels: [] } },
+    });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    // Unticking the primary holds back the whole unit — both packages excluded from the bump.
+    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { exclude?: string[] };
+    expect(writeCall.exclude?.slice().sort()).toEqual(['@wdio/tauri-plugin', '@wdio/tauri-service']);
   });
 
   const selectionBody = (untickedB = true) =>
