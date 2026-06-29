@@ -98,6 +98,12 @@ export const VersionConfigSchema = z.object({
     ),
   mainPackage: z.string().optional().describe('Package to use for version determination'),
   skip: z.array(z.string()).optional().describe('Packages to exclude from versioning'),
+  includePrivate: z
+    .boolean()
+    .default(false)
+    .describe(
+      'Include npm packages marked "private": true (in package.json) in the release flow. Default false: private packages are skipped at discovery — they cannot be published to any registry, mirroring the Cargo `publish = false` and pub `publish_to: none` skips already applied during discovery. Set true to version a private package for internal tracking. Packages explicitly named in version.packages are always included regardless of this setting.',
+    ),
   commitMessage: z.string().optional().describe('Template for release commit messages'),
   mismatchStrategy: z
     .enum(['error', 'warn', 'ignore', 'prefer-package', 'prefer-git'])

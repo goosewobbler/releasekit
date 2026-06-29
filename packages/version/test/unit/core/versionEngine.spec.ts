@@ -424,6 +424,62 @@ describe('Version Engine', () => {
         '@wdio/native-utils',
       ]);
     });
+
+    it('should exclude private npm packages from the release set by default', async () => {
+      // A private package can't be published to any registry, so it never belongs in the release
+      // set — discovery drops it without a version.skip entry (#477).
+      vi.mocked(getPackagesSync, { partial: true }).mockReturnValue({
+        root: '/test/workspace',
+        tool: 'pnpm' as any,
+        rootDir: '/test/workspace',
+        packages: [
+          {
+            dir: '/test/workspace/packages/a',
+            relativeDir: 'packages/a',
+            packageJson: { name: 'package-a', version: '1.0.0' },
+          },
+          {
+            dir: '/test/workspace/apps/example',
+            relativeDir: 'apps/example',
+            packageJson: { name: 'example-app', version: '1.0.0', private: true },
+          },
+        ],
+      });
+
+      const engine = new VersionEngine(defaultConfig as Config);
+      const result = await engine.getWorkspacePackages();
+
+      expect(result.packages.map((p) => p.packageJson.name)).toEqual(['package-a']);
+      expect(log).toHaveBeenCalledWith(
+        'Skipping private npm package example-app: package.json "private": true',
+        'debug',
+      );
+    });
+
+    it('should include private npm packages when includePrivate is true', async () => {
+      vi.mocked(getPackagesSync, { partial: true }).mockReturnValue({
+        root: '/test/workspace',
+        tool: 'pnpm' as any,
+        rootDir: '/test/workspace',
+        packages: [
+          {
+            dir: '/test/workspace/packages/a',
+            relativeDir: 'packages/a',
+            packageJson: { name: 'package-a', version: '1.0.0' },
+          },
+          {
+            dir: '/test/workspace/apps/example',
+            relativeDir: 'apps/example',
+            packageJson: { name: 'example-app', version: '1.0.0', private: true },
+          },
+        ],
+      });
+
+      const engine = new VersionEngine({ ...defaultConfig, includePrivate: true } as Config);
+      const result = await engine.getWorkspacePackages();
+
+      expect(result.packages.map((p) => p.packageJson.name).sort()).toEqual(['example-app', 'package-a']);
+    });
   });
 
   describe('Run method', () => {

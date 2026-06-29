@@ -424,6 +424,27 @@ export class VersionEngine {
         dir: p.dir,
       }));
 
+      // Skip npm packages marked `"private": true` — they can't be published to any registry, so by
+      // default they never belong in the release set. Mirrors the Cargo `publish = false` / pub
+      // `publish_to: none` skips already applied during native discovery, and runs before prerequisite
+      // and group expansion so a private package can't be pulled in transitively. Opt out with
+      // version.includePrivate to version a private package for internal tracking. When version.packages
+      // explicitly scopes the release universe we honour it verbatim (filterPackagesByConfig includes
+      // matched private packages), so this default skip only applies to auto-discovery.
+      if (!this.config.includePrivate && !(this.config.packages && this.config.packages.length > 0)) {
+        const beforeCount = mergedPackages.packages.length;
+        mergedPackages.packages = mergedPackages.packages.filter((pkg) => {
+          if (pkg.packageJson.private === true) {
+            log(`Skipping private npm package ${pkg.packageJson.name}: package.json "private": true`, 'debug');
+            return false;
+          }
+          return true;
+        });
+        if (mergedPackages.packages.length !== beforeCount) {
+          log(`Private filter: ${beforeCount} → ${mergedPackages.packages.length} packages`, 'debug');
+        }
+      }
+
       // --include-prerequisites: expand the explicit targets to the full release set (their changed
       // transitive dependencies + the rest of any group they belong to) and scope the bump/prerelease/
       // stable override to just the explicit, group-expanded targets. Runs on the full discovered set,

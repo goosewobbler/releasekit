@@ -104,6 +104,10 @@ export interface Config extends VersionConfigBase {
   sharedChangelogFloor?: 'union' | 'sinceLastRelease';
   mainPackage?: string;
   skip?: string[];
+  /** Include npm packages marked `"private": true` in package.json in the release flow. Default
+   *  false: private packages are skipped at discovery (they can't be published), mirroring the
+   *  Cargo `publish = false` / pub `publish_to: none` skips. See VersionConfig.includePrivate. */
+  includePrivate?: boolean;
   commitMessage?: string;
   dryRun?: boolean;
   latestTag?: string;
@@ -201,6 +205,7 @@ export function toVersionConfig(config: VersionConfig | undefined): Config {
     sharedChangelogFloor: config.sharedChangelogFloor,
     mainPackage: config.mainPackage,
     skip: config.skip,
+    includePrivate: config.includePrivate,
     commitMessage: config.commitMessage,
     mismatchStrategy: config.mismatchStrategy,
     allowFirstBump: config.allowFirstBump,
