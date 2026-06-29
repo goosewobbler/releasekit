@@ -1141,7 +1141,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // of a still-selected target) ride below the region and surface in the run log.
   let selectionBlock: string | undefined;
   if (versionOutputDry.strategy !== 'sync') {
-    const region = renderSelectionRegion(versionOutputDry, dryUpdates, effectiveDeselected, primaryConfig);
+    const region = renderSelectionRegion(dryUpdates, effectiveDeselected, primaryConfig);
     const warnings = selectionWarnings(dryUpdates, effectiveDeselected, groups);
     for (const w of warnings) warn(`Selection: ${w.reason}`);
     selectionBlock = warnings.length > 0 ? `${region}\n\n${warnings.map((w) => `> ⚠️ ${w.reason}`).join('\n')}` : region;

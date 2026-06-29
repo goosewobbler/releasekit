@@ -12,22 +12,6 @@ import {
 
 type Update = VersionOutput['updates'][number];
 
-function mockOutput(updates: Update[], changelogs: VersionOutput['changelogs'] = []): VersionOutput {
-  return {
-    dryRun: true,
-    strategy: 'async',
-    updates,
-    changelogs,
-    tags: [],
-    commitMessage: '',
-    sharedEntries: [],
-  } as unknown as VersionOutput;
-}
-
-function changelog(packageName: string, previousVersion: string, version: string) {
-  return { packageName, version, previousVersion, revisionRange: '', repoUrl: null, entries: [] };
-}
-
 describe('selection-region', () => {
   describe('renderSelectionRegion', () => {
     it('should render every package ticked by default with a per-row identity marker', () => {
@@ -35,7 +19,7 @@ describe('selection-region', () => {
         { packageName: '@scope/a', newVersion: '1.1.0', filePath: '' },
         { packageName: '@scope/b', newVersion: '2.0.0', filePath: '' },
       ];
-      const region = renderSelectionRegion(mockOutput(updates), updates, new Set());
+      const region = renderSelectionRegion(updates, new Set());
 
       expect(region).toContain('- [x] `@scope/a` → 1.1.0 <!-- rk-sel:@scope/a -->');
       expect(region).toContain('- [x] `@scope/b` → 2.0.0 <!-- rk-sel:@scope/b -->');
@@ -48,42 +32,17 @@ describe('selection-region', () => {
         { packageName: '@scope/a', newVersion: '1.1.0', filePath: '' },
         { packageName: '@scope/b', newVersion: '2.0.0', filePath: '' },
       ];
-      const region = renderSelectionRegion(mockOutput(updates), updates, new Set(['@scope/b']));
+      const region = renderSelectionRegion(updates, new Set(['@scope/b']));
 
       expect(region).toContain('- [x] `@scope/a` → 1.1.0 <!-- rk-sel:@scope/a -->');
       expect(region).toContain('- [ ] `@scope/b` → 2.0.0 <!-- rk-sel:@scope/b -->');
     });
 
-    it('should show the commit-driven bump kind when the previous version is known', () => {
+    it('should render a plain `→ version` row with no bump-kind parenthetical', () => {
       const updates: Update[] = [{ packageName: '@scope/a', newVersion: '1.1.0', filePath: '' }];
-      const region = renderSelectionRegion(
-        mockOutput(updates, [changelog('@scope/a', '1.0.0', '1.1.0')]),
-        updates,
-        new Set(),
-      );
-      expect(region).toContain('→ 1.1.0 (minor)');
-    });
-
-    it('should not crash and still derive the bump kind from a package-specific tag previousVersion', () => {
-      // packageSpecificTags repos carry previousVersion as a full tag (`name@vX.Y.Z`) — a bare
-      // semver.diff throws "Invalid Version" and would abort the whole render (regression #NNN).
-      const updates: Update[] = [{ packageName: 'wdio-electron-cdp-bridge', newVersion: '10.1.0', filePath: '' }];
-      const region = renderSelectionRegion(
-        mockOutput(updates, [changelog('wdio-electron-cdp-bridge', 'wdio-electron-cdp-bridge@v10.0.0', '10.1.0')]),
-        updates,
-        new Set(),
-      );
-      expect(region).toContain('→ 10.1.0 (minor)');
-    });
-
-    it('should drop the suffix rather than throw on an unparseable previousVersion', () => {
-      const updates: Update[] = [{ packageName: 'pkg', newVersion: '1.1.0', filePath: '' }];
-      const region = renderSelectionRegion(
-        mockOutput(updates, [changelog('pkg', 'not-a-version', '1.1.0')]),
-        updates,
-        new Set(),
-      );
+      const region = renderSelectionRegion(updates, new Set());
       expect(region).toContain('→ 1.1.0');
+      expect(region).not.toContain('(minor)');
       expect(region).not.toContain('(');
     });
 
@@ -98,7 +57,7 @@ describe('selection-region', () => {
           prerequisiteOf: ['@scope/app'],
         },
       ];
-      const region = renderSelectionRegion(mockOutput(updates), updates, new Set());
+      const region = renderSelectionRegion(updates, new Set());
 
       expect(region).toContain('- [x] **`@scope/app`** → 2.0.0 <!-- rk-sel:@scope/app -->');
       expect(region).toContain('  - [x] ↳ prerequisite `@scope/core` → 1.1.0 <!-- rk-sel:@scope/core -->');
@@ -115,7 +74,7 @@ describe('selection-region', () => {
           prerequisiteOf: ['@scope/app'],
         },
       ];
-      const region = renderSelectionRegion(mockOutput(updates), updates, new Set());
+      const region = renderSelectionRegion(updates, new Set());
 
       expect(region).toContain('rk-sel:@scope/core');
     });
@@ -131,7 +90,7 @@ describe('selection-region', () => {
         { packageName: '@scope/a', newVersion: '1.1.0', filePath: '' },
         { packageName: '@scope/b', newVersion: '2.0.0', filePath: '' },
       ];
-      const body = `## Release\n\n${renderSelectionRegion(mockOutput(updates), updates, new Set(['@scope/b']))}\n\nchangelog`;
+      const body = `## Release\n\n${renderSelectionRegion(updates, new Set(['@scope/b']))}\n\nchangelog`;
 
       expect(extractSelection(body)).toEqual({ deselected: ['@scope/b'] });
     });
@@ -148,10 +107,10 @@ describe('selection-region', () => {
         { packageName: '@scope/b', newVersion: '2.0.0', filePath: '' },
       ];
       // First render all-ticked, simulate the human unticking b, then re-render from the extracted set.
-      const seeded = renderSelectionRegion(mockOutput(updates), updates, new Set());
+      const seeded = renderSelectionRegion(updates, new Set());
       const edited = seeded.replace('[x] `@scope/b`', '[ ] `@scope/b`');
       const extracted = extractSelection(edited);
-      const rerendered = renderSelectionRegion(mockOutput(updates), updates, new Set(extracted?.deselected));
+      const rerendered = renderSelectionRegion(updates, new Set(extracted?.deselected));
 
       expect(rerendered).toContain('- [ ] `@scope/b`');
       expect(rerendered).toContain('- [x] `@scope/a`');
@@ -226,7 +185,6 @@ describe('selection-region', () => {
       { packageName: '@wdio/tauri-plugin', newVersion: '1.4.0', filePath: '', group: 'tauri' },
       { packageName: 'tauri-plugin-wdio-webdriver', newVersion: '1.4.0', filePath: '', group: 'tauri' },
     ];
-    const tauriChangelogs = tauriUpdates.map((u) => changelog(u.packageName, '1.3.0', '1.4.0'));
     const cfg = (over: Partial<PrimaryConfig> = {}): PrimaryConfig => ({
       primaryPackages: ['@wdio/tauri-service'],
       selection: 'streamlined',
@@ -358,11 +316,11 @@ describe('selection-region', () => {
 
     describe('renderSelectionRegion (hierarchical)', () => {
       it('should render a streamlined primary with read-only coupled bullets in a collapsed pane', () => {
-        const region = renderSelectionRegion(mockOutput(tauriUpdates, tauriChangelogs), tauriUpdates, new Set(), cfg());
-        expect(region).toContain('- [x] **`@wdio/tauri-service`** → 1.4.0 (minor) <!-- rk-sel:@wdio/tauri-service -->');
+        const region = renderSelectionRegion(tauriUpdates, new Set(), cfg());
+        expect(region).toContain('- [x] **`@wdio/tauri-service`** → 1.4.0 <!-- rk-sel:@wdio/tauri-service -->');
         expect(region).toContain('  <details><summary>ships 2 coupled</summary>');
-        expect(region).toContain('  - `@wdio/tauri-plugin` → 1.4.0 (minor) · coupled');
-        expect(region).toContain('  - `tauri-plugin-wdio-webdriver` → 1.4.0 (minor) · coupled');
+        expect(region).toContain('  - `@wdio/tauri-plugin` → 1.4.0 · coupled');
+        expect(region).toContain('  - `tauri-plugin-wdio-webdriver` → 1.4.0 · coupled');
         expect(region).toContain('  </details>');
         // Children are never task items and carry no marker — their state is derived, not toggled.
         expect(region).not.toContain('[x] `@wdio/tauri-plugin`');
@@ -373,19 +331,14 @@ describe('selection-region', () => {
         const pluginOnly: Update[] = [
           { packageName: '@wdio/tauri-plugin', newVersion: '1.4.0', filePath: '', group: 'tauri' },
         ];
-        const region = renderSelectionRegion(mockOutput(pluginOnly), pluginOnly, new Set(), cfg());
+        const region = renderSelectionRegion(pluginOnly, new Set(), cfg());
         expect(region).toContain('- [x] **`@wdio/tauri-service`** — no change <!-- rk-sel:@wdio/tauri-service -->');
       });
 
       it('should give every package its own marker’d checkbox in granular mode, no <details>', () => {
-        const region = renderSelectionRegion(
-          mockOutput(tauriUpdates, tauriChangelogs),
-          tauriUpdates,
-          new Set(),
-          cfg({ selection: 'granular' }),
-        );
-        expect(region).toContain('- [x] **`@wdio/tauri-service`** → 1.4.0 (minor) <!-- rk-sel:@wdio/tauri-service -->');
-        expect(region).toContain('  - [x] `@wdio/tauri-plugin` → 1.4.0 (minor) <!-- rk-sel:@wdio/tauri-plugin -->');
+        const region = renderSelectionRegion(tauriUpdates, new Set(), cfg({ selection: 'granular' }));
+        expect(region).toContain('- [x] **`@wdio/tauri-service`** → 1.4.0 <!-- rk-sel:@wdio/tauri-service -->');
+        expect(region).toContain('  - [x] `@wdio/tauri-plugin` → 1.4.0 <!-- rk-sel:@wdio/tauri-plugin -->');
         expect(region).not.toContain('<details>');
       });
 
@@ -394,8 +347,8 @@ describe('selection-region', () => {
           { packageName: '@scope/a', newVersion: '1.1.0', filePath: '' },
           { packageName: '@scope/b', newVersion: '2.0.0', filePath: '' },
         ];
-        const flat = renderSelectionRegion(mockOutput(updates), updates, new Set());
-        const withEmpty = renderSelectionRegion(mockOutput(updates), updates, new Set(), {
+        const flat = renderSelectionRegion(updates, new Set());
+        const withEmpty = renderSelectionRegion(updates, new Set(), {
           primaryPackages: [],
           selection: 'streamlined',
           groups: {},
@@ -424,7 +377,7 @@ describe('selection-region', () => {
     });
 
     it('should round-trip a primary untick through render → extract → cascade (children excluded)', () => {
-      const seeded = renderSelectionRegion(mockOutput(tauriUpdates, tauriChangelogs), tauriUpdates, new Set(), cfg());
+      const seeded = renderSelectionRegion(tauriUpdates, new Set(), cfg());
       const edited = seeded.replace('[x] **`@wdio/tauri-service`**', '[ ] **`@wdio/tauri-service`**');
       const extracted = extractSelection(`## Release\n\n${edited}`);
       expect(extracted?.deselected).toEqual(['@wdio/tauri-service']);
