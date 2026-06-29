@@ -52,6 +52,28 @@ export interface VersionPackageChangelog {
 export type VersionAction = 'first-release' | 'graduated' | 'bumped';
 
 /**
+ * The release channel a version sits on (#485). Derived per-package and purely from the resolved
+ * version: `'prerelease'` when the version carries a semver prerelease segment (`…-<preid>.N`), else
+ * `'stable'`. A standing PR with permanently-mixed maturity carries both at once — some `'stable'`
+ * packages, some `'prerelease'` — each advancing along its own line. #486 (per-package graduation)
+ * and #487 (channel-grouped rendering) build on this.
+ */
+export type ReleaseChannel = 'stable' | 'prerelease';
+
+/**
+ * Derive a version's {@link ReleaseChannel}. Pure and dependency-free (core cannot import semver): a
+ * semver prerelease is the hyphen-introduced segment that precedes any build-metadata `+`, so a
+ * version is `'prerelease'` exactly when that leading segment contains a `-`. Consumers that only
+ * hold a version string (and a manifest predating the persisted {@link VersionPackageUpdate.channel}
+ * field) re-derive the channel with this.
+ */
+export function deriveReleaseChannel(version: string): ReleaseChannel {
+  const buildIdx = version.indexOf('+');
+  const core = buildIdx === -1 ? version : version.slice(0, buildIdx);
+  return core.includes('-') ? 'prerelease' : 'stable';
+}
+
+/**
  * The complete JSON output of @releasekit/version --json.
  * This is the primary interchange format between version and notes.
  */
@@ -132,4 +154,13 @@ export interface VersionPackageUpdate {
   action?: VersionAction;
   /** Short human-readable reason for {@link action} (e.g. `Graduated 1.0.0-next.1 → 1.0.0 (bump ignored).`). Optional, same back-compat rule as {@link action}. */
   actionReason?: string;
+  /**
+   * The release channel this package's new version sits on (#485): `'prerelease'` when `newVersion`
+   * carries a semver prerelease segment, else `'stable'`. Derived from the resolved version via
+   * {@link deriveReleaseChannel}; a mixed standing PR carries both, each package advancing on its own
+   * line. Purely additive observability — it never affects which version resolves. Optional for
+   * backwards compatibility: standing-PR manifests written before this field existed omit it, so every
+   * consumer must tolerate its absence (re-derive from `newVersion`). #486/#487 build on it.
+   */
+  channel?: ReleaseChannel;
 }

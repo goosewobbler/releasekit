@@ -57,6 +57,7 @@ describe('JSON Output Utilities', () => {
         packageName: 'test-package',
         newVersion: '1.0.0',
         filePath: '/path/to/package.json',
+        channel: 'stable',
       });
       expect(updatedData.tags).toHaveLength(1);
       expect(updatedData.tags[0]).toBe('v1.0.0');
@@ -108,6 +109,7 @@ describe('JSON Output Utilities', () => {
         packageName: 'my-monorepo',
         newVersion: '1.0.0',
         filePath: '/path/to/package.json',
+        channel: 'stable',
         isRoot: true,
       });
       // isRoot is omitted (not false) so pre-existing consumers see an unchanged shape
@@ -115,6 +117,7 @@ describe('JSON Output Utilities', () => {
         packageName: 'test-package',
         newVersion: '1.0.0',
         filePath: '/path/to/packages/a/package.json',
+        channel: 'stable',
       });
     });
 
@@ -133,6 +136,7 @@ describe('JSON Output Utilities', () => {
         packageName: '@scope/x-y',
         newVersion: '1.1.0',
         filePath: '/ws/packages/x/package.json',
+        channel: 'stable',
       });
     });
 
@@ -147,6 +151,7 @@ describe('JSON Output Utilities', () => {
         packageName: '@scope/x-y',
         newVersion: '1.1.0',
         filePath: '/ws/packages/x/package.json',
+        channel: 'stable',
       });
     });
 
@@ -160,7 +165,19 @@ describe('JSON Output Utilities', () => {
         packageName: 'pure-crate',
         newVersion: '2.0.0',
         filePath: '/ws/crates/pure/Cargo.toml',
+        channel: 'stable',
       });
+    });
+
+    it('should derive the per-package channel from the resolved version (#485)', () => {
+      enableJsonOutput();
+      addPackageUpdate('stable-pkg', '10.2.0', '/ws/packages/stable/package.json');
+      addPackageUpdate('pre-pkg', '1.0.0-next.2', '/ws/packages/pre/package.json');
+
+      const updates = getJsonData().updates;
+      // A mixed standing PR carries both channels at once, each on its own line (#485).
+      expect(updates.find((u) => u.packageName === 'stable-pkg')?.channel).toBe('stable');
+      expect(updates.find((u) => u.packageName === 'pre-pkg')?.channel).toBe('prerelease');
     });
 
     it('should dedupe a hybrid when manifest paths are not string-identical for the same directory', () => {

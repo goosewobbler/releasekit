@@ -37,5 +37,13 @@ describe('semver utils', () => {
     it('should use custom default tag', () => {
       expect(getDistTag('1.0.0', 'stable')).toBe('stable');
     });
+
+    it('should resolve the dist-tag per package in a mixed (stable + prerelease) release (#485)', () => {
+      // A standing PR with permanently-mixed maturity publishes each package on its own channel.
+      // getDistTag is per-version, so the same run yields `latest` for the stable packages and the
+      // prerelease identifier for the `-next` ones with no extra wiring.
+      const versions = ['10.2.0', '1.1.0-next.0', '2.0.0', '0.3.0-beta.4'];
+      expect(versions.map((v) => getDistTag(v, 'latest'))).toEqual(['latest', 'next', 'latest', 'beta']);
+    });
   });
 });
