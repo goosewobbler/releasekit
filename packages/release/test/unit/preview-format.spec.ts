@@ -219,6 +219,37 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('</details>');
   });
 
+  it('should render the changelog header with a bare previous version when previousVersion is a package tag', () => {
+    const taggedOutput: ReleaseOutput = {
+      versionOutput: {
+        dryRun: true,
+        updates: [
+          {
+            packageName: '@wdio/electron-service',
+            newVersion: '10.2.0',
+            filePath: 'packages/electron-service/package.json',
+          },
+        ],
+        changelogs: [
+          {
+            packageName: '@wdio/electron-service',
+            version: '10.2.0',
+            // Stored as the consumer tag; the header must strip it to the bare semver.
+            previousVersion: 'wdio-electron-service@v10.1.0',
+            revisionRange: 'wdio-electron-service@v10.1.0..HEAD',
+            repoUrl: null,
+            entries: [{ type: 'added', description: 'New widget' }],
+          },
+        ],
+        tags: ['wdio-electron-service@v10.2.0'],
+      },
+      notesGenerated: false,
+    };
+    const result = formatPreviewComment(taggedOutput);
+    expect(result).toContain('<b>@wdio/electron-service</b> 10.1.0 → 10.2.0');
+    expect(result).not.toContain('wdio-electron-service@v10.1.0 → 10.2.0');
+  });
+
   it('should not include tags section', () => {
     const result = formatPreviewComment(releaseOutput);
     expect(result).not.toContain('### Tags');
@@ -572,8 +603,9 @@ describe('formatPreviewComment', () => {
         {
           packageName: '@a/version',
           version: '0.3.2',
-          previousVersion: '0.3.1',
-          revisionRange: 'v0.3.1..HEAD',
+          // Stored as the consumer tag; the table must strip it to the bare semver.
+          previousVersion: '@a/version@v0.3.1',
+          revisionRange: '@a/version@v0.3.1..HEAD',
           repoUrl: null,
           entries: [{ type: 'fix', description: 'queued fix' }],
         },
