@@ -271,6 +271,17 @@ describe('serializeManifest / parseManifest', () => {
     const parsed = parseManifest(serializeManifest(baseManifest));
     expect(parsed.overrideLabels).toBeUndefined();
   });
+
+  it('should round-trip graduated packages (#486)', () => {
+    const m = { ...baseManifest, schemaVersion: 2 as const, graduated: ['@scope/a', '@scope/b'] };
+    const parsed = parseManifest(serializeManifest(m));
+    expect(parsed.graduated).toEqual(['@scope/a', '@scope/b']);
+  });
+
+  it('should accept a manifest without graduated (backward compat)', () => {
+    const parsed = parseManifest(serializeManifest(baseManifest));
+    expect(parsed.graduated).toBeUndefined();
+  });
 });
 
 describe('runStandingPRUpdate', () => {
@@ -1858,6 +1869,106 @@ describe('runStandingPRUpdate', () => {
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
       expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ sync: true });
+    });
+  });
+
+  describe('per-package graduation (#486)', () => {
+    // A mixed async standing PR: @scope/a stays on its stable line, @scope/b is a prerelease.
+    const mixedOutput = (graduatedName?: string) => ({
+      dryRun: false,
+      strategy: 'async' as const,
+      updates: [
+        {
+          packageName: '@scope/a',
+          newVersion: graduatedName === '@scope/a' ? '1.0.0' : '1.0.1',
+          filePath: 'packages/a/package.json',
+          channel: 'stable' as const,
+          action: graduatedName === '@scope/a' ? ('graduated' as const) : ('bumped' as const),
+        },
+        {
+          packageName: '@scope/b',
+          newVersion: graduatedName === '@scope/b' ? '2.0.0' : '2.0.0-next.2',
+          filePath: 'packages/b/package.json',
+          channel: graduatedName === '@scope/b' ? ('stable' as const) : ('prerelease' as const),
+          action: graduatedName === '@scope/b' ? ('graduated' as const) : ('bumped' as const),
+        },
+      ],
+      changelogs: [],
+      tags: [],
+      commitMessage: 'chore: release',
+      sharedEntries: [],
+    });
+
+    async function setupGraduation(labels: string[], graduatedName?: string) {
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      const output = mixedOutput(graduatedName);
+      vi.mocked(runVersionStep)
+        .mockResolvedValueOnce(output as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+        .mockResolvedValueOnce(output as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+      const forge = await mockForge({ standingPR: openStandingPR(99, labels) });
+      return { forge, runVersionStepMock: vi.mocked(runVersionStep) };
+    }
+
+    it('should pass a graduate:<package> label as the graduate set into both version runs', async () => {
+      const { runVersionStepMock } = await setupGraduation(['release', 'graduate:@scope/b'], '@scope/b');
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ graduate: ['@scope/b'] });
+      expect(runVersionStepMock.mock.calls[1]?.[0]).toMatchObject({ graduate: ['@scope/b'] });
+      // Per-package graduation is NOT the whole-batch graduate — `stable` stays unset.
+      expect(runVersionStepMock.mock.calls[0]?.[0]?.stable).toBeUndefined();
+    });
+
+    it('should record the graduated package in the manifest', async () => {
+      const { forge } = await setupGraduation(['release', 'graduate:@scope/b'], '@scope/b');
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const writes = [...forge.createdComments.map((c) => c.body), ...forge.updatedComments.map((c) => c.body)];
+      const manifestWrite = writes.find((b) => b.includes(MANIFEST_MARKER));
+      const manifest = parseManifest(manifestWrite as string);
+      expect(manifest.graduated).toEqual(['@scope/b']);
+    });
+
+    it('should record the graduate:<package> label in the manifest overrideLabels (staleness guard)', async () => {
+      const { forge } = await setupGraduation(['release', 'graduate:@scope/b'], '@scope/b');
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const writes = [...forge.createdComments.map((c) => c.body), ...forge.updatedComments.map((c) => c.body)];
+      const manifest = parseManifest(writes.find((b) => b.includes(MANIFEST_MARKER)) as string);
+      expect(manifest.overrideLabels).toContain('graduate:@scope/b');
+    });
+
+    it('should let the whole-batch release:graduate win over per-package graduate labels', async () => {
+      const { runVersionStepMock } = await setupGraduation(['release', 'release:graduate', 'graduate:@scope/b']);
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ stable: true });
+      expect(runVersionStepMock.mock.calls[0]?.[0]?.graduate).toBeUndefined();
+    });
+
+    it('should create a graduate:<package> label for each prerelease package so it can be applied', async () => {
+      const { forge } = await setupGraduation(['release']);
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      // @scope/b is on a prerelease line → its graduate label is seeded; @scope/a is stable → no label.
+      expect(forge.createdLabels.some((l) => l.name === 'graduate:@scope/b')).toBe(true);
+      expect(forge.createdLabels.some((l) => l.name === 'graduate:@scope/a')).toBe(false);
+    });
+
+    it('should flag a conflict when a per-package graduate meets channel:prerelease', async () => {
+      const { forge } = await setupGraduation(['release', 'graduate:@scope/b', 'channel:prerelease'], '@scope/b');
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const lastStatus = forge.commitStatuses.at(-1);
+      expect(lastStatus?.state).toBe('pending');
+      expect(lastStatus?.description).toMatch(/graduate/i);
     });
   });
 

@@ -466,6 +466,7 @@ describe('CIConfigSchema', () => {
     expect(result.prPreview).toEqual({ enabled: true, refreshAfterRelease: false });
     expect(result.labels).toEqual({
       graduate: 'release:graduate',
+      graduatePackagePrefix: 'graduate:',
       prerelease: 'channel:prerelease',
       skip: 'release:skip',
       immediate: 'release:immediate',

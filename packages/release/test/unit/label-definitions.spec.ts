@@ -90,6 +90,27 @@ describe('deriveLabelDefinitions', () => {
     const releaseCount = names(defs).filter((n) => n === 'release').length;
     expect(releaseCount).toBe(1);
   });
+
+  it('should seed a graduate:<package> label for each graduatable package (#486)', () => {
+    const defs = deriveLabelDefinitions(ciConfig(), ['@scope/a', '@scope/b']);
+    expect(names(defs)).toContain('graduate:@scope/a');
+    expect(names(defs)).toContain('graduate:@scope/b');
+    // The fixed whole-batch graduate label is still present and distinct.
+    expect(names(defs)).toContain('release:graduate');
+  });
+
+  it('should emit no per-package graduate labels when no graduatable packages are passed (#486)', () => {
+    const defs = deriveLabelDefinitions(ciConfig());
+    expect(names(defs).some((n) => n.startsWith('graduate:'))).toBe(false);
+  });
+
+  it('should honour a renamed graduatePackagePrefix when seeding per-package graduate labels (#486)', () => {
+    const config = ciConfig({
+      labels: { ...DEFAULT_LABELS_CONFIG, graduatePackagePrefix: 'promote/' },
+    } as Partial<CIConfig>);
+    const defs = deriveLabelDefinitions(config, ['@scope/a']);
+    expect(names(defs)).toContain('promote/@scope/a');
+  });
 });
 
 describe('syncLabels', () => {

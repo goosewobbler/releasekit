@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import { type CIConfig, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
-import type { VersionOutput } from '@releasekit/core';
-import { error, info, markerData, success, warn } from '@releasekit/core';
+import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
+import { deriveReleaseChannel, error, info, markerData, success, warn } from '@releasekit/core';
 import { type Forge, forgeErrorStatus, type PullRequestDetails } from '@releasekit/forge';
 import { createGitCli } from '@releasekit/git';
 import { PipelineError } from '@releasekit/publish';
@@ -12,7 +12,7 @@ import { detectUnresolvedFailure, postFailureReport, resolveFailureReportIfPrese
 import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from '../git.js';
 import { forgeFor } from '../github.js';
 import { deriveLabelDefinitions, syncLabels } from '../label-definitions.js';
-import { DEFAULT_LABELS } from '../label-utils.js';
+import { DEFAULT_LABELS, graduatedPackageFromLabel, isGraduatePackageLabel } from '../label-utils.js';
 import { refreshFeederPreviews } from '../preview/refresh.js';
 import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
@@ -97,6 +97,15 @@ export interface StandingPRManifest {
    * manifests written before this field existed.
    */
   deselected?: string[];
+  /**
+   * Packages graduated from prerelease to stable on this update (#486), driven by `graduate:<package>`
+   * labels (or the whole-batch `release:graduate`). Group-atomic — a graduated fixed/linked group lists
+   * every releasing member. Recorded for provenance and so consumers (#487's channel-grouped render)
+   * can flag a row as graduated; the resolved stable versions already live in `versionOutput`. Optional:
+   * absent when nothing graduated, and on manifests written before this field existed (consumers
+   * re-derive from each update's `channel` / `action`).
+   */
+  graduated?: string[];
 }
 
 async function getHeadSha(cwd: string): Promise<string> {
@@ -521,11 +530,17 @@ interface StandingPrOverrides {
   prerelease?: boolean;
   /** Also release the targeted packages' changed prerequisites (the `release:with-prerequisites` label). */
   withPrerequisites?: boolean;
+  /**
+   * Per-package graduation (#486): package names parsed from `graduate:<package>` labels — graduate
+   * just these prereleases to stable, leaving others on their line. Empty when none. Ignored when
+   * `stable` (the whole-batch `release:graduate`) is set, which graduates everything.
+   */
+  graduate?: string[];
   /** Human-readable conflict descriptions (used for the pending status check). Empty when no conflict. */
   conflicts: string[];
 }
 
-/** The release-control label names (bump/channel/scope/with-prerequisites) — those that drive output. */
+/** The fixed release-control label names (bump/channel/scope/with-prerequisites) — those that drive output. */
 function relevantOverrideLabelNames(ciConfig: CIConfig | undefined): Set<string> {
   const labels = ciConfig?.labels ?? DEFAULT_LABELS;
   const scopeLabels = ciConfig?.scopeLabels ?? {};
@@ -541,14 +556,56 @@ function relevantOverrideLabelNames(ciConfig: CIConfig | undefined): Set<string>
 }
 
 /**
- * The override-relevant labels (bump/channel/scope) present on a PR, sorted and de-duplicated.
+ * Whether a label steers the next release, so it must be tracked by the manifest's `overrideLabels`
+ * (staleness guard, #337) and the label-authorization reconcile (#402). Covers the fixed control
+ * labels plus the dynamic per-package `graduate:<package>` labels (#486), whose names aren't known up
+ * front but still drive output and so can't be left for an unauthorized actor to add unchecked.
+ */
+function isRelevantOverrideLabel(label: string, ciConfig: CIConfig | undefined): boolean {
+  return relevantOverrideLabelNames(ciConfig).has(label) || isGraduatePackageLabel(label, ciConfig?.labels);
+}
+
+/**
+ * The override-relevant labels (bump/channel/scope/graduate) present on a PR, sorted and de-duplicated.
  * This is the set that actually drives the next release, so it's what the manifest records and what
  * publish compares against the merged PR to detect a stale manifest (#337). The standing-PR marker
  * label and any unrelated labels (area:*, etc.) are deliberately excluded — they don't affect output.
  */
 function extractOverrideLabels(prLabels: string[], ciConfig: CIConfig | undefined): string[] {
-  const relevant = relevantOverrideLabelNames(ciConfig);
-  return [...new Set(prLabels.filter((l) => relevant.has(l)))].sort();
+  return [...new Set(prLabels.filter((l) => isRelevantOverrideLabel(l, ciConfig)))].sort();
+}
+
+/** A package update's channel — the persisted `channel` (#485), else re-derived from its version. */
+function updateChannel(update: VersionPackageUpdate): ReturnType<typeof deriveReleaseChannel> {
+  return update.channel ?? deriveReleaseChannel(update.newVersion);
+}
+
+/**
+ * Publishable packages currently on a prerelease line (#486) — the candidates a maintainer can
+ * graduate. Used to seed the per-package `graduate:<package>` labels so they exist in the picker.
+ */
+function prereleasePackageNames(versionOutput: VersionOutput): string[] {
+  return publishableUpdates(versionOutput)
+    .filter((u) => updateChannel(u) === 'prerelease')
+    .map((u) => u.packageName);
+}
+
+/**
+ * Packages graduated from prerelease to stable on this run (#486), for the manifest's `graduated`
+ * provenance field. Sourced from each update's resolved `action` (`'graduated'`), then widened for
+ * group atomicity: a fixed/linked group where any member graduated lists every releasing member, even
+ * one whose own action read `'bumped'` because it adopted the group version from a different baseline.
+ */
+function graduatedPackageNames(versionOutput: VersionOutput): string[] {
+  const updates = publishableUpdates(versionOutput);
+  const graduatedGroups = new Set(
+    updates.filter((u) => u.action === 'graduated' && u.group).map((u) => u.group as string),
+  );
+  const names = new Set<string>();
+  for (const u of updates) {
+    if (u.action === 'graduated' || (u.group && graduatedGroups.has(u.group))) names.add(u.packageName);
+  }
+  return [...names].sort();
 }
 
 function resolveStandingPrLabelOverrides(prLabels: string[], ciConfig: CIConfig | undefined): StandingPrOverrides {
@@ -583,6 +640,19 @@ function resolveStandingPrLabelOverrides(prLabels: string[], ciConfig: CIConfig 
     if (hasPrerelease) prerelease = true;
   }
 
+  // Per-package graduation (#486): each `graduate:<package>` label graduates that one prerelease to
+  // stable. The whole-batch `release:graduate` (stable) supersedes them — it graduates everything, so
+  // a per-package subset would only narrow it; drop the per-package set then. `channel:prerelease`
+  // forces a prerelease line, which directly contradicts graduating, so flag it as a conflict.
+  const graduate = stable
+    ? []
+    : prLabels.map((l) => graduatedPackageFromLabel(l, labels)).filter((p): p is string => p !== undefined);
+  if (graduate.length > 0 && hasPrerelease) {
+    conflicts.push(
+      `Conflicting release-type labels on standing PR (per-package graduate and ${labels.prerelease}) — a package can't graduate and stay prerelease`,
+    );
+  }
+
   // Scope: first matching configured scope label wins
   let target: string | undefined;
   for (const [labelName, pattern] of Object.entries(scopeLabels)) {
@@ -607,7 +677,15 @@ function resolveStandingPrLabelOverrides(prLabels: string[], ciConfig: CIConfig 
   // when there is a target (the engine derives prerequisites from the targeted set).
   const withPrerequisites = prLabels.includes(labels.withPrerequisites) || undefined;
 
-  return { bump: composedBump, target, stable, prerelease, withPrerequisites, conflicts };
+  return {
+    bump: composedBump,
+    target,
+    stable,
+    prerelease,
+    withPrerequisites,
+    graduate: graduate.length > 0 ? graduate : undefined,
+    conflicts,
+  };
 }
 
 interface BuildOptionsExtras {
@@ -618,6 +696,8 @@ interface BuildOptionsExtras {
   stable?: boolean;
   prerelease?: boolean;
   includePrerequisites?: boolean;
+  /** Per-package graduation (#486): package patterns to graduate to stable; others stay on their line. */
+  graduate?: string[];
   /** Packages to hold back from the release (standing-PR ad-hoc deselection). Exact name match. */
   exclude?: string[];
 }
@@ -636,6 +716,7 @@ function buildBaseReleaseOptions(
     includePrerequisites: extras?.includePrerequisites,
     exclude: extras?.exclude,
     stable: extras?.stable,
+    graduate: extras?.graduate,
     prerelease: extras?.prerelease ? true : undefined,
     skipNotes: true,
     skipPublish: true,
@@ -814,9 +895,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     const actor = getEventActor();
     const isLabelEvent = actor.action === 'labeled' || actor.action === 'unlabeled';
     if (isLabelEvent && !(await authorizedOrWarn(forgeFor(githubContext), actor, authz))) {
-      const relevant = relevantOverrideLabelNames(ciConfig);
-      const authorizedOverrides = (existingManifest?.overrideLabels ?? []).filter((l) => relevant.has(l));
-      const reconciled = [...new Set([...effectiveLabels.filter((l) => !relevant.has(l)), ...authorizedOverrides])];
+      const isRelevant = (l: string) => isRelevantOverrideLabel(l, ciConfig);
+      const authorizedOverrides = (existingManifest?.overrideLabels ?? []).filter(isRelevant);
+      const reconciled = [...new Set([...effectiveLabels.filter((l) => !isRelevant(l)), ...authorizedOverrides])];
       // Tell the unauthorized labeller their change was ignored — parity with the selection gate
       // (the label removal is also visible in the timeline, but the comment says why). Idempotent.
       if (!setsEqual(new Set(effectiveLabels), new Set(reconciled))) {
@@ -845,6 +926,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   if (overrides.bump) info(`Standing PR label override: bump=${overrides.bump}`);
   if (overrides.target) info(`Standing PR label override: target=${overrides.target}`);
   if (overrides.stable) info(`Standing PR label override: ${overrideLabelNames.graduate}`);
+  if (overrides.graduate) info(`Standing PR label override: graduate [${overrides.graduate.join(', ')}]`);
   if (overrides.prerelease) info(`Standing PR label override: ${overrideLabelNames.prerelease}`);
   for (const conflict of overrides.conflicts) warn(conflict);
 
@@ -857,6 +939,10 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // the CLI flag OR the `release:with-prerequisites` label, either way.
   const cliTarget = options.target ?? overrides.target;
   const includePrerequisites = options.includePrerequisites || overrides.withPrerequisites;
+  // Per-package graduation (#486) is a non-sync concept — a sync release moves as one atomic unit
+  // (no selection region, single shared version), so `graduate:<package>` has no meaning there; the
+  // whole-batch `release:graduate` still graduates the synced unit. Drop the per-package set for sync.
+  const graduate = sync ? undefined : overrides.graduate;
   const buildExtras: BuildOptionsExtras = overrides.conflicts.length
     ? { sync, target: cliTarget, includePrerequisites }
     : {
@@ -865,6 +951,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
         target: cliTarget,
         stable: overrides.stable,
         prerelease: overrides.prerelease,
+        graduate,
         includePrerequisites,
       };
 
@@ -1127,7 +1214,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // retry label is created but NOT applied — a maintainer applies it on demand after merge to
   // retry a failed publish (issue #245). Best-effort: a sync failure must not block the update.
   try {
-    await syncLabels(forge, deriveLabelDefinitions(ciConfig));
+    // Seed a `graduate:<package>` label for every package currently on a prerelease line (#486) so a
+    // maintainer can pick one from GitHub's label list — labels must exist before they can be applied.
+    await syncLabels(forge, deriveLabelDefinitions(ciConfig, prereleasePackageNames(versionOutput)));
   } catch (err) {
     warn(`Could not ensure ReleaseKit labels exist: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -1153,6 +1242,11 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     firstUpdatedAt = existingManifest.firstUpdatedAt ?? existingManifest.createdAt;
   }
 
+  // Packages that graduated to stable this run (#486), recorded in the manifest below for provenance
+  // and for the channel-grouped render (#487). Derived from what actually resolved, so it reflects
+  // group atomicity and the whole-batch graduate as well as the per-package labels.
+  const graduatedPackages = graduatedPackageNames(versionOutput);
+
   // Store manifest as a bot comment. `releaseNotes` is intentionally omitted — publishFromManifest
   // regenerates LLM-enhanced release notes against the merged commit set, so caching them here
   // would waste LLM calls and risk drift if the standing PR sits open while new commits land.
@@ -1170,6 +1264,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     // Record any packages held back via the selection region (provenance; the release set in
     // `versionOutput` is already narrowed). Omitted when nothing was deselected.
     deselected: effectiveDeselected.size > 0 ? [...effectiveDeselected].sort() : undefined,
+    // Record which packages graduated to stable this run (#486) so the state survives re-runs and
+    // consumers (#487) can flag a graduated row. Omitted when nothing graduated.
+    graduated: graduatedPackages.length > 0 ? graduatedPackages : undefined,
   };
 
   const manifestBody = serializeManifest(manifest);

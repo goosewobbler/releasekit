@@ -396,6 +396,7 @@ PR label names used for release control. Override to match your repository's lab
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `graduate` | string | `"release:graduate"` | Label that graduates a prerelease to its stable base version (e.g. 1.0.0-next.6 → 1.0.0). A standalone release trigger in label/direct mode; in standing-pr mode it sets the next merge to graduate. |
+| `graduatePackagePrefix` | string | `"graduate:"` | Prefix for per-package graduate labels on the standing PR. A `graduate:<package>` label graduates just that prerelease package (and, atomically, any fixed/linked group it belongs to) to its stable base version on the next update, while other prerelease packages stay on their line. The whole-batch `graduate` label still graduates everything. Standing-pr mode only. |
 | `prerelease` | string | `"channel:prerelease"` | Label to create a prerelease |
 | `skip` | string | `"release:skip"` | Label to suppress a release on this PR |
 | `immediate` | string | `"release:immediate"` | Label to bypass the standing PR for one merge — triggers a direct release. Standing-pr mode only. |

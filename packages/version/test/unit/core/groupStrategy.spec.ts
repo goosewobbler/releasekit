@@ -637,6 +637,125 @@ describe('createGroupStrategy', () => {
     });
   });
 
+  describe('per-package graduation (#486) — group atomicity', () => {
+    it('should graduate a whole fixed group to stable when ONE member is in graduateScope', async () => {
+      const core = mkPackage('@wdio/native-core', '1.0.0-next.5');
+      const utils = mkPackage('@wdio/native-utils', '1.0.0-next.5');
+
+      // Only native-core is in graduateScope → its calculator returns the stable base; native-utils
+      // is out of scope so (per applyOverrideScope, simulated here) it advances its prerelease line.
+      vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
+        if (opts.name === '@wdio/native-core') return '1.0.0';
+        return '1.0.0-next.6';
+      });
+
+      const strategy = createGroupStrategy(
+        baseConfig({
+          groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } },
+          stableOnly: true,
+          graduateScope: ['@wdio/native-core'],
+        }),
+      );
+      await strategy(workspace([core, utils]));
+
+      // The whole group graduates to 1.0.0 — native-utils does NOT stay on its -next line.
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/wdio-native-core/package.json',
+        '1.0.0',
+        undefined,
+      );
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/wdio-native-utils/package.json',
+        '1.0.0',
+        undefined,
+      );
+    });
+
+    it('should graduate a whole linked group to stable when one changed member is graduated', async () => {
+      const core = mkPackage('@wdio/native-core', '2.0.0-next.2');
+      const utils = mkPackage('@wdio/native-utils', '2.0.0-next.2');
+
+      // Both members changed; native-core is the graduate target. Linked releases only changed members,
+      // all at the shared graduated version.
+      vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
+        if (opts.name === '@wdio/native-core') return '2.0.0';
+        return '2.0.0-next.3';
+      });
+
+      const strategy = createGroupStrategy(
+        baseConfig({
+          groups: { native: { packages: ['@wdio/native-*'], sync: 'linked' } },
+          stableOnly: true,
+          graduateScope: ['@wdio/native-utils'],
+        }),
+      );
+      await strategy(workspace([core, utils]));
+
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/wdio-native-core/package.json',
+        '2.0.0',
+        undefined,
+      );
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/wdio-native-utils/package.json',
+        '2.0.0',
+        undefined,
+      );
+    });
+
+    it('should NOT graduate a group when no member is in graduateScope', async () => {
+      const core = mkPackage('@wdio/native-core', '1.0.0-next.5');
+      const utils = mkPackage('@wdio/native-utils', '1.0.0-next.5');
+
+      // stableOnly is set for the run, but graduateScope targets a package in another group, so this
+      // group keeps advancing its prerelease line (simulated calculator output).
+      vi.mocked(calculator.calculateVersion).mockResolvedValue('1.0.0-next.6');
+
+      const strategy = createGroupStrategy(
+        baseConfig({
+          groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } },
+          stableOnly: true,
+          graduateScope: ['@other/thing'],
+        }),
+      );
+      await strategy(workspace([core, utils]));
+
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/wdio-native-core/package.json',
+        '1.0.0-next.6',
+        undefined,
+      );
+      expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
+        expect.anything(),
+        '1.0.0',
+        expect.anything(),
+      );
+    });
+
+    it('should graduate every group under the whole-batch graduate (stableOnly, no graduateScope)', async () => {
+      const a = mkPackage('@app/a', '3.1.0-next.4');
+      const b = mkPackage('@app/b', '3.1.0-next.4');
+
+      vi.mocked(calculator.calculateVersion).mockResolvedValue('3.1.0');
+
+      const strategy = createGroupStrategy(
+        baseConfig({ groups: { app: { packages: ['@app/*'], sync: 'fixed' } }, stableOnly: true }),
+      );
+      await strategy(workspace([a, b]));
+
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/app-a/package.json',
+        '3.1.0',
+        undefined,
+      );
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/app-b/package.json',
+        '3.1.0',
+        undefined,
+      );
+    });
+  });
+
   describe('ungrouped packages', () => {
     it('should version ungrouped packages independently at their own computed version', async () => {
       const core = mkPackage('@wdio/native-core', '2.3.0');

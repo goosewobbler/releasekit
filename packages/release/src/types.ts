@@ -7,6 +7,9 @@ export interface ReleaseOptions {
   bump?: string;
   prerelease?: string | boolean;
   stable?: boolean;
+  /** Per-package graduation (#486): package name patterns to graduate to stable, leaving other
+   *  prereleases on their line. Distinct from `stable`, which graduates ALL prereleases. */
+  graduate?: string[];
   /** Acknowledge a first-release bump on an already-stable manifest (silences the #388 overshoot guard). */
   allowFirstBump?: boolean;
   sync: boolean;

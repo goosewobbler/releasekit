@@ -158,6 +158,19 @@ interface GroupComputation {
 }
 
 /**
+ * Whether this whole group is graduating to stable on this run (#486). A fixed/linked group shares
+ * one version and channel, so graduation is all-or-nothing: graduating ANY member graduates the
+ * group. True when `stableOnly` is set and either there's no per-package `graduateScope` (the global
+ * `release:graduate` path → every group graduates) or some member falls inside that scope.
+ */
+function isGroupGraduating(group: ResolvedGroup, config: Config): boolean {
+  if (!config.stableOnly) return false;
+  const scope = config.graduateScope;
+  if (!scope || scope.length === 0) return true;
+  return group.members.some((m) => shouldMatchPackageTargets(m.packageJson.name, scope));
+}
+
+/**
  * Compute the group version and the set of releasing members from each member's independent plan.
  */
 function computeGroup(group: ResolvedGroup, plans: MemberPlan[], config: Config): GroupComputation {
@@ -174,6 +187,24 @@ function computeGroup(group: ResolvedGroup, plans: MemberPlan[], config: Config)
   }
 
   const maxBaseline = plans.map((p) => p.baseline).sort(semver.rcompare)[0];
+
+  // Group graduation (#486): drop the prerelease segment of the highest baseline so the whole
+  // fixed/linked group lands on its stable base (e.g. 1.2.0-next.3 → 1.2.0), atomically — every
+  // member adopts it regardless of which one carried the graduate label, and the bump magnitude is
+  // ignored (graduation is bump-less). Only when the group is actually on a prerelease line; an
+  // already-stable group falls through to the normal bump path (graduating it would be a no-op
+  // write). The never-regress guard below still pulls the version up to any member's own stable next.
+  if (isGroupGraduating(group, config) && semver.prerelease(maxBaseline)) {
+    const parsed = semver.parse(maxBaseline);
+    let groupVersion = parsed ? `${parsed.major}.${parsed.minor}.${parsed.patch}` : maxBaseline;
+    for (const plan of changedPlans) {
+      if (semver.valid(plan.ownNext) && semver.gt(plan.ownNext, groupVersion)) {
+        groupVersion = plan.ownNext;
+      }
+    }
+    const releasing = group.sync === 'fixed' ? plans : changedPlans;
+    return { groupVersion, releasing, hasChange: true };
+  }
   const maxRank = Math.max(...changedPlans.map(memberBumpRank));
   const bumpType = RANK_TO_TYPE[maxRank] ?? 'patch';
 

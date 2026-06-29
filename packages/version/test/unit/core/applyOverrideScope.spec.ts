@@ -66,3 +66,49 @@ describe('applyOverrideScope', () => {
     expect(config.type).toBe('major');
   });
 });
+
+// Per-package graduation (#486): `graduateScope` gates ONLY the `stableOnly` graduation, leaving any
+// bump/prerelease the run also carries intact. A graduate config carries stableOnly (no other override).
+const gradCfg = (graduateScope?: string[]): Config =>
+  ({
+    tagTemplate: '${prefix}${version}',
+    preset: 'conventional',
+    sync: false,
+    packages: [],
+    versionPrefix: 'v',
+    stableOnly: true,
+    graduateScope,
+  }) as Config;
+
+describe('applyOverrideScope — graduateScope (#486)', () => {
+  it('should keep stableOnly for a package inside graduateScope', () => {
+    const { config } = applyOverrideScope(gradCfg(['@scope/a']), opts('@scope/a'));
+    expect(config.stableOnly).toBe(true);
+  });
+
+  it('should clear stableOnly for a package outside graduateScope so it stays on its line', () => {
+    const { config } = applyOverrideScope(gradCfg(['@scope/a']), opts('@other/b'));
+    expect(config.stableOnly).toBeUndefined();
+  });
+
+  it('should graduate every package when graduateScope is undefined (global graduate)', () => {
+    const { config } = applyOverrideScope(gradCfg(undefined), opts('@other/b'));
+    expect(config.stableOnly).toBe(true);
+  });
+
+  it('should leave a bump override intact when gating an out-of-scope package (graduate is bump-less)', () => {
+    // stableOnly + graduateScope + a forced bump: the out-of-scope package loses graduation but keeps
+    // the bump, so it advances along its line rather than graduating.
+    const config = { ...gradCfg(['@scope/a']), type: 'minor' } as Config;
+    const { config: scoped, options } = applyOverrideScope(config, opts('@other/b'));
+    expect(scoped.stableOnly).toBeUndefined();
+    expect(scoped.type).toBe('minor');
+    expect(options.type).toBe('major'); // options.type from opts() is untouched by graduateScope gating
+  });
+
+  it('should not mutate the input config', () => {
+    const input = gradCfg(['@scope/a']);
+    applyOverrideScope(input, opts('@other/b'));
+    expect(input.stableOnly).toBe(true);
+  });
+});

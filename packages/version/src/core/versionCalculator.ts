@@ -61,19 +61,28 @@ export function applyOverrideScope(
   config: Config,
   options: VersionOptions,
 ): { config: Config; options: VersionOptions } {
-  const { overrideScope } = config;
+  const { overrideScope, graduateScope } = config;
+  let scoped: { config: Config; options: VersionOptions } = { config, options };
   // `type` / `isPrerelease` / `stableOnly` are the engine's runtime override fields (folded from
   // runOptions bump/prerelease/stable) — none is a static config-file setting, so clearing them to
   // their "not specified" sentinel reverts an out-of-scope package to commit-driven calculation.
   // When `options.name` is absent (a single-package repo) there's nothing to match against, so the
   // override applies — scoping is only meaningful across multiple packages.
   if (overrideScope?.length && options.name && !shouldMatchPackageTargets(options.name, overrideScope)) {
-    return {
-      config: { ...config, type: undefined, isPrerelease: undefined, stableOnly: undefined },
-      options: { ...options, type: undefined },
+    scoped = {
+      config: { ...scoped.config, type: undefined, isPrerelease: undefined, stableOnly: undefined },
+      options: { ...scoped.options, type: undefined },
     };
   }
-  return { config, options };
+  // Per-package graduation (#486): graduate only the packages in `graduateScope`; every other
+  // prerelease keeps its line. Gate ONLY the `stableOnly` graduation here — unlike `overrideScope`,
+  // a graduate is bump-less, so leave any bump/prerelease the run also carries untouched. An empty
+  // `graduateScope` with `stableOnly` set means "graduate everything" (the global release:graduate
+  // path), so this clause is a no-op then.
+  if (graduateScope?.length && options.name && !shouldMatchPackageTargets(options.name, graduateScope)) {
+    scoped = { ...scoped, config: { ...scoped.config, stableOnly: undefined } };
+  }
+  return scoped;
 }
 
 /**
