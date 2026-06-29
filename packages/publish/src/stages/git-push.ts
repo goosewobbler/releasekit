@@ -164,8 +164,13 @@ export async function runGitPushStage(ctx: PipelineContext): Promise<void> {
       }
     }
 
-    // Push commits — branch resolution is deferred to here so a tags-only push
-    // never triggers the detached-HEAD guard unnecessarily.
+    // Push the branch first, then tags. When this runner created the release commit (direct mode),
+    // the branch must land before the tags so a tag never points at a commit absent from the branch
+    // — and a branch rejected by a concurrent push / ruleset aborts before any tag is pushed, rather
+    // than leaving orphan tags on the remote with `git.pushed` false (no GitHub release). Standing-PR
+    // mode sets committed=false (the commit is already on the remote via the merge) and pushes tags
+    // only. Branch resolution is deferred to here so a tags-only push never triggers the detached-HEAD
+    // guard unnecessarily.
     let branch: string | undefined;
     if (output.git.committed) {
       branch = config.git.branch;

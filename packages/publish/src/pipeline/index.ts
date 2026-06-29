@@ -75,7 +75,12 @@ export async function runPipeline(
     // tags and baseline tags need to be pushed; the github-release stage filters back down
     // to consumer tags via `ctx.input.tags`.
     if (options.skipGitCommit && !options.skipGit) {
-      ctx.output.git.committed = !!input.commitMessage;
+      // The caller already created the release commit AND it is already on the remote: the
+      // standing-PR squash merge landed it on the target branch before this publish ran. This
+      // runner has no local commit to contribute, so `committed` stays false and the push stage
+      // skips the branch push — only the tags need pushing. Pushing the branch here is at best a
+      // no-op and at worst races a concurrent push to the branch (e.g. a direct edit on GitHub),
+      // whose rejected `git push` would strand the tags and GitHub release behind it.
       ctx.output.git.tags = [...input.tags, ...(input.baselineTags ?? [])];
     } else if (!options.skipGit) {
       await runGitCommitStage(ctx);
