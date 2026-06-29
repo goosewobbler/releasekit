@@ -8,7 +8,12 @@ vi.mock('minimatch', async (importOriginal) => {
 });
 
 import { minimatch } from 'minimatch';
-import { matchesPackageTarget, shouldMatchPackageTargets, shouldProcessPackage } from '../../src/packageUtils.js';
+import {
+  isPrivatePackageJson,
+  matchesPackageTarget,
+  shouldMatchPackageTargets,
+  shouldProcessPackage,
+} from '../../src/packageUtils.js';
 
 describe('packageUtils', () => {
   beforeEach(() => {
@@ -101,6 +106,49 @@ describe('packageUtils', () => {
     it('should handle multiple skip patterns', () => {
       expect(shouldProcessPackage('@releasekit/core', ['@other/*', '@releasekit/notes'])).toBe(true);
       expect(shouldProcessPackage('@releasekit/notes', ['@other/*', '@releasekit/notes'])).toBe(false);
+    });
+  });
+
+  describe('isPrivatePackageJson', () => {
+    const PKG_PATH = '/repo/packages/secret/package.json';
+
+    it('should treat boolean true as private', () => {
+      expect(isPrivatePackageJson({ private: true }, PKG_PATH)).toBe(true);
+    });
+
+    it('should treat boolean false as releasable', () => {
+      expect(isPrivatePackageJson({ private: false }, PKG_PATH)).toBe(false);
+    });
+
+    it('should treat an absent private field as releasable', () => {
+      expect(isPrivatePackageJson({}, PKG_PATH)).toBe(false);
+    });
+
+    it('should treat undefined/null package.json as releasable', () => {
+      expect(isPrivatePackageJson(undefined, PKG_PATH)).toBe(false);
+      expect(isPrivatePackageJson(null, PKG_PATH)).toBe(false);
+    });
+
+    it('should treat null private as releasable', () => {
+      expect(isPrivatePackageJson({ private: null }, PKG_PATH)).toBe(false);
+    });
+
+    it('should throw on a quoted "private": "true" string', () => {
+      expect(() => isPrivatePackageJson({ private: 'true' }, PKG_PATH)).toThrow(
+        '/repo/packages/secret/package.json: "private" must be a boolean, got string "true". Use `"private": true` (no quotes).',
+      );
+    });
+
+    it('should throw on a quoted "private": "false" string', () => {
+      expect(() => isPrivatePackageJson({ private: 'false' }, PKG_PATH)).toThrow('got string "false"');
+    });
+
+    it('should throw on a numeric private value', () => {
+      expect(() => isPrivatePackageJson({ private: 1 }, PKG_PATH)).toThrow('got number 1');
+    });
+
+    it('should include the package.json path in the error so the fix is locatable', () => {
+      expect(() => isPrivatePackageJson({ private: 'true' }, PKG_PATH)).toThrow(PKG_PATH);
     });
   });
 });
