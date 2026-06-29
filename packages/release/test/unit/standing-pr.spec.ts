@@ -1074,6 +1074,36 @@ describe('runStandingPRUpdate', () => {
     expect(body).toContain('@scope/core — 1.2.2 → 1.2.3');
   });
 
+  it('should render the changelog header with a bare previous version when previousVersion is a package tag', async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([{ packageName: '@wdio/electron-service', newVersion: '10.2.0' }]),
+      changelogs: [
+        {
+          packageName: '@wdio/electron-service',
+          version: '10.2.0',
+          // Stored as the consumer tag (compare-URL generation depends on it); the header must strip it.
+          previousVersion: 'wdio-electron-service@v10.1.0',
+          revisionRange: 'wdio-electron-service@v10.1.0..HEAD',
+          repoUrl: null,
+          entries: [{ type: 'feat', description: 'Add new widget' }],
+        },
+      ],
+    };
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const forge = await mockForge({ standingPR: null });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const body = forge.createdPullRequests[0]?.body;
+    expect(body).toContain('@wdio/electron-service — 10.1.0 → 10.2.0');
+    expect(body).not.toContain('wdio-electron-service@v10.1.0 → 10.2.0');
+  });
+
   it("should truncate the PR body when the changelog would exceed GitHub's limit (#333)", async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     // A no-baseline-tag package's full-history changelog: thousands of entries blow past 65,536 chars.

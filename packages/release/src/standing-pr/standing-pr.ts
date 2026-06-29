@@ -16,7 +16,7 @@ import { DEFAULT_LABELS } from '../label-utils.js';
 import { refreshFeederPreviews } from '../preview/refresh.js';
 import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
-import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
+import { publishableUpdates, syncVersionDisplay, toDisplayVersion } from '../version-display.js';
 import { type EventActor, getEventActor, isAuthorizedActor, type StandingPrAuthorization } from './authorization.js';
 import { extractNotesRegions, mergeNotesRegions, renderNotesRegion } from './notes-region.js';
 import {
@@ -345,7 +345,10 @@ function renderChangelogSection(versionOutput: VersionOutput): string {
 
   for (const cl of versionOutput.changelogs) {
     if (cl.entries.length === 0) continue;
-    inner.push(`#### ${cl.packageName} — ${cl.previousVersion ?? 'N/A'} → ${cl.version}`, '');
+    inner.push(
+      `#### ${cl.packageName} — ${cl.previousVersion ? toDisplayVersion(cl.previousVersion) : 'N/A'} → ${cl.version}`,
+      '',
+    );
     inner.push(...renderChangelogEntries(cl.entries));
   }
 

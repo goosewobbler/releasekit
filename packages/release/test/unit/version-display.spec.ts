@@ -1,6 +1,11 @@
 import type { VersionOutput } from '@releasekit/core';
 import { describe, expect, it } from 'vitest';
-import { publishableUpdates, syncVersionDisplay, syncVersionRange } from '../../src/version-display.js';
+import {
+  publishableUpdates,
+  syncVersionDisplay,
+  syncVersionRange,
+  toDisplayVersion,
+} from '../../src/version-display.js';
 
 function output(overrides: Partial<VersionOutput> = {}): VersionOutput {
   return {
@@ -67,6 +72,37 @@ describe('syncVersionDisplay', () => {
 
   it('should return an empty string for empty output', () => {
     expect(syncVersionDisplay(output())).toBe('');
+  });
+});
+
+describe('toDisplayVersion', () => {
+  it('should strip a package-specific tag prefix down to the bare semver', () => {
+    expect(toDisplayVersion('wdio-electron-service@v10.1.0')).toBe('10.1.0');
+  });
+
+  it('should strip a plain vX.Y.Z tag', () => {
+    expect(toDisplayVersion('v1.2.0')).toBe('1.2.0');
+  });
+
+  it('should strip a baseline release/v… tag', () => {
+    expect(toDisplayVersion('release/v1.2.0')).toBe('1.2.0');
+  });
+
+  it('should preserve a prerelease (and build) suffix', () => {
+    expect(toDisplayVersion('@scope/pkg@v1.1.0-next.0')).toBe('1.1.0-next.0');
+    expect(toDisplayVersion('v2.0.0-rc.1+build.5')).toBe('2.0.0-rc.1+build.5');
+  });
+
+  it('should anchor at the tail so a numeric package name is not mistaken for the version', () => {
+    expect(toDisplayVersion('package2@v1.0.0')).toBe('1.0.0');
+  });
+
+  it('should return an already-bare version unchanged', () => {
+    expect(toDisplayVersion('10.2.0')).toBe('10.2.0');
+  });
+
+  it('should return the input unchanged when it carries no semver', () => {
+    expect(toDisplayVersion('not-a-version')).toBe('not-a-version');
   });
 });
 

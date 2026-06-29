@@ -4,7 +4,7 @@ import { formatDuration } from '../duration.js';
 import { MARKER } from '../github.js';
 import type { StandingPRSnapshot } from '../standing-pr/standing-pr.js';
 import type { ReleaseOutput } from '../types.js';
-import { publishableUpdates, syncVersionDisplay, syncVersionRange } from '../version-display.js';
+import { publishableUpdates, syncVersionDisplay, syncVersionRange, toDisplayVersion } from '../version-display.js';
 import type { MergedRow } from './merge.js';
 
 export type ReleaseStrategy = 'manual' | 'direct' | 'standing-pr';
@@ -414,7 +414,9 @@ function renderQueuedTable(snapshot: StandingPRSnapshot): string[] {
     '|---------|---------|------|',
   ];
   for (const cl of changelogs) {
-    lines.push(`| \`${cl.packageName}\` | ${cl.previousVersion ?? '—'} | ${cl.version} |`);
+    lines.push(
+      `| \`${cl.packageName}\` | ${cl.previousVersion ? toDisplayVersion(cl.previousVersion) : '—'} | ${cl.version} |`,
+    );
   }
   lines.push('');
   return lines;
@@ -495,7 +497,7 @@ function renderEntries(entries: VersionChangelogEntry[]): string[] {
 
 function formatPackageChangelog(changelog: VersionPackageChangelog): string[] {
   const lines: string[] = [];
-  const prevVersion = changelog.previousVersion ?? 'N/A';
+  const prevVersion = changelog.previousVersion ? toDisplayVersion(changelog.previousVersion) : 'N/A';
   const summary = `<b>${changelog.packageName}</b> ${prevVersion} → ${changelog.version}`;
 
   lines.push('<details>', `<summary>${summary}</summary>`, '');

@@ -21,6 +21,18 @@ export function syncVersionDisplay(versionOutput: VersionOutput): string {
   return sharedTag ?? publishableUpdates(versionOutput)[0]?.newVersion ?? '';
 }
 
+/**
+ * Bare semver for display. `previousVersion` is persisted as the consumer tag (e.g. `pkg@v10.1.0`,
+ * `release/v1.2.0`, `v1.2.0`) so compare-URL generation can build links from it; renderers want the
+ * bare version. Extract the semver from the TAIL of the string with an end-anchored match so a
+ * numeric package name stays safe (`package2@v1.0.0` → `1.0.0`, not `2.0.0`). Returns the input
+ * unchanged when it carries no recognisable semver.
+ */
+export function toDisplayVersion(tagOrVersion: string): string {
+  const match = tagOrVersion.match(/(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$/);
+  return match?.[1] ?? tagOrVersion;
+}
+
 /** Previous-to-next version range when the previous version is known, otherwise just the next version. */
 export function syncVersionRange(versionOutput: VersionOutput): string {
   const next = syncVersionDisplay(versionOutput);
