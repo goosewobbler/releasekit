@@ -1,4 +1,10 @@
 export { findCargoLockfile } from './cargo.js';
+export {
+  type ChangelogRefsMode,
+  escapeChangelogMentions,
+  parseGitHubOwnerRepo,
+  renderIssueRefs,
+} from './changelogRefs.js';
 export { readPackageVersion } from './cli.js';
 export {
   buildDependencyGraph,

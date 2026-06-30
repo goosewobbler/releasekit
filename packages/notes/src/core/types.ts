@@ -1,4 +1,5 @@
 import type { MonorepoConfig } from '@releasekit/config';
+import type { ChangelogRefsMode } from '@releasekit/core';
 import type { RetryOptions } from '../utils/retry.js';
 
 export type { RetryOptions };
@@ -188,6 +189,8 @@ export interface ChangelogConfig {
   mode?: LocationMode;
   file?: string;
   templates?: TemplateConfig;
+  /** How bare `#NNN` issue/PR refs render in the changelog (#499). Default `'link'` when unset. */
+  refs?: ChangelogRefsMode;
 }
 
 export interface LinksConfig {

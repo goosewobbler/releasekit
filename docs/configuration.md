@@ -256,6 +256,7 @@ Set to `false` to disable.
 |-----|------|---------|-------------|
 | `mode` | `"root"` \| `"packages"` \| `"both"` | — | Where to write changelog files. root: repo root only. packages: per-package (monorepos). both: repo root and per-package. When omitted entirely (no changelog config), defaults to root. |
 | `file` | string | — | Changelog file name override (default: CHANGELOG.md) |
+| `refs` | `"strip"` \| `"escape"` \| `"link"` | `"link"` | How bare `#NNN` issue/PR refs in the changelog are rendered. 'link' (default): a canonical Markdown link [#NNN](<repo>/issues/NNN) — clickable and keeps the hovercard, but no longer a bare token GitHub re-scans (falls back to 'escape' for non-GitHub repos). 'escape': plain text \\#NNN (no link, no hovercard). 'strip': refs are removed entirely. Scoped-package / @user mentions in entry text are always neutralised regardless of this setting. |
 
 **`notes.changelog.templates`** — Template configuration for changelog.
 

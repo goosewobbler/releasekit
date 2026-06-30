@@ -588,6 +588,103 @@ describe('formatVersion: non-LLM path', () => {
 });
 
 // ---------------------------------------------------------------------------
+// formatVersion — issue refs + mention escaping (#499)
+// ---------------------------------------------------------------------------
+
+describe('formatVersion: issue refs', () => {
+  const refsCtx = () =>
+    makeContext({
+      repoUrl: 'https://github.com/octocat/hello',
+      entries: [{ type: 'added', description: 'New thing', issueIds: ['#481'] }],
+    });
+
+  it('should render a canonical issue link by default (link mode)', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+    const result = formatVersion(refsCtx());
+    expect(result).toContain('- New thing ([#481](https://github.com/octocat/hello/issues/481))');
+  });
+
+  it('should render an escaped ref in escape mode', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+    const result = formatVersion(refsCtx(), { refs: 'escape' });
+    expect(result).toContain('- New thing (\\#481)');
+    expect(result).not.toContain('issues/481');
+  });
+
+  it('should drop the refs entirely in strip mode', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+    const result = formatVersion(refsCtx(), { refs: 'strip' });
+    expect(result).toContain('- New thing');
+    expect(result).not.toContain('#481');
+    expect(result).not.toContain('()');
+  });
+
+  it('should fall back to escape in link mode when the repo URL is not GitHub', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+    const ctx = makeContext({
+      repoUrl: null,
+      entries: [{ type: 'added', description: 'New thing', issueIds: ['#481'] }],
+    });
+    const result = formatVersion(ctx, { refs: 'link' });
+    expect(result).toContain('- New thing (\\#481)');
+  });
+});
+
+describe('formatVersion: mention escaping', () => {
+  it('should always neutralise a scoped-package mention in the description regardless of refs mode', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+    const ctx = makeContext({
+      entries: [{ type: 'added', description: 'Support @wdio/native-cdp-bridge' }],
+    });
+    for (const refs of ['link', 'escape', 'strip'] as const) {
+      const result = formatVersion(ctx, { refs });
+      expect(result).toContain('- Support \\@wdio/native-cdp-bridge');
+    }
+  });
+
+  it('should neutralise mentions in the LLM-categorised path too', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+    const ctx = makeContext({
+      enhanced: {
+        categories: [{ name: 'New', entries: [{ type: 'added', description: 'Thanks @octocat' }] }],
+      },
+    });
+    expect(formatVersion(ctx)).toContain('- Thanks \\@octocat');
+  });
+
+  it('should neutralise a scoped-package mention in the bold scope prefix', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+    const ctx = makeContext({
+      entries: [{ type: 'fixed', description: 'a fix', scope: '@wdio/native-cdp-bridge' }],
+    });
+    const result = formatVersion(ctx);
+    expect(result).toContain('- **\\@wdio/native-cdp-bridge**: a fix');
+    expect(result).not.toContain('**@wdio/native-cdp-bridge**');
+  });
+
+  it('should neutralise a mention in the leadIn prefix', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+    const ctx = makeContext({
+      entries: [{ type: 'added', description: 'a feature', leadIn: '@octocat' }],
+    });
+    expect(formatVersion(ctx)).toContain('- **\\@octocat**: a feature');
+  });
+
+  it('should neutralise a scoped-package mention in the grouped scope header', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+    const ctx = makeContext({
+      entries: [
+        { type: 'fixed', description: 'fix one', scope: '@wdio/native-cdp-bridge' },
+        { type: 'fixed', description: 'fix two', scope: '@wdio/native-cdp-bridge' },
+      ],
+    });
+    const result = formatVersion(ctx);
+    expect(result).toContain('**\\@wdio/native-cdp-bridge**:');
+    expect(result).not.toContain('**@wdio/native-cdp-bridge**:');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // formatVersion — first-release intro
 // ---------------------------------------------------------------------------
 

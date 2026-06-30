@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { debug, info, success, warn } from '@releasekit/core';
+import { type ChangelogRefsMode, debug, info, parseGitHubOwnerRepo, success, warn } from '@releasekit/core';
 import { parseVersionOutput } from '../input/version-output.js';
 import { withContentHashCache } from '../llm/cache.js';
 import { fetchPullRequestContext, parseIssueNumbers, resolveGitHubToken } from '../llm/context/prFetcher.js';
@@ -32,25 +32,6 @@ import type {
   TemplateContext,
   TemplateEngine,
 } from './types.js';
-
-function parseOwnerRepo(repoUrl: string): { owner: string; repo: string } | null {
-  // SCP-style SSH: git@github.com:owner/repo.git — only github.com
-  const scpMatch = repoUrl.match(/^git@github\.com:([^/]+)\/(.+?)(?:\.git)?$/);
-  if (scpMatch) return { owner: scpMatch[1]!, repo: scpMatch[2]! };
-
-  try {
-    const url = new URL(repoUrl);
-    if (url.hostname !== 'github.com') return null;
-    const parts = url.pathname
-      .replace(/^\//, '')
-      .replace(/\.git$/, '')
-      .split('/');
-    if (parts.length >= 2) return { owner: parts[0]!, repo: parts[1]! };
-  } catch {
-    // invalid URL
-  }
-  return null;
-}
 
 /**
  * For dash-format compound tags (e.g. "scope-pkg-1.2.3" or "scope-pkg-1.2.3-next.1"),
@@ -401,7 +382,7 @@ export async function runPipeline(
 
     const examplesCount = llmConfig.examples ?? 3;
     const repoUrl = contexts[0]?.repoUrl ?? input.metadata?.repoUrl;
-    const ownerRepo = repoUrl ? parseOwnerRepo(repoUrl) : null;
+    const ownerRepo = repoUrl ? parseGitHubOwnerRepo(repoUrl) : null;
     const examplesByPackage = new Map<string, Example[]>();
 
     if (examplesCount > 0 && ownerRepo) {
@@ -470,6 +451,7 @@ export async function runPipeline(
     categoryOrder: llmConfig?.categoryOrder,
     links: releaseNotesConfig?.links,
     firstRelease: releaseNotesConfig?.firstRelease,
+    refs: (changelogConfig !== false ? changelogConfig.refs : undefined) ?? 'link',
   };
 
   if (!pipelineOptions?.skipChangelogs && changelogConfig !== false && changelogConfig.mode) {
@@ -495,7 +477,13 @@ export async function runPipeline(
       }
 
       if (mode === 'packages' || mode === 'both') {
-        const monoFiles = await writeMonorepoFiles(contexts, config, dryRun, changelogConfig.file ?? 'CHANGELOG.md');
+        const monoFiles = await writeMonorepoFiles(
+          contexts,
+          config,
+          dryRun,
+          changelogConfig.file ?? 'CHANGELOG.md',
+          fmtOpts.refs ?? 'link',
+        );
         files.push(...monoFiles);
       }
     } catch (error) {
@@ -597,6 +585,7 @@ async function writeMonorepoFiles(
   config: Config,
   dryRun: boolean,
   fileName: string,
+  refs: ChangelogRefsMode,
 ): Promise<string[]> {
   const { detectMonorepo, writeMonorepoChangelogs } = await import('../monorepo/aggregator.js');
   const cwd = process.cwd();
@@ -614,6 +603,7 @@ async function writeMonorepoFiles(
     },
     config,
     dryRun,
+    refs,
   );
 
   return monoFiles;

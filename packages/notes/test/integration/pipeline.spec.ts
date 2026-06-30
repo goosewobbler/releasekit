@@ -64,7 +64,8 @@ describe('Pipeline: version output → markdown', () => {
     expect(markdown).toContain('### Added');
     expect(markdown).toContain('- **api**: Add streaming support');
     expect(markdown).toContain('### Fixed');
-    expect(markdown).toContain('- Null pointer in parser (#88)');
+    // Bare `#88` is rendered as a canonical Markdown link by default (link mode, #499).
+    expect(markdown).toContain('- Null pointer in parser ([#88](https://github.com/acme/my-lib/issues/88))');
     expect(markdown).toContain('### Changed');
     expect(markdown).toContain('- Simplify config loading');
   });
