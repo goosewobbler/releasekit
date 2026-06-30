@@ -5,8 +5,8 @@ import { type PrimaryConfig, renderSelectionRegion } from '../../src/standing-pr
 
 type Changelog = VersionOutput['changelogs'][number];
 
-function cl(packageName: string, entries: Changelog['entries']): Changelog {
-  return { packageName, version: '1.0.0', previousVersion: '0.9.0', revisionRange: '', repoUrl: null, entries };
+function cl(packageName: string, entries: Changelog['entries'], repoUrl: string | null = null): Changelog {
+  return { packageName, version: '1.0.0', previousVersion: '0.9.0', revisionRange: '', repoUrl, entries };
 }
 
 describe('changelog-region', () => {
@@ -131,6 +131,75 @@ describe('changelog-region', () => {
         { sharedOnly: true },
       );
       expect(footer).toBe('');
+    });
+  });
+
+  describe('issue refs + mention escaping (#499)', () => {
+    const repo = 'https://github.com/octocat/hello';
+
+    function output(over: Partial<VersionOutput>): VersionOutput {
+      return { dryRun: false, updates: [], changelogs: [], tags: [], ...over };
+    }
+
+    it('should render a canonical issue link in the per-row pane by default (link mode)', () => {
+      const render = makeRowChangelogRenderer([
+        cl('@scope/app', [{ type: 'feat', description: 'App feature', issueIds: ['#481'] }], repo),
+      ]);
+      const block = render(['@scope/app'], false, '');
+      expect(block).toContain('- App feature [#481](https://github.com/octocat/hello/issues/481)');
+    });
+
+    it('should escape refs in escape mode', () => {
+      const render = makeRowChangelogRenderer(
+        [cl('@scope/app', [{ type: 'feat', description: 'App feature', issueIds: ['#481'] }], repo)],
+        'escape',
+      );
+      const block = render(['@scope/app'], false, '');
+      expect(block).toContain('- App feature \\#481');
+      expect(block).not.toContain('issues/481');
+    });
+
+    it('should drop refs in strip mode', () => {
+      const render = makeRowChangelogRenderer(
+        [cl('@scope/app', [{ type: 'feat', description: 'App feature', issueIds: ['#481'] }], repo)],
+        'strip',
+      );
+      const block = render(['@scope/app'], false, '');
+      expect(block).toContain('- App feature');
+      expect(block).not.toContain('#481');
+    });
+
+    it('should fall back to escape in link mode when no GitHub repo URL is present', () => {
+      const render = makeRowChangelogRenderer([
+        cl('@scope/app', [{ type: 'feat', description: 'App feature', issueIds: ['#481'] }], null),
+      ]);
+      const block = render(['@scope/app'], false, '');
+      expect(block).toContain('- App feature \\#481');
+    });
+
+    it('should always neutralise a scoped-package mention in the description', () => {
+      const render = makeRowChangelogRenderer([
+        cl('@scope/app', [{ type: 'feat', description: 'Bump @wdio/native-cdp-bridge' }], repo),
+      ]);
+      const block = render(['@scope/app'], false, '');
+      expect(block).toContain('- Bump \\@wdio/native-cdp-bridge');
+    });
+
+    it('should render refs and escape mentions in the combined footer', () => {
+      const footer = renderCombinedFooter(
+        output({
+          changelogs: [cl('@scope/a', [{ type: 'fix', description: 'Fix @octocat case', issueIds: ['#7'] }], repo)],
+        }),
+      );
+      expect(footer).toContain('- Fix \\@octocat case [#7](https://github.com/octocat/hello/issues/7)');
+    });
+
+    it('should honour escape mode in the combined footer', () => {
+      const footer = renderCombinedFooter(
+        output({ changelogs: [cl('@scope/a', [{ type: 'fix', description: 'Patch', issueIds: ['#7'] }], repo)] }),
+        { refs: 'escape' },
+      );
+      expect(footer).toContain('- Patch \\#7');
     });
   });
 

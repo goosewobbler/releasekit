@@ -791,6 +791,13 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   const branch = standingPrConfig?.branch ?? 'release/next';
   const base = releaseKitConfig.git?.branch ?? 'main';
+  // How bare `#NNN` refs render in the PR-body changelogs (#499). The setting lives under
+  // notes.changelog; when that's disabled (`changelog: false`) the standing PR still renders
+  // changelogs, so fall back to the 'link' default.
+  // `changelog` is `false` (disabled), a config object, or absent; `false` and `undefined` are both
+  // falsy, so a plain truthy check narrows to the object.
+  const changelogConfig = releaseKitConfig.notes?.changelog;
+  const changelogRefsMode = (changelogConfig ? changelogConfig.refs : undefined) ?? 'link';
   const skipPatterns = releaseKitConfig.release?.ci?.skipPatterns ?? ['chore: release '];
 
   // Label-triggered runs (a maintainer added/removed an override label on the standing PR, #336)
@@ -1179,7 +1186,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     const warningSuffix = warnings.length > 0 ? `\n\n${warnings.map((w) => `> ⚠️ ${w.reason}`).join('\n')}` : '';
     // Per-row changelogs are sourced from the DRY changelogs (the full changed set) so a held-back
     // row still shows its greyed changelog — the write output omits held-back packages entirely.
-    const rowChangelog = makeRowChangelogRenderer(versionOutputDry.changelogs);
+    const rowChangelog = makeRowChangelogRenderer(versionOutputDry.changelogs, changelogRefsMode);
     renderSelectionBlock = (withChangelogs) =>
       renderSelectionRegion(dryUpdates, effectiveDeselected, primaryConfig, withChangelogs ? rowChangelog : undefined) +
       warningSuffix;
@@ -1193,8 +1200,8 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const footerEnabled = standingPrConfig?.combinedChangelogFooter !== false;
   const footer =
     footerEnabled || versionOutput.strategy === 'sync'
-      ? renderCombinedFooter(versionOutput)
-      : renderCombinedFooter(versionOutput, { sharedOnly: true });
+      ? renderCombinedFooter(versionOutput, { refs: changelogRefsMode })
+      : renderCombinedFooter(versionOutput, { sharedOnly: true, refs: changelogRefsMode });
 
   const body = renderPrBody(versionOutput, { supersedeWarning, notesRegion, renderSelectionBlock, footer });
 

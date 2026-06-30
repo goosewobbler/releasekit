@@ -310,6 +310,12 @@ export const ChangelogConfigSchema = z
     ),
     file: z.string().optional().describe('Changelog file name override (default: CHANGELOG.md)'),
     templates: TemplateConfigSchema.optional().describe('Template configuration for changelog'),
+    refs: z
+      .enum(['strip', 'escape', 'link'])
+      .default('link')
+      .describe(
+        "How bare `#NNN` issue/PR refs in the changelog are rendered. 'link' (default): a canonical Markdown link [#NNN](<repo>/issues/NNN) — clickable and keeps the hovercard, but no longer a bare token GitHub re-scans (falls back to 'escape' for non-GitHub repos). 'escape': plain text \\#NNN (no link, no hovercard). 'strip': refs are removed entirely. Scoped-package / @user mentions in entry text are always neutralised regardless of this setting.",
+      ),
   })
   .describe('Changelog file configuration');
 

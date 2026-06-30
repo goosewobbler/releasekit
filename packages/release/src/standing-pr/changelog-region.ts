@@ -1,4 +1,10 @@
-import type { VersionChangelogEntry, VersionOutput } from '@releasekit/core';
+import {
+  type ChangelogRefsMode,
+  escapeChangelogMentions,
+  renderIssueRefs,
+  type VersionChangelogEntry,
+  type VersionOutput,
+} from '@releasekit/core';
 import type { RowChangelogRenderer } from './selection-region.js';
 
 /**
@@ -98,16 +104,26 @@ function shortName(pkg: string): string {
   return slash === -1 ? pkg : pkg.slice(slash + 1);
 }
 
-function entryLine(d: DedupedEntry, attribution: boolean): string {
+/** How bare `#NNN` refs render plus the repo to resolve canonical issue links against (#499). */
+interface RefRenderOptions {
+  refs: ChangelogRefsMode;
+  repoUrl: string | null;
+}
+
+function entryLine(d: DedupedEntry, attribution: boolean, refOpts: RefRenderOptions): string {
   const { entry, pkgs } = d;
+  // GitHub treats a bare `@scope/pkg` / `@user` in the description as a mention (stray link, can ping
+  // a real org/team on the standing PR) — always neutralise it, regardless of the refs mode.
+  const description = escapeChangelogMentions(entry.description);
   const scope = entry.scope ? ` (\`${entry.scope}\`)` : '';
-  const issues = entry.issueIds?.length ? ` ${entry.issueIds.join(', ')}` : '';
+  const refs = renderIssueRefs(entry.issueIds ?? [], refOpts.refs, refOpts.repoUrl);
+  const issues = refs ? ` ${refs}` : '';
   const attr = attribution && pkgs.size > 0 ? ` _(${[...pkgs].map(shortName).sort().join(', ')})_` : '';
-  return `- ${entry.description}${scope}${issues}${attr}`;
+  return `- ${description}${scope}${issues}${attr}`;
 }
 
 /** Render the deduped entries as flat, type-grouped Markdown (no per-package sections). */
-function renderGrouped(deduped: DedupedEntry[]): string[] {
+function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions): string[] {
   const distinct = new Set<string>();
   for (const d of deduped) for (const p of d.pkgs) distinct.add(p);
   // Attribution only earns its place when the list spans more than one package.
@@ -129,7 +145,7 @@ function renderGrouped(deduped: DedupedEntry[]): string[] {
     const list = byLabel.get(label);
     if (!list?.length) return;
     lines.push(`**${label}**`, '');
-    for (const d of list) lines.push(entryLine(d, attribution));
+    for (const d of list) lines.push(entryLine(d, attribution, refOpts));
     lines.push('');
   };
   const rendered = new Set<string>();
@@ -153,6 +169,12 @@ function pluralEntries(n: number): string {
   return `${n} ${n === 1 ? 'entry' : 'entries'}`;
 }
 
+/** Every package in a standing PR lives in the same repo, so any changelog's `repoUrl` resolves
+ *  canonical issue links for the whole render. Pick the first present one. */
+function repoUrlOf(changelogs: VersionOutput['changelogs']): string | null {
+  return changelogs.find((cl) => cl.repoUrl)?.repoUrl ?? null;
+}
+
 /**
  * Build the per-row changelog renderer for a set of package changelogs. The returned function takes
  * the package names a checkbox gates (a streamlined unit aggregates primary + coupled members +
@@ -161,10 +183,15 @@ function pluralEntries(n: number): string {
  * when those packages have no real changelog entries.
  *
  * #487 regroups *where* rows are placed; it reuses this renderer unchanged to keep *how* changelogs
- * attach to a row identical.
+ * attach to a row identical. `refs` (`changelog.refs`, default `'link'`) controls how bare `#NNN`
+ * refs render (#499).
  */
-export function makeRowChangelogRenderer(changelogs: VersionOutput['changelogs']): RowChangelogRenderer {
+export function makeRowChangelogRenderer(
+  changelogs: VersionOutput['changelogs'],
+  refs: ChangelogRefsMode = 'link',
+): RowChangelogRenderer {
   const byPkg = new Map(changelogs.map((cl) => [cl.packageName, cl]));
+  const refOpts: RefRenderOptions = { refs, repoUrl: repoUrlOf(changelogs) };
   return (packageNames, heldBack, indent) => {
     const attributed: AttributedEntry[] = [];
     for (const name of packageNames) {
@@ -177,7 +204,7 @@ export function makeRowChangelogRenderer(changelogs: VersionOutput['changelogs']
     const summary = heldBack
       ? `<s>Changelog (${pluralEntries(deduped.length)})</s> — held back, won’t publish`
       : `Changelog (${pluralEntries(deduped.length)})`;
-    return wrapDetails(summary, renderGrouped(deduped), indent);
+    return wrapDetails(summary, renderGrouped(deduped, refOpts), indent);
   };
 }
 
@@ -191,7 +218,10 @@ export function makeRowChangelogRenderer(changelogs: VersionOutput['changelogs']
  * It's how the caller keeps shared entries visible when the maintainer disables the full footer: the
  * redundant per-package summary is dropped (it's covered per-row), but project-wide changes survive.
  */
-export function renderCombinedFooter(versionOutput: VersionOutput, opts: { sharedOnly?: boolean } = {}): string {
+export function renderCombinedFooter(
+  versionOutput: VersionOutput,
+  opts: { sharedOnly?: boolean; refs?: ChangelogRefsMode } = {},
+): string {
   const attributed: AttributedEntry[] = [];
   if (!opts.sharedOnly) {
     for (const cl of versionOutput.changelogs) {
@@ -205,5 +235,6 @@ export function renderCombinedFooter(versionOutput: VersionOutput, opts: { share
   const summary = opts.sharedOnly
     ? `Show project-wide changes (${n} ${n === 1 ? 'change' : 'changes'})`
     : `Show all changes (${n} ${n === 1 ? 'change' : 'changes'}, de-duplicated)`;
-  return wrapDetails(summary, renderGrouped(deduped), '');
+  const refOpts: RefRenderOptions = { refs: opts.refs ?? 'link', repoUrl: repoUrlOf(versionOutput.changelogs) };
+  return wrapDetails(summary, renderGrouped(deduped, refOpts), '');
 }

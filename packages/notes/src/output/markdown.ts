@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { info, success } from '@releasekit/core';
+import { type ChangelogRefsMode, escapeChangelogMentions, info, renderIssueRefs, success } from '@releasekit/core';
 import type {
   ChangelogEntry,
   Config,
@@ -49,31 +49,43 @@ function groupEntriesByType(entries: ChangelogEntry[]): Map<ChangelogEntry['type
   return grouped;
 }
 
-function formatEntry(entry: ChangelogEntry, opts?: { hideScope?: boolean }): string {
+interface EntryRefOptions {
+  hideScope?: boolean;
+  /** How bare `#NNN` issue/PR refs are rendered (default `'link'`). */
+  refs?: ChangelogRefsMode;
+  /** Repo URL used to build canonical issue links in `link` mode. */
+  repoUrl?: string | null;
+}
+
+function formatEntry(entry: ChangelogEntry, opts?: EntryRefOptions): string {
+  // GitHub treats a bare `@scope/pkg` / `@user` in prose as a mention (stray link, can ping a real
+  // org/team on a release PR) — always neutralise it, regardless of the refs mode.
+  const description = escapeChangelogMentions(entry.description);
   let line: string;
 
   if (entry.leadIn && entry.breaking) {
-    line = `- **BREAKING** **${entry.leadIn}**: ${entry.description}`;
+    line = `- **BREAKING** **${entry.leadIn}**: ${description}`;
   } else if (entry.leadIn) {
-    line = `- **${entry.leadIn}**: ${entry.description}`;
+    line = `- **${entry.leadIn}**: ${description}`;
   } else if (entry.breaking && entry.scope && !opts?.hideScope) {
-    line = `- **BREAKING** **${entry.scope}**: ${entry.description}`;
+    line = `- **BREAKING** **${entry.scope}**: ${description}`;
   } else if (entry.breaking) {
-    line = `- **BREAKING** ${entry.description}`;
+    line = `- **BREAKING** ${description}`;
   } else if (entry.scope && !opts?.hideScope) {
-    line = `- **${entry.scope}**: ${entry.description}`;
+    line = `- **${entry.scope}**: ${description}`;
   } else {
-    line = `- ${entry.description}`;
+    line = `- ${description}`;
   }
 
-  if (entry.issueIds && entry.issueIds.length > 0) {
-    line += ` (${entry.issueIds.join(', ')})`;
+  const refs = renderIssueRefs(entry.issueIds ?? [], opts?.refs ?? 'link', opts?.repoUrl ?? null);
+  if (refs) {
+    line += ` (${refs})`;
   }
 
   return line;
 }
 
-function formatCategorySection(name: string, entries: ChangelogEntry[]): string[] {
+function formatCategorySection(name: string, entries: ChangelogEntry[], refOpts: EntryRefOptions): string[] {
   const lines: string[] = [];
   lines.push(`### ${name}`);
 
@@ -90,7 +102,7 @@ function formatCategorySection(name: string, entries: ChangelogEntry[]): string[
   if (groupedScopes.size === 0) {
     // No scope grouping — render flat
     for (const entry of entries) {
-      lines.push(formatEntry(entry));
+      lines.push(formatEntry(entry, refOpts));
     }
   } else {
     // Scope groups are expanded at the position of their first member.
@@ -112,12 +124,12 @@ function formatCategorySection(name: string, entries: ChangelogEntry[]): string[
           renderedScopes.add(entry.scope);
           lines.push(`**${entry.scope}**:`);
           for (const e of byScope.get(entry.scope) ?? []) {
-            lines.push(formatEntry(e, { hideScope: true }));
+            lines.push(formatEntry(e, { ...refOpts, hideScope: true }));
           }
         }
         // Remaining entries in this group already rendered above — skip
       } else {
-        lines.push(formatEntry(entry));
+        lines.push(formatEntry(entry, refOpts));
       }
     }
   }
@@ -242,10 +254,13 @@ export interface FormatVersionOptions {
   links?: LinksConfig;
   /** First-release placeholder intro config, or `false` to suppress it. */
   firstRelease?: FirstReleaseConfig | false;
+  /** How bare `#NNN` issue/PR refs are rendered (`changelog.refs`; default `'link'`). */
+  refs?: ChangelogRefsMode;
 }
 
 export function formatVersion(context: TemplateContext, options?: FormatVersionOptions): string {
   const lines: string[] = [];
+  const refOpts: EntryRefOptions = { refs: options?.refs ?? 'link', repoUrl: context.repoUrl };
 
   const versionLabel =
     options?.includePackageName && context.packageName ? `${context.packageName}@${context.version}` : context.version;
@@ -277,7 +292,7 @@ export function formatVersion(context: TemplateContext, options?: FormatVersionO
 
     for (const category of categories) {
       if (category.entries.length === 0) continue;
-      lines.push(...formatCategorySection(category.name, category.entries));
+      lines.push(...formatCategorySection(category.name, category.entries, refOpts));
     }
 
     const links = resolveLinks(context.entries, options?.links);
@@ -297,7 +312,7 @@ export function formatVersion(context: TemplateContext, options?: FormatVersionO
 
       lines.push(`### ${TYPE_LABELS[type]}`);
       for (const entry of entries) {
-        lines.push(formatEntry(entry));
+        lines.push(formatEntry(entry, refOpts));
       }
       lines.push('');
     }
