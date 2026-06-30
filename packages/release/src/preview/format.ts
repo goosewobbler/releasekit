@@ -338,13 +338,18 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
   const syncBumpedOnly = versionOutput.updates.filter((u) => !u.isRoot && !packagesWithChangelog.has(u.packageName));
 
   if (sharedEntries || hasPackageChangelogs || syncBumpedOnly.length > 0) {
+    // The changelog body sets itself apart with a Markdown blockquote (a left vertical bar), but the
+    // <details>/<summary>/</details> disclosure tags stay un-quoted — a `> `-prefixed raw-HTML block
+    // renders unreliably on GitHub. So each disclosure renders normally and only its inner content (and
+    // the plain-markdown "Also bumped" lists) carries the quote bar. The `### Changelog` heading and the
+    // `Project-wide changes` summary are likewise un-quoted.
     lines.push('### Changelog', '');
 
     // Project-wide entries (CI, infra, shared-package commits) rendered once
     if (sharedEntries) {
       lines.push('<details>', '<summary><b>Project-wide changes</b></summary>', '');
-      lines.push(...renderEntries(sharedEntries, refs, sharedRepoUrl));
-      lines.push('</details>', '');
+      lines.push(...blockquote(renderEntries(sharedEntries, refs, sharedRepoUrl)));
+      lines.push('', '</details>', '');
     }
 
     // Per-package entries — only rendered when the package has real (non-synthetic) changes
@@ -356,6 +361,7 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
 
     // List sync-bumped packages that have no individual commits so they aren't invisible
     if (syncBumpedOnly.length > 0) {
+      const bumped: string[] = [];
       if (isSync) {
         // Sync mode: every package moves to the same version — say that once in the heading
         // and list bare names (the root lockstep bump is already excluded from syncBumpedOnly).
@@ -365,16 +371,15 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
           // packages with their own changelog entries render above and drop out of this list.
           const coversAll = syncListed.length === publishableUpdates(versionOutput).length;
           const heading = coversAll ? 'All packages' : 'Also bumped';
-          lines.push(`**${heading} → ${syncListed[0]?.newVersion}** (sync versioning)`, '');
-          for (const u of syncListed) lines.push(`- \`${u.packageName}\``);
-          lines.push('');
+          bumped.push(`**${heading} → ${syncListed[0]?.newVersion}** (sync versioning)`, '');
+          for (const u of syncListed) bumped.push(`- \`${u.packageName}\``);
         }
       } else {
-        if (hasPackageChangelogs || sharedEntries) lines.push('**Also bumped** (sync versioning)', '');
-        else lines.push('**Bumped** (sync versioning — no individual changes)', '');
-        for (const u of syncBumpedOnly) lines.push(`- \`${u.packageName}\` → ${u.newVersion}`);
-        lines.push('');
+        if (hasPackageChangelogs || sharedEntries) bumped.push('**Also bumped** (sync versioning)', '');
+        else bumped.push('**Bumped** (sync versioning — no individual changes)', '');
+        for (const u of syncBumpedOnly) bumped.push(`- \`${u.packageName}\` → ${u.newVersion}`);
       }
+      if (bumped.length > 0) lines.push(...blockquote(bumped), '');
     }
   }
 
@@ -512,15 +517,17 @@ function formatPackageChangelog(changelog: VersionPackageChangelog, refs: Change
   const prevVersion = changelog.previousVersion ? toDisplayVersion(changelog.previousVersion) : 'N/A';
   const summary = `<b>${changelog.packageName}</b> ${prevVersion} → ${changelog.version}`;
 
+  // The disclosure tags stay un-quoted (a `> `-prefixed raw-HTML block renders unreliably on GitHub);
+  // only the entry content carries the blockquote bar, after the plain blank line below the summary.
   lines.push('<details>', `<summary>${summary}</summary>`, '');
-  lines.push(...renderEntries(changelog.entries, refs, changelog.repoUrl));
-  lines.push('</details>', '');
+  lines.push(...blockquote(renderEntries(changelog.entries, refs, changelog.repoUrl)));
+  lines.push('', '</details>', '');
   return lines;
 }
 
 function formatEntryGroup(
   type: string,
-  entries: { description: string; scope?: string; issueIds?: string[] }[],
+  entries: { description: string; scope?: string; issueIds?: string[]; prNumber?: string }[],
   refs: ChangelogRefsMode,
   repoUrl: string | null,
 ): string[] {
@@ -533,7 +540,8 @@ function formatEntryGroup(
     if (entry.scope) {
       line += ` (\`${entry.scope}\`)`;
     }
-    const renderedRefs = renderIssueRefs(entry.issueIds ?? [], refs, repoUrl);
+    // renderIssueRefs returns the complete group including its own parens — append it bare.
+    const renderedRefs = renderIssueRefs(entry.issueIds ?? [], refs, repoUrl, entry.prNumber);
     if (renderedRefs) {
       line += ` ${renderedRefs}`;
     }
@@ -546,4 +554,12 @@ function formatEntryGroup(
 
 function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+/** Prefix each line with `> ` (blank lines keep a bare `>`) so the block renders as one contiguous
+ *  Markdown blockquote. Trailing blanks are dropped so the quote ends cleanly before the next block. */
+function blockquote(lines: string[]): string[] {
+  const trimmed = [...lines];
+  while (trimmed.length > 0 && trimmed[trimmed.length - 1] === '') trimmed.pop();
+  return trimmed.map((l) => (l.length > 0 ? `> ${l}` : '>'));
 }

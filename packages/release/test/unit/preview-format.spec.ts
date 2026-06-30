@@ -206,9 +206,10 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('#### Added');
     expect(result).toContain('- New dry-run flag (`cli`)');
     expect(result).toContain('#### Fixed');
-    // #499: bare #NNN now renders as a canonical link by default (refs: 'link').
+    // #499: bare #NNN renders as a canonical link by default (refs: 'link'); the ref group carries
+    // its own parens (an entry with no identified PR falls back to the plain list).
     expect(result).toContain(
-      '- Fix prerelease sorting (`semver`) [#42](https://github.com/goosewobbler/releasekit/issues/42)',
+      '- Fix prerelease sorting (`semver`) ([#42](https://github.com/goosewobbler/releasekit/issues/42))',
     );
     expect(result).toContain('#### Chores');
     expect(result).toContain('- Migrate to Vitest');
@@ -216,12 +217,45 @@ describe('formatPreviewComment', () => {
 
   it('should render bare #NNN refs per the refs mode (#504)', () => {
     expect(formatPreviewComment(releaseOutput, { refs: 'escape' })).toContain(
-      '- Fix prerelease sorting (`semver`) \\#42',
+      '- Fix prerelease sorting (`semver`) (\\#42)',
     );
     const stripped = formatPreviewComment(releaseOutput, { refs: 'strip' });
     expect(stripped).toContain('- Fix prerelease sorting (`semver`)');
     expect(stripped).not.toContain('#42');
     expect(stripped).not.toContain('[#42]');
+  });
+
+  it('should label the PR and closed issues when an entry carries a prNumber', () => {
+    const withPr = structuredClone(releaseOutput);
+    const firstChangelog = withPr.versionOutput.changelogs[0];
+    if (firstChangelog) {
+      firstChangelog.entries = [
+        {
+          type: 'fixed',
+          description: 'Fix prerelease sorting',
+          scope: 'semver',
+          issueIds: ['#503', '#500'],
+          prNumber: '#503',
+        },
+      ];
+    }
+    const result = formatPreviewComment(withPr);
+    expect(result).toContain(
+      '- Fix prerelease sorting (`semver`) (PR [#503](https://github.com/goosewobbler/releasekit/pull/503) · closes [#500](https://github.com/goosewobbler/releasekit/issues/500))',
+    );
+  });
+
+  it('should blockquote the changelog entry content but leave the disclosure tags un-quoted', () => {
+    const result = formatPreviewComment(releaseOutput);
+    // The `### Changelog` heading and the <details>/<summary> tags stay un-quoted (raw HTML renders
+    // unreliably under `> `); only the entry content inside carries the blockquote bar.
+    expect(result).toContain('### Changelog');
+    expect(result).toContain('<details>');
+    expect(result).not.toContain('> <details>');
+    expect(result).not.toContain('> </details>');
+    expect(result).toContain('<summary><b>@releasekit/version</b> 0.3.0 → 0.3.1</summary>');
+    expect(result).toContain('> #### Added');
+    expect(result).toContain('> - New dry-run flag (`cli`)');
   });
 
   it('should always neutralise @-mentions in preview descriptions (#504)', () => {

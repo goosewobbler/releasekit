@@ -81,9 +81,10 @@ function formatEntry(entry: ChangelogEntry, opts?: EntryRefOptions): string {
     line = `- ${description}`;
   }
 
-  const refs = renderIssueRefs(entry.issueIds ?? [], opts?.refs ?? 'link', opts?.repoUrl ?? null);
+  // renderIssueRefs returns the complete group including its own parens — append it bare, no re-wrap.
+  const refs = renderIssueRefs(entry.issueIds ?? [], opts?.refs ?? 'link', opts?.repoUrl ?? null, entry.prNumber);
   if (refs) {
-    line += ` (${refs})`;
+    line += ` ${refs}`;
   }
 
   return line;

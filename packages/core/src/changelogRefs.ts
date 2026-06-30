@@ -33,33 +33,63 @@ export function parseGitHubOwnerRepo(repoUrl: string): { owner: string; repo: st
 }
 
 /**
- * Render the trailing issue/PR refs for a changelog entry per `mode`. Returns the comma-joined refs
- * WITHOUT any surrounding punctuation — callers wrap (the Markdown surface in `(…)`, the standing-PR
- * surface with a leading space). Returns `''` when there are no refs or `mode` is `'strip'`.
+ * Render the trailing issue/PR refs for a changelog entry per `mode`. Returns the COMPLETE group
+ * INCLUDING its own parentheses (e.g. `(PR #503 · closes #500)` or `(#503, #499)`); callers append it
+ * after a single space. Returns `''` when there are no refs or `mode` is `'strip'`.
  *
- * `link` emits a canonical Markdown link `[#NNN](<repo>/issues/NNN)` — clickable, keeps the
- * hovercard, but no longer a bare token GitHub re-scans. It always points at `/issues/NNN`: GitHub
- * redirects issues↔pulls, so the emitter needn't know which. A non-GitHub / unparseable `repoUrl`
- * has no canonical URL to build, so `link` degrades to `escape` for that entry. `escape` renders a
- * literal `\#NNN` (no link, no hovercard); `strip` drops the refs entirely.
+ * In `link` mode with a resolvable GitHub `repoUrl` AND a known `prNumber`, the group distinguishes
+ * the PR from the issues it closed: `(PR [#503](<repo>/pull/503) · closes [#500](<repo>/issues/500))`.
+ * The PR link's visible text is `PR #503`, deliberately NOT a bare `#503`: GitHub auto-expands a bare
+ * `#503` link into a rich inline reference card (merged-PR icon + the PR title) that duplicates the
+ * entry; the `PR #503` text keeps a plain link plus the hovercard. The href is the canonical
+ * `/pull/503` URL. `closes` is `issueIds` minus the PR (compared by numeric value); it is omitted when
+ * empty, leaving `(PR #503)`.
+ *
+ * Otherwise it falls back to the plain ref list: canonical `[#NNN](<repo>/issues/NNN)` links in `link`
+ * mode (issues↔pulls redirect, so the emitter needn't know which), or literal `\#NNN` in `escape` mode
+ * and in `link` mode when `repoUrl` is non-GitHub / unparseable. The PR is never guessed — without
+ * `prNumber` every ref renders the same. `strip` drops the refs entirely; `escape`/`strip` carry no
+ * PR/closes labelling (it's a `link`-mode nicety).
  *
  * Tokens may arrive as `#NNN` (the producer's format) or a bare `NNN`; the leading `#` is normalised.
  */
-export function renderIssueRefs(issueIds: string[], mode: ChangelogRefsMode, repoUrl: string | null): string {
-  if (mode === 'strip' || issueIds.length === 0) return '';
+export function renderIssueRefs(
+  issueIds: string[],
+  mode: ChangelogRefsMode,
+  repoUrl: string | null,
+  prNumber?: string,
+): string {
+  if (mode === 'strip') return '';
+  const ids = issueIds ?? [];
+  // prNumber is normally already in issueIds; fold it in defensively so no path can silently drop it.
+  const allIds =
+    prNumber && !ids.some((id) => Number(id.replace(/^#/, '')) === Number(prNumber.replace(/^#/, '')))
+      ? [prNumber, ...ids]
+      : ids;
+  if (allIds.length === 0) return '';
 
   const ownerRepo = mode === 'link' && repoUrl ? parseGitHubOwnerRepo(repoUrl) : null;
 
-  return issueIds
+  if (ownerRepo && prNumber) {
+    const { owner, repo } = ownerRepo;
+    const pr = prNumber.replace(/^#/, '');
+    const prPart = `PR [#${pr}](https://github.com/${owner}/${repo}/pull/${pr})`;
+    const closes = allIds.map((raw) => raw.replace(/^#/, '')).filter((num) => Number(num) !== Number(pr));
+    if (closes.length === 0) return `(${prPart})`;
+    const closesPart = closes.map((num) => `[#${num}](https://github.com/${owner}/${repo}/issues/${num})`).join(', ');
+    return `(${prPart} · closes ${closesPart})`;
+  }
+
+  const rendered = allIds
     .map((raw) => {
       const num = raw.replace(/^#/, '');
-      if (ownerRepo) {
-        return `[#${num}](https://github.com/${ownerRepo.owner}/${ownerRepo.repo}/issues/${num})`;
-      }
       // escape mode, or link mode with no resolvable GitHub repo → literal `#NNN`.
-      return `\\#${num}`;
+      return ownerRepo
+        ? `[#${num}](https://github.com/${ownerRepo.owner}/${ownerRepo.repo}/issues/${num})`
+        : `\\#${num}`;
     })
     .join(', ');
+  return rendered ? `(${rendered})` : '';
 }
 
 // A GitHub mention is a word-boundary `@name` or `@org/team` (npm scoped package names share the

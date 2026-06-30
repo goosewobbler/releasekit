@@ -26,30 +26,30 @@ describe('parseGitHubOwnerRepo', () => {
 describe('renderIssueRefs', () => {
   const repo = 'https://github.com/octocat/hello';
 
-  it('should render a canonical /issues/ link in link mode', () => {
-    expect(renderIssueRefs(['#481'], 'link', repo)).toBe('[#481](https://github.com/octocat/hello/issues/481)');
+  it('should render a canonical /issues/ link wrapped in parens in link mode', () => {
+    expect(renderIssueRefs(['#481'], 'link', repo)).toBe('([#481](https://github.com/octocat/hello/issues/481))');
   });
 
   it('should join multiple refs with a comma in link mode', () => {
     expect(renderIssueRefs(['#1', '#2'], 'link', repo)).toBe(
-      '[#1](https://github.com/octocat/hello/issues/1), [#2](https://github.com/octocat/hello/issues/2)',
+      '([#1](https://github.com/octocat/hello/issues/1), [#2](https://github.com/octocat/hello/issues/2))',
     );
   });
 
   it('should normalise a bare numeric token without a leading #', () => {
-    expect(renderIssueRefs(['481'], 'link', repo)).toBe('[#481](https://github.com/octocat/hello/issues/481)');
+    expect(renderIssueRefs(['481'], 'link', repo)).toBe('([#481](https://github.com/octocat/hello/issues/481))');
   });
 
   it('should fall back to escape when the repo URL is null in link mode', () => {
-    expect(renderIssueRefs(['#481'], 'link', null)).toBe('\\#481');
+    expect(renderIssueRefs(['#481'], 'link', null)).toBe('(\\#481)');
   });
 
   it('should fall back to escape when the repo URL is non-GitHub in link mode', () => {
-    expect(renderIssueRefs(['#481'], 'link', 'https://gitlab.com/o/r')).toBe('\\#481');
+    expect(renderIssueRefs(['#481'], 'link', 'https://gitlab.com/o/r')).toBe('(\\#481)');
   });
 
   it('should render literal escaped refs in escape mode (no link even with a repo URL)', () => {
-    expect(renderIssueRefs(['#481', '#7'], 'escape', repo)).toBe('\\#481, \\#7');
+    expect(renderIssueRefs(['#481', '#7'], 'escape', repo)).toBe('(\\#481, \\#7)');
   });
 
   it('should return an empty string in strip mode', () => {
@@ -58,6 +58,48 @@ describe('renderIssueRefs', () => {
 
   it('should return an empty string when there are no refs', () => {
     expect(renderIssueRefs([], 'link', repo)).toBe('');
+  });
+
+  it('should label the PR and closed issues when a prNumber is given in link mode', () => {
+    expect(renderIssueRefs(['#503', '#500'], 'link', repo, '#503')).toBe(
+      '(PR [#503](https://github.com/octocat/hello/pull/503) · closes [#500](https://github.com/octocat/hello/issues/500))',
+    );
+  });
+
+  it('should render PR-only (no `· closes`) when there are no closed issues', () => {
+    expect(renderIssueRefs(['#503'], 'link', repo, '#503')).toBe(
+      '(PR [#503](https://github.com/octocat/hello/pull/503))',
+    );
+  });
+
+  it('should list every closed issue after the PR', () => {
+    expect(renderIssueRefs(['#503', '#500', '#499'], 'link', repo, '#503')).toBe(
+      '(PR [#503](https://github.com/octocat/hello/pull/503) · closes [#500](https://github.com/octocat/hello/issues/500), [#499](https://github.com/octocat/hello/issues/499))',
+    );
+  });
+
+  it('should compare PR vs closed issues by numeric value, with or without a leading #', () => {
+    expect(renderIssueRefs(['503', '500'], 'link', repo, '503')).toBe(
+      '(PR [#503](https://github.com/octocat/hello/pull/503) · closes [#500](https://github.com/octocat/hello/issues/500))',
+    );
+  });
+
+  it('should fall back to the plain ref list when a prNumber is given but the repo is non-GitHub', () => {
+    expect(renderIssueRefs(['#503', '#500'], 'link', null, '#503')).toBe('(\\#503, \\#500)');
+  });
+
+  it('should not label the PR in escape mode even when a prNumber is given', () => {
+    expect(renderIssueRefs(['#503', '#500'], 'escape', repo, '#503')).toBe('(\\#503, \\#500)');
+  });
+
+  it('should drop the refs in strip mode even when a prNumber is given', () => {
+    expect(renderIssueRefs(['#503', '#500'], 'strip', repo, '#503')).toBe('');
+  });
+
+  it('should still render a prNumber that is absent from issueIds (never silently dropped)', () => {
+    // Defensive: the invariant is prNumber ∈ issueIds, but if a caller omits it the PR must not vanish.
+    expect(renderIssueRefs([], 'escape', repo, '#503')).toBe('(\\#503)');
+    expect(renderIssueRefs(['#500'], 'escape', repo, '#503')).toBe('(\\#503, \\#500)');
   });
 });
 

@@ -32,6 +32,20 @@ describe('parseGitLogInput', () => {
     ]);
   });
 
+  it('should treat a trailing (#N) on the subject as the PR and strip it from the description', async () => {
+    const git = createFakeGit({
+      commits: { 'v1.0.0..HEAD': 'abc123|||feat(cli): add streaming (#503)|||Alice|||2026-06-01' },
+      remoteUrls: { origin: 'https://github.com/o/r.git' },
+      nearestTag: 'v1.2.0',
+    });
+
+    const input = await parseGitLogInput('v1.0.0', 'HEAD', git);
+    const entry = input.packages[0]?.entries[0];
+    expect(entry?.description).toBe('add streaming');
+    expect(entry?.prNumber).toBe('#503');
+    expect(entry?.issueIds).toEqual(['#503']);
+  });
+
   it('should default version to 0.0.0 and repoUrl to null when there is no tag or remote', async () => {
     const git = createFakeGit({ commits: { '*': '' } });
     const input = await parseGitLogInput(undefined, 'HEAD', git);

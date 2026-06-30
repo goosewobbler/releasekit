@@ -16,6 +16,9 @@ export interface ChangelogEntry {
   type: ChangelogType;
   description: string;
   issueIds?: string[];
+  /** The PR this entry shipped through (trailing `(#N)` of a squash-merge subject); marks which of
+   *  {@link issueIds} is the PR vs. a closed issue. Optional — absent means no identifiable PR. */
+  prNumber?: string;
   scope?: string;
   originalType?: string;
   breaking?: boolean;

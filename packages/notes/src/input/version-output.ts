@@ -38,6 +38,7 @@ export function versionOutputToChangelogInput(data: VersionOutput): ChangelogInp
       type: normalizeEntryType(entry.type),
       description: entry.description,
       issueIds: entry.issueIds,
+      prNumber: entry.prNumber,
       scope: entry.scope,
       originalType: entry.originalType,
       breaking: entry.breaking ?? entry.originalType?.includes('!') ?? false,

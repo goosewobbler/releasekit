@@ -622,7 +622,7 @@
                     "link"
                   ],
                   "default": "link",
-                  "description": "How bare `#NNN` issue/PR refs in the changelog are rendered. 'link' (default): a canonical Markdown link [#NNN](<repo>/issues/NNN) — clickable and keeps the hovercard, but no longer a bare token GitHub re-scans (falls back to 'escape' for non-GitHub repos). 'escape': plain text \\#NNN (no link, no hovercard). 'strip': refs are removed entirely. Scoped-package / @user mentions in entry text are always neutralised regardless of this setting."
+                  "description": "How `#NNN` issue/PR refs in the changelog are rendered. 'link' (default): the PR and the issues it closed are labelled as `(PR #503 · closes #500)`, where the PR links to its canonical /pull/ URL with `PR #503` as the visible text — this keeps the GitHub hovercard but stops the bare-token rich inline card that duplicated the entry; closed issues link to /issues/. An entry with no identifiable PR (a non-squash commit, or a non-GitHub repo) falls back to a plain ref list. 'escape': plain text \\#NNN (no link, no hovercard, no PR/closes labelling). 'strip': refs are removed entirely. Scoped-package / @user mentions in entry text are always neutralised regardless of this setting."
                 }
               },
               "description": "Changelog file configuration"
