@@ -1,9 +1,9 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { debug, findCargoLockfile, info } from '@releasekit/core';
+import { debug, info } from '@releasekit/core';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext } from '../types.js';
-import { updateCargoVersion } from '../utils/cargo.js';
+import { syncCargoLockfile, updateCargoVersion } from '../utils/cargo.js';
 
 export async function runPrepareStage(ctx: PipelineContext): Promise<void> {
   const { input, config, cliOptions, cwd } = ctx;
@@ -48,10 +48,11 @@ export async function runPrepareStage(ctx: PipelineContext): Promise<void> {
 
   // Update Cargo.toml versions for cargo packages
   if (config.cargo.enabled) {
-    // Cargo.lock files to stage alongside the manifests (#496). The version step already synced each
-    // crate's lock self-entry to the bumped version; here we surface it so the direct-commit flow
-    // (git-commit, which stages an explicit file list rather than `git add -A`) includes it. The
-    // standing-PR flow stages the lock via its own `git add -A`, so this is a no-op there.
+    // Cargo.lock files to stage alongside the manifests (#496), deduped — crates in one workspace
+    // share a single workspace-root lock. We re-sync the lock here (rather than trust the version
+    // step) so the direct-commit flow — git-commit stages an explicit file list, not `git add -A` —
+    // is self-sufficient and correct even run in isolation. The standing-PR flow stages the lock via
+    // its own `git add -A`, with git-commit skipped, so this re-sync is a harmless no-op there.
     const lockfiles = new Set<string>();
     for (const update of input.updates) {
       const pkgDir = path.dirname(path.resolve(cwd, update.filePath));
@@ -69,7 +70,7 @@ export async function runPrepareStage(ctx: PipelineContext): Promise<void> {
       updateCargoVersion(cargoPath, update.newVersion);
       debug(`Updated ${cargoPath} to version ${update.newVersion}`);
 
-      const lockPath = findCargoLockfile(pkgDir);
+      const lockPath = await syncCargoLockfile(pkgDir);
       if (lockPath) lockfiles.add(lockPath);
     }
 

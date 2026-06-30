@@ -6,6 +6,12 @@ import { getDefaultConfig } from '../../../src/config.js';
 import { runPrepareStage } from '../../../src/stages/prepare.js';
 import type { PipelineContext } from '../../../src/types.js';
 
+// Don't shell out to a real cargo for the lockfile sync — assert the staging behaviour, not cargo.
+vi.mock('../../../src/utils/exec.js', async () => {
+  const actual = await vi.importActual<typeof import('../../../src/utils/exec.js')>('../../../src/utils/exec.js');
+  return { ...actual, execCommand: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 }) };
+});
+
 function createContext(overrides?: Partial<PipelineContext>): PipelineContext {
   return {
     input: {
@@ -188,7 +194,7 @@ describe('prepare stage', () => {
         verbose: false,
       },
       input: {
-        dryRun: false,
+        dryRun: true,
         updates: [{ packageName: 'foo', newVersion: '1.1.0', filePath: 'crates/foo/Cargo.toml' }],
         changelogs: [],
         tags: [],
