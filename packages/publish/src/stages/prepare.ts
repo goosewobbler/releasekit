@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { debug, info } from '@releasekit/core';
+import { debug, findCargoLockfile, info } from '@releasekit/core';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext } from '../types.js';
 import { updateCargoVersion } from '../utils/cargo.js';
@@ -48,6 +48,11 @@ export async function runPrepareStage(ctx: PipelineContext): Promise<void> {
 
   // Update Cargo.toml versions for cargo packages
   if (config.cargo.enabled) {
+    // Cargo.lock files to stage alongside the manifests (#496). The version step already synced each
+    // crate's lock self-entry to the bumped version; here we surface it so the direct-commit flow
+    // (git-commit, which stages an explicit file list rather than `git add -A`) includes it. The
+    // standing-PR flow stages the lock via its own `git add -A`, so this is a no-op there.
+    const lockfiles = new Set<string>();
     for (const update of input.updates) {
       const pkgDir = path.dirname(path.resolve(cwd, update.filePath));
       const cargoPath = path.join(pkgDir, 'Cargo.toml');
@@ -63,6 +68,15 @@ export async function runPrepareStage(ctx: PipelineContext): Promise<void> {
 
       updateCargoVersion(cargoPath, update.newVersion);
       debug(`Updated ${cargoPath} to version ${update.newVersion}`);
+
+      const lockPath = findCargoLockfile(pkgDir);
+      if (lockPath) lockfiles.add(lockPath);
+    }
+
+    if (lockfiles.size > 0) {
+      const existing = new Set(ctx.additionalFiles ?? []);
+      for (const lock of lockfiles) existing.add(lock);
+      ctx.additionalFiles = [...existing];
     }
   }
 }

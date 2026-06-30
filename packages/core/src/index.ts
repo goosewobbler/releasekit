@@ -1,3 +1,4 @@
+export { findCargoLockfile } from './cargo.js';
 export { readPackageVersion } from './cli.js';
 export {
   buildDependencyGraph,
