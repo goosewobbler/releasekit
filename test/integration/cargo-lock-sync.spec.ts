@@ -42,7 +42,10 @@ describe.skipIf(!cargoAvailable())('syncCargoLockfile (real cargo)', () => {
     ] as const) {
       const crateDir = join(dir, name);
       mkdirSync(join(crateDir, 'src'), { recursive: true });
-      writeFileSync(join(crateDir, 'Cargo.toml'), `[package]\nname = "${name}"\nversion = "0.1.0"\nedition = "2021"\n${deps}`);
+      writeFileSync(
+        join(crateDir, 'Cargo.toml'),
+        `[package]\nname = "${name}"\nversion = "0.1.0"\nedition = "2021"\n${deps}`,
+      );
       writeFileSync(join(crateDir, 'src', 'lib.rs'), '// test crate\n');
     }
     // Generate a real, valid committed lock at the stale versions (offline — only path deps).

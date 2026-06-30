@@ -34,7 +34,9 @@ describe('findCargoLockfile', () => {
     expect(findCargoLockfile(member)).toBe(lock);
   });
 
-  it('should return the nearest lock when both a member and an ancestor have one', () => {
+  it('should return the nearest lock for a standalone (non-workspace) crate when both a member and an ancestor have one', () => {
+    // No [workspace] manifest anywhere → the standalone fallback (nearest lock wins). With a
+    // workspace root present, the root lock would win instead — see the workspace-root test below.
     const root = tmp();
     fs.writeFileSync(path.join(root, 'Cargo.lock'), '');
     const member = path.join(root, 'crates', 'foo');
