@@ -50,4 +50,28 @@ describe('findCargoLockfile', () => {
     fs.mkdirSync(member, { recursive: true });
     expect(findCargoLockfile(member)).toBeUndefined();
   });
+
+  it('should target the workspace-root lock, not a member’s own stray lock', () => {
+    const root = tmp();
+    fs.writeFileSync(path.join(root, 'Cargo.toml'), '[workspace]\nmembers = ["crates/foo"]\n');
+    const rootLock = path.join(root, 'Cargo.lock');
+    fs.writeFileSync(rootLock, '');
+    const member = path.join(root, 'crates', 'foo');
+    fs.mkdirSync(member, { recursive: true });
+    fs.writeFileSync(path.join(member, 'Cargo.toml'), '[package]\nname = "foo"\nversion = "1.0.0"\n');
+    // A stray lock in the member dir is ignored by cargo — the workspace-root lock is the one that moves.
+    fs.writeFileSync(path.join(member, 'Cargo.lock'), '');
+    expect(findCargoLockfile(member)).toBe(rootLock);
+  });
+
+  it('should return undefined when the workspace root has no committed lock', () => {
+    const root = tmp();
+    fs.writeFileSync(path.join(root, 'Cargo.toml'), '[workspace]\nmembers = ["crates/foo"]\n');
+    const member = path.join(root, 'crates', 'foo');
+    fs.mkdirSync(member, { recursive: true });
+    fs.writeFileSync(path.join(member, 'Cargo.toml'), '[package]\nname = "foo"\nversion = "1.0.0"\n');
+    // No lock at the workspace root → nothing to sync (don't fall back to a stray member lock).
+    fs.writeFileSync(path.join(member, 'Cargo.lock'), '');
+    expect(findCargoLockfile(member)).toBeUndefined();
+  });
 });

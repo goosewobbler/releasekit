@@ -1,6 +1,7 @@
 // Re-export public API
 
 export type { VersionOutput } from '@releasekit/core';
+export { syncCargoLockfile } from './cargo/cargoLock.js';
 export { extractChangelogEntriesFromCommits } from './changelog/commitParser.js';
 export { createVersionCommand } from './command.js';
 export { loadConfig } from './config.js';

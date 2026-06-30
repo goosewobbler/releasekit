@@ -34,5 +34,9 @@ jobs:
           name: releasekit-build
           cache_key: ${{ inputs.cache_key }}
 
+      # Provides cargo for the Cargo.lock self-version sync integration test (#496). The test is
+      # skipped when cargo is absent, so this toolchain is what makes it actually run in CI.
+      - uses: dtolnay/rust-toolchain@stable
+
       - name: Run integration tests
         run: pnpm --filter @releasekit/integration-tests test
