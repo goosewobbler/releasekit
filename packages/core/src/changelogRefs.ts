@@ -61,7 +61,12 @@ export function renderIssueRefs(
 ): string {
   if (mode === 'strip') return '';
   const ids = issueIds ?? [];
-  if (ids.length === 0 && !prNumber) return '';
+  // prNumber is normally already in issueIds; fold it in defensively so no path can silently drop it.
+  const allIds =
+    prNumber && !ids.some((id) => Number(id.replace(/^#/, '')) === Number(prNumber.replace(/^#/, '')))
+      ? [prNumber, ...ids]
+      : ids;
+  if (allIds.length === 0) return '';
 
   const ownerRepo = mode === 'link' && repoUrl ? parseGitHubOwnerRepo(repoUrl) : null;
 
@@ -69,13 +74,13 @@ export function renderIssueRefs(
     const { owner, repo } = ownerRepo;
     const pr = prNumber.replace(/^#/, '');
     const prPart = `PR [#${pr}](https://github.com/${owner}/${repo}/pull/${pr})`;
-    const closes = ids.map((raw) => raw.replace(/^#/, '')).filter((num) => Number(num) !== Number(pr));
+    const closes = allIds.map((raw) => raw.replace(/^#/, '')).filter((num) => Number(num) !== Number(pr));
     if (closes.length === 0) return `(${prPart})`;
     const closesPart = closes.map((num) => `[#${num}](https://github.com/${owner}/${repo}/issues/${num})`).join(', ');
     return `(${prPart} · closes ${closesPart})`;
   }
 
-  const rendered = ids
+  const rendered = allIds
     .map((raw) => {
       const num = raw.replace(/^#/, '');
       // escape mode, or link mode with no resolvable GitHub repo → literal `#NNN`.

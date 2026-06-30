@@ -257,11 +257,13 @@ describe('Parser: conventional-changelog', () => {
     expect(fixedEntry?.issueIds).toContain('#38');
   });
 
-  it('should mark a trailing (#N) bullet ref as the PR', () => {
+  it('should NOT label a trailing (#N) as the PR when parsing existing changelog text', () => {
     const result = parseConventionalChangelog(sampleChangelog, 'my-lib');
-    // `- **api**: Batch operations (#42)` — the lone trailing (#42) is the squash-merge PR.
+    // `- **api**: Batch operations (#42)` — in an existing/external changelog a trailing (#42) is
+    // ambiguous (could be an issue), and there's no commit signal, so prNumber is not inferred here.
+    // It still lands in issueIds as a generic ref. PR detection only happens in the commit parsers.
     const apiEntry = result.packages[0]?.entries.find((e) => e.scope === 'api');
-    expect(apiEntry?.prNumber).toBe('#42');
+    expect(apiEntry?.prNumber).toBeUndefined();
     expect(apiEntry?.issueIds).toContain('#42');
   });
 

@@ -95,6 +95,12 @@ describe('renderIssueRefs', () => {
   it('should drop the refs in strip mode even when a prNumber is given', () => {
     expect(renderIssueRefs(['#503', '#500'], 'strip', repo, '#503')).toBe('');
   });
+
+  it('should still render a prNumber that is absent from issueIds (never silently dropped)', () => {
+    // Defensive: the invariant is prNumber ∈ issueIds, but if a caller omits it the PR must not vanish.
+    expect(renderIssueRefs([], 'escape', repo, '#503')).toBe('(\\#503)');
+    expect(renderIssueRefs(['#500'], 'escape', repo, '#503')).toBe('(\\#503, \\#500)');
+  });
 });
 
 describe('escapeChangelogMentions', () => {

@@ -83,11 +83,9 @@ function parseEntry(line: string, sectionType: ChangelogEntry['type']): Changelo
     rawText = scopeMatch[2] ?? rawText;
   }
 
-  // Squash-merge convention: a lone trailing `(#N)` is the PR GitHub appended. Mark it so the renderer
-  // can label it; the number still lands in issueIds (the full flat list) via extractIssueIds.
-  const prMatch = rawText.match(/\(#(\d+)\)\s*$/);
-  const prNumber = prMatch ? `#${prMatch[1]}` : undefined;
-
+  // No PR detection here: this adapter parses existing/external CHANGELOG.md text, where a trailing
+  // `(#N)` is ambiguous (it could be an issue ref) and there's no commit signal to confirm. Only the
+  // commit-based parsers (commitParser.ts, git-log.ts) infer prNumber, from a real squash-merge subject.
   const { description, issueIds } = extractIssueIds(rawText);
 
   return {
@@ -96,7 +94,6 @@ function parseEntry(line: string, sectionType: ChangelogEntry['type']): Changelo
     scope,
     breaking: breaking || undefined,
     issueIds: issueIds.length > 0 ? issueIds : undefined,
-    prNumber,
   };
 }
 
