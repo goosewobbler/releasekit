@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { debug, info, parseGitHubOwnerRepo, success, warn } from '@releasekit/core';
+import { type ChangelogRefsMode, debug, info, parseGitHubOwnerRepo, success, warn } from '@releasekit/core';
 import { parseVersionOutput } from '../input/version-output.js';
 import { withContentHashCache } from '../llm/cache.js';
 import { fetchPullRequestContext, parseIssueNumbers, resolveGitHubToken } from '../llm/context/prFetcher.js';
@@ -477,7 +477,13 @@ export async function runPipeline(
       }
 
       if (mode === 'packages' || mode === 'both') {
-        const monoFiles = await writeMonorepoFiles(contexts, config, dryRun, changelogConfig.file ?? 'CHANGELOG.md');
+        const monoFiles = await writeMonorepoFiles(
+          contexts,
+          config,
+          dryRun,
+          changelogConfig.file ?? 'CHANGELOG.md',
+          fmtOpts.refs ?? 'link',
+        );
         files.push(...monoFiles);
       }
     } catch (error) {
@@ -579,6 +585,7 @@ async function writeMonorepoFiles(
   config: Config,
   dryRun: boolean,
   fileName: string,
+  refs: ChangelogRefsMode,
 ): Promise<string[]> {
   const { detectMonorepo, writeMonorepoChangelogs } = await import('../monorepo/aggregator.js');
   const cwd = process.cwd();
@@ -596,6 +603,7 @@ async function writeMonorepoFiles(
     },
     config,
     dryRun,
+    refs,
   );
 
   return monoFiles;

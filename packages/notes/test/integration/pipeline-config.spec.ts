@@ -139,6 +139,7 @@ describe('Pipeline: mode both does not double-write root', () => {
       expect.objectContaining({ mode: 'packages' }),
       expect.anything(),
       false,
+      expect.anything(),
     );
     expect(writeMonorepoChangelogs).not.toHaveBeenCalledWith(
       expect.anything(),
@@ -160,6 +161,7 @@ describe('Pipeline: mode both does not double-write root', () => {
       expect.objectContaining({ fileName: 'CHANGES.md' }),
       expect.anything(),
       false,
+      expect.anything(),
     );
   });
 
@@ -179,6 +181,23 @@ describe('Pipeline: mode both does not double-write root', () => {
       expect.objectContaining({ fileName: 'CHANGELOG.md' }),
       expect.anything(),
       false,
+      expect.anything(),
+    );
+  });
+
+  it('should forward the configured refs mode to per-package monorepo changelogs (#503)', async () => {
+    const { writeMonorepoChangelogs } = await import('../../src/monorepo/aggregator.js');
+    const { runPipeline } = await import('../../src/core/pipeline.js');
+
+    const config: Config = { changelog: { mode: 'packages', refs: 'strip' } };
+    await runPipeline(sampleInput, config, false);
+
+    expect(writeMonorepoChangelogs).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      false,
+      'strip',
     );
   });
 });

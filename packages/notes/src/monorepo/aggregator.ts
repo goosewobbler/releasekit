@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { debug, info, success } from '@releasekit/core';
+import { type ChangelogRefsMode, debug, info, success } from '@releasekit/core';
 import type { TemplateContext } from '../core/types.js';
 import { formatVersion, prependVersion, renderMarkdown } from '../output/markdown.js';
 import { splitByPackage } from './splitter.js';
@@ -59,13 +59,14 @@ export function writeMonorepoChangelogs(
   options: MonorepoOptions,
   config: { updateStrategy?: 'prepend' | 'regenerate' },
   dryRun: boolean,
+  refs: ChangelogRefsMode = 'link',
 ): string[] {
   const files: string[] = [];
 
   if (options.mode === 'root' || options.mode === 'both') {
     const rootPath = path.join(options.rootPath, options.fileName ?? 'CHANGELOG.md');
     // Root changelog includes package names since it aggregates multiple packages
-    const fmtOpts = { includePackageName: true };
+    const fmtOpts = { includePackageName: true, refs };
 
     info(`Writing root changelog to ${rootPath}`);
     let rootContent: string;
@@ -101,8 +102,8 @@ export function writeMonorepoChangelogs(
         info(`Writing changelog for ${packageName} to ${changelogPath}`);
         const pkgContent =
           config.updateStrategy !== 'regenerate' && fs.existsSync(changelogPath)
-            ? prependVersion(changelogPath, ctx)
-            : renderMarkdown([ctx]);
+            ? prependVersion(changelogPath, ctx, { refs })
+            : renderMarkdown([ctx], { refs });
         if (writeFile(changelogPath, pkgContent, dryRun)) {
           files.push(changelogPath);
         }
