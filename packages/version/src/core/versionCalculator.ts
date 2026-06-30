@@ -21,27 +21,6 @@ import {
 } from '../utils/versionUtils.js';
 
 /**
- * Map a standard bump magnitude to the prerelease increment that advances an *existing* prerelease
- * along its own channel instead of graduating it to a stable release (#485):
- *  - `patch` → `prerelease` — advance the counter   (1.0.0-next.1 → 1.0.0-next.2)
- *  - `minor` → `preminor`   — escalate the base      (1.0.0-next.1 → 1.1.0-next.0)
- *  - `major` → `premajor`   — escalate the base      (1.0.0-next.1 → 2.0.0-next.0)
- * Any non-standard type (already a `pre*` / `prerelease` form) passes through unchanged.
- */
-function toPrereleaseLineBump(bumpType: ReleaseType): ReleaseType {
-  switch (bumpType) {
-    case 'major':
-      return 'premajor';
-    case 'minor':
-      return 'preminor';
-    case 'patch':
-      return 'prerelease';
-    default:
-      return bumpType;
-  }
-}
-
-/**
  * The prerelease identifier embedded in a version (e.g. `1.0.0-next.1` → `next`), or undefined when
  * the version is stable or its prerelease segment carries no string identifier. Advancing along a
  * channel keeps the *current* line's identifier, so this is preferred over the configured default
@@ -313,9 +292,11 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
       // along its own prerelease line rather than graduating to stable — UNLESS an explicit channel
       // action is in play (`--stable` / release:graduate sets stableOnly and graduates above;
       // `--prerelease` / channel:prerelease sets isPrerelease, handled by the existing branch below).
-      // The magnitude maps to the matching pre-increment so a minor/major escalates the base while a
-      // patch just advances the prerelease counter. This is the keystone that removes the global
-      // auto-graduate: no routine bump silently promotes a `-next` package to a production release.
+      // Advancing always INCREMENTS the prerelease counter regardless of the change magnitude
+      // (`semver.inc(v, 'prerelease')`, #500): while the base is unreleased it is a fixed target, so a
+      // minor/major does NOT escalate the base (1.0.0-next.3 → 1.0.0-next.4, not 1.1.0-next.0). The
+      // base only advances on graduation; re-targeting an in-flight prerelease's base to a new line is
+      // the explicit channel:prerelease action below. Keystone that removes the global auto-graduate.
       if (
         isCurrentPrerelease &&
         !config.stableOnly &&
@@ -323,9 +304,8 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
         STANDARD_BUMP_TYPES.includes(specifiedType as 'major' | 'minor' | 'patch')
       ) {
         const channelId = prereleaseIdOf(currentVersion) ?? normalizedPrereleaseId;
-        const channelType = toPrereleaseLineBump(specifiedType as ReleaseType);
-        log(`Advancing prerelease ${currentVersion} along its channel via ${channelType} (id: ${channelId})`, 'debug');
-        return bumpVersion(currentVersion, channelType, channelId);
+        log(`Advancing prerelease ${currentVersion} along its channel (increment, id: ${channelId})`, 'debug');
+        return bumpVersion(currentVersion, 'prerelease', channelId);
       }
 
       if (
@@ -446,8 +426,8 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
 
       // Per-package channel default (#485): advance an existing prerelease along its own line rather
       // than graduating it, unless an explicit channel action is in play. Mirrors the specified-type
-      // branch above; here the magnitude is the commit-inferred (zeroMajor-adjusted) bump. See the
-      // keystone examples in #485 — patch advances the counter, minor/major escalate the base.
+      // branch above — the advance increments the prerelease counter regardless of the commit-inferred
+      // magnitude, because the base is a fixed target until graduation (#500).
       if (
         semver.prerelease(currentVersion) !== null &&
         !config.stableOnly &&
@@ -455,9 +435,8 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
         STANDARD_BUMP_TYPES.includes(effectiveReleaseType as 'major' | 'minor' | 'patch')
       ) {
         const channelId = prereleaseIdOf(currentVersion) ?? normalizedPrereleaseId;
-        const channelType = toPrereleaseLineBump(effectiveReleaseType);
-        log(`Advancing prerelease ${currentVersion} along its channel via ${channelType} (id: ${channelId})`, 'debug');
-        return bumpVersion(currentVersion, channelType, channelId);
+        log(`Advancing prerelease ${currentVersion} along its channel (increment, id: ${channelId})`, 'debug');
+        return bumpVersion(currentVersion, 'prerelease', channelId);
       }
 
       const isPrereleaseBumpType = ['prerelease', 'premajor', 'preminor', 'prepatch'].includes(effectiveReleaseType);

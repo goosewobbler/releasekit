@@ -97,9 +97,7 @@ In CI, add `--check`: it exits non-zero on a missing label, catching the silent 
 | `bump:patch` | `1.0.0` | `1.0.1` |
 | `bump:minor` | `1.0.0` | `1.1.0` |
 | `bump:major` | `1.0.0` | `2.0.0` |
-| `bump:patch` | `1.0.0-next.6` | `1.0.0-next.7` — advances the prerelease (no graduation) |
-| `bump:minor` | `1.0.0-next.6` | `1.1.0-next.0` — escalates the prerelease base (no graduation) |
-| `bump:major` | `1.0.0-next.6` | `2.0.0-next.0` — escalates the prerelease base (no graduation) |
+| `bump:patch` / `:minor` / `:major` | `1.0.0-next.6` | `1.0.0-next.7` — advances the prerelease counter; the magnitude does **not** escalate the base, which is a fixed target until graduation (#500) |
 | `channel:prerelease` + `bump:patch` | `1.0.0` | `1.0.1-next.0` |
 | `channel:prerelease` + `bump:minor` | `1.0.0` | `1.1.0-next.0` |
 | `channel:prerelease` + `bump:major` | `1.0.0` | `2.0.0-next.0` |
@@ -117,15 +115,15 @@ In CI, add `--check`: it exits non-zero on a missing label, catching the silent 
 > PR with permanently-mixed maturity (mature stable packages alongside incubating `-next` ones) is
 > normal: each package walks its own line, so the same merge can ship `10.2.0` (stable) and
 > `1.1.0-next.0` (prerelease) at once. A `bump:*` label sets the *magnitude* but not the channel — on
-> a prerelease it escalates within the line (above), it does not promote. Use `release:graduate` to
-> promote, `channel:prerelease` to drag a stable package onto a prerelease line.
+> a prerelease it advances the counter (the base is a fixed target until graduation), it does not
+> escalate the base or promote. Use `release:graduate` to promote, `channel:prerelease` to drag a
+> stable package onto a prerelease line (or re-target an in-flight prerelease's base — below).
 
 > **`channel:prerelease` + `bump:*` escalates — it starts a *fresh* prerelease line at the chosen
 > magnitude, even when the package is already on a prerelease.** So `bump:major` + `channel:prerelease`
 > on `1.1.1-next.1` yields `2.0.0-next.0`, not `1.1.1-next.2`. To *iterate* an existing prerelease
-> counter (`2.0.0-next.0` → `2.0.0-next.1`) without escalating, drop the `bump:*` label and let the
-> bump come from commits with the prerelease channel applied — e.g. in standing-pr mode, put
-> `channel:prerelease` alone on the standing PR.
+> counter (`2.0.0-next.0` → `2.0.0-next.1`), just don't add `channel:prerelease` — a `bump:*` label
+> (or a commit-driven bump) on a prerelease advances the counter and leaves the base alone (#500).
 
 > **`channel:prerelease` is a channel modifier, never a standalone release trigger.** It does
 > nothing without a `bump:*` label in label/direct mode (it can't pick a magnitude on its own), and

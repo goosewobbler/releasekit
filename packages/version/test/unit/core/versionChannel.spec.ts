@@ -68,18 +68,26 @@ describe('Per-package release channel — advance along the current line (#485)'
       expect(next).toBe('1.0.0-next.2');
     });
 
-    it('should escalate the base for a minor-level change (1.0.0-next.1 -> 1.1.0-next.0)', async () => {
+    it('should increment the counter for a minor-level change, not escalate the base (1.0.0-next.1 -> 1.0.0-next.2)', async () => {
+      // The base is a fixed target until graduation (#500) — a minor doesn't move it to 1.1.0-next.0.
       baselineAt('1.0.0-next.1');
       inferredBump('minor');
       const next = await calculateVersion(baseConfig as Config, options());
-      expect(next).toBe('1.1.0-next.0');
+      expect(next).toBe('1.0.0-next.2');
     });
 
-    it('should escalate the base for a major-level change (1.0.0-next.1 -> 2.0.0-next.0)', async () => {
+    it('should increment the counter for a major-level change, not escalate the base (1.0.0-next.1 -> 1.0.0-next.2)', async () => {
       baselineAt('1.0.0-next.1');
       inferredBump('major');
       const next = await calculateVersion(baseConfig as Config, options());
-      expect(next).toBe('2.0.0-next.0');
+      expect(next).toBe('1.0.0-next.2');
+    });
+
+    it('should increment a higher prerelease counter without resetting it (#500: 1.0.0-next.3 -> 1.0.0-next.4)', async () => {
+      baselineAt('1.0.0-next.3');
+      inferredBump('minor');
+      const next = await calculateVersion(baseConfig as Config, options({ latestTag: 'v1.0.0-next.3' }));
+      expect(next).toBe('1.0.0-next.4');
     });
 
     it('should preserve the existing prerelease identifier rather than the config default', async () => {
@@ -119,18 +127,19 @@ describe('Per-package release channel — advance along the current line (#485)'
   });
 
   describe('explicit bump magnitude (release:major/minor/patch) without a channel action', () => {
-    // A bump LABEL sets the magnitude but not the channel; a prerelease package must still stay on
-    // its line (the bump is not a graduate action).
-    it('should keep a prerelease on its line under an explicit minor bump (1.0.0-next.1 -> 1.1.0-next.0)', async () => {
+    // A bump LABEL sets the magnitude but not the channel; a prerelease package stays on its line and
+    // advances the counter (the bump is not a graduate action, and the base is a fixed target until
+    // graduation — #500). To re-target the base of an in-flight prerelease, use channel:prerelease.
+    it('should increment the counter under an explicit minor bump, not escalate (1.0.0-next.1 -> 1.0.0-next.2)', async () => {
       baselineAt('1.0.0-next.1');
       const next = await calculateVersion(baseConfig as Config, options({ type: 'minor' }));
-      expect(next).toBe('1.1.0-next.0');
+      expect(next).toBe('1.0.0-next.2');
     });
 
-    it('should keep a prerelease on its line under an explicit major bump (1.0.0-next.1 -> 2.0.0-next.0)', async () => {
+    it('should increment the counter under an explicit major bump, not escalate (1.0.0-next.1 -> 1.0.0-next.2)', async () => {
       baselineAt('1.0.0-next.1');
       const next = await calculateVersion(baseConfig as Config, options({ type: 'major' }));
-      expect(next).toBe('2.0.0-next.0');
+      expect(next).toBe('1.0.0-next.2');
     });
 
     it('should keep a prerelease on its line under an explicit patch bump (1.0.0-next.1 -> 1.0.0-next.2)', async () => {
@@ -178,7 +187,7 @@ describe('Per-package release channel — advance along the current line (#485)'
       const staysPre = await calculateVersion(config, options({ name: 'staying-pkg', latestTag: 'v2.3.0-next.1' }));
 
       expect(graduated).toBe('1.0.0');
-      expect(staysPre).toBe('2.4.0-next.0');
+      expect(staysPre).toBe('2.3.0-next.2');
     });
   });
 
@@ -207,7 +216,7 @@ describe('Per-package release channel — advance along the current line (#485)'
         options({ name: 'stable-pkg', latestTag: 'v10.1.0' }),
       );
 
-      expect(pre).toBe('1.1.0-next.0');
+      expect(pre).toBe('1.0.0-next.2');
       expect(stable).toBe('10.2.0');
     });
   });
