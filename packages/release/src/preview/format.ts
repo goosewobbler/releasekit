@@ -1,4 +1,10 @@
-import type { VersionChangelogEntry, VersionPackageChangelog } from '@releasekit/core';
+import {
+  type ChangelogRefsMode,
+  escapeChangelogMentions,
+  renderIssueRefs,
+  type VersionChangelogEntry,
+  type VersionPackageChangelog,
+} from '@releasekit/core';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration } from '../duration.js';
 import { MARKER } from '../github.js';
@@ -71,6 +77,8 @@ export interface FormatOptions {
    * maintainer the retry-vs-supersede choice. Populated by runPreview in standing-pr mode.
    */
   supersedeWarning?: string[];
+  /** How bare `#NNN` issue/PR refs render in the changelog (`notes.changelog.refs`, default `link`). */
+  refs?: ChangelogRefsMode;
 }
 
 function getNoChangesMessage(strategy: ReleaseStrategy): string {
@@ -310,6 +318,10 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
   lines.push(getIntroMessage(effectiveStrategy, options?.standingPrNumber), '');
 
   // Changelog section
+  // How bare `#NNN` refs render + always-on mention escaping (#499/#504). All packages in a release
+  // share one repo, so the first non-null changelog repoUrl governs the project-wide (shared) entries.
+  const refs = options?.refs ?? 'link';
+  const sharedRepoUrl = versionOutput.changelogs.find((cl) => cl.repoUrl)?.repoUrl ?? null;
   const sharedEntries = versionOutput.sharedEntries?.length ? versionOutput.sharedEntries : undefined;
   // A changelog whose entries are *all* synthetic `Update version to X` placeholders (a sync/
   // lockstep carry with no commits of its own) has nothing real to show — treat it like an empty
@@ -331,14 +343,14 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
     // Project-wide entries (CI, infra, shared-package commits) rendered once
     if (sharedEntries) {
       lines.push('<details>', '<summary><b>Project-wide changes</b></summary>', '');
-      lines.push(...renderEntries(sharedEntries));
+      lines.push(...renderEntries(sharedEntries, refs, sharedRepoUrl));
       lines.push('</details>', '');
     }
 
     // Per-package entries — only rendered when the package has real (non-synthetic) changes
     for (const changelog of versionOutput.changelogs) {
       if (hasRealEntries(changelog)) {
-        lines.push(...formatPackageChangelog(changelog));
+        lines.push(...formatPackageChangelog(changelog, refs));
       }
     }
 
@@ -472,7 +484,7 @@ function renderMergeTable(rows: MergedRow[]): string[] {
   return lines;
 }
 
-function renderEntries(entries: VersionChangelogEntry[]): string[] {
+function renderEntries(entries: VersionChangelogEntry[], refs: ChangelogRefsMode, repoUrl: string | null): string[] {
   const lines: string[] = [];
   const grouped = new Map<string, VersionChangelogEntry[]>();
   for (const entry of entries) {
@@ -483,25 +495,25 @@ function renderEntries(entries: VersionChangelogEntry[]): string[] {
   for (const type of Object.keys(TYPE_LABELS)) {
     const group = grouped.get(type);
     if (group && group.length > 0) {
-      lines.push(...formatEntryGroup(type, group));
+      lines.push(...formatEntryGroup(type, group, refs, repoUrl));
       renderedTypes.add(type);
     }
   }
   for (const [type, group] of grouped) {
     if (!renderedTypes.has(type) && group.length > 0) {
-      lines.push(...formatEntryGroup(type, group));
+      lines.push(...formatEntryGroup(type, group, refs, repoUrl));
     }
   }
   return lines;
 }
 
-function formatPackageChangelog(changelog: VersionPackageChangelog): string[] {
+function formatPackageChangelog(changelog: VersionPackageChangelog, refs: ChangelogRefsMode): string[] {
   const lines: string[] = [];
   const prevVersion = changelog.previousVersion ? toDisplayVersion(changelog.previousVersion) : 'N/A';
   const summary = `<b>${changelog.packageName}</b> ${prevVersion} → ${changelog.version}`;
 
   lines.push('<details>', `<summary>${summary}</summary>`, '');
-  lines.push(...renderEntries(changelog.entries));
+  lines.push(...renderEntries(changelog.entries, refs, changelog.repoUrl));
   lines.push('</details>', '');
   return lines;
 }
@@ -509,17 +521,21 @@ function formatPackageChangelog(changelog: VersionPackageChangelog): string[] {
 function formatEntryGroup(
   type: string,
   entries: { description: string; scope?: string; issueIds?: string[] }[],
+  refs: ChangelogRefsMode,
+  repoUrl: string | null,
 ): string[] {
   const label = TYPE_LABELS[type] ?? capitalize(type);
   const lines: string[] = [`#### ${label}`, ''];
 
   for (const entry of entries) {
-    let line = `- ${entry.description}`;
+    // Always neutralise `@`-mentions in the description; the scope is already backticked (safe).
+    let line = `- ${escapeChangelogMentions(entry.description)}`;
     if (entry.scope) {
       line += ` (\`${entry.scope}\`)`;
     }
-    if (entry.issueIds && entry.issueIds.length > 0) {
-      line += ` ${entry.issueIds.join(', ')}`;
+    const renderedRefs = renderIssueRefs(entry.issueIds ?? [], refs, repoUrl);
+    if (renderedRefs) {
+      line += ` ${renderedRefs}`;
     }
     lines.push(line);
   }

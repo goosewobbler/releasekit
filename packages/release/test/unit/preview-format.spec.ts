@@ -206,9 +206,33 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('#### Added');
     expect(result).toContain('- New dry-run flag (`cli`)');
     expect(result).toContain('#### Fixed');
-    expect(result).toContain('- Fix prerelease sorting (`semver`) #42');
+    // #499: bare #NNN now renders as a canonical link by default (refs: 'link').
+    expect(result).toContain(
+      '- Fix prerelease sorting (`semver`) [#42](https://github.com/goosewobbler/releasekit/issues/42)',
+    );
     expect(result).toContain('#### Chores');
     expect(result).toContain('- Migrate to Vitest');
+  });
+
+  it('should render bare #NNN refs per the refs mode (#504)', () => {
+    expect(formatPreviewComment(releaseOutput, { refs: 'escape' })).toContain(
+      '- Fix prerelease sorting (`semver`) \\#42',
+    );
+    const stripped = formatPreviewComment(releaseOutput, { refs: 'strip' });
+    expect(stripped).toContain('- Fix prerelease sorting (`semver`)');
+    expect(stripped).not.toContain('#42');
+    expect(stripped).not.toContain('[#42]');
+  });
+
+  it('should always neutralise @-mentions in preview descriptions (#504)', () => {
+    const withMention = structuredClone(releaseOutput);
+    const firstChangelog = withMention.versionOutput.changelogs[0];
+    if (firstChangelog) {
+      firstChangelog.entries = [{ type: 'added', description: 'Support @wdio/native-cdp-bridge' }];
+    }
+    for (const refs of ['link', 'escape', 'strip'] as const) {
+      expect(formatPreviewComment(withMention, { refs })).toContain('- Support \\@wdio/native-cdp-bridge');
+    }
   });
 
   it('should wrap each package changelog in details element', () => {
