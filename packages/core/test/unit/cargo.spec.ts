@@ -34,7 +34,9 @@ describe('findCargoLockfile', () => {
     expect(findCargoLockfile(member)).toBe(lock);
   });
 
-  it('should return the nearest lock when both a member and an ancestor have one', () => {
+  it('should return the nearest lock for a standalone (non-workspace) crate when both a member and an ancestor have one', () => {
+    // No [workspace] manifest anywhere → the standalone fallback (nearest lock wins). With a
+    // workspace root present, the root lock would win instead — see the workspace-root test below.
     const root = tmp();
     fs.writeFileSync(path.join(root, 'Cargo.lock'), '');
     const member = path.join(root, 'crates', 'foo');
@@ -48,6 +50,30 @@ describe('findCargoLockfile', () => {
     const dir = tmp();
     const member = path.join(dir, 'crates', 'foo');
     fs.mkdirSync(member, { recursive: true });
+    expect(findCargoLockfile(member)).toBeUndefined();
+  });
+
+  it('should target the workspace-root lock, not a member’s own stray lock', () => {
+    const root = tmp();
+    fs.writeFileSync(path.join(root, 'Cargo.toml'), '[workspace]\nmembers = ["crates/foo"]\n');
+    const rootLock = path.join(root, 'Cargo.lock');
+    fs.writeFileSync(rootLock, '');
+    const member = path.join(root, 'crates', 'foo');
+    fs.mkdirSync(member, { recursive: true });
+    fs.writeFileSync(path.join(member, 'Cargo.toml'), '[package]\nname = "foo"\nversion = "1.0.0"\n');
+    // A stray lock in the member dir is ignored by cargo — the workspace-root lock is the one that moves.
+    fs.writeFileSync(path.join(member, 'Cargo.lock'), '');
+    expect(findCargoLockfile(member)).toBe(rootLock);
+  });
+
+  it('should return undefined when the workspace root has no committed lock', () => {
+    const root = tmp();
+    fs.writeFileSync(path.join(root, 'Cargo.toml'), '[workspace]\nmembers = ["crates/foo"]\n');
+    const member = path.join(root, 'crates', 'foo');
+    fs.mkdirSync(member, { recursive: true });
+    fs.writeFileSync(path.join(member, 'Cargo.toml'), '[package]\nname = "foo"\nversion = "1.0.0"\n');
+    // No lock at the workspace root → nothing to sync (don't fall back to a stray member lock).
+    fs.writeFileSync(path.join(member, 'Cargo.lock'), '');
     expect(findCargoLockfile(member)).toBeUndefined();
   });
 });

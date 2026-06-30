@@ -32,9 +32,16 @@ export async function syncCargoLockfile(crateDir: string): Promise<string | unde
     });
     return lockPath;
   } catch (error) {
-    const stderr = (error as { stderr?: string }).stderr;
-    const detail = stderr?.trim() || (error instanceof Error ? error.message : String(error));
-    warn(`Failed to refresh Cargo.lock at ${lockPath}: ${detail}. The committed lock may drift from the bump.`);
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      warn(
+        `cargo not found on PATH — Cargo.lock at ${lockPath} may drift from the bumped version. ` +
+          'Install the Rust toolchain in the release environment, or disable cargo handling.',
+      );
+    } else {
+      const stderr = (error as { stderr?: string }).stderr;
+      const detail = stderr?.trim() || (error instanceof Error ? error.message : String(error));
+      warn(`Failed to refresh Cargo.lock at ${lockPath}: ${detail}. The committed lock may drift from the bump.`);
+    }
     return undefined;
   }
 }

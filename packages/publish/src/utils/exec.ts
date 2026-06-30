@@ -55,6 +55,9 @@ export async function execCommand(file: string, args: string[], options: ExecOpt
               stdout: stdout.toString(),
               stderr: stderr.toString(),
               exitCode: error.code ?? 1,
+              // Preserve the spawn error code (e.g. 'ENOENT' when the binary isn't on PATH) so
+              // callers can distinguish "command not found" from a non-zero exit.
+              code: (error as NodeJS.ErrnoException).code,
             }),
           );
         } else {
