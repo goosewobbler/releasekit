@@ -116,7 +116,7 @@ function entryLine(d: DedupedEntry, attribution: boolean, refOpts: RefRenderOpti
   // a real org/team on the standing PR) — always neutralise it, regardless of the refs mode.
   const description = escapeChangelogMentions(entry.description);
   const scope = entry.scope ? ` (\`${entry.scope}\`)` : '';
-  const refs = renderIssueRefs(entry.issueIds ?? [], refOpts.refs, refOpts.repoUrl);
+  const refs = renderIssueRefs(entry.issueIds ?? [], refOpts.refs, refOpts.repoUrl, entry.prNumber);
   const issues = refs ? ` ${refs}` : '';
   const attr = attribution && pkgs.size > 0 ? ` _(${[...pkgs].map(shortName).sort().join(', ')})_` : '';
   return `- ${description}${scope}${issues}${attr}`;
@@ -158,11 +158,18 @@ function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions): stri
   return lines;
 }
 
-/** Wrap inner Markdown in a collapsed `<details>`, indenting every non-blank line so the block nests
- *  cleanly under its list-item row (`indent` is '' for the top-level footer). */
+/** Wrap inner Markdown in a collapsed `<details>`, indenting every line so the block nests cleanly
+ *  under its list-item row (`indent` is '' for the top-level footer). Both call sites are PR-comment
+ *  surfaces, so the inner CONTENT is wrapped in a Markdown blockquote (`> `) — GitHub renders a left
+ *  vertical bar that visually sets the changelog apart from the surrounding PR-comment prose. The
+ *  `<details>`/`<summary>`/`</details>` tags themselves stay un-quoted: a `> `-prefixed raw-HTML block
+ *  renders unreliably on GitHub (it can fail to recognise the HTML block or break the disclosure). A
+ *  plain blank line separates the tags from the quoted content; inner blank lines keep a bare `>` so
+ *  the quote stays one contiguous block around the nested lists. */
 function wrapDetails(summary: string, inner: string[], indent: string): string {
-  const lines = [`<details><summary>${summary}</summary>`, '', ...inner, '', '</details>'];
-  return lines.map((l) => (l.length > 0 ? `${indent}${l}` : '')).join('\n');
+  const quotedInner = inner.map((l) => (l.length > 0 ? `${indent}> ${l}` : `${indent}>`));
+  const lines = [`${indent}<details><summary>${summary}</summary>`, '', ...quotedInner, '', `${indent}</details>`];
+  return lines.join('\n');
 }
 
 function pluralEntries(n: number): string {

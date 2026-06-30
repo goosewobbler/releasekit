@@ -69,12 +69,20 @@ function parseConventionalCommit(message: string): ChangelogEntry | null {
     issueMatch = issuePattern.exec(message);
   }
 
+  // GitHub appends `(#N)` to the squash-merge subject — that's the PR. Strip it from the description
+  // and mark it so the renderer labels it; the number is still in issueIds (extracted message-wide).
+  const subject = description ?? message;
+  const prMatch = subject.match(/\s*\(#(\d+)\)\s*$/);
+  const prNumber = prMatch ? `#${prMatch[1]}` : undefined;
+  const subjectText = prMatch ? subject.slice(0, prMatch.index).trimEnd() : subject;
+
   return {
     type: typeMap[type?.toLowerCase() ?? ''] ?? 'changed',
-    description: description ?? message,
+    description: subjectText,
     scope: scope?.slice(1, -1),
     breaking: breaking === '!' || message.includes('BREAKING CHANGE'),
     issueIds: issueIds.length > 0 ? issueIds : undefined,
+    prNumber,
     originalType: type,
   };
 }

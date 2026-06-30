@@ -628,6 +628,18 @@ describe('formatVersion: issue refs', () => {
     const result = formatVersion(ctx, { refs: 'link' });
     expect(result).toContain('- New thing (\\#481)');
   });
+
+  it('should label the PR and closed issues in CHANGELOG.md when an entry carries a prNumber', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+    const ctx = makeContext({
+      repoUrl: 'https://github.com/octocat/hello',
+      entries: [{ type: 'added', description: 'New thing', issueIds: ['#503', '#500'], prNumber: '#503' }],
+    });
+    const result = formatVersion(ctx);
+    expect(result).toContain(
+      '- New thing (PR [#503](https://github.com/octocat/hello/pull/503) · closes [#500](https://github.com/octocat/hello/issues/500))',
+    );
+  });
 });
 
 describe('formatVersion: mention escaping', () => {

@@ -284,11 +284,22 @@ function parseCommitMessage(message: string): ChangelogEntry | null {
       return null;
     }
 
-    // Extract issue IDs from footer (assuming format like "Fixes #123")
-    const issueIds = extractIssueIds(body);
+    // GitHub appends `(#N)` to the squash-merge subject — that's the PR. Pull it off the subject so it
+    // renders as a labelled PR ref instead of a bare inline autolink GitHub expands into a rich card,
+    // and record the number so the changelog can tell PR from closed issue.
+    const subjectRaw = subject ?? '';
+    const prMatch = subjectRaw.match(/\s*\(#(\d+)\)\s*$/);
+    const prNumber = prMatch ? `#${prMatch[1]}` : undefined;
+    const subjectText = prMatch ? subjectRaw.slice(0, prMatch.index).trimEnd() : subjectRaw;
+
+    // Extract issue IDs from footer (assuming format like "Fixes #123"). issueIds is the full flat
+    // list: the PR (when present) plus the closed issues, so a consumer that ignores prNumber still
+    // shows every ref.
+    const bodyIssueIds = extractIssueIds(body);
+    const issueIds = prNumber ? [prNumber, ...bodyIssueIds] : bodyIssueIds;
 
     // Format description, adding BREAKING prefix if needed
-    let description = subject;
+    let description = subjectText;
     if (hasBreakingChange) {
       description = `**BREAKING** ${description}`;
     }
@@ -298,6 +309,7 @@ function parseCommitMessage(message: string): ChangelogEntry | null {
       description,
       scope: scope || undefined,
       issueIds: issueIds.length > 0 ? issueIds : undefined,
+      prNumber,
       originalType: type, // Store original type for custom formatting
     };
   }

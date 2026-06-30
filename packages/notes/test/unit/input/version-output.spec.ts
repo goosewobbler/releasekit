@@ -97,6 +97,21 @@ describe('versionOutputToChangelogInput', () => {
     expect(entry?.breaking).toBe(true);
   });
 
+  it('should carry the prNumber marker through to the changelog input', () => {
+    const input: VersionOutput = {
+      ...baseVersionOutput,
+      changelogs: [
+        {
+          ...baseVersionOutput.changelogs[0],
+          entries: [{ type: 'feat', description: 'Feature', issueIds: ['#503', '#500'], prNumber: '#503' }],
+        },
+      ],
+    };
+
+    const result = versionOutputToChangelogInput(input);
+    expect(result.packages[0]?.entries[0]?.prNumber).toBe('#503');
+  });
+
   it('should detect breaking from originalType containing "!" when breaking is not set', () => {
     const input: VersionOutput = {
       ...baseVersionOutput,

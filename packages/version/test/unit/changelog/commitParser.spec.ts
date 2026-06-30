@@ -86,6 +86,42 @@ describe('Commit Parser', () => {
     expect(featureEntry?.issueIds).toContain('#789');
   });
 
+  it('should treat a trailing (#N) on the subject as the PR and strip it from the description', async () => {
+    const mockGitOutput = ['feat(release): hierarchical selection (#471)'].join('---COMMIT_DELIMITER---');
+
+    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, gitWithLog(mockGitOutput));
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0].description).toBe('hierarchical selection');
+    expect(entries[0].prNumber).toBe('#471');
+    // The PR number is also kept in the full flat issueIds list.
+    expect(entries[0].issueIds).toEqual(['#471']);
+  });
+
+  it('should separate the squash-merge PR from the issues its body closes', async () => {
+    const mockGitOutput = ['fix(api): patch serializer (#503)\n\nCloses #500\nFixes #499'].join(
+      '---COMMIT_DELIMITER---',
+    );
+
+    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, gitWithLog(mockGitOutput));
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0].description).toBe('patch serializer');
+    expect(entries[0].prNumber).toBe('#503');
+    // PR first, then the closed issues in body order — the full flat list.
+    expect(entries[0].issueIds).toEqual(['#503', '#500', '#499']);
+  });
+
+  it('should leave prNumber undefined when the subject has no trailing (#N)', async () => {
+    const mockGitOutput = ['fix(api): fix bug\n\nFixes #123'].join('---COMMIT_DELIMITER---');
+
+    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, gitWithLog(mockGitOutput));
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0].prNumber).toBeUndefined();
+    expect(entries[0].issueIds).toEqual(['#123']);
+  });
+
   it('should handle non-conventional commits', async () => {
     const mockGitOutput = ['Add new feature', 'Fix bug in login', 'Merge pull request #123', 'v1.0.0'].join(
       '---COMMIT_DELIMITER---',

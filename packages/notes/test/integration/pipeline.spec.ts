@@ -257,6 +257,14 @@ describe('Parser: conventional-changelog', () => {
     expect(fixedEntry?.issueIds).toContain('#38');
   });
 
+  it('should mark a trailing (#N) bullet ref as the PR', () => {
+    const result = parseConventionalChangelog(sampleChangelog, 'my-lib');
+    // `- **api**: Batch operations (#42)` — the lone trailing (#42) is the squash-merge PR.
+    const apiEntry = result.packages[0]?.entries.find((e) => e.scope === 'api');
+    expect(apiEntry?.prNumber).toBe('#42');
+    expect(apiEntry?.issueIds).toContain('#42');
+  });
+
   it('should round-trip: parse → render → contains version', () => {
     const result = parseConventionalChangelog(sampleChangelog, 'my-lib');
     const contexts = result.packages.map(createTemplateContext);

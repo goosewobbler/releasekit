@@ -17,12 +17,14 @@ describe('changelog-region', () => {
         cl('@scope/lib', [{ type: 'fix', description: 'Lib fix' }]),
       ]);
       const block = render(['@scope/app', '@scope/lib'], false, '  ');
-      // One <details> covering both packages, grouped by Keep-a-Changelog type.
+      // One <details> covering both packages, grouped by Keep-a-Changelog type. The disclosure tags stay
+      // un-quoted (raw HTML); only the inner content is blockquoted (`> `), indented to nest under its row.
       expect(block).toContain('  <details><summary>Changelog (2 entries)</summary>');
-      expect(block).toContain('  **Added**');
-      expect(block).toContain('  - App feature');
-      expect(block).toContain('  **Fixed**');
-      expect(block).toContain('  - Lib fix');
+      expect(block).toContain('  > **Added**');
+      expect(block).toContain('  > - App feature');
+      expect(block).toContain('  > **Fixed**');
+      expect(block).toContain('  > - Lib fix');
+      expect(block).toContain('  </details>');
       // Multi-package unit → inline attribution per line.
       expect(block).toContain('_(app)_');
       expect(block).toContain('_(lib)_');
@@ -146,7 +148,7 @@ describe('changelog-region', () => {
         cl('@scope/app', [{ type: 'feat', description: 'App feature', issueIds: ['#481'] }], repo),
       ]);
       const block = render(['@scope/app'], false, '');
-      expect(block).toContain('- App feature [#481](https://github.com/octocat/hello/issues/481)');
+      expect(block).toContain('- App feature ([#481](https://github.com/octocat/hello/issues/481))');
     });
 
     it('should escape refs in escape mode', () => {
@@ -155,7 +157,7 @@ describe('changelog-region', () => {
         'escape',
       );
       const block = render(['@scope/app'], false, '');
-      expect(block).toContain('- App feature \\#481');
+      expect(block).toContain('- App feature (\\#481)');
       expect(block).not.toContain('issues/481');
     });
 
@@ -174,7 +176,7 @@ describe('changelog-region', () => {
         cl('@scope/app', [{ type: 'feat', description: 'App feature', issueIds: ['#481'] }], null),
       ]);
       const block = render(['@scope/app'], false, '');
-      expect(block).toContain('- App feature \\#481');
+      expect(block).toContain('- App feature (\\#481)');
     });
 
     it('should always neutralise a scoped-package mention in the description', () => {
@@ -191,7 +193,7 @@ describe('changelog-region', () => {
           changelogs: [cl('@scope/a', [{ type: 'fix', description: 'Fix @octocat case', issueIds: ['#7'] }], repo)],
         }),
       );
-      expect(footer).toContain('- Fix \\@octocat case [#7](https://github.com/octocat/hello/issues/7)');
+      expect(footer).toContain('- Fix \\@octocat case ([#7](https://github.com/octocat/hello/issues/7))');
     });
 
     it('should honour escape mode in the combined footer', () => {
@@ -199,7 +201,79 @@ describe('changelog-region', () => {
         output({ changelogs: [cl('@scope/a', [{ type: 'fix', description: 'Patch', issueIds: ['#7'] }], repo)] }),
         { refs: 'escape' },
       );
-      expect(footer).toContain('- Patch \\#7');
+      expect(footer).toContain('- Patch (\\#7)');
+    });
+
+    it('should label the PR and closed issues in the per-row pane when prNumber is set', () => {
+      const render = makeRowChangelogRenderer([
+        cl(
+          '@scope/app',
+          [{ type: 'feat', description: 'App feature', issueIds: ['#503', '#500'], prNumber: '#503' }],
+          repo,
+        ),
+      ]);
+      const block = render(['@scope/app'], false, '');
+      expect(block).toContain(
+        '- App feature (PR [#503](https://github.com/octocat/hello/pull/503) · closes [#500](https://github.com/octocat/hello/issues/500))',
+      );
+    });
+
+    it('should render a PR-only ref (no closes) in the combined footer when there are no closed issues', () => {
+      const footer = renderCombinedFooter(
+        output({
+          changelogs: [
+            cl('@scope/a', [{ type: 'fix', description: 'Patch', issueIds: ['#503'], prNumber: '#503' }], repo),
+          ],
+        }),
+      );
+      expect(footer).toContain('- Patch (PR [#503](https://github.com/octocat/hello/pull/503))');
+    });
+
+    it('should fall back to a plain ref list for an old entry with no prNumber', () => {
+      const footer = renderCombinedFooter(
+        output({ changelogs: [cl('@scope/a', [{ type: 'fix', description: 'Patch', issueIds: ['#500'] }], repo)] }),
+      );
+      expect(footer).toContain('- Patch ([#500](https://github.com/octocat/hello/issues/500))');
+      expect(footer).not.toContain('PR [#500]');
+    });
+  });
+
+  describe('blockquote wrapping (PR-comment surface)', () => {
+    const repo = 'https://github.com/octocat/hello';
+
+    function output(over: Partial<VersionOutput>): VersionOutput {
+      return { dryRun: false, updates: [], changelogs: [], tags: [], ...over };
+    }
+
+    it('should blockquote the footer content but leave the disclosure tags un-quoted', () => {
+      const footer = renderCombinedFooter(
+        output({ changelogs: [cl('@scope/a', [{ type: 'feat', description: 'A feature' }], repo)] }),
+      );
+      // The <details>/<summary>/</details> raw-HTML tags render un-quoted; only the inner content
+      // carries the `> ` bar (blank lines keep a bare `>`), with a plain blank line separating them.
+      expect(footer).toContain('<details><summary>Show all changes (1 change, de-duplicated)</summary>');
+      expect(footer).not.toContain('> <details>');
+      expect(footer).not.toContain('> </details>');
+      expect(footer).toContain('> **Added**');
+      expect(footer).toContain('> - A feature');
+      const fl = footer.split('\n');
+      expect(fl[0]).toBe('<details><summary>Show all changes (1 change, de-duplicated)</summary>');
+      expect(fl[1]).toBe('');
+      expect(fl[fl.length - 1]).toBe('</details>');
+      expect(fl[fl.length - 2]).toBe('');
+    });
+
+    it('should blockquote the per-row pane content, nested under its row indent', () => {
+      const render = makeRowChangelogRenderer([
+        cl('@scope/app', [{ type: 'feat', description: 'Solo feature' }], repo),
+      ]);
+      const block = render(['@scope/app'], false, '  ');
+      const bl = block.split('\n');
+      // Disclosure tags carry only the indent; the inner content is `  > `-prefixed.
+      expect(bl[0]).toBe('  <details><summary>Changelog (1 entry)</summary>');
+      expect(bl[bl.length - 1]).toBe('  </details>');
+      expect(block).toContain('  > **Added**');
+      expect(block).toContain('  > - Solo feature');
     });
   });
 

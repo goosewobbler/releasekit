@@ -12,6 +12,15 @@ export interface VersionChangelogEntry {
   type: string;
   description: string;
   issueIds?: string[];
+  /**
+   * The pull request this entry shipped through, taken from the trailing `(#N)` GitHub appends to a
+   * squash-merge commit subject. It marks which of the {@link issueIds} is the PR (the rest are closed
+   * issues), so the changelog can render `(PR #N · closes #M)` instead of a flat ref list. The number
+   * is also kept inside `issueIds` (the full flat list), so a consumer that ignores this field still
+   * shows the ref. Optional and additive — absent means no identifiable PR (a non-squash commit or an
+   * old manifest), and renderers fall back to the plain ref list.
+   */
+  prNumber?: string;
   scope?: string;
   originalType?: string;
   breaking?: boolean;
