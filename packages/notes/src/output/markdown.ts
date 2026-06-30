@@ -59,20 +59,24 @@ interface EntryRefOptions {
 
 function formatEntry(entry: ChangelogEntry, opts?: EntryRefOptions): string {
   // GitHub treats a bare `@scope/pkg` / `@user` in prose as a mention (stray link, can ping a real
-  // org/team on a release PR) — always neutralise it, regardless of the refs mode.
+  // org/team on a release PR) — always neutralise it, regardless of the refs mode. The scope and
+  // lead-in are interpolated as bold prose too (a scoped package name like `@wdio/native-cdp-bridge`
+  // would mention `@wdio`), so escape all three, not just the description.
   const description = escapeChangelogMentions(entry.description);
+  const scope = entry.scope ? escapeChangelogMentions(entry.scope) : undefined;
+  const leadIn = entry.leadIn ? escapeChangelogMentions(entry.leadIn) : undefined;
   let line: string;
 
-  if (entry.leadIn && entry.breaking) {
-    line = `- **BREAKING** **${entry.leadIn}**: ${description}`;
-  } else if (entry.leadIn) {
-    line = `- **${entry.leadIn}**: ${description}`;
-  } else if (entry.breaking && entry.scope && !opts?.hideScope) {
-    line = `- **BREAKING** **${entry.scope}**: ${description}`;
+  if (leadIn && entry.breaking) {
+    line = `- **BREAKING** **${leadIn}**: ${description}`;
+  } else if (leadIn) {
+    line = `- **${leadIn}**: ${description}`;
+  } else if (entry.breaking && scope && !opts?.hideScope) {
+    line = `- **BREAKING** **${scope}**: ${description}`;
   } else if (entry.breaking) {
     line = `- **BREAKING** ${description}`;
-  } else if (entry.scope && !opts?.hideScope) {
-    line = `- **${entry.scope}**: ${description}`;
+  } else if (scope && !opts?.hideScope) {
+    line = `- **${scope}**: ${description}`;
   } else {
     line = `- ${description}`;
   }
@@ -122,7 +126,7 @@ function formatCategorySection(name: string, entries: ChangelogEntry[], refOpts:
       if (entry.scope && groupedScopes.has(entry.scope)) {
         if (!renderedScopes.has(entry.scope)) {
           renderedScopes.add(entry.scope);
-          lines.push(`**${entry.scope}**:`);
+          lines.push(`**${escapeChangelogMentions(entry.scope)}**:`);
           for (const e of byScope.get(entry.scope) ?? []) {
             lines.push(formatEntry(e, { ...refOpts, hideScope: true }));
           }

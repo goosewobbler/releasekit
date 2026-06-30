@@ -651,6 +651,37 @@ describe('formatVersion: mention escaping', () => {
     });
     expect(formatVersion(ctx)).toContain('- Thanks \\@octocat');
   });
+
+  it('should neutralise a scoped-package mention in the bold scope prefix', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+    const ctx = makeContext({
+      entries: [{ type: 'fixed', description: 'a fix', scope: '@wdio/native-cdp-bridge' }],
+    });
+    const result = formatVersion(ctx);
+    expect(result).toContain('- **\\@wdio/native-cdp-bridge**: a fix');
+    expect(result).not.toContain('**@wdio/native-cdp-bridge**');
+  });
+
+  it('should neutralise a mention in the leadIn prefix', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+    const ctx = makeContext({
+      entries: [{ type: 'added', description: 'a feature', leadIn: '@octocat' }],
+    });
+    expect(formatVersion(ctx)).toContain('- **\\@octocat**: a feature');
+  });
+
+  it('should neutralise a scoped-package mention in the grouped scope header', async () => {
+    const { formatVersion } = await import('../../../src/output/markdown.js');
+    const ctx = makeContext({
+      entries: [
+        { type: 'fixed', description: 'fix one', scope: '@wdio/native-cdp-bridge' },
+        { type: 'fixed', description: 'fix two', scope: '@wdio/native-cdp-bridge' },
+      ],
+    });
+    const result = formatVersion(ctx);
+    expect(result).toContain('**\\@wdio/native-cdp-bridge**:');
+    expect(result).not.toContain('**@wdio/native-cdp-bridge**:');
+  });
 });
 
 // ---------------------------------------------------------------------------
