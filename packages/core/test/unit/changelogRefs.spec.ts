@@ -95,4 +95,13 @@ describe('escapeChangelogMentions', () => {
   it('should escape a real mention while leaving a code-span mention alone', () => {
     expect(escapeChangelogMentions('ping @octocat about `@wdio/foo`')).toBe('ping \\@octocat about `@wdio/foo`');
   });
+
+  it('should handle adversarial backtick input in linear time (no catastrophic backtracking)', () => {
+    // A long run of unmatched backticks would hang a backreference-based code-span regex (ReDoS).
+    // The single-backtick pattern is linear, so this returns effectively instantly.
+    const start = Date.now();
+    const out = escapeChangelogMentions('`'.repeat(100_000));
+    expect(out).toContain('`');
+    expect(Date.now() - start).toBeLessThan(1000);
+  });
 });

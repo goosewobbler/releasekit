@@ -65,9 +65,14 @@ export function renderIssueRefs(issueIds: string[], mode: ChangelogRefsMode, rep
 // A GitHub mention is a word-boundary `@name` or `@org/team` (npm scoped package names share the
 // `@scope/pkg` shape). Match those, but not when `@` is preceded by a word char, `/`, `@`, or `\`
 // (a backslash means it's already escaped) — so emails (`foo@bar.com`) and mid-word `@` are left
-// alone. An inline-code span is matched first and returned untouched: GitHub does not linkify a
-// mention inside code, so escaping there would just surface a stray backslash.
-const CODE_SPAN_OR_MENTION = /(`+)[\s\S]*?\1|(?<![0-9A-Za-z_@\\/])@[A-Za-z0-9][A-Za-z0-9-]*(?:\/[A-Za-z0-9._-]+)?/g;
+// alone. A (single-backtick) inline-code span is matched first and returned untouched: GitHub does
+// not linkify a mention inside code, so escaping there would just surface a stray backslash.
+//
+// The code-span half deliberately matches only single-backtick spans (`` `[^`]*` ``) rather than a
+// variable-length ```(`+)…\1```: the backreference form backtracks polynomially on adversarial
+// backtick runs (ReDoS). Single backticks cover inline code in changelog text; a mention inside a
+// rare multi-backtick span just gets a harmless literal backslash.
+const CODE_SPAN_OR_MENTION = /`[^`]*`|(?<![0-9A-Za-z_@\\/])@[A-Za-z0-9][A-Za-z0-9-]*(?:\/[A-Za-z0-9._-]+)?/g;
 
 /**
  * Backslash-escape `@`-mentions in changelog entry text so GitHub renders them as literal text with
@@ -76,5 +81,6 @@ const CODE_SPAN_OR_MENTION = /(`+)[\s\S]*?\1|(?<![0-9A-Za-z_@\\/])@[A-Za-z0-9][A
  * outside inline code are touched.
  */
 export function escapeChangelogMentions(text: string): string {
-  return text.replace(CODE_SPAN_OR_MENTION, (match, codeTicks) => (codeTicks ? match : `\\${match}`));
+  // A code-span match starts with a backtick — leave it untouched; everything else is a mention.
+  return text.replace(CODE_SPAN_OR_MENTION, (match) => (match.startsWith('`') ? match : `\\${match}`));
 }
