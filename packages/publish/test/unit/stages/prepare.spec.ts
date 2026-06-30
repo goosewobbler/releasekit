@@ -6,6 +6,12 @@ import { getDefaultConfig } from '../../../src/config.js';
 import { runPrepareStage } from '../../../src/stages/prepare.js';
 import type { PipelineContext } from '../../../src/types.js';
 
+// Don't shell out to a real cargo for the lockfile sync — assert the staging behaviour, not cargo.
+vi.mock('../../../src/utils/exec.js', async () => {
+  const actual = await vi.importActual<typeof import('../../../src/utils/exec.js')>('../../../src/utils/exec.js');
+  return { ...actual, execCommand: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 }) };
+});
+
 function createContext(overrides?: Partial<PipelineContext>): PipelineContext {
   return {
     input: {
@@ -136,6 +142,68 @@ describe('prepare stage', () => {
 
     await runPrepareStage(ctx);
     expect(fs.existsSync(path.join(pkgDir, 'LICENSE'))).toBe(false);
+  });
+
+  it('should stage the workspace Cargo.lock alongside a bumped crate', async () => {
+    const dir = createTmpDir();
+    const crateDir = path.join(dir, 'crates', 'foo');
+    fs.mkdirSync(crateDir, { recursive: true });
+    fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "foo"\nversion = "1.0.0"\n');
+    const lockPath = path.join(dir, 'Cargo.lock');
+    fs.writeFileSync(lockPath, '');
+
+    const config = getDefaultConfig();
+    config.cargo.enabled = true;
+    const ctx = createContext({
+      cwd: dir,
+      config,
+      input: {
+        dryRun: false,
+        updates: [{ packageName: 'foo', newVersion: '1.1.0', filePath: 'crates/foo/Cargo.toml' }],
+        changelogs: [],
+        tags: [],
+      },
+    });
+
+    await runPrepareStage(ctx);
+
+    expect(ctx.additionalFiles).toContain(lockPath);
+  });
+
+  it('should not stage a Cargo.lock in dry-run mode', async () => {
+    const dir = createTmpDir();
+    const crateDir = path.join(dir, 'crates', 'foo');
+    fs.mkdirSync(crateDir, { recursive: true });
+    fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "foo"\nversion = "1.0.0"\n');
+    fs.writeFileSync(path.join(dir, 'Cargo.lock'), '');
+
+    const config = getDefaultConfig();
+    config.cargo.enabled = true;
+    const ctx = createContext({
+      cwd: dir,
+      config,
+      cliOptions: {
+        registry: 'all',
+        npmAuth: 'auto',
+        dryRun: true,
+        skipGit: false,
+        skipPublish: false,
+        skipGithubRelease: false,
+        skipVerification: false,
+        json: false,
+        verbose: false,
+      },
+      input: {
+        dryRun: true,
+        updates: [{ packageName: 'foo', newVersion: '1.1.0', filePath: 'crates/foo/Cargo.toml' }],
+        changelogs: [],
+        tags: [],
+      },
+    });
+
+    await runPrepareStage(ctx);
+
+    expect(ctx.additionalFiles ?? []).not.toContain(path.join(dir, 'Cargo.lock'));
   });
 
   it('should skip copy when source and destination are the same directory', async () => {
