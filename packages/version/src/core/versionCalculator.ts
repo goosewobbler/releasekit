@@ -21,8 +21,10 @@ import {
 } from '../utils/versionUtils.js';
 
 /**
- * Map a standard bump magnitude to the prerelease increment that advances an *existing* prerelease
- * along its own channel instead of graduating it to a stable release (#485):
+ * Map a standard bump magnitude to the prerelease form that ESCALATES an existing prerelease's base
+ * to a new line — used only when a maintainer explicitly declares the magnitude via a `bump:*` label
+ * (#485). The commit-inferred default does NOT escalate; it increments the counter (the base is a
+ * fixed target until graduation, #500).
  *  - `patch` → `prerelease` — advance the counter   (1.0.0-next.1 → 1.0.0-next.2)
  *  - `minor` → `preminor`   — escalate the base      (1.0.0-next.1 → 1.1.0-next.0)
  *  - `major` → `premajor`   — escalate the base      (1.0.0-next.1 → 2.0.0-next.0)
@@ -313,9 +315,11 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
       // along its own prerelease line rather than graduating to stable — UNLESS an explicit channel
       // action is in play (`--stable` / release:graduate sets stableOnly and graduates above;
       // `--prerelease` / channel:prerelease sets isPrerelease, handled by the existing branch below).
-      // The magnitude maps to the matching pre-increment so a minor/major escalates the base while a
-      // patch just advances the prerelease counter. This is the keystone that removes the global
-      // auto-graduate: no routine bump silently promotes a `-next` package to a production release.
+      // This is the EXPLICIT-bump path (a `bump:*` label set `type`): the maintainer declared a
+      // magnitude, so honour it — a minor/major escalates the base to a fresh line (1.0.0-next.6 →
+      // 1.1.0-next.0), a patch advances the counter. The commit-inferred DEFAULT instead always
+      // increments the counter (the base is a fixed target until graduation, #500) — see the
+      // conventional-commits branch below. Keystone that removes the global auto-graduate.
       if (
         isCurrentPrerelease &&
         !config.stableOnly &&
@@ -445,9 +449,10 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
       }
 
       // Per-package channel default (#485): advance an existing prerelease along its own line rather
-      // than graduating it, unless an explicit channel action is in play. Mirrors the specified-type
-      // branch above; here the magnitude is the commit-inferred (zeroMajor-adjusted) bump. See the
-      // keystone examples in #485 — patch advances the counter, minor/major escalate the base.
+      // than graduating it, unless an explicit channel action is in play. This is the COMMIT-INFERRED
+      // default (no `bump:*` label) — it always increments the prerelease counter regardless of the
+      // inferred magnitude, because the base is a fixed target until graduation (#500). An explicit
+      // `bump:*` label takes the specified-type branch above and escalates the base instead.
       if (
         semver.prerelease(currentVersion) !== null &&
         !config.stableOnly &&
@@ -455,9 +460,8 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
         STANDARD_BUMP_TYPES.includes(effectiveReleaseType as 'major' | 'minor' | 'patch')
       ) {
         const channelId = prereleaseIdOf(currentVersion) ?? normalizedPrereleaseId;
-        const channelType = toPrereleaseLineBump(effectiveReleaseType);
-        log(`Advancing prerelease ${currentVersion} along its channel via ${channelType} (id: ${channelId})`, 'debug');
-        return bumpVersion(currentVersion, channelType, channelId);
+        log(`Advancing prerelease ${currentVersion} along its channel (increment, id: ${channelId})`, 'debug');
+        return bumpVersion(currentVersion, 'prerelease', channelId);
       }
 
       const isPrereleaseBumpType = ['prerelease', 'premajor', 'preminor', 'prepatch'].includes(effectiveReleaseType);
