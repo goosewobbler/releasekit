@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import type { CIConfig } from '@releasekit/config';
 import { loadCIConfig, loadConfig } from '@releasekit/config';
-import { info, success, warn } from '@releasekit/core';
+import { type ChangelogRefsMode, info, success, warn } from '@releasekit/core';
 import type { Forge } from '@releasekit/forge';
 import { renderSupersedeWarning } from '../failure-report/failure-report.js';
 import { detectUnresolvedFailure } from '../failure-report/post.js';
@@ -146,9 +146,13 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
 
   // Run version analysis unless release is skipped or in label mode with no bump label
   let result = null;
+  // How bare `#NNN` refs render in the preview changelog (#499/#504); resolved from config below.
+  let refs: ChangelogRefsMode = 'link';
   if (!labelContext.skip && !labelContext.noBumpLabel) {
     // Determine prerelease mode
     const releaseConfig = loadConfig({ cwd: effectiveOptions.projectDir, configPath: effectiveOptions.config });
+    const changelogConfig = releaseConfig.notes?.changelog;
+    refs = (changelogConfig ? changelogConfig.refs : undefined) ?? 'link';
     const prereleaseFlag = resolvePrerelease(
       effectiveOptions,
       releaseConfig.version?.packages ?? [],
@@ -201,6 +205,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
     mergedRows,
     labelContext,
     supersedeWarning,
+    refs,
   });
 
   if (!context || !forge) {
