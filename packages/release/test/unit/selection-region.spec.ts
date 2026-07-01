@@ -338,6 +338,30 @@ describe('selection-region', () => {
         expect(region).not.toContain('· coupled');
       });
 
+      it('should keep an independent primary’s prerequisite as "coupled", not "bundled" (#509)', () => {
+        // A prerequisite ships with the unit but isn't a group member — it has no version-bundle with
+        // the independent group, so it keeps `coupled` even while the true group member shows `bundled`.
+        const independent = { tauri: { sync: 'independent' as const, packages: ['@wdio/tauri-*', 'tauri-plugin-*'] } };
+        const updates: Update[] = [
+          { packageName: '@wdio/tauri-service', newVersion: '1.4.0', filePath: '', group: 'tauri' },
+          { packageName: '@wdio/tauri-plugin', newVersion: '1.4.0', filePath: '', group: 'tauri' },
+          {
+            packageName: '@scope/prereq',
+            newVersion: '2.0.0',
+            filePath: '',
+            role: 'prerequisite',
+            prerequisiteOf: ['@wdio/tauri-service'],
+          },
+        ];
+        const region = renderSelectionRegion(
+          updates,
+          new Set(),
+          cfg({ groups: independent, allPackageNames: [...tauriAll, '@scope/prereq'] }),
+        );
+        expect(region).toContain('  - `@wdio/tauri-plugin` → 1.4.0 · bundled');
+        expect(region).toContain('  - `@scope/prereq` → 2.0.0 · coupled');
+      });
+
       it('should render an unchanged primary as "— no change" but still toggleable', () => {
         const pluginOnly: Update[] = [
           { packageName: '@wdio/tauri-plugin', newVersion: '1.4.0', filePath: '', group: 'tauri' },

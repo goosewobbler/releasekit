@@ -250,17 +250,30 @@ function primaryRow(unit: ReleaseUnit, selected: boolean): string {
   return `- ${checkbox(selected)} **\`${unit.primaryName}\`** ${label} ${rkSelMarker(unit.primaryName)}`;
 }
 
-/** How a unit's members relate to its primary: `independent`-group members version on their own
+/** How a group's members relate to their primary: `independent`-group members version on their own
  *  commit-driven lines but ship atomically (`bundled`); `fixed`/`linked` members share a version
- *  (`coupled`). Prerequisites and un-grouped members keep `coupled` — the existing wording (#509). */
+ *  (`coupled`). Un-grouped members fall through to `coupled` — the existing wording (#509). */
 function couplingWord(groupSync?: string): string {
   return groupSync === 'independent' ? 'bundled' : 'coupled';
+}
+
+/** The relationship word for one child of a unit. A prerequisite ships with the unit but isn't a
+ *  group member, so it keeps the neutral `coupled` wording; only true group members reflect the
+ *  group's sync mode (`bundled` for independent). */
+function childWord(child: Update, groupSync?: string): string {
+  return child.role === 'prerequisite' ? 'coupled' : couplingWord(groupSync);
+}
+
+/** The summary word for a unit's collapsed pane: `bundled` when it carries any bundled group member,
+ *  else `coupled` — so the header never claims `bundled` over a pane of only prerequisites. */
+function unitWord(unit: ReleaseUnit): string {
+  return unit.children.some((c) => childWord(c, unit.groupSync) === 'bundled') ? 'bundled' : 'coupled';
 }
 
 /** A streamlined child: a plain bullet (never a task item, so GitHub can't make it interactive and
  *  fight the cascade) and intentionally markerless — its state is derived from its primary each run. */
 function childBullet(child: Update, groupSync?: string): string {
-  return `  - \`${child.packageName}\` → ${versionDisplay(child)} · ${couplingWord(groupSync)}`;
+  return `  - \`${child.packageName}\` → ${versionDisplay(child)} · ${childWord(child, groupSync)}`;
 }
 
 /**
@@ -350,12 +363,12 @@ function renderUnit(
     if (unit.children.length > 0) {
       // Children inside a collapsed pane as plain bullets — a blank line after <summary> lets GitHub
       // render the nested markdown list.
-      lines.push(`  <details><summary>ships ${unit.children.length} ${couplingWord(unit.groupSync)}</summary>`, '');
+      lines.push(`  <details><summary>ships ${unit.children.length} ${unitWord(unit)}</summary>`, '');
       for (const child of unit.children) lines.push(childBullet(child, unit.groupSync));
       lines.push('  </details>');
     }
-    // The streamlined unit ships primary + coupled members together, so its changelog aggregates
-    // them all — a shared prerequisite re-appears under every owning unit (self-contained by design).
+    // The streamlined unit ships primary + its members together (coupled or bundled), so its changelog
+    // aggregates them all — a shared prerequisite re-appears under every owning unit (self-contained).
     attachChangelog(
       lines,
       rowChangelog,
