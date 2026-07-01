@@ -114,3 +114,46 @@ export function escapeChangelogMentions(text: string): string {
   // A code-span match starts with a backtick — leave it untouched; everything else is a mention.
   return text.replace(CODE_SPAN_OR_MENTION, (match) => (match.startsWith('`') ? match : `\\${match}`));
 }
+
+// A `#N` issue/PR ref embedded in an entry *description* (carried over from the commit subject):
+// parenthesised `(#123)` or a bare `#123` at a word boundary, but not one already escaped (`\#`), a
+// markdown link (`[#123]`), or part of a `/`-path. A single optional leading space is captured so a
+// removed ref doesn't leave a double space (bounded `( ?)`, not `(\s*)`, to avoid polynomial
+// backtracking). Inline-code spans are matched first and skipped (same single-backtick form as the
+// mention regex).
+const CODE_SPAN_OR_DESC_REF = /`[^`]*`|( ?)(?:\(#(\d+)\)|(?<![\\[/\w])#(\d+)\b)/g;
+
+/**
+ * Neutralise bare `#N` issue/PR refs left inside an entry *description* — they come from the squash
+ * commit subject and GitHub otherwise auto-links them into verbose hovercards (#507). A ref that also
+ * appears in the appended `(PR … · closes …)` label (`appendedRefs`) is REMOVED as a duplicate; any
+ * other bare ref is rendered per `mode`: `escape` → `\#N`, `strip` → removed, `link` → a canonical
+ * `[#N](…/issues/N)` link (falls back to `escape` for a non-GitHub repo). Complements
+ * `escapeChangelogMentions` (which handles `@`); like it, it is code-span aware.
+ */
+export function neutralizeDescriptionRefs(
+  text: string,
+  appendedRefs: Array<string | undefined>,
+  mode: ChangelogRefsMode,
+  repoUrl: string | null,
+): string {
+  const appended = new Set(appendedRefs.filter((r): r is string => !!r).map((r) => Number(r.replace(/^#/, ''))));
+  const ownerRepo = mode === 'link' && repoUrl ? parseGitHubOwnerRepo(repoUrl) : null;
+  const out = text.replace(
+    CODE_SPAN_OR_DESC_REF,
+    (match, lead: string | undefined, parenNum?: string, bareNum?: string) => {
+      const num = parenNum ?? bareNum;
+      if (num === undefined) return match; // inline-code span — leave untouched
+      const ws = lead ?? '';
+      // A ref already shown in the appended label is redundant here; `strip` drops every ref.
+      if (appended.has(Number(num)) || mode === 'strip') return '';
+      const inner = ownerRepo
+        ? `[#${num}](https://github.com/${ownerRepo.owner}/${ownerRepo.repo}/issues/${num})`
+        : `\\#${num}`;
+      return parenNum !== undefined ? `${ws}(${inner})` : `${ws}${inner}`;
+    },
+  );
+  // `( ?)` eats the space *before* a ref, so a ref removed from the very start of the description
+  // (nothing before it to consume) leaves the following space behind — trim boundary residue (#507).
+  return out.trim();
+}

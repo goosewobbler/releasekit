@@ -1,6 +1,13 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { type ChangelogRefsMode, escapeChangelogMentions, info, renderIssueRefs, success } from '@releasekit/core';
+import {
+  type ChangelogRefsMode,
+  escapeChangelogMentions,
+  info,
+  neutralizeDescriptionRefs,
+  renderIssueRefs,
+  success,
+} from '@releasekit/core';
 import type {
   ChangelogEntry,
   Config,
@@ -61,8 +68,13 @@ function formatEntry(entry: ChangelogEntry, opts?: EntryRefOptions): string {
   // GitHub treats a bare `@scope/pkg` / `@user` in prose as a mention (stray link, can ping a real
   // org/team on a release PR) — always neutralise it, regardless of the refs mode. The scope and
   // lead-in are interpolated as bold prose too (a scoped package name like `@wdio/native-cdp-bridge`
-  // would mention `@wdio`), so escape all three, not just the description.
-  const description = escapeChangelogMentions(entry.description);
+  // would mention `@wdio`), so escape all three, not just the description. Bare `#N` refs carried over
+  // from the commit subject are also neutralised / de-duped against the appended label (#507).
+  const refsMode = opts?.refs ?? 'link';
+  const appendedRefs = [...(entry.issueIds ?? []), entry.prNumber];
+  const description = escapeChangelogMentions(
+    neutralizeDescriptionRefs(entry.description, appendedRefs, refsMode, opts?.repoUrl ?? null),
+  );
   const scope = entry.scope ? escapeChangelogMentions(entry.scope) : undefined;
   const leadIn = entry.leadIn ? escapeChangelogMentions(entry.leadIn) : undefined;
   let line: string;
@@ -82,7 +94,7 @@ function formatEntry(entry: ChangelogEntry, opts?: EntryRefOptions): string {
   }
 
   // renderIssueRefs returns the complete group including its own parens — append it bare, no re-wrap.
-  const refs = renderIssueRefs(entry.issueIds ?? [], opts?.refs ?? 'link', opts?.repoUrl ?? null, entry.prNumber);
+  const refs = renderIssueRefs(entry.issueIds ?? [], refsMode, opts?.repoUrl ?? null, entry.prNumber);
   if (refs) {
     line += ` ${refs}`;
   }

@@ -1,6 +1,7 @@
 import {
   type ChangelogRefsMode,
   escapeChangelogMentions,
+  neutralizeDescriptionRefs,
   renderIssueRefs,
   type VersionChangelogEntry,
   type VersionOutput,
@@ -113,8 +114,12 @@ interface RefRenderOptions {
 function entryLine(d: DedupedEntry, attribution: boolean, refOpts: RefRenderOptions): string {
   const { entry, pkgs } = d;
   // GitHub treats a bare `@scope/pkg` / `@user` in the description as a mention (stray link, can ping
-  // a real org/team on the standing PR) — always neutralise it, regardless of the refs mode.
-  const description = escapeChangelogMentions(entry.description);
+  // a real org/team on the standing PR) — always neutralise it, regardless of the refs mode. Bare `#N`
+  // refs carried over from the commit subject are neutralised / de-duped against the appended label (#507).
+  const appendedRefs = [...(entry.issueIds ?? []), entry.prNumber];
+  const description = escapeChangelogMentions(
+    neutralizeDescriptionRefs(entry.description, appendedRefs, refOpts.refs, refOpts.repoUrl),
+  );
   const scope = entry.scope ? ` (\`${entry.scope}\`)` : '';
   const refs = renderIssueRefs(entry.issueIds ?? [], refOpts.refs, refOpts.repoUrl, entry.prNumber);
   const issues = refs ? ` ${refs}` : '';

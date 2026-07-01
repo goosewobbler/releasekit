@@ -2,6 +2,7 @@ export { findCargoLockfile } from './cargo.js';
 export {
   type ChangelogRefsMode,
   escapeChangelogMentions,
+  neutralizeDescriptionRefs,
   parseGitHubOwnerRepo,
   renderIssueRefs,
 } from './changelogRefs.js';

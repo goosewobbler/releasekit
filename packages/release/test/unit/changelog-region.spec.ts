@@ -95,6 +95,31 @@ describe('changelog-region', () => {
       expect(footer).toContain('Show all changes (2 changes, de-duplicated)');
     });
 
+    it('should de-dupe a bare #N in the description that also appears in the appended label (#507)', () => {
+      const footer = renderCombinedFooter(
+        output({
+          changelogs: [
+            cl(
+              '@scope/a',
+              [
+                {
+                  type: 'fix',
+                  description: 'failed queued batch (#467)',
+                  issueIds: ['#475', '#467'],
+                  prNumber: '#475',
+                },
+              ],
+              'https://github.com/octocat/hello',
+            ),
+          ],
+        }),
+      );
+      // The `(#467)` carried into the description is removed — it shows once, in the appended label.
+      expect(footer).toContain('failed queued batch (PR [#475](https://github.com/octocat/hello/pull/475)');
+      expect(footer).toContain('closes [#467](https://github.com/octocat/hello/issues/467)');
+      expect(footer).not.toContain('batch (#467)');
+    });
+
     it('should fold project-wide shared entries into the flat type buckets', () => {
       const footer = renderCombinedFooter(
         output({
