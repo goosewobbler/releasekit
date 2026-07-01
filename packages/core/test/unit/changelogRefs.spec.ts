@@ -194,4 +194,12 @@ describe('neutralizeDescriptionRefs', () => {
       'see [#999](url) and \\#42',
     );
   });
+
+  it('should not leave a leading space when a duplicated ref opens the description', () => {
+    expect(neutralizeDescriptionRefs('(#467) failed task', ['#467'], 'link', repo)).toBe('failed task');
+  });
+
+  it('should not leave a leading space when a stripped bare ref opens the description', () => {
+    expect(neutralizeDescriptionRefs('#999 see here', [], 'strip', repo)).toBe('see here');
+  });
 });

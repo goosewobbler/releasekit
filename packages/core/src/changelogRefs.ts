@@ -139,15 +139,21 @@ export function neutralizeDescriptionRefs(
 ): string {
   const appended = new Set(appendedRefs.filter((r): r is string => !!r).map((r) => Number(r.replace(/^#/, ''))));
   const ownerRepo = mode === 'link' && repoUrl ? parseGitHubOwnerRepo(repoUrl) : null;
-  return text.replace(CODE_SPAN_OR_DESC_REF, (match, lead: string | undefined, parenNum?: string, bareNum?: string) => {
-    const num = parenNum ?? bareNum;
-    if (num === undefined) return match; // inline-code span — leave untouched
-    const ws = lead ?? '';
-    // A ref already shown in the appended label is redundant here; `strip` drops every ref.
-    if (appended.has(Number(num)) || mode === 'strip') return '';
-    const inner = ownerRepo
-      ? `[#${num}](https://github.com/${ownerRepo.owner}/${ownerRepo.repo}/issues/${num})`
-      : `\\#${num}`;
-    return parenNum !== undefined ? `${ws}(${inner})` : `${ws}${inner}`;
-  });
+  const out = text.replace(
+    CODE_SPAN_OR_DESC_REF,
+    (match, lead: string | undefined, parenNum?: string, bareNum?: string) => {
+      const num = parenNum ?? bareNum;
+      if (num === undefined) return match; // inline-code span — leave untouched
+      const ws = lead ?? '';
+      // A ref already shown in the appended label is redundant here; `strip` drops every ref.
+      if (appended.has(Number(num)) || mode === 'strip') return '';
+      const inner = ownerRepo
+        ? `[#${num}](https://github.com/${ownerRepo.owner}/${ownerRepo.repo}/issues/${num})`
+        : `\\#${num}`;
+      return parenNum !== undefined ? `${ws}(${inner})` : `${ws}${inner}`;
+    },
+  );
+  // `( ?)` eats the space *before* a ref, so a ref removed from the very start of the description
+  // (nothing before it to consume) leaves the following space behind — trim boundary residue (#507).
+  return out.trim();
 }
