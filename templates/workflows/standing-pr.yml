@@ -7,6 +7,9 @@
 #
 # Without it, the first `standing-pr update` run will fail with HTTP 403.
 # See packages/release/docs/ci-setup.md → Standing Release PR for the full guide.
+#
+# Tip: exempt this PR's branch (release/*) from your build/test CI, or every update
+# re-runs your whole matrix. See ci-setup.md → "Keeping CI off the standing PR".
 
 name: Standing Release PR
 
