@@ -117,10 +117,11 @@ export function escapeChangelogMentions(text: string): string {
 
 // A `#N` issue/PR ref embedded in an entry *description* (carried over from the commit subject):
 // parenthesised `(#123)` or a bare `#123` at a word boundary, but not one already escaped (`\#`), a
-// markdown link (`[#123]`), or part of a `/`-path. Leading whitespace is captured so a removed ref
-// doesn't leave a double space. Inline-code spans are matched first and skipped (same single-backtick,
-// ReDoS-safe form as the mention regex).
-const CODE_SPAN_OR_DESC_REF = /`[^`]*`|(\s*)(?:\(#(\d+)\)|(?<![\\[/\w])#(\d+)\b)/g;
+// markdown link (`[#123]`), or part of a `/`-path. A single optional leading space is captured so a
+// removed ref doesn't leave a double space (bounded `( ?)`, not `(\s*)`, to avoid polynomial
+// backtracking). Inline-code spans are matched first and skipped (same single-backtick form as the
+// mention regex).
+const CODE_SPAN_OR_DESC_REF = /`[^`]*`|( ?)(?:\(#(\d+)\)|(?<![\\[/\w])#(\d+)\b)/g;
 
 /**
  * Neutralise bare `#N` issue/PR refs left inside an entry *description* — they come from the squash
