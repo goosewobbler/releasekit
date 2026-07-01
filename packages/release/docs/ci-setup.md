@@ -659,7 +659,7 @@ jobs:
     # ...
 ```
 
-`github.head_ref` is set only for `pull_request` events (it's empty on `push: main`), so your main-branch CI is unaffected. Apply the guard wherever it gates the rest of the run — a single change-detection / entry job that everything else `needs` is the cleanest single point; otherwise guard each job or the workflow's own `on:` filter. (`release/` matches the default `ci.standingPr.branch` of `release/next`; adjust the prefix if you changed it.)
+`github.head_ref` is set only for `pull_request` events (it's empty on `push: main`), so your main-branch CI is unaffected. Apply the guard wherever it gates the rest of the run — a single change-detection / entry job that everything else `needs` is the cleanest single point; otherwise guard each job. There's no `on:`-level lever for this: `on.pull_request.branches` filters by the PR's **base** branch (the merge target, `main`), not its head, so a job-level `if` is the only way to target the release branch. (`release/` matches the default `ci.standingPr.branch` of `release/next`; adjust the prefix if you changed it.)
 
 Skipping entirely is the recommended default — the merge to `main` re-runs CI anyway. If you want a cheap safety net on the release branch, keep a fast lint/typecheck job and guard only the heavy build/e2e legs.
 
