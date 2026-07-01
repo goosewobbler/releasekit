@@ -327,6 +327,17 @@ describe('selection-region', () => {
         expect(region).not.toContain('rk-sel:@wdio/tauri-plugin');
       });
 
+      it('should label independent-group members "bundled" rather than "coupled" (#509)', () => {
+        // independent members version on their own commit-driven lines but ship atomically with the
+        // unit — "coupled" implies a shared version they don't have; "bundled" conveys atomic shipping.
+        const independent = { tauri: { sync: 'independent' as const, packages: ['@wdio/tauri-*', 'tauri-plugin-*'] } };
+        const region = renderSelectionRegion(tauriUpdates, new Set(), cfg({ groups: independent }));
+        expect(region).toContain('  <details><summary>ships 2 bundled</summary>');
+        expect(region).toContain('  - `@wdio/tauri-plugin` → 1.4.0 · bundled');
+        expect(region).toContain('  - `tauri-plugin-wdio-webdriver` → 1.4.0 · bundled');
+        expect(region).not.toContain('· coupled');
+      });
+
       it('should render an unchanged primary as "— no change" but still toggleable', () => {
         const pluginOnly: Update[] = [
           { packageName: '@wdio/tauri-plugin', newVersion: '1.4.0', filePath: '', group: 'tauri' },

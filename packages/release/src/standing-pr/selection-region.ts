@@ -117,6 +117,10 @@ export interface ReleaseUnit {
   primaryName: string;
   primaryUpdate?: Update;
   children: Update[];
+  /** Sync mode of the primary's `version.group` (`fixed`/`linked`/`independent`), when it has one.
+   *  Drives the members' wording: `fixed`/`linked` members share a version (`coupled`), `independent`
+   *  members version on their own lines but ship atomically (`bundled`, #509). */
+  groupSync?: string;
 }
 
 export interface SelectionHierarchy {
@@ -171,7 +175,9 @@ export function computeHierarchy(updates: Update[], cfg: PrimaryConfig): Selecti
     const children = childrenOf(primaryName);
     const primaryUpdate = updateByName.get(primaryName);
     if (!primaryUpdate && children.length === 0) continue; // declared but nothing in its unit changed
-    units.push({ primaryName, primaryUpdate, children });
+    const group = groupOfPrimary(primaryName);
+    const groupSync = group ? groups[group]?.sync : undefined;
+    units.push({ primaryName, primaryUpdate, children, groupSync });
     for (const child of children) {
       childOwners.set(child.packageName, [...(childOwners.get(child.packageName) ?? []), primaryName]);
       claimed.add(child.packageName);
@@ -244,10 +250,17 @@ function primaryRow(unit: ReleaseUnit, selected: boolean): string {
   return `- ${checkbox(selected)} **\`${unit.primaryName}\`** ${label} ${rkSelMarker(unit.primaryName)}`;
 }
 
+/** How a unit's members relate to its primary: `independent`-group members version on their own
+ *  commit-driven lines but ship atomically (`bundled`); `fixed`/`linked` members share a version
+ *  (`coupled`). Prerequisites and un-grouped members keep `coupled` — the existing wording (#509). */
+function couplingWord(groupSync?: string): string {
+  return groupSync === 'independent' ? 'bundled' : 'coupled';
+}
+
 /** A streamlined child: a plain bullet (never a task item, so GitHub can't make it interactive and
  *  fight the cascade) and intentionally markerless — its state is derived from its primary each run. */
-function childBullet(child: Update): string {
-  return `  - \`${child.packageName}\` → ${versionDisplay(child)} · coupled`;
+function childBullet(child: Update, groupSync?: string): string {
+  return `  - \`${child.packageName}\` → ${versionDisplay(child)} · ${couplingWord(groupSync)}`;
 }
 
 /**
@@ -337,8 +350,8 @@ function renderUnit(
     if (unit.children.length > 0) {
       // Children inside a collapsed pane as plain bullets — a blank line after <summary> lets GitHub
       // render the nested markdown list.
-      lines.push(`  <details><summary>ships ${unit.children.length} coupled</summary>`, '');
-      for (const child of unit.children) lines.push(childBullet(child));
+      lines.push(`  <details><summary>ships ${unit.children.length} ${couplingWord(unit.groupSync)}</summary>`, '');
+      for (const child of unit.children) lines.push(childBullet(child, unit.groupSync));
       lines.push('  </details>');
     }
     // The streamlined unit ships primary + coupled members together, so its changelog aggregates
