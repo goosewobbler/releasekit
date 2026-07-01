@@ -1086,9 +1086,9 @@ describe('runStandingPRUpdate', () => {
     const perRowIdx = body.indexOf('<details><summary>Changelog (2 entries)</summary>');
     expect(rowIdx).toBeGreaterThanOrEqual(0);
     expect(perRowIdx).toBeGreaterThan(rowIdx);
-    expect(body).toContain('**Added**');
+    expect(body).toContain('#### Added');
     expect(body).toContain('Add new widget');
-    expect(body).toContain('**Fixed**');
+    expect(body).toContain('#### Fixed');
     expect(body).toContain('Fix broken export');
     // Combined footer: a single flat, de-duplicated block (default-on), below the selection region.
     expect(body).toContain('<details><summary>Show all changes (2 changes, de-duplicated)</summary>');

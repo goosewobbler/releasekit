@@ -20,9 +20,9 @@ describe('changelog-region', () => {
       // One <details> covering both packages, grouped by Keep-a-Changelog type. The disclosure tags stay
       // un-quoted (raw HTML); only the inner content is blockquoted (`> `), indented to nest under its row.
       expect(block).toContain('  <details><summary>Changelog (2 entries)</summary>');
-      expect(block).toContain('  > **Added**');
+      expect(block).toContain('  > #### Added');
       expect(block).toContain('  > - App feature');
-      expect(block).toContain('  > **Fixed**');
+      expect(block).toContain('  > #### Fixed');
       expect(block).toContain('  > - Lib fix');
       expect(block).toContain('  </details>');
       // Multi-package unit → inline attribution per line.
@@ -127,9 +127,9 @@ describe('changelog-region', () => {
           sharedEntries: [{ type: 'fix', description: 'CI tweak' }],
         }),
       );
-      expect(footer).toContain('**Added**');
+      expect(footer).toContain('#### Added');
       expect(footer).toContain('- Package feature');
-      expect(footer).toContain('**Fixed**');
+      expect(footer).toContain('#### Fixed');
       expect(footer).toContain('- CI tweak');
       expect(footer).toContain('Show all changes (2 changes, de-duplicated)');
     });
@@ -279,7 +279,7 @@ describe('changelog-region', () => {
       expect(footer).toContain('<details><summary>Show all changes (1 change, de-duplicated)</summary>');
       expect(footer).not.toContain('> <details>');
       expect(footer).not.toContain('> </details>');
-      expect(footer).toContain('> **Added**');
+      expect(footer).toContain('> #### Added');
       expect(footer).toContain('> - A feature');
       const fl = footer.split('\n');
       expect(fl[0]).toBe('<details><summary>Show all changes (1 change, de-duplicated)</summary>');
@@ -297,7 +297,7 @@ describe('changelog-region', () => {
       // Disclosure tags carry only the indent; the inner content is `  > `-prefixed.
       expect(bl[0]).toBe('  <details><summary>Changelog (1 entry)</summary>');
       expect(bl[bl.length - 1]).toBe('  </details>');
-      expect(block).toContain('  > **Added**');
+      expect(block).toContain('  > #### Added');
       expect(block).toContain('  > - Solo feature');
     });
   });

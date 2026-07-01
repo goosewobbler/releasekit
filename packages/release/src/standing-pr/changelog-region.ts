@@ -149,7 +149,10 @@ function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions): stri
   const emit = (label: string): void => {
     const list = byLabel.get(label);
     if (!list?.length) return;
-    lines.push(`**${label}**`, '');
+    // `#### `, not bold `**…**`: inside the blockquote (#506) GitHub gives a heading paragraph-level
+    // top margin, so consecutive sections stay visually separated — bold text collapses to near-zero
+    // spacing there (#508). Matches the preview surface, which already uses `#### ` headings.
+    lines.push(`#### ${label}`, '');
     for (const d of list) lines.push(entryLine(d, attribution, refOpts));
     lines.push('');
   };
