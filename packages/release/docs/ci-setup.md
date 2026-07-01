@@ -524,7 +524,7 @@ jobs:
           case "$BODY" in
             *'<!-- releasekit-processing -->'*) echo "Banner already present — skipping"; exit 0 ;;
           esac
-          BANNER=$'<!-- releasekit-processing -->\n> 🔄 **Updating the release PR** to reflect your change… ([run details]('"$RUN_URL"'))\n<!-- releasekit-processing-end -->'
+          BANNER=$'<!-- releasekit-processing -->\n> 🔄 **Updating the release PR** to reflect your change… ([run details]('"$RUN_URL"$'))\n<!-- releasekit-processing-end -->'
           NEWBODY=$(printf '%s\n\n%s' "$BANNER" "$BODY")
           gh api --method PATCH "repos/$REPO/pulls/$PR" -f body="$NEWBODY" >/dev/null
 
@@ -557,10 +557,11 @@ jobs:
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
-      # On success the regenerated body already omits the banner; only a run that died before the
+      # On success the regenerated body already omits the banner; only a run that ended before the
       # rebuild leaves it behind. Strip the marker region so it doesn't linger as a false "in progress".
-      - name: Clear the in-progress banner on failure
-        if: failure() && github.event_name == 'pull_request'
+      # `cancelled()` too — a manual cancel (or a superseded reactive run) also skips the rebuild.
+      - name: Clear the in-progress banner if the update didn't finish
+        if: (failure() || cancelled()) && github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
