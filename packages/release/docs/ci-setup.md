@@ -642,6 +642,27 @@ Use `release:graduate` and `channel:prerelease` labels on **the standing PR itse
   Each main-branch SHA gets its own group (so nothing is cancelled), while PR runs still cancel on new pushes.
 - **Status check `releasekit/standing-pr`:** posted on the release branch HEAD after each update. States: `success` (ready to merge), `pending` (one or more gates not yet satisfied — typically `minAge`). Configure as a required check in branch protection on the standing PR's base branch if you want gates enforced at merge time.
 
+### Keeping CI off the standing PR
+
+Every `standing-pr update` force-pushes the release branch (`release/next`), which is a `pull_request: synchronize` on the open standing PR. If your build/test CI triggers on `pull_request` (the usual `[opened, synchronize, reopened]`), **it re-runs the whole matrix on every update** — each feeder merge, and each checkbox toggle that changes the selection. On a large cross-platform matrix that's dozens of jobs per update, all wasted: the release branch only ever carries version bumps and regenerated changelogs on top of `main`, whose code was already validated on each feeder PR and is validated again on push to `main` when the standing PR merges.
+
+Path or change-detection filters won't save you — a release commit touches version files and changelogs across **every** releasing package, so it reads as "everything changed" and fans the matrix out regardless.
+
+`[skip ci]` is **not** the lever: the standing PR's single prep commit deliberately omits it. A squash-merge inherits that commit's message onto `main`, where `[skip ci]` would suppress the publish workflow — so the skip has to live in your CI's triggers, not the commit. Exempt the branch with a head-ref guard:
+
+```yaml
+# In your build/test workflow (e.g. ci.yml)
+jobs:
+  build:
+    # Skip the standing PR — its branch only carries release bumps, already CI'd on the feeder PRs.
+    if: ${{ !startsWith(github.head_ref, 'release/') }}
+    # ...
+```
+
+`github.head_ref` is set only for `pull_request` events (it's empty on `push: main`), so your main-branch CI is unaffected. Apply the guard wherever it gates the rest of the run — a single change-detection / entry job that everything else `needs` is the cleanest single point; otherwise guard each job or the workflow's own `on:` filter. (`release/` matches the default `ci.standingPr.branch` of `release/next`; adjust the prefix if you changed it.)
+
+Skipping entirely is the recommended default — the merge to `main` re-runs CI anyway. If you want a cheap safety net on the release branch, keep a fast lint/typecheck job and guard only the heavy build/e2e legs.
+
 ### Label semantics in standing-pr mode
 
 Labels behave differently in standing-pr mode than in direct mode. There are two surfaces.
@@ -729,6 +750,7 @@ This is a standing-pr-only feature — it needs a durable pre-publish artifact (
 | `error: too many arguments for 'preview'` | Pre-fix releasekit where `standing-pr` was missing from `cli.ts`. Upgrade `@releasekit/release`. |
 | Standing PR never appears despite merges | Check, in order: (1) the GitHub repo setting; (2) the head commit doesn't match `release.ci.skipPatterns`; (3) there are releasable conventional commits (`feat:`, `fix:`) since the last tag; (4) the `update-release-pr` job logs — they print the dry-run version output. |
 | Standing PR keeps closing immediately | `minPackages` is set higher than the current change count. Either lower the threshold or wait for more package changes to accumulate. |
+| Every standing-PR update re-runs my whole build matrix | Your CI triggers on `pull_request` and isn't exempting the release branch. Add a head-ref guard — see [Keeping CI off the standing PR](#keeping-ci-off-the-standing-pr). `[skip ci]` can't be used here (it would suppress publish on merge). |
 | Standing PR ignores my `bump:*` label on a feeder PR | By design — feeder labels are advisory in standing-pr mode. Add the label to the standing PR itself, or use `release:immediate` to bypass the queue. |
 | Standing PR shows `pending` status `Conflicting bump labels…` | Two conflicting labels on the standing PR (e.g. `bump:patch` + `bump:major`). Remove one and re-run `standing-pr update`. |
 | Added `release:preview-notes` but no notes appear | The region is written on the next `standing-pr update` (push to `main`, the hourly `schedule`, or a manual re-run) — not the instant the label is applied. Also confirm `notes.releaseNotes.llm` is set and the provider secret reaches the `update-release-pr` job. |
