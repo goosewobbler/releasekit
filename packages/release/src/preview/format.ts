@@ -1,6 +1,7 @@
 import {
   type ChangelogRefsMode,
   escapeChangelogMentions,
+  neutralizeDescriptionRefs,
   renderIssueRefs,
   type VersionChangelogEntry,
   type VersionPackageChangelog,
@@ -535,8 +536,10 @@ function formatEntryGroup(
   const lines: string[] = [`#### ${label}`, ''];
 
   for (const entry of entries) {
-    // Always neutralise `@`-mentions in the description; the scope is already backticked (safe).
-    let line = `- ${escapeChangelogMentions(entry.description)}`;
+    // Always neutralise `@`-mentions in the description; the scope is already backticked (safe). Bare
+    // `#N` refs carried over from the commit subject are neutralised / de-duped against the label (#507).
+    const appendedRefs = [...(entry.issueIds ?? []), entry.prNumber];
+    let line = `- ${escapeChangelogMentions(neutralizeDescriptionRefs(entry.description, appendedRefs, refs, repoUrl))}`;
     if (entry.scope) {
       line += ` (\`${entry.scope}\`)`;
     }

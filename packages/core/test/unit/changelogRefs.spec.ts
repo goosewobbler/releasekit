@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { escapeChangelogMentions, parseGitHubOwnerRepo, renderIssueRefs } from '../../src/changelogRefs.js';
+import {
+  escapeChangelogMentions,
+  neutralizeDescriptionRefs,
+  parseGitHubOwnerRepo,
+  renderIssueRefs,
+} from '../../src/changelogRefs.js';
 
 describe('parseGitHubOwnerRepo', () => {
   it('should parse an HTTPS GitHub URL', () => {
@@ -145,5 +150,48 @@ describe('escapeChangelogMentions', () => {
     const out = escapeChangelogMentions('`'.repeat(100_000));
     expect(out).toContain('`');
     expect(Date.now() - start).toBeLessThan(1000);
+  });
+});
+
+describe('neutralizeDescriptionRefs', () => {
+  const repo = 'https://github.com/octocat/hello';
+
+  it('should remove a parenthesised ref that is duplicated in the appended label', () => {
+    // #507: `(#467)` in the subject-derived description also appears as `closes #467` in the label.
+    expect(neutralizeDescriptionRefs('failed queued batch (#467)', ['#475', '#467'], 'link', repo)).toBe(
+      'failed queued batch',
+    );
+  });
+
+  it('should remove a bare duplicated ref without leaving a double space', () => {
+    expect(neutralizeDescriptionRefs('reverts #461 behaviour', ['#461'], 'escape', repo)).toBe('reverts behaviour');
+  });
+
+  it('should escape a description-only ref in escape mode', () => {
+    expect(neutralizeDescriptionRefs('see #999 for context', [], 'escape', repo)).toBe('see \\#999 for context');
+  });
+
+  it('should link a description-only ref in link mode', () => {
+    expect(neutralizeDescriptionRefs('see #999', [], 'link', repo)).toBe(
+      'see [#999](https://github.com/octocat/hello/issues/999)',
+    );
+  });
+
+  it('should fall back to escape for a description-only ref when the repo is non-GitHub', () => {
+    expect(neutralizeDescriptionRefs('see #999', [], 'link', null)).toBe('see \\#999');
+  });
+
+  it('should drop every description ref in strip mode', () => {
+    expect(neutralizeDescriptionRefs('see #999 and (#467)', [], 'strip', repo)).toBe('see and');
+  });
+
+  it('should leave a ref inside an inline code span untouched', () => {
+    expect(neutralizeDescriptionRefs('use `#999` literally', [], 'escape', repo)).toBe('use `#999` literally');
+  });
+
+  it('should not touch an already-linked or already-escaped ref', () => {
+    expect(neutralizeDescriptionRefs('see [#999](url) and \\#42', [], 'escape', repo)).toBe(
+      'see [#999](url) and \\#42',
+    );
   });
 });
