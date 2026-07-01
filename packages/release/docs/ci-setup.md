@@ -465,8 +465,14 @@ on:
     - cron: '0 * * * *'  # Hourly — re-evaluates minAge status check as time passes
 
 concurrency:
-  group: standing-release-pr
-  cancel-in-progress: false
+  # Rapid checkbox toggles each fire a separate `edited` event — route a maintainer's edits to a
+  # per-PR group that cancels in-progress runs, so a flurry of ticks collapses to one rebuild of the
+  # latest selection. Everything else — push / schedule / merge, AND the bot's own body edits (the
+  # processing banner + the rebuilt body, which are `edited` from a Bot sender) — stays on the stable
+  # shared group with cancelling OFF, so a bot edit never cancels the run doing the work and a queued
+  # publish dispatch is never dropped. The `sender.type != 'Bot'` guard is what keeps the two apart.
+  group: ${{ (github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot') && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
 
 permissions:
   contents: write
@@ -500,6 +506,28 @@ jobs:
       )
     runs-on: ubuntu-latest
     steps:
+      # Post an instant "updating…" banner so a maintainer who just ticked a checkbox (or changed a
+      # label) knows the change was received while the slower rebuild runs. Reactive events only; runs
+      # BEFORE checkout so it lands within seconds. `standing-pr update` regenerates the body from
+      # scratch, so the banner self-clears on success; the failure step below strips it if the run dies
+      # first. Idempotent — skips if a banner is already present.
+      - name: Acknowledge the update in progress
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          BODY=$(gh api "repos/$REPO/pulls/$PR" --jq '.body // ""')
+          case "$BODY" in
+            *'<!-- releasekit-processing -->'*) echo "Banner already present — skipping"; exit 0 ;;
+          esac
+          BANNER=$'<!-- releasekit-processing -->\n> 🔄 **Updating the release PR** to reflect your change… ([run details]('"$RUN_URL"$'))\n<!-- releasekit-processing-end -->'
+          NEWBODY=$(printf '%s\n\n%s' "$BANNER" "$BODY")
+          gh api --method PATCH "repos/$REPO/pulls/$PR" -f body="$NEWBODY" >/dev/null
+
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
@@ -528,6 +556,21 @@ jobs:
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+
+      # On success the regenerated body already omits the banner; only a run that ended before the
+      # rebuild leaves it behind. Strip the marker region so it doesn't linger as a false "in progress".
+      # `cancelled()` too — a manual cancel (or a superseded reactive run) also skips the rebuild.
+      - name: Clear the in-progress banner if the update didn't finish
+        if: (failure() || cancelled()) && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          BODY=$(gh api "repos/$REPO/pulls/$PR" --jq '.body // ""')
+          CLEANED=$(printf '%s' "$BODY" | sed '/<!-- releasekit-processing -->/,/<!-- releasekit-processing-end -->/d')
+          gh api --method PATCH "repos/$REPO/pulls/$PR" -f body="$CLEANED" >/dev/null
 
   publish-release:
     name: Publish Release
@@ -662,6 +705,20 @@ jobs:
 `github.head_ref` is set only for `pull_request` events (it's empty on `push: main`), so your main-branch CI is unaffected. Apply the guard wherever it gates the rest of the run — a single change-detection / entry job that everything else `needs` is the cleanest single point; otherwise guard each job. There's no `on:`-level lever for this: `on.pull_request.branches` filters by the PR's **base** branch (the merge target, `main`), not its head, so a job-level `if` is the only way to target the release branch. (`release/` matches the default `ci.standingPr.branch` of `release/next`; adjust the prefix if you changed it.)
 
 Skipping entirely is the recommended default — the merge to `main` re-runs CI anyway. If you want a cheap safety net on the release branch, keep a fast lint/typecheck job and guard only the heavy build/e2e legs.
+
+### In-progress feedback
+
+Ticking a checkbox or changing a label on the standing PR re-runs `standing-pr update`, which takes a minute or two (checkout → install → rebuild). To avoid a silent wait, the template posts an **in-progress banner** to the top of the PR body within seconds of the change:
+
+> 🔄 **Updating the release PR** to reflect your change… ([run details](#))
+
+Mechanics (all in `standing-pr.yml`, no config):
+
+- **Fast.** The banner is a plain `gh api` step that runs *before* checkout/install, so it lands ~10–15s after the runner starts (the spin-up floor — an Actions job can't react instantly the way a native GitHub App can). It's on reactive events only; push/schedule updates aren't interactive.
+- **Self-clearing.** `standing-pr update` regenerates the PR body from scratch, so a successful update drops the banner automatically. A dedicated `if: failure()` step strips it if the run dies before the rebuild, so it never lingers as a false "in progress".
+- **Idempotent.** The step skips if a banner is already present, so rapid re-triggers don't stack it.
+
+Rapid checkbox toggles are also **collapsed**: the workflow's `concurrency` routes a maintainer's `edited` events to a per-PR group with `cancel-in-progress: true`, so ticking several packages in a row cancels the superseded rebuilds and only the latest selection is applied. The group is sender-aware — the bot's *own* body edits (the banner and the rebuilt body are `edited` events too) stay on the stable non-cancelling group, so they never cancel the run doing the work; push/schedule/merge events stay there too (a cancelled publish dispatch could drop a release).
 
 ### Label semantics in standing-pr mode
 
