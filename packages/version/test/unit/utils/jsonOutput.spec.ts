@@ -10,8 +10,10 @@ import {
   getPendingWriteCount,
   printJsonOutput,
   recordPendingWrite,
+  setAllPackageUpdatePreviousVersions,
   setCommitMessage,
   setPackageUpdateAction,
+  setPackageUpdatePreviousVersion,
   setPackageUpdateTag,
   setVersioningStrategy,
   tagPrerequisiteRoles,
@@ -439,6 +441,59 @@ describe('JSON Output Utilities', () => {
 
       const data = getJsonData();
       expect(data.updates[0]?.action).toBeUndefined();
+    });
+  });
+
+  describe('setPackageUpdatePreviousVersion', () => {
+    it('should set the baseline previous version on a matching update', () => {
+      enableJsonOutput();
+      addPackageUpdate('my-package', '1.2.0', '/path/to/package.json');
+
+      setPackageUpdatePreviousVersion('my-package', 'v1.1.0');
+
+      expect(getJsonData().updates[0]?.previousVersion).toBe('v1.1.0');
+    });
+
+    it('should leave previousVersion absent when the resolved baseline is null (old-manifest tolerance)', () => {
+      enableJsonOutput();
+      addPackageUpdate('my-package', '1.2.0', '/path/to/package.json');
+
+      setPackageUpdatePreviousVersion('my-package', null);
+
+      expect(getJsonData().updates[0]?.previousVersion).toBeUndefined();
+    });
+
+    it('should be a no-op for an unknown package name', () => {
+      enableJsonOutput();
+      addPackageUpdate('my-package', '1.2.0', '/path/to/package.json');
+
+      setPackageUpdatePreviousVersion('other-package', 'v1.1.0');
+
+      expect(getJsonData().updates[0]?.previousVersion).toBeUndefined();
+    });
+  });
+
+  describe('setAllPackageUpdatePreviousVersions', () => {
+    it('should set the same baseline on every update (sync lockstep)', () => {
+      enableJsonOutput();
+      addPackageUpdate('pkg-a', '1.2.0', '/ws/a/package.json');
+      addPackageUpdate('pkg-b', '1.2.0', '/ws/b/package.json');
+
+      setAllPackageUpdatePreviousVersions('v1.1.0');
+
+      const data = getJsonData();
+      expect(data.updates.map((u) => u.previousVersion)).toEqual(['v1.1.0', 'v1.1.0']);
+    });
+
+    it('should leave every previousVersion absent when the baseline is null', () => {
+      enableJsonOutput();
+      addPackageUpdate('pkg-a', '1.2.0', '/ws/a/package.json');
+      addPackageUpdate('pkg-b', '1.2.0', '/ws/b/package.json');
+
+      setAllPackageUpdatePreviousVersions(null);
+
+      const data = getJsonData();
+      expect(data.updates.every((u) => u.previousVersion === undefined)).toBe(true);
     });
   });
 

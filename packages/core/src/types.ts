@@ -123,6 +123,15 @@ export interface VersionOutput {
 export interface VersionPackageUpdate {
   packageName: string;
   newVersion: string;
+  /**
+   * The resolved baseline version this update bumped from — the package's prior release, in the same
+   * consumer-tag display form the changelog carries ({@link VersionPackageChangelog.previousVersion}).
+   * Absent for a first release and whenever the baseline was unreachable / fell back to all-history
+   * (#339), so consumers derive the bump magnitude only when it is present. Optional for backwards
+   * compatibility: standing-PR manifests written before this field existed omit it (old PRs still
+   * open), so every consumer must tolerate its absence (render a dash / skip the delta). #520.
+   */
+  previousVersion?: string;
   filePath: string;
   /** Per-package git tag. Set only when each package has its own tag (async mode or sync+packageSpecificTags). Absent in sync mode with a single shared tag. */
   tag?: string;

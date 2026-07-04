@@ -1249,6 +1249,11 @@
               "type": "boolean",
               "default": false,
               "description": "Add a per-row channel toggle to the standing-PR selection list: a nested checkbox under each releasable row to ship a stable package as a prerelease (→ X.Y.Z-next.0 on the `next` dist-tag) or graduate a prerelease package to its stable base — shifting just that package (and its group) without narrowing the release. Off by default so repos that do not need it keep the tight one-line-per-package list. A held-back (unticked) row hides its channel toggle. No effect on sync releases (which ship atomically as one unit)."
+            },
+            "summaryTable": {
+              "type": "boolean",
+              "default": false,
+              "description": "Render a collapsed \"Version summary\" table near the top of the standing PR: one row per publishing package showing its current version, next version, bump magnitude, and dist-tag. A scannable from → to overview (the Dependabot mental model) that complements the interactive checkbox list — which GitHub only renders as a list, never in a table cell. Off by default."
             }
           },
           "description": "Configuration for the standing release PR feature (ci.releaseStrategy: 'standing-pr')."

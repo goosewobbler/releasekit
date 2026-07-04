@@ -22,8 +22,10 @@ import {
   addChangelogData,
   addTag,
   setAllPackageUpdateActions,
+  setAllPackageUpdatePreviousVersions,
   setCommitMessage,
   setPackageUpdateAction,
+  setPackageUpdatePreviousVersion,
   setPackageUpdateTag,
   setVersioningStrategy,
 } from '../utils/jsonOutput.js';
@@ -459,6 +461,8 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         nextVersion,
       });
       setAllPackageUpdateActions(syncAction, syncReason);
+      // Every package moved in lockstep from the same baseline, so the prior version (#520) is shared.
+      setAllPackageUpdatePreviousVersions(displayPrevious);
       setCommitMessage(formattedCommitMessage);
 
       if (!dryRun) {
@@ -665,6 +669,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         nextVersion,
       });
       setPackageUpdateAction(packageName, singleAction, singleReason);
+      setPackageUpdatePreviousVersion(packageName, previousVersion);
       setCommitMessage(commitMsg);
 
       if (!dryRun) {

@@ -37,6 +37,7 @@ import {
   setCommitMessage,
   setPackageUpdateAction,
   setPackageUpdateGroup,
+  setPackageUpdatePreviousVersion,
   setPackageUpdateTag,
   setVersioningStrategy,
 } from '../utils/jsonOutput.js';
@@ -455,6 +456,9 @@ async function releaseGroup(
       repoUrl: readRepoUrl(pkg.dir),
       entries,
     });
+    // Baseline for the bump delta (#520) — the member's own prior version, even when it rode along to
+    // a higher group version. Same value the changelog carries; null (unreachable baseline) omits it.
+    setPackageUpdatePreviousVersion(name, previousVersion);
 
     if (config.baselineTagTemplate) {
       addBaselineTag(formatTag(version, formattedPrefix, name, config.baselineTagTemplate, false));
@@ -602,6 +606,7 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
           repoUrl: readRepoUrl(pkg.dir),
           entries,
         });
+        setPackageUpdatePreviousVersion(name, previousVersion);
         if (config.baselineTagTemplate) {
           addBaselineTag(formatTag(plan.ownNext, formattedPrefix, name, config.baselineTagTemplate, false));
         }
