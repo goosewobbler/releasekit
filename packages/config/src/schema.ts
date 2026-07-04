@@ -316,6 +316,12 @@ export const ChangelogConfigSchema = z
       .describe(
         "How `#NNN` issue/PR refs in the changelog are rendered. Applies to the whole entry — both the appended label and any bare `#N` carried over from the commit subject into the description (a description ref that also appears in the appended label is de-duplicated away). 'link' (default): the PR and the issues it closed are labelled as `(PR #503 · closes #500)`, where the PR links to its canonical /pull/ URL with `PR #503` as the visible text — this keeps the GitHub hovercard but stops the bare-token rich inline card that duplicated the entry; closed issues link to /issues/. An entry with no identifiable PR (a non-squash commit, or a non-GitHub repo) falls back to a plain ref list. 'escape': plain text \\#NNN (no link, no hovercard, no PR/closes labelling). 'strip': refs are removed entirely. Scoped-package / @user mentions in entry text are always neutralised regardless of this setting.",
       ),
+    demoteScopes: z
+      .array(z.string())
+      .default(['deps'])
+      .describe(
+        'Conventional-commit scopes whose changelog entries are demoted into a trailing "Dependencies & version bumps" subsection instead of interleaving with Added / Fixed / Changed. Applies to the standing-PR changelogs — each releasable row and the "Show all changes" footer. Nothing is hidden or dropped: low-signal dependency bumps just stop crowding the user-facing changes at the top, and a reader who wants the exact per-package deps expands the subsection. The de-duplicated change count is unchanged. Default: ["deps"]. Set to [] to render every scope inline.',
+      ),
   })
   .describe('Changelog file configuration');
 

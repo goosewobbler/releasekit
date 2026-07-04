@@ -127,15 +127,31 @@ function entryLine(d: DedupedEntry, attribution: boolean, refOpts: RefRenderOpti
   return `- ${description}${scope}${issues}${attr}`;
 }
 
-/** Render the deduped entries as flat, type-grouped Markdown (no per-package sections). */
-function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions): string[] {
+/** Bare heading for the trailing demoted subsection (#522) — deliberately no count and no
+ *  "shared across packages" descriptor: the descriptor isn't reliably true (`Update version to X` is
+ *  package-specific), and where provenance matters it's already carried by the per-entry attribution. */
+const DEMOTED_HEADING = 'Dependencies & version bumps';
+
+/** Render the deduped entries as flat, type-grouped Markdown (no per-package sections). Entries whose
+ *  scope is in `demoteScopes` are pulled out of their type buckets and rendered last, under a bare
+ *  `#### Dependencies & version bumps` subsection — organized, never hidden (#522). Nothing is
+ *  removed, so the caller's de-duplicated change count is unchanged. */
+function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions, demoteScopes: readonly string[]): string[] {
   const distinct = new Set<string>();
   for (const d of deduped) for (const p of d.pkgs) distinct.add(p);
   // Attribution only earns its place when the list spans more than one package.
   const attribution = distinct.size > 1;
 
-  const byLabel = new Map<string, DedupedEntry[]>();
+  const demote = demoteScopes.length > 0;
+  const promoted: DedupedEntry[] = [];
+  const demoted: DedupedEntry[] = [];
   for (const d of deduped) {
+    if (demote && d.entry.scope !== undefined && demoteScopes.includes(d.entry.scope)) demoted.push(d);
+    else promoted.push(d);
+  }
+
+  const byLabel = new Map<string, DedupedEntry[]>();
+  for (const d of promoted) {
     const label = labelFor(d.entry.type);
     let list = byLabel.get(label);
     if (!list) {
@@ -162,6 +178,13 @@ function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions): stri
     rendered.add(label);
   }
   for (const label of byLabel.keys()) if (!rendered.has(label)) emit(label);
+  // The demoted subsection trails every type bucket, so low-signal dependency churn never crowds the
+  // user-facing changes at the top. First-seen order is preserved (deduped iteration order).
+  if (demoted.length > 0) {
+    lines.push(`#### ${DEMOTED_HEADING}`, '');
+    for (const d of demoted) lines.push(entryLine(d, attribution, refOpts));
+    lines.push('');
+  }
   if (lines[lines.length - 1] === '') lines.pop();
   return lines;
 }
@@ -199,11 +222,14 @@ function repoUrlOf(changelogs: VersionOutput['changelogs']): string | null {
  *
  * #487 regroups *where* rows are placed; it reuses this renderer unchanged to keep *how* changelogs
  * attach to a row identical. `refs` (`changelog.refs`, default `'link'`) controls how bare `#NNN`
- * refs render (#499).
+ * refs render (#499). `demoteScopes` (`changelog.demoteScopes`, default `['deps']`) routes matching-
+ * scope entries into a trailing "Dependencies & version bumps" subsection instead of interleaving
+ * them; the `(N entries)` count still counts every entry, demoted included (#522).
  */
 export function makeRowChangelogRenderer(
   changelogs: VersionOutput['changelogs'],
   refs: ChangelogRefsMode = 'link',
+  demoteScopes: readonly string[] = ['deps'],
 ): RowChangelogRenderer {
   const byPkg = new Map(changelogs.map((cl) => [cl.packageName, cl]));
   const refOpts: RefRenderOptions = { refs, repoUrl: repoUrlOf(changelogs) };
@@ -219,7 +245,7 @@ export function makeRowChangelogRenderer(
     const summary = heldBack
       ? `<s>Changelog (${pluralEntries(deduped.length)})</s> — held back, won’t publish`
       : `Changelog (${pluralEntries(deduped.length)})`;
-    return wrapDetails(summary, renderGrouped(deduped, refOpts), indent);
+    return wrapDetails(summary, renderGrouped(deduped, refOpts, demoteScopes), indent);
   };
 }
 
@@ -235,7 +261,7 @@ export function makeRowChangelogRenderer(
  */
 export function renderCombinedFooter(
   versionOutput: VersionOutput,
-  opts: { sharedOnly?: boolean; refs?: ChangelogRefsMode } = {},
+  opts: { sharedOnly?: boolean; refs?: ChangelogRefsMode; demoteScopes?: readonly string[] } = {},
 ): string {
   const attributed: AttributedEntry[] = [];
   if (!opts.sharedOnly) {
@@ -251,5 +277,5 @@ export function renderCombinedFooter(
     ? `Show project-wide changes (${n} ${n === 1 ? 'change' : 'changes'})`
     : `Show all changes (${n} ${n === 1 ? 'change' : 'changes'}, de-duplicated)`;
   const refOpts: RefRenderOptions = { refs: opts.refs ?? 'link', repoUrl: repoUrlOf(versionOutput.changelogs) };
-  return wrapDetails(summary, renderGrouped(deduped, refOpts), '');
+  return wrapDetails(summary, renderGrouped(deduped, refOpts, opts.demoteScopes ?? ['deps']), '');
 }

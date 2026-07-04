@@ -330,4 +330,117 @@ describe('changelog-region', () => {
       expect(region).toContain('B feature');
     });
   });
+
+  describe('scope demotion (#522)', () => {
+    function output(over: Partial<VersionOutput>): VersionOutput {
+      return { dryRun: false, updates: [], changelogs: [], tags: [], ...over };
+    }
+
+    // Deps bumps reach this surface as `type: 'changed'` (commitParser maps `chore(deps)` → changed),
+    // so the bucket assertions here mirror the real pipeline: not demoted, they'd land under Changed.
+    it('should demote deps-scoped entries into a trailing subsection while user-facing types stay', () => {
+      const render = makeRowChangelogRenderer([
+        cl('@scope/app', [
+          { type: 'feat', description: 'App feature' },
+          { type: 'changed', description: 'bump the npm-dependencies group', scope: 'deps' },
+          { type: 'fix', description: 'App fix' },
+        ]),
+      ]);
+      const block = render(['@scope/app'], false, '');
+      // User-facing buckets keep their entries…
+      expect(block).toContain('#### Added');
+      expect(block).toContain('- App feature');
+      expect(block).toContain('#### Fixed');
+      expect(block).toContain('- App fix');
+      // …and the deps entry is pulled out of Changed into its own subsection.
+      expect(block).not.toContain('#### Changed');
+      expect(block).toContain('#### Dependencies & version bumps');
+      expect(block).toContain('- bump the npm-dependencies group');
+      // The subsection trails every user-facing bucket.
+      const demoted = block.indexOf('#### Dependencies & version bumps');
+      expect(demoted).toBeGreaterThan(block.indexOf('#### Added'));
+      expect(demoted).toBeGreaterThan(block.indexOf('#### Fixed'));
+    });
+
+    it('should give the demoted subsection a bare heading — no count, no descriptor', () => {
+      const render = makeRowChangelogRenderer([
+        cl('@scope/app', [{ type: 'changed', description: 'bump deps', scope: 'deps' }]),
+      ]);
+      const block = render(['@scope/app'], false, '');
+      expect(block).toContain('#### Dependencies & version bumps');
+      expect(block).not.toContain('Dependencies & version bumps (');
+    });
+
+    it('should still count demoted entries in the per-row (N entries) summary', () => {
+      const render = makeRowChangelogRenderer([
+        cl('@scope/app', [
+          { type: 'feat', description: 'App feature' },
+          { type: 'changed', description: 'bump deps', scope: 'deps' },
+        ]),
+      ]);
+      const block = render(['@scope/app'], false, '');
+      expect(block).toContain('Changelog (2 entries)');
+    });
+
+    it('should demote deps-scoped entries in the combined footer, count unchanged', () => {
+      const footer = renderCombinedFooter(
+        output({
+          changelogs: [
+            cl('@scope/a', [
+              { type: 'feat', description: 'Real feature' },
+              { type: 'changed', description: 'bump deps', scope: 'deps' },
+            ]),
+          ],
+        }),
+      );
+      // Nothing removed — the demoted entry is still one of the de-duplicated changes.
+      expect(footer).toContain('Show all changes (2 changes, de-duplicated)');
+      expect(footer).toContain('#### Added');
+      expect(footer).not.toContain('#### Changed');
+      expect(footer).toContain('#### Dependencies & version bumps');
+      expect(footer).toContain('- bump deps');
+      expect(footer.indexOf('#### Dependencies & version bumps')).toBeGreaterThan(footer.indexOf('#### Added'));
+    });
+
+    it('should keep per-entry attribution on a demoted change shared across packages', () => {
+      const shared = { type: 'changed', description: 'bump shared dep', scope: 'deps' } as const;
+      const footer = renderCombinedFooter(output({ changelogs: [cl('@scope/a', [shared]), cl('@scope/b', [shared])] }));
+      expect(footer).toContain('#### Dependencies & version bumps');
+      // De-duplicated to one demoted line, attributed to both packages.
+      expect(footer.split('bump shared dep').length - 1).toBe(1);
+      expect(footer).toContain('_(a, b)_');
+    });
+
+    it('should render every scope inline when demoteScopes is empty', () => {
+      const render = makeRowChangelogRenderer(
+        [cl('@scope/app', [{ type: 'changed', description: 'bump deps', scope: 'deps' }])],
+        'link',
+        [],
+      );
+      const block = render(['@scope/app'], false, '');
+      expect(block).not.toContain('Dependencies & version bumps');
+      // Rendered inline in its normal type bucket, with its scope label.
+      expect(block).toContain('#### Changed');
+      expect(block).toContain('- bump deps (`deps`)');
+    });
+
+    it('should demote whichever scopes are configured', () => {
+      const render = makeRowChangelogRenderer(
+        [
+          cl('@scope/app', [
+            { type: 'feat', description: 'App feature' },
+            { type: 'changed', description: 'retune workflow', scope: 'ci' },
+          ]),
+        ],
+        'link',
+        ['ci'],
+      );
+      const block = render(['@scope/app'], false, '');
+      expect(block).toContain('#### Added');
+      expect(block).toContain('#### Dependencies & version bumps');
+      expect(block).toContain('- retune workflow');
+      // The ci-scoped entry is demoted, so no Changed bucket remains.
+      expect(block).not.toContain('#### Changed');
+    });
+  });
 });
