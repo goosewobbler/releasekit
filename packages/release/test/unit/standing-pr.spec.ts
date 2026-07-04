@@ -1181,6 +1181,98 @@ describe('runStandingPRUpdate', () => {
     expect(body).toContain('<details><summary>Changelog (1 entry)</summary>');
   });
 
+  // Build a mixed-channel async version output whose updates carry the #520 baseline/channel fields the
+  // summary line and table render from.
+  function mixedChannelOutput() {
+    return {
+      dryRun: false,
+      strategy: 'async' as const,
+      updates: [
+        {
+          packageName: '@scope/a',
+          newVersion: '1.2.0',
+          filePath: 'packages/a/package.json',
+          channel: 'stable' as const,
+          previousVersion: 'v1.1.0',
+        },
+        {
+          packageName: '@scope/b',
+          newVersion: '1.0.0-next.1',
+          filePath: 'packages/b/package.json',
+          channel: 'prerelease' as const,
+          previousVersion: 'v1.0.0-next.0',
+        },
+      ],
+      changelogs: [
+        {
+          packageName: '@scope/a',
+          version: '1.2.0',
+          previousVersion: 'v1.1.0',
+          revisionRange: '',
+          repoUrl: null,
+          entries: [{ type: 'feat', description: 'A feature' }],
+        },
+        {
+          packageName: '@scope/b',
+          version: '1.0.0-next.1',
+          previousVersion: 'v1.0.0-next.0',
+          revisionRange: '',
+          repoUrl: null,
+          entries: [{ type: 'fix', description: 'B fix' }],
+        },
+      ],
+      tags: ['@scope/a@v1.2.0', '@scope/b@v1.0.0-next.1'],
+      commitMessage: 'chore: release 2 package(s)',
+      sharedEntries: [],
+    };
+  }
+
+  it('should render the #520 release summary line and omit the version-summary table by default', async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = mixedChannelOutput();
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const forge = await mockForge({ standingPR: null });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const body = forge.createdPullRequests[0]?.body ?? '';
+    expect(body).toContain('**2 packages** will publish — 1 stable · 1 prerelease · 2 changes. No major bumps.');
+    // The table is opt-in via ci.standingPr.summaryTable — off in the default config.
+    expect(body).not.toContain('Version summary (');
+  });
+
+  it('should render the #520 version-summary table when ci.standingPr.summaryTable is true', async () => {
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValueOnce({
+      ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true, summaryTable: true } },
+      git: { branch: 'main' },
+      release: { ci: { skipPatterns: ['chore: release '] } },
+    } as unknown as ReturnType<typeof loadConfig>);
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = mixedChannelOutput();
+    vi.mocked(runVersionStep)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
+      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const forge = await mockForge({ standingPR: null });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const body = forge.createdPullRequests[0]?.body ?? '';
+    const tableIdx = body.indexOf('<details><summary>Version summary (2 packages)</summary>');
+    expect(tableIdx).toBeGreaterThanOrEqual(0);
+    expect(body).toContain('| Package | Current | Next | Bump | Tag |');
+    expect(body).toContain('| `@scope/a` | 1.1.0 | 1.2.0 | minor | latest |');
+    expect(body).toContain('| `@scope/b` | 1.0.0-next.0 | 1.0.0-next.1 | prerelease | next |');
+    // The table sits above the interactive selection region (which it complements, never replaces).
+    expect(tableIdx).toBeLessThan(body.indexOf('- [x] `@scope/a`'));
+  });
+
   it('should always render the combined changelog in sync mode even when the footer is disabled', async () => {
     // Sync releases carry no per-row changelogs, so the footer is the only changelog surface — the
     // gate must not strip it, or merging the PR would publish with the changelog gone from the body.

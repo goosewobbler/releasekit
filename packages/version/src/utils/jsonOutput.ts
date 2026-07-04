@@ -175,6 +175,19 @@ export function setPackageUpdateAction(packageName: string, action: VersionActio
 }
 
 /**
+ * Record the resolved baseline version (#520) on a package update — the prior release it bumped from,
+ * in the same consumer-tag display form the changelog carries. `null` (an unreachable / all-history
+ * baseline, or a first release) leaves the field absent so consumers skip the bump delta. Called by
+ * each strategy after the update record exists; no-op when the update isn't found (mirrors the other
+ * setPackageUpdate* helpers).
+ */
+export function setPackageUpdatePreviousVersion(packageName: string, previousVersion: string | null): void {
+  if (!_jsonOutputMode || previousVersion === null) return;
+  const update = _jsonData.updates.find((u) => u.packageName === packageName);
+  if (update) update.previousVersion = previousVersion;
+}
+
+/**
  * Record the same resolved version action (#420) on every package update. Used by the sync strategy,
  * where all packages move in lockstep to the same version against the same baseline, so the action
  * is identical across the whole unit. Owns the iteration internally so callers don't read back the
@@ -185,6 +198,18 @@ export function setAllPackageUpdateActions(action: VersionAction, reason: string
   for (const update of _jsonData.updates) {
     update.action = action;
     update.actionReason = reason;
+  }
+}
+
+/**
+ * Record the same resolved baseline version (#520) on every package update. Used by the sync strategy,
+ * where all packages move in lockstep from the same baseline. `null` (unreachable / all-history) leaves
+ * the field absent everywhere. Owns the iteration internally, mirroring {@link setAllPackageUpdateActions}.
+ */
+export function setAllPackageUpdatePreviousVersions(previousVersion: string | null): void {
+  if (!_jsonOutputMode || previousVersion === null) return;
+  for (const update of _jsonData.updates) {
+    update.previousVersion = previousVersion;
   }
 }
 

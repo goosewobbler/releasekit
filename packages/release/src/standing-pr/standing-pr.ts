@@ -41,6 +41,7 @@ import {
   validatePrimaryPackages,
 } from './selection-region.js';
 import { postStandingPRStatusSafe } from './status.js';
+import { renderReleaseSummaryLine, renderVersionSummaryTable } from './summary-region.js';
 
 export const MANIFEST_MARKER = '<!-- releasekit-manifest -->';
 const MANIFEST_SCHEMA_VERSION = 2;
@@ -341,21 +342,34 @@ interface RenderPrBodyOptions {
   renderSelectionBlock?: (withChangelogs: boolean) => string;
   /** The flat, de-duplicated combined footer, already rendered; `''` when disabled or empty. */
   footer: string;
+  /** The one-line release headline (#520), already rendered; absent for sync releases. */
+  summaryLine?: string;
+  /** The collapsed version-summary table (#520), already rendered; absent when disabled or for sync. */
+  summaryTable?: string;
 }
 
 function renderPrBody(versionOutput: VersionOutput, options: RenderPrBodyOptions): string {
-  const { supersedeWarning, notesRegion, renderSelectionBlock, footer } = options;
+  const { supersedeWarning, notesRegion, renderSelectionBlock, footer, summaryLine, summaryTable } = options;
 
   // Build the body around a given selection block + footer so we can re-render with progressively
   // trimmed changelogs if the full one would exceed GitHub's limit, without disturbing the notes region.
   const build = (selectionBlock: string | undefined, footerSection: string, extraNotice?: string): string => {
     const lines: string[] = ['## Release', ''];
 
+    // One-line release headline (#520) under the heading — a neutral "what will publish" scan before
+    // the (conditional) supersede alert and the package list. Absent for sync (its own display leads).
+    if (summaryLine) lines.push(summaryLine, '');
+
     // While a prior release remains partially published, lead with the supersede warning so the
     // maintainer sees the retry-vs-supersede choice before the package list.
     if (supersedeWarning && supersedeWarning.length > 0) {
       lines.push(...supersedeWarning);
     }
+
+    // The scannable current → next table (#520), opt-in via ci.standingPr.summaryTable, sits above the
+    // selection region (and after any supersede warning) — it complements the checkbox list, which
+    // GitHub renders interactively only as a list, never in a table cell.
+    if (summaryTable) lines.push(summaryTable, '');
 
     // The root lockstep bump (sync mode) is never published — keep it out of the package list.
     const updates = publishableUpdates(versionOutput);
@@ -1298,7 +1312,25 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
       ? renderCombinedFooter(versionOutput, { refs: changelogRefsMode, demoteScopes })
       : renderCombinedFooter(versionOutput, { sharedOnly: true, refs: changelogRefsMode, demoteScopes });
 
-  const body = renderPrBody(versionOutput, { supersedeWarning, notesRegion, renderSelectionBlock, footer });
+  // Additive top-of-body summaries (#520), for the per-package path only — sync ships atomically with
+  // its own single-version display. The headline always renders; the table is opt-in. Held-back count
+  // is the changed set (dry) minus what the write output will publish.
+  let summaryLine: string | undefined;
+  let summaryTable: string | undefined;
+  if (versionOutput.strategy !== 'sync') {
+    const heldBackCount = Math.max(0, dryUpdates.length - publishableUpdates(versionOutput).length);
+    summaryLine = renderReleaseSummaryLine(versionOutput, { heldBackCount });
+    if (standingPrConfig?.summaryTable) summaryTable = renderVersionSummaryTable(versionOutput);
+  }
+
+  const body = renderPrBody(versionOutput, {
+    supersedeWarning,
+    notesRegion,
+    renderSelectionBlock,
+    footer,
+    summaryLine,
+    summaryTable,
+  });
 
   let prNumber: number;
   let prUrl: string;

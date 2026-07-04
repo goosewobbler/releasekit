@@ -400,6 +400,29 @@ describe('Package Processor', () => {
       expect(calls[0][0]).toMatchObject({ previousVersion: 'v1.0.0' });
     });
 
+    it('should record the resolved previousVersion on the package update (#520)', async () => {
+      vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('release/v1.0.0');
+      vi.spyOn(formatting, 'deriveBaselineTagPrefix').mockReturnValue('release/v');
+      vi.spyOn(formatting, 'displayTag').mockImplementation((tag, baselineTagPrefix, formattedPrefix) => {
+        if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) return tag;
+        return `${formattedPrefix}${tag.slice(baselineTagPrefix.length)}`;
+      });
+
+      const processor = new PackageProcessor({
+        ...defaultOptions,
+        fullConfig: {
+          ...mockConfig,
+          baselineTagTemplate: 'release/${' + 'prefix}${' + 'version}',
+          writeChangelog: false,
+        },
+      });
+
+      await processor.processPackages([mockPackages[0]]);
+
+      // The update carries the same baseline the changelog does — in consumer-facing display form.
+      expect(jsonOutput.setPackageUpdatePreviousVersion).toHaveBeenCalledWith('package-a', 'v1.0.0');
+    });
+
     it('should warn and omit previousVersion when the baseline tag is unreachable (#339)', async () => {
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('release/v1.0.0');
       vi.spyOn(formatting, 'deriveBaselineTagPrefix').mockReturnValue('release/v');

@@ -249,6 +249,27 @@ export function makeRowChangelogRenderer(
   };
 }
 
+/** Collect the changelog + shared entries the combined footer draws from, ready to dedupe. `sharedOnly`
+ *  narrows to the project-wide (`sharedEntries`) changes with no per-row home. Shared by the footer and
+ *  the release summary's change count (#520) so both read one authoritative set. */
+function collectAttributed(versionOutput: VersionOutput, sharedOnly: boolean): AttributedEntry[] {
+  const attributed: AttributedEntry[] = [];
+  if (!sharedOnly) {
+    for (const cl of versionOutput.changelogs) {
+      for (const entry of cl.entries) attributed.push({ entry, pkg: cl.packageName });
+    }
+  }
+  for (const entry of versionOutput.sharedEntries ?? []) attributed.push({ entry });
+  return attributed;
+}
+
+/** The de-duplicated change count the full combined footer totals — every distinct change once, across
+ *  every package changelog plus shared entries. Held-back packages are already excluded from the write
+ *  output, so this mirrors exactly what will publish. Feeds the release summary line (#520). */
+export function countCombinedChanges(versionOutput: VersionOutput): number {
+  return dedupe(collectAttributed(versionOutput, false)).length;
+}
+
 /**
  * The combined footer: one default-collapsed block listing every change in `versionOutput` once,
  * flat and de-duplicated across packages, grouped by change type. Driven by the *write* output, which
@@ -263,14 +284,7 @@ export function renderCombinedFooter(
   versionOutput: VersionOutput,
   opts: { sharedOnly?: boolean; refs?: ChangelogRefsMode; demoteScopes?: readonly string[] } = {},
 ): string {
-  const attributed: AttributedEntry[] = [];
-  if (!opts.sharedOnly) {
-    for (const cl of versionOutput.changelogs) {
-      for (const entry of cl.entries) attributed.push({ entry, pkg: cl.packageName });
-    }
-  }
-  for (const entry of versionOutput.sharedEntries ?? []) attributed.push({ entry });
-  const deduped = dedupe(attributed);
+  const deduped = dedupe(collectAttributed(versionOutput, !!opts.sharedOnly));
   if (deduped.length === 0) return '';
   const n = deduped.length;
   const summary = opts.sharedOnly

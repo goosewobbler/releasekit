@@ -1,6 +1,10 @@
 import type { VersionOutput } from '@releasekit/core';
 import { describe, expect, it } from 'vitest';
-import { makeRowChangelogRenderer, renderCombinedFooter } from '../../src/standing-pr/changelog-region.js';
+import {
+  countCombinedChanges,
+  makeRowChangelogRenderer,
+  renderCombinedFooter,
+} from '../../src/standing-pr/changelog-region.js';
 import { type PrimaryConfig, renderSelectionRegion } from '../../src/standing-pr/selection-region.js';
 
 type Changelog = VersionOutput['changelogs'][number];
@@ -441,6 +445,33 @@ describe('changelog-region', () => {
       expect(block).toContain('- retune workflow');
       // The ci-scoped entry is demoted, so no Changed bucket remains.
       expect(block).not.toContain('#### Changed');
+    });
+  });
+
+  describe('countCombinedChanges', () => {
+    it('should total the footer count — every distinct change once across packages and shared entries', () => {
+      const shared = { type: 'fix', description: 'Shared serializer fix' };
+      const versionOutput: VersionOutput = {
+        dryRun: false,
+        updates: [],
+        tags: [],
+        changelogs: [cl('@scope/a', [{ type: 'feat', description: 'A feature' }, shared]), cl('@scope/b', [shared])],
+        sharedEntries: [{ type: 'ci', description: 'Bump CI runner' }],
+      };
+
+      // A feature + the shared fix (once, across a and b) + the shared CI entry = 3.
+      expect(countCombinedChanges(versionOutput)).toBe(3);
+    });
+
+    it('should drop synthetic lockstep-carry placeholders and return 0 when there are no real changes', () => {
+      const versionOutput: VersionOutput = {
+        dryRun: false,
+        updates: [],
+        tags: [],
+        changelogs: [cl('@scope/a', [{ type: 'chore', description: 'Update version to 1.1.0', synthetic: true }])],
+      };
+
+      expect(countCombinedChanges(versionOutput)).toBe(0);
     });
   });
 });

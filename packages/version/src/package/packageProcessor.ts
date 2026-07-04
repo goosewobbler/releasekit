@@ -15,6 +15,7 @@ import {
   addTag,
   setCommitMessage,
   setPackageUpdateAction,
+  setPackageUpdatePreviousVersion,
   setPackageUpdateTag,
   setSharedEntries,
 } from '../utils/jsonOutput.js';
@@ -434,6 +435,7 @@ export class PackageProcessor {
       // `hasNoTags` is `!hasRealTag`: a manifest-fallback synthetic tag isn't a real prior tag.
       const { action, reason } = resolveVersionAction({ hasNoTags: !hasRealTag, latestTag, nextVersion });
       setPackageUpdateAction(name, action, reason);
+      setPackageUpdatePreviousVersion(name, previousVersion);
       tags.push(packageTag);
 
       if (this.dryRun) {
