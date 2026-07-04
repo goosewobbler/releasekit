@@ -173,6 +173,33 @@ describe('Version Engine', () => {
         expect.not.objectContaining({ baseRef: expect.anything() }),
       );
     });
+
+    it('should fold prereleaseScope into isPrerelease + prereleaseScope on effective config (#521)', () => {
+      new VersionEngine(defaultConfig as Config, { prereleaseScope: ['@scope/a'] });
+
+      expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(
+        expect.objectContaining({ isPrerelease: true, prereleaseScope: ['@scope/a'], prereleaseIdentifier: 'next' }),
+      );
+    });
+
+    it('should keep the configured identifier when folding prereleaseScope (#521)', () => {
+      const configWithAlpha = { ...defaultConfig, prereleaseIdentifier: 'alpha' } as Config;
+      new VersionEngine(configWithAlpha, { prereleaseScope: ['@scope/a'] });
+
+      expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(
+        expect.objectContaining({ isPrerelease: true, prereleaseScope: ['@scope/a'], prereleaseIdentifier: 'alpha' }),
+      );
+    });
+
+    it('should drop prereleaseScope when the global prerelease flag is also set — global wins (#521)', () => {
+      new VersionEngine(defaultConfig as Config, { prerelease: true, prereleaseScope: ['@scope/a'] });
+
+      // The scope is left unset (key absent) rather than set to undefined, so assert on the passed
+      // config directly — `objectContaining({ prereleaseScope: undefined })` would require the key.
+      const effective = vi.mocked(strategyModule.createStrategyMap).mock.calls[0]?.[0];
+      expect(effective?.isPrerelease).toBe(true);
+      expect(effective?.prereleaseScope).toBeUndefined();
+    });
   });
 
   describe('getWorkspacePackages', () => {

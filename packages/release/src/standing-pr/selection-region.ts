@@ -3,6 +3,8 @@ import {
   deriveReleaseChannel,
   extractSelectionRegion,
   matchesPackageTarget,
+  rkGradMarker,
+  rkPreMarker,
   rkSelMarker,
   shouldMatchPackageTargets,
   wrapSelectionRegion,
@@ -297,6 +299,55 @@ function attachChangelog(
   if (block) lines.push(block);
 }
 
+/**
+ * The per-row channel toggle (#521): a nested, interactive task item under a selectable row letting a
+ * maintainer shift just that package's channel without narrowing the release — "ship as prerelease"
+ * under a stable row (rk-pre), "graduate to stable" under a prerelease row (rk-grad). Gated on
+ * `ci.standingPr.channelToggle`; the parsed tick state round-trips via {@link extractChannelSelection}.
+ */
+export interface ChannelToggleConfig {
+  /** Package names ticked for stable → prerelease (rk-pre). */
+  prereleased: ReadonlySet<string>;
+  /** Package names ticked for prerelease → stable (rk-grad). */
+  graduated: ReadonlySet<string>;
+  /** Prerelease identifier shown in the stable → prerelease affordance (and its dist-tag). Default 'next'. */
+  prereleaseIdentifier?: string;
+}
+
+/** The stable base of a version — its prerelease segment dropped (`1.0.0-next.4` → `1.0.0`). */
+function stableBase(version: string): string {
+  return version.split('-')[0] ?? version;
+}
+
+/**
+ * Append the channel toggle (#521) under a selectable row when enabled and the row is NOT held back —
+ * a held-back row's channel is moot, so it shows no toggle. A stable row offers "ship as prerelease"
+ * (rk-pre); a prerelease row offers "graduate to stable" (rk-grad). These are real `- [ ]` task items
+ * (interactive, unlike the streamlined children), indented one level under their row.
+ */
+function attachChannelToggle(
+  lines: string[],
+  update: Update,
+  selected: boolean,
+  indent: string,
+  channel: ChannelToggleConfig | undefined,
+): void {
+  if (!channel || !selected) return;
+  const name = update.packageName;
+  if (channelOf(update) === 'stable') {
+    const preid = channel.prereleaseIdentifier ?? 'next';
+    const ticked = channel.prereleased.has(name);
+    lines.push(
+      `${indent}- ${checkbox(ticked)} ship as prerelease → \`${update.newVersion}-${preid}.0\` · \`${preid}\` ${rkPreMarker(name)}`,
+    );
+  } else {
+    const ticked = channel.graduated.has(name);
+    lines.push(
+      `${indent}- ${checkbox(ticked)} graduate to stable → \`${stableBase(update.newVersion)}\` ${rkGradMarker(name)}`,
+    );
+  }
+}
+
 /** Render the flat (no-primary) rows for a single channel's updates: target → its derived
  *  prerequisites where those roles are present, otherwise plain per-package rows. */
 function renderFlatSection(
@@ -304,6 +355,7 @@ function renderFlatSection(
   updates: Update[],
   selected: (name: string) => boolean,
   rowChangelog?: RowChangelogRenderer,
+  channel?: ChannelToggleConfig,
 ): void {
   const prerequisites = updates.filter((u) => u.role === 'prerequisite');
   const rendered = new Set<string>();
@@ -311,10 +363,12 @@ function renderFlatSection(
     for (const target of updates.filter((u) => u.role === 'target')) {
       lines.push(row(target, selected(target.packageName), { bold: true }));
       rendered.add(target.packageName);
+      attachChannelToggle(lines, target, selected(target.packageName), '  ', channel);
       attachChangelog(lines, rowChangelog, [target.packageName], !selected(target.packageName), '  ');
       for (const prereq of prerequisites.filter((p) => p.prerequisiteOf?.includes(target.packageName))) {
         lines.push(row(prereq, selected(prereq.packageName), { indent: true, prefix: '↳ prerequisite ' }));
         rendered.add(prereq.packageName);
+        attachChannelToggle(lines, prereq, selected(prereq.packageName), '    ', channel);
         attachChangelog(lines, rowChangelog, [prereq.packageName], !selected(prereq.packageName), '    ');
       }
     }
@@ -323,6 +377,7 @@ function renderFlatSection(
   // its own (it would otherwise be silently dropped).
   for (const update of updates.filter((u) => !rendered.has(u.packageName))) {
     lines.push(row(update, selected(update.packageName)));
+    attachChannelToggle(lines, update, selected(update.packageName), '  ', channel);
     attachChangelog(lines, rowChangelog, [update.packageName], !selected(update.packageName), '  ');
   }
 }
@@ -339,13 +394,14 @@ function renderFlat(
   updates: Update[],
   selected: (name: string) => boolean,
   rowChangelog?: RowChangelogRenderer,
+  channelToggle?: ChannelToggleConfig,
 ): void {
   const updatesByChannel = byChannel(updates, channelOf);
   const channels = CHANNEL_ORDER.filter((c) => (updatesByChannel.get(c)?.length ?? 0) > 0);
   const showHeadings = channels.length > 1;
   for (const channel of channels) {
     if (showHeadings) pushSectionHeading(lines, channel);
-    renderFlatSection(lines, updatesByChannel.get(channel) ?? [], selected, rowChangelog);
+    renderFlatSection(lines, updatesByChannel.get(channel) ?? [], selected, rowChangelog, channelToggle);
   }
 }
 
@@ -356,9 +412,13 @@ function renderUnit(
   selected: (name: string) => boolean,
   streamlined: boolean,
   rowChangelog?: RowChangelogRenderer,
+  channel?: ChannelToggleConfig,
 ): void {
   lines.push(primaryRow(unit, selected(unit.primaryName)));
   const heldBack = !selected(unit.primaryName);
+  // The primary's channel toggle shifts the whole unit (the wiring expands the scope to its group);
+  // an unchanged primary anchoring the unit has no version to shift, so it gets none.
+  if (unit.primaryUpdate) attachChannelToggle(lines, unit.primaryUpdate, !heldBack, '  ', channel);
   if (streamlined) {
     if (unit.children.length > 0) {
       // Children inside a collapsed pane as plain bullets — a blank line after <summary> lets GitHub
@@ -381,6 +441,7 @@ function renderUnit(
     attachChangelog(lines, rowChangelog, [unit.primaryName], heldBack, '  ');
     for (const child of unit.children) {
       lines.push(row(child, selected(child.packageName), { indent: true }));
+      attachChannelToggle(lines, child, selected(child.packageName), '    ', channel);
       attachChangelog(lines, rowChangelog, [child.packageName], !selected(child.packageName), '    ');
     }
   }
@@ -392,8 +453,10 @@ function renderOrphan(
   orphan: Update,
   selected: (name: string) => boolean,
   rowChangelog?: RowChangelogRenderer,
+  channel?: ChannelToggleConfig,
 ): void {
   lines.push(row(orphan, selected(orphan.packageName)));
+  attachChannelToggle(lines, orphan, selected(orphan.packageName), '  ', channel);
   attachChangelog(lines, rowChangelog, [orphan.packageName], !selected(orphan.packageName), '  ');
 }
 
@@ -403,6 +466,7 @@ function renderHierarchical(
   selected: (name: string) => boolean,
   primary: PrimaryConfig,
   rowChangelog?: RowChangelogRenderer,
+  channelToggle?: ChannelToggleConfig,
 ): void {
   const hierarchy = computeHierarchy(updates, primary);
   const streamlined = primary.selection !== 'granular';
@@ -415,9 +479,11 @@ function renderHierarchical(
   const showHeadings = channels.length > 1;
   for (const channel of channels) {
     if (showHeadings) pushSectionHeading(lines, channel);
-    for (const unit of unitsByChannel.get(channel) ?? []) renderUnit(lines, unit, selected, streamlined, rowChangelog);
+    for (const unit of unitsByChannel.get(channel) ?? [])
+      renderUnit(lines, unit, selected, streamlined, rowChangelog, channelToggle);
     // Orphans stay flat top-level checkboxes (fail-safe), grouped under their own channel.
-    for (const orphan of orphansByChannel.get(channel) ?? []) renderOrphan(lines, orphan, selected, rowChangelog);
+    for (const orphan of orphansByChannel.get(channel) ?? [])
+      renderOrphan(lines, orphan, selected, rowChangelog, channelToggle);
   }
 }
 
@@ -432,22 +498,26 @@ function renderHierarchical(
  * Rows are grouped into channel sections (#487): a **Stable** section (advancing on `latest`) and a
  * **Prereleases** section (advancing on each row's pre-release dist-tag). The hierarchy/flat render is
  * preserved *within* each section — a unit lands in its primary's channel. When every package shares
- * one channel the headings are dropped, so single-channel PRs render byte-for-byte as before. Returns
- * the marker-wrapped block.
+ * one channel the headings are dropped, so single-channel PRs render byte-for-byte as before.
+ *
+ * With `channelToggle` supplied (`ci.standingPr.channelToggle`), each selectable, non-held row also
+ * gets a nested interactive channel toggle (#521): "ship as prerelease" under a stable row, "graduate
+ * to stable" under a prerelease row. Returns the marker-wrapped block.
  */
 export function renderSelectionRegion(
   updates: VersionOutput['updates'],
   deselected: ReadonlySet<string>,
   primary?: PrimaryConfig,
   rowChangelog?: RowChangelogRenderer,
+  channelToggle?: ChannelToggleConfig,
 ): string {
   const selected = (name: string) => !deselected.has(name);
   const lines: string[] = [REGION_HEADING, '', REGION_HINT, ''];
 
   if (primary && primary.primaryPackages.length > 0) {
-    renderHierarchical(lines, updates, selected, primary, rowChangelog);
+    renderHierarchical(lines, updates, selected, primary, rowChangelog, channelToggle);
   } else {
-    renderFlat(lines, updates, selected, rowChangelog);
+    renderFlat(lines, updates, selected, rowChangelog, channelToggle);
   }
 
   return wrapSelectionRegion(lines.join('\n'));
@@ -476,6 +546,73 @@ export function extractSelection(body: string): { deselected: string[] } | undef
     if (line.slice(0, markerStart).includes('[ ]')) deselected.push(name);
   }
   return { deselected };
+}
+
+/** Every `<!-- <marker>:NAME -->` hit in a region, with the checkbox glyph state read from the row
+ *  text before the marker. Identity always comes from the marker, never the prose. */
+function markerHits(region: string, marker: string): Array<{ name: string; ticked: boolean; unticked: boolean }> {
+  const open = `<!-- ${marker}:`;
+  const hits: Array<{ name: string; ticked: boolean; unticked: boolean }> = [];
+  for (const line of region.split('\n')) {
+    const markerStart = line.indexOf(open);
+    if (markerStart === -1) continue;
+    const nameStart = markerStart + open.length;
+    const nameEnd = line.indexOf(' -->', nameStart);
+    if (nameEnd === -1) continue;
+    const before = line.slice(0, markerStart);
+    hits.push({
+      name: line.slice(nameStart, nameEnd),
+      ticked: before.includes('[x]'),
+      unticked: before.includes('[ ]'),
+    });
+  }
+  return hits;
+}
+
+/**
+ * Read the maintainer's channel toggles (#521) back from a live PR body: the packages ticked to ship
+ * as a prerelease (`rk-pre`) or graduate to stable (`rk-grad`). Pure marker slicing over the selection
+ * region; empty result when the body carries no region or no toggles. A row held back via its `rk-sel`
+ * untick WINS over its channel toggle — held back ⇒ channel is moot, so it's dropped here.
+ */
+export function extractChannelSelection(body: string): { prereleased: string[]; graduated: string[] } {
+  const region = extractSelectionRegion(body);
+  if (region === undefined) return { prereleased: [], graduated: [] };
+  const heldBack = new Set(
+    markerHits(region, 'rk-sel')
+      .filter((h) => h.unticked)
+      .map((h) => h.name),
+  );
+  const pick = (marker: string): string[] =>
+    markerHits(region, marker)
+      .filter((h) => h.ticked && !heldBack.has(h.name))
+      .map((h) => h.name);
+  return { prereleased: pick('rk-pre'), graduated: pick('rk-grad') };
+}
+
+/**
+ * Resolve a package caught in both channel scopes (#521): the `rk-pre` toggle and a `graduate` label
+ * (or `rk-grad`) can name the same package, but a run can't graduate and go prerelease at once. The
+ * `rk-pre` toggle is the explicit in-body action so it wins — the package is dropped from `graduate`
+ * and returned in `conflicts` for the caller to surface. Without this the engine's authoritative
+ * `stableOnly` silently overrides an accepted prerelease toggle (publishing stable while the PR shows
+ * the toggle ticked). Pure set arithmetic; both inputs are already group-expanded by the caller.
+ */
+export function resolveChannelConflicts(
+  graduate: readonly string[],
+  prereleaseScope: readonly string[],
+): { graduate: string[]; conflicts: string[] } {
+  // A graduate entry can be a glob target (e.g. a `graduate:@scope/*` label) while prereleaseScope is
+  // always exact marker names — so match by target, not string equality: an exact check would let a
+  // pattern that covers a prereleased package slip through and reach the engine in both scopes.
+  const conflicts = graduate.filter((target) =>
+    prereleaseScope.some((name) => shouldMatchPackageTargets(name, [target])),
+  );
+  const conflicting = new Set(conflicts);
+  return {
+    graduate: graduate.filter((target) => !conflicting.has(target)),
+    conflicts,
+  };
 }
 
 export interface SelectionWarning {

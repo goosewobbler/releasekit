@@ -171,6 +171,22 @@ function isGroupGraduating(group: ResolvedGroup, config: Config): boolean {
 }
 
 /**
+ * Whether this whole group belongs on a prerelease line by explicit request (#521) — the symmetric
+ * twin of {@link isGroupGraduating}. A fixed/linked group shares one version and channel, so a single
+ * scoped member pulls the whole group onto the prerelease line. True when `isPrerelease` is set and
+ * either there's no per-package `prereleaseScope` (the global `channel:prerelease` path → every group)
+ * or some member falls inside that scope. Distinct from the per-member inference in `wantsPrerelease`:
+ * this is the authoritative flag, so a scoped group prereleases even when no member's own calculation
+ * happens to land on a prerelease line yet.
+ */
+function isGroupPrereleasing(group: ResolvedGroup, config: Config): boolean {
+  if (!config.isPrerelease) return false;
+  const scope = config.prereleaseScope;
+  if (!scope || scope.length === 0) return true;
+  return group.members.some((m) => shouldMatchPackageTargets(m.packageJson.name, scope));
+}
+
+/**
  * Compute the group version and the set of releasing members from each member's independent plan.
  */
 function computeGroup(group: ResolvedGroup, plans: MemberPlan[], config: Config): GroupComputation {
@@ -208,12 +224,16 @@ function computeGroup(group: ResolvedGroup, plans: MemberPlan[], config: Config)
   const maxRank = Math.max(...changedPlans.map(memberBumpRank));
   const bumpType = RANK_TO_TYPE[maxRank] ?? 'patch';
 
-  // Whether this release belongs on a prerelease line. Two signals, by design: `config.isPrerelease`
-  // is the explicit, authoritative request (the user passed --prerelease / the prerelease channel);
-  // the member-scan is the inference fallback for when the flag isn't set globally but a member's own
-  // calculation already produced a prerelease.
+  // Whether this release belongs on a prerelease line. Two signals, by design: the group-scoped
+  // prerelease flag is the explicit, authoritative request (the user passed --prerelease / the
+  // prerelease channel, possibly scoped to a subset of packages via `prereleaseScope`, #521); the
+  // member-scan is the inference fallback for when the flag isn't set but a member's own calculation
+  // already produced a prerelease. `isGroupPrereleasing` (not the raw `config.isPrerelease`) keeps a
+  // per-package prerelease scoped: a group with no scoped member falls through to the member-scan
+  // rather than being forced onto a prerelease line by the globally-set flag.
   const wantsPrerelease =
-    config.isPrerelease || changedPlans.some((p) => semver.valid(p.ownNext) && semver.prerelease(p.ownNext) !== null);
+    isGroupPrereleasing(group, config) ||
+    changedPlans.some((p) => semver.valid(p.ownNext) && semver.prerelease(p.ownNext) !== null);
 
   // A member can be *creating* a prerelease from a stable baseline (premajor/preminor/prepatch —
   // e.g. 0.0.1 -> 1.0.0-next.0). RANK_TO_TYPE collapses those to a stable major/minor/patch

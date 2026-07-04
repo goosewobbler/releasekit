@@ -1,7 +1,15 @@
 import * as fs from 'node:fs';
 import { type CIConfig, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
-import { deriveReleaseChannel, error, info, markerData, success, warn } from '@releasekit/core';
+import {
+  deriveReleaseChannel,
+  error,
+  info,
+  markerData,
+  shouldMatchPackageTargets,
+  success,
+  warn,
+} from '@releasekit/core';
 import { type Forge, forgeErrorStatus, type PullRequestDetails } from '@releasekit/forge';
 import { createGitCli } from '@releasekit/git';
 import { PipelineError } from '@releasekit/publish';
@@ -21,11 +29,14 @@ import { type EventActor, getEventActor, isAuthorizedActor, type StandingPrAutho
 import { makeRowChangelogRenderer, renderCombinedFooter } from './changelog-region.js';
 import { extractNotesRegions, mergeNotesRegions, renderNotesRegion } from './notes-region.js';
 import {
+  type ChannelToggleConfig,
   cascadeDeselection,
   computeHierarchy,
+  extractChannelSelection,
   extractSelection,
   type PrimaryConfig,
   renderSelectionRegion,
+  resolveChannelConflicts,
   selectionWarnings,
   validatePrimaryPackages,
 } from './selection-region.js';
@@ -106,6 +117,13 @@ export interface StandingPRManifest {
    * re-derive from each update's `channel` / `action`).
    */
   graduated?: string[];
+  /**
+   * Packages shifted onto a prerelease line this update via the per-row channel toggle (#521), scoped
+   * to just these packages (and their groups) without narrowing the release. Recorded for provenance
+   * and round-trip; the resolved prerelease versions already live in `versionOutput`. Optional: absent
+   * when nothing was channel-shifted, and on manifests written before this field existed.
+   */
+  prereleased?: string[];
 }
 
 async function getHeadSha(cwd: string): Promise<string> {
@@ -704,6 +722,9 @@ interface BuildOptionsExtras {
   includePrerequisites?: boolean;
   /** Per-package graduation (#486): package patterns to graduate to stable; others stay on their line. */
   graduate?: string[];
+  /** Per-package prerelease (#521): package patterns to shift onto a prerelease line; others stay on
+   *  their projected line. The symmetric twin of `graduate`. */
+  prereleaseScope?: string[];
   /** Packages to hold back from the release (standing-PR ad-hoc deselection). Exact name match. */
   exclude?: string[];
 }
@@ -723,6 +744,7 @@ function buildBaseReleaseOptions(
     exclude: extras?.exclude,
     stable: extras?.stable,
     graduate: extras?.graduate,
+    prereleaseScope: extras?.prereleaseScope,
     prerelease: extras?.prerelease ? true : undefined,
     skipNotes: true,
     skipPublish: true,
@@ -874,6 +896,15 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // re-render reverts any unauthorized tick/untick. With no policy configured, the body is
   // authoritative (original behavior).
   const bodyDeselected = new Set<string>((liveBody && extractSelection(liveBody)?.deselected) || []);
+  // Per-row channel toggles (#521): the packages a maintainer ticked to ship as a prerelease (rk-pre)
+  // or graduate to stable (rk-grad). Only read when the feature is enabled. A held-back row's toggle is
+  // already dropped by extractChannelSelection. Fed into the version WRITE step below (not the dry run,
+  // so the projected-channel render keeps the marker that round-trips the tick), like ad-hoc
+  // deselection. Authorization gating for these toggles is not yet wired — see the note where they feed
+  // the write options.
+  const channelToggleEnabled = standingPrConfig?.channelToggle === true;
+  const channelSelection =
+    channelToggleEnabled && liveBody ? extractChannelSelection(liveBody) : { prereleased: [], graduated: [] };
   const authz = standingPrConfig?.authorization;
   let priorDeselected = bodyDeselected;
   if (authz && existingStandingPr && githubContext?.token) {
@@ -1074,10 +1105,57 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   }
 
+  // Per-row channel toggles (#521) resolved for the WRITE step. A held-back package is dropped
+  // (held back ⇒ channel moot; and it's excluded anyway). Group atomicity: a channel shift must move
+  // the package's whole group, so each toggled package is expanded to its group-mates — independent
+  // groups release each member on its own prerelease line, fixed/linked share one (via
+  // isGroupPrereleasing / isGroupGraduating in the engine). Feeding these to the write ONLY (not the
+  // dry run) keeps the projected-channel render intact so the rk-pre/rk-grad marker round-trips the
+  // tick. AUTHORIZATION GAP: unlike ad-hoc deselection, an unauthorized channel toggle is not yet
+  // reconciled against the manifest — deferred (channel authz is a follow-up).
+  const expandToGroup = (names: string[]): string[] => {
+    const out = new Set<string>();
+    for (const name of names) {
+      out.add(name);
+      const grp = dryUpdates.find((u) => u.packageName === name)?.group;
+      if (grp) for (const u of dryUpdates) if (u.group === grp) out.add(u.packageName);
+    }
+    return [...out];
+  };
+  const channelPrereleased = channelSelection.prereleased.filter((n) => !effectiveDeselected.has(n));
+  const channelGraduated = channelSelection.graduated.filter((n) => !effectiveDeselected.has(n));
+  const writePrereleaseScope = expandToGroup(channelPrereleased);
+  // Merge the rk-grad toggles into the label-derived graduate set (both drive graduateScope). Sync
+  // releases carry no channel toggles, so buildExtras.graduate (dropped for sync above) is unaffected.
+  const graduateTargets = [...new Set([...(buildExtras.graduate ?? []), ...expandToGroup(channelGraduated)])];
+  // Expand graduate targets (which can be label globs like `graduate:@scope/*`) to the concrete release
+  // packages they cover, so the conflict check drops ONLY the packages a prerelease toggle also names —
+  // not a whole glob, which would strand its non-conflicting members on their prerelease line.
+  const graduateAll = dryUpdates
+    .map((u) => u.packageName)
+    .filter((name) => shouldMatchPackageTargets(name, graduateTargets));
+  // A package can't graduate and go prerelease in the same run — the rk-pre toggle wins (see
+  // resolveChannelConflicts). Warn so the dropped graduate isn't silent.
+  const { graduate: writeGraduate, conflicts: channelConflicts } = resolveChannelConflicts(
+    graduateAll,
+    writePrereleaseScope,
+  );
+  if (channelConflicts.length > 0) {
+    warn(
+      `Selection: ${channelConflicts.map((name) => `\`${name}\``).join(', ')} set to prerelease and graduate at ` +
+        'once — the prerelease toggle wins; remove the graduate label to graduate to stable instead.',
+    );
+  }
+
   // Materialize changes on release branch. Held-back packages are excluded from the version step so
   // they are never bumped — no orphan bump lands on the base branch with no tag (roll-forward model).
   info('Writing version bumps...');
-  const writeOptions = buildBaseReleaseOptions(options, false, { ...buildExtras, exclude: [...effectiveDeselected] });
+  const writeOptions = buildBaseReleaseOptions(options, false, {
+    ...buildExtras,
+    exclude: [...effectiveDeselected],
+    graduate: writeGraduate.length > 0 ? writeGraduate : undefined,
+    prereleaseScope: writePrereleaseScope.length > 0 ? writePrereleaseScope : undefined,
+  });
   const versionOutput = await runVersionStep(writeOptions);
 
   // The write step recomputes from the post-reset HEAD, which can differ from the dry run when a
@@ -1190,9 +1268,23 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     // Per-row changelogs are sourced from the DRY changelogs (the full changed set) so a held-back
     // row still shows its greyed changelog — the write output omits held-back packages entirely.
     const rowChangelog = makeRowChangelogRenderer(versionOutputDry.changelogs, changelogRefsMode, demoteScopes);
+    // The per-row channel toggle (#521), reflecting the parsed tick state so it round-trips. Only when
+    // the feature is enabled; a held-back row's toggle is suppressed by the renderer.
+    const channelToggle: ChannelToggleConfig | undefined = channelToggleEnabled
+      ? {
+          prereleased: new Set(channelSelection.prereleased),
+          graduated: new Set(channelSelection.graduated),
+          prereleaseIdentifier: releaseKitConfig.version?.prereleaseIdentifier ?? 'next',
+        }
+      : undefined;
     renderSelectionBlock = (withChangelogs) =>
-      renderSelectionRegion(dryUpdates, effectiveDeselected, primaryConfig, withChangelogs ? rowChangelog : undefined) +
-      warningSuffix;
+      renderSelectionRegion(
+        dryUpdates,
+        effectiveDeselected,
+        primaryConfig,
+        withChangelogs ? rowChangelog : undefined,
+        channelToggle,
+      ) + warningSuffix;
   }
 
   // The flat, de-duplicated combined footer — every change once, grouped by type. Driven by the write
@@ -1283,6 +1375,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     // Record which packages graduated to stable this run (#486) so the state survives re-runs and
     // consumers (#487) can flag a graduated row. Omitted when nothing graduated.
     graduated: graduatedPackages.length > 0 ? graduatedPackages : undefined,
+    // Record which packages were channel-shifted onto a prerelease line via the per-row toggle (#521),
+    // group-expanded, for provenance/round-trip. Omitted when nothing was channel-shifted.
+    prereleased: writePrereleaseScope.length > 0 ? [...writePrereleaseScope].sort() : undefined,
   };
 
   const manifestBody = serializeManifest(manifest);

@@ -45,6 +45,8 @@ export {
 export { type PrerequisiteResolution, resolvePrerequisites } from './prerequisites.js';
 export {
   extractSelectionRegion,
+  rkGradMarker,
+  rkPreMarker,
   rkSelMarker,
   SELECTION_MARKER,
   SELECTION_MARKER_END,

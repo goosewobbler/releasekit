@@ -633,6 +633,12 @@ export const StandingPrConfigSchema = z.object({
     .describe(
       'Append the de-duplicated combined-changelog footer to the standing PR: every change listed once, flat across packages and grouped by change type (Added/Fixed/Changed). It complements the per-row changelogs co-located with each releasable row. Set false to suppress this redundant per-package summary — the per-row changelogs remain, project-wide (shared) changes are still shown in their own block, and sync releases (which have no per-row changelogs) always show the combined changelog regardless of this setting.',
     ),
+  channelToggle: z
+    .boolean()
+    .default(false)
+    .describe(
+      'Add a per-row channel toggle to the standing-PR selection list: a nested checkbox under each releasable row to ship a stable package as a prerelease (→ X.Y.Z-next.0 on the `next` dist-tag) or graduate a prerelease package to its stable base — shifting just that package (and its group) without narrowing the release. Off by default so repos that do not need it keep the tight one-line-per-package list. A held-back (unticked) row hides its channel toggle. No effect on sync releases (which ship atomically as one unit).',
+    ),
 });
 
 export const CIConfigSchema = z.object({

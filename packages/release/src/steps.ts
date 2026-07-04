@@ -21,6 +21,7 @@ export async function runVersionStep(options: ReleaseOptions): Promise<VersionOu
     prerelease: options.prerelease,
     stable: options.stable,
     graduate: options.graduate,
+    prereleaseScope: options.prereleaseScope,
     allowFirstBump: options.allowFirstBump,
     dryRun: options.dryRun,
     sync: options.sync,

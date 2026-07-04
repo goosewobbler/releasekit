@@ -31,6 +31,15 @@ export interface VersionRunOptions {
    * per-package graduation.
    */
   graduate?: string[];
+  /**
+   * Per-package prerelease (#521): the symmetric twin of {@link graduate}. Package name patterns to
+   * shift onto a prerelease line on this run, leaving every other package on its projected line. Drives
+   * `isPrerelease` scoped to just these packages (see {@link Config.prereleaseScope}) WITHOUT narrowing
+   * the release — out-of-scope packages keep their commit-driven versions. Distinct from the global
+   * `prerelease` flag, which shifts EVERY package. When both are set, `prerelease` wins (shift
+   * everything). Empty/undefined → no per-package prerelease.
+   */
+  prereleaseScope?: string[];
   /** Acknowledge a first-release bump on a stable manifest, silencing the #388 overshoot guard. */
   allowFirstBump?: boolean;
   dryRun?: boolean;
@@ -132,6 +141,12 @@ export interface Config extends VersionConfigBase {
    *  along its own line. `undefined`/empty with `stableOnly` set means "graduate every prerelease"
    *  (the global `release:graduate` path). See VersionRunOptions.graduate. */
   graduateScope?: string[];
+  /** Runtime override (#521): package patterns to shift onto a prerelease line. Set together with
+   *  `isPrerelease` by per-package prerelease; a package outside this scope keeps `isPrerelease`
+   *  cleared and advances along its projected line. `undefined`/empty with `isPrerelease` set means
+   *  "prerelease every package" (the global `channel:prerelease` path). The symmetric twin of
+   *  `graduateScope`. See VersionRunOptions.prereleaseScope. */
+  prereleaseScope?: string[];
   /** Runtime (engine-populated): the FULL discovered workspace — every package's name+dir, before
    *  the release-set filters (targets/exclude/config.packages). The repo-level changelog classifier
    *  uses this so a commit touching a non-releasing package's dir is attributed to that package, not

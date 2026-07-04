@@ -23,6 +23,24 @@ export function rkSelMarker(packageName: string): string {
   return `<!-- rk-sel:${packageName} -->`;
 }
 
+/**
+ * Identity marker for a stable row's channel toggle — "ship this package as a prerelease" (#521). A
+ * nested, interactive task item under an rk-sel row; its `[x]`/`[ ]` glyph carries the intent while
+ * this marker carries the package name. The symmetric twin of {@link rkGradMarker}. Machine-read,
+ * never the row's prose.
+ */
+export function rkPreMarker(packageName: string): string {
+  return `<!-- rk-pre:${packageName} -->`;
+}
+
+/**
+ * Identity marker for a prerelease row's channel toggle — "graduate this package to stable" (#521),
+ * the inverse of {@link rkPreMarker}. Machine-read, never the row's prose.
+ */
+export function rkGradMarker(packageName: string): string {
+  return `<!-- rk-grad:${packageName} -->`;
+}
+
 /** Wrap rendered selection rows in the region markers so the block can be recognised and extracted. */
 export function wrapSelectionRegion(content: string): string {
   return wrapMarkerRegion(content, SELECTION_MARKER, SELECTION_MARKER_END);
