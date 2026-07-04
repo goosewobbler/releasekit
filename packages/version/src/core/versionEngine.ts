@@ -66,6 +66,17 @@ export class VersionEngine {
         effective.stableOnly = true;
         effective.graduateScope = runOptions.graduate;
       }
+      // Per-package prerelease (#521): the symmetric twin of graduate. Shift only the named packages
+      // onto a prerelease line, leaving others on their projected version. Sets isPrerelease +
+      // prereleaseScope; applyOverrideScope clears isPrerelease for any package outside the scope, and
+      // computeGroup gates the group-level prerelease on scope membership. The global `prerelease` flag
+      // wins — when it's set we shift EVERY package, so a per-package scope would only narrow it (don't
+      // set prereleaseScope then). Default the identifier like the global prerelease path does.
+      if (!runOptions.prerelease && runOptions.prereleaseScope?.length) {
+        effective.isPrerelease = true;
+        effective.prereleaseIdentifier = effective.prereleaseIdentifier || 'next';
+        effective.prereleaseScope = runOptions.prereleaseScope;
+      }
       if (runOptions.allowFirstBump) effective.allowFirstBump = true;
       if (runOptions.targets?.length) this.runtimeTargets = runOptions.targets;
       if (runOptions.baseRef) effective.baseRef = runOptions.baseRef;

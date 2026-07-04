@@ -63,7 +63,7 @@ export function applyOverrideScope(
   config: Config,
   options: VersionOptions,
 ): { config: Config; options: VersionOptions } {
-  const { overrideScope, graduateScope } = config;
+  const { overrideScope, graduateScope, prereleaseScope } = config;
   let scoped: { config: Config; options: VersionOptions } = { config, options };
   // `type` / `isPrerelease` / `stableOnly` are the engine's runtime override fields (folded from
   // runOptions bump/prerelease/stable) — none is a static config-file setting, so clearing them to
@@ -89,6 +89,18 @@ export function applyOverrideScope(
   if (graduateScope?.length && options.name) {
     const inGraduateScope = shouldMatchPackageTargets(options.name, graduateScope);
     scoped = { ...scoped, config: { ...scoped.config, stableOnly: inGraduateScope ? true : undefined } };
+  }
+  // Per-package prerelease (#521): the symmetric twin of the graduateScope branch. `prereleaseScope`
+  // membership is AUTHORITATIVE for `isPrerelease` — a package in scope is re-asserted onto its
+  // prerelease line even when the `overrideScope` clearing above stripped it (a scoped package can sit
+  // outside `overrideScope` when a bump is also scoped elsewhere), and an out-of-scope package keeps
+  // `isPrerelease` cleared so it advances along its projected (commit-driven) line. Only ever set
+  // together with `isPrerelease` (the engine folds them from `runOptions.prereleaseScope`), so
+  // re-asserting `true` here can't fabricate a prerelease the run didn't ask for. An empty
+  // `prereleaseScope` with `isPrerelease` set means "prerelease everything" (global channel:prerelease).
+  if (prereleaseScope?.length && options.name) {
+    const inPrereleaseScope = shouldMatchPackageTargets(options.name, prereleaseScope);
+    scoped = { ...scoped, config: { ...scoped.config, isPrerelease: inPrereleaseScope ? true : undefined } };
   }
   return scoped;
 }

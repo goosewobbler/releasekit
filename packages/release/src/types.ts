@@ -10,6 +10,10 @@ export interface ReleaseOptions {
   /** Per-package graduation (#486): package name patterns to graduate to stable, leaving other
    *  prereleases on their line. Distinct from `stable`, which graduates ALL prereleases. */
   graduate?: string[];
+  /** Per-package prerelease (#521): package name patterns to shift onto a prerelease line, leaving
+   *  every other package on its projected version. The symmetric twin of `graduate`; distinct from
+   *  `prerelease`, which shifts ALL packages. */
+  prereleaseScope?: string[];
   /** Acknowledge a first-release bump on an already-stable manifest (silences the #388 overshoot guard). */
   allowFirstBump?: boolean;
   sync: boolean;

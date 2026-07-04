@@ -150,3 +150,56 @@ describe('applyOverrideScope — graduateScope + overrideScope combo (#486)', ()
     expect(config.stableOnly).toBeUndefined();
   });
 });
+
+// Per-package prerelease (#521): the symmetric twin of graduateScope. `prereleaseScope` gates ONLY the
+// `isPrerelease` shift, re-asserting it for an in-scope package and clearing it for an out-of-scope one
+// so the latter advances along its projected (commit-driven) line. A prerelease config carries
+// isPrerelease (folded from runOptions.prereleaseScope) with no other override.
+const preCfg = (prereleaseScope?: string[]): Config =>
+  ({
+    tagTemplate: '${prefix}${version}',
+    preset: 'conventional',
+    sync: false,
+    packages: [],
+    versionPrefix: 'v',
+    isPrerelease: true,
+    prereleaseScope,
+  }) as Config;
+
+describe('applyOverrideScope — prereleaseScope (#521)', () => {
+  it('should keep isPrerelease for a package inside prereleaseScope', () => {
+    const { config } = applyOverrideScope(preCfg(['@scope/a']), opts('@scope/a'));
+    expect(config.isPrerelease).toBe(true);
+  });
+
+  it('should clear isPrerelease for a package outside prereleaseScope so it stays on its projected line', () => {
+    const { config } = applyOverrideScope(preCfg(['@scope/a']), opts('@other/b'));
+    expect(config.isPrerelease).toBeUndefined();
+  });
+
+  it('should prerelease every package when prereleaseScope is undefined (global channel:prerelease)', () => {
+    const { config } = applyOverrideScope(preCfg(undefined), opts('@other/b'));
+    expect(config.isPrerelease).toBe(true);
+  });
+
+  it('should treat an empty prereleaseScope as "all packages"', () => {
+    const { config } = applyOverrideScope(preCfg([]), opts('@other/b'));
+    expect(config.isPrerelease).toBe(true);
+  });
+
+  it('should not mutate the input config', () => {
+    const input = preCfg(['@scope/a']);
+    applyOverrideScope(input, opts('@other/b'));
+    expect(input.isPrerelease).toBe(true);
+  });
+
+  it('should re-assert isPrerelease for an in-prereleaseScope package that sits outside overrideScope', () => {
+    // The overrideScope clearing (block 1) strips isPrerelease for a package outside overrideScope, but
+    // prereleaseScope membership is authoritative — it must survive the clearing (symmetric to graduate).
+    const config = { ...preCfg(['@scope/pre']), overrideScope: ['@scope/target'], type: 'minor' } as Config;
+    const { config: scoped } = applyOverrideScope(config, opts('@scope/pre'));
+    expect(scoped.isPrerelease).toBe(true);
+    // The bump override is gone (outside overrideScope) — the prerelease shift stays commit-driven.
+    expect(scoped.type).toBeUndefined();
+  });
+});

@@ -756,6 +756,113 @@ describe('createGroupStrategy', () => {
     });
   });
 
+  describe('per-package prerelease (#521) — group atomicity', () => {
+    it('should shift a whole fixed group onto the prerelease line when a member is in prereleaseScope', async () => {
+      const core = mkPackage('@wdio/native-core', '2.3.0');
+      const utils = mkPackage('@wdio/native-utils', '2.3.0');
+
+      // native-core is in prereleaseScope, so (per applyOverrideScope, simulated here) its calculator
+      // returns a prerelease line; native-utils is unchanged.
+      vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
+        opts.name === '@wdio/native-core' ? '2.4.0-next.0' : '',
+      );
+
+      const strategy = createGroupStrategy(
+        baseConfig({
+          groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } },
+          isPrerelease: true,
+          prereleaseIdentifier: 'next',
+          prereleaseScope: ['@wdio/native-core'],
+        }),
+      );
+      await strategy(workspace([core, utils]));
+
+      // The whole fixed group lands on the prerelease line — native-utils rides along, not left stable.
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/wdio-native-core/package.json',
+        '2.4.0-next.0',
+        undefined,
+      );
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/wdio-native-utils/package.json',
+        '2.4.0-next.0',
+        undefined,
+      );
+    });
+
+    it('should NOT force a group onto the prerelease line when no member is in prereleaseScope', async () => {
+      // The run carries a globally-set isPrerelease (folded from a scoped request), but this group has
+      // no scoped member, so it must stay on its projected STABLE line. The higher unchanged member sets
+      // the group baseline (2.5.0), so the forced prerelease (2.6.0-next.0) would NOT be masked by the
+      // changed member's own stable next (2.4.0) — this isolates the isGroupPrereleasing scoping.
+      const core = mkPackage('@wdio/native-core', '2.3.0');
+      const utils = mkPackage('@wdio/native-utils', '2.5.0');
+
+      vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
+        opts.name === '@wdio/native-core' ? '2.4.0' : '',
+      );
+
+      const strategy = createGroupStrategy(
+        baseConfig({
+          groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } },
+          isPrerelease: true,
+          prereleaseIdentifier: 'next',
+          prereleaseScope: ['@other/thing'],
+        }),
+      );
+      await strategy(workspace([core, utils]));
+
+      // Group advances on its stable line (max baseline 2.5.0, minor → 2.6.0), NOT 2.6.0-next.0.
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/wdio-native-core/package.json',
+        '2.6.0',
+        undefined,
+      );
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/wdio-native-utils/package.json',
+        '2.6.0',
+        undefined,
+      );
+      expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
+        expect.anything(),
+        '2.6.0-next.0',
+        expect.anything(),
+      );
+    });
+
+    it('should shift every member of an independent group onto its own prerelease line when the group is scoped', async () => {
+      // The wiring expands a scoped member to its whole independent group, so all members are in
+      // prereleaseScope and each computes its own prerelease line (independent = no shared version).
+      const service = mkPackage('@wdio/tauri-service', '1.2.0');
+      const plugin = mkPackage('@wdio/tauri-plugin', '0.5.0');
+
+      vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
+        opts.name === '@wdio/tauri-service' ? '1.3.0-next.0' : '0.6.0-next.0',
+      );
+
+      const strategy = createGroupStrategy(
+        baseConfig({
+          groups: { tauri: { packages: ['@wdio/tauri-*'], sync: 'independent' } },
+          isPrerelease: true,
+          prereleaseIdentifier: 'next',
+          prereleaseScope: ['@wdio/tauri-*'],
+        }),
+      );
+      await strategy(workspace([service, plugin]));
+
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/wdio-tauri-service/package.json',
+        '1.3.0-next.0',
+        undefined,
+      );
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/ws/packages/wdio-tauri-plugin/package.json',
+        '0.6.0-next.0',
+        undefined,
+      );
+    });
+  });
+
   describe('ungrouped packages', () => {
     it('should version ungrouped packages independently at their own computed version', async () => {
       const core = mkPackage('@wdio/native-core', '2.3.0');

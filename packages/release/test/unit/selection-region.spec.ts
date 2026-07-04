@@ -1,11 +1,14 @@
 import type { VersionOutput } from '@releasekit/core';
 import { describe, expect, it } from 'vitest';
 import {
+  type ChannelToggleConfig,
   cascadeDeselection,
   computeHierarchy,
+  extractChannelSelection,
   extractSelection,
   type PrimaryConfig,
   renderSelectionRegion,
+  resolveChannelConflicts,
   selectionWarnings,
   validatePrimaryPackages,
 } from '../../src/standing-pr/selection-region.js';
@@ -562,6 +565,152 @@ describe('selection-region', () => {
         const region = renderSelectionRegion(updates, new Set(), cfg());
         expect(region).not.toContain(STABLE);
         expect(region).not.toContain(PRERELEASE);
+      });
+    });
+  });
+
+  describe('channel toggles (#521)', () => {
+    const channel = (over: Partial<ChannelToggleConfig> = {}): ChannelToggleConfig => ({
+      prereleased: new Set(),
+      graduated: new Set(),
+      ...over,
+    });
+
+    describe('renderSelectionRegion', () => {
+      it('should render no channel toggle without a channel config', () => {
+        const updates: Update[] = [{ packageName: '@scope/a', newVersion: '1.1.0', filePath: '' }];
+        const region = renderSelectionRegion(updates, new Set());
+        expect(region).not.toContain('rk-pre:');
+        expect(region).not.toContain('rk-grad:');
+      });
+
+      it('should render an interactive "ship as prerelease" toggle under a stable row', () => {
+        const updates: Update[] = [{ packageName: '@scope/a', newVersion: '10.2.0', filePath: '', channel: 'stable' }];
+        const region = renderSelectionRegion(updates, new Set(), undefined, undefined, channel());
+        expect(region).toContain('- [x] `@scope/a` → 10.2.0 <!-- rk-sel:@scope/a -->');
+        expect(region).toContain('  - [ ] ship as prerelease → `10.2.0-next.0` · `next` <!-- rk-pre:@scope/a -->');
+      });
+
+      it('should render an interactive "graduate to stable" toggle under a prerelease row', () => {
+        const updates: Update[] = [
+          { packageName: '@scope/a', newVersion: '1.0.0-next.4', filePath: '', channel: 'prerelease' },
+        ];
+        const region = renderSelectionRegion(updates, new Set(), undefined, undefined, channel());
+        expect(region).toContain('  - [ ] graduate to stable → `1.0.0` <!-- rk-grad:@scope/a -->');
+      });
+
+      it('should reflect the ticked state of a prereleased package', () => {
+        const updates: Update[] = [{ packageName: '@scope/a', newVersion: '10.2.0', filePath: '', channel: 'stable' }];
+        const region = renderSelectionRegion(
+          updates,
+          new Set(),
+          undefined,
+          undefined,
+          channel({ prereleased: new Set(['@scope/a']) }),
+        );
+        expect(region).toContain('  - [x] ship as prerelease → `10.2.0-next.0` · `next` <!-- rk-pre:@scope/a -->');
+      });
+
+      it('should use the configured prerelease identifier in the toggle', () => {
+        const updates: Update[] = [{ packageName: '@scope/a', newVersion: '10.2.0', filePath: '', channel: 'stable' }];
+        const region = renderSelectionRegion(
+          updates,
+          new Set(),
+          undefined,
+          undefined,
+          channel({ prereleaseIdentifier: 'beta' }),
+        );
+        expect(region).toContain('  - [ ] ship as prerelease → `10.2.0-beta.0` · `beta` <!-- rk-pre:@scope/a -->');
+      });
+
+      it('should render no channel toggle under a held-back (deselected) row', () => {
+        const updates: Update[] = [{ packageName: '@scope/a', newVersion: '10.2.0', filePath: '', channel: 'stable' }];
+        const region = renderSelectionRegion(updates, new Set(['@scope/a']), undefined, undefined, channel());
+        expect(region).toContain('- [ ] `@scope/a` → 10.2.0 <!-- rk-sel:@scope/a -->');
+        expect(region).not.toContain('rk-pre:@scope/a');
+      });
+
+      it('should attach the toggle to a streamlined primary row, not its read-only members', () => {
+        const updates: Update[] = [
+          { packageName: '@scope/app', newVersion: '2.0.0', filePath: '', group: 'g', channel: 'stable' },
+          { packageName: '@scope/lib', newVersion: '2.0.0', filePath: '', group: 'g', channel: 'stable' },
+        ];
+        const primary: PrimaryConfig = {
+          primaryPackages: ['@scope/app'],
+          selection: 'streamlined',
+          groups: { g: { sync: 'fixed', packages: ['@scope/*'] } },
+          allPackageNames: ['@scope/app', '@scope/lib'],
+        };
+        const region = renderSelectionRegion(updates, new Set(), primary, undefined, channel());
+        expect(region).toContain('- [ ] ship as prerelease → `2.0.0-next.0` · `next` <!-- rk-pre:@scope/app -->');
+        // The streamlined member is a read-only bullet — it gets no channel toggle of its own.
+        expect(region).not.toContain('rk-pre:@scope/lib');
+      });
+    });
+
+    describe('extractChannelSelection', () => {
+      it('should read ticked rk-pre and rk-grad markers back from a rendered body', () => {
+        const updates: Update[] = [
+          { packageName: '@scope/a', newVersion: '10.2.0', filePath: '', channel: 'stable' },
+          { packageName: '@scope/b', newVersion: '1.0.0-next.4', filePath: '', channel: 'prerelease' },
+        ];
+        const region = renderSelectionRegion(
+          updates,
+          new Set(),
+          undefined,
+          undefined,
+          channel({ prereleased: new Set(['@scope/a']), graduated: new Set(['@scope/b']) }),
+        );
+        expect(extractChannelSelection(region)).toEqual({ prereleased: ['@scope/a'], graduated: ['@scope/b'] });
+      });
+
+      it('should return empty sets when the body carries no selection region', () => {
+        expect(extractChannelSelection('nothing to see here')).toEqual({ prereleased: [], graduated: [] });
+      });
+
+      it('should ignore an unticked channel toggle', () => {
+        const updates: Update[] = [{ packageName: '@scope/a', newVersion: '10.2.0', filePath: '', channel: 'stable' }];
+        const region = renderSelectionRegion(updates, new Set(), undefined, undefined, channel());
+        expect(extractChannelSelection(region)).toEqual({ prereleased: [], graduated: [] });
+      });
+
+      it('should drop a ticked channel toggle whose row is held back — held back wins', () => {
+        // Hand-crafted adversarial body: rk-sel unticked (held back) but rk-pre ticked. The hold-back
+        // wins, so the channel toggle is moot.
+        const region = [
+          '<!-- releasekit-selection -->',
+          '- [ ] `@scope/a` → 10.2.0 <!-- rk-sel:@scope/a -->',
+          '  - [x] ship as prerelease → `10.2.0-next.0` · `next` <!-- rk-pre:@scope/a -->',
+          '<!-- releasekit-selection-end -->',
+        ].join('\n');
+        expect(extractChannelSelection(region)).toEqual({ prereleased: [], graduated: [] });
+      });
+    });
+
+    describe('resolveChannelConflicts', () => {
+      it('should leave graduate untouched when no package is also prereleased', () => {
+        expect(resolveChannelConflicts(['@scope/b'], ['@scope/a'])).toEqual({
+          graduate: ['@scope/b'],
+          conflicts: [],
+        });
+      });
+
+      it('should drop a package from graduate when it is also prereleased — the rk-pre toggle wins', () => {
+        // Otherwise the engine's authoritative stableOnly silently overrides the accepted prerelease
+        // toggle: the PR shows the toggle ticked but the write publishes stable (#521).
+        expect(resolveChannelConflicts(['@scope/a', '@scope/b'], ['@scope/a'])).toEqual({
+          graduate: ['@scope/b'],
+          conflicts: ['@scope/a'],
+        });
+      });
+
+      it('should treat a graduate glob target that covers a prereleased package as a conflict', () => {
+        // A broad graduate label like `graduate:@scope/*` must not slip past the exact prerelease name
+        // — an exact-string check would miss it and pass both scopes to the engine (#521).
+        expect(resolveChannelConflicts(['@scope/*'], ['@scope/a'])).toEqual({
+          graduate: [],
+          conflicts: ['@scope/*'],
+        });
       });
     });
   });
