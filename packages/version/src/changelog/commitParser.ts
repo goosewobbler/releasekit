@@ -14,6 +14,12 @@ type ChangelogEntry = VersionChangelogEntry;
 const CONVENTIONAL_COMMIT_REGEX = /^(\w+)(?:\(([^)]+)\))?(!)?: (.+)(?:\n\n([\s\S]*))?/;
 // Regular expression to extract breaking change notes
 const BREAKING_CHANGE_REGEX = /BREAKING CHANGE: ([\s\S]+?)(?:\n\n|$)/;
+// Free-form (non-conventional) subjects that are pure version-sync / release bookkeeping and carry no
+// changelog signal — e.g. `Update version to 1.2.3`, `update package versions across multiple
+// packages` — leaked in as `Changed` entries (#522). Only applied to the non-conventional fallback
+// branch, and narrow by construction (`version to <digit>` / `package versions`) so a real code
+// change like "update version handling in the parser" is never swallowed.
+const VERSION_BUMP_SUBJECT_REGEX = /^update (?:version to v?\d|package versions)\b/i;
 
 /**
  * Extract changelog entries from Git commits (with commit hashes for tracking)
@@ -315,8 +321,13 @@ function parseCommitMessage(message: string): ChangelogEntry | null {
   }
 
   // Non-conventional commit - try to extract basic information
-  // Only include if it seems meaningful (not just a merge or version bump)
-  if (!trimmedMessage.startsWith('Merge') && !trimmedMessage.match(/^v?\d+\.\d+\.\d+/)) {
+  // Only include if it seems meaningful (not a merge, a bare version tag, or a version-sync /
+  // release-bump bookkeeping subject — #522).
+  if (
+    !trimmedMessage.startsWith('Merge') &&
+    !trimmedMessage.match(/^v?\d+\.\d+\.\d+/) &&
+    !VERSION_BUMP_SUBJECT_REGEX.test(trimmedMessage)
+  ) {
     const firstLine = trimmedMessage.split('\n')[0].trim();
     return {
       type: 'changed',

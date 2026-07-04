@@ -136,6 +136,22 @@ describe('Commit Parser', () => {
     expect(entries.map((e) => e.description)).toContain('Fix bug in login');
   });
 
+  it('should drop version-sync / release-bump bookkeeping subjects (#522)', async () => {
+    const mockGitOutput = [
+      'Update version to 0.2.0',
+      'Update version to 1.2.3 (wdio_flutter)',
+      'update package versions across multiple packages',
+      'Add real feature',
+      'update version handling in the parser',
+    ].join('---COMMIT_DELIMITER---');
+
+    const entries = await extractChangelogEntriesFromCommits('/test', RANGE, gitWithLog(mockGitOutput));
+
+    // The three version-sync subjects never become entries; the real change and the false-positive
+    // guard ("update version handling …") both survive.
+    expect(entries.map((e) => e.description)).toEqual(['Add real feature', 'update version handling in the parser']);
+  });
+
   it('should handle errors when extracting commits', async () => {
     const git = createFakeGit();
     git.log = async () => {
