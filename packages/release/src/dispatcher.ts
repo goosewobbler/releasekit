@@ -6,9 +6,12 @@ import { createNotesCommand } from '@releasekit/notes';
 import { createPublishCommand } from '@releasekit/publish';
 import { createVersionCommand } from '@releasekit/version';
 import { Command } from 'commander';
+import { createBackfillCommand } from './commands/backfill-command.js';
+import { createGateCommand } from './commands/gate-command.js';
 import { createInitCommand } from './commands/init-command.js';
 import { createLabelsCommand } from './commands/labels-command.js';
 import { createPreviewCommand } from './commands/preview-command.js';
+import { createRefreshAfterReleaseCommand } from './commands/refresh-after-release-command.js';
 import { createReleaseCommand } from './commands/release-command.js';
 import { createStandingPRCommand } from './commands/standing-pr-command.js';
 
@@ -19,7 +22,10 @@ export function createDispatcherProgram(): Command {
     .version(readPackageVersion(import.meta.url));
   program.addCommand(createPreviewCommand(), { isDefault: true });
   program.addCommand(createReleaseCommand());
+  program.addCommand(createGateCommand());
   program.addCommand(createStandingPRCommand());
+  program.addCommand(createRefreshAfterReleaseCommand());
+  program.addCommand(createBackfillCommand());
   program.addCommand(createInitCommand());
   program.addCommand(createLabelsCommand());
   program.addCommand(createVersionCommand());
