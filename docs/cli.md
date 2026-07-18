@@ -330,7 +330,7 @@ releasekit version --json | releasekit publish --dry-run
 
 ## `releasekit-release gate`
 
-The standalone `releasekit-release` binary (also from `@releasekit/release`) exposes an extra `gate` command used by the GitHub Action's `gate` mode. It checks whether a release should proceed based on PR labels and config.
+The `gate` command — used by the GitHub Action's `gate` mode — checks whether a release should proceed based on PR labels and config. It is exposed on both the `releasekit` and `releasekit-release` binaries (from `@releasekit/release`).
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
@@ -342,14 +342,14 @@ The standalone `releasekit-release` binary (also from `@releasekit/release`) exp
 | `--project-dir <path>` | string | `cwd` | Project directory |
 
 ```bash
-releasekit-release gate --json
+releasekit gate --json            # or, equivalently: releasekit-release gate --json
 ```
 
 > Most users run `gate` through the [GitHub Action](./action.md) (`mode: gate`) rather than the CLI directly.
 
 ## `releasekit-release backfill`
 
-Regenerate release notes for **already-released** versions of one or more packages by reconstructing each version's notes from git history. Each version is rendered through the notes pipeline and written to per-version files (`notes.releaseNotes.file.dir`), to the matching GitHub release bodies (`--update-releases`), or both. Dry-run by default — pass `--apply` to write. Needs at least one output: `notes.releaseNotes.file.dir` set, `--update-releases`, or both.
+Regenerate release notes for **already-released** versions of one or more packages by reconstructing each version's notes from git history. Each version is rendered through the notes pipeline and written to per-version files (`notes.releaseNotes.file.dir`), to the matching GitHub release bodies (`--update-releases`), or both. Dry-run by default — pass `--apply` to write. Needs at least one output: `notes.releaseNotes.file.dir` set, `--update-releases`, or both. Exposed on both the `releasekit` and `releasekit-release` binaries; the examples below use `releasekit-release`, but `releasekit backfill` is equivalent.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|

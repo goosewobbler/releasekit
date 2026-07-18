@@ -110,11 +110,10 @@ describe('createDispatcherProgram', () => {
   });
 
   it('should route `refresh-after-release` to its own command, not the default preview', () => {
-    // The reported symptom (#519): with the command unregistered, the dispatcher hands the token to the
-    // default `preview` command as a positional, which rejects it with "too many arguments for 'preview'".
+    // The reported symptom (#519): an unregistered command falls through to the default `preview`, which
+    // rejects the stray positional. preview is mocked with exitOverride and refresh with a no-op action
+    // (both above), so a misroute throws instead of exiting — a clean parse proves correct routing.
     const program = createDispatcherProgram().exitOverride();
-    expect(() => program.parse(['refresh-after-release'], { from: 'user' })).not.toThrow(
-      /too many arguments for 'preview'/,
-    );
+    expect(() => program.parse(['refresh-after-release'], { from: 'user' })).not.toThrow();
   });
 });
