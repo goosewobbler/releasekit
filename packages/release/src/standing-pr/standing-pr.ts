@@ -961,10 +961,12 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // preserved). `effectiveLabels` then drives override resolution, the label re-apply, and the
   // manifest below — so the bot's own re-apply can't re-add the rogue label.
   let effectiveLabels = existingStandingPr?.labels ?? [];
-  if (authz && existingStandingPr && githubContext?.token) {
-    const actor = getEventActor();
-    const isLabelEvent = actor.action === 'labeled' || actor.action === 'unlabeled';
-    if (isLabelEvent && !(await authorizedOrWarn(forgeFor(githubContext), actor, authz))) {
+  if (authz && existingStandingPr && githubContext?.token && eventActor) {
+    // The hoisted `authorizedBodyEdit` short-circuits to false for any non-`edited` trigger, and a
+    // `labeled`/`unlabeled` event is exactly that — so this gate reuses the actor but keeps its own
+    // authorizedOrWarn.
+    const isLabelEvent = eventActor.action === 'labeled' || eventActor.action === 'unlabeled';
+    if (isLabelEvent && !(await authorizedOrWarn(forgeFor(githubContext), eventActor, authz))) {
       const isRelevant = (l: string) => isRelevantOverrideLabel(l, ciConfig);
       const authorizedOverrides = (existingManifest?.overrideLabels ?? []).filter(isRelevant);
       const reconciled = [...new Set([...effectiveLabels.filter((l) => !isRelevant(l)), ...authorizedOverrides])];

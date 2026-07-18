@@ -986,6 +986,36 @@ describe('runStandingPRUpdate', () => {
     expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(false);
   });
 
+  it('should re-apply the manifest’s channel on a push run and post no notice (#526)', async () => {
+    await withAuthzChannel();
+    await asActionBy('synchronize', 'rando'); // a push/synchronize run — not a body edit
+    await channelWriteOutput();
+    const { runVersionStep } = await import('../../src/steps.js');
+
+    // The manifest approved @scope/b as a prerelease; the body has it unticked (a rogue removal). A
+    // non-edit trigger is never an authorized edit, so the gate still resets to the manifest — the
+    // approved prerelease survives, a stale body edit can't leak into the push run, and because the
+    // actor didn't `edit` anything the reset is silent (no denied notice).
+    const forge = await mockForge({
+      standingPR: openStandingPR(99),
+      pullRequests: { 99: { body: channelBody(false), labels: [] } },
+      actorPermissions: { rando: 'write' },
+      comments: [
+        {
+          id: 5,
+          prNumber: 99,
+          body: serializeManifest({ ...baseManifest, schemaVersion: 2, prereleased: ['@scope/b'] }),
+        },
+      ],
+    });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { prereleaseScope?: string[] };
+    expect(writeCall.prereleaseScope).toEqual(['@scope/b']); // manifest re-applied on the push run
+    expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(false); // silent
+  });
+
   it('should never honour a residual selection region in a sync release (#367)', async () => {
     // A repo that switched to sync may carry a leftover selection region. Sync ships atomically, so a
     // stale deselection must NOT narrow it into a partial release — exclude stays empty.
