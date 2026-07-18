@@ -643,6 +643,36 @@ describe('runStandingPRUpdate', () => {
     } as unknown as ReturnType<typeof loadConfig>);
   };
 
+  // Authorization AND per-row channel toggles both enabled — the combination the #526 gate protects.
+  const withAuthzChannel = async () => {
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValue({
+      ...defaultConfig,
+      ci: {
+        ...defaultConfig.ci,
+        standingPr: {
+          ...defaultConfig.ci.standingPr,
+          authorization: { requiredPermission: 'admin' },
+          channelToggle: true,
+        },
+      },
+    } as unknown as ReturnType<typeof loadConfig>);
+  };
+
+  // A selection body with @scope/a and @scope/b selected, and @scope/b's rk-pre channel toggle ticked
+  // (or not). Identity is marker-driven, so the toggle prose is illustrative only.
+  const channelBody = (preB: boolean) =>
+    [
+      '<!-- releasekit-selection -->',
+      '',
+      '- [x] `@scope/a` → 1.1.0 <!-- rk-sel:@scope/a -->',
+      '  - [ ] ship as prerelease → `1.1.0-next.0` · `next` <!-- rk-pre:@scope/a -->',
+      '- [x] `@scope/b` → 2.0.0 <!-- rk-sel:@scope/b -->',
+      `  - [${preB ? 'x' : ' '}] ship as prerelease → \`2.0.0-next.0\` · \`next\` <!-- rk-pre:@scope/b -->`,
+      '',
+      '<!-- releasekit-selection-end -->',
+    ].join('\n');
+
   const asActionBy = async (action: string, login: string) => {
     const { readFileSync } = await import('node:fs');
     vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ action, sender: { login, type: 'User' } }));
@@ -821,6 +851,169 @@ describe('runStandingPRUpdate', () => {
 
     const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { bump?: string };
     expect(writeCall.bump).toBe('major'); // authorized override honoured
+  });
+
+  // #526 — channel toggles (rk-pre/rk-grad) get the same manifest reconciliation as ad-hoc deselection.
+  const channelWriteOutput = async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([
+        { packageName: '@scope/a', newVersion: '1.1.0' },
+        { packageName: '@scope/b', newVersion: '2.0.0' },
+      ]),
+      strategy: 'async' as const,
+    };
+    vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+  };
+
+  it('should honour an authorized actor’s channel toggle (#526)', async () => {
+    await withAuthzChannel();
+    await asEditedBy('admin-user');
+    await channelWriteOutput();
+    const { runVersionStep } = await import('../../src/steps.js');
+
+    const forge = await mockForge({
+      standingPR: openStandingPR(99),
+      pullRequests: { 99: { body: channelBody(true), labels: [] } }, // rk-pre ticked on @scope/b
+      actorPermissions: { 'admin-user': 'admin' },
+    });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { prereleaseScope?: string[] };
+    expect(writeCall.prereleaseScope).toEqual(['@scope/b']); // admin's prerelease toggle is applied
+    expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(false);
+  });
+
+  it('should ignore an unauthorized actor’s channel toggle (manifest stays authoritative) and post a notice (#526)', async () => {
+    await withAuthzChannel();
+    await asEditedBy('rando');
+    await channelWriteOutput();
+    const { runVersionStep } = await import('../../src/steps.js');
+
+    // The body ticks rk-pre on @scope/b, but the authoritative manifest records no prerelease — the
+    // unauthorized edit must be dropped and the (empty) manifest channel selection used instead.
+    const forge = await mockForge({
+      standingPR: openStandingPR(99),
+      pullRequests: { 99: { body: channelBody(true), labels: [] } },
+      actorPermissions: { rando: 'write' }, // below the 'admin' threshold
+      comments: [{ id: 5, prNumber: 99, body: serializeManifest({ ...baseManifest, schemaVersion: 2 }) }],
+    });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { prereleaseScope?: string[] };
+    expect(writeCall.prereleaseScope).toBeUndefined(); // rogue prerelease toggle not published
+    expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(true);
+  });
+
+  it('should re-apply the manifest’s approved channel for an unauthorized actor (#526)', async () => {
+    await withAuthzChannel();
+    await asEditedBy('rando');
+    await channelWriteOutput();
+    const { runVersionStep } = await import('../../src/steps.js');
+
+    // The manifest approved @scope/b as a prerelease last run. An unauthorized editor unticked it in
+    // the body — the write must still prerelease @scope/b (manifest wins), reverting the removal.
+    const forge = await mockForge({
+      standingPR: openStandingPR(99),
+      pullRequests: { 99: { body: channelBody(false), labels: [] } }, // rk-pre unticked
+      actorPermissions: { rando: 'write' },
+      comments: [
+        {
+          id: 5,
+          prNumber: 99,
+          body: serializeManifest({ ...baseManifest, schemaVersion: 2, prereleased: ['@scope/b'] }),
+        },
+      ],
+    });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { prereleaseScope?: string[] };
+    expect(writeCall.prereleaseScope).toEqual(['@scope/b']); // approved prerelease preserved
+    expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(true);
+  });
+
+  it('should not post a channel-denied notice when an unauthorized edit leaves the toggles unchanged (#526)', async () => {
+    await withAuthzChannel();
+    await asEditedBy('rando');
+    await channelWriteOutput();
+    const { runVersionStep } = await import('../../src/steps.js');
+
+    // The body's rk-pre tick on @scope/b matches the manifest's approved prerelease — an unrelated edit
+    // (e.g. to the notes region) must not misfire the notice just because the toggle is present.
+    const forge = await mockForge({
+      standingPR: openStandingPR(99),
+      pullRequests: { 99: { body: channelBody(true), labels: [] } },
+      actorPermissions: { rando: 'write' },
+      comments: [
+        {
+          id: 5,
+          prNumber: 99,
+          body: serializeManifest({ ...baseManifest, schemaVersion: 2, prereleased: ['@scope/b'] }),
+        },
+      ],
+    });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { prereleaseScope?: string[] };
+    expect(writeCall.prereleaseScope).toEqual(['@scope/b']); // unchanged, still applied
+    expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(false);
+  });
+
+  it('should leave channel toggles unreconciled when the feature is disabled (#526)', async () => {
+    // authorization set, but channelToggle OFF — extractChannelSelection is never called, so a body
+    // toggle can't drive the write regardless of actor. The gate is a no-op here.
+    await withAuthz();
+    await asEditedBy('rando');
+    await channelWriteOutput();
+    const { runVersionStep } = await import('../../src/steps.js');
+
+    const forge = await mockForge({
+      standingPR: openStandingPR(99),
+      pullRequests: { 99: { body: channelBody(true), labels: [] } },
+      actorPermissions: { rando: 'write' },
+      comments: [{ id: 5, prNumber: 99, body: serializeManifest({ ...baseManifest, schemaVersion: 2 }) }],
+    });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { prereleaseScope?: string[] };
+    expect(writeCall.prereleaseScope).toBeUndefined();
+    expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(false);
+  });
+
+  it('should re-apply the manifest’s channel on a push run and post no notice (#526)', async () => {
+    await withAuthzChannel();
+    await asActionBy('synchronize', 'rando'); // a push/synchronize run — not a body edit
+    await channelWriteOutput();
+    const { runVersionStep } = await import('../../src/steps.js');
+
+    // The manifest approved @scope/b as a prerelease; the body has it unticked (a rogue removal). A
+    // non-edit trigger is never an authorized edit, so the gate still resets to the manifest — the
+    // approved prerelease survives, a stale body edit can't leak into the push run, and because the
+    // actor didn't `edit` anything the reset is silent (no denied notice).
+    const forge = await mockForge({
+      standingPR: openStandingPR(99),
+      pullRequests: { 99: { body: channelBody(false), labels: [] } },
+      actorPermissions: { rando: 'write' },
+      comments: [
+        {
+          id: 5,
+          prNumber: 99,
+          body: serializeManifest({ ...baseManifest, schemaVersion: 2, prereleased: ['@scope/b'] }),
+        },
+      ],
+    });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { prereleaseScope?: string[] };
+    expect(writeCall.prereleaseScope).toEqual(['@scope/b']); // manifest re-applied on the push run
+    expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(false); // silent
   });
 
   it('should never honour a residual selection region in a sync release (#367)', async () => {

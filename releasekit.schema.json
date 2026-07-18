@@ -1205,7 +1205,7 @@
                     "write"
                   ],
                   "default": "admin",
-                  "description": "Minimum repository permission an actor needs to steer the standing PR — tick/untick selection checkboxes, apply release labels, and (with branch protection) merge. Default: admin."
+                  "description": "Minimum repository permission an actor needs to steer the standing PR — tick/untick selection checkboxes, flip per-row channel toggles, apply release labels, and (with branch protection) merge. Default: admin."
                 },
                 "allowedActors": {
                   "type": "array",
@@ -1221,7 +1221,7 @@
                   "description": "Refuse to publish the standing PR when the actor who merged it is not authorized (defense-in-depth behind a branch-protection ruleset, which is the primary merge gate). Set false to rely on branch protection alone."
                 }
               },
-              "description": "Restrict who can steer the standing PR — its selection checkboxes, release labels, and merge. Omit to allow anyone with the GitHub permission GitHub itself requires for each action (today’s behavior)."
+              "description": "Restrict who can steer the standing PR — its selection checkboxes, per-row channel toggles, release labels, and merge. Omit to allow anyone with the GitHub permission GitHub itself requires for each action (today’s behavior)."
             },
             "primaryPackages": {
               "type": "array",
