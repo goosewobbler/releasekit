@@ -57,16 +57,16 @@
     "access": "public"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.106.0",
+    "@anthropic-ai/sdk": "^0.112.3",
     "@octokit/rest": "catalog:",
     "chalk": "catalog:",
     "commander": "catalog:",
     "ejs": "^4.0.1",
     "handlebars": "^4.7.9",
     "jsonc-parser": "catalog:",
-    "liquidjs": "^10.27.1",
+    "liquidjs": "^10.27.2",
     "minimatch": "catalog:",
-    "openai": "^6.45.0",
+    "openai": "^6.48.0",
     "smol-toml": "catalog:",
     "yaml": "catalog:",
     "zod": "catalog:"
