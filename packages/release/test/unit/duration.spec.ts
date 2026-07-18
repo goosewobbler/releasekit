@@ -56,6 +56,18 @@ describe('formatDuration', () => {
     expect(formatDuration(3 * 3_600_000)).toBe('3h');
   });
 
+  it('should format days, omitting a zero hours component', () => {
+    expect(formatDuration(624 * 3_600_000 + 36 * 60_000)).toBe('26d 36m');
+  });
+
+  it('should format days and hours, omitting a zero minutes component', () => {
+    expect(formatDuration(26 * 3_600_000)).toBe('1d 2h');
+  });
+
+  it('should format days only for a whole number of days', () => {
+    expect(formatDuration(2 * 86_400_000)).toBe('2d');
+  });
+
   it('should format minutes only', () => {
     expect(formatDuration(45 * 60_000)).toBe('45m');
   });
