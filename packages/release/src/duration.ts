@@ -20,9 +20,11 @@ export function parseDuration(str: string): number | null {
 }
 
 export function formatDuration(ms: number): string {
-  const hours = Math.floor(ms / 3_600_000);
+  const days = Math.floor(ms / 86_400_000);
+  const hours = Math.floor((ms % 86_400_000) / 3_600_000);
   const minutes = Math.floor((ms % 3_600_000) / 60_000);
   const parts: string[] = [];
+  if (days > 0) parts.push(`${days}d`);
   if (hours > 0) parts.push(`${hours}h`);
   if (minutes > 0) parts.push(`${minutes}m`);
   if (parts.length === 0) parts.push(`${Math.ceil(ms / 1000)}s`);
