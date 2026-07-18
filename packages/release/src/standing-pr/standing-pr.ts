@@ -49,6 +49,8 @@ const MANIFEST_SCHEMA_VERSION = 2;
 const SELECTION_DENIED_MARKER = '<!-- releasekit-selection-denied -->';
 /** Marker for the idempotent "your release-label change was ignored" notice (#402). */
 const LABEL_DENIED_MARKER = '<!-- releasekit-label-denied -->';
+/** Marker for the idempotent "your channel-toggle change was ignored" notice (#526). */
+const CHANNEL_DENIED_MARKER = '<!-- releasekit-channel-denied -->';
 const MANIFEST_SCHEMA_MIN_VERSION = 1;
 
 // The manifest payload rides as a base64 blob in its own marker; base64/JSON/schema decoding (with
@@ -914,33 +916,40 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // or graduate to stable (rk-grad). Only read when the feature is enabled. A held-back row's toggle is
   // already dropped by extractChannelSelection. Fed into the version WRITE step below (not the dry run,
   // so the projected-channel render keeps the marker that round-trips the tick), like ad-hoc
-  // deselection. Authorization gating for these toggles is not yet wired — see the note where they feed
-  // the write options.
+  // deselection. Reassigned to the manifest's approved channels for an unauthorized editor by the
+  // channel-toggle gate (#526) at the write wiring.
   const channelToggleEnabled = standingPrConfig?.channelToggle === true;
-  const channelSelection =
+  let channelSelection =
     channelToggleEnabled && liveBody ? extractChannelSelection(liveBody) : { prereleased: [], graduated: [] };
   const authz = standingPrConfig?.authorization;
-  let priorDeselected = bodyDeselected;
+  // Resolve the triggering actor and whether their body `edited` event is authorized ONCE, so the
+  // ad-hoc selection gate (#401) here and the channel-toggle gate (#526) at the write wiring share a
+  // single collaborator-permission lookup. A non-`edited` trigger (push/schedule/label) is never an
+  // authorized edit, so those runs fall through to the manifest's recorded selection.
+  let eventActor: EventActor | undefined;
+  let authorizedBodyEdit = false;
   if (authz && existingStandingPr && githubContext?.token) {
+    eventActor = getEventActor();
+    authorizedBodyEdit =
+      eventActor.action === 'edited' && (await authorizedOrWarn(forgeFor(githubContext), eventActor, authz));
+  }
+  let priorDeselected = bodyDeselected;
+  if (authz && existingStandingPr && githubContext?.token && eventActor && !authorizedBodyEdit) {
     const manifestDeselected = new Set<string>(existingManifest?.deselected ?? []);
-    const actor = getEventActor();
-    const authorizedEdit = actor.action === 'edited' && (await authorizedOrWarn(forgeFor(githubContext), actor, authz));
-    if (!authorizedEdit) {
-      priorDeselected = manifestDeselected;
-      // An unauthorized actor changed the checklist — tell them it was ignored (idempotent comment).
-      if (actor.action === 'edited' && !setsEqual(bodyDeselected, manifestDeselected)) {
-        // Only mention the allow-list when one is actually configured.
-        const allowClause = authz.allowedActors?.length ? ', or an allow-listed actor' : '';
-        await forgeFor(githubContext)
-          .upsertMarkerComment(
-            existingStandingPr.number,
-            SELECTION_DENIED_MARKER,
-            `${SELECTION_DENIED_MARKER}\n\n> ⚠️ **Selection change ignored.** Only authorized maintainers (\`${authz.requiredPermission}\`+${allowClause}) can hold packages back from the release. The **Packages to release** checklist has been reset to the approved selection.`,
-          )
-          .catch((err) =>
-            warn(`Could not post selection-denied notice: ${err instanceof Error ? err.message : String(err)}`),
-          );
-      }
+    priorDeselected = manifestDeselected;
+    // An unauthorized actor changed the checklist — tell them it was ignored (idempotent comment).
+    if (eventActor.action === 'edited' && !setsEqual(bodyDeselected, manifestDeselected)) {
+      // Only mention the allow-list when one is actually configured.
+      const allowClause = authz.allowedActors?.length ? ', or an allow-listed actor' : '';
+      await forgeFor(githubContext)
+        .upsertMarkerComment(
+          existingStandingPr.number,
+          SELECTION_DENIED_MARKER,
+          `${SELECTION_DENIED_MARKER}\n\n> ⚠️ **Selection change ignored.** Only authorized maintainers (\`${authz.requiredPermission}\`+${allowClause}) can hold packages back from the release. The **Packages to release** checklist has been reset to the approved selection.`,
+        )
+        .catch((err) =>
+          warn(`Could not post selection-denied notice: ${err instanceof Error ? err.message : String(err)}`),
+        );
     }
   }
 
@@ -1125,8 +1134,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // groups release each member on its own prerelease line, fixed/linked share one (via
   // isGroupPrereleasing / isGroupGraduating in the engine). Feeding these to the write ONLY (not the
   // dry run) keeps the projected-channel render intact so the rk-pre/rk-grad marker round-trips the
-  // tick. AUTHORIZATION GAP: unlike ad-hoc deselection, an unauthorized channel toggle is not yet
-  // reconciled against the manifest — deferred (channel authz is a follow-up).
+  // tick.
   const expandToGroup = (names: string[]): string[] => {
     const out = new Set<string>();
     for (const name of names) {
@@ -1136,6 +1144,47 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
     return [...out];
   };
+
+  // Channel-toggle authorization (#526): the twin of the ad-hoc selection gate (#401). When channel
+  // toggles are enabled and an unauthorized actor edited the body, the manifest's recorded channel
+  // selection is AUTHORITATIVE — reset to it so the WRITE publishes the approved channels and the
+  // re-render below reverts the rogue tick, exactly as deselection does. The manifest stores the
+  // group-expanded set (`writePrereleaseScope` / `graduatedPackageNames`) while the body round-trips
+  // the raw ticked names, so the "did the actor change anything?" check group-expands the body first —
+  // otherwise a fixed/linked group's untoggled members would look like a change and misfire the notice.
+  if (
+    channelToggleEnabled &&
+    authz &&
+    existingStandingPr &&
+    githubContext?.token &&
+    eventActor &&
+    !authorizedBodyEdit
+  ) {
+    const manifestPrereleased = existingManifest?.prereleased ?? [];
+    const manifestGraduated = existingManifest?.graduated ?? [];
+    const bodyPrereleased = new Set(expandToGroup(channelSelection.prereleased));
+    const bodyGraduated = new Set(expandToGroup(channelSelection.graduated));
+    // Prerelease scope is toggle-only, so a strict compare cleanly flags any add or remove. Graduation
+    // is ALSO driven by `graduate:*` labels that land in the manifest but never as a body toggle, so
+    // its dimension only flags ADDED toggles (a strict compare would misfire on a label-only
+    // graduation). Either way the reset below reverts every rogue change; this just gates the notice.
+    const prereleaseChanged = !setsEqual(bodyPrereleased, new Set(manifestPrereleased));
+    const graduateAdded = [...bodyGraduated].some((name) => !manifestGraduated.includes(name));
+    channelSelection = { prereleased: manifestPrereleased, graduated: manifestGraduated };
+    if (eventActor.action === 'edited' && (prereleaseChanged || graduateAdded)) {
+      const allowClause = authz.allowedActors?.length ? ', or an allow-listed actor' : '';
+      await forgeFor(githubContext)
+        .upsertMarkerComment(
+          existingStandingPr.number,
+          CHANNEL_DENIED_MARKER,
+          `${CHANNEL_DENIED_MARKER}\n\n> ⚠️ **Channel change ignored.** Only authorized maintainers (\`${authz.requiredPermission}\`+${allowClause}) can move a package between the stable and prerelease channels. The per-row channel toggles have been reset to the approved selection.`,
+        )
+        .catch((err) =>
+          warn(`Could not post channel-denied notice: ${err instanceof Error ? err.message : String(err)}`),
+        );
+    }
+  }
+
   const channelPrereleased = channelSelection.prereleased.filter((n) => !effectiveDeselected.has(n));
   const channelGraduated = channelSelection.graduated.filter((n) => !effectiveDeselected.has(n));
   const writePrereleaseScope = expandToGroup(channelPrereleased);

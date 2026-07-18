@@ -588,7 +588,7 @@ export const StandingPrConfigSchema = z.object({
         .enum(['admin', 'maintain', 'write'])
         .default('admin')
         .describe(
-          'Minimum repository permission an actor needs to steer the standing PR — tick/untick selection checkboxes, apply release labels, and (with branch protection) merge. Default: admin.',
+          'Minimum repository permission an actor needs to steer the standing PR — tick/untick selection checkboxes, flip per-row channel toggles, apply release labels, and (with branch protection) merge. Default: admin.',
         ),
       allowedActors: z
         .array(
@@ -613,7 +613,7 @@ export const StandingPrConfigSchema = z.object({
     })
     .optional()
     .describe(
-      'Restrict who can steer the standing PR — its selection checkboxes, release labels, and merge. Omit to allow anyone with the GitHub permission GitHub itself requires for each action (today’s behavior).',
+      'Restrict who can steer the standing PR — its selection checkboxes, per-row channel toggles, release labels, and merge. Omit to allow anyone with the GitHub permission GitHub itself requires for each action (today’s behavior).',
     ),
   primaryPackages: z
     .array(z.string())
