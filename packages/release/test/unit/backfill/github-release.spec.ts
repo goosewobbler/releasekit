@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   decideReleaseUpdate,
+  editReleaseBody,
   getReleaseBody,
   getReleaseInfo,
   NOTES_MARKER,
@@ -96,6 +97,27 @@ describe('getReleaseBody', () => {
       throw execError('gh: Bad credentials (HTTP 401)\n');
     });
     expect(() => getReleaseBody('v1.0.0')).toThrow(/Bad credentials/);
+  });
+});
+
+describe('gh argument-injection guard', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should reject a tag beginning with a dash before reaching gh', () => {
+    // Backfill enumerates tags from existing repo refs, so an out-of-band `refs/tags/-…` can reach
+    // gh unguarded — cobra would parse the leading-`-` positional as a flag. Reject before spawn.
+    expect(() => getReleaseBody('--repo=evil')).toThrow(/looks like an option/);
+    expect(() => getReleaseInfo('-F/etc/passwd')).toThrow(/looks like an option/);
+    expect(() => editReleaseBody('-x', 'body')).toThrow(/looks like an option/);
+    expect(execFileSync).not.toHaveBeenCalled();
+  });
+
+  it('should still call gh for a normal tag', () => {
+    vi.mocked(execFileSync).mockReturnValue('## Notes\n');
+    getReleaseBody('v1.0.0');
+    expect(execFileSync).toHaveBeenCalledTimes(1);
   });
 });
 

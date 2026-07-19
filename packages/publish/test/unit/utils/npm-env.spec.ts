@@ -62,4 +62,16 @@ describe('npm env isolation', () => {
 
     iso.cleanup();
   });
+
+  it('should write the token-bearing temp .npmrc with 0600 mode', () => {
+    process.env.NPM_TOKEN = 'npm_test_token';
+
+    const iso = createNpmSubprocessIsolation({ authMethod: 'token', registryUrl: 'https://registry.npmjs.org' });
+
+    const npmrcPath = iso.env.NPM_CONFIG_USERCONFIG as string;
+    createdPaths.push(npmrcPath);
+    expect(fs.statSync(npmrcPath).mode & 0o777).toBe(0o600);
+
+    iso.cleanup();
+  });
 });

@@ -13,7 +13,9 @@ export interface NpmEnvIsolation {
 function writeTempNpmrc(contents: string): { npmrcPath: string; cleanup: () => void } {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-npmrc-'));
   const npmrcPath = path.join(dir, '.npmrc');
-  fs.writeFileSync(npmrcPath, contents, 'utf-8');
+  // The temp `.npmrc` carries an auth token; write it owner-only (parity with config's saveAuth) so
+  // it isn't left readable even if the enclosing 0700 mkdtemp dir's protection is ever weakened.
+  fs.writeFileSync(npmrcPath, contents, { encoding: 'utf-8', mode: 0o600 });
   return {
     npmrcPath,
     cleanup: () => {

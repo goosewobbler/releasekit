@@ -567,6 +567,30 @@ describe('github-release stage', () => {
     expect(args[titleIndex + 1]).toBe('my-package: v1.0.0');
   });
 
+  it('should reject a tag beginning with a dash instead of passing it to gh', async () => {
+    const { execCommand, execCommandSafe } = await import('../../../src/utils/exec.js');
+    const ctx = createContext({
+      input: { dryRun: false, updates: [], changelogs: [], tags: ['--repo=evil'] },
+      output: {
+        dryRun: false,
+        git: { committed: true, tags: ['--repo=evil'], pushed: true },
+        npm: [],
+        cargo: [],
+        verification: [],
+        githubReleases: [],
+      },
+    });
+
+    await runGithubReleaseStage(ctx);
+
+    // The `-`-prefixed tag never reaches either gh invocation.
+    expect(execCommand).not.toHaveBeenCalled();
+    expect(execCommandSafe).not.toHaveBeenCalled();
+    expect(ctx.output.githubReleases).toHaveLength(1);
+    expect(ctx.output.githubReleases[0]?.success).toBe(false);
+    expect(ctx.output.githubReleases[0]?.reason).toMatch(/looks like an option/);
+  });
+
   describe('githubRelease.skipPackages config', () => {
     it('should skip GitHub release creation for packages listed in skipPackages', async () => {
       const { execCommand } = await import('../../../src/utils/exec.js');
