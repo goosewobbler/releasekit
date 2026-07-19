@@ -1,6 +1,7 @@
 import { warn } from '@releasekit/core';
 import type { ChangelogEntry, LLMCategory } from '../../core/types.js';
 import { LLMError } from '../../errors/index.js';
+import { LLM_DEFAULTS } from '../defaults.js';
 import { renderExamplesBlock } from '../examples/parser.js';
 import type { CategorizeContext, CategorizedEntries, EnhanceContext, LLMProvider } from '../index.js';
 import type { LLMMessage } from '../messages.js';
@@ -134,6 +135,54 @@ export function createEnhanceAndCategorizeValidator(
   };
 }
 
+/**
+ * Merge `incoming` categories into `target` by category name, preserving first-seen order and
+ * concatenating entries. Chunked runs can each emit e.g. a "Fixed" category — without merging, the
+ * changelog would render duplicate sections for the same name.
+ */
+function mergeCategories(target: CategorizedEntries[], incoming: CategorizedEntries[]): void {
+  for (const cat of incoming) {
+    const existing = target.find((c) => c.category === cat.category);
+    if (existing) existing.entries.push(...cat.entries);
+    else target.push({ category: cat.category, entries: [...cat.entries] });
+  }
+}
+
+async function enhanceAndCategorizeChunk(
+  provider: LLMProvider,
+  chunk: ChangelogEntry[],
+  context: EnhanceContext & CategorizeContext,
+  systemPrompt: string,
+): Promise<CombinedResult> {
+  const initialMessages: LLMMessage[] = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: buildUserPrompt(chunk) },
+  ];
+
+  try {
+    return await runCorrectiveTask({
+      provider,
+      initialMessages,
+      schema: buildEnhanceAndCategorizeSchema(context.categories ?? []),
+      toolName: 'emit_release_notes',
+      validate: createEnhanceAndCategorizeValidator(chunk, context),
+    });
+  } catch (error) {
+    if (error instanceof LLMError) {
+      warn(`enhanceAndCategorize failed for a ${chunk.length}-entry chunk: ${error.message}. Returning it ungrouped.`);
+      // Triggered by structural validation failures the LLM couldn't recover from across the
+      // retry budget: malformed JSON, schema-incompatible output, wrong entry count, or
+      // categories outside the configured list. (Disallowed scopes don't reach here — the
+      // configured invalidScopeAction resolves them in-place.) Strip the original entries'
+      // scope/leadIn since the LLM run never produced validated values for either. Isolated to this
+      // chunk so one bad batch can't drag the whole release into the General fallback.
+      const stripped = chunk.map((e) => ({ ...e, scope: undefined, leadIn: undefined }));
+      return { enhancedEntries: stripped, categories: [{ category: 'General', entries: stripped }] };
+    }
+    throw error;
+  }
+}
+
 export async function enhanceAndCategorize(
   provider: LLMProvider,
   entries: ChangelogEntry[],
@@ -151,30 +200,20 @@ export async function enhanceAndCategorize(
     context.prompts,
   );
 
-  const initialMessages: LLMMessage[] = [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: buildUserPrompt(entries) },
-  ];
+  // Chunk so a large release doesn't go into one prompt: the whole set overflows the output ceiling,
+  // fails entry-count validation, and drives corrective retries that resend a growing transcript
+  // (~3× tokens by attempt 3). Bounded chunks keep each call within budget with per-chunk corrective
+  // retry and per-chunk fallback. A release at or under the chunk size is a single call, unchanged.
+  const chunkSize = LLM_DEFAULTS.enhanceCategorizeChunkSize;
+  const enhancedEntries: ChangelogEntry[] = [];
+  const categories: CategorizedEntries[] = [];
 
-  try {
-    return await runCorrectiveTask({
-      provider,
-      initialMessages,
-      schema: buildEnhanceAndCategorizeSchema(context.categories ?? []),
-      toolName: 'emit_release_notes',
-      validate: createEnhanceAndCategorizeValidator(entries, context),
-    });
-  } catch (error) {
-    if (error instanceof LLMError) {
-      warn(`enhanceAndCategorize failed after all attempts: ${error.message}. Returning entries ungrouped.`);
-      // Triggered by structural validation failures the LLM couldn't recover from across the
-      // retry budget: malformed JSON, schema-incompatible output, wrong entry count, or
-      // categories outside the configured list. (Disallowed scopes don't reach here — the
-      // configured invalidScopeAction resolves them in-place.) Strip the original entries'
-      // scope/leadIn since the LLM run never produced validated values for either.
-      const stripped = entries.map((e) => ({ ...e, scope: undefined, leadIn: undefined }));
-      return { enhancedEntries: stripped, categories: [{ category: 'General', entries: stripped }] };
-    }
-    throw error;
+  for (let i = 0; i < entries.length; i += chunkSize) {
+    const chunk = entries.slice(i, i + chunkSize);
+    const result = await enhanceAndCategorizeChunk(provider, chunk, context, systemPrompt);
+    enhancedEntries.push(...result.enhancedEntries);
+    mergeCategories(categories, result.categories);
   }
+
+  return { enhancedEntries, categories };
 }

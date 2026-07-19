@@ -73,6 +73,34 @@ describe('withRetry()', () => {
     ).rejects.toBeInstanceOf(CustomError);
   });
 
+  it('should stop immediately when shouldRetry returns false', async () => {
+    let calls = 0;
+    await expect(
+      withRetry(
+        async () => {
+          calls++;
+          throw new Error('non-retryable');
+        },
+        { maxAttempts: 3, initialDelay: 0, shouldRetry: () => false },
+      ),
+    ).rejects.toThrow('non-retryable');
+    expect(calls).toBe(1);
+  });
+
+  it('should keep retrying when shouldRetry returns true', async () => {
+    let calls = 0;
+    await expect(
+      withRetry(
+        async () => {
+          calls++;
+          throw new Error('retryable');
+        },
+        { maxAttempts: 3, initialDelay: 0, shouldRetry: () => true },
+      ),
+    ).rejects.toThrow('retryable');
+    expect(calls).toBe(3);
+  });
+
   it('should succeed on the last allowed attempt', async () => {
     let calls = 0;
     const result = await withRetry(

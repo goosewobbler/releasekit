@@ -6,6 +6,7 @@ import { BaseLLMProvider } from './base.js';
 import type { CompleteResult, LLMMessage } from './messages.js';
 import { debugLogMessages } from './messages.js';
 import type { ProviderCapabilities } from './provider.js';
+import { isRetryableProviderError, isRetryableStatus } from './retryable.js';
 
 export interface OllamaConfig {
   apiKey?: string;
@@ -41,6 +42,7 @@ export class OllamaProvider extends BaseLLMProvider {
     systemRole: true,
     structuredOutputs: true,
     toolUse: false,
+    honorsTemperature: true,
   };
 
   private baseURL: string;
@@ -96,10 +98,13 @@ export class OllamaProvider extends BaseLLMProvider {
             : 'OLLAMA_API_KEY is not set. Set the environment variable or use --no-llm to skip LLM processing.';
           throw new LLMError(
             `Ollama request failed: ${response.status} ${response.statusText}${text ? ` - ${text}` : ''}. ${keyHint}`,
+            { retryable: false },
           );
         }
         const text = await response.text();
-        throw new LLMError(`Ollama request failed: ${response.status} ${text}`);
+        throw new LLMError(`Ollama request failed: ${response.status} ${text}`, {
+          retryable: isRetryableStatus(response.status),
+        });
       }
 
       const data = (await response.json()) as OllamaChatResponse;
@@ -125,8 +130,13 @@ export class OllamaProvider extends BaseLLMProvider {
       return { content };
     } catch (error) {
       if (error instanceof LLMError) throw error;
-      if (signal.aborted) throw new LLMError(`Ollama request timed out after ${this.getTimeout(options)}ms`);
-      throw new LLMError(`Ollama error: ${error instanceof Error ? error.message : String(error)}`);
+      if (signal.aborted) {
+        throw new LLMError(`Ollama request timed out after ${this.getTimeout(options)}ms`, { retryable: true });
+      }
+      throw new LLMError(`Ollama error: ${error instanceof Error ? error.message : String(error)}`, {
+        cause: error,
+        retryable: isRetryableProviderError(error),
+      });
     }
   }
 }

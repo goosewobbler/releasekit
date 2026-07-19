@@ -5,6 +5,7 @@ import { BaseLLMProvider } from './base.js';
 import type { CompleteResult, LLMMessage } from './messages.js';
 import { debugLogMessages } from './messages.js';
 import type { ProviderCapabilities } from './provider.js';
+import { isRetryableProviderError } from './retryable.js';
 
 export interface AnthropicConfig {
   apiKey?: string;
@@ -17,6 +18,8 @@ export class AnthropicProvider extends BaseLLMProvider {
     systemRole: true,
     structuredOutputs: true,
     toolUse: true,
+    // temperature is deliberately not forwarded (see complete()), so it must not key the cache.
+    honorsTemperature: false,
   };
 
   private client: Anthropic;
@@ -38,6 +41,10 @@ export class AnthropicProvider extends BaseLLMProvider {
   async complete(messages: LLMMessage[], options?: CompleteOptions): Promise<CompleteResult> {
     debugLogMessages(this.name, messages);
 
+    // `options.temperature` is intentionally not passed to the Messages API: thinking-enabled models
+    // (Sonnet 5, Fable 5, Opus 4.8) reject `temperature` with a 400, and releasekit uses one provider
+    // for any configured model. Reflected as capabilities.honorsTemperature: false so the cache key
+    // ignores it too. To honor temperature, gate it on the model and drop that capability flag.
     const systemMsg = messages.find((m) => m.role === 'system');
     const nonSystemMessages = messages
       .filter((m) => m.role !== 'system')
@@ -84,17 +91,24 @@ export class AnthropicProvider extends BaseLLMProvider {
         { signal },
       );
 
-      const firstBlock = response.content[0];
+      // Find the text block rather than assuming content[0]: thinking-enabled models (Sonnet 5,
+      // Fable 5) return one or more `thinking` blocks ahead of the `text` block for non-schema tasks.
+      const textBlock = response.content.find((b) => b.type === 'text');
 
-      if (!firstBlock || firstBlock.type !== 'text') {
-        throw new LLMError('Unexpected response format from Anthropic');
+      if (textBlock?.type !== 'text') {
+        throw new LLMError('Expected a text block in Anthropic response');
       }
 
-      return { content: firstBlock.text };
+      return { content: textBlock.text };
     } catch (error) {
       if (error instanceof LLMError) throw error;
-      if (signal.aborted) throw new LLMError(`Anthropic request timed out after ${this.getTimeout(options)}ms`);
-      throw new LLMError(`Anthropic API error: ${error instanceof Error ? error.message : String(error)}`);
+      if (signal.aborted) {
+        throw new LLMError(`Anthropic request timed out after ${this.getTimeout(options)}ms`, { retryable: true });
+      }
+      throw new LLMError(`Anthropic API error: ${error instanceof Error ? error.message : String(error)}`, {
+        cause: error,
+        retryable: isRetryableProviderError(error),
+      });
     }
   }
 }

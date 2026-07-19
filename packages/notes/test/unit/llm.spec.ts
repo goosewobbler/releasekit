@@ -532,6 +532,111 @@ describe('enhanceAndCategorize()', () => {
     await expect(enhanceAndCategorize(provider, sampleEntries, llmContext)).rejects.toThrow();
   });
 
+  it('should chunk a large release into bounded ~30-entry batches and merge same-named categories', async () => {
+    const many: ChangelogEntry[] = Array.from({ length: 35 }, (_, i) => ({ type: 'added', description: `Entry ${i}` }));
+    // Echo back one 'General' entry per input entry in the chunk (counted from the rendered prompt).
+    const chunkSizes: number[] = [];
+    let callCount = 0;
+    const provider: LLMProvider & { callCount: number } = {
+      name: 'mock',
+      capabilities: { systemRole: true, structuredOutputs: false, toolUse: false },
+      get callCount() {
+        return callCount;
+      },
+      async complete(messages: LLMMessage[]): Promise<CompleteResult> {
+        callCount++;
+        const userMsg = messages.find((m) => m.role === 'user')?.content ?? '';
+        const count = (userMsg.match(/<entry /g) ?? []).length;
+        chunkSizes.push(count);
+        const entries = Array.from({ length: count }, () => ({
+          description: 'ok',
+          category: 'General',
+          scope: null,
+          breaking: null,
+          leadIn: null,
+        }));
+        const content = JSON.stringify({ entries });
+        return { content, structured: JSON.parse(content) };
+      },
+    };
+
+    const result = await enhanceAndCategorize(provider, many, llmContext);
+
+    expect(provider.callCount).toBe(2);
+    expect(chunkSizes).toEqual([30, 5]);
+    expect(result.enhancedEntries).toHaveLength(35);
+    expect(result.categories).toHaveLength(1);
+    expect(result.categories[0]?.category).toBe('General');
+    expect(result.categories[0]?.entries).toHaveLength(35);
+  });
+
+  it('should isolate a failing chunk to a General fallback without discarding good chunks', async () => {
+    const many: ChangelogEntry[] = Array.from({ length: 35 }, (_, i) => ({ type: 'added', description: `Entry ${i}` }));
+    let callCount = 0;
+    const provider: LLMProvider & { callCount: number } = {
+      name: 'mock',
+      capabilities: { systemRole: true, structuredOutputs: false, toolUse: false },
+      get callCount() {
+        return callCount;
+      },
+      async complete(messages: LLMMessage[]): Promise<CompleteResult> {
+        callCount++;
+        const userMsg = messages.find((m) => m.role === 'user')?.content ?? '';
+        const count = (userMsg.match(/<entry /g) ?? []).length;
+        // First chunk (30 entries) succeeds; the small tail chunk (5) never validates → its fallback.
+        if (count === 30) {
+          const entries = Array.from({ length: 30 }, () => ({
+            description: 'ok',
+            category: 'New',
+            scope: null,
+            breaking: null,
+            leadIn: null,
+          }));
+          const content = JSON.stringify({ entries });
+          return { content, structured: JSON.parse(content) };
+        }
+        return { content: 'invalid json' };
+      },
+    };
+
+    const result = await enhanceAndCategorize(provider, many, llmContext);
+
+    // chunk 1: one valid call. chunk 2: 1 initial + 2 corrective, all invalid → General fallback.
+    expect(provider.callCount).toBe(4);
+    expect(result.enhancedEntries).toHaveLength(35);
+    expect(result.categories.find((c) => c.category === 'New')?.entries).toHaveLength(30);
+    expect(result.categories.find((c) => c.category === 'General')?.entries).toHaveLength(5);
+  });
+
+  it('should preserve entry order across chunk boundaries', async () => {
+    const many: ChangelogEntry[] = Array.from({ length: 35 }, (_, i) => ({ type: 'added', description: `Entry ${i}` }));
+    // Emit a monotonically increasing marker per entry across chunks; a cross-chunk reorder breaks the sequence.
+    let emitted = 0;
+    const provider: LLMProvider = {
+      name: 'mock',
+      capabilities: { systemRole: true, structuredOutputs: false, toolUse: false },
+      async complete(messages: LLMMessage[]): Promise<CompleteResult> {
+        const userMsg = messages.find((m) => m.role === 'user')?.content ?? '';
+        const count = (userMsg.match(/<entry /g) ?? []).length;
+        const entries = Array.from({ length: count }, () => ({
+          description: `enhanced-${emitted++}`,
+          category: 'General',
+          scope: null,
+          breaking: null,
+          leadIn: null,
+        }));
+        const content = JSON.stringify({ entries });
+        return { content, structured: JSON.parse(content) };
+      },
+    };
+
+    const result = await enhanceAndCategorize(provider, many, llmContext);
+
+    expect(result.enhancedEntries.map((e) => e.description)).toEqual(
+      Array.from({ length: 35 }, (_, i) => `enhanced-${i}`),
+    );
+  });
+
   it('should apply invalidScopeAction to disallowed scopes without retrying the LLM', async () => {
     const response = JSON.stringify({
       entries: [

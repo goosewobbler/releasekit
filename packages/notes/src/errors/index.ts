@@ -28,6 +28,20 @@ export class LLMError extends NotesError {
     'Check network connectivity',
     'Try with --no-llm to skip LLM processing',
   ];
+
+  /**
+   * Whether the underlying failure is transient and worth retrying (timeout / 429 / 5xx / network).
+   * `false` marks a non-retryable failure (4xx auth/validation) so `withRetry` fails fast instead of
+   * burning the whole backoff budget. `undefined` means "unclassified" — callers retry by default.
+   */
+  readonly retryable?: boolean;
+
+  constructor(message: string, options?: { retryable?: boolean; cause?: unknown }) {
+    super(message);
+    // Chain the original provider/SDK error so its stack survives (the message only carries its text).
+    if (options?.cause !== undefined) this.cause = options.cause;
+    this.retryable = options?.retryable;
+  }
 }
 
 export class GitHubError extends NotesError {

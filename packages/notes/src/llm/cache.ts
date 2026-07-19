@@ -43,6 +43,10 @@ export function withContentHashCache(
     name: provider.name,
     capabilities: provider.capabilities,
     async complete(messages: LLMMessage[], options?: CompleteOptions): Promise<CompleteResult> {
+      // Only key on temperature for providers that actually apply it. Anthropic reports
+      // honorsTemperature: false — it never forwards temperature — so including it here would bust an
+      // otherwise-identical cached response whenever the (ignored) value changes.
+      const temperature = provider.capabilities.honorsTemperature === false ? undefined : options?.temperature;
       const key = createHash('sha256')
         .update(
           stableStringify({
@@ -50,7 +54,7 @@ export function withContentHashCache(
             model: identity.model,
             baseURL: identity.baseURL,
             messages,
-            temperature: options?.temperature,
+            temperature,
             maxTokens: options?.maxTokens,
             schema: options?.schema,
             toolName: options?.toolName,
