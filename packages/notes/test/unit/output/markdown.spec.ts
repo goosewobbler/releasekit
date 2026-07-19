@@ -588,7 +588,7 @@ describe('formatVersion: non-LLM path', () => {
 });
 
 // ---------------------------------------------------------------------------
-// formatVersion — issue refs + mention escaping (#499)
+// formatVersion — issue refs + mention escaping
 // ---------------------------------------------------------------------------
 
 describe('formatVersion: issue refs', () => {

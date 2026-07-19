@@ -180,7 +180,7 @@ describe('selection-region', () => {
 
   // --- Hierarchical / release-unit selection (#464) ---
 
-  describe('hierarchical selection (#464)', () => {
+  describe('hierarchical selection', () => {
     const tauriGroups = { tauri: { sync: 'linked' as const, packages: ['@wdio/tauri-*', 'tauri-plugin-*'] } };
     const tauriAll = ['@wdio/tauri-service', '@wdio/tauri-plugin', 'tauri-plugin-wdio-webdriver'];
     const tauriUpdates: Update[] = [
@@ -330,7 +330,7 @@ describe('selection-region', () => {
         expect(region).not.toContain('rk-sel:@wdio/tauri-plugin');
       });
 
-      it('should label independent-group members "bundled" rather than "coupled" (#509)', () => {
+      it('should label independent-group members "bundled" rather than "coupled"', () => {
         // independent members version on their own commit-driven lines but ship atomically with the
         // unit — "coupled" implies a shared version they don't have; "bundled" conveys atomic shipping.
         const independent = { tauri: { sync: 'independent' as const, packages: ['@wdio/tauri-*', 'tauri-plugin-*'] } };
@@ -341,7 +341,7 @@ describe('selection-region', () => {
         expect(region).not.toContain('· coupled');
       });
 
-      it('should keep an independent primary’s prerequisite as "coupled", not "bundled" (#509)', () => {
+      it('should keep an independent primary’s prerequisite as "coupled", not "bundled"', () => {
         // A prerequisite ships with the unit but isn't a group member — it has no version-bundle with
         // the independent group, so it keeps `coupled` even while the true group member shows `bundled`.
         const independent = { tauri: { sync: 'independent' as const, packages: ['@wdio/tauri-*', 'tauri-plugin-*'] } };
@@ -432,7 +432,7 @@ describe('selection-region', () => {
 
   // --- Channel-grouped sections (#487) ---
 
-  describe('channel-grouped sections (#487)', () => {
+  describe('channel-grouped sections', () => {
     const STABLE = '#### Stable — advancing on `latest`';
     const PRERELEASE = '#### Prereleases — advancing on their pre-release dist-tag';
 
@@ -569,7 +569,7 @@ describe('selection-region', () => {
     });
   });
 
-  describe('channel toggles (#521)', () => {
+  describe('channel toggles', () => {
     const channel = (over: Partial<ChannelToggleConfig> = {}): ChannelToggleConfig => ({
       prereleased: new Set(),
       graduated: new Set(),

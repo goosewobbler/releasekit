@@ -3,7 +3,7 @@
  * issue/PR ref (with a hovercard) and treats a bare `@scope/pkg` / `@user` as a mention (a stray
  * link that can ping/subscribe a real org or team on every release PR). Both render surfaces — the
  * notes Markdown (`CHANGELOG.md`, GitHub release body) and the standing-PR body — share these two
- * pure helpers so the treatment stays identical (#499).
+ * pure helpers so the treatment stays identical.
  */
 
 /** How bare `#NNN` issue/PR refs in a changelog are rendered. */
@@ -125,7 +125,7 @@ const CODE_SPAN_OR_DESC_REF = /`[^`]*`|( ?)(?:\(#(\d+)\)|(?<![\\[/\w])#(\d+)\b)/
 
 /**
  * Neutralise bare `#N` issue/PR refs left inside an entry *description* — they come from the squash
- * commit subject and GitHub otherwise auto-links them into verbose hovercards (#507). A ref that also
+ * commit subject and GitHub otherwise auto-links them into verbose hovercards. A ref that also
  * appears in the appended `(PR … · closes …)` label (`appendedRefs`) is REMOVED as a duplicate; any
  * other bare ref is rendered per `mode`: `escape` → `\#N`, `strip` → removed, `link` → a canonical
  * `[#N](…/issues/N)` link (falls back to `escape` for a non-GitHub repo). Complements
@@ -154,6 +154,6 @@ export function neutralizeDescriptionRefs(
     },
   );
   // `( ?)` eats the space *before* a ref, so a ref removed from the very start of the description
-  // (nothing before it to consume) leaves the following space behind — trim boundary residue (#507).
+  // (nothing before it to consume) leaves the following space behind — trim boundary residue.
   return out.trim();
 }

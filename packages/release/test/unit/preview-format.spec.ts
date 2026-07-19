@@ -215,7 +215,7 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('- Migrate to Vitest');
   });
 
-  it('should render bare #NNN refs per the refs mode (#504)', () => {
+  it('should render bare #NNN refs per the refs mode', () => {
     expect(formatPreviewComment(releaseOutput, { refs: 'escape' })).toContain(
       '- Fix prerelease sorting (`semver`) (\\#42)',
     );
@@ -258,7 +258,7 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('> - New dry-run flag (`cli`)');
   });
 
-  it('should always neutralise @-mentions in preview descriptions (#504)', () => {
+  it('should always neutralise @-mentions in preview descriptions', () => {
     const withMention = structuredClone(releaseOutput);
     const firstChangelog = withMention.versionOutput.changelogs[0];
     if (firstChangelog) {
@@ -974,7 +974,7 @@ describe('formatPreviewComment', () => {
 
   // --- Synthetic version-bump entries (#468) ---
 
-  describe('synthetic version-bump entries (#468)', () => {
+  describe('synthetic version-bump entries', () => {
     // A sync/lockstep carry: a bumped package with no commits of its own gets a fabricated
     // `Update version to X` placeholder from the version engine. The preview must collapse these
     // into the "Also bumped" list, not render full changelog blocks of placeholder noise.

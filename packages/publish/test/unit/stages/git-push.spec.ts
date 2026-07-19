@@ -289,7 +289,7 @@ describe('pushPackageTag', () => {
     expect(ctx.output.git.pushed).toBe(true);
   });
 
-  it('should wrap a branch-push failure as GIT_PUSH_ERROR, not unknown (#429)', async () => {
+  it('should wrap a branch-push failure as GIT_PUSH_ERROR, not unknown', async () => {
     // The branch push is rejected by a branch ruleset — a raw seam failure.
     vi.spyOn(fakeGit, 'push').mockImplementation(async (opts) => {
       if (opts.ref === 'main') {

@@ -41,7 +41,7 @@ describe('Commit Parser', () => {
 
     const entries = await extractChangelogEntriesFromCommits('/test', RANGE, gitWithLog(mockGitOutput));
 
-    expect(entries).toHaveLength(11); // every conventional type is surfaced, including 'test' (#569)
+    expect(entries).toHaveLength(11); // every conventional type is surfaced, including 'test'
 
     expect(entries.find((e) => e.description === 'add new feature')).toEqual(
       expect.objectContaining({ type: 'added', scope: 'core' }),
@@ -52,7 +52,7 @@ describe('Commit Parser', () => {
     expect(entries.find((e) => e.description === 'update README')).toEqual(
       expect.objectContaining({ type: 'changed', scope: undefined }),
     );
-    // `test:` is categorized as Changed, not dropped (#569).
+    // `test:` is categorized as Changed, not dropped.
     expect(entries.find((e) => e.description === 'add new tests')).toEqual(
       expect.objectContaining({ type: 'changed', scope: undefined }),
     );
@@ -140,7 +140,7 @@ describe('Commit Parser', () => {
     expect(entries.map((e) => e.description)).toContain('Fix bug in login');
   });
 
-  it('should drop version-sync / release-bump bookkeeping subjects (#522)', async () => {
+  it('should drop version-sync / release-bump bookkeeping subjects', async () => {
     const mockGitOutput = [
       'Update version to 0.2.0',
       'Update version to 1.2.3 (wdio_flutter)',

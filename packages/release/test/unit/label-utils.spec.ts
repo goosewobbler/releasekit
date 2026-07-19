@@ -50,7 +50,7 @@ describe('composeBumpFromLabels', () => {
   });
 });
 
-describe('per-package graduate labels (#486)', () => {
+describe('per-package graduate labels', () => {
   it('should build a graduate:<package> label from a package name', () => {
     expect(graduatePackageLabel('@scope/pkg')).toBe('graduate:@scope/pkg');
   });

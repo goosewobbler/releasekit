@@ -69,7 +69,7 @@ function formatEntry(entry: ChangelogEntry, opts?: EntryRefOptions): string {
   // org/team on a release PR) — always neutralise it, regardless of the refs mode. The scope and
   // lead-in are interpolated as bold prose too (a scoped package name like `@wdio/native-cdp-bridge`
   // would mention `@wdio`), so escape all three, not just the description. Bare `#N` refs carried over
-  // from the commit subject are also neutralised / de-duped against the appended label (#507).
+  // from the commit subject are also neutralised / de-duped against the appended label.
   const refsMode = opts?.refs ?? 'link';
   const appendedRefs = [...(entry.issueIds ?? []), entry.prNumber];
   const description = escapeChangelogMentions(

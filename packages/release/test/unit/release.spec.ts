@@ -982,7 +982,7 @@ describe('runRelease', () => {
     });
   });
 
-  describe('feeder-preview refresh (#459)', () => {
+  describe('feeder-preview refresh', () => {
     it('should refresh feeder previews in-process after a successful release', async () => {
       await runRelease(defaultOptions);
       expect(mockRefreshFeederPreviews).toHaveBeenCalledWith(expect.objectContaining({ projectDir: '/test/project' }));
@@ -999,7 +999,7 @@ describe('runRelease', () => {
     });
   });
 
-  describe('editedNotes (manual-mode draft dispatch, #319)', () => {
+  describe('editedNotes (manual-mode draft dispatch)', () => {
     it('should merge editedNotes over generated notes before publish (edited wins per package)', async () => {
       await runRelease({ ...defaultOptions, editedNotes: { 'test-pkg': '- edited by human' } });
 

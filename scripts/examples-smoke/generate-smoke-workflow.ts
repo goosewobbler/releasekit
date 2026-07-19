@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 /**
  * Generates .github/workflows/examples-smoke.yml from the SHIPPED example
- * workflows (issue #276).
+ * workflows.
  *
  * Why generated instead of hand-written: the smoke test must run the same setup
  * steps the example ships, or it proves nothing — and a hand-written mirror rots

@@ -24,7 +24,7 @@ export function rkSelMarker(packageName: string): string {
 }
 
 /**
- * Identity marker for a stable row's channel toggle — "ship this package as a prerelease" (#521). A
+ * Identity marker for a stable row's channel toggle — "ship this package as a prerelease". A
  * nested, interactive task item under an rk-sel row; its `[x]`/`[ ]` glyph carries the intent while
  * this marker carries the package name. The symmetric twin of {@link rkGradMarker}. Machine-read,
  * never the row's prose.
