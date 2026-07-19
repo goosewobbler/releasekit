@@ -1,3 +1,4 @@
+import { escAttr, escBody } from '../tasks/shared.js';
 import type { Example, ExampleEntry } from './types.js';
 
 const LEAD_IN_RE = /^\*\*([^*]+)\*\*:\s*/;
@@ -41,16 +42,19 @@ export function parseReleaseBodyToExample(markdown: string, version: string): Ex
 export function renderExamplesBlock(examples: Example[]): string {
   if (examples.length === 0) return '';
 
+  // These examples are built from past release bodies and re-fed as few-shot input, and release-notes
+  // output becomes a future example — a self-poisoning loop. Escape every interpolated field so an
+  // entry can't forge a `</example>` tag or inject instructions into a later prompt.
   const blocks = examples.map((ex) => {
     const entryLines = ex.entries
       .map((e) => {
-        const leadIn = e.leadIn ? `**${e.leadIn}**: ` : '';
-        const scope = e.scope ? ` (${e.scope})` : '';
+        const leadIn = e.leadIn ? `**${escBody(e.leadIn)}**: ` : '';
+        const scope = e.scope ? ` (${escBody(e.scope)})` : '';
         const breaking = e.breaking ? ' **BREAKING**' : '';
-        return `  - [${e.category}]${scope}: ${leadIn}${e.description}${breaking}`;
+        return `  - [${escBody(e.category)}]${scope}: ${leadIn}${escBody(e.description)}${breaking}`;
       })
       .join('\n');
-    return `<example version="${ex.version}">\n${entryLines}\n</example>`;
+    return `<example version="${escAttr(ex.version)}">\n${entryLines}\n</example>`;
   });
 
   return `\nExamples from prior releases (use these as style references):\n${blocks.join('\n')}\n`;
