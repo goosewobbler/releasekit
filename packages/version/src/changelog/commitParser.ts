@@ -285,11 +285,6 @@ function parseCommitMessage(message: string): ChangelogEntry | null {
     // Map conventional commit type to changelog type
     const changelogType = mapCommitTypeToChangelogType(type);
 
-    // Skip certain commit types that usually aren't relevant to the changelog
-    if (!changelogType) {
-      return null;
-    }
-
     // GitHub appends `(#N)` to the squash-merge subject — that's the PR. Pull it off the subject so it
     // renders as a labelled PR ref instead of a bare inline autolink GitHub expands into a rich card,
     // and record the number so the changelog can tell PR from closed issue.
@@ -341,7 +336,7 @@ function parseCommitMessage(message: string): ChangelogEntry | null {
 /**
  * Map conventional commit type to changelog entry type
  */
-function mapCommitTypeToChangelogType(type: string): ChangelogEntry['type'] | null {
+function mapCommitTypeToChangelogType(type: string): ChangelogEntry['type'] {
   switch (type) {
     case 'feat':
       return 'added';
@@ -360,8 +355,9 @@ function mapCommitTypeToChangelogType(type: string): ChangelogEntry['type'] | nu
       // Special case - depend on commit message
       return 'changed';
     case 'test':
-      // Usually test changes are not in changelog
-      return null;
+      // Surfaced as "Changed", not dropped: ReleaseKit lists every merged change (low-signal ones are
+      // demoted, not hidden). Excluding test alone undercounted the standing-PR preview. #569
+      return 'changed';
     default:
       // For unknown types, put in 'changed'
       return 'changed';
