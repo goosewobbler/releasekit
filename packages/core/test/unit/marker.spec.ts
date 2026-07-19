@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractMarkerRegion, markerData, wrapMarkerRegion } from '../../src/marker.js';
+import { extractMarkerRegion, markerData, neutralizeMarkers, wrapMarkerRegion } from '../../src/marker.js';
 
 describe('markerData', () => {
   const field = markerData<{ n: number }>({
@@ -65,5 +65,27 @@ describe('marker region', () => {
 
   it('should fall back to everything after the opener when the closer is missing', () => {
     expect(extractMarkerRegion(`${open}\n\nlegacy body content`, open, close)).toBe('legacy body content');
+  });
+});
+
+describe('neutralizeMarkers', () => {
+  it('should break the comment opener of releasekit and rk markers', () => {
+    expect(neutralizeMarkers('x <!-- releasekit-notes-end:pkg --> y')).toBe('x &lt;!-- releasekit-notes-end:pkg --> y');
+    expect(neutralizeMarkers('<!-- releasekit-manifest -->')).toBe('&lt;!-- releasekit-manifest -->');
+    expect(neutralizeMarkers('<!-- rk-sel:pkg -->')).toBe('&lt;!-- rk-sel:pkg -->');
+    // Also the no-space form, which the marker slicing would still see as `<!--` + prefix.
+    expect(neutralizeMarkers('<!--releasekit-notes -->')).toBe('&lt;!--releasekit-notes -->');
+  });
+
+  it('should leave unrelated HTML comments and prose untouched', () => {
+    expect(neutralizeMarkers('<!-- TODO: fix this -->')).toBe('<!-- TODO: fix this -->');
+    expect(neutralizeMarkers('a normal <!-- note --> comment')).toBe('a normal <!-- note --> comment');
+    expect(neutralizeMarkers('no comments at all')).toBe('no comments at all');
+  });
+
+  it('should scan a long adversarial input linearly (no polynomial-regex ReDoS)', () => {
+    const long = '<!-- '.repeat(100_000);
+    // Returns promptly and unchanged: none of these openers is followed by a releasekit/rk prefix.
+    expect(neutralizeMarkers(long)).toBe(long);
   });
 });

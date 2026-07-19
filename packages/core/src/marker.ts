@@ -58,6 +58,21 @@ export function markerData<T>(opts: {
   };
 }
 
+/**
+ * Neutralize releasekit marker sequences in attacker-influenceable free text before it is wrapped in
+ * a marker-delimited region. Editable-region content — LLM output, human edits, and commit-derived
+ * changelog fallback — can smuggle a forged marker: a `<!-- releasekit-notes-end:pkg -->` truncates
+ * the region on the next round-trip, a sibling opener hijacks another package's extracted notes, and
+ * the bare `<!-- releasekit-notes -->` spoofs the GitHub-release ownership check. Breaking only the
+ * comment opener (`<!--` → `&lt;!--`) when it heads a `releasekit-`/`rk-` marker makes the sequence
+ * render as inert visible text instead of an active marker, while leaving unrelated HTML comments in
+ * the prose untouched. The lookahead never consumes past the fixed `<!--`, so the scan stays linear
+ * (no polynomial-regex ReDoS on untrusted input).
+ */
+export function neutralizeMarkers(content: string): string {
+  return content.replace(/<!--(?= ?(?:releasekit-|rk-))/g, '&lt;!--');
+}
+
 /** Wrap editable content in an open/close marker pair so it can be recognised and extracted later. */
 export function wrapMarkerRegion(content: string, open: string, close: string): string {
   return `${open}\n\n${content.trim()}\n\n${close}`;

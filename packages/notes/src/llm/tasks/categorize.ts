@@ -10,7 +10,9 @@ import {
   buildCategorySection,
   checkCategoryNames,
   groupByCategory,
+  INSTRUCTION_HIERARCHY,
   parseLLMResult,
+  renderEntries,
   renderScopeInstruction,
   runCorrectiveTask,
   type TaskValidator,
@@ -31,6 +33,8 @@ function buildSystemPrompt(categories: LLMCategory[] | undefined): string {
 
   return `You are categorizing changelog entries for a software release.
 
+${INSTRUCTION_HIERARCHY}
+
 ${categorySection}${scopeInstruction}
 
 Output a JSON object with an "entries" array. Each element (same order as input) must have:
@@ -39,8 +43,7 @@ Output a JSON object with an "entries" array. Each element (same order as input)
 }
 
 function buildUserPrompt(entries: ChangelogEntry[]): string {
-  const text = entries.map((e, i) => `${i}. [${e.type}]: ${e.description}`).join('\n');
-  return `Entries:\n${text}`;
+  return `Entries:\n${renderEntries(entries)}`;
 }
 
 export function createCategorizeValidator(

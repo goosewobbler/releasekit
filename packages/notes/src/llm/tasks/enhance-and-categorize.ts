@@ -11,8 +11,9 @@ import {
   buildCategorySection,
   checkCategoryNames,
   groupByCategory,
+  INSTRUCTION_HIERARCHY,
   parseLLMResult,
-  renderPRBlocks,
+  renderEntries,
   renderScopeInstruction,
   runCorrectiveTask,
   type TaskValidator,
@@ -40,6 +41,8 @@ function buildSystemPrompt(categories: LLMCategory[] | undefined, style: string 
 
   return `You are generating release notes for a software project. Given changelog entries, rewrite each as a clear user-friendly description and categorize it.
 
+${INSTRUCTION_HIERARCHY}
+
 Style guidelines:
 - ${styleText}
 - Be concise (1 short sentence per entry)
@@ -60,14 +63,7 @@ Output a JSON object with an "entries" array. Each element (same order as input)
 }
 
 function buildUserPrompt(entries: ChangelogEntry[]): string {
-  const entriesText = entries
-    .map((e, i) => {
-      const prBlocks = renderPRBlocks(e);
-      const header = `${i}. [${e.type}]${e.scope ? ` (${e.scope})` : ''}: ${e.description}`;
-      return prBlocks ? `${header}\n${prBlocks}` : header;
-    })
-    .join('\n');
-  return `Entries:\n${entriesText}`;
+  return `Entries:\n${renderEntries(entries)}`;
 }
 
 export function createEnhanceAndCategorizeValidator(

@@ -3,9 +3,11 @@ import { renderExamplesBlock } from '../examples/parser.js';
 import type { LLMProvider, ReleaseNotesContext } from '../index.js';
 import type { LLMMessage } from '../messages.js';
 import { resolveSystemPrompt } from '../prompts.js';
-import { renderPRBlocks } from './shared.js';
+import { INSTRUCTION_HIERARCHY, renderEntries } from './shared.js';
 
 const DEFAULT_SYSTEM_PROMPT = `You are writing release notes for a software project.
+
+${INSTRUCTION_HIERARCHY}
 
 Rules:
 - Start with a brief introduction (1-2 sentences)
@@ -22,19 +24,7 @@ function buildUserPrompt(entries: ChangelogEntry[], context: ReleaseNotesContext
   const date = context.date ?? new Date().toISOString().split('T')[0] ?? '';
   const prevLine = context.previousVersion ? `Previous version: ${context.previousVersion}\n` : '';
 
-  const entriesText = entries
-    .map((e) => {
-      let line = `- [${e.type}]`;
-      if (e.scope) line += ` (${e.scope})`;
-      line += `: ${e.description}`;
-      if (e.breaking) line += ' **BREAKING**';
-      const prBlocks = renderPRBlocks(e);
-      if (prBlocks) line += `\n${prBlocks}`;
-      return line;
-    })
-    .join('\n');
-
-  return `Version: ${version}\n${prevLine}Date: ${date}\n\nChanges:\n${entriesText}`;
+  return `Version: ${version}\n${prevLine}Date: ${date}\n\nChanges:\n${renderEntries(entries)}`;
 }
 
 export async function generateReleaseNotes(
