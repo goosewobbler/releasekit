@@ -16,7 +16,7 @@ Crucially, there is no zero-config path to protect: LLM enhancement is already a
 
 ## Decision
 
-This decision is scoped to LLM-enhanced release notes — the only place ReleaseKit calls a model. Versioning, changelog generation, and publishing are deterministic and LLM-free, and it does not touch them.
+This decision is scoped to LLM-enhanced release notes — the only place ReleaseKit calls a model. Versioning, changelog generation, and publishing are deterministic and LLM-free; this decision does not touch them.
 
 **For LLM-enhanced release notes, ReleaseKit ships no model defaults. When enhancement is enabled, `llm.model` is required and validated at config load.**
 
