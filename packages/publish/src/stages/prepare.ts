@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { debug, info } from '@releasekit/core';
+import { debug, info, isPathWithinRoot } from '@releasekit/core';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext } from '../types.js';
 import { syncCargoLockfile, updateCargoVersion } from '../utils/cargo.js';
@@ -16,6 +16,15 @@ export async function runPrepareStage(ctx: PipelineContext): Promise<void> {
       for (const file of config.npm.copyFiles) {
         const src = path.resolve(cwd, file);
         const dest = path.join(pkgDir, file);
+
+        // Confine both the read source and the write destination to the repo root — a `../` or
+        // absolute copyFiles entry would otherwise read or write outside the tree.
+        if (!isPathWithinRoot(cwd, src) || !isPathWithinRoot(cwd, dest)) {
+          throw createPublishError(
+            PublishErrorCode.FILE_COPY_ERROR,
+            `Refusing to copy '${file}': it resolves outside the repository root (${cwd})`,
+          );
+        }
 
         if (!fs.existsSync(src)) {
           debug(`Source file not found, skipping copy: ${src}`);

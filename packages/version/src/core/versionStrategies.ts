@@ -16,6 +16,7 @@ import { getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js'
 import { updatePackageVersion } from '../package/packageManagement.js';
 import { PackageProcessor } from '../package/packageProcessor.js';
 import type { Config } from '../types.js';
+import { resolveConfinedManifestPath } from '../utils/confinedPath.js';
 import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
 import {
   addBaselineTag,
@@ -65,9 +66,17 @@ function shouldProcessPackage(pkg: Package, config: Config): boolean {
  * @param packageDir - The directory containing the package
  * @param version - The version to update to
  * @param cargoConfig - The cargo configuration from config
+ * @param dryRun - When true, log the intended writes without touching disk
+ * @param repoRoot - Confinement boundary for config-driven `cargo.paths` writes
  * @returns Array of Cargo.toml file paths that were updated
  */
-function updateCargoFiles(packageDir: string, version: string, cargoConfig: Config['cargo'], dryRun = false): string[] {
+function updateCargoFiles(
+  packageDir: string,
+  version: string,
+  cargoConfig: Config['cargo'],
+  dryRun = false,
+  repoRoot: string = process.cwd(),
+): string[] {
   const updatedFiles: string[] = [];
 
   // Check if Cargo.toml handling is enabled (default to true if not specified)
@@ -92,7 +101,7 @@ function updateCargoFiles(packageDir: string, version: string, cargoConfig: Conf
   if (cargoPaths && cargoPaths.length > 0) {
     // If paths are specified, only include those Cargo.toml files
     for (const cargoPath of cargoPaths) {
-      const resolvedCargoPath = path.resolve(packageDir, cargoPath, 'Cargo.toml');
+      const resolvedCargoPath = resolveConfinedManifestPath(repoRoot, packageDir, cargoPath, 'Cargo.toml');
       if (fs.existsSync(resolvedCargoPath)) {
         stageCargo(resolvedCargoPath);
       }
@@ -240,7 +249,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
 
           // Root Cargo.toml handling is independent of npm (updateCargoFiles honors cargo.enabled),
           // so it runs whether or not npm versioning is disabled — matching the per-package loop below.
-          const rootCargoFiles = updateCargoFiles(packages.root, nextVersion, config.cargo, dryRun);
+          const rootCargoFiles = updateCargoFiles(packages.root, nextVersion, config.cargo, dryRun, repoRoot);
           files.push(...rootCargoFiles);
           // Record 'root' when only the root Cargo.toml was versioned (npm disabled, or no root
           // package.json). In a single-package repo where packages.root === packages[0].dir the loop
@@ -286,7 +295,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         }
 
         // Handle Cargo.toml files for this package
-        const pkgCargoFiles = updateCargoFiles(pkg.dir, nextVersion, config.cargo, dryRun);
+        const pkgCargoFiles = updateCargoFiles(pkg.dir, nextVersion, config.cargo, dryRun, repoRoot);
         files.push(...pkgCargoFiles);
 
         // Track by name when only the Cargo.toml was updated: a pure-Rust package (no package.json),
@@ -534,6 +543,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
       }
 
       const pkgPath = pkg.dir;
+      const repoRoot = packages.root ?? process.cwd();
       const formattedPrefix = formatVersionPrefix(versionPrefix || 'v');
 
       // Try to get the latest tag specific to this package first
@@ -669,7 +679,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
       }
 
       // Handle Cargo.toml files for this package
-      const cargoFiles = updateCargoFiles(pkgPath, nextVersion, config.cargo, dryRun);
+      const cargoFiles = updateCargoFiles(pkgPath, nextVersion, config.cargo, dryRun, repoRoot);
       filesToCommit.push(...cargoFiles);
 
       log(`Updated package ${packageName} to version ${nextVersion}`, 'success');
@@ -754,8 +764,9 @@ export function createAsyncStrategy(config: Config): StrategyFunction {
 
       log(`Processing ${packagesToProcess.length} packages`, 'info');
 
-      // 2. Process packages with PackageProcessor
-      const result = await packageProcessor.processPackages(packagesToProcess);
+      // 2. Process packages with PackageProcessor. Pass the discovered workspace root so
+      // config-driven cargo.paths / pub.paths writes are confined to the repository.
+      const result = await packageProcessor.processPackages(packagesToProcess, packages.root ?? process.cwd());
 
       // 3. Report results
       if (result.updatedPackages.length === 0) {

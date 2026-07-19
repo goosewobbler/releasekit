@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ConfigError } from '../../src/errors.js';
 import { loadAuth, saveAuth, substituteInObject, substituteVariables } from '../../src/substitute.js';
 
 vi.mock('node:fs', () => ({
@@ -12,6 +12,7 @@ vi.mock('node:fs', () => ({
 }));
 
 const mockedFs = vi.mocked(fs);
+const fileRoot = path.resolve('/repo');
 
 describe('substituteVariables', () => {
   const originalEnv = process.env;
@@ -45,30 +46,38 @@ describe('substituteVariables', () => {
     expect(result).toBe('No variables here');
   });
 
-  it('should substitute {file:PATH} with file contents', () => {
+  it('should substitute {file:PATH} with file contents from within the confinement root', () => {
     mockedFs.readFileSync.mockReturnValue('  file contents  \n');
-    const result = substituteVariables('File: {file:/path/to/file.txt}');
+    const result = substituteVariables('File: {file:secret.txt}', fileRoot);
     expect(result).toBe('File: file contents');
-    expect(mockedFs.readFileSync).toHaveBeenCalledWith('/path/to/file.txt', 'utf-8');
+    expect(mockedFs.readFileSync).toHaveBeenCalledWith(path.join(fileRoot, 'secret.txt'), 'utf-8');
   });
 
-  it('should expand ~ to home directory in file path', () => {
-    mockedFs.readFileSync.mockReturnValue('contents');
-    substituteVariables('{file:~/secrets/api-key}');
-    expect(mockedFs.readFileSync).toHaveBeenCalledWith(path.join(os.homedir(), 'secrets/api-key'), 'utf-8');
+  it('should resolve a {file:} reference relative to the confinement root', () => {
+    mockedFs.readFileSync.mockReturnValue('nested');
+    substituteVariables('{file:config/token}', fileRoot);
+    expect(mockedFs.readFileSync).toHaveBeenCalledWith(path.join(fileRoot, 'config', 'token'), 'utf-8');
   });
 
-  it('should return empty string for unreadable file', () => {
+  it('should reject a {file:} reference that escapes the root via ..', () => {
+    expect(() => substituteVariables('{file:../../etc/passwd}', fileRoot)).toThrow(ConfigError);
+  });
+
+  it('should reject an absolute {file:} reference outside the root', () => {
+    expect(() => substituteVariables('{file:/etc/passwd}', fileRoot)).toThrow(/outside the config directory/);
+  });
+
+  it('should return empty string for an in-bounds unreadable file', () => {
     mockedFs.readFileSync.mockImplementation(() => {
       throw new Error('ENOENT');
     });
-    const result = substituteVariables('{file:/nonexistent}');
+    const result = substituteVariables('{file:missing.txt}', fileRoot);
     expect(result).toBe('');
   });
 
   it('should substitute mixed env and file variables', () => {
     mockedFs.readFileSync.mockReturnValue('file-content');
-    const result = substituteVariables('{env:TEST_VAR} and {file:/path/to/file}');
+    const result = substituteVariables('{env:TEST_VAR} and {file:data.txt}', fileRoot);
     expect(result).toBe('test-value and file-content');
   });
 });
@@ -167,9 +176,14 @@ describe('substituteInObject', () => {
     mockedFs.readFileSync.mockImplementation(() => {
       throw new Error('ENOENT');
     });
-    const obj = { secret: '{file:/nonexistent/path}' };
-    const result = substituteInObject(obj);
+    const obj = { secret: '{file:nonexistent/path}' };
+    const result = substituteInObject(obj, fileRoot);
     expect(result.secret).toBeUndefined();
+  });
+
+  it('should reject a {file:} reference that escapes the confinement root', () => {
+    const obj = { secret: '{file:../../../etc/passwd}' };
+    expect(() => substituteInObject(obj, fileRoot)).toThrow(ConfigError);
   });
 
   it('should substitute in deeply nested structures', () => {

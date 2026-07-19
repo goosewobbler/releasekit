@@ -119,7 +119,9 @@ function loadConfigFile(configPath: string): ReleaseKitConfig {
   try {
     const content = fs.readFileSync(configPath, 'utf-8');
     const parsed = parseJsonc(content);
-    const substituted = substituteInObject(parsed);
+    // Confine {file:} substitution to the config file's directory (the repo root) so a config can't
+    // read files outside the tree.
+    const substituted = substituteInObject(parsed, path.dirname(configPath));
     assertNoRemovedReleaseNotesFields(substituted);
     assertNoRemovedVersionFields(substituted);
     assertNoRemovedTopLevelFields(substituted);
