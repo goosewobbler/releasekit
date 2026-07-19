@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { GitError, gitExitCode, isCommandNotFound, isExecTimeout } from '../../src/errors.js';
+import { GitError, gitExitCode, isCommandNotFound, isExecTimeout, redactUrlCredentials } from '../../src/errors.js';
 import { createGitCli, GitCli, type GitRunner } from '../../src/git.js';
 
 interface RunOptions {
@@ -368,6 +368,38 @@ describe('GitError mapping', () => {
     expect(error.exitCode).toBe(128);
     expect(error.stderr).toBe('fatal: bad object');
     expect(error.message).toContain('fatal: bad object');
+  });
+
+  it('should redact URL userinfo in a push failure message, argv, and stderr', async () => {
+    const remote = 'https://x-access-token:SECRETTOKEN@github.com/o/r.git';
+    const { run } = makeRunner({
+      reject: exitError(128, `fatal: unable to access '${remote}/': The requested URL returned error: 403`),
+    });
+    const error = await new GitCli(run).push({ remote, ref: 'main' }).catch((e) => e as GitError);
+    expect(error).toBeInstanceOf(GitError);
+    expect(error.message).not.toContain('SECRETTOKEN');
+    expect(error.stderr).not.toContain('SECRETTOKEN');
+    expect(error.args.join(' ')).not.toContain('SECRETTOKEN');
+    expect(error.message).toContain('https://***@github.com/o/r.git');
+  });
+});
+
+describe('redactUrlCredentials', () => {
+  it('should mask user:password userinfo while leaving credential-free URLs intact', () => {
+    expect(redactUrlCredentials('https://x-access-token:tok@github.com/o/r')).toBe('https://***@github.com/o/r');
+    expect(redactUrlCredentials('git push https://user:pw@host/a failed: https://user:pw@host/a')).toBe(
+      'git push https://***@host/a failed: https://***@host/a',
+    );
+    // No userinfo → unchanged; scp-style remotes have no scheme:// and carry no inline secret.
+    expect(redactUrlCredentials('https://github.com/o/r.git')).toBe('https://github.com/o/r.git');
+    expect(redactUrlCredentials('git@github.com:o/r.git')).toBe('git@github.com:o/r.git');
+  });
+
+  it('should scan a long adversarial input linearly (no polynomial-regex ReDoS)', () => {
+    // A long scheme-like run with no `://…@` span must return promptly and unchanged; the fixed
+    // `://` anchor + negated class give a linear scan (guards the CodeQL polynomial-regex alert).
+    const long = 'a'.repeat(200_000);
+    expect(redactUrlCredentials(long)).toBe(long);
   });
 });
 
