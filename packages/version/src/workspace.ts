@@ -15,3 +15,24 @@ export async function getWorkspacePackageNames(options: { cwd?: string; configPa
   const { packages } = await engine.getWorkspacePackages(options.cwd);
   return packages.map((p) => p.packageJson.name).filter((name): name is string => Boolean(name));
 }
+
+/**
+ * The current on-disk version of every workspace package (npm + cargo + pub), keyed by package name.
+ * Reads each package's manifest as it stands in the checkout — the ground truth of what a publish will
+ * ship. The standing-PR publish path compares this against the release manifest's claimed versions to
+ * refuse a forged manifest whose versions/packages don't match the merged source (#556).
+ */
+export async function getWorkspacePackageVersions(
+  options: { cwd?: string; configPath?: string } = {},
+): Promise<Record<string, string>> {
+  const config = loadConfig({ cwd: options.cwd, configPath: options.configPath });
+  const engine = new VersionEngine(config, { dryRun: true });
+  const { packages } = await engine.getWorkspacePackages(options.cwd);
+  const versions: Record<string, string> = {};
+  for (const p of packages) {
+    const name = p.packageJson.name;
+    const version = p.packageJson.version;
+    if (name && version) versions[name] = version;
+  }
+  return versions;
+}

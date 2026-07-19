@@ -72,10 +72,35 @@ export interface PullRequestDetails {
   labels: string[];
 }
 
-/** A located issue/PR comment. */
+/** The author of a comment, as reported by the forge. `type` is `'Bot'` for a GitHub App / bot
+ *  actor (the tool itself), `'User'` for a human. Used to bind a machine-state marker comment (e.g.
+ *  the release manifest) to the bot identity so a human-authored forgery is never trusted (#556). */
+export interface CommentAuthor {
+  login?: string;
+  type?: string;
+}
+
+/** A located issue/PR comment. `user` is the comment's author when the forge reports one; absent on
+ *  the in-memory fake / legacy paths that never recorded it. */
 export interface ForgeComment {
   id: number;
   body: string;
+  user?: CommentAuthor;
+}
+
+/**
+ * Whether a marker comment was authored by the bot/app identity (the tool) rather than a human.
+ * A machine-state marker (the release manifest, previews, failure reports) is only trustworthy when
+ * the bot wrote it; a human-authored comment carrying the same marker is a forgery/pre-seed and must
+ * not be adopted or trusted (#556).
+ *
+ * Fails open on an unknown author (`user` absent) — the real GitHub adapter always reports one, so
+ * `undefined` only occurs on the fake/legacy paths, where treating it as ours preserves behavior.
+ */
+export function isBotComment(comment: Pick<ForgeComment, 'user'>): boolean {
+  const user = comment.user;
+  if (!user) return true;
+  return user.type === 'Bot' || (user.login !== undefined && user.login.endsWith('[bot]'));
 }
 
 export interface NewPullRequest {

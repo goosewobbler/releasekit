@@ -1,5 +1,6 @@
 import type {
   AssociatedPullRequest,
+  CommentAuthor,
   CommitStatus,
   CreateLabelResult,
   Forge,
@@ -21,6 +22,7 @@ import type {
   RepoPermission,
   StandingPullRequest,
 } from './types.js';
+import { isBotComment } from './types.js';
 
 interface FakeComment {
   id: number;
@@ -31,6 +33,9 @@ interface FakeComment {
    * `findComment` (a convenience for the common single-PR test).
    */
   prNumber?: number;
+  /** The comment's author. Left undefined, a seeded comment reads as bot-authored (the common case).
+   *  Seed `{ type: 'User' }` to simulate a human-authored forgery for author-binding tests (#556). */
+  user?: CommentAuthor;
 }
 
 /** Seed state for a {@link FakeForge}. Everything is optional; unseeded reads return empty/null. */
@@ -205,10 +210,12 @@ export class FakeForge implements Forge {
   }
 
   async findComment(prNumber: number, marker: string): Promise<FakeComment | null> {
-    return (
-      this.comments.find((c) => c.body.startsWith(marker) && (c.prNumber === undefined || c.prNumber === prNumber)) ??
-      null
+    const matches = this.comments.filter(
+      (c) => c.body.startsWith(marker) && (c.prNumber === undefined || c.prNumber === prNumber),
     );
+    // Mirror the real adapter: prefer a bot-authored match, falling back to a human-authored one so
+    // the caller can still see (and reject) it when it's the only marker comment present (#556).
+    return matches.find((c) => isBotComment(c)) ?? matches[0] ?? null;
   }
 
   async createComment(prNumber: number, body: string): Promise<void> {
@@ -225,7 +232,8 @@ export class FakeForge implements Forge {
   async upsertMarkerComment(prNumber: number, marker: string, body: string): Promise<void> {
     this.upsertedComments.push({ prNumber, marker, body });
     const existing = await this.findComment(prNumber, marker);
-    if (existing) {
+    // Only adopt a bot-authored comment; a human-authored marker is left alone (#556).
+    if (existing && isBotComment(existing)) {
       await this.updateComment(existing.id, body);
     } else {
       await this.createComment(prNumber, body);

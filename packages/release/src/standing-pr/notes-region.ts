@@ -12,6 +12,26 @@ const REGION_HEADING = '## Release Notes';
 const REGION_HINT =
   '> Edit the release notes for each package below before merging. Keep the `<!-- releasekit-notes... -->` marker comments — they delimit the editable region.';
 
+/**
+ * Upper bound on a single package's rendered release notes. Release notes are otherwise unbounded
+ * (the LLM output isn't length-capped, and raw commit bodies flow through), so an inflated note —
+ * accidental or adversarial — could push the standing-PR body past GitHub's hard limit and wedge
+ * every update (#558). Generous enough that normal notes are untouched; a note beyond it is trimmed
+ * at a line boundary with an explicit marker.
+ */
+export const MAX_NOTES_CHARS_PER_PACKAGE = 8000;
+const NOTES_TRUNCATION_MARKER = '\n\n…(truncated)';
+
+/** Trim one package's notes to {@link MAX_NOTES_CHARS_PER_PACKAGE}, on a line boundary where possible. */
+export function truncatePackageNotes(notes: string): string {
+  if (notes.length <= MAX_NOTES_CHARS_PER_PACKAGE) return notes;
+  const budget = MAX_NOTES_CHARS_PER_PACKAGE - NOTES_TRUNCATION_MARKER.length;
+  const slice = notes.slice(0, budget);
+  const lastNewline = slice.lastIndexOf('\n');
+  const kept = lastNewline > 0 ? slice.slice(0, lastNewline) : slice;
+  return `${kept}${NOTES_TRUNCATION_MARKER}`;
+}
+
 /** Render the editable region for the given per-package notes, with keyed markers per package. */
 export function renderNotesRegion(notesByPackage: Record<string, string>): string {
   const packages = Object.keys(notesByPackage).sort();
@@ -19,7 +39,7 @@ export function renderNotesRegion(notesByPackage: Record<string, string>): strin
 
   const lines: string[] = [REGION_HEADING, '', REGION_HINT, ''];
   for (const pkg of packages) {
-    lines.push(`### \`${pkg}\``, '', wrapNotesRegion(notesByPackage[pkg] ?? '', pkg), '');
+    lines.push(`### \`${pkg}\``, '', wrapNotesRegion(truncatePackageNotes(notesByPackage[pkg] ?? ''), pkg), '');
   }
   return lines.join('\n').trimEnd();
 }

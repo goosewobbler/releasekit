@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { extractNotesRegions, mergeNotesRegions, renderNotesRegion } from '../../../src/standing-pr/notes-region.js';
+import {
+  extractNotesRegions,
+  MAX_NOTES_CHARS_PER_PACKAGE,
+  mergeNotesRegions,
+  renderNotesRegion,
+  truncatePackageNotes,
+} from '../../../src/standing-pr/notes-region.js';
 
 describe('notes-region', () => {
   describe('renderNotesRegion', () => {
@@ -16,6 +22,32 @@ describe('notes-region', () => {
 
     it('should return an empty string when there are no packages', () => {
       expect(renderNotesRegion({})).toBe('');
+    });
+
+    it('should truncate oversized per-package notes at the documented bound (#558)', () => {
+      const oversized = Array.from({ length: 5000 }, (_, i) => `- line ${i} of a very inflated note`).join('\n');
+      const rendered = renderNotesRegion({ '@scope/a': oversized });
+
+      // The rendered region carries a bounded slice with the truncation marker, not the whole payload.
+      expect(rendered).toContain('…(truncated)');
+      expect(rendered.length).toBeLessThan(oversized.length);
+      // The package's editable block stays under the per-package bound (plus small marker/heading overhead).
+      expect(rendered).toContain('<!-- releasekit-notes:@scope/a -->');
+    });
+  });
+
+  describe('truncatePackageNotes', () => {
+    it('should leave notes within the bound untouched (#558)', () => {
+      const notes = 'a short note\nwith two lines';
+      expect(truncatePackageNotes(notes)).toBe(notes);
+    });
+
+    it('should trim notes beyond the bound and append the truncation marker (#558)', () => {
+      const oversized = 'x'.repeat(MAX_NOTES_CHARS_PER_PACKAGE + 5000);
+      const truncated = truncatePackageNotes(oversized);
+
+      expect(truncated.length).toBeLessThanOrEqual(MAX_NOTES_CHARS_PER_PACKAGE);
+      expect(truncated.endsWith('…(truncated)')).toBe(true);
     });
 
     it('should round-trip through extractNotesRegions', () => {

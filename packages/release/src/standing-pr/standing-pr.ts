@@ -10,9 +10,16 @@ import {
   success,
   warn,
 } from '@releasekit/core';
-import { type Forge, forgeErrorStatus, type PullRequestDetails } from '@releasekit/forge';
+import {
+  type Forge,
+  type ForgeComment,
+  forgeErrorStatus,
+  isBotComment,
+  type PullRequestDetails,
+} from '@releasekit/forge';
 import { createGitCli } from '@releasekit/git';
 import { PipelineError } from '@releasekit/publish';
+import { z } from 'zod';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration, parseDuration } from '../duration.js';
 import { renderSupersedeWarning } from '../failure-report/failure-report.js';
@@ -60,6 +67,47 @@ const MANIFEST_BASE64 = markerData<string>({
   serialize: (encoded) => encoded,
   deserialize: (payload) => payload || null,
 });
+
+// Upper bound on the decoded manifest JSON. The manifest is machine state we author; a legitimate one
+// is a few KB even for a large monorepo. Reject anything wildly larger before parsing so a bloated
+// payload (accidental or a DoS attempt) can't drive an unbounded JSON.parse.
+const MAX_MANIFEST_BYTES = 1_000_000;
+
+// Post-decode structural validation of the manifest. The payload is attacker-influenceable (a
+// write-access actor can edit the comment's base64), so the load-bearing fields — the package set,
+// versions and tags a merge will publish — are type-checked here before anything downstream trusts
+// them. `.passthrough()` preserves additive/forward-compat fields (old manifests live in open PRs, and
+// new optional fields must survive a round-trip) rather than silently stripping them.
+const ManifestVersionOutputSchema = z
+  .object({
+    updates: z.array(
+      z
+        .object({
+          packageName: z.string(),
+          newVersion: z.string(),
+          filePath: z.string(),
+        })
+        .passthrough(),
+    ),
+    tags: z.array(z.string()),
+    baselineTags: z.array(z.string()).optional(),
+  })
+  .passthrough();
+
+const ManifestSchema = z
+  .object({
+    versionOutput: ManifestVersionOutputSchema,
+    releaseNotes: z.record(z.string(), z.string()),
+    notesFiles: z.array(z.string()),
+    createdAt: z.string(),
+    baseSha: z.string(),
+    firstUpdatedAt: z.string().optional(),
+    overrideLabels: z.array(z.string()).optional(),
+    deselected: z.array(z.string()).optional(),
+    graduated: z.array(z.string()).optional(),
+    prereleased: z.array(z.string()).optional(),
+  })
+  .passthrough();
 
 export interface StandingPROptions {
   config?: string;
@@ -334,6 +382,14 @@ const TRUNCATION_NOTICE =
   "Each package's complete changelog is in its `CHANGELOG.md`. This usually means a package has no prior " +
   'release tag, so its changelog spans the entire git history — create baseline tags to scope it.';
 
+// Last-resort replacement for the editable release-notes region when even a fully-trimmed changelog
+// leaves the body over GitHub's limit — almost always inflated notes. Dropping the region
+// keeps the PR updatable (a 422 would wedge every future update) rather than preserving notes no one
+// can read; the notes still reach the GitHub release at publish, regenerated from source.
+const NOTES_OMITTED_NOTICE =
+  '## Release Notes\n\n> **Release notes omitted** — they exceeded the PR-body size limit and were left out to keep ' +
+  'this PR updatable. They will be regenerated for the GitHub release at publish time.';
+
 interface RenderPrBodyOptions {
   supersedeWarning?: string[];
   notesRegion?: string;
@@ -354,8 +410,15 @@ function renderPrBody(versionOutput: VersionOutput, options: RenderPrBodyOptions
   const { supersedeWarning, notesRegion, renderSelectionBlock, footer, summaryLine, summaryTable } = options;
 
   // Build the body around a given selection block + footer so we can re-render with progressively
-  // trimmed changelogs if the full one would exceed GitHub's limit, without disturbing the notes region.
-  const build = (selectionBlock: string | undefined, footerSection: string, extraNotice?: string): string => {
+  // trimmed changelogs if the full one would exceed GitHub's limit. `notesSection` is threaded through
+  // (rather than closed over) so the cap fallback can also shed/collapse the notes region — inflated
+  // notes are themselves a way to push the body past the limit.
+  const build = (
+    selectionBlock: string | undefined,
+    footerSection: string,
+    extraNotice?: string,
+    notesSection: string | undefined = notesRegion,
+  ): string => {
     const lines: string[] = ['## Release', ''];
 
     // One-line release headline (#520) under the heading — a neutral "what will publish" scan before
@@ -404,40 +467,60 @@ function renderPrBody(versionOutput: VersionOutput, options: RenderPrBodyOptions
     if (extraNotice) lines.push('', extraNotice, '');
     // The editable release-notes region (opt-in via the preview-notes label) sits below the changelog
     // and above the merge instructions, so a reviewer reads/edits it in the natural place.
-    if (notesRegion) lines.push('', notesRegion, '');
+    if (notesSection) lines.push('', notesSection, '');
     lines.push('---', '> Merge this PR to publish. The release will be triggered automatically.');
     lines.push('', ATTRIBUTION_FOOTER);
     return lines.join('\n');
   };
 
-  // Level 0 — the full body: per-row changelogs (non-sync) plus the combined deduped footer.
-  const fullSelection = renderSelectionBlock?.(true);
-  const full = build(fullSelection, footer);
-  if (full.length <= STANDING_PR_BODY_CAP) return full;
+  // Progressive shed for a given notes section, sheddng changelog volume in stages. Returns the first
+  // rendering that fits under the cap, or the smallest it can produce (bare rows / minimal footer) so
+  // the caller can decide whether collapsing the notes is what's still needed.
+  const shed = (notesSection: string | undefined): string => {
+    // Level 0 — the full body: per-row changelogs (non-sync) plus the combined deduped footer.
+    const fullSelection = renderSelectionBlock?.(true);
+    const full = build(fullSelection, footer, undefined, notesSection);
+    if (full.length <= STANDING_PR_BODY_CAP) return full;
 
-  if (renderSelectionBlock) {
-    // Non-sync: always keep the rows (the PR must stay usable); shed changelog volume in stages.
-    // Level 1 — keep the per-row changelogs, drop the redundant deduped footer.
-    if (footer) {
-      const body = build(fullSelection, '');
+    if (renderSelectionBlock) {
+      // Non-sync: always keep the rows (the PR must stay usable); shed changelog volume in stages.
+      // Level 1 — keep the per-row changelogs, drop the redundant deduped footer.
+      if (footer) {
+        const body = build(fullSelection, '', undefined, notesSection);
+        if (body.length <= STANDING_PR_BODY_CAP) return body;
+      }
+      // Level 2 — drop the per-row changelogs too (bare rows) and point reviewers at CHANGELOG.md.
+      const bareSelection = renderSelectionBlock(false);
+      const body = build(bareSelection, '', TRUNCATION_NOTICE, notesSection);
       if (body.length <= STANDING_PR_BODY_CAP) return body;
+      // Level 3 — even the notice overflows (thousands of rows): bare rows only.
+      return build(bareSelection, '', undefined, notesSection);
     }
-    // Level 2 — drop the per-row changelogs too (bare rows) and point reviewers at CHANGELOG.md.
-    const bareSelection = renderSelectionBlock(false);
-    const body = build(bareSelection, '', TRUNCATION_NOTICE);
-    if (body.length <= STANDING_PR_BODY_CAP) return body;
-    // Level 3 — even the notice overflows (thousands of rows): bare rows only.
-    return build(bareSelection, '');
-  }
 
-  // Sync: the footer is the only changelog — truncate it at a line boundary and append the notice.
-  if (footer) {
-    // 8 = 4 (\n\n around the footer) + 2 (\n\n before the notice) + 2 safety margin.
-    const room = STANDING_PR_BODY_CAP - build(undefined, '').length - TRUNCATION_NOTICE.length - 8;
-    if (room <= 0) return build(undefined, '');
-    return build(undefined, `${truncateAtLineBoundary(footer, room)}\n\n${TRUNCATION_NOTICE}`);
-  }
-  return build(undefined, '');
+    // Sync: the footer is the only changelog — truncate it at a line boundary and append the notice.
+    if (footer) {
+      // 8 = 4 (\n\n around the footer) + 2 (\n\n before the notice) + 2 safety margin.
+      const room =
+        STANDING_PR_BODY_CAP - build(undefined, '', undefined, notesSection).length - TRUNCATION_NOTICE.length - 8;
+      if (room <= 0) return build(undefined, '', undefined, notesSection);
+      return build(
+        undefined,
+        `${truncateAtLineBoundary(footer, room)}\n\n${TRUNCATION_NOTICE}`,
+        undefined,
+        notesSection,
+      );
+    }
+    return build(undefined, '', undefined, notesSection);
+  };
+
+  const primary = shed(notesRegion);
+  if (primary.length <= STANDING_PR_BODY_CAP || !notesRegion) return primary;
+  // The trimmed changelog still overflows with the notes present — the notes are (part of) the excess.
+  // Collapse them to a short notice, then drop them outright, so an inflated notes region can never
+  // wedge the PR at GitHub's 422.
+  const collapsed = shed(NOTES_OMITTED_NOTICE);
+  if (collapsed.length <= STANDING_PR_BODY_CAP) return collapsed;
+  return shed(undefined);
 }
 
 export function serializeManifest(m: StandingPRManifest): string {
@@ -465,6 +548,12 @@ export function parseManifest(commentBody: string): StandingPRManifest {
     throw new Error('Release manifest encoding is invalid');
   }
 
+  if (json.length > MAX_MANIFEST_BYTES) {
+    throw new Error(
+      `Release manifest is too large (${json.length} bytes, limit ${MAX_MANIFEST_BYTES}) — refusing to parse. Re-run 'standing-pr update' to regenerate.`,
+    );
+  }
+
   let parsed: unknown;
   try {
     parsed = JSON.parse(json);
@@ -472,20 +561,28 @@ export function parseManifest(commentBody: string): StandingPRManifest {
     throw new Error('Release manifest JSON is malformed');
   }
 
-  const m = parsed as StandingPRManifest;
-  if (m.schemaVersion < MANIFEST_SCHEMA_MIN_VERSION || m.schemaVersion > MANIFEST_SCHEMA_VERSION) {
+  // Require an exact, known schema version before trusting any field. `undefined`/`'2'`/`3` all fail
+  // this membership test — the previous `< MIN || > MAX` range let an absent schemaVersion slip
+  // through (both comparisons are false for `undefined`), so a manifest with no version was trusted.
+  const schemaVersion = (parsed as { schemaVersion?: unknown }).schemaVersion;
+  if (schemaVersion !== MANIFEST_SCHEMA_MIN_VERSION && schemaVersion !== MANIFEST_SCHEMA_VERSION) {
     throw new Error(
-      `Release manifest schema version ${m.schemaVersion} is incompatible (expected ${MANIFEST_SCHEMA_MIN_VERSION}–${MANIFEST_SCHEMA_VERSION}). Re-run 'standing-pr update' to regenerate.`,
+      `Release manifest schema version ${JSON.stringify(schemaVersion)} is incompatible (expected exactly ${MANIFEST_SCHEMA_MIN_VERSION}–${MANIFEST_SCHEMA_VERSION}). Re-run 'standing-pr update' to regenerate.`,
     );
   }
 
-  return m;
+  const result = ManifestSchema.safeParse(parsed);
+  if (!result.success) {
+    const detail = result.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ');
+    throw new Error(`Release manifest failed validation: ${detail}. Re-run 'standing-pr update' to regenerate.`);
+  }
+
+  // safeParse strips nothing (passthrough) but re-types to the schema shape; the runtime object still
+  // carries every field, so the cast back to the full manifest type is sound.
+  return result.data as unknown as StandingPRManifest;
 }
 
-export async function findManifestComment(
-  forge: Forge,
-  prNumber: number,
-): Promise<{ id: number; body: string } | null> {
+export async function findManifestComment(forge: Forge, prNumber: number): Promise<ForgeComment | null> {
   return forge.findComment(prNumber, MANIFEST_MARKER);
 }
 
@@ -517,6 +614,9 @@ export async function fetchStandingPRSnapshot(
 
   const comment = await findManifestComment(forge, pr.number);
   if (!comment) return null;
+  // findManifestComment falls back to a human-authored comment when no bot one exists; refuse to
+  // surface a forged manifest in the preview, matching the publish path's author check.
+  if (!isBotComment(comment)) return null;
 
   let manifest: StandingPRManifest;
   try {
@@ -1502,6 +1602,80 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   return { action, prNumber, prUrl, versionOutput };
 }
 
+/**
+ * Recompute-and-compare guard for the standing-PR publish path. The manifest comment is
+ * attacker-influenceable (a write-access actor can edit its base64), so its versions/tags are never
+ * trusted verbatim. The merged commit's package manifests — bumped by the reviewed-and-merged
+ * release-prep commit — are the ground truth: refuse to publish if the manifest names a package the
+ * workspace doesn't have, a version that doesn't match the source, or a consumer tag that encodes no
+ * published version. A single divergence rejects the whole manifest before any tag or registry write.
+ */
+async function assertManifestMatchesSource(
+  manifest: StandingPRManifest,
+  cwd: string,
+  configPath: string | undefined,
+  prNumber: number,
+): Promise<void> {
+  const { getWorkspacePackageVersions } = await import('@releasekit/version');
+  const onDisk = await getWorkspacePackageVersions({ cwd, configPath });
+  const publishable = publishableUpdates(manifest.versionOutput);
+
+  const validatedVersions: string[] = [];
+  for (const update of publishable) {
+    const actual = onDisk[update.packageName];
+    if (actual === undefined) {
+      throw new Error(
+        `Refusing to publish PR #${prNumber}: the release manifest lists package '${update.packageName}', which is ` +
+          `not in the workspace at the merged commit. The manifest does not match the source — it may have been ` +
+          `edited. Re-run 'standing-pr update' to regenerate it.`,
+      );
+    }
+    if (actual !== update.newVersion) {
+      throw new Error(
+        `Refusing to publish PR #${prNumber}: the release manifest claims '${update.packageName}@${update.newVersion}', ` +
+          `but the merged source has '${update.packageName}@${actual}'. The manifest does not match what was merged — ` +
+          `it may have been edited. Re-run 'standing-pr update' to regenerate it.`,
+      );
+    }
+    validatedVersions.push(update.newVersion);
+  }
+
+  // Both consumer tags and internal baseline tags (`baselineTagTemplate`, e.g. `release/v1.2.3`) encode
+  // their package's version and are pushed together by createReleaseTags below, so both are validated
+  // here — a tag carrying none of the validated versions is a rogue tag smuggled into the manifest.
+  // Validated unconditionally: `publishable` (hence `validatedVersions`) is empty only when `updates`
+  // is empty, in which case a legitimate manifest carries no tags at all — so a forged manifest that
+  // clears `updates` while injecting rogue tags reaches an empty validated set and every tag is rejected.
+  for (const tag of [...manifest.versionOutput.tags, ...(manifest.versionOutput.baselineTags ?? [])]) {
+    // A validated version must appear as a bounded token, not flanked by a digit, dot, or prerelease/
+    // build separator (`-`/`+`) — otherwise a version-embedding rogue tag (e.g. `v1.2.30`, `v11.2.3`, or
+    // `v1.2.3-evil` for a validated `1.2.3`) slips through a naive substring check.
+    const carriesValidatedVersion = validatedVersions.some((version) => {
+      const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`(?<![\\d.])${escaped}(?![\\d.+-])`).test(tag);
+    });
+    if (!carriesValidatedVersion) {
+      throw new Error(
+        `Refusing to publish PR #${prNumber}: the release manifest lists tag '${tag}', which does not correspond to ` +
+          `any package/version being published. The manifest does not match the source — it may have been edited. ` +
+          `Re-run 'standing-pr update' to regenerate it.`,
+      );
+    }
+    // A scoped-package tag (`@scope/name@v1.2.3`) must name a package actually being published; a
+    // forged `@scope/evil@v1.2.3` at a real published version would otherwise pass the version check
+    // and mint a spurious tag/GitHub release for a package outside the publish plan. (Bare `v1.2.3` and
+    // unscoped tags carry no reliably delimitable package name, so they rely on the version check above.)
+    const scopedPackage = /@[^\s@/]+\/[^\s@]+?(?=@)/.exec(tag)?.[0];
+    if (scopedPackage && !publishable.some((u) => u.packageName === scopedPackage)) {
+      throw new Error(
+        `Refusing to publish PR #${prNumber}: the release manifest lists tag '${tag}', whose package ` +
+          `'${scopedPackage}' is not among the packages being published. The manifest does not match the source — ` +
+          `it may have been edited. Re-run 'standing-pr update' to regenerate it.`,
+      );
+    }
+  }
+}
+
 // Core publish logic: finds manifest on the given PR, optionally extracts user-edited
 // notes from the PR body, then runs the publish step and cleans up the release branch.
 export async function publishFromManifest(prNumber: number, options: StandingPROptions): Promise<ReleaseOutput | null> {
@@ -1524,6 +1698,18 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   const manifestComment = await findManifestComment(forge, prNumber);
   if (!manifestComment) {
     throw new Error(`Release manifest not found on PR #${prNumber}. Re-run 'standing-pr update' to regenerate.`);
+  }
+
+  // Author-bind: the manifest drives what gets published, so it must have been written by the
+  // bot/app identity — not pre-seeded or replaced by a human-authored comment carrying the marker.
+  // `findComment` already prefers a bot-authored match; this refuses outright when the only manifest
+  // comment present is human-authored, rather than trusting it.
+  if (!isBotComment(manifestComment)) {
+    throw new Error(
+      `Refusing to publish PR #${prNumber}: the release manifest comment was authored by ` +
+        `'${manifestComment.user?.login ?? 'an unknown user'}', not the release bot. A manifest that did not come ` +
+        `from 'standing-pr update' cannot be trusted. Re-run 'standing-pr update' to regenerate it.`,
+    );
   }
 
   let manifest: StandingPRManifest;
@@ -1566,15 +1752,27 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     }
   }
 
-  // Warn if manifest base is no longer an ancestor of current HEAD (history may be rewritten).
-  // `isAncestor` returns false on a non-zero exit (not an ancestor) rather than throwing, so the
-  // old try/catch becomes a plain boolean check.
+  // Ancestry guard: the manifest was computed at `baseSha`; a squash-merge lands that plan's
+  // commit on the line whose tip descends from it. If `baseSha` is NOT an ancestor of HEAD, the
+  // manifest describes work that isn't on this branch (history rewritten, wrong branch, or a forged
+  // baseSha) — refuse rather than only warn. `isAncestor` returns false on a non-zero exit (not an
+  // ancestor) rather than throwing, so this is a plain boolean check.
   const currentSha = await getHeadSha(cwd);
   if (!(await createGitCli().isAncestor(manifest.baseSha, currentSha, cwd))) {
-    warn(
-      `Manifest baseSha (${manifest.baseSha}) is not an ancestor of current HEAD (${currentSha}) — history may have been rewritten`,
+    throw new Error(
+      `Refusing to publish PR #${prNumber}: the manifest's baseSha (${manifest.baseSha}) is not an ancestor of ` +
+        `HEAD (${currentSha}). The manifest was computed against a commit that is not in this branch's history ` +
+        `(the history may have been rewritten). Re-run 'standing-pr update' to regenerate it, then merge again.`,
     );
   }
+
+  // Recompute-and-compare: don't trust the manifest's versions verbatim. The merged commit's
+  // package manifests are the reviewed-and-merged source of truth for what will publish; read each
+  // package's actual on-disk version and refuse if the manifest claims a package the workspace doesn't
+  // have, or a version that doesn't match the source. This catches a forged manifest (extra package,
+  // bumped version) that a write-access actor edited into the comment's base64. A version divergence
+  // rejects the whole manifest before any tag is created or registry is touched.
+  await assertManifestMatchesSource(manifest, cwd, options.config, prNumber);
 
   info(`Publishing from manifest: ${publishableUpdates(manifest.versionOutput).length} package(s)`);
 
