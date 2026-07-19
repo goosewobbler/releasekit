@@ -16,7 +16,7 @@ const CONVENTIONAL_COMMIT_REGEX = /^(\w+)(?:\(([^)]+)\))?(!)?: (.+)(?:\n\n([\s\S
 const BREAKING_CHANGE_REGEX = /BREAKING CHANGE: ([\s\S]+?)(?:\n\n|$)/;
 // Free-form (non-conventional) subjects that are pure version-sync / release bookkeeping and carry no
 // changelog signal — e.g. `Update version to 1.2.3`, `update package versions across multiple
-// packages` — leaked in as `Changed` entries (#522). Only applied to the non-conventional fallback
+// packages` — leaked in as `Changed` entries. Only applied to the non-conventional fallback
 // branch, and narrow by construction (`version to <digit>` / `package versions`) so a real code
 // change like "update version handling in the parser" is never swallowed.
 const VERSION_BUMP_SUBJECT_REGEX = /^update (?:version to v?\d|package versions)\b/i;
@@ -317,7 +317,7 @@ function parseCommitMessage(message: string): ChangelogEntry | null {
 
   // Non-conventional commit - try to extract basic information
   // Only include if it seems meaningful (not a merge, a bare version tag, or a version-sync /
-  // release-bump bookkeeping subject — #522).
+  // release-bump bookkeeping subject).
   if (
     !trimmedMessage.startsWith('Merge') &&
     !trimmedMessage.match(/^v?\d+\.\d+\.\d+/) &&
@@ -356,7 +356,7 @@ function mapCommitTypeToChangelogType(type: string): ChangelogEntry['type'] {
       return 'changed';
     case 'test':
       // Surfaced as "Changed", not dropped: ReleaseKit lists every merged change (low-signal ones are
-      // demoted, not hidden). Excluding test alone undercounted the standing-PR preview. #569
+      // demoted, not hidden). Excluding test alone undercounted the standing-PR preview.
       return 'changed';
     default:
       // For unknown types, put in 'changed'

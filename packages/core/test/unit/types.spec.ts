@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { deriveReleaseChannel } from '../../src/types.js';
 
-describe('deriveReleaseChannel (#485)', () => {
+describe('deriveReleaseChannel', () => {
   it('should classify clean semver as the stable channel', () => {
     expect(deriveReleaseChannel('1.0.0')).toBe('stable');
     expect(deriveReleaseChannel('10.2.0')).toBe('stable');

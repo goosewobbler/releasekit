@@ -1,5 +1,5 @@
 /**
- * Scenario manifest for the examples execution smoke-test (issue #276).
+ * Scenario manifest for the examples execution smoke-test.
  *
  * Deliberately METADATA, not a mirror of the example steps: it names which
  * example workflow/job to EXTRACT setup steps from, which shipped config the

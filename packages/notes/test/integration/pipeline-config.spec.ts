@@ -185,7 +185,7 @@ describe('Pipeline: mode both does not double-write root', () => {
     );
   });
 
-  it('should forward the configured refs mode to per-package monorepo changelogs (#503)', async () => {
+  it('should forward the configured refs mode to per-package monorepo changelogs', async () => {
     const { writeMonorepoChangelogs } = await import('../../src/monorepo/aggregator.js');
     const { runPipeline } = await import('../../src/core/pipeline.js');
 

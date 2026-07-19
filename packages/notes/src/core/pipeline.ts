@@ -91,7 +91,7 @@ function generateCompareUrl(repoUrl: string, from: string, to: string, packageNa
       // Sanitized package-specific tag: "<de-scoped-name>@[v]<version>" (e.g. "scope-pkg@v1.2.3").
       // formatTag always strips the "@scope/", so the raw package name never appears literally and
       // the isPackageSpecific check above can't match it. Keep the "<name>@" prefix and re-attach the
-      // new version, preserving a "v" only if the original tag had one (#338).
+      // new version, preserving a "v" only if the original tag had one.
       fromVersion = from;
       toVersion = `${from.slice(0, atPos + 1)}${from[atPos + 1] === 'v' ? 'v' : ''}${toClean}`;
     } else if (dashVPos > 0 && from.charCodeAt(dashVPos + 2) >= 48 && from.charCodeAt(dashVPos + 2) <= 57) {

@@ -100,7 +100,7 @@ export async function pushPackageTag(tag: string, ctx: PipelineContext, setup?: 
 
   // Wrap raw exec failures as GIT_PUSH_ERROR so the failure report labels the stage `git-push`
   // rather than `unknown` — mirrors runGitPushStage. Without this, a branch push rejected by a
-  // branch ruleset surfaced as "Stage unknown" (#429).
+  // branch ruleset surfaced as "Stage unknown".
   try {
     // Push the specific tag ref (carries the underlying commit with it)
     await runGit(dryRun, `git push ${remote} refs/tags/${tag}`, () =>

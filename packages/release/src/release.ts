@@ -313,7 +313,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
     success('Release notes generated');
   }
 
-  // Human-edited notes win per package (manual-mode draft dispatch, #319). Merged here so the
+  // Human-edited notes win per package (manual-mode draft dispatch). Merged here so the
   // edits flow into both the publish step's release-body map and the returned releaseNotes.
   if (options.editedNotes && Object.keys(options.editedNotes).length > 0) {
     releaseNotes = mergeNotesRegions(releaseNotes ?? {}, options.editedNotes);

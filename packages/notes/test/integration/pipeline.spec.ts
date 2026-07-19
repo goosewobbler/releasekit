@@ -64,7 +64,7 @@ describe('Pipeline: version output → markdown', () => {
     expect(markdown).toContain('### Added');
     expect(markdown).toContain('- **api**: Add streaming support');
     expect(markdown).toContain('### Fixed');
-    // Bare `#88` is rendered as a canonical Markdown link by default (link mode, #499).
+    // Bare `#88` is rendered as a canonical Markdown link by default (link mode).
     expect(markdown).toContain('- Null pointer in parser ([#88](https://github.com/acme/my-lib/issues/88))');
     expect(markdown).toContain('### Changed');
     expect(markdown).toContain('- Simplify config loading');
@@ -165,7 +165,7 @@ describe('compareUrl: platform detection', () => {
     );
   });
 
-  it('should generate compare URL for sanitized "@v" package-specific tags (#338)', () => {
+  it('should generate compare URL for sanitized "@v" package-specific tags', () => {
     // formatTag strips "@scope/" -> "scope-name", so a `${packageName}@v${version}` template
     // yields "zubridge-electron@v3.0.0". The raw "@zubridge/electron" never appears in the tag,
     // so the `to` ref must be derived from the tag's own prefix, not the package name.
@@ -183,7 +183,7 @@ describe('compareUrl: platform detection', () => {
     );
   });
 
-  it('should generate compare URL for sanitized "@v" tags across a prerelease escalation (#338)', () => {
+  it('should generate compare URL for sanitized "@v" tags across a prerelease escalation', () => {
     const ctx = createTemplateContext({
       packageName: '@zubridge/tauri',
       version: '2.0.0-next.0',

@@ -261,7 +261,7 @@ describe('serializeManifest / parseManifest', () => {
     expect(parsed.firstUpdatedAt).toBe('2024-06-01T12:00:00.000Z');
   });
 
-  it('should round-trip overrideLabels (#337)', () => {
+  it('should round-trip overrideLabels', () => {
     const m = { ...baseManifest, schemaVersion: 2 as const, overrideLabels: ['bump:major', 'channel:prerelease'] };
     const parsed = parseManifest(serializeManifest(m));
     expect(parsed.overrideLabels).toEqual(['bump:major', 'channel:prerelease']);
@@ -272,7 +272,7 @@ describe('serializeManifest / parseManifest', () => {
     expect(parsed.overrideLabels).toBeUndefined();
   });
 
-  it('should round-trip graduated packages (#486)', () => {
+  it('should round-trip graduated packages', () => {
     const m = { ...baseManifest, schemaVersion: 2 as const, graduated: ['@scope/a', '@scope/b'] };
     const parsed = parseManifest(serializeManifest(m));
     expect(parsed.graduated).toEqual(['@scope/a', '@scope/b']);
@@ -345,7 +345,7 @@ describe('runStandingPRUpdate', () => {
     expect(result.action).toBe('noop');
   });
 
-  it('should return noop when a release commit lands on the base branch during the run (#323)', async () => {
+  it('should return noop when a release commit lands on the base branch during the run', async () => {
     // Top-of-function guard sees a non-release HEAD (passes), but after resetting to origin/main a
     // release commit is now HEAD — a release merged mid-run. The post-reset recheck must bow out so
     // the standing PR doesn't double-bump off the just-merged-but-untagged version bump.
@@ -491,7 +491,7 @@ describe('runStandingPRUpdate', () => {
     expect(body).toContain('→ 1.1.0');
   });
 
-  it('should exclude a package the maintainer unticked in the selection region (#367)', async () => {
+  it('should exclude a package the maintainer unticked in the selection region', async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = {
       ...createMockVersionOutput([
@@ -569,7 +569,7 @@ describe('runStandingPRUpdate', () => {
     sharedEntries: [],
   };
 
-  it('should render a streamlined release unit with read-only coupled children (#464)', async () => {
+  it('should render a streamlined release unit with read-only coupled children', async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     await withPrimaries();
     vi.mocked(runVersionStep).mockResolvedValue(
@@ -589,7 +589,7 @@ describe('runStandingPRUpdate', () => {
     expect(body).not.toContain('rk-sel:@wdio/tauri-plugin');
   });
 
-  it('should cascade a held-back primary to exclude its whole unit from the write (#464)', async () => {
+  it('should cascade a held-back primary to exclude its whole unit from the write', async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     await withPrimaries();
     vi.mocked(runVersionStep).mockResolvedValue(
@@ -681,7 +681,7 @@ describe('runStandingPRUpdate', () => {
   };
   const asEditedBy = (login: string) => asActionBy('edited', login);
 
-  it('should honour an authorized actor’s checkbox untick (#401)', async () => {
+  it('should honour an authorized actor’s checkbox untick', async () => {
     await withAuthz();
     await asEditedBy('admin-user');
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
@@ -707,7 +707,7 @@ describe('runStandingPRUpdate', () => {
     expect(writeCall.exclude).toEqual(['@scope/b']); // admin's untick is applied
   });
 
-  it('should ignore an unauthorized actor’s untick (manifest stays authoritative) and post a notice (#401)', async () => {
+  it('should ignore an unauthorized actor’s untick (manifest stays authoritative) and post a notice', async () => {
     await withAuthz();
     await asEditedBy('rando');
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
@@ -737,7 +737,7 @@ describe('runStandingPRUpdate', () => {
     expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-selection-denied -->')).toBe(true);
   });
 
-  it('should not crash the run when the permission check throws — fails closed to the manifest (#401)', async () => {
+  it('should not crash the run when the permission check throws — fails closed to the manifest', async () => {
     await withAuthz();
     await asEditedBy('rando');
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
@@ -767,7 +767,7 @@ describe('runStandingPRUpdate', () => {
     expect(writeCall.exclude).toEqual([]);
   });
 
-  it('should ignore + remove an unauthorized actor’s release label, preserving non-release labels (#402)', async () => {
+  it('should ignore + remove an unauthorized actor’s release label, preserving non-release labels', async () => {
     await withAuthz();
     await asActionBy('labeled', 'rando');
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
@@ -800,7 +800,7 @@ describe('runStandingPRUpdate', () => {
     expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-label-denied -->')).toBe(true);
   });
 
-  it('should restore an authorized label that an unauthorized actor removed (unlabeled) (#402)', async () => {
+  it('should restore an authorized label that an unauthorized actor removed (unlabeled)', async () => {
     await withAuthz();
     await asActionBy('unlabeled', 'rando');
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
@@ -830,7 +830,7 @@ describe('runStandingPRUpdate', () => {
     expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-label-denied -->')).toBe(true);
   });
 
-  it('should honour an authorized actor’s release label (#402)', async () => {
+  it('should honour an authorized actor’s release label', async () => {
     await withAuthz();
     await asActionBy('labeled', 'admin-user');
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
@@ -867,7 +867,7 @@ describe('runStandingPRUpdate', () => {
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
   };
 
-  it('should honour an authorized actor’s channel toggle (#526)', async () => {
+  it('should honour an authorized actor’s channel toggle', async () => {
     await withAuthzChannel();
     await asEditedBy('admin-user');
     await channelWriteOutput();
@@ -886,7 +886,7 @@ describe('runStandingPRUpdate', () => {
     expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(false);
   });
 
-  it('should ignore an unauthorized actor’s channel toggle (manifest stays authoritative) and post a notice (#526)', async () => {
+  it('should ignore an unauthorized actor’s channel toggle (manifest stays authoritative) and post a notice', async () => {
     await withAuthzChannel();
     await asEditedBy('rando');
     await channelWriteOutput();
@@ -908,7 +908,7 @@ describe('runStandingPRUpdate', () => {
     expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(true);
   });
 
-  it('should re-apply the manifest’s approved channel for an unauthorized actor (#526)', async () => {
+  it('should re-apply the manifest’s approved channel for an unauthorized actor', async () => {
     await withAuthzChannel();
     await asEditedBy('rando');
     await channelWriteOutput();
@@ -936,7 +936,7 @@ describe('runStandingPRUpdate', () => {
     expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(true);
   });
 
-  it('should not post a channel-denied notice when an unauthorized edit leaves the toggles unchanged (#526)', async () => {
+  it('should not post a channel-denied notice when an unauthorized edit leaves the toggles unchanged', async () => {
     await withAuthzChannel();
     await asEditedBy('rando');
     await channelWriteOutput();
@@ -964,7 +964,7 @@ describe('runStandingPRUpdate', () => {
     expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(false);
   });
 
-  it('should leave channel toggles unreconciled when the feature is disabled (#526)', async () => {
+  it('should leave channel toggles unreconciled when the feature is disabled', async () => {
     // authorization set, but channelToggle OFF — extractChannelSelection is never called, so a body
     // toggle can't drive the write regardless of actor. The gate is a no-op here.
     await withAuthz();
@@ -986,7 +986,7 @@ describe('runStandingPRUpdate', () => {
     expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(false);
   });
 
-  it('should re-apply the manifest’s channel on a push run and post no notice (#526)', async () => {
+  it('should re-apply the manifest’s channel on a push run and post no notice', async () => {
     await withAuthzChannel();
     await asActionBy('synchronize', 'rando'); // a push/synchronize run — not a body edit
     await channelWriteOutput();
@@ -1016,7 +1016,7 @@ describe('runStandingPRUpdate', () => {
     expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(false); // silent
   });
 
-  it('should never honour a residual selection region in a sync release (#367)', async () => {
+  it('should never honour a residual selection region in a sync release', async () => {
     // A repo that switched to sync may carry a leftover selection region. Sync ships atomically, so a
     // stale deselection must NOT narrow it into a partial release — exclude stays empty.
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
@@ -1045,7 +1045,7 @@ describe('runStandingPRUpdate', () => {
     expect(writeCall.exclude).toEqual([]);
   });
 
-  it('should bypass the initial skip-pattern guard on a pull_request label event (#336)', async () => {
+  it('should bypass the initial skip-pattern guard on a pull_request label event', async () => {
     // A label event checks out the standing PR's `chore: release preparation` commit (matches the
     // skip pattern) — the first guard would noop. A label-triggered run must proceed. The post-reset
     // HEAD is a normal commit, so the post-reset guard (not bypassed for label runs) passes.
@@ -1128,7 +1128,7 @@ describe('runStandingPRUpdate', () => {
     );
   });
 
-  it('should close (not render ****) when the write step recomputes to an empty release set (#396)', async () => {
+  it('should close (not render ****) when the write step recomputes to an empty release set', async () => {
     // Reconcile-race: the dry run sees updates (guard passes), but a release landing on base mid-run
     // makes the write step recompute to 0 publishable updates. The second guard must close the PR
     // instead of rendering a degenerate `****` body.
@@ -1610,7 +1610,7 @@ describe('runStandingPRUpdate', () => {
     expect(footer).not.toContain('Fix B bug');
   });
 
-  it("should truncate the PR body when the changelog would exceed GitHub's limit (#333)", async () => {
+  it("should truncate the PR body when the changelog would exceed GitHub's limit", async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     // A no-baseline-tag package's full-history changelog: thousands of entries blow past 65,536 chars.
     const hugeEntries = Array.from({ length: 4000 }, (_, i) => ({
@@ -2069,7 +2069,7 @@ describe('runStandingPRUpdate', () => {
       expect(runVersionStepMock.mock.calls[1]?.[0]).toMatchObject({ bump: 'premajor', prerelease: true });
     });
 
-    it('should record the override labels in the manifest, excluding the marker label (#337)', async () => {
+    it('should record the override labels in the manifest, excluding the marker label', async () => {
       const { forge } = await setupWithStandingPRLabels(['release', 'bump:major', 'channel:prerelease']);
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
@@ -2157,7 +2157,7 @@ describe('runStandingPRUpdate', () => {
     });
   });
 
-  describe('per-package graduation (#486)', () => {
+  describe('per-package graduation', () => {
     // A mixed async standing PR: @scope/a stays on its stable line, @scope/b is a prerelease.
     const mixedOutput = (graduatedName?: string) => ({
       dryRun: false,
@@ -2260,7 +2260,7 @@ describe('runStandingPRUpdate', () => {
     });
   });
 
-  describe('preview-notes editable region (#200)', () => {
+  describe('preview-notes editable region', () => {
     async function setupPreviewPR(opts: { labels: string[]; liveBody?: string; freshNotes?: Record<string, string> }) {
       const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
       const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
@@ -2538,7 +2538,7 @@ describe('runStandingPRPublish', () => {
     expect(vi.mocked(refreshFeederPreviews)).toHaveBeenCalledWith(expect.objectContaining({ projectDir: '/test' }));
   });
 
-  it('should refuse to publish when override labels diverge from the manifest (#337)', async () => {
+  it('should refuse to publish when override labels diverge from the manifest', async () => {
     const { readFileSync } = await import('node:fs');
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({ pull_request: { head: { ref: 'release/next' }, number: 42, merged: true } }),
@@ -2576,7 +2576,7 @@ describe('runStandingPRPublish', () => {
     );
   };
 
-  it('should refuse to publish when the merger is not authorized (#403)', async () => {
+  it('should refuse to publish when the merger is not authorized', async () => {
     await publishConfigWithAuthz({ requiredPermission: 'admin', enforceMergeAuthor: true });
     await mergedByEvent('rando');
     await mockForge({
@@ -2592,7 +2592,7 @@ describe('runStandingPRPublish', () => {
     expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
   });
 
-  it('should publish when the merger is authorized (#403)', async () => {
+  it('should publish when the merger is authorized', async () => {
     await publishConfigWithAuthz({ requiredPermission: 'admin', enforceMergeAuthor: true });
     await mergedByEvent('admin-user');
     await mockForge({
@@ -2611,7 +2611,7 @@ describe('runStandingPRPublish', () => {
     expect(vi.mocked(runPublishStep)).toHaveBeenCalled();
   });
 
-  it('should not check the merger when enforceMergeAuthor is false (#403)', async () => {
+  it('should not check the merger when enforceMergeAuthor is false', async () => {
     await publishConfigWithAuthz({ requiredPermission: 'admin', enforceMergeAuthor: false });
     await mergedByEvent('rando'); // unauthorized, but the check is disabled
     await mockForge({
@@ -2630,7 +2630,7 @@ describe('runStandingPRPublish', () => {
     expect(vi.mocked(runPublishStep)).toHaveBeenCalled();
   });
 
-  it('should publish (fail open) when the merger permission check is unverifiable (#403)', async () => {
+  it('should publish (fail open) when the merger permission check is unverifiable', async () => {
     await publishConfigWithAuthz({ requiredPermission: 'admin', enforceMergeAuthor: true });
     await mergedByEvent('someone');
     const forge = await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
@@ -2648,7 +2648,7 @@ describe('runStandingPRPublish', () => {
     expect(vi.mocked(runPublishStep)).toHaveBeenCalled(); // failed open
   });
 
-  it('should treat a Bot merger as authorized via merged_by.type, without a permission call (#403)', async () => {
+  it('should treat a Bot merger as authorized via merged_by.type, without a permission call', async () => {
     await publishConfigWithAuthz({ requiredPermission: 'admin', enforceMergeAuthor: true });
     const { readFileSync } = await import('node:fs');
     // A GitHub App whose login does NOT end in [bot] — recognised by type, not the login suffix.
@@ -2677,7 +2677,7 @@ describe('runStandingPRPublish', () => {
     expect(permSpy).not.toHaveBeenCalled(); // recognised as a bot by type — no permission lookup
   });
 
-  it('should publish when override labels match the manifest, ignoring non-override labels (#337)', async () => {
+  it('should publish when override labels match the manifest, ignoring non-override labels', async () => {
     const { readFileSync } = await import('node:fs');
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({ pull_request: { head: { ref: 'release/next' }, number: 42, merged: true } }),
@@ -2722,7 +2722,7 @@ describe('runStandingPRPublish', () => {
     expect(vi.mocked(runPublishStep)).toHaveBeenCalled();
   });
 
-  it('should refuse to publish when the PR is unreadable but the manifest carried override labels (#337)', async () => {
+  it('should refuse to publish when the PR is unreadable but the manifest carried override labels', async () => {
     const { readFileSync } = await import('node:fs');
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({ pull_request: { head: { ref: 'release/next' }, number: 42, merged: true } }),
@@ -2902,7 +2902,7 @@ describe('publishFromManifest', () => {
     ).rejects.toThrow(/manifest not found/);
   });
 
-  it('should use human-edited notes from the PR body at merge, overriding regenerated notes (#200)', async () => {
+  it('should use human-edited notes from the PR body at merge, overriding regenerated notes', async () => {
     const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
     vi.mocked(runNotesStep).mockResolvedValue({
       packageNotes: {},

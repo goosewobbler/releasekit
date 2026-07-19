@@ -38,7 +38,7 @@ describe('semver utils', () => {
       expect(getDistTag('1.0.0', 'stable')).toBe('stable');
     });
 
-    it('should resolve the dist-tag per package in a mixed (stable + prerelease) release (#485)', () => {
+    it('should resolve the dist-tag per package in a mixed (stable + prerelease) release', () => {
       // A standing PR with permanently-mixed maturity publishes each package on its own channel.
       // getDistTag is per-version, so the same run yields `latest` for the stable packages and the
       // prerelease identifier for the `-next` ones with no extra wiring.

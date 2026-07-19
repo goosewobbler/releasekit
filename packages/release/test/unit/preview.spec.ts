@@ -194,7 +194,7 @@ describe('runPreview', () => {
     });
   });
 
-  describe('standing release PR skip (#424)', () => {
+  describe('standing release PR skip', () => {
     afterEach(() => {
       delete process.env.GITHUB_EVENT_PATH;
       // clearAllMocks() (in beforeEach) clears calls but not return-value impls, so reset the fs

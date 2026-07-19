@@ -29,7 +29,7 @@ export interface VersionChangelogEntry {
    * version-groups engine for a lockstep carry — a group member bumped only to stay in sync, with
    * no commits of its own. It is not derived from a real commit. The preview formatter treats a
    * changelog whose entries are *all* synthetic as "no real changes" and collapses the package into
-   * the "Also bumped" list instead of rendering a full block of placeholder noise (#468).
+   * the "Also bumped" list instead of rendering a full block of placeholder noise.
    *
    * Only the groups engine sets it, and only on a clean empty extraction: an independently-released
    * package (single/async strategy) or an extraction-error fallback keeps its visible block, since
@@ -61,7 +61,7 @@ export interface VersionPackageChangelog {
 export type VersionAction = 'first-release' | 'graduated' | 'bumped';
 
 /**
- * The release channel a version sits on (#485). Derived per-package and purely from the resolved
+ * The release channel a version sits on. Derived per-package and purely from the resolved
  * version: `'prerelease'` when the version carries a semver prerelease segment (`…-<preid>.N`), else
  * `'stable'`. A standing PR with permanently-mixed maturity carries both at once — some `'stable'`
  * packages, some `'prerelease'` — each advancing along its own line. #486 (per-package graduation)
@@ -129,7 +129,7 @@ export interface VersionPackageUpdate {
    * Absent for a first release and whenever the baseline was unreachable / fell back to all-history
    * (#339), so consumers derive the bump magnitude only when it is present. Optional for backwards
    * compatibility: standing-PR manifests written before this field existed omit it (old PRs still
-   * open), so every consumer must tolerate its absence (render a dash / skip the delta). #520.
+   * open), so every consumer must tolerate its absence (render a dash / skip the delta).
    */
   previousVersion?: string;
   filePath: string;

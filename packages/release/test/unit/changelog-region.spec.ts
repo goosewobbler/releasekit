@@ -99,7 +99,7 @@ describe('changelog-region', () => {
       expect(footer).toContain('Show all changes (2 changes, de-duplicated)');
     });
 
-    it('should de-dupe a bare #N in the description that also appears in the appended label (#507)', () => {
+    it('should de-dupe a bare #N in the description that also appears in the appended label', () => {
       const footer = renderCombinedFooter(
         output({
           changelogs: [
@@ -165,7 +165,7 @@ describe('changelog-region', () => {
     });
   });
 
-  describe('issue refs + mention escaping (#499)', () => {
+  describe('issue refs + mention escaping', () => {
     const repo = 'https://github.com/octocat/hello';
 
     function output(over: Partial<VersionOutput>): VersionOutput {
@@ -335,7 +335,7 @@ describe('changelog-region', () => {
     });
   });
 
-  describe('scope demotion (#522)', () => {
+  describe('scope demotion', () => {
     function output(over: Partial<VersionOutput>): VersionOutput {
       return { dryRun: false, updates: [], changelogs: [], tags: [], ...over };
     }

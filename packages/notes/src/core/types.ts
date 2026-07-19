@@ -192,7 +192,7 @@ export interface ChangelogConfig {
   mode?: LocationMode;
   file?: string;
   templates?: TemplateConfig;
-  /** How bare `#NNN` issue/PR refs render in the changelog (#499). Default `'link'` when unset. */
+  /** How bare `#NNN` issue/PR refs render in the changelog. Default `'link'` when unset. */
   refs?: ChangelogRefsMode;
 }
 
