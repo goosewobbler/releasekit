@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getDefaultConfig } from '../../../src/config.js';
 import { PublishErrorCode } from '../../../src/errors/index.js';
+import { cargoRegistry } from '../../../src/registry/cargo.js';
 import { runPublishStage } from '../../../src/registry/dispatcher.js';
 import type { Registry, RegistryTarget } from '../../../src/registry/types.js';
 import type { PipelineContext } from '../../../src/types.js';
@@ -79,6 +80,40 @@ describe('runPublishStage dispatcher', () => {
 
     expect(authCheck).not.toHaveBeenCalled();
     expect(ctx.output.npm).toHaveLength(0);
+  });
+
+  it('should not authenticate when enabled but no targets are discovered', async () => {
+    // Enabled + zero targets must no-op without authenticating: discovery runs before authCheck, so a
+    // stage with nothing to publish can't fail on credentials it never needs (e.g. no crates, no token).
+    const authCheck = vi.fn(async () => {
+      throw new Error('missing registry token');
+    });
+    const ctx = createContext();
+
+    await expect(
+      runPublishStage(makeRegistry({ isEnabled: () => true, discover: async () => [], authCheck }), ctx),
+    ).resolves.toBeUndefined();
+
+    expect(authCheck).not.toHaveBeenCalled();
+    expect(ctx.output.npm).toHaveLength(0);
+  });
+
+  it('should no-op the real cargo registry for a crateless repo without demanding a token', async () => {
+    // A dry run can't cover this: cargo's authCheck is dry-run-exempt, so the enabled-but-crateless
+    // no-op is only exercised by a real (non-dry-run) run with no token.
+    const savedToken = process.env.CARGO_REGISTRY_TOKEN;
+    delete process.env.CARGO_REGISTRY_TOKEN;
+    try {
+      const ctx = createContext();
+      ctx.config.cargo.enabled = true;
+      ctx.input.updates = [{ packageName: '@smoke/pkg', newVersion: '1.1.0', filePath: 'package.json' }];
+
+      await expect(runPublishStage(cargoRegistry, ctx)).resolves.toBeUndefined();
+      expect(ctx.output.cargo).toHaveLength(0);
+    } finally {
+      if (savedToken === undefined) delete process.env.CARGO_REGISTRY_TOKEN;
+      else process.env.CARGO_REGISTRY_TOKEN = savedToken;
+    }
   });
 
   it('should record a precheckSkip as a non-publishing skip', async () => {
