@@ -41,7 +41,7 @@ The field's clearest differentiation window: all three current registries do OID
 
 ### Change intent & migration 📋
 
-Direction and format set by [ADR-0003](./docs/adr/0003-optional-change-file-input.md); intercepts changesets/sampo migrators without displacing the commit-first default.
+Direction and format set by [ADR-0003](./docs/adr/0003-optional-change-file-input.md); intercepts changesets migrators without displacing the commit-first default.
 
 - [ ] Changesets-format change-file input (unified change stream, `additive`/`only` modes) + `migrate --from-changesets` + an Action-side change-present check — [#545](https://github.com/goosewobbler/releasekit/issues/545)
 
