@@ -702,15 +702,22 @@
                   "properties": {
                     "provider": {
                       "type": "string",
+                      "enum": [
+                        "openai",
+                        "openai-compatible",
+                        "anthropic",
+                        "ollama"
+                      ],
                       "description": "LLM provider"
                     },
                     "model": {
                       "type": "string",
-                      "description": "Model identifier"
+                      "minLength": 1,
+                      "description": "Model identifier for the selected provider. Required — releasekit ships no default, so enabling LLM enhancement needs an explicit, current model (a missing model fails config validation)."
                     },
                     "baseURL": {
                       "type": "string",
-                      "description": "Custom API base URL"
+                      "description": "Custom API base URL. Required for the openai-compatible provider."
                     },
                     "apiKey": {
                       "type": "string",

@@ -3,7 +3,6 @@ import type { CompleteOptions } from '../core/types.js';
 import { LLMError } from '../errors/index.js';
 import { extractJsonFromResponse } from '../utils/json.js';
 import { BaseLLMProvider } from './base.js';
-import { LLM_DEFAULTS } from './defaults.js';
 import type { CompleteResult, LLMMessage } from './messages.js';
 import { debugLogMessages } from './messages.js';
 import type { ProviderCapabilities } from './provider.js';
@@ -11,7 +10,7 @@ import type { ProviderCapabilities } from './provider.js';
 export interface OllamaConfig {
   apiKey?: string;
   baseURL?: string;
-  model?: string;
+  model: string;
 }
 
 interface OllamaChatRequest {
@@ -48,11 +47,11 @@ export class OllamaProvider extends BaseLLMProvider {
   private model: string;
   private apiKey?: string;
 
-  constructor(config: OllamaConfig = {}) {
+  constructor(config: OllamaConfig) {
     super();
 
     this.baseURL = config.baseURL ?? process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434';
-    this.model = config.model ?? process.env.OLLAMA_MODEL ?? LLM_DEFAULTS.models.ollama;
+    this.model = config.model;
     this.apiKey = config.apiKey ?? process.env.OLLAMA_API_KEY;
   }
 

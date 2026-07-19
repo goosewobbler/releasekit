@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as readline from 'node:readline';
-import { loadConfig, saveAuth } from '@releasekit/config';
+import { LLMConfigSchema, loadConfig, saveAuth } from '@releasekit/config';
 import { EXIT_CODES, error, info, setLogLevel, setQuietMode, success, warn } from '@releasekit/core';
 import { Command } from 'commander';
 import { runPipeline } from './core/pipeline.js';
@@ -110,7 +110,7 @@ export function createNotesCommand(): Command {
             const existingLlm = existingRn.llm;
             const llm = {
               provider: existingLlm?.provider ?? 'openai-compatible',
-              model: existingLlm?.model ?? '',
+              model: existingLlm?.model,
               ...(existingLlm ?? {}),
             };
             if (options.llmProvider) llm.provider = options.llmProvider;
@@ -126,12 +126,28 @@ export function createNotesCommand(): Command {
               };
             }
 
+            // Validate the CLI-assembled LLM config the same way loadConfig validates a config file,
+            // so a bad --llm-provider or a missing --llm-model fails loud here (non-zero exit via
+            // handleError) instead of reaching createProvider and being swallowed by the pipeline's
+            // soft-fail as a silent degradation to non-LLM notes.
+            let validatedLlm: import('./core/types.js').LLMConfig;
+            try {
+              validatedLlm = LLMConfigSchema.parse(llm) as import('./core/types.js').LLMConfig;
+            } catch (err) {
+              // Surface the Zod issue messages, which name the actual failing field (provider enum,
+              // empty/missing model, or missing baseURL for openai-compatible) — a static message
+              // would misattribute e.g. a missing --llm-base-url to the model.
+              const issues = (err as { issues?: Array<{ message: string }> }).issues;
+              const detail =
+                issues?.map((i) => i.message).join('; ') ?? (err instanceof Error ? err.message : String(err));
+              throw new Error(`Invalid LLM configuration from --llm-* flags: ${detail}`);
+            }
             config.releaseNotes = {
               ...existingRn,
-              llm: llm as import('./core/types.js').LLMConfig,
+              llm: validatedLlm,
             };
 
-            info(`LLM configured: ${llm.provider}${llm.model ? ` (${llm.model})` : ''}`);
+            info(`LLM configured: ${validatedLlm.provider}${validatedLlm.model ? ` (${validatedLlm.model})` : ''}`);
             if (llm.baseURL) {
               info(`LLM base URL: ${llm.baseURL}`);
             }

@@ -138,7 +138,7 @@ LLM configuration for release notes enhancement. Requires `provider` and `model`
     "releaseNotes": {
       "llm": {
         "provider": "openai",
-        "model": "gpt-4o-mini",
+        "model": "<your-model>",
         "tasks": { "enhance": true, "summarize": true }
       }
     }
@@ -207,7 +207,7 @@ How existing changelog files are updated when new entries are generated.
 | Option | Type | Description |
 |--------|------|-------------|
 | `provider` | `string` | LLM provider key. See [LLM providers](./llm-providers.md). |
-| `model` | `string` | Model identifier (e.g. `"gpt-4o-mini"`, `"claude-sonnet-4-5"`) |
+| `model` | `string` | Model identifier for the selected provider (see [LLM providers](./llm-providers.md)). Required — releasekit ships no default, so pick a current model your provider serves. |
 
 ### Connection
 
@@ -243,7 +243,7 @@ How existing changelog files are updated when new entries are generated.
     "releaseNotes": {
       "llm": {
         "provider": "openai",
-        "model": "gpt-4o",
+        "model": "<your-model>",
         "options": { "temperature": 0.3, "maxTokens": 1000 }
       }
     }

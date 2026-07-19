@@ -125,7 +125,7 @@ LLM tasks run per-package. Each package's entries are processed independently. W
     "releaseNotes": {
       "llm": {
         "provider": "openai",
-        "model": "gpt-4o-mini",
+        "model": "<your-model>",
         "concurrency": 5,
         "tasks": { "enhance": true }
       }

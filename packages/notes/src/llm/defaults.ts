@@ -11,10 +11,7 @@ export const LLM_DEFAULTS = {
     maxDelay: 30_000,
     backoffFactor: 2,
   },
-  models: {
-    openai: 'gpt-4o-mini',
-    'openai-compatible': 'gpt-4o-mini',
-    anthropic: 'claude-haiku-4-5-20251001',
-    ollama: 'llama3.2',
-  },
+  // No default model: releasekit ships no model ids (they rot — e.g. a provider deprecates one), so
+  // `llm.model` is required and validated at config load. The model choice, and keeping it current,
+  // is the consumer's.
 } as const;
