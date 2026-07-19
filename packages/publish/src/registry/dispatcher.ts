@@ -26,16 +26,22 @@ export async function runPublishStage<T extends RegistryTarget, S>(
 
   const dryRun = ctx.cliOptions.dryRun;
   const results = ctx.output[registry.id];
+
+  // Discover before authenticating: an enabled registry with nothing to publish must no-op, not
+  // demand credentials it will never use. `enabled` means "publish the detected packages of this
+  // kind", so a repo with none (e.g. no crates) must not fail on a missing registry token.
+  const targets = await registry.discover(ctx);
+  if (targets.length === 0) {
+    // Restores the per-registry "nothing to do" breadcrumb the old per-target stages logged, so
+    // verbose output still confirms the stage ran and found no targets (vs. not running at all).
+    debug(`[${registry.id}] No targets found, nothing to publish`);
+    return;
+  }
+
   const session = await registry.authCheck(ctx);
 
   try {
-    const targets = await registry.discover(ctx, session);
-    if (targets.length === 0) {
-      // Restores the per-registry "nothing to do" breadcrumb the old per-target stages logged, so
-      // verbose output still confirms the stage ran and found no targets (vs. not running at all).
-      debug(`[${registry.id}] No targets found, nothing to publish`);
-    }
-    if (targets.length > 0) await registry.prepare?.(ctx, session);
+    await registry.prepare?.(ctx, session);
 
     for (const target of targets) {
       const result: PublishResult = {

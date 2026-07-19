@@ -52,8 +52,11 @@ export interface Registry<T extends RegistryTarget = RegistryTarget, S = unknown
    */
   authCheck(ctx: PipelineContext): Promise<S>;
 
-  /** This registry's manifests from `ctx.input.updates`, already in publish order. */
-  discover(ctx: PipelineContext, session: S): Promise<T[]>;
+  /**
+   * This registry's manifests from `ctx.input.updates`, already in publish order. Runs before
+   * `authCheck` so an enabled-but-empty stage can no-op without demanding credentials.
+   */
+  discover(ctx: PipelineContext): Promise<T[]>;
 
   /**
    * One-time setup that should run only when there is at least one target — so an enabled-but-empty
