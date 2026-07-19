@@ -22,6 +22,9 @@ on:
       - examples/**
       - scripts/examples-smoke/**
       - .github/workflows/examples-smoke.yml
+      - packages/**
+      - package.json
+      - pnpm-lock.yaml
   pull_request:
     branches:
       - main
@@ -29,6 +32,11 @@ on:
       - examples/**
       - scripts/examples-smoke/**
       - .github/workflows/examples-smoke.yml
+      - packages/**
+      - package.json
+      - pnpm-lock.yaml
+  schedule:
+    - cron: 0 3 * * *
   workflow_dispatch: {}
 permissions:
   contents: read
