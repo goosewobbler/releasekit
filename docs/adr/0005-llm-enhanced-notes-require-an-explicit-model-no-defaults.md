@@ -1,4 +1,4 @@
-# 5. Require an explicit LLM model; ship no defaults
+# 5. LLM-enhanced release notes require an explicit model; ship no defaults
 
 Date: 2026-07-19
 
@@ -16,7 +16,9 @@ Crucially, there is no zero-config path to protect: LLM enhancement is already a
 
 ## Decision
 
-**ReleaseKit ships no model defaults. `llm.model` is required and validated at config load.**
+This decision is scoped to LLM-enhanced release notes — the only place ReleaseKit calls a model. Versioning, changelog generation, and publishing are deterministic and LLM-free, and it does not touch them.
+
+**For LLM-enhanced release notes, ReleaseKit ships no model defaults. When enhancement is enabled, `llm.model` is required and validated at config load.**
 
 - `llm.model` is a required, non-empty string (Zod `z.string().min(1)`) — a missing or empty model fails at config validation, not silently inside the notes soft-fail catch.
 - `provider` is a closed Zod enum (`openai | openai-compatible | anthropic | ollama`); `openai-compatible` additionally requires `baseURL`.
