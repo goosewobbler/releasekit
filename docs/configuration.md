@@ -299,9 +299,9 @@ LLM configuration for release notes.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `provider` | string | — | LLM provider |
-| `model` | string | — | Model identifier |
-| `baseURL` | string | — | Custom API base URL |
+| `provider` | `"openai"` \| `"openai-compatible"` \| `"anthropic"` \| `"ollama"` | — | LLM provider |
+| `model` | string | — | Model identifier for the selected provider. Required — releasekit ships no default, so enabling LLM enhancement needs an explicit, current model (a missing model fails config validation). |
+| `baseURL` | string | — | Custom API base URL. Required for the openai-compatible provider. |
 | `apiKey` | string | — | API key |
 | `concurrency` | integer | — | Concurrent LLM requests |
 | `style` | string | — | Writing style for LLM |

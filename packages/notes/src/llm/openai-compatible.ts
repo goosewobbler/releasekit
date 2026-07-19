@@ -2,7 +2,6 @@ import OpenAI from 'openai';
 import type { CompleteOptions } from '../core/types.js';
 import { LLMError } from '../errors/index.js';
 import { BaseLLMProvider } from './base.js';
-import { LLM_DEFAULTS } from './defaults.js';
 import type { CompleteResult, LLMMessage } from './messages.js';
 import { debugLogMessages } from './messages.js';
 import type { ProviderCapabilities } from './provider.js';
@@ -10,7 +9,7 @@ import type { ProviderCapabilities } from './provider.js';
 export interface OpenAICompatibleConfig {
   apiKey?: string;
   baseURL: string;
-  model?: string;
+  model: string;
 }
 
 export class OpenAICompatibleProvider extends BaseLLMProvider {
@@ -34,7 +33,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       baseURL: config.baseURL,
     });
 
-    this.model = config.model ?? LLM_DEFAULTS.models['openai-compatible'];
+    this.model = config.model;
   }
 
   async complete(messages: LLMMessage[], options?: CompleteOptions): Promise<CompleteResult> {

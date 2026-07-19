@@ -64,7 +64,7 @@ To populate the GitHub Release body with LLM-written prose:
     "releaseNotes": {
       "llm": {
         "provider": "openai",
-        "model": "gpt-4o-mini",
+        "model": "<your-model>",
         "tasks": { "releaseNotes": true }
       }
     }
@@ -90,7 +90,7 @@ If `body` is `"auto"` (default), LLM release notes are used automatically when a
       "file": { "dir": "release-notes" },
       "llm": {
         "provider": "anthropic",
-        "model": "claude-haiku-4-5",
+        "model": "<your-model>",
         "tasks": { "releaseNotes": true }
       }
     }

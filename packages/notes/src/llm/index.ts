@@ -59,6 +59,14 @@ export interface CategorizedEntries {
 }
 
 export function createProvider(config: LLMConfig): LLMProvider {
+  // releasekit ships no default model (they rot), so a model is required. The Zod schema enforces
+  // this at config load; this guard also covers configs assembled in-process (e.g. the CLI's
+  // --llm-* flags, which bypass schema parsing) so a missing model fails loud, not silently.
+  if (!config.model) {
+    throw new LLMError(
+      `llm.model is required for the '${config.provider}' provider — set it to a model the provider serves.`,
+    );
+  }
   // Resolve API key: explicit config → auth.json → environment (handled per-provider)
   const authKeys = loadAuth();
   const apiKey = config.apiKey ?? authKeys[config.provider];

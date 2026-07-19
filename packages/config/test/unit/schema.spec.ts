@@ -332,10 +332,32 @@ describe('LLMPromptsConfigSchema', () => {
 });
 
 describe('LLMConfigSchema', () => {
-  it('should require provider and model', () => {
+  it('should accept provider and model', () => {
     const result = LLMConfigSchema.parse({ provider: 'openai', model: 'gpt-4' });
     expect(result.provider).toBe('openai');
     expect(result.model).toBe('gpt-4');
+  });
+
+  it('should require a non-empty model for every provider (releasekit ships no default)', () => {
+    expect(() => LLMConfigSchema.parse({ provider: 'anthropic' })).toThrow();
+    expect(() => LLMConfigSchema.parse({ provider: 'openai' })).toThrow();
+    expect(() => LLMConfigSchema.parse({ provider: 'ollama' })).toThrow();
+    // An empty string must not slip through z.string().
+    expect(() => LLMConfigSchema.parse({ provider: 'openai', model: '' })).toThrow(/non-empty/);
+  });
+
+  it('should reject an unknown provider (enum, not free-form string)', () => {
+    expect(() => LLMConfigSchema.parse({ provider: 'gpt', model: 'x' })).toThrow();
+    expect(() => LLMConfigSchema.parse({ provider: 'anthropicc', model: 'x' })).toThrow();
+  });
+
+  it('should require baseURL for openai-compatible', () => {
+    expect(() => LLMConfigSchema.parse({ provider: 'openai-compatible', model: 'local-model' })).toThrow(
+      /baseURL is required/,
+    );
+    const ok = LLMConfigSchema.parse({ provider: 'openai-compatible', baseURL: 'https://x/v1', model: 'local-model' });
+    expect(ok.provider).toBe('openai-compatible');
+    expect(ok.model).toBe('local-model');
   });
 
   it('should accept optional fields', () => {

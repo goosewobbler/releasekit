@@ -24,6 +24,7 @@ export {
   type GitHubReleaseConfig,
   type LLMCategory,
   type LLMConfig,
+  LLMConfigSchema,
   type LLMPromptOverrides,
   type LLMPromptsConfig,
   type LocationMode,

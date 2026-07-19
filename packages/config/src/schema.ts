@@ -432,10 +432,17 @@ export const LLMPromptsConfigSchema = z.object({
   ),
 });
 
-export const LLMConfigSchema = z.object({
-  provider: z.string().describe('LLM provider'),
-  model: z.string().describe('Model identifier'),
-  baseURL: z.string().optional().describe('Custom API base URL'),
+const LLMConfigBaseSchema = z.object({
+  provider: z.enum(['openai', 'openai-compatible', 'anthropic', 'ollama']).describe('LLM provider'),
+  model: z
+    .string()
+    // .min(1): an empty string passes z.string(), so "model": "" would slip through Zod at load and
+    // only fail deep in the pipeline (soft-caught). Reject it at config validation instead.
+    .min(1, 'model must be a non-empty string — set it to a model the provider serves.')
+    .describe(
+      'Model identifier for the selected provider. Required — releasekit ships no default, so enabling LLM enhancement needs an explicit, current model (a missing model fails config validation).',
+    ),
+  baseURL: z.string().optional().describe('Custom API base URL. Required for the openai-compatible provider.'),
   apiKey: z.string().optional().describe('API key'),
   options: LLMOptionsSchema.optional(),
   concurrency: z.number().int().positive().optional().describe('Concurrent LLM requests'),
@@ -481,6 +488,19 @@ export const LLMConfigSchema = z.object({
     .describe(
       'Cache LLM responses on disk (under the OS temp dir), keyed by a hash of the provider, model, prompt, and request options. A re-run or backfill with the same inputs reuses the cached generation instead of re-calling the provider. Off by default.',
     ),
+});
+
+// The openai-compatible provider points at a custom endpoint, so releasekit can't assume a base URL:
+// it must be set explicitly. Enforced at config-validation time (a Zod refinement) so a misconfig
+// fails loudly here rather than silently degrading to non-LLM notes inside the notes soft-fail catch.
+export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((cfg, ctx) => {
+  if (cfg.provider === 'openai-compatible' && !cfg.baseURL) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['baseURL'],
+      message: 'baseURL is required when provider is "openai-compatible".',
+    });
+  }
 });
 
 export const ReleaseNotesConfigSchema = z

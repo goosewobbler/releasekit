@@ -14,7 +14,7 @@ Add an `llm` block under `notes.releaseNotes` in `releasekit.config.json`:
     "releaseNotes": {
       "llm": {
         "provider": "openai",
-        "model": "gpt-4o-mini",
+        "model": "<your-model>",
         "tasks": { "enhance": true, "categorize": true }
       }
     }
@@ -418,7 +418,7 @@ chore: migrate bundler from webpack to esbuild 0.20
     "releaseNotes": {
       "llm": {
         "provider": "anthropic",
-        "model": "claude-haiku-4-5",
+        "model": "<your-model>",
         "tasks": { "enhance": true, "categorize": true },
         "categoryOrder": ["Breaking", "New", "Fixed", "Changed", "Developer"]
       },

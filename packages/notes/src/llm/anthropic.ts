@@ -2,14 +2,13 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { CompleteOptions } from '../core/types.js';
 import { LLMError } from '../errors/index.js';
 import { BaseLLMProvider } from './base.js';
-import { LLM_DEFAULTS } from './defaults.js';
 import type { CompleteResult, LLMMessage } from './messages.js';
 import { debugLogMessages } from './messages.js';
 import type { ProviderCapabilities } from './provider.js';
 
 export interface AnthropicConfig {
   apiKey?: string;
-  model?: string;
+  model: string;
 }
 
 export class AnthropicProvider extends BaseLLMProvider {
@@ -23,7 +22,7 @@ export class AnthropicProvider extends BaseLLMProvider {
   private client: Anthropic;
   private model: string;
 
-  constructor(config: AnthropicConfig = {}) {
+  constructor(config: AnthropicConfig) {
     super();
 
     const apiKey = config.apiKey ?? process.env.ANTHROPIC_API_KEY;
@@ -33,7 +32,7 @@ export class AnthropicProvider extends BaseLLMProvider {
     }
 
     this.client = new Anthropic({ apiKey });
-    this.model = config.model ?? LLM_DEFAULTS.models.anthropic;
+    this.model = config.model;
   }
 
   async complete(messages: LLMMessage[], options?: CompleteOptions): Promise<CompleteResult> {

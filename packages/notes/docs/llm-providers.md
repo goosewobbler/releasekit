@@ -42,7 +42,7 @@ Model names change frequently — check your provider's documentation for the cu
     "releaseNotes": {
       "llm": {
         "provider": "openai",
-        "model": "gpt-4o-mini",
+        "model": "<your-model>",
         "tasks": { "enhance": true }
       }
     }
@@ -62,7 +62,7 @@ See the [OpenAI models documentation](https://platform.openai.com/docs/models) f
     "releaseNotes": {
       "llm": {
         "provider": "anthropic",
-        "model": "claude-haiku-4-5",
+        "model": "<your-model>",
         "tasks": { "releaseNotes": true }
       }
     }
@@ -89,7 +89,7 @@ ollama pull llama3.2
     "releaseNotes": {
       "llm": {
         "provider": "ollama",
-        "model": "llama3.2",
+        "model": "<your-model>",
         "tasks": { "enhance": true }
       }
     }
@@ -109,7 +109,7 @@ For self-hosted or third-party OpenAI-compatible APIs (LM Studio, vLLM, Azure Op
     "releaseNotes": {
       "llm": {
         "provider": "openai-compatible",
-        "model": "your-model-name",
+        "model": "<your-model>",
         "baseURL": "http://localhost:1234/v1",
         "tasks": { "enhance": true }
       }
