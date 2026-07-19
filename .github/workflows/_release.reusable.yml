@@ -79,11 +79,6 @@ jobs:
       - name: Build packages
         run: pnpm build
 
-      - name: Configure git SSH for tag pushes
-        if: ${{ !inputs.dry_run }}
-        run: |
-          git config --global core.sshCommand "ssh -i ${{ secrets.ssh_key }} -o StrictHostKeyChecking=no"
-
       - name: Run releasekit
         id: release
         if: inputs.standing_pr_number == ''

@@ -69,6 +69,9 @@ jobs:
   check-labels:
     name: Check Release Labels
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read # reads the merged PR + its labels via `gh api repos/.../commits/.../pulls`
     if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     outputs:
       should_release: ${{ steps.check.outputs.should_release }}
