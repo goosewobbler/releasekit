@@ -225,4 +225,28 @@ describe('prepare stage', () => {
     await runPrepareStage(ctx);
     expect(fs.readFileSync(path.join(dir, 'LICENSE'), 'utf-8')).toBe('MIT License');
   });
+
+  it('should reject a copyFiles entry that escapes the repository root', async () => {
+    const dir = createTmpDir();
+    const pkgDir = path.join(dir, 'packages', 'foo');
+    fs.mkdirSync(pkgDir, { recursive: true });
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), '{"name":"foo","version":"1.0.0"}');
+
+    const config = getDefaultConfig();
+    config.npm.enabled = true;
+    config.npm.copyFiles = ['../../escape.txt'];
+
+    const ctx = createContext({
+      cwd: dir,
+      config,
+      input: {
+        dryRun: false,
+        updates: [{ packageName: 'foo', newVersion: '1.1.0', filePath: 'packages/foo/package.json' }],
+        changelogs: [],
+        tags: [],
+      },
+    });
+
+    await expect(runPrepareStage(ctx)).rejects.toThrow(/outside the repository root/);
+  });
 });

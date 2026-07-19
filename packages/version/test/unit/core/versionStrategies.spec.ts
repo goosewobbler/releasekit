@@ -1167,7 +1167,7 @@ describe('Version Strategies', () => {
       await asyncStrategy(mockPackages);
 
       // Verify that packages are processed (no setTargets call since targeting is at discovery time)
-      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(mockPackages.packages);
+      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(mockPackages.packages, '/test/workspace');
 
       // Check logging
       expect(logging.log).toHaveBeenCalledWith('Processing 2 packages', 'info');
@@ -1195,7 +1195,10 @@ describe('Version Strategies', () => {
         },
       ];
 
-      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(expectedFilteredPackages);
+      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(
+        expectedFilteredPackages,
+        '/test/workspace',
+      );
 
       // Check filtering log messages
       expect(logging.log).toHaveBeenCalledWith('Runtime targets filter: 2 → 1 packages (package-b)', 'info');
@@ -1251,7 +1254,10 @@ describe('Version Strategies', () => {
         },
       ];
 
-      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(expectedFilteredPackages);
+      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(
+        expectedFilteredPackages,
+        '/test/workspace',
+      );
 
       // Check filtering log messages
       expect(logging.log).toHaveBeenCalledWith('Runtime targets filter: 3 → 2 packages (@scope/*)', 'info');
@@ -1271,7 +1277,7 @@ describe('Version Strategies', () => {
       await asyncStrategy(mockPackages);
 
       // Verify that all packages are processed (no filtering)
-      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(mockPackages.packages);
+      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(mockPackages.packages, '/test/workspace');
 
       // Should not show runtime filter message
       expect(logging.log).toHaveBeenCalledWith('Processing 2 packages', 'info');
@@ -1290,7 +1296,7 @@ describe('Version Strategies', () => {
       await asyncStrategy(mockPackages);
 
       // Verify packages are processed
-      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(mockPackages.packages);
+      expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(mockPackages.packages, '/test/workspace');
       expect(logging.log).toHaveBeenCalledWith('Processing 2 packages', 'info');
     });
 

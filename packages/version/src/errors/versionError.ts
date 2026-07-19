@@ -15,6 +15,7 @@ export enum VersionErrorCode {
   INVALID_CONFIG = 'INVALID_CONFIG',
   PACKAGE_NOT_FOUND = 'PACKAGE_NOT_FOUND',
   VERSION_CALCULATION_ERROR = 'VERSION_CALCULATION_ERROR',
+  UNSAFE_CONFIG_PATH = 'UNSAFE_CONFIG_PATH',
 }
 
 /**
@@ -31,6 +32,7 @@ export function createVersionError(code: VersionErrorCode, details?: string): Ve
     [VersionErrorCode.INVALID_CONFIG]: 'Invalid configuration',
     [VersionErrorCode.PACKAGE_NOT_FOUND]: 'Package not found',
     [VersionErrorCode.VERSION_CALCULATION_ERROR]: 'Failed to calculate version',
+    [VersionErrorCode.UNSAFE_CONFIG_PATH]: 'Refusing to write a manifest outside the repository root',
   };
 
   // Provide helpful suggestions for specific error types
@@ -63,6 +65,10 @@ export function createVersionError(code: VersionErrorCode, details?: string): Ve
       'Ensure git repository has commits',
       'Check conventional commit message format',
       'Verify git tags are properly formatted',
+    ],
+    [VersionErrorCode.UNSAFE_CONFIG_PATH]: [
+      'Use a version.cargo.paths / version.pub.paths entry that stays inside the repository',
+      'Remove any leading ../ segments or absolute paths that point outside the project',
     ],
   };
 

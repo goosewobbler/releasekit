@@ -42,6 +42,7 @@ export {
   shouldMatchPackageTargets,
   shouldProcessPackage,
 } from './packageUtils.js';
+export { isPathWithinRoot } from './paths.js';
 export { type PrerequisiteResolution, resolvePrerequisites } from './prerequisites.js';
 export {
   extractSelectionRegion,

@@ -9,6 +9,7 @@ import { calculateVersion } from '../core/versionCalculator.js';
 import { StrictReachableError } from '../errors/strictReachableError.js';
 import { getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import type { Config, VersionConfigBase } from '../types.js';
+import { resolveConfinedManifestPath } from '../utils/confinedPath.js';
 import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
 import {
   addChangelogData,
@@ -71,9 +72,14 @@ export class PackageProcessor {
   }
 
   /**
-   * Process packages based on skip list only (targeting handled at discovery time)
+   * Process packages based on skip list only (targeting handled at discovery time).
+   *
+   * `repoRoot` is the confinement boundary for config-driven manifest writes
+   * (`version.cargo.paths` / `version.pub.paths`): a path escaping it is rejected. It defaults
+   * to `process.cwd()` but callers pass the discovered workspace root when they have it, since the
+   * tool can run from a subdirectory whose cwd is narrower than the repo.
    */
-  async processPackages(packages: Package[]): Promise<ProcessResult> {
+  async processPackages(packages: Package[], repoRoot: string = process.cwd()): Promise<ProcessResult> {
     const tags: string[] = [];
     const updatedPackagesInfo: Array<{ name: string; version: string; path: string }> = [];
 
@@ -364,7 +370,7 @@ export class PackageProcessor {
         if (cargoPaths && cargoPaths.length > 0) {
           // If paths are specified, only include those Cargo.toml files
           for (const cargoPath of cargoPaths) {
-            const resolvedCargoPath = path.resolve(pkgPath, cargoPath, 'Cargo.toml');
+            const resolvedCargoPath = resolveConfinedManifestPath(repoRoot, pkgPath, cargoPath, 'Cargo.toml');
             log(`Checking cargo path for ${name}: ${resolvedCargoPath}`, 'debug');
             if (fs.existsSync(resolvedCargoPath)) {
               log(`Found Cargo.toml for ${name} at ${resolvedCargoPath}, updating...`, 'debug');
@@ -398,7 +404,7 @@ export class PackageProcessor {
 
         if (dartPaths && dartPaths.length > 0) {
           for (const dartPath of dartPaths) {
-            const resolvedPubspecPath = path.resolve(pkgPath, dartPath, 'pubspec.yaml');
+            const resolvedPubspecPath = resolveConfinedManifestPath(repoRoot, pkgPath, dartPath, 'pubspec.yaml');
             log(`Checking pub path for ${name}: ${resolvedPubspecPath}`, 'debug');
             if (fs.existsSync(resolvedPubspecPath)) {
               log(`Found pubspec.yaml for ${name} at ${resolvedPubspecPath}, updating...`, 'debug');

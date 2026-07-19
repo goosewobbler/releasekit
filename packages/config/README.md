@@ -48,7 +48,7 @@ This is an internal package that handles configuration loading, schema validatio
 | Export | Description |
 |--------|-------------|
 | `parseJsonc(content)` | Parse JSON with comments |
-| `substituteInObject(obj)` | Substitute `{env:VAR}` and `{file:path}` |
+| `substituteInObject(obj, rootDir)` | Substitute `{env:VAR}` and `{file:path}` (file reads confined to `rootDir`) |
 | `deepMerge(target, source)` | Deep merge objects |
 | `mergeGitConfig(top, pkg)` | Merge git config layers |
 
