@@ -70,7 +70,7 @@ ReleaseKit's pipeline is registry-agnostic; this section tracks which ecosystems
 | **crates.io** (Rust) | Push API (OIDC queued — [#546](https://github.com/goosewobbler/releasekit/issues/546)) |
 | **pub.dev** (Dart/Flutter) | Push API, OIDC (tag-triggered) |
 
-Version handling is on by default for all three; per-registry *publishing* defaults are currently asymmetric (npm on, crates.io/pub.dev opt-in) — a wrinkle under review in [#554](https://github.com/goosewobbler/releasekit/issues/554).
+Publishing defaults are currently asymmetric (npm on, crates.io/pub.dev opt-in), and npm alone has no version-handling opt-out. [#554](https://github.com/goosewobbler/releasekit/issues/554) unifies both layers to "detection enables, config opts out" — every detected ecosystem versioned and published by default, symmetric opt-outs at each layer.
 
 ### Deepening the supported three ⏭️
 
