@@ -213,7 +213,7 @@ export function cleanupTestProject(projectDir) {
   }
 }
 
-export function createMultiRegistryTestProject(_options = {}) {
+export function createMultiRegistryTestProject({ npmEnabled = true } = {}) {
   const timestamp = Date.now();
   const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), `${TEST_PREFIX}-multi-${timestamp}`));
 
@@ -222,7 +222,7 @@ export function createMultiRegistryTestProject(_options = {}) {
   const remotePath = path.join(projectDir, 'test-remote.git');
   createBareRemote(remotePath);
 
-  createMultiRegistryMonorepoStructure(projectDir);
+  createMultiRegistryMonorepoStructure(projectDir, { npmEnabled });
   initGitRepo(projectDir, remotePath);
 
   const commits = [
@@ -251,7 +251,7 @@ export function createMultiRegistryTestProject(_options = {}) {
   };
 }
 
-function createMultiRegistryMonorepoStructure(projectDir) {
+function createMultiRegistryMonorepoStructure(projectDir, { npmEnabled = true } = {}) {
   const rootPackageJson = {
     name: 'test-monorepo',
     version: '1.0.0',
@@ -309,6 +309,9 @@ function createMultiRegistryMonorepoStructure(projectDir) {
     version: {
       preset: 'angular',
       packages: ['packages/*'],
+      // Opt out of npm version handling to exercise the "detection enables, config opts out" path:
+      // package.json manifests are left untouched while Cargo.toml is still versioned.
+      ...(npmEnabled ? {} : { npm: { enabled: false } }),
     },
   };
 

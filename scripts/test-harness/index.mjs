@@ -13,6 +13,7 @@
  *   pnpm test:harness:preview   # Run preview mode explicitly
  *   pnpm test:harness:release   # Run release mode with patch bump
  *   pnpm test:harness:multi     # Run release mode with npm + cargo, verify both manifests bumped
+ *   pnpm test:harness:multi-npm-disabled  # As above but version.npm.enabled:false — package.json untouched, Cargo.toml bumped
  *   pnpm test:harness:backfill  # Reconstruct notes from git history (--all + --package), verify files/dates/scoping
  *
  * The harness defaults to running in "CI simulation" mode where:
@@ -49,11 +50,15 @@ console.log('');
 
 let projectDir;
 try {
-  if (mode === 'release-multi') {
-    const testProject = createMultiRegistryTestProject();
+  if (mode === 'release-multi' || mode === 'release-multi-npm-disabled') {
+    // release-multi-npm-disabled sets version.npm.enabled: false — package.json manifests are left
+    // untouched while Cargo.toml is still versioned (the "detection enables, config opts out" path,
+    // where sync-strategy bugs previously skipped or abandoned the cargo write).
+    const npmEnabled = mode !== 'release-multi-npm-disabled';
+    const testProject = createMultiRegistryTestProject({ npmEnabled });
     projectDir = testProject.projectDir;
 
-    console.log(`\n--- Running release-multi mode ---`);
+    console.log(`\n--- Running ${mode} mode (npm ${npmEnabled ? 'enabled' : 'disabled'}) ---`);
 
     const envVars = {
       INPUT_MODE: 'release',
@@ -81,32 +86,43 @@ try {
     }
 
     if (result.status !== 0) {
-      throw new Error(`release-multi failed with exit code ${result.status}`);
+      throw new Error(`${mode} failed with exit code ${result.status}`);
+    }
+
+    // The Cargo.toml write happens before the sync strategy's "nothing updated" early return, so a
+    // manifest check alone can't catch the abandonment regression — assert the run actually released.
+    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+    if (!npmEnabled && /No packages were updated/i.test(output)) {
+      throw new Error(`${mode}: run reported "No packages were updated" — the cargo-only update was abandoned`);
     }
 
     console.log('\n--- Verifying Multi-Registry Version Bumps ---');
-    const expectedVersion = '1.0.1';
+    const bumpedVersion = '1.0.1';
+    // npm disabled leaves package.json at its original version; cargo is versioned either way.
+    const expectedPkgVersion = npmEnabled ? bumpedVersion : '1.0.0';
     for (const pkgSlug of testProject.packages) {
       const pkgDir = path.join(testProject.projectDir, 'packages', pkgSlug);
 
       const pkgJsonPath = path.join(pkgDir, 'package.json');
       const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
-      if (pkgJson.version !== expectedVersion) {
-        throw new Error(`${pkgSlug} package.json: expected ${expectedVersion}, got ${pkgJson.version}`);
+      if (pkgJson.version !== expectedPkgVersion) {
+        throw new Error(
+          `${pkgSlug} package.json: expected ${expectedPkgVersion} (npm ${npmEnabled ? 'enabled' : 'disabled'}), got ${pkgJson.version}`,
+        );
       }
 
       const cargoTomlPath = path.join(pkgDir, 'Cargo.toml');
       const cargoContent = fs.readFileSync(cargoTomlPath, 'utf-8');
       const cargoVersionMatch = cargoContent.match(/^version = "([^"]+)"/m);
       const cargoVersion = cargoVersionMatch?.[1];
-      if (cargoVersion !== expectedVersion) {
-        throw new Error(`${pkgSlug} Cargo.toml: expected ${expectedVersion}, got ${cargoVersion}`);
+      if (cargoVersion !== bumpedVersion) {
+        throw new Error(`${pkgSlug} Cargo.toml: expected ${bumpedVersion}, got ${cargoVersion}`);
       }
 
       console.log(`✓ ${pkgSlug}: package.json=${pkgJson.version}, Cargo.toml=${cargoVersion}`);
     }
 
-    console.log(`\n✅ release-multi completed successfully`);
+    console.log(`\n✅ ${mode} completed successfully`);
   } else if (mode === 'backfill') {
     const testProject = createBackfillTestProject();
     projectDir = testProject.projectDir;

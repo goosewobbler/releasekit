@@ -83,6 +83,12 @@ jobs:
       - name: Run backfill test harness
         run: pnpm test:harness:backfill
 
+      - name: Run multi-registry test harness (npm + cargo)
+        run: pnpm test:harness:multi
+
+      - name: Run multi-registry test harness (npm disabled, cargo only)
+        run: pnpm test:harness:multi-npm-disabled
+
   lint:
     name: Lint
     needs: [detect-changes, build]

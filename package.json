@@ -26,6 +26,7 @@
     "test:action:preview": "node scripts/test-harness/index.mjs preview",
     "test:action:release": "node scripts/test-harness/index.mjs release --bump patch",
     "test:harness:multi": "node scripts/test-harness/index.mjs release-multi",
+    "test:harness:multi-npm-disabled": "node scripts/test-harness/index.mjs release-multi-npm-disabled",
     "test:harness:backfill": "node scripts/test-harness/index.mjs backfill",
     "lint": "biome check . && eslint --cache \"packages/**/*.ts\"",
     "lint:fix": "biome check --write .",
