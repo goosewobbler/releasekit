@@ -3,12 +3,14 @@ import { LLM_DEFAULTS } from '../defaults.js';
 import type { EnhanceContext, LLMProvider } from '../index.js';
 import type { LLMMessage } from '../messages.js';
 import { resolveSystemPrompt } from '../prompts.js';
-import { renderPRBlocks } from './shared.js';
+import { INSTRUCTION_HIERARCHY, renderEntry } from './shared.js';
 
 function buildSystemPrompt(style: string | undefined): string {
   const styleText = style ? `- ${style}` : '- Use past tense ("Added feature" not "Add feature")';
   return `You are improving changelog entries for a software project.
 Given a technical commit message, rewrite it as a clear, user-friendly changelog entry.
+
+${INSTRUCTION_HIERARCHY}
 
 Rules:
 - Be concise (1-2 sentences max)
@@ -21,12 +23,7 @@ Output only the rewritten description, nothing else.`;
 }
 
 function buildUserPrompt(entry: ChangelogEntry): string {
-  const lines = [`Type: ${entry.type}`];
-  if (entry.scope) lines.push(`Scope: ${entry.scope}`);
-  lines.push(`Description: ${entry.description}`);
-  const prBlocks = renderPRBlocks(entry);
-  if (prBlocks) lines.push(prBlocks);
-  return lines.join('\n');
+  return renderEntry(entry, 0);
 }
 
 export async function enhanceEntry(

@@ -11,7 +11,7 @@
  * Multiple packages share one surface (a multi-package standing PR) by keying the markers:
  * `<!-- releasekit-notes:<key> -->` … `<!-- releasekit-notes-end:<key> -->`.
  */
-import { extractMarkerRegion, wrapMarkerRegion } from './marker.js';
+import { extractMarkerRegion, neutralizeMarkers, wrapMarkerRegion } from './marker.js';
 
 export const NOTES_MARKER = '<!-- releasekit-notes -->';
 export const NOTES_MARKER_END = '<!-- releasekit-notes-end -->';
@@ -24,9 +24,15 @@ function closeMarker(pkgKey?: string): string {
   return pkgKey ? `<!-- releasekit-notes-end:${pkgKey} -->` : NOTES_MARKER_END;
 }
 
-/** Wrap rendered notes in the editable-region markers so they can be recognised and extracted later. */
+/**
+ * Wrap rendered notes in the editable-region markers so they can be recognised and extracted later.
+ * Content is neutralized first: notes prose (LLM/human/changelog free text) must never carry a live
+ * releasekit marker, or a forged one would truncate/hijack a region or spoof the ownership check on
+ * the next round-trip. This is the single wrap boundary for notes, so every path (LLM output, human
+ * edits read back, and the non-LLM changelog fallback) is covered here.
+ */
 export function wrapNotesRegion(content: string, pkgKey?: string): string {
-  return wrapMarkerRegion(content, openMarker(pkgKey), closeMarker(pkgKey));
+  return wrapMarkerRegion(neutralizeMarkers(content), openMarker(pkgKey), closeMarker(pkgKey));
 }
 
 /**
