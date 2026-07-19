@@ -215,17 +215,32 @@ export function buildWorkflow(): Record<string, unknown> {
     jobs[`smoke-${scenario.id}`] = smokeJob(scenario);
   }
 
+  // The smoke exercises `releasekit release`, so it must also run when that release code — or the
+  // dependencies it resolves — changes, not just the examples/harness; otherwise a regression in
+  // release logic can break the smoke without ever re-triggering it.
+  const triggerPaths = [
+    'examples/**',
+    'scripts/examples-smoke/**',
+    '.github/workflows/examples-smoke.yml',
+    'packages/**',
+    'package.json',
+    'pnpm-lock.yaml',
+  ];
+
   return {
     name: 'Examples Smoke',
     on: {
       push: {
         branches: ['main'],
-        paths: ['examples/**', 'scripts/examples-smoke/**', '.github/workflows/examples-smoke.yml'],
+        paths: [...triggerPaths],
       },
       pull_request: {
         branches: ['main'],
-        paths: ['examples/**', 'scripts/examples-smoke/**', '.github/workflows/examples-smoke.yml'],
+        paths: [...triggerPaths],
       },
+      // Nightly backstop on main: catches regressions the path filters miss (transitive dep bumps,
+      // runner-image drift) within a day.
+      schedule: [{ cron: '0 3 * * *' }],
       workflow_dispatch: {},
     },
     permissions: { contents: 'read' },

@@ -110,7 +110,10 @@ function writeRootPackageJson(
 }
 
 function buildNpmSingle(out: string, tarballNames: Record<string, string>): void {
-  writeRootPackageJson(out, 'smoke-consumer', {}, tarballNames);
+  // A single-package consumer's one package IS the publishable one, so it must not be `private`.
+  // writeRootPackageJson defaults `private: true` for the monorepo roots (where only members ship),
+  // but a private single package is skipped at discovery — leaving nothing to release.
+  writeRootPackageJson(out, 'smoke-consumer', { private: false }, tarballNames);
 }
 
 function buildNpmMonorepo(out: string, tarballNames: Record<string, string>): void {
