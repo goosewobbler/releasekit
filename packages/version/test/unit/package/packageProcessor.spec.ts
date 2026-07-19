@@ -929,6 +929,36 @@ describe('Package Processor', () => {
         false,
       );
     });
+
+    it('should skip package.json but still update Cargo.toml when version.npm.enabled is false', async () => {
+      vi.spyOn(fs, 'existsSync').mockImplementation(() => true);
+
+      const hybridPackage = {
+        ...mockPackages[0],
+        dir: '/path/to/hybrid-package',
+        packageJson: { name: 'hybrid-package', version: '0.1.0' },
+      };
+
+      const processor = new PackageProcessor({
+        getLatestTag: gitTags.getLatestTag,
+        config: {},
+        fullConfig: { ...mockConfig, npm: { enabled: false } },
+      });
+
+      await processor.processPackages([hybridPackage]);
+
+      // npm opted out → package.json is left untouched; Cargo.toml is still versioned.
+      expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
+        '/path/to/hybrid-package/package.json',
+        expect.anything(),
+        expect.anything(),
+      );
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/path/to/hybrid-package/Cargo.toml',
+        '1.1.0',
+        false,
+      );
+    });
   });
 
   describe('Cargo.toml handling', () => {

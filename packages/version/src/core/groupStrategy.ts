@@ -407,7 +407,10 @@ async function releaseGroup(
     }
 
     const packageJsonPath = path.join(pkg.dir, 'package.json');
-    if (fs.existsSync(packageJsonPath)) {
+    // npm version handling gates package.json manifests (default true).
+    if (config.npm?.enabled === false) {
+      log(`Skipping package.json update for ${name} - npm version handling disabled`, 'debug');
+    } else if (fs.existsSync(packageJsonPath)) {
       updatePackageVersion(packageJsonPath, version, config.dryRun);
     } else {
       log(`Skipping package.json update for ${name} - no package.json found (Rust-only package)`, 'debug');
@@ -567,7 +570,8 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
 
         const name = pkg.packageJson.name;
         const packageJsonPath = path.join(pkg.dir, 'package.json');
-        if (fs.existsSync(packageJsonPath)) {
+        // npm version handling gates package.json manifests (default true).
+        if (config.npm?.enabled !== false && fs.existsSync(packageJsonPath)) {
           updatePackageVersion(packageJsonPath, plan.ownNext, config.dryRun);
         }
         const cargoTomlPath = path.join(pkg.dir, 'Cargo.toml');

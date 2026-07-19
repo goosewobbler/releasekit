@@ -18,6 +18,7 @@ import {
   TemplateConfigSchema,
   VerifyConfigSchema,
   VersionConfigSchema,
+  VersionNpmConfigSchema,
 } from '../../src/schema.js';
 
 describe('GitConfigSchema', () => {
@@ -64,7 +65,6 @@ describe('MonorepoConfigSchema', () => {
 describe('VersionConfigSchema', () => {
   it('should apply defaults', () => {
     const result = VersionConfigSchema.parse({});
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: checking the literal default string
     expect(result.tagTemplate).toBe('${prefix}${version}');
     expect(result.packageSpecificTags).toBe(false);
     expect(result.preset).toBe('conventional');
@@ -102,6 +102,11 @@ describe('VersionConfigSchema', () => {
     });
     expect(result.cargo?.enabled).toBe(true);
     expect(result.cargo?.paths).toEqual(['crates/core', 'crates/cli']);
+  });
+
+  it('should default version.npm.enabled to true and accept an opt-out', () => {
+    expect(VersionNpmConfigSchema.parse({}).enabled).toBe(true);
+    expect(VersionConfigSchema.parse({ npm: { enabled: false } }).npm?.enabled).toBe(false);
   });
 
   it('should accept version groups with fixed and linked sync modes', () => {
@@ -172,7 +177,8 @@ describe('NpmConfigSchema', () => {
 describe('CargoPublishConfigSchema', () => {
   it('should apply defaults', () => {
     const result = CargoPublishConfigSchema.parse({});
-    expect(result.enabled).toBe(false);
+    // Detection enables, config opts out: crates.io publishing defaults on.
+    expect(result.enabled).toBe(true);
     expect(result.noVerify).toBe(false);
     expect(result.publishOrder).toEqual([]);
     expect(result.clean).toBe(false);
@@ -221,10 +227,11 @@ describe('VerifyConfigSchema', () => {
 });
 
 describe('PublishConfigSchema', () => {
-  it('should apply defaults for npm and cargo', () => {
+  it('should default publishing on for npm, cargo, and pub (detection enables, config opts out)', () => {
     const result = PublishConfigSchema.parse({});
     expect(result.npm.enabled).toBe(true);
-    expect(result.cargo.enabled).toBe(false);
+    expect(result.cargo.enabled).toBe(true);
+    expect(result.pub.enabled).toBe(true);
     expect(result.githubRelease.enabled).toBe(true);
   });
 });

@@ -225,17 +225,29 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         // Check if packages.root is defined before joining paths
         if (packages.root) {
           const rootPkgPath = path.join(packages.root, 'package.json');
-          if (fs.existsSync(rootPkgPath)) {
+          // npm version handling gates package.json manifests (default true).
+          if (config.npm?.enabled !== false && fs.existsSync(rootPkgPath)) {
             // Mark as root so consumers (preview, standing PR) can exclude this lockstep
             // bump from package counts — it isn't a publishable package.
             updatePackageVersion(rootPkgPath, nextVersion, dryRun, true);
             files.push(rootPkgPath);
             updatedPackages.push('root');
-            processedPaths.add(rootPkgPath);
+          }
+          // Record the root path unconditionally (even when npm is disabled) so the per-package loop
+          // skips it in a single-package repo where packages.root === packages[0].dir — otherwise its
+          // Cargo.toml would be versioned twice (once here, once in the loop).
+          processedPaths.add(rootPkgPath);
 
-            // Handle Cargo.toml files in root
-            const rootCargoFiles = updateCargoFiles(packages.root, nextVersion, config.cargo, dryRun);
-            files.push(...rootCargoFiles);
+          // Root Cargo.toml handling is independent of npm (updateCargoFiles honors cargo.enabled),
+          // so it runs whether or not npm versioning is disabled — matching the per-package loop below.
+          const rootCargoFiles = updateCargoFiles(packages.root, nextVersion, config.cargo, dryRun);
+          files.push(...rootCargoFiles);
+          // Record 'root' when only the root Cargo.toml was versioned (npm disabled, or no root
+          // package.json). In a single-package repo where packages.root === packages[0].dir the loop
+          // skips this path via processedPaths, so without this nothing tracks the write and the empty
+          // updatedPackages triggers the early return below — abandoning the already-written file.
+          if (rootCargoFiles.length > 0 && !updatedPackages.includes('root')) {
+            updatedPackages.push('root');
           }
         } else {
           log('Root package path is undefined, skipping root package.json update', 'warning');
@@ -258,8 +270,10 @@ export function createSyncStrategy(config: Config): StrategyFunction {
           continue;
         }
 
-        // Skip pure Rust packages that don't have a package.json
-        if (!fs.existsSync(packageJsonPath)) {
+        // Skip when npm version handling is opted out, or for pure Rust packages with no package.json.
+        if (config.npm?.enabled === false) {
+          log(`Skipping package.json update for ${pkg.packageJson.name} - npm version handling disabled`, 'debug');
+        } else if (!fs.existsSync(packageJsonPath)) {
           log(
             `Skipping package.json update for ${pkg.packageJson.name} - no package.json found (Rust-only package)`,
             'debug',
@@ -275,8 +289,10 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         const pkgCargoFiles = updateCargoFiles(pkg.dir, nextVersion, config.cargo, dryRun);
         files.push(...pkgCargoFiles);
 
-        // Track pure-Rust packages by name when their Cargo.toml was updated
-        if (!fs.existsSync(packageJsonPath) && pkgCargoFiles.length > 0) {
+        // Track by name when only the Cargo.toml was updated: a pure-Rust package (no package.json),
+        // or a hybrid package whose package.json write was skipped because npm handling is disabled.
+        // Without this the early return below abandons the already-written Cargo.toml changes.
+        if ((!fs.existsSync(packageJsonPath) || config.npm?.enabled === false) && pkgCargoFiles.length > 0) {
           updatedPackages.push(pkg.packageJson.name);
         }
       }
@@ -641,12 +657,15 @@ export function createSingleStrategy(config: Config): StrategyFunction {
       // Track all files that need to be committed
       const filesToCommit: string[] = [];
 
-      // Only update package.json if it exists (skip for pure Rust packages)
-      if (fs.existsSync(packageJsonPath)) {
+      // Update package.json when npm version handling is enabled (default true) and it exists;
+      // otherwise skip (opted out, or a pure Rust package with no package.json).
+      const npmEnabled = config.npm?.enabled !== false;
+      if (npmEnabled && fs.existsSync(packageJsonPath)) {
         updatePackageVersion(packageJsonPath, nextVersion, dryRun);
         filesToCommit.push(packageJsonPath);
       } else {
-        log(`Skipping package.json update for ${packageName} - no package.json found (Rust-only package)`, 'debug');
+        const reason = !npmEnabled ? 'npm version handling disabled' : 'no package.json found (Rust-only package)';
+        log(`Skipping package.json update for ${packageName} - ${reason}`, 'debug');
       }
 
       // Handle Cargo.toml files for this package
