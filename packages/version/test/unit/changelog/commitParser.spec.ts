@@ -41,7 +41,7 @@ describe('Commit Parser', () => {
 
     const entries = await extractChangelogEntriesFromCommits('/test', RANGE, gitWithLog(mockGitOutput));
 
-    expect(entries).toHaveLength(10); // Should exclude 'test' commit
+    expect(entries).toHaveLength(11); // every conventional type is surfaced, including 'test' (#569)
 
     expect(entries.find((e) => e.description === 'add new feature')).toEqual(
       expect.objectContaining({ type: 'added', scope: 'core' }),
@@ -50,6 +50,10 @@ describe('Commit Parser', () => {
       expect.objectContaining({ type: 'fixed', scope: 'ui' }),
     );
     expect(entries.find((e) => e.description === 'update README')).toEqual(
+      expect.objectContaining({ type: 'changed', scope: undefined }),
+    );
+    // `test:` is categorized as Changed, not dropped (#569).
+    expect(entries.find((e) => e.description === 'add new tests')).toEqual(
       expect.objectContaining({ type: 'changed', scope: undefined }),
     );
     expect(entries.find((e) => e.description === 'revert previous commit')).toEqual(

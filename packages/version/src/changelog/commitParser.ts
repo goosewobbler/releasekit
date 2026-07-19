@@ -360,8 +360,9 @@ function mapCommitTypeToChangelogType(type: string): ChangelogEntry['type'] | nu
       // Special case - depend on commit message
       return 'changed';
     case 'test':
-      // Usually test changes are not in changelog
-      return null;
+      // Surfaced as "Changed", not dropped: ReleaseKit lists every merged change (low-signal ones are
+      // demoted, not hidden). Excluding test alone undercounted the standing-PR preview. #569
+      return 'changed';
     default:
       // For unknown types, put in 'changed'
       return 'changed';
