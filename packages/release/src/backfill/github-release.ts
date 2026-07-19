@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { NOTES_MARKER } from '@releasekit/core';
+import { assertNotOption, NOTES_MARKER } from '@releasekit/core';
 
 /**
  * Marker that identifies a GitHub release body releasekit authored. Embedded at the top of every
@@ -48,6 +48,7 @@ export function withMarker(body: string): string {
  * or any other failure) throws so the caller surfaces it instead of silently skipping the work.
  */
 export function getReleaseBody(tag: string): string | null {
+  assertNotOption(tag, 'tag');
   try {
     return execFileSync('gh', ['release', 'view', tag, '--json', 'body', '--jq', '.body'], { encoding: 'utf8' });
   } catch (err) {
@@ -63,6 +64,7 @@ export function getReleaseBody(tag: string): string | null {
 
 /** Overwrite a GitHub release body via `gh release edit`. */
 export function editReleaseBody(tag: string, body: string): void {
+  assertNotOption(tag, 'tag');
   execFileSync('gh', ['release', 'edit', tag, '--notes', body], { encoding: 'utf8' });
 }
 
@@ -71,6 +73,7 @@ export function editReleaseBody(tag: string, body: string): void {
  * Throws on auth/CLI/network failures.
  */
 export function getReleaseInfo(tag: string): { isDraft: boolean; body: string | null } | null {
+  assertNotOption(tag, 'tag');
   try {
     const json = execFileSync('gh', ['release', 'view', tag, '--json', 'isDraft,body'], { encoding: 'utf8' });
     const parsed = JSON.parse(json) as { isDraft: boolean; body: string | null };

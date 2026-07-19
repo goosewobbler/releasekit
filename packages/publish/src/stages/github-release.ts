@@ -1,5 +1,5 @@
 import type { VersionPackageChangelog } from '@releasekit/core';
-import { debug, info, sanitizePackageName, success, warn } from '@releasekit/core';
+import { assertNotOption, debug, info, sanitizePackageName, success, warn } from '@releasekit/core';
 import type { GitHubReleaseResult, PipelineContext } from '../types.js';
 import { execCommand, execCommandSafe } from '../utils/exec.js';
 import { isPrerelease } from '../utils/semver.js';
@@ -208,6 +208,25 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
   const skipPackages = config.githubRelease.skipPackages ?? [];
 
   for (const tag of tagsToRelease) {
+    // Argument-injection guard (defense-in-depth): the git stage creates the tag first and already
+    // rejects a leading `-`, but reject here too so a `-`-prefixed tag can never reach the `gh` argv
+    // (cobra would parse it as a flag, e.g. -R/--repo). Non-critical per the per-tag error strategy —
+    // record the failure and move on rather than aborting the whole stage.
+    try {
+      assertNotOption(tag, 'tag');
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      warn(`Failed to create GitHub release for ${tag}: ${reason}`);
+      ctx.output.githubReleases.push({
+        tag,
+        draft: config.githubRelease.draft,
+        prerelease: false,
+        success: false,
+        reason,
+      });
+      continue;
+    }
+
     // Skip GitHub release creation when the package is listed in githubRelease.skipPackages.
     // Tags are still created (needed for changelog range detection on the next release) and
     // npm publish still runs — only the `gh release create` call is skipped.
