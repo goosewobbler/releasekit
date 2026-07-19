@@ -26,13 +26,32 @@ export const MonorepoConfigSchema = z.object({
   packagesPath: z.string().optional().describe('Path to packages directory'),
 });
 
+export const VersionNpmConfigSchema = z.object({
+  enabled: z
+    .boolean()
+    .default(true)
+    .describe(
+      'Version package.json manifests. Detected npm packages are versioned by default; set false to opt out (e.g. npm versioning handled elsewhere).',
+    ),
+});
+
 export const VersionCargoConfigSchema = z.object({
-  enabled: z.boolean().default(true).describe('Enable Cargo.toml version handling'),
+  enabled: z
+    .boolean()
+    .default(true)
+    .describe(
+      'Version Cargo.toml manifests. Detected Rust packages are versioned by default; set false to opt out (e.g. a vendored crate, or Rust versioning handled elsewhere).',
+    ),
   paths: z.array(z.string()).optional().describe('Directories to search for Cargo.toml files'),
 });
 
 export const VersionPubConfigSchema = z.object({
-  enabled: z.boolean().default(true).describe('Enable pubspec.yaml version handling'),
+  enabled: z
+    .boolean()
+    .default(true)
+    .describe(
+      'Version pubspec.yaml manifests. Detected Dart/Flutter packages are versioned by default; set false to opt out.',
+    ),
   paths: z.array(z.string()).optional().describe('Directories to search for pubspec.yaml files'),
 });
 
@@ -129,12 +148,18 @@ export const VersionConfigSchema = z.object({
     .describe(
       "Pre-1.0 handling of commit-inferred breaking changes. 'spec' (default): bump the 0.x minor (0.24.0 → 0.25.0), per semver §4. 'strict': bump the next major (→ 1.0.0). Inferred path only — explicit overrides (--bump major, bump:major) always graduate to 1.0.0.",
     ),
+  npm: VersionNpmConfigSchema.optional().describe('npm/JavaScript version handling'),
   cargo: VersionCargoConfigSchema.optional().describe('Cargo/Rust configuration'),
   pub: VersionPubConfigSchema.optional().describe('Dart/Flutter pub configuration'),
 });
 
 export const NpmConfigSchema = z.object({
-  enabled: z.boolean().default(true).describe('Enable NPM publishing'),
+  enabled: z
+    .boolean()
+    .default(true)
+    .describe(
+      'Publish to npm. Detected npm packages are published by default; set false to opt out (version and tag only).',
+    ),
   auth: z.enum(['auto', 'oidc', 'token']).default('auto').describe('Authentication method'),
   provenance: z.boolean().default(true).describe('Enable npm provenance attestation'),
   access: z.enum(['public', 'restricted']).default('public').describe('Package access level'),
@@ -148,14 +173,24 @@ export const NpmConfigSchema = z.object({
 });
 
 export const CargoPublishConfigSchema = z.object({
-  enabled: z.boolean().default(false).describe('Enable Cargo publishing'),
+  enabled: z
+    .boolean()
+    .default(true)
+    .describe(
+      'Publish to crates.io. Detected Rust packages are published by default; set false to opt out (version and tag only).',
+    ),
   noVerify: z.boolean().default(false).describe('Skip verification before publish'),
   publishOrder: z.array(z.string()).default([]).describe('Order in which to publish packages'),
   clean: z.boolean().default(false).describe('Clean before publishing'),
 });
 
 export const PubPublishConfigSchema = z.object({
-  enabled: z.boolean().default(false).describe('Enable pub.dev publishing'),
+  enabled: z
+    .boolean()
+    .default(true)
+    .describe(
+      'Publish to pub.dev. Detected Dart/Flutter packages are published by default; set false to opt out (version and tag only).',
+    ),
   publishOrder: z.array(z.string()).default([]).describe('Order in which to publish packages'),
 });
 
@@ -248,13 +283,13 @@ export const PublishConfigSchema = z.object({
     publishOrder: [],
   }).describe('NPM publishing configuration'),
   cargo: CargoPublishConfigSchema.default({
-    enabled: false,
+    enabled: true,
     noVerify: false,
     publishOrder: [],
     clean: false,
   }).describe('Cargo publishing configuration'),
   pub: PubPublishConfigSchema.default({
-    enabled: false,
+    enabled: true,
     publishOrder: [],
   }).describe('Dart/Flutter publishing configuration via pub'),
   githubRelease: GitHubReleaseConfigSchema.default({

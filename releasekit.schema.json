@@ -210,6 +210,18 @@
           "default": "spec",
           "description": "Pre-1.0 handling of commit-inferred breaking changes. 'spec' (default): bump the 0.x minor (0.24.0 → 0.25.0), per semver §4. 'strict': bump the next major (→ 1.0.0). Inferred path only — explicit overrides (--bump major, bump:major) always graduate to 1.0.0."
         },
+        "npm": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Version package.json manifests. Detected npm packages are versioned by default; set false to opt out (e.g. npm versioning handled elsewhere)."
+            }
+          },
+          "description": "npm/JavaScript version handling"
+        },
         "cargo": {
           "type": "object",
           "additionalProperties": false,
@@ -217,7 +229,7 @@
             "enabled": {
               "type": "boolean",
               "default": true,
-              "description": "Enable Cargo.toml version handling"
+              "description": "Version Cargo.toml manifests. Detected Rust packages are versioned by default; set false to opt out (e.g. a vendored crate, or Rust versioning handled elsewhere)."
             },
             "paths": {
               "type": "array",
@@ -236,7 +248,7 @@
             "enabled": {
               "type": "boolean",
               "default": true,
-              "description": "Enable pubspec.yaml version handling"
+              "description": "Version pubspec.yaml manifests. Detected Dart/Flutter packages are versioned by default; set false to opt out."
             },
             "paths": {
               "type": "array",
@@ -298,7 +310,7 @@
             "enabled": {
               "type": "boolean",
               "default": true,
-              "description": "Enable NPM publishing"
+              "description": "Publish to npm. Detected npm packages are published by default; set false to opt out (version and tag only)."
             },
             "auth": {
               "type": "string",
@@ -361,8 +373,8 @@
           "properties": {
             "enabled": {
               "type": "boolean",
-              "default": false,
-              "description": "Enable Cargo publishing"
+              "default": true,
+              "description": "Publish to crates.io. Detected Rust packages are published by default; set false to opt out (version and tag only)."
             },
             "noVerify": {
               "type": "boolean",
@@ -391,8 +403,8 @@
           "properties": {
             "enabled": {
               "type": "boolean",
-              "default": false,
-              "description": "Enable pub.dev publishing"
+              "default": true,
+              "description": "Publish to pub.dev. Detected Dart/Flutter packages are published by default; set false to opt out (version and tag only)."
             },
             "publishOrder": {
               "type": "array",

@@ -159,6 +159,9 @@ export interface Config extends VersionConfigBase {
   strictReachable?: boolean;
   /** Pre-1.0 inferred-breaking bump policy ('spec' | 'strict'). See docs/configuration.md#versionzeromajor. */
   zeroMajor?: 'spec' | 'strict';
+  npm?: {
+    enabled?: boolean;
+  };
   cargo?: {
     enabled?: boolean;
     paths?: string[];
@@ -240,6 +243,7 @@ export function toVersionConfig(config: VersionConfig | undefined): Config {
     zeroMajor: config.zeroMajor,
     versionPrefix: config.versionPrefix ?? '',
     prereleaseIdentifier: config.prereleaseIdentifier,
+    npm: config.npm,
     cargo: config.cargo,
     pub: config.pub,
   };

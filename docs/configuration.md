@@ -75,6 +75,7 @@ Versioning configuration.
 | `allowFirstBump` | boolean | `false` | Acknowledge applying a bump on a first release with an already-stable manifest. On a first release (no prior tag), `--stable --bump <type>` applies the bump (e.g. 1.0.0 → 2.0.0) rather than graduating, which can silently overshoot the staged first version. By default this is flagged per `mismatchStrategy` (warn, or abort under "error"); set true (or pass --allow-first-bump) to apply the bump silently — legitimate when importing a package with prior external version history. |
 | `strictReachable` | boolean | `false` | Only use reachable tags |
 | `zeroMajor` | `"spec"` \| `"strict"` | `"spec"` | Pre-1.0 handling of commit-inferred breaking changes. 'spec' (default): bump the 0.x minor (0.24.0 → 0.25.0), per semver §4. 'strict': bump the next major (→ 1.0.0). Inferred path only — explicit overrides (--bump major, bump:major) always graduate to 1.0.0. |
+| `npm` | object | — | npm/JavaScript version handling |
 | `pub` | object | — | Dart/Flutter pub configuration |
 
 ### `version.zeroMajor`
@@ -127,13 +128,21 @@ ungrouped packages honor targets as-is.
 **Workspace pins.** Intra-group `workspace:*` dependencies resolve to the group version within a
 run, so a fixed group publishes internally consistent.
 
+### `version.npm`
+
+npm/JavaScript version handling.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `enabled` | boolean | `true` | Version package.json manifests. Detected npm packages are versioned by default; set false to opt out (e.g. npm versioning handled elsewhere). |
+
 ### `version.cargo`
 
 Cargo/Rust configuration.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Enable Cargo.toml version handling |
+| `enabled` | boolean | `true` | Version Cargo.toml manifests. Detected Rust packages are versioned by default; set false to opt out (e.g. a vendored crate, or Rust versioning handled elsewhere). |
 | `paths` | `string[]` | — | Directories to search for Cargo.toml files |
 
 ---
@@ -162,7 +171,7 @@ NPM publishing configuration.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Enable NPM publishing |
+| `enabled` | boolean | `true` | Publish to npm. Detected npm packages are published by default; set false to opt out (version and tag only). |
 | `auth` | `"auto"` \| `"oidc"` \| `"token"` | `"auto"` | Authentication method |
 | `provenance` | boolean | `true` | Enable npm provenance attestation |
 | `access` | `"public"` \| `"restricted"` | `"public"` | Package access level |
@@ -177,7 +186,7 @@ Cargo publishing configuration.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `enabled` | boolean | `false` | Enable Cargo publishing |
+| `enabled` | boolean | `true` | Publish to crates.io. Detected Rust packages are published by default; set false to opt out (version and tag only). |
 | `noVerify` | boolean | `false` | Skip verification before publish |
 | `publishOrder` | `string[]` | `[]` | Order in which to publish packages |
 | `clean` | boolean | `false` | Clean before publishing |
@@ -188,7 +197,7 @@ Dart/Flutter publishing configuration via pub.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `enabled` | boolean | `false` | Enable pub.dev publishing |
+| `enabled` | boolean | `true` | Publish to pub.dev. Detected Dart/Flutter packages are published by default; set false to opt out (version and tag only). |
 | `publishOrder` | `string[]` | `[]` | Order in which to publish packages |
 
 ### `publish.githubRelease`

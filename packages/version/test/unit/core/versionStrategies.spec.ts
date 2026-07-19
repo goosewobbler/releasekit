@@ -230,6 +230,58 @@ describe('Version Strategies', () => {
       expect(jsonOutput.setPackageUpdateTag).not.toHaveBeenCalled();
     });
 
+    it('should still version Cargo.toml and not abandon it when npm handling is disabled on a hybrid repo', async () => {
+      // Hybrid sync monorepo (existsSync mock returns true for every package.json AND Cargo.toml) with
+      // npm versioning opted out: package.json writes are skipped, but Cargo.toml must still be versioned
+      // and the run must not early-return as "no packages updated" (which would abandon the written files).
+      const config: Partial<Config> = { ...defaultConfig, sync: true, npm: { enabled: false } };
+      const syncStrategy = strategies.createSyncStrategy(config as Config);
+
+      await syncStrategy(mockPackages);
+
+      // package.json manifests (root 4-arg, members 3-arg) are skipped...
+      expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
+        packageAPath,
+        expect.anything(),
+        expect.anything(),
+      );
+      expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
+        rootPackagePath,
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+      );
+      // ...but Cargo.toml is still versioned (root + members); updateCargoFiles passes dryRun=false.
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/test/workspace/packages/a/Cargo.toml',
+        '1.1.0',
+        false,
+      );
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith('/test/workspace/Cargo.toml', '1.1.0', false);
+      // ...and the run proceeds to tag rather than early-returning.
+      expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
+    });
+
+    it('should not version a single-package repo Cargo.toml twice when npm is disabled', async () => {
+      // Single-package repo where the package IS the root (packages.root === packages[0].dir). With
+      // npm disabled, processedPaths must still record the root path so the per-package loop skips it,
+      // or updateCargoFiles runs for the same dir twice — writing Cargo.toml twice.
+      const singlePkg = {
+        root: '/test/workspace',
+        packages: [{ dir: '/test/workspace', packageJson: { name: 'root-pkg', version: '1.0.0' } }],
+      };
+      const config: Partial<Config> = { ...defaultConfig, sync: true, npm: { enabled: false } };
+      await strategies.createSyncStrategy(config as Config)(singlePkg as typeof mockPackages);
+
+      const cargoCalls = vi
+        .mocked(packageManagement.updatePackageVersion)
+        .mock.calls.filter((c) => c[0] === '/test/workspace/Cargo.toml');
+      expect(cargoCalls).toHaveLength(1);
+      // The run must not early-return as "nothing updated" — 'root' is tracked for the cargo-only
+      // update, so the shared tag is still created and the written Cargo.toml is committed.
+      expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
+    });
+
     it('should use mainPackage for version calculation when specified', async () => {
       // Setup with mainPackage
       const config: Partial<Config> = {

@@ -213,6 +213,14 @@ function renderVersion(prop: SchemaProperty): void {
     );
   }
 
+  const npm = prop.properties?.npm;
+  if (npm) {
+    emit('### `version.npm`', '');
+    emit(ensurePeriod(npm.description), '');
+    emit(propsTable(npm.properties ?? {}));
+    emitBlank();
+  }
+
   const cargo = prop.properties?.cargo;
   if (cargo) {
     emit('### `version.cargo`', '');

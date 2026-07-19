@@ -346,8 +346,9 @@ export class PackageProcessor {
       //       This ensures consistent versioning across language ecosystems.
       const packageJsonPath = path.join(pkgPath, 'package.json');
 
-      // Always update package.json if it exists
-      if (fs.existsSync(packageJsonPath)) {
+      // Update package.json when npm version handling is enabled (default true) and it exists.
+      const npmEnabled = this.fullConfig.npm?.enabled !== false;
+      if (npmEnabled && fs.existsSync(packageJsonPath)) {
         updatePackageVersion(packageJsonPath, nextVersion, this.dryRun);
       }
 
