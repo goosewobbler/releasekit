@@ -97,4 +97,5 @@ Fresh worktrees need `pnpm install` first. If you change dependencies, run `pnpm
 | [docs/troubleshooting.md](./docs/troubleshooting.md) | Symptom-indexed errors, failed-publish recovery |
 | [packages/release/docs/ci-setup.md](./packages/release/docs/ci-setup.md) | Consumer workflow templates, standing-PR mode, securing the standing PR |
 | [docs/action.md](./docs/action.md) | GitHub Action inputs/outputs |
-| [ROADMAP.md](./ROADMAP.md) | Direction: sequencing, settled decisions (stay TS, no MCP, change files as option), ecosystem triggers |
+| [ROADMAP.md](./ROADMAP.md) | Development sequencing by theme; ecosystem support (planned + not-planned) and prioritization criteria |
+| [docs/adr/](./docs/adr/) | Architecture Decision Records — the durable *why* behind load-bearing choices (language, agent surface, change-file input) |
