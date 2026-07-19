@@ -9,3 +9,5 @@ Roadmap sequencing lives in [ROADMAP.md](../../ROADMAP.md); implementation detai
 | [0001](./0001-language-remains-typescript.md) | ReleaseKit remains a TypeScript codebase | Accepted |
 | [0002](./0002-no-mcp-server-cli-is-the-agent-surface.md) | The agent-facing surface is the CLI, not an MCP server | Accepted |
 | [0003](./0003-optional-change-file-input.md) | Change files are supported as an optional input, in changesets format | Accepted |
+| [0004](./0004-ecosystem-enablement-detection-enables-config-opts-out.md) | Ecosystem enablement: detection enables, config opts out | Accepted |
+| [0005](./0005-require-an-explicit-llm-model-no-defaults.md) | Require an explicit LLM model; ship no defaults | Accepted |
