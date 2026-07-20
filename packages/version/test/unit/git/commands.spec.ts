@@ -196,7 +196,7 @@ describe('Git Commands', () => {
     });
   });
 
-  it('exports a FakeGit usable as the injected seam', () => {
+  it('should expose a FakeGit usable as the injected seam', () => {
     expect(createFakeGit()).toBeInstanceOf(FakeGit);
   });
 });

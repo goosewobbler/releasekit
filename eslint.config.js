@@ -20,6 +20,8 @@ export default [
     rules: {
       ...vitest.configs.recommended.rules,
       'vitest/prefer-called-exactly-once-with': 'off',
+      // Behaviour-spec titles: every it/test starts with "should" (describe stays free-form).
+      'vitest/valid-title': ['error', { mustMatch: { it: '^should', test: '^should' } }],
     },
   },
 ];
