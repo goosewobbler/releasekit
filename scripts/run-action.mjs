@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -160,6 +160,33 @@ export function parseReleaseOutput(stdout, verbose = false) {
     }
     return undefined;
   }
+}
+
+// Sync-mode version tags on HEAD, straight from git. The release creates them at HEAD, so they
+// survive a stdout-capture hiccup that would empty the parsed JSON — the authoritative fallback for
+// the `tags` output. Per-package tag formats aren't matched here and still rely on the parsed output.
+function gitVersionTagsAtHead(cwd) {
+  try {
+    const out = execFileSync('git', ['tag', '--points-at', 'HEAD'], { cwd, encoding: 'utf8' });
+    return out
+      .split('\n')
+      .map((tag) => tag.trim())
+      .filter((tag) => /^v\d+\.\d+\.\d+/.test(tag));
+  } catch {
+    return [];
+  }
+}
+
+// Pure tag selection, testable without git or GITHUB_OUTPUT. Prefer the parsed release output; on a
+// real run that parsed no tags, fall back to git's authoritative tags so a stdout hiccup can't
+// silently empty `tags`. `recovered` flags that fallback so the caller can surface it.
+export function resolveReleaseTags({ parsedTags, gitTags, dryRun }) {
+  const parsed = Array.isArray(parsedTags) ? parsedTags : [];
+  if (parsed.length > 0 || dryRun) {
+    return { tags: parsed, recovered: false };
+  }
+  const git = Array.isArray(gitTags) ? gitTags : [];
+  return git.length > 0 ? { tags: git, recovered: true } : { tags: [], recovered: false };
 }
 
 function setOutput(name, value) {
@@ -398,8 +425,19 @@ function writeReleaseOutputs(input, stdout) {
   const versionOutput = parsed?.versionOutput ? JSON.stringify(parsed.versionOutput) : '';
   setOutput('version-output', versionOutput);
 
-  const tags = parsed?.versionOutput?.tags;
-  setOutput('tags', Array.isArray(tags) ? tags.join(',') : '');
+  const dryRun = normalizeBoolean(input.dryRun);
+  const parsedTags = parsed?.versionOutput?.tags;
+  // Only shell out to git when the parsed output gave nothing on a real run — the common path stays a
+  // pure parse. A silent empty `tags` is what let a dist-less tag ship unnoticed before.
+  const needGit = !dryRun && !(Array.isArray(parsedTags) && parsedTags.length > 0);
+  const gitTags = needGit ? gitVersionTagsAtHead(input.projectDir ?? '.') : [];
+  const { tags, recovered } = resolveReleaseTags({ parsedTags, gitTags, dryRun });
+  if (recovered) {
+    console.log(
+      '::warning::releasekit: recovered the `tags` output from git after the release output could not be parsed — check this run for a stdout capture issue',
+    );
+  }
+  setOutput('tags', tags.join(','));
 }
 
 function writePreviewOutputs(input, stdout) {

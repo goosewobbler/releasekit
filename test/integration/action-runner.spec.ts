@@ -13,6 +13,7 @@ import {
   buildStandingPRUpdateArgs,
   parseInputs,
   parseReleaseOutput,
+  resolveReleaseTags,
   runAction,
 } from '../../scripts/run-action.mjs';
 
@@ -236,6 +237,41 @@ describe('action runner', () => {
 
   it('should return undefined for non-JSON release output', () => {
     expect(parseReleaseOutput('plain logs')).toBeUndefined();
+  });
+
+  it('prefers parsed tags over the git fallback', () => {
+    expect(resolveReleaseTags({ parsedTags: ['v1.2.3'], gitTags: ['v9.9.9'], dryRun: false })).toEqual({
+      tags: ['v1.2.3'],
+      recovered: false,
+    });
+  });
+
+  it('recovers tags from git when the parsed output has none on a real run', () => {
+    expect(resolveReleaseTags({ parsedTags: [], gitTags: ['v1.2.3'], dryRun: false })).toEqual({
+      tags: ['v1.2.3'],
+      recovered: true,
+    });
+  });
+
+  it('treats missing parsed tags as empty and recovers from git', () => {
+    expect(resolveReleaseTags({ parsedTags: undefined, gitTags: ['v1.2.3'], dryRun: false })).toEqual({
+      tags: ['v1.2.3'],
+      recovered: true,
+    });
+  });
+
+  it('does not fall back to git on a dry run', () => {
+    expect(resolveReleaseTags({ parsedTags: [], gitTags: ['v1.2.3'], dryRun: true })).toEqual({
+      tags: [],
+      recovered: false,
+    });
+  });
+
+  it('emits empty tags when neither source has any', () => {
+    expect(resolveReleaseTags({ parsedTags: [], gitTags: [], dryRun: false })).toEqual({
+      tags: [],
+      recovered: false,
+    });
   });
 
   it('should run cli with generated args', async () => {
