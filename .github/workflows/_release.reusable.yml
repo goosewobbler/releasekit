@@ -224,9 +224,11 @@ jobs:
           # and to gate reconcile-standing-pr in standing-pr.yml.
           ACTION_TAG=$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
 
-          # Fail loud when a publish that MUST tag produced none: a red run beats a silently broken
-          # published tag. The standing-PR publish of a merged PR always releases; the normal release
-          # path may legitimately find no changes (no tag expected).
+          # Fail loud when a publish that must tag produced none — a red run beats a silently broken
+          # published tag. Two gates by design: the standing-PR publish of a merged PR always releases,
+          # so a missing tag there is authoritative (no stdout dependency). The normal release path may
+          # legitimately have no changes, so it falls back to HAS_CHANGES — best-effort, since that
+          # signal comes from the same stdout we no longer trust for the tag; in practice they agree.
           if [ -z "$ACTION_TAG" ] && { [ -n "$STANDING_PR" ] || [ "$HAS_CHANGES" = "true" ]; }; then
             echo "::error::Publish reported success but no vX.Y.Z tag is on HEAD — the action-dist build would be skipped, stranding a dist-less action tag."
             exit 1

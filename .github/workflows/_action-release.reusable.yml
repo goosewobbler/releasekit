@@ -39,6 +39,9 @@ jobs:
           # Idempotency + loop-break: on a fresh release the tag points at a dist-less commit
           # (proceed); after a heal it points at the dist commit (no-op) — so re-running on the
           # force-moved tag can't loop or double-commit. Lets action-dist-heal.yml reuse this job.
+          # The sentinel is the action's entry point (what run-action.mjs loads / the releasekit-release
+          # bin); if the dist layout ever moves, update this path too — otherwise the guard silently
+          # stops no-op'ing and every scheduled heal rebuilds and re-moves the tag.
           if git cat-file -e "HEAD:packages/release/dist/cli.js" 2>/dev/null; then
             echo "already_healed=true" >> "$GITHUB_OUTPUT"
             echo "dist already committed on ${{ inputs.tag }} — skipping (no-op)."
