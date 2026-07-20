@@ -15,9 +15,11 @@ import {
   generateReleaseNotes,
   summarizeEntries,
 } from '../llm/index.js';
+import { isRetryableLLMError } from '../llm/retryable.js';
 import { type FormatVersionOptions, formatVersion, writeMarkdown } from '../output/markdown.js';
 import { writeVersionedNotes } from '../output/versioned.js';
 import { renderTemplate } from '../templates/index.js';
+import { mapWithConcurrency } from '../utils/concurrency.js';
 import { withRetry } from '../utils/retry.js';
 import type {
   ChangelogInput,
@@ -198,6 +200,7 @@ async function processWithLLM(
     entries: context.entries,
   };
 
+  let provider: LLMProvider;
   try {
     info(`Using LLM provider: ${llmConfig.provider}${llmConfig.model ? ` (${llmConfig.model})` : ''}`);
     if (llmConfig.baseURL) {
@@ -211,40 +214,69 @@ async function processWithLLM(
       : rawProvider;
     const retryOpts = llmConfig.retry ?? LLM_DEFAULTS.retry;
     const configOptions = llmConfig.options;
-    const provider: LLMProvider = {
+    provider = {
       name: baseProvider.name,
       capabilities: baseProvider.capabilities,
+      // Fail fast on non-transient errors (4xx auth/validation); only retry timeout/429/5xx/network.
       complete: (messages, opts) =>
-        withRetry(() => baseProvider.complete(messages, { ...configOptions, ...opts }), retryOpts),
+        withRetry(() => baseProvider.complete(messages, { ...configOptions, ...opts }), {
+          ...retryOpts,
+          shouldRetry: isRetryableLLMError,
+        }),
     };
 
     const activeTasks = Object.entries(tasks)
       .filter(([, enabled]) => enabled)
       .map(([name]) => name);
     info(`Running LLM tasks: ${activeTasks.join(', ')}`);
+  } catch (error) {
+    // Provider setup failed — nothing computed yet, so fall back to the raw context.
+    warn(`LLM setup failed: ${error instanceof Error ? error.message : String(error)}`);
+    warn('Falling back to non-LLM changelog rendering. Check your LLM config or set RELEASEKIT_DEBUG=1 for details.');
+    return context;
+  }
 
-    if (tasks.enhance && tasks.categorize) {
+  // Each task soft-fails independently: a late summarize/releaseNotes failure must not discard the
+  // (already paid-for) enhancement and categorization computed earlier in the same run.
+  const taskFailed = (task: string, error: unknown): void => {
+    warn(`LLM ${task} failed: ${error instanceof Error ? error.message : String(error)}. Keeping results so far.`);
+  };
+
+  if (tasks.enhance && tasks.categorize) {
+    try {
       info('Enhancing and categorizing entries with LLM...');
       const result = await enhanceAndCategorize(provider, context.entries, llmContext);
       enhanced.entries = result.enhancedEntries;
       enhanced.categories = buildOrderedCategories(result.categories, llmContext.categories);
       info(`Enhanced ${enhanced.entries.length} entries into ${result.categories.length} categories`);
-    } else {
-      if (tasks.enhance) {
+    } catch (error) {
+      taskFailed('enhance+categorize', error);
+    }
+  } else {
+    if (tasks.enhance) {
+      try {
         info('Enhancing entries with LLM...');
         enhanced.entries = await enhanceEntries(provider, context.entries, llmContext, llmConfig.concurrency);
         info(`Enhanced ${enhanced.entries.length} entries`);
+      } catch (error) {
+        taskFailed('enhance', error);
       }
+    }
 
-      if (tasks.categorize) {
+    if (tasks.categorize) {
+      try {
         info('Categorizing entries with LLM...');
         const categorized = await categorizeEntries(provider, enhanced.entries, llmContext);
         enhanced.categories = buildOrderedCategories(categorized, llmContext.categories);
         info(`Created ${categorized.length} categories`);
+      } catch (error) {
+        taskFailed('categorize', error);
       }
     }
+  }
 
-    if (tasks.summarize) {
+  if (tasks.summarize) {
+    try {
       info('Summarizing entries with LLM...');
       enhanced.summary = await summarizeEntries(provider, enhanced.entries, llmContext);
       if (enhanced.summary) {
@@ -253,9 +285,13 @@ async function processWithLLM(
       } else {
         warn('Summary generation returned empty result');
       }
+    } catch (error) {
+      taskFailed('summarize', error);
     }
+  }
 
-    if (tasks.releaseNotes) {
+  if (tasks.releaseNotes) {
+    try {
       info('Generating release notes with LLM...');
       enhanced.releaseNotes = await generateReleaseNotes(provider, enhanced.entries, llmContext);
       if (enhanced.releaseNotes) {
@@ -263,17 +299,15 @@ async function processWithLLM(
       } else {
         warn('Release notes generation returned empty result');
       }
+    } catch (error) {
+      taskFailed('releaseNotes', error);
     }
-
-    return {
-      ...context,
-      enhanced,
-    };
-  } catch (error) {
-    warn(`LLM processing failed: ${error instanceof Error ? error.message : String(error)}`);
-    warn('Falling back to non-LLM changelog rendering. Check your LLM config or set RELEASEKIT_DEBUG=1 for details.');
-    return context;
   }
+
+  return {
+    ...context,
+    enhanced,
+  };
 }
 
 function getBuiltinTemplatePath(style: string): string {
@@ -437,10 +471,11 @@ export async function runPipeline(
     }
 
     const allPackageNames = contexts.map((c) => c.packageName);
-    contexts = await Promise.all(
-      contexts.map((ctx) =>
-        processWithLLM(ctx, llmConfig, examplesByPackage.get(ctx.packageName) ?? [], allPackageNames),
-      ),
+    // Bound cross-package fan-out with the same `concurrency` knob used within a package, so a large
+    // monorepo doesn't open one in-flight LLM request per package all at once and trip rate limits.
+    const concurrency = llmConfig.concurrency ?? LLM_DEFAULTS.concurrency;
+    contexts = await mapWithConcurrency(contexts, concurrency, (ctx) =>
+      processWithLLM(ctx, llmConfig, examplesByPackage.get(ctx.packageName) ?? [], allPackageNames),
     );
   }
 

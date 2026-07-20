@@ -74,6 +74,26 @@ describe('withContentHashCache', () => {
     expect(provider.calls).toBe(6);
   });
 
+  it('should ignore temperature in the cache key for providers that do not honor it', async () => {
+    const dir = freshDir();
+    // Mirrors the Anthropic provider: temperature is never forwarded, so toggling it must not miss.
+    const provider: LLMProvider & { calls: number } = {
+      name: 'anthropic',
+      capabilities: { systemRole: true, structuredOutputs: true, toolUse: true, honorsTemperature: false },
+      calls: 0,
+      async complete(): Promise<CompleteResult> {
+        this.calls += 1;
+        return { content: 'r' };
+      },
+    };
+    const cached = withContentHashCache(provider, { model: 'claude-sonnet-5' }, dir);
+
+    await cached.complete(msgs, { temperature: 0.1 });
+    await cached.complete(msgs, { temperature: 0.9 });
+
+    expect(provider.calls).toBe(1);
+  });
+
   it('should hash message order, not just contents', async () => {
     const dir = freshDir();
     const provider = mockProvider(() => 'r');

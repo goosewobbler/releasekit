@@ -7,6 +7,7 @@ import { BaseLLMProvider } from './base.js';
 import type { CompleteResult, LLMMessage } from './messages.js';
 import { debugLogMessages } from './messages.js';
 import type { ProviderCapabilities } from './provider.js';
+import { isRetryableProviderError } from './retryable.js';
 
 export interface OpenAIConfig {
   apiKey?: string;
@@ -20,6 +21,7 @@ export class OpenAIProvider extends BaseLLMProvider {
     systemRole: true,
     structuredOutputs: true,
     toolUse: false,
+    honorsTemperature: true,
   };
 
   private client: OpenAI;
@@ -91,8 +93,13 @@ export class OpenAIProvider extends BaseLLMProvider {
       return { content };
     } catch (error) {
       if (error instanceof LLMError) throw error;
-      if (signal.aborted) throw new LLMError(`OpenAI request timed out after ${this.getTimeout(options)}ms`);
-      throw new LLMError(`OpenAI API error: ${error instanceof Error ? error.message : String(error)}`);
+      if (signal.aborted) {
+        throw new LLMError(`OpenAI request timed out after ${this.getTimeout(options)}ms`, { retryable: true });
+      }
+      throw new LLMError(`OpenAI API error: ${error instanceof Error ? error.message : String(error)}`, {
+        cause: error,
+        retryable: isRetryableProviderError(error),
+      });
     }
   }
 }

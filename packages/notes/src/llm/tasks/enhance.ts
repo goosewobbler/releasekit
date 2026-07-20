@@ -1,3 +1,4 @@
+import { warn } from '@releasekit/core';
 import type { ChangelogEntry } from '../../core/types.js';
 import { LLM_DEFAULTS } from '../defaults.js';
 import type { EnhanceContext, LLMProvider } from '../index.js';
@@ -49,6 +50,7 @@ export async function enhanceEntries(
   concurrency: number = LLM_DEFAULTS.concurrency,
 ): Promise<ChangelogEntry[]> {
   const results: ChangelogEntry[] = [];
+  let failures = 0;
 
   for (let i = 0; i < entries.length; i += concurrency) {
     const batch = entries.slice(i, i + concurrency);
@@ -58,11 +60,18 @@ export async function enhanceEntries(
           const newDescription = await enhanceEntry(provider, entry, context);
           return { ...entry, description: newDescription };
         } catch {
+          // Per-entry soft-fail: keep the raw entry so one failure doesn't sink the batch.
+          failures++;
           return entry;
         }
       }),
     );
     results.push(...batchResults);
+  }
+
+  if (failures > 0) {
+    // Surface the count so a run that silently mixes enhanced and raw voice is visible.
+    warn(`LLM enhancement failed for ${failures} of ${entries.length} entries; keeping their original text.`);
   }
 
   return results;
