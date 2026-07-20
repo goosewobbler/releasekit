@@ -1,4 +1,5 @@
 {
+  "$comment": "GENERATED from packages/config/src/schema.ts — do not edit; run `pnpm schema:gen`.",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://goosewobbler.github.io/releasekit/schema.json",
   "title": "ReleaseKit Configuration",

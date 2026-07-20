@@ -113,6 +113,9 @@ jobs:
       - name: Check generated JSON schema is up to date
         run: pnpm schema:check
 
+      - name: Check generated config docs are up to date
+        run: pnpm docs:check
+
   typecheck:
     name: Typecheck
     needs: [detect-changes, build]

@@ -556,6 +556,22 @@ emit(
 // Write output
 // ---------------------------------------------------------------------------
 
-mkdirSync(dirname(OUT_PATH), { recursive: true });
-writeFileSync(OUT_PATH, `${lines.join('\n')}\n`, 'utf8');
-console.log(`Generated: ${OUT_PATH}`);
+const output = `${lines.join('\n')}\n`;
+
+if (process.argv.includes('--check')) {
+  let current = '';
+  try {
+    current = readFileSync(OUT_PATH, 'utf8');
+  } catch {
+    current = '';
+  }
+  if (current !== output) {
+    console.error(`${OUT_PATH} is out of date with the schema.\nRun \`pnpm docs:config\` and commit the result.`);
+    process.exit(1);
+  }
+  console.log(`${OUT_PATH} is up to date.`);
+} else {
+  mkdirSync(dirname(OUT_PATH), { recursive: true });
+  writeFileSync(OUT_PATH, output, 'utf8');
+  console.log(`Generated: ${OUT_PATH}`);
+}

@@ -39,6 +39,7 @@ const SCHEMA_PATH = resolve(ROOT, 'releasekit.schema.json');
 // $schema URL, $id, human title, description). Set here explicitly — zod's
 // root .describe() is not reliably carried to the document root by the exporter.
 const META = {
+  $comment: 'GENERATED from packages/config/src/schema.ts — do not edit; run `pnpm schema:gen`.',
   $schema: 'http://json-schema.org/draft-07/schema#',
   $id: 'https://goosewobbler.github.io/releasekit/schema.json',
   title: 'ReleaseKit Configuration',
@@ -135,6 +136,7 @@ function normalise(node: unknown): unknown {
 // never to the field-name keys inside `properties` (definition order is
 // meaningful there) nor to raw `default` data.
 const KEY_ORDER = [
+  '$comment',
   '$schema',
   '$id',
   'title',

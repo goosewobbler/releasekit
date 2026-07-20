@@ -13,9 +13,4 @@ Violating these breaks releases.
 - **Marker comments** every bot comment is keyed by a distinct HTML marker and posted idempotently (update-in-place). Machine state uses its own marker line — never parse the human prose.
 - **Workflow `if` guards can't read config** label names in workflow guards are hardcoded defaults; in-step checks against `releasekit.config.json` are authoritative.
 
-## Generated — never hand-edit (CI's `schema:check` fails on drift)
-
-- `releasekit.schema.json` ← Zod schema `packages/config/src/schema.ts` → `pnpm schema:gen`
-- `docs/configuration.md` ← `pnpm docs:config`
-
 Design decisions are recorded in `docs/adr/` — check there before reworking a load-bearing choice.
