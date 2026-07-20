@@ -239,36 +239,36 @@ describe('action runner', () => {
     expect(parseReleaseOutput('plain logs')).toBeUndefined();
   });
 
-  it('prefers parsed tags over the git fallback', () => {
-    expect(resolveReleaseTags({ parsedTags: ['v1.2.3'], gitTags: ['v9.9.9'], dryRun: false })).toEqual({
+  it('should prefer parsed tags over the git fallback', () => {
+    expect(resolveReleaseTags({ parsedTags: ['v1.2.3'], gitTags: ['v9.9.9'], allowRecovery: true })).toEqual({
       tags: ['v1.2.3'],
       recovered: false,
     });
   });
 
-  it('recovers tags from git when the parsed output has none on a real run', () => {
-    expect(resolveReleaseTags({ parsedTags: [], gitTags: ['v1.2.3'], dryRun: false })).toEqual({
+  it('should recover tags from git when recovery is allowed and parsed tags are empty', () => {
+    expect(resolveReleaseTags({ parsedTags: [], gitTags: ['v1.2.3'], allowRecovery: true })).toEqual({
       tags: ['v1.2.3'],
       recovered: true,
     });
   });
 
-  it('treats missing parsed tags as empty and recovers from git', () => {
-    expect(resolveReleaseTags({ parsedTags: undefined, gitTags: ['v1.2.3'], dryRun: false })).toEqual({
+  it('should treat missing parsed tags as empty and recover from git when allowed', () => {
+    expect(resolveReleaseTags({ parsedTags: undefined, gitTags: ['v1.2.3'], allowRecovery: true })).toEqual({
       tags: ['v1.2.3'],
       recovered: true,
     });
   });
 
-  it('does not fall back to git on a dry run', () => {
-    expect(resolveReleaseTags({ parsedTags: [], gitTags: ['v1.2.3'], dryRun: true })).toEqual({
+  it('should not recover from git when recovery is not allowed', () => {
+    expect(resolveReleaseTags({ parsedTags: [], gitTags: ['v1.2.3'], allowRecovery: false })).toEqual({
       tags: [],
       recovered: false,
     });
   });
 
-  it('emits empty tags when neither source has any', () => {
-    expect(resolveReleaseTags({ parsedTags: [], gitTags: [], dryRun: false })).toEqual({
+  it('should emit empty tags when neither source has any', () => {
+    expect(resolveReleaseTags({ parsedTags: [], gitTags: [], allowRecovery: true })).toEqual({
       tags: [],
       recovered: false,
     });

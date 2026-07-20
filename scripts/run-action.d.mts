@@ -36,7 +36,7 @@ export function buildPreviewArgs(input: ActionInputs): string[];
 export function parseReleaseOutput(
   stdout: string,
 ): { versionOutput?: { tags?: string[]; updates?: unknown[] } } | undefined;
-export function resolveReleaseTags(args: { parsedTags?: string[]; gitTags?: string[]; dryRun?: boolean }): {
+export function resolveReleaseTags(args: { parsedTags?: string[]; gitTags?: string[]; allowRecovery?: boolean }): {
   tags: string[];
   recovered: boolean;
 };
