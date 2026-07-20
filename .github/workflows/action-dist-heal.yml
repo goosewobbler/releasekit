@@ -1,0 +1,58 @@
+name: Action Dist Heal
+
+# Backstop for the action tag's committed dist. The in-run build (release.yml -> _action-release) is
+# the primary path; this heals a vX.Y.Z tag that ended up dist-less anyway — e.g. the release job died
+# after pushing the tag but before committing dist. Reuses _action-release, which no-ops when the dist
+# is already committed, so it is safe to run any time. Deliberately NOT triggered on tag push, so it
+# never races the in-run path.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag to heal (e.g. v1.2.3)'
+        required: true
+        type: string
+  schedule:
+    - cron: '17 6 * * *' # daily: heal the newest stable release if it is missing dist
+
+permissions:
+  contents: write
+
+jobs:
+  resolve:
+    name: Resolve tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.pick.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Pick tag to heal
+        id: pick
+        env:
+          DISPATCH_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          # Manual dispatch heals the requested tag; the scheduled run heals the newest stable
+          # release (the realistic failure — a just-cut release missing its dist). Use the exact-tag
+          # dispatch input to heal a prerelease.
+          if [ -n "$DISPATCH_TAG" ]; then
+            TAG="$DISPATCH_TAG"
+          else
+            TAG=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | grep -vE -- '-' | sort -V | tail -1)
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+  heal:
+    name: Heal action dist
+    needs: resolve
+    if: needs.resolve.outputs.tag != ''
+    uses: ./.github/workflows/_action-release.reusable.yml
+    permissions:
+      contents: write
+    with:
+      tag: ${{ needs.resolve.outputs.tag }}
+    secrets:
+      ssh_key: ${{ secrets.DEPLOY_KEY }}

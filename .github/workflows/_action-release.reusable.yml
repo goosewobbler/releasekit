@@ -33,13 +33,29 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Skip if dist already committed on the tag
+        id: guard
+        run: |
+          # Idempotency + loop-break: on a fresh release the tag points at a dist-less commit
+          # (proceed); after a heal it points at the dist commit (no-op) — so re-running on the
+          # force-moved tag can't loop or double-commit. Lets action-dist-heal.yml reuse this job.
+          if git cat-file -e "HEAD:packages/release/dist/cli.js" 2>/dev/null; then
+            echo "already_healed=true" >> "$GITHUB_OUTPUT"
+            echo "dist already committed on ${{ inputs.tag }} — skipping (no-op)."
+          else
+            echo "already_healed=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup workspace
+        if: steps.guard.outputs.already_healed != 'true'
         uses: ./.github/workflows/actions/setup-workspace
 
       - name: Build packages
+        if: steps.guard.outputs.already_healed != 'true'
         run: pnpm build
 
       - name: Commit dist and tag
+        if: steps.guard.outputs.already_healed != 'true'
         env:
           RELEASE_TAG: ${{ inputs.tag }}
           GH_TOKEN: ${{ github.token }}
