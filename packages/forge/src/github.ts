@@ -24,6 +24,7 @@ import type {
   RepoPermission,
   StandingPullRequest,
 } from './types.js';
+import { isBotComment } from './types.js';
 
 const REPO_PERMISSIONS: readonly RepoPermission[] = ['admin', 'maintain', 'write', 'triage', 'read', 'none'];
 
@@ -209,12 +210,23 @@ export class GitHubForge implements Forge {
       issue_number: prNumber,
       per_page: 100,
     });
+    // Prefer a bot-authored match over a human-authored one carrying the same marker: a pre-seeded
+    // marker comment (write access, or the upsert race) must never shadow the bot's real one (#556).
+    // A human-authored match is still returned when it's the only one, so the caller can reject it.
+    let humanMatch: ForgeComment | null = null;
     for await (const response of iterator) {
       for (const comment of response.data) {
-        if (comment.body?.startsWith(marker)) return { id: comment.id, body: comment.body };
+        if (!comment.body?.startsWith(marker)) continue;
+        const found: ForgeComment = {
+          id: comment.id,
+          body: comment.body,
+          user: comment.user ? { login: comment.user.login, type: comment.user.type } : undefined,
+        };
+        if (isBotComment(found)) return found;
+        humanMatch ??= found;
       }
     }
-    return null;
+    return humanMatch;
   }
 
   async createComment(prNumber: number, body: string): Promise<void> {
@@ -227,7 +239,10 @@ export class GitHubForge implements Forge {
 
   async upsertMarkerComment(prNumber: number, marker: string, body: string): Promise<void> {
     const existing = await this.findComment(prNumber, marker);
-    if (existing) {
+    // Only adopt (update in place) a comment the bot itself authored. A human-authored comment
+    // carrying the marker — pre-seeded to win the adoption race — is left alone; the bot posts its
+    // own so its content is authoritative and never laundered through an attacker-owned comment (#556).
+    if (existing && isBotComment(existing)) {
       await this.updateComment(existing.id, body);
     } else {
       await this.createComment(prNumber, body);

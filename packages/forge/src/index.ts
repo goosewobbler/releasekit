@@ -3,6 +3,7 @@ export { createFakeForge, FakeForge, type FakeForgeSeed } from './fake.js';
 export { createGitHubForge, GitHubForge } from './github.js';
 export type {
   AssociatedPullRequest,
+  CommentAuthor,
   CommitStatus,
   CommitStatusState,
   CreateLabelResult,
@@ -28,3 +29,4 @@ export type {
   RepoPermission,
   StandingPullRequest,
 } from './types.js';
+export { isBotComment } from './types.js';

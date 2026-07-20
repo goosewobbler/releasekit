@@ -1,5 +1,5 @@
 import { createFakeForge, type FakeForge, type FakeForgeSeed } from '@releasekit/forge';
-import { FakeGit, type GitLogOptions } from '@releasekit/git';
+import { FakeGit, type FakeGitSeed, type GitLogOptions } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderFailureReport, renderResolvedReport } from '../../src/failure-report/failure-report.js';
 import { renderNotesRegion } from '../../src/standing-pr/notes-region.js';
@@ -58,10 +58,20 @@ vi.mock('@releasekit/git', async (importOriginal) => {
 });
 
 /** Build a fresh ControllableGit (default HEAD subject = a non-release commit) and make it current. */
-function setupGit(seed: { headSha?: string; subject?: string; remoteBranches?: Record<string, string[]> } = {}) {
+function setupGit(
+  seed: {
+    headSha?: string;
+    subject?: string;
+    remoteBranches?: Record<string, string[]>;
+    ancestors?: FakeGitSeed['ancestors'];
+  } = {},
+) {
   fakeGit = new ControllableGit({
     headSha: seed.headSha ?? 'abc123',
     remoteBranches: seed.remoteBranches,
+    // The manifest baseSha ancestry guard refuses to publish when baseSha isn't an ancestor of
+    // HEAD; default to "is an ancestor" so the common publish path proceeds, override to test the guard.
+    ancestors: seed.ancestors ?? (() => true),
   });
   fakeGit.subjects = [seed.subject ?? 'feat: some feature'];
   return fakeGit;
@@ -92,8 +102,13 @@ vi.mock('@releasekit/config', () => ({
 // primaries (incl. unchanged ones) against the workspace. Mock it so the test never hits a real fs;
 // defaults to empty (no primaries → flat render) for every test that doesn't opt in.
 const mockGetWorkspacePackageNames = vi.fn<(...args: unknown[]) => Promise<string[]>>().mockResolvedValue([]);
+// The publish path reads the merged tree's actual package versions to validate the manifest.
+const mockGetWorkspacePackageVersions = vi
+  .fn<(...args: unknown[]) => Promise<Record<string, string>>>()
+  .mockResolvedValue({});
 vi.mock('@releasekit/version', () => ({
   getWorkspacePackageNames: (...args: unknown[]) => mockGetWorkspacePackageNames(...args),
+  getWorkspacePackageVersions: (...args: unknown[]) => mockGetWorkspacePackageVersions(...args),
 }));
 
 vi.mock('../../src/steps.js', () => ({
@@ -2325,6 +2340,28 @@ describe('runStandingPRUpdate', () => {
       expect(body).not.toContain('## Release Notes');
       expect(body).not.toContain('<!-- releasekit-notes');
     });
+
+    it('should shed the notes region rather than emit an over-cap body when notes are inflated', async () => {
+      // Aggregate notes across many packages exceed GitHub's body limit; the cap fallback must collapse
+      // the notes region so the update never posts an over-limit body (which would 422 and wedge every
+      // future update).
+      const bigNote = Array.from({ length: 300 }, (_, i) => `- inflated note line ${i}`).join('\n');
+      const freshNotes = Object.fromEntries(Array.from({ length: 14 }, (_, i) => [`@scope/pkg${i}`, bigNote]));
+      const { forge } = await setupPreviewPR({ labels: ['release', 'release:preview-notes'], freshNotes });
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const body = forge.updatedPullRequests.at(-1)?.changes.body as string;
+      expect(body.length).toBeLessThanOrEqual(STANDING_PR_BODY_CAP);
+      // The editable notes were dropped for the collapsed notice — not left to blow the cap.
+      expect(body).toContain('Release notes omitted');
+      expect(body).not.toContain('<!-- releasekit-notes:@scope/pkg0 -->');
+      // updatePullRequest was never handed an over-limit body.
+      const bodies = forge.updatedPullRequests
+        .map((u) => u.changes.body)
+        .filter((b): b is string => typeof b === 'string');
+      for (const b of bodies) expect(b.length).toBeLessThanOrEqual(STANDING_PR_BODY_CAP);
+    });
   });
 });
 
@@ -2370,6 +2407,10 @@ describe('runStandingPRPublish', () => {
       },
       git: { branch: 'main' },
     } as ReturnType<typeof loadConfig>);
+
+    // The merged tree's on-disk version matches the manifest fixture (@scope/core@1.2.3) so the
+    // recompute-and-compare guard passes on the happy paths.
+    mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
 
     setupGit();
   });
@@ -2873,6 +2914,10 @@ describe('publishFromManifest', () => {
       git: { branch: 'main' },
     } as ReturnType<typeof loadConfig>);
 
+    // The merged tree's on-disk versions match the manifest — the recompute-and-compare guard
+    // passes so the common publish path proceeds. Divergence tests override this per case.
+    mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
+
     setupGit();
   });
 
@@ -2927,6 +2972,204 @@ describe('publishFromManifest', () => {
     // The edited notes (not the regenerated ones) reach the publish step's release-body map.
     expect(vi.mocked(runPublishStep).mock.calls[0]?.[2]).toMatchObject({ '@scope/core': 'EDITED AT MERGE' });
   });
+
+  it('should refuse to publish when a forged manifest bumps a version beyond the merged source', async () => {
+    const { runPublishStep } = await import('../../src/steps.js');
+    // The merged tree has @scope/core@1.2.3, but the (edited) manifest claims a bumped 9.9.9.
+    mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
+    const forged = {
+      ...baseManifest,
+      versionOutput: createMockVersionOutput([{ packageName: '@scope/core', newVersion: '9.9.9' }]),
+    };
+    await mockForge({ comments: [{ id: 77, body: serializeManifest(forged) }] });
+
+    await expect(
+      publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/does not match what was merged/);
+    expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
+  });
+
+  it('should refuse to publish when a forged manifest adds a package absent from the merged source', async () => {
+    const { runPublishStep } = await import('../../src/steps.js');
+    mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
+    const forged = {
+      ...baseManifest,
+      versionOutput: createMockVersionOutput([
+        { packageName: '@scope/core', newVersion: '1.2.3' },
+        { packageName: '@scope/rogue', newVersion: '1.0.0' },
+      ]),
+    };
+    await mockForge({ comments: [{ id: 77, body: serializeManifest(forged) }] });
+
+    await expect(
+      publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/not in the workspace at the merged commit/);
+    expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
+  });
+
+  it('should refuse to publish a manifest carrying a rogue tag that encodes no published version', async () => {
+    const { runPublishStep } = await import('../../src/steps.js');
+    mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
+    const forged = {
+      ...baseManifest,
+      versionOutput: {
+        ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+        tags: ['@scope/core@v1.2.3', 'v99.99.99'],
+      },
+    };
+    await mockForge({ comments: [{ id: 77, body: serializeManifest(forged) }] });
+
+    await expect(
+      publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/does not correspond to any package\/version being published/);
+    expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
+  });
+
+  it('should refuse a rogue tag that embeds a validated version (digit or prerelease suffix)', async () => {
+    const { runPublishStep } = await import('../../src/steps.js');
+    mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
+    const forged = {
+      ...baseManifest,
+      versionOutput: {
+        ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+        // `v1.2.3-evil` embeds `1.2.3` but is a different (prerelease) version; the bounded match must
+        // reject a `-`/`+`/digit suffix, not just a trailing digit.
+        tags: ['@scope/core@v1.2.3', '@scope/core@v1.2.3-evil'],
+      },
+    };
+    await mockForge({ comments: [{ id: 77, body: serializeManifest(forged) }] });
+
+    await expect(
+      publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/does not correspond to any package\/version being published/);
+    expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
+  });
+
+  it('should refuse a tag whose scoped package is not among those being published', async () => {
+    const { runPublishStep } = await import('../../src/steps.js');
+    mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
+    const forged = {
+      ...baseManifest,
+      versionOutput: {
+        ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+        // `@scope/evil@v1.2.3` carries a real published version but names a package outside the plan.
+        tags: ['@scope/core@v1.2.3', '@scope/evil@v1.2.3'],
+      },
+    };
+    await mockForge({ comments: [{ id: 77, body: serializeManifest(forged) }] });
+
+    await expect(
+      publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/is not among the packages being published/);
+    expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
+  });
+
+  it('should refuse a manifest that clears updates but still injects rogue tags', async () => {
+    const { runPublishStep } = await import('../../src/steps.js');
+    mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
+    const forged = {
+      ...baseManifest,
+      versionOutput: {
+        ...createMockVersionOutput([]),
+        // No publishable updates, but rogue tags injected — tag validation must not be skipped, else
+        // createReleaseTags would push these before the (no-op) publish step.
+        tags: ['@scope/evil@v1.2.3'],
+      },
+    };
+    await mockForge({ comments: [{ id: 77, body: serializeManifest(forged) }] });
+
+    await expect(
+      publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/does not correspond to any package\/version being published/);
+    expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
+  });
+
+  it('should refuse a manifest carrying a rogue baseline tag', async () => {
+    const { runPublishStep } = await import('../../src/steps.js');
+    mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
+    const forged = {
+      ...baseManifest,
+      versionOutput: {
+        ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+        tags: ['@scope/core@v1.2.3'],
+        // Baseline tags are pushed alongside `tags` and encode a version too, so they are validated
+        // identically — `release/v9.9.9` names a version not being published.
+        baselineTags: ['release/v9.9.9'],
+      },
+    };
+    await mockForge({ comments: [{ id: 77, body: serializeManifest(forged) }] });
+
+    await expect(
+      publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/does not correspond to any package\/version being published/);
+    expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
+  });
+
+  it('should refuse to publish when the manifest comment is not authored by the bot', async () => {
+    const { runPublishStep } = await import('../../src/steps.js');
+    // A human pre-seeded (or replaced) the manifest comment — author binding must reject it.
+    await mockForge({
+      comments: [{ id: 77, body: serializeManifest(baseManifest), user: { login: 'attacker', type: 'User' } }],
+    });
+
+    await expect(
+      publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/not the release bot/);
+    expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
+  });
+
+  it('should prefer the bot-authored manifest over a pre-seeded human-authored one', async () => {
+    const { runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runPublishStep).mockResolvedValue({
+      npm: [],
+      cargo: [],
+      githubReleases: [],
+      git: { committed: true, tags: [], pushed: true },
+    } as unknown as Awaited<ReturnType<typeof runPublishStep>>);
+    // An attacker pre-seeds a forged manifest comment; the bot's real one is also present. findComment
+    // must return the bot's, so the publish proceeds against the legitimate plan.
+    const forged = {
+      ...baseManifest,
+      versionOutput: createMockVersionOutput([{ packageName: '@scope/core', newVersion: '9.9.9' }]),
+    };
+    await mockForge({
+      comments: [
+        { id: 1, body: serializeManifest(forged), user: { login: 'attacker', type: 'User' } },
+        { id: 2, body: serializeManifest(baseManifest), user: { login: 'releasekit[bot]', type: 'Bot' } },
+      ],
+    });
+
+    await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    // The legitimate @scope/core@1.2.3 plan was published, not the forged 9.9.9.
+    expect(vi.mocked(runPublishStep).mock.calls[0]?.[0]).toMatchObject({
+      updates: [expect.objectContaining({ packageName: '@scope/core', newVersion: '1.2.3' })],
+    });
+  });
+
+  it('should refuse to publish when the manifest baseSha is not an ancestor of HEAD', async () => {
+    const { runPublishStep } = await import('../../src/steps.js');
+    // History was rewritten / wrong branch: baseSha is not reachable from HEAD.
+    setupGit({ ancestors: () => false });
+    await mockForge({ comments: [{ id: 77, body: serializeManifest(baseManifest) }] });
+
+    await expect(
+      publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/is not an ancestor of/);
+    expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
+  });
+
+  it('should refuse to publish a manifest whose schemaVersion is absent', async () => {
+    const { runPublishStep } = await import('../../src/steps.js');
+    // Strip schemaVersion from the encoded payload — the schema check must reject it (not slip through).
+    const noVersion = serializeManifest({ ...baseManifest, schemaVersion: undefined as unknown as 1 });
+    await mockForge({ comments: [{ id: 77, body: noVersion }] });
+
+    await expect(
+      publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/schema version undefined is incompatible/);
+    expect(vi.mocked(runPublishStep)).not.toHaveBeenCalled();
+  });
 });
 
 describe('runStandingPRMerge', () => {
@@ -2944,6 +3187,9 @@ describe('runStandingPRMerge', () => {
       },
       git: { branch: 'main' },
     } as ReturnType<typeof loadConfig>);
+
+    // Matches the @scope/core@1.2.3 manifest fixture so the recompute-and-compare guard passes.
+    mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
 
     setupGit();
   });
