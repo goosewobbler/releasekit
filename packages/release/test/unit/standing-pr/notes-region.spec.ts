@@ -24,7 +24,7 @@ describe('notes-region', () => {
       expect(renderNotesRegion({})).toBe('');
     });
 
-    it('should truncate oversized per-package notes at the documented bound (#558)', () => {
+    it('should truncate oversized per-package notes at the documented bound', () => {
       const oversized = Array.from({ length: 5000 }, (_, i) => `- line ${i} of a very inflated note`).join('\n');
       const rendered = renderNotesRegion({ '@scope/a': oversized });
 
@@ -37,12 +37,12 @@ describe('notes-region', () => {
   });
 
   describe('truncatePackageNotes', () => {
-    it('should leave notes within the bound untouched (#558)', () => {
+    it('should leave notes within the bound untouched', () => {
       const notes = 'a short note\nwith two lines';
       expect(truncatePackageNotes(notes)).toBe(notes);
     });
 
-    it('should trim notes beyond the bound and append the truncation marker (#558)', () => {
+    it('should trim notes beyond the bound and append the truncation marker', () => {
       const oversized = 'x'.repeat(MAX_NOTES_CHARS_PER_PACKAGE + 5000);
       const truncated = truncatePackageNotes(oversized);
 

@@ -584,7 +584,7 @@ describe('Version Strategies', () => {
         );
       });
 
-      it('should warn loudly and omit previousVersion when the baseline tag is unverifiable (#339)', async () => {
+      it('should warn loudly and omit previousVersion when the baseline tag is unverifiable', async () => {
         // The baseline tag fails verification (e.g. shallow clone / unpushed tag).
         vi.mocked(tagVerification.verifyTag, { partial: true }).mockResolvedValue({
           exists: true,
@@ -820,7 +820,7 @@ describe('Version Strategies', () => {
       expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a v1.1.0');
     });
 
-    it('should warn and omit previousVersion when the baseline tag is unverifiable (#339)', async () => {
+    it('should warn and omit previousVersion when the baseline tag is unverifiable', async () => {
       // The baseline tag fails verification (shallow clone / unpushed tag).
       vi.mocked(tagVerification.verifyTag, { partial: true }).mockResolvedValue({
         exists: true,

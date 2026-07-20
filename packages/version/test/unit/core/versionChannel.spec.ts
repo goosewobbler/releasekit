@@ -83,7 +83,7 @@ describe('Per-package release channel — advance along the current line (#485)'
       expect(next).toBe('1.0.0-next.2');
     });
 
-    it('should increment a higher prerelease counter without resetting it (#500: 1.0.0-next.3 -> 1.0.0-next.4)', async () => {
+    it('should increment a higher prerelease counter without resetting it (1.0.0-next.3 -> 1.0.0-next.4)', async () => {
       baselineAt('1.0.0-next.3');
       inferredBump('minor');
       const next = await calculateVersion(baseConfig as Config, options({ latestTag: 'v1.0.0-next.3' }));

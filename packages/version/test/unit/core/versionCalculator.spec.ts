@@ -399,7 +399,7 @@ describe('Version Calculator', () => {
       name: 'my-pkg',
     };
 
-    it('should warn but still apply the bump on a first-release stable manifest (#388)', async () => {
+    it('should warn but still apply the bump on a first-release stable manifest', async () => {
       stableFirstReleaseMocks();
       const config = { ...defaultConfig, stableOnly: true, type: 'major' as const };
       const version = await calculateVersion(config as Config, stableFirstReleaseOptions);
@@ -407,7 +407,7 @@ describe('Version Calculator', () => {
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('will publish 2.0.0, not 1.0.0'), 'warning');
     });
 
-    it('should abort a first-release stable-manifest bump under mismatchStrategy "error" (#388)', async () => {
+    it('should abort a first-release stable-manifest bump under mismatchStrategy "error"', async () => {
       stableFirstReleaseMocks();
       const config = { ...defaultConfig, stableOnly: true, type: 'major' as const, mismatchStrategy: 'error' as const };
       await expect(calculateVersion(config as Config, stableFirstReleaseOptions)).rejects.toThrow(
@@ -415,7 +415,7 @@ describe('Version Calculator', () => {
       );
     });
 
-    it('should apply the bump silently when allowFirstBump acknowledges it (#388)', async () => {
+    it('should apply the bump silently when allowFirstBump acknowledges it', async () => {
       stableFirstReleaseMocks();
       const config = { ...defaultConfig, stableOnly: true, type: 'major' as const, allowFirstBump: true };
       const version = await calculateVersion(config as Config, stableFirstReleaseOptions);
@@ -423,7 +423,7 @@ describe('Version Calculator', () => {
       expect(logging.log).not.toHaveBeenCalledWith(expect.stringContaining('will publish 2.0.0, not 1.0.0'), 'warning');
     });
 
-    it('should apply the bump silently under mismatchStrategy "ignore" (#388)', async () => {
+    it('should apply the bump silently under mismatchStrategy "ignore"', async () => {
       stableFirstReleaseMocks();
       const config = {
         ...defaultConfig,

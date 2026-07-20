@@ -1435,7 +1435,7 @@ describe('runStandingPRUpdate', () => {
     };
   }
 
-  it('should render the #520 release summary line and omit the version-summary table by default', async () => {
+  it('should render the release summary line and omit the version-summary table by default', async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = mixedChannelOutput();
     vi.mocked(runVersionStep)
@@ -1453,7 +1453,7 @@ describe('runStandingPRUpdate', () => {
     expect(body).not.toContain('Version summary (');
   });
 
-  it('should render the #520 version-summary table when ci.standingPr.summaryTable is true', async () => {
+  it('should render the version-summary table when ci.standingPr.summaryTable is true', async () => {
     const { loadConfig } = await import('@releasekit/config');
     vi.mocked(loadConfig).mockReturnValueOnce({
       ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true, summaryTable: true } },

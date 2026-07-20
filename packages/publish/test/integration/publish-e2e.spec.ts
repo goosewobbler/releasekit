@@ -323,7 +323,7 @@ describe('Publish pipeline e2e (non-dry-run guards)', () => {
     });
   });
 
-  it('should demand a cargo token only when crates are actually present (the #578 inverse)', async () => {
+  it('should demand a cargo token only when crates are actually present (the inverse)', async () => {
     // The complement of the no-op guard: with a crate discovered, a non-dry-run run WITH no token must
     // fail fast at auth — proving the discover-then-auth ordering demands credentials exactly when used.
     delete process.env.CARGO_REGISTRY_TOKEN;

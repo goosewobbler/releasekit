@@ -171,7 +171,7 @@ describe('JSON Output Utilities', () => {
       });
     });
 
-    it('should derive the per-package channel from the resolved version (#485)', () => {
+    it('should derive the per-package channel from the resolved version', () => {
       enableJsonOutput();
       addPackageUpdate('stable-pkg', '10.2.0', '/ws/packages/stable/package.json');
       addPackageUpdate('pre-pkg', '1.0.0-next.2', '/ws/packages/pre/package.json');

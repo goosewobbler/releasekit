@@ -48,7 +48,7 @@ describe('BaselineResolver.resolve', () => {
     expect(result.baselineUnreachable).toBe(false);
   });
 
-  it('should bound by the nearest reachable tag (not full history) when the tag is unreachable (#370)', async () => {
+  it('should bound by the nearest reachable tag (not full history) when the tag is unreachable', async () => {
     vi.mocked(verifyTag).mockResolvedValue(unreachable);
     vi.mocked(getNearestReachableTag).mockResolvedValue('v0.9.0');
     const result = await new BaselineResolver(makeOpts()).resolve(makeInput());
@@ -59,7 +59,7 @@ describe('BaselineResolver.resolve', () => {
     expect(result.baselineUnreachable).toBe(true);
   });
 
-  it('should fall back to full history only when no reachable tag exists at all (fresh repo, #370)', async () => {
+  it('should fall back to full history only when no reachable tag exists at all (fresh repo)', async () => {
     vi.mocked(verifyTag).mockResolvedValue(unreachable);
     vi.mocked(getNearestReachableTag).mockResolvedValue('');
     const result = await new BaselineResolver(makeOpts()).resolve(makeInput());
@@ -89,7 +89,7 @@ describe('BaselineResolver.resolve', () => {
     expect(getNearestReachableTag).not.toHaveBeenCalled();
   });
 
-  it('should keep the full-history fallback for an unreachable baseRef, not the nearest-reachable floor (#370)', async () => {
+  it('should keep the full-history fallback for an unreachable baseRef, not the nearest-reachable floor', async () => {
     // baseRef scopes the run to a PR's commits — a different intent from the tag floor, so an
     // unreachable baseRef stays at HEAD rather than borrowing the nearest tag (mirrors sharedFloor).
     vi.mocked(verifyTag).mockResolvedValue(unreachable);
@@ -106,7 +106,7 @@ describe('BaselineResolver.resolve', () => {
     expect(result.revisionRange).toBe('abc123..HEAD');
   });
 
-  it('should bound an untagged package by the nearest reachable tag, not full history (#370)', async () => {
+  it('should bound an untagged package by the nearest reachable tag, not full history', async () => {
     // The standing-PR-body flood: a new package in a tagged repo would otherwise summarize ALL
     // history. Floor it by the nearest reachable tag instead; previousVersion stays null (no own tag).
     vi.mocked(getNearestReachableTag).mockResolvedValue('v0.9.0');
@@ -117,7 +117,7 @@ describe('BaselineResolver.resolve', () => {
     expect(verifyTag).not.toHaveBeenCalled();
   });
 
-  it('should produce full history for an untagged package only in a fresh repo with no tags (#370)', async () => {
+  it('should produce full history for an untagged package only in a fresh repo with no tags', async () => {
     vi.mocked(getNearestReachableTag).mockResolvedValue('');
     const result = await new BaselineResolver(makeOpts()).resolve(makeInput({ latestTag: '', hasRealTag: false }));
     expect(result.revisionRange).toBe('HEAD');
@@ -125,7 +125,7 @@ describe('BaselineResolver.resolve', () => {
     expect(verifyTag).not.toHaveBeenCalled();
   });
 
-  it('should bound a manifest-fallback synthetic tag by the nearest reachable tag without calling git verify (#370)', async () => {
+  it('should bound a manifest-fallback synthetic tag by the nearest reachable tag without calling git verify', async () => {
     vi.mocked(getNearestReachableTag).mockResolvedValue('v0.9.0');
     const result = await new BaselineResolver(makeOpts()).resolve(
       makeInput({ latestTag: 'v1.2.3', hasRealTag: false }),
@@ -160,7 +160,7 @@ describe('BaselineResolver.resolve', () => {
     expect(result.revisionRange).toBe('pkg@v0.9.0..HEAD');
   });
 
-  it('should bound by the nearest reachable tag when graduating with no prior stable tag (#370)', async () => {
+  it('should bound by the nearest reachable tag when graduating with no prior stable tag', async () => {
     vi.mocked(getLatestStableTag).mockResolvedValue('');
     vi.mocked(getNearestReachableTag).mockResolvedValue('v0.9.0');
     const result = await new BaselineResolver(makeOpts()).resolve(
@@ -173,7 +173,7 @@ describe('BaselineResolver.resolve', () => {
     expect(verifyTag).not.toHaveBeenCalled();
   });
 
-  it('should label previousVersion with the prerelease predecessor when graduating with no prior stable tag (#474)', async () => {
+  it('should label previousVersion with the prerelease predecessor when graduating with no prior stable tag', async () => {
     // Graduation widens the range to the whole prerelease line by re-basing onto the last stable tag,
     // but with no prior stable that lookup returns '' — so the package's only predecessor is its
     // prerelease latestTag. Fall back to it for the label (kept in tag form so generateCompareUrl can
@@ -188,7 +188,7 @@ describe('BaselineResolver.resolve', () => {
     expect(result.baselineUnreachable).toBe(false);
   });
 
-  it('should still leave previousVersion null for a genuine first release with no prior tag (#474)', async () => {
+  it('should still leave previousVersion null for a genuine first release with no prior tag', async () => {
     // The fallback only kicks in when there IS a tag to fall back to: with no tag at all, both
     // changelogBaseTag and latestTag are empty, so a true first release stays null → N/A.
     vi.mocked(getNearestReachableTag).mockResolvedValue('');
@@ -196,7 +196,7 @@ describe('BaselineResolver.resolve', () => {
     expect(result.previousVersion).toBeNull();
   });
 
-  it('should strip a baseline marker tag back to consumer form for previousVersion (#330)', async () => {
+  it('should strip a baseline marker tag back to consumer form for previousVersion', async () => {
     vi.mocked(verifyTag).mockResolvedValue(reachable);
     const result = await new BaselineResolver(makeOpts()).resolve(
       makeInput({ latestTag: 'release/v1.2.3', nextVersion: '1.2.4', baselineTagPrefix: 'release/v' }),
@@ -217,7 +217,7 @@ describe('BaselineResolver.sharedFloor', () => {
     expect(getNearestReachableTag).not.toHaveBeenCalled();
   });
 
-  it('should bound a HEAD range by the nearest reachable tag and cache it (#348)', async () => {
+  it('should bound a HEAD range by the nearest reachable tag and cache it', async () => {
     vi.mocked(getNearestReachableTag).mockResolvedValue('v1.0.0');
     const resolver = new BaselineResolver(makeOpts());
     expect(await resolver.sharedFloor('HEAD')).toBe('v1.0.0..HEAD');
@@ -243,7 +243,7 @@ describe('BaselineResolver.sharedFloor', () => {
     expect(getNearestReachableTag).not.toHaveBeenCalled();
   });
 
-  it('should floor every package by the global nearest-reachable tag in sinceLastRelease mode (#398)', async () => {
+  it('should floor every package by the global nearest-reachable tag in sinceLastRelease mode', async () => {
     // Collapses the union: even a package with its OWN bounded (older) range is floored by the single
     // global nearest tag, so a global commit consumed by the most recent release doesn't recur.
     vi.mocked(getNearestReachableTag).mockResolvedValue('native-types@v2.4.0');
@@ -253,7 +253,7 @@ describe('BaselineResolver.sharedFloor', () => {
     expect(getNearestReachableTag).toHaveBeenCalledTimes(1); // cached across packages
   });
 
-  it('should pass a baseRef run through unbounded even in sinceLastRelease mode (#398)', async () => {
+  it('should pass a baseRef run through unbounded even in sinceLastRelease mode', async () => {
     const resolver = new BaselineResolver(makeOpts({ sharedChangelogFloor: 'sinceLastRelease', baseRef: 'abc123' }));
     expect(await resolver.sharedFloor('abc123..HEAD')).toBe('abc123..HEAD');
     expect(getNearestReachableTag).not.toHaveBeenCalled();
