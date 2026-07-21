@@ -26,3 +26,10 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - 'area:dependencies'
+    ignore:
+      # Major action bumps here silently drift the GENERATED .github/workflows/examples-smoke.yml
+      # out of sync with its source templates/workflows/ (which dependabot does not scan), failing
+      # examples:smoke:check. Dependabot has no per-file ignore, so mirror the npm policy above:
+      # review major action bumps by hand instead of auto-opening them.
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
