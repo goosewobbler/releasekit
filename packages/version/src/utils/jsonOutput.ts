@@ -103,7 +103,7 @@ export function setVersioningStrategy(strategy: 'sync' | 'single' | 'async' | 'g
  * `Cargo.toml`/`pubspec.yaml`) is a SINGLE package — npm owns its identity. Every strategy writes the
  * `package.json` first, then syncs the sibling native manifest to the same version; that second write
  * must not register a second update under the crate/pub name, or the package surfaces twice
- * downstream — a phantom selection row / extra changelog entry under its crate name (#476). Dedupe by
+ * downstream — a phantom selection row / extra changelog entry under its crate name. Dedupe by
  * directory, mirroring discovery's dir-keyed merge (`mergePackageLists`): npm wins, so a `package.json`
  * supersedes a previously-recorded native sibling and a native sibling is dropped once a `package.json`
  * for the same directory exists.
@@ -111,8 +111,8 @@ export function setVersioningStrategy(strategy: 'sync' | 'single' | 'async' | 'g
 export function addPackageUpdate(packageName: string, newVersion: string, filePath: string, isRoot?: boolean): void {
   if (!_jsonOutputMode) return;
 
-  // Channel is derived per-package from the resolved version (#485) so every consumer (preview,
-  // standing PR, #486/#487) reads a single authoritative value rather than re-deriving it.
+  // Channel is derived per-package from the resolved version so every consumer (preview,
+  // standing PR) reads a single authoritative value rather than re-deriving it.
   const update = {
     packageName,
     newVersion,
@@ -160,7 +160,7 @@ export function setPackageUpdateGroup(packageName: string, group: string): void 
 }
 
 /**
- * Record the resolved version action (#420) on a package update — `graduated` / `bumped` /
+ * Record the resolved version action on a package update — `graduated` / `bumped` /
  * `first-release` plus a short human reason. Purely additive observability; never affects the
  * resolved version. Called by each strategy after the update record exists. No-op when the update
  * isn't found (mirrors the other setPackageUpdate* helpers).
@@ -175,7 +175,7 @@ export function setPackageUpdateAction(packageName: string, action: VersionActio
 }
 
 /**
- * Record the resolved baseline version (#520) on a package update — the prior release it bumped from,
+ * Record the resolved baseline version on a package update — the prior release it bumped from,
  * in the same consumer-tag display form the changelog carries. `null` (an unreachable / all-history
  * baseline, or a first release) leaves the field absent so consumers skip the bump delta. Called by
  * each strategy after the update record exists; no-op when the update isn't found (mirrors the other
@@ -188,7 +188,7 @@ export function setPackageUpdatePreviousVersion(packageName: string, previousVer
 }
 
 /**
- * Record the same resolved version action (#420) on every package update. Used by the sync strategy,
+ * Record the same resolved version action on every package update. Used by the sync strategy,
  * where all packages move in lockstep to the same version against the same baseline, so the action
  * is identical across the whole unit. Owns the iteration internally so callers don't read back the
  * (otherwise-private) update list.
@@ -202,7 +202,7 @@ export function setAllPackageUpdateActions(action: VersionAction, reason: string
 }
 
 /**
- * Record the same resolved baseline version (#520) on every package update. Used by the sync strategy,
+ * Record the same resolved baseline version on every package update. Used by the sync strategy,
  * where all packages move in lockstep from the same baseline. `null` (unreachable / all-history) leaves
  * the field absent everywhere. Owns the iteration internally, mirroring {@link setAllPackageUpdateActions}.
  */

@@ -52,7 +52,7 @@ describe('BaselineResolver.resolve', () => {
     vi.mocked(verifyTag).mockResolvedValue(unreachable);
     vi.mocked(getNearestReachableTag).mockResolvedValue('v0.9.0');
     const result = await new BaselineResolver(makeOpts()).resolve(makeInput());
-    // The own (unreachable) baseline floods full history; #370 floors it by the nearest reachable tag.
+    // The own (unreachable) baseline floods full history; the nearest reachable tag floors it.
     expect(result.revisionRange).toBe('v0.9.0..HEAD');
     // …but previousVersion stays null: we diffed the nearest tag, not the package's own baseline.
     expect(result.previousVersion).toBeNull();
@@ -70,7 +70,7 @@ describe('BaselineResolver.resolve', () => {
 
   it('should throw a StrictReachableError on an unreachable baseline when strictReachable is set', async () => {
     vi.mocked(verifyTag).mockResolvedValue(unreachable);
-    // The type — not just the message — is the contract (#372): the per-package changelog catch in
+    // The type — not just the message — is the contract: the per-package changelog catch in
     // each strategy distinguishes this from a genuine extraction error by `instanceof` and rethrows
     // it so the run aborts, instead of degrading to a minimal changelog entry.
     const promise = new BaselineResolver(makeOpts({ strictReachable: true })).resolve(makeInput());
@@ -167,8 +167,8 @@ describe('BaselineResolver.resolve', () => {
       makeInput({ latestTag: 'v1.0.0-next.1', nextVersion: '1.0.0' }),
     );
     expect(result.revisionRange).toBe('v0.9.0..HEAD');
-    // Range floors by the nearest reachable tag (#370); the LABEL still falls back to the prerelease
-    // predecessor rather than rendering N/A (#474) — the two are decoupled.
+    // Range floors by the nearest reachable tag; the LABEL still falls back to the prerelease
+    // predecessor rather than rendering N/A — the two are decoupled.
     expect(result.previousVersion).toBe('v1.0.0-next.1');
     expect(verifyTag).not.toHaveBeenCalled();
   });

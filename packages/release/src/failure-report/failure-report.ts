@@ -170,9 +170,9 @@ export interface RecoveryContext {
   /** Standing PR number (standing-pr mode) used to phrase the dispatch/retry instruction. */
   standingPrNumber?: number;
   /**
-   * Whether the `release:retry` label flow is wired (issue #245). When set, the label is the
+   * Whether the `release:retry` label flow is wired. When set, the label is the
    * primary standing-pr recovery path; dispatch is offered as the manual fallback. Defaults off
-   * for callers that have not opted in (e.g. tests asserting the pre-#245 copy).
+   * for callers that have not opted in (e.g. tests asserting the pre-retry-label copy).
    */
   retryLabelAvailable?: boolean;
 }
@@ -321,7 +321,7 @@ export interface SupersedeWarningInput {
   total: number;
   /** Standing PR number carrying the failure report (the retry surface). */
   standingPrNumber?: number;
-  /** Whether the `release:retry` label flow is wired (issue #245) — makes it the primary hint. */
+  /** Whether the `release:retry` label flow is wired — makes it the primary hint. */
   retryLabelAvailable?: boolean;
 }
 

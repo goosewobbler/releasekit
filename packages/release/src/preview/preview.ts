@@ -76,7 +76,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   // Don't preview the standing PR itself — its head is the release branch, whose commits already
   // carry the release-prep bump, so re-analysing double-counts the version (e.g. 0.32.1 → 0.32.2).
   // The standing PR's manifest comment is authoritative for what it releases; a preview on it is
-  // noise (#424). Mirrors the inverse publish-side guard in standing-pr.ts.
+  // noise. Mirrors the inverse publish-side guard in standing-pr.ts.
   if (
     strategy === 'standing-pr' &&
     event?.pull_request?.head?.ref === (ciConfig?.standingPr?.branch ?? 'release/next')
@@ -146,7 +146,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
 
   // Run version analysis unless release is skipped or in label mode with no bump label
   let result = null;
-  // How bare `#NNN` refs render in the preview changelog (#499/#504); resolved from config below.
+  // How bare `#NNN` refs render in the preview changelog; resolved from config below.
   let refs: ChangelogRefsMode = 'link';
   if (!labelContext.skip && !labelContext.noBumpLabel) {
     // Determine prerelease mode
@@ -400,7 +400,7 @@ async function applyLabelOverrides(
     }
     if (!labelContext.noBumpLabel) {
       // Carry the COMPOSED bump (e.g. premajor) so a major+prerelease on an existing
-      // prerelease escalates to a fresh line rather than degrading to an increment (#335).
+      // prerelease escalates to a fresh line rather than degrading to an increment.
       // The banner still shows the magnitude.
       const composedBump = composeBumpFromLabels(prLabels, labels);
       const magnitude = magnitudeFromBump(composedBump);
@@ -438,7 +438,7 @@ async function applyLabelOverrides(
       }
     } else {
       // Releasing — carry the gate's COMPOSED bump (e.g. premajor) verbatim so the preview
-      // matches what the release will compute; the banner shows the magnitude (#335).
+      // matches what the release will compute; the banner shows the magnitude.
       const magnitude = magnitudeFromBump(evaluation.bump);
       if (magnitude) {
         info(`PR label "bump:${magnitude}" detected — ${magnitude} release`);

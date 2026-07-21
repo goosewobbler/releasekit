@@ -1,6 +1,6 @@
 export interface LabelConfig {
   graduate: string;
-  /** Prefix for per-package graduate labels (`graduate:<package>`); see #486. */
+  /** Prefix for per-package graduate labels (`graduate:<package>`). */
   graduatePackagePrefix: string;
   prerelease: string;
   skip: string;
@@ -36,7 +36,7 @@ function graduatePrefix(labels: Partial<LabelConfig> | undefined): string {
 }
 
 /**
- * The per-package graduate label for a package (#486), e.g. `graduate:@scope/pkg`. Adding it to the
+ * The per-package graduate label for a package, e.g. `graduate:@scope/pkg`. Adding it to the
  * standing PR graduates that one prerelease package (and its fixed/linked group) to stable.
  */
 export function graduatePackageLabel(packageName: string, labels?: Partial<LabelConfig>): string {
@@ -44,7 +44,7 @@ export function graduatePackageLabel(packageName: string, labels?: Partial<Label
 }
 
 /**
- * Whether a label is a per-package graduate label (#486). The prefix alone (no package suffix) is not
+ * Whether a label is a per-package graduate label. The prefix alone (no package suffix) is not
  * a valid per-package graduate, so it doesn't match. Comparison is case-insensitive to mirror
  * GitHub's case-insensitive label uniqueness.
  */
@@ -54,7 +54,7 @@ export function isGraduatePackageLabel(label: string, labels?: Partial<LabelConf
 }
 
 /**
- * The package name carried by a per-package graduate label (#486), or `undefined` when the label
+ * The package name carried by a per-package graduate label, or `undefined` when the label
  * isn't one. `graduate:@scope/pkg` → `@scope/pkg`.
  */
 export function graduatedPackageFromLabel(label: string, labels?: Partial<LabelConfig>): string | undefined {
@@ -100,7 +100,7 @@ export function detectLabelConflicts(prLabels: string[], labels: LabelConfig = D
  * `pre*` bump (`premajor`/`preminor`/`prepatch`) — a *fresh* prerelease line at that magnitude.
  * Critically, `pre<type>` ESCALATES: `bump:major` + prerelease on `1.1.1-next.1` → `premajor`
  * → `2.0.0-next.0`. Passing `major` + a separate prerelease flag would instead increment the
- * existing prerelease (`1.1.1-next.2`) — the #335 degradation. To *iterate* an existing
+ * existing prerelease (`1.1.1-next.2`) — the degradation. To *iterate* an existing
  * prerelease (`2.0.0-next.0` → `2.0.0-next.1`), use the prerelease label alone (no `bump:*`),
  * which returns `'prerelease'`.
  *

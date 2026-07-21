@@ -1,3 +1,4 @@
+/* eslint-disable local/no-bare-issue-refs -- the #NNN here are regex format examples, not issue citations */
 import * as fs from 'node:fs';
 import type { ChangelogEntry, ChangelogInput, PackageChangelog } from '../core/types.js';
 import { InputParseError } from '../errors/index.js';

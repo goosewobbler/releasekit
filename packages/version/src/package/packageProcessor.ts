@@ -113,7 +113,7 @@ export class PackageProcessor {
     const sharedEntriesMap = new Map<string, ChangelogEntry>();
 
     // BaselineResolver owns the per-package changelog floor (B) and the repo-level shared floor (C),
-    // constructed once per run so the nearest-reachable shared floor (#348) is computed a single time
+    // constructed once per run so the nearest-reachable shared floor is computed a single time
     // and reused across packages.
     const baselineResolver = new BaselineResolver({
       versionPrefix: this.versionPrefix,
@@ -208,9 +208,9 @@ export class PackageProcessor {
       // back to its consumer-facing form so `release/v0.22.0` appears as `v0.22.0`.
       const baselineTagPrefix = deriveBaselineTagPrefix(this.fullConfig.baselineTagTemplate, formattedPrefix, name);
 
-      // #334: a package with no prior git tag has its changelog computed from the FULL git history,
+      // A package with no prior git tag has its changelog computed from the FULL git history,
       // which in standing-PR mode can push the rendered PR body past GitHub's 65,536-char limit and
-      // fail PR creation with an opaque 422 (#333). Surface it loudly with an actionable baseline-tag
+      // fail PR creation with an opaque 422. Surface it loudly with an actionable baseline-tag
       // suggestion. (baseRef-scoped runs — advisory preview — are bounded to the PR, so skip them.)
       if (!hasRealTag && !this.fullConfig.baseRef) {
         const currentVersion = pkg.packageJson.version;
@@ -252,13 +252,13 @@ export class PackageProcessor {
         // packages whose changes belong project-wide). Classify against the FULL discovered
         // workspace, not the filtered release set (`packages`) — otherwise a commit touching only a
         // *non-releasing* package's dir touches "no package" and wrongly leaks into the shared block
-        // (#397). Falls back to the processing set when the engine didn't populate the workspace
+        // Falls back to the processing set when the engine didn't populate the workspace
         // (e.g. a direct PackageProcessor construction in tests).
         const workspace =
           this.fullConfig.allWorkspacePackages ?? packages.map((p) => ({ name: p.packageJson.name, dir: p.dir }));
         const allPackageDirs = workspace.map((p) => p.dir);
         // Foundational packages whose changes route to repo-level, from config (exact name or glob).
-        // No hardcoded names — a consumer declares its own via `version.sharedPackages` (#406).
+        // No hardcoded names — a consumer declares its own via `version.sharedPackages`.
         const sharedPackagePatterns = this.fullConfig.sharedPackages ?? [];
         const sharedPackageDirs =
           sharedPackagePatterns.length === 0
@@ -266,7 +266,7 @@ export class PackageProcessor {
             : workspace.filter((p) => shouldMatchPackageTargets(p.name, sharedPackagePatterns)).map((p) => p.dir);
         // Bound the repo-level ("shared") entries by the run's nearest-reachable floor when this
         // package's own range collapsed to full history (untagged / unreachable), so a single
-        // untagged package doesn't flood "Project-wide changes" with the entire history (#348).
+        // untagged package doesn't flood "Project-wide changes" with the entire history.
         const sharedRevisionRange = await baselineResolver.sharedFloor(revisionRange);
 
         const repoLevelEntries = await extractRepoLevelChangelogEntries(
@@ -296,7 +296,7 @@ export class PackageProcessor {
           ];
         }
       } catch (error) {
-        // A strictReachable violation must abort the run, not degrade to a minimal entry (#372).
+        // A strictReachable violation must abort the run, not degrade to a minimal entry.
         if (error instanceof StrictReachableError) throw error;
         log(`Error extracting changelog entries: ${error instanceof Error ? error.message : String(error)}`, 'warning');
         // Fall back to minimal entry
@@ -335,7 +335,7 @@ export class PackageProcessor {
       }
 
       // Track changelog data for JSON output. previousVersion is resolved by BaselineResolver (the
-      // floor tag in consumer-facing display form, null when we fell back to all-history, #339).
+      // floor tag in consumer-facing display form, null when we fell back to all-history).
       addChangelogData({
         packageName: name,
         version: nextVersion,
@@ -438,7 +438,7 @@ export class PackageProcessor {
       // Track tag for JSON output (git ops now handled by publish)
       addTag(packageTag);
       setPackageUpdateTag(name, packageTag);
-      // Resolved version action (#420) — derived from the same tag facts the calculator saw.
+      // Resolved version action — derived from the same tag facts the calculator saw.
       // `hasNoTags` is `!hasRealTag`: a manifest-fallback synthetic tag isn't a real prior tag.
       const { action, reason } = resolveVersionAction({ hasNoTags: !hasRealTag, latestTag, nextVersion });
       setPackageUpdateAction(name, action, reason);

@@ -33,8 +33,9 @@ export default [
     ignores: ['**/dist/**/*', '**/coverage/**/*', '**/out/**/*', '**/.turbo/**/*'],
   },
   {
-    // Comment hygiene across all package sources. `warn` until the codebase sweep lands, then `error`.
-    files: ['packages/**/*.ts'],
+    // Comment hygiene in production sources only. Test comments legitimately reference mock issue/PR
+    // data (fixture numbers, external-repo PRs), so bare `#NNN` there isn't a citation to flag.
+    files: ['packages/**/src/**/*.ts'],
     languageOptions: {
       parser: tsParser,
       parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },
@@ -43,7 +44,7 @@ export default [
       local: { rules: { 'no-bare-issue-refs': noBareIssueRefs } },
     },
     rules: {
-      'local/no-bare-issue-refs': 'warn',
+      'local/no-bare-issue-refs': 'error',
     },
   },
   {

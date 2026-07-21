@@ -23,8 +23,8 @@ import {
 /**
  * Map a standard bump magnitude to the prerelease form that ESCALATES an existing prerelease's base
  * to a new line — used only when a maintainer explicitly declares the magnitude via a `bump:*` label
- * (#485). The commit-inferred default does NOT escalate; it increments the counter (the base is a
- * fixed target until graduation, #500).
+ * The commit-inferred default does NOT escalate; it increments the counter (the base is a
+ * fixed target until graduation).
  *  - `patch` → `prerelease` — advance the counter   (1.0.0-next.1 → 1.0.0-next.2)
  *  - `minor` → `preminor`   — escalate the base      (1.0.0-next.1 → 1.1.0-next.0)
  *  - `major` → `premajor`   — escalate the base      (1.0.0-next.1 → 2.0.0-next.0)
@@ -47,7 +47,7 @@ function toPrereleaseLineBump(bumpType: ReleaseType): ReleaseType {
  * The prerelease identifier embedded in a version (e.g. `1.0.0-next.1` → `next`), or undefined when
  * the version is stable or its prerelease segment carries no string identifier. Advancing along a
  * channel keeps the *current* line's identifier, so this is preferred over the configured default
- * (a config change is a deliberate line switch, out of scope for the advance-along-line default) (#485).
+ * (a config change is a deliberate line switch, out of scope for the advance-along-line default).
  */
 function prereleaseIdOf(version: string): string | undefined {
   const pre = semver.prerelease(version);
@@ -76,7 +76,7 @@ export function applyOverrideScope(
       options: { ...scoped.options, type: undefined },
     };
   }
-  // Per-package graduation (#486): `graduateScope` membership is AUTHORITATIVE for `stableOnly`. A
+  // Per-package graduation: `graduateScope` membership is AUTHORITATIVE for `stableOnly`. A
   // package in scope graduates — re-assert `stableOnly` even when the `overrideScope` clearing above
   // stripped it, because a graduate target can be a transitive prerequisite that sits OUTSIDE
   // `overrideScope` when `release:with-prerequisites` is also active; without this re-assert the
@@ -90,7 +90,7 @@ export function applyOverrideScope(
     const inGraduateScope = shouldMatchPackageTargets(options.name, graduateScope);
     scoped = { ...scoped, config: { ...scoped.config, stableOnly: inGraduateScope ? true : undefined } };
   }
-  // Per-package prerelease (#521): the symmetric twin of the graduateScope branch. `prereleaseScope`
+  // Per-package prerelease: the symmetric twin of the graduateScope branch. `prereleaseScope`
   // membership is AUTHORITATIVE for `isPrerelease` — a package in scope is re-asserted onto its
   // prerelease line even when the `overrideScope` clearing above stripped it (a scoped package can sit
   // outside `overrideScope` when a bump is also scoped elsewhere), and an out-of-scope package keeps
@@ -106,14 +106,14 @@ export function applyOverrideScope(
 }
 
 /**
- * First-release overshoot guard (#388): on a first release (no prior tag) with an already-stable
+ * First-release overshoot guard: on a first release (no prior tag) with an already-stable
  * manifest, `--stable --bump <type>` APPLIES the bump (1.0.0 → 2.0.0) rather than graduating, which
  * silently overshoots the staged first version. The resolved version is deliberately left unchanged
  * — a bump is sometimes legitimate (importing a package with prior external history) — so this only
  * makes the case visible/escapable per `mismatchStrategy`: `error` aborts, `ignore` is silent,
  * everything else (default `warn`) warns. `version.allowFirstBump` (or `--allow-first-bump`)
  * acknowledges it and stays silent. (prefer-package/prefer-git have no distinct meaning on the
- * no-tag axis, so they warn like the default — see #388.)
+ * no-tag axis, so they warn like the default.)
  */
 function guardFirstReleaseBump(config: Config, name: string | undefined, currentVer: string, type: ReleaseType): void {
   if (config.allowFirstBump) return;
@@ -263,7 +263,7 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
     // First release scenario: no previous tag. Emit a warning but fall through to normal
     // bump/stable/prerelease logic using the manifest version as the base. Returning the
     // manifest verbatim here would silently ignore --stable, --bump, and prereleaseIdentifier
-    // inputs, causing wrong identifiers or missed graduations on first release (#347).
+    // inputs, causing wrong identifiers or missed graduations on first release.
     log(
       `Checking first release scenario: latestTag=${latestTag}, type=${type}, stableOnly=${config.stableOnly}`,
       'debug',
@@ -298,7 +298,7 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
         return '';
       } else if (hasNoTags) {
         // Stable manifest + explicit bump on a FIRST release: the bump is APPLIED (e.g. 1.0.0 +
-        // major = 2.0.0), not graduated, silently overshooting the staged first version (#388).
+        // major = 2.0.0), not graduated, silently overshooting the staged first version.
         // Make it visible/escapable per mismatchStrategy; the resolved version is unchanged.
         guardFirstReleaseBump(config, name, currentVer, type);
       }
@@ -323,14 +323,14 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
         'debug',
       );
 
-      // Per-package channel default (#485): a package whose current version is a prerelease advances
+      // Per-package channel default: a package whose current version is a prerelease advances
       // along its own prerelease line rather than graduating to stable — UNLESS an explicit channel
       // action is in play (`--stable` / release:graduate sets stableOnly and graduates above;
       // `--prerelease` / channel:prerelease sets isPrerelease, handled by the existing branch below).
       // This is the EXPLICIT-bump path (a `bump:*` label set `type`): the maintainer declared a
       // magnitude, so honour it — a minor/major escalates the base to a fresh line (1.0.0-next.6 →
       // 1.1.0-next.0), a patch advances the counter. The commit-inferred DEFAULT instead always
-      // increments the counter (the base is a fixed target until graduation, #500) — see the
+      // increments the counter (the base is a fixed target until graduation) — see the
       // conventional-commits branch below. Keystone that removes the global auto-graduate.
       if (
         isCurrentPrerelease &&
@@ -389,7 +389,7 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
       // ENTIRE history — the repo's baseline tags (e.g. `release/v0.29.0`) aren't in a format its
       // default tag-detection recognises — so accumulated historical feats inflate the bump magnitude
       // (a docs-only window bumps minor instead of patch). Guard the tag with rev-parse so an absent
-      // ref falls back to the unbounded default rather than throwing. See #330.
+      // ref falls back to the unbounded default rather than throwing.
       const latestTagReachable = !!latestTag && (await refExists(latestTag, pkgPath));
       const bumpFrom = config.baseRef ?? (latestTagReachable ? latestTag : undefined);
       if (bumpFrom) {
@@ -450,7 +450,7 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
 
       // The bumper returns 'major' for a breaking change without consulting the current version,
       // so pre-1.0 it would jump 0.x straight to 1.0.0. Keep inferred breaking changes on the 0.x
-      // minor instead (rationale + the zeroMajor escape hatch: docs/configuration.md, issue #274).
+      // minor instead (rationale + the zeroMajor escape hatch: docs/configuration.md).
       // Inferred-only: the explicit-override branch above is intentionally left to graduate to 1.0.
       // Only 'major' needs downgrading — the bumper never emits a pre-type here.
       let effectiveReleaseType = releaseTypeFromCommits;
@@ -460,10 +460,10 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
         log("Pre-1.0 breaking change: downgrading inferred 'major' to 'minor' (zeroMajor: 'spec')", 'info');
       }
 
-      // Per-package channel default (#485): advance an existing prerelease along its own line rather
+      // Per-package channel default: advance an existing prerelease along its own line rather
       // than graduating it, unless an explicit channel action is in play. This is the COMMIT-INFERRED
       // default (no `bump:*` label) — it always increments the prerelease counter regardless of the
-      // inferred magnitude, because the base is a fixed target until graduation (#500). An explicit
+      // inferred magnitude, because the base is a fixed target until graduation. An explicit
       // `bump:*` label takes the specified-type branch above and escalates the base instead.
       if (
         semver.prerelease(currentVersion) !== null &&

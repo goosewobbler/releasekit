@@ -19,7 +19,7 @@ export interface PostFailureReportContext {
   /** PR to comment on. Omit for manual dispatch with no PR — the report goes to the step summary. */
   prNumber?: number;
   standingPrNumber?: number;
-  /** Whether the `release:retry` label flow is wired (issue #245) — makes it the primary hint. */
+  /** Whether the `release:retry` label flow is wired — makes it the primary hint. */
   retryLabelAvailable?: boolean;
 }
 

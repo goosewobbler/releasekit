@@ -338,7 +338,7 @@ describe('github-release stage', () => {
   });
 
   it('should match a sanitized "name@vX.Y.Z" tag to release notes keyed by scoped package name', async () => {
-    // Regression for #288: tagTemplate "${packageName}@v${version}" sanitizes a scoped name into
+    // Regression: tagTemplate "${packageName}@v${version}" sanitizes a scoped name into
     // the tag (e.g. wdio-tauri-plugin@v1.1.0). Previously neither the raw-"@" nor the sanitized-"-"
     // branch matched it, so notes silently fell back to GitHub auto-generated notes.
     const { execCommand } = await import('../../../src/utils/exec.js');

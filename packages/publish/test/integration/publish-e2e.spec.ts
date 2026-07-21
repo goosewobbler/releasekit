@@ -1,9 +1,9 @@
 /**
- * End-to-end coverage of the NON-dry-run publish pipeline (#580).
+ * End-to-end coverage of the NON-dry-run publish pipeline.
  *
  * Every other test layer bypasses the real publish path — Examples Smoke runs `--dry-run` (registry
  * auth is dry-run-exempt), the Action harness sets `SKIP_PUBLISH`, and unit specs mock the registries.
- * That gap is exactly why #578 (cargo auth demanded on a crateless repo) shipped despite a green suite.
+ * That gap is exactly why cargo auth demanded on a crateless repo shipped despite a green suite.
  * This spec drives the real `runPipeline` with `dryRun: false` so registry auth, discovery, stage
  * ordering, tagging and the GitHub-Release call all run for real.
  *
@@ -16,7 +16,7 @@
  *           ordering, not the upload itself.
  *
  * The lightweight guards (enabled-but-empty no-op, missing-credential detection) run by default — they
- * need no network and are the direct #578-class regression net. The heavier real-`npm publish` cases
+ * need no network and are the direct regression net. The heavier real-`npm publish` cases
  * are opt-in via `RELEASEKIT_PUBLISH_E2E=1` so the default gate stays fast (see the PR body).
  */
 import { execFileSync } from 'node:child_process';
@@ -265,7 +265,7 @@ afterEach(async () => {
 // ===========================================================================
 describe('Publish pipeline e2e (non-dry-run guards)', () => {
   it('should no-op enabled-but-empty cargo and pub stages without demanding credentials', async () => {
-    // The #578 regression class: cargo/pub enabled on a repo with no crates/pub packages must not
+    // The regression class: cargo/pub enabled on a repo with no crates/pub packages must not
     // fail on a missing registry token. A dry run can't catch this (auth is dry-run-exempt); this is
     // a REAL non-dry-run run with no CARGO_REGISTRY_TOKEN / PUB_TOKEN present.
     delete process.env.CARGO_REGISTRY_TOKEN;

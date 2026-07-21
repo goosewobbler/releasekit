@@ -148,7 +148,7 @@ describe('Package Processor', () => {
     vi.spyOn(path, 'join').mockImplementation((...args) => args.join('/'));
 
     // Baseline tag verification — default to a valid, reachable baseline so changelog ranges
-    // resolve to `<tag>..HEAD`. Tests exercising the all-history fallback (#339) override this.
+    // resolve to `<tag>..HEAD`. Tests exercising the all-history fallback override this.
     vi.spyOn(tagVerification, 'verifyTag').mockResolvedValue({ exists: true, reachable: true });
 
     // Calculator mock - fix to return a Promise
@@ -557,7 +557,7 @@ describe('Package Processor', () => {
     it('should warn when a package has no prior tag (full-history changelog)', async () => {
       // No package tag and no global tag — only the manifest version is available, so hasRealTag is
       // false and the changelog spans the full history. The warning makes this visible (and heads off
-      // the opaque oversized-PR-body 422 in #333).
+      // the opaque oversized-PR-body 422).
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
       vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
         version: '0.1.0',
@@ -577,7 +577,7 @@ describe('Package Processor', () => {
       await processor.processPackages([mockPackages[1]]);
 
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('No prior tag found for package-b'), 'warning');
-      // ...and NOT the misleading #339 "shallow clone / unpushed" warning about the synthetic
+      // ...and NOT the misleading "shallow clone / unpushed" warning about the synthetic
       // manifest-fallback tag, which never existed as a git ref.
       expect(logging.log).not.toHaveBeenCalledWith(
         expect.stringContaining('could not be verified from HEAD'),
@@ -1529,7 +1529,7 @@ describe('Package Processor', () => {
     });
   });
 
-  // #372 — strictReachable must abort the run, not silently degrade. Both tests run with the SAME
+  // strictReachable must abort the run, not silently degrade. Both tests run with the SAME
   // strictReachable:true config so the only variable is the error TYPE: an unreachable-baseline
   // StrictReachableError aborts; a genuine extraction error still degrades to a minimal entry.
   describe('strictReachable (#372)', () => {

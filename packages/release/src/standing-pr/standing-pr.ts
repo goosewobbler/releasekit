@@ -52,11 +52,11 @@ import { renderReleaseSummaryLine, renderVersionSummaryTable } from './summary-r
 
 export const MANIFEST_MARKER = '<!-- releasekit-manifest -->';
 const MANIFEST_SCHEMA_VERSION = 2;
-/** Marker for the idempotent "your selection change was ignored" notice posted to an unauthorized editor (#401). */
+/** Marker for the idempotent "your selection change was ignored" notice posted to an unauthorized editor. */
 const SELECTION_DENIED_MARKER = '<!-- releasekit-selection-denied -->';
-/** Marker for the idempotent "your release-label change was ignored" notice (#402). */
+/** Marker for the idempotent "your release-label change was ignored" notice. */
 const LABEL_DENIED_MARKER = '<!-- releasekit-label-denied -->';
-/** Marker for the idempotent "your channel-toggle change was ignored" notice (#526). */
+/** Marker for the idempotent "your channel-toggle change was ignored" notice. */
 const CHANNEL_DENIED_MARKER = '<!-- releasekit-channel-denied -->';
 const MANIFEST_SCHEMA_MIN_VERSION = 1;
 
@@ -148,7 +148,7 @@ export interface StandingPRManifest {
   firstUpdatedAt?: string;
   /**
    * Override-relevant labels (bump/channel/scope) present on the standing PR when this manifest was
-   * computed, sorted. Lets publish refuse a manifest whose labels diverged from the merged PR (#337).
+   * computed, sorted. Lets publish refuse a manifest whose labels diverged from the merged PR.
    * Optional: absent on manifests written before this field existed — consumers must tolerate that.
    */
   overrideLabels?: string[];
@@ -160,16 +160,16 @@ export interface StandingPRManifest {
    */
   deselected?: string[];
   /**
-   * Packages graduated from prerelease to stable on this update (#486), driven by `graduate:<package>`
+   * Packages graduated from prerelease to stable on this update, driven by `graduate:<package>`
    * labels (or the whole-batch `release:graduate`). Group-atomic — a graduated fixed/linked group lists
-   * every releasing member. Recorded for provenance and so consumers (#487's channel-grouped render)
+   * every releasing member. Recorded for provenance and so consumers (the channel-grouped render)
    * can flag a row as graduated; the resolved stable versions already live in `versionOutput`. Optional:
    * absent when nothing graduated, and on manifests written before this field existed (consumers
    * re-derive from each update's `channel` / `action`).
    */
   graduated?: string[];
   /**
-   * Packages shifted onto a prerelease line this update via the per-row channel toggle (#521), scoped
+   * Packages shifted onto a prerelease line this update via the per-row channel toggle, scoped
    * to just these packages (and their groups) without narrowing the release. Recorded for provenance
    * and round-trip; the resolved prerelease versions already live in `versionOutput`. Optional: absent
    * when nothing was channel-shifted, and on manifests written before this field existed.
@@ -186,7 +186,7 @@ async function getHeadSha(cwd: string): Promise<string> {
 }
 
 /**
- * True when this run was triggered by a maintainer acting on the standing PR itself (#336/#367),
+ * True when this run was triggered by a maintainer acting on the standing PR itself,
  * not by a commit landing: a label added/removed (`labeled`/`unlabeled`) adjusting override labels,
  * or the body `edited` to tick/untick the ad-hoc selection region. The CLI reads the event itself
  * (rather than taking a flag) so it works whether the workflow invokes the action, the reusable
@@ -367,7 +367,7 @@ async function deleteReleaseBranch(releaseBranch: string, cwd: string): Promise<
 
 // GitHub rejects a PR body over 65,536 chars with a 422. Cap below that (with margin) so an
 // oversized changelog — almost always a package with no baseline tag whose changelog spans the
-// entire git history (#333) — truncates gracefully instead of failing PR creation outright.
+// entire git history — truncates gracefully instead of failing PR creation outright.
 export const STANDING_PR_BODY_CAP = 64000;
 
 function truncateAtLineBoundary(text: string, maxChars: number): string {
@@ -400,9 +400,9 @@ interface RenderPrBodyOptions {
   renderSelectionBlock?: (withChangelogs: boolean) => string;
   /** The flat, de-duplicated combined footer, already rendered; `''` when disabled or empty. */
   footer: string;
-  /** The one-line release headline (#520), already rendered; absent for sync releases. */
+  /** The one-line release headline, already rendered; absent for sync releases. */
   summaryLine?: string;
-  /** The collapsed version-summary table (#520), already rendered; absent when disabled or for sync. */
+  /** The collapsed version-summary table, already rendered; absent when disabled or for sync. */
   summaryTable?: string;
 }
 
@@ -421,7 +421,7 @@ function renderPrBody(versionOutput: VersionOutput, options: RenderPrBodyOptions
   ): string => {
     const lines: string[] = ['## Release', ''];
 
-    // One-line release headline (#520) under the heading — a neutral "what will publish" scan before
+    // One-line release headline under the heading — a neutral "what will publish" scan before
     // the (conditional) supersede alert and the package list. Absent for sync (its own display leads).
     if (summaryLine) lines.push(summaryLine, '');
 
@@ -431,7 +431,7 @@ function renderPrBody(versionOutput: VersionOutput, options: RenderPrBodyOptions
       lines.push(...supersedeWarning);
     }
 
-    // The scannable current → next table (#520), opt-in via ci.standingPr.summaryTable, sits above the
+    // The scannable current → next table, opt-in via ci.standingPr.summaryTable, sits above the
     // selection region (and after any supersede warning) — it complements the checkbox list, which
     // GitHub renders interactively only as a list, never in a table cell.
     if (summaryTable) lines.push(summaryTable, '');
@@ -665,7 +665,7 @@ interface StandingPrOverrides {
   /** Also release the targeted packages' changed prerequisites (the `release:with-prerequisites` label). */
   withPrerequisites?: boolean;
   /**
-   * Per-package graduation (#486): package names parsed from `graduate:<package>` labels — graduate
+   * Per-package graduation: package names parsed from `graduate:<package>` labels — graduate
    * just these prereleases to stable, leaving others on their line. Empty when none. Ignored when
    * `stable` (the whole-batch `release:graduate`) is set, which graduates everything.
    */
@@ -691,8 +691,8 @@ function relevantOverrideLabelNames(ciConfig: CIConfig | undefined): Set<string>
 
 /**
  * Whether a label steers the next release, so it must be tracked by the manifest's `overrideLabels`
- * (staleness guard, #337) and the label-authorization reconcile (#402). Covers the fixed control
- * labels plus the dynamic per-package `graduate:<package>` labels (#486), whose names aren't known up
+ * (staleness guard) and the label-authorization reconcile. Covers the fixed control
+ * labels plus the dynamic per-package `graduate:<package>` labels, whose names aren't known up
  * front but still drive output and so can't be left for an unauthorized actor to add unchecked.
  */
 function isRelevantOverrideLabel(label: string, ciConfig: CIConfig | undefined): boolean {
@@ -702,20 +702,20 @@ function isRelevantOverrideLabel(label: string, ciConfig: CIConfig | undefined):
 /**
  * The override-relevant labels (bump/channel/scope/graduate) present on a PR, sorted and de-duplicated.
  * This is the set that actually drives the next release, so it's what the manifest records and what
- * publish compares against the merged PR to detect a stale manifest (#337). The standing-PR marker
+ * publish compares against the merged PR to detect a stale manifest. The standing-PR marker
  * label and any unrelated labels (area:*, etc.) are deliberately excluded — they don't affect output.
  */
 function extractOverrideLabels(prLabels: string[], ciConfig: CIConfig | undefined): string[] {
   return [...new Set(prLabels.filter((l) => isRelevantOverrideLabel(l, ciConfig)))].sort();
 }
 
-/** A package update's channel — the persisted `channel` (#485), else re-derived from its version. */
+/** A package update's channel — the persisted `channel`, else re-derived from its version. */
 function updateChannel(update: VersionPackageUpdate): ReturnType<typeof deriveReleaseChannel> {
   return update.channel ?? deriveReleaseChannel(update.newVersion);
 }
 
 /**
- * Publishable packages currently on a prerelease line (#486) — the candidates a maintainer can
+ * Publishable packages currently on a prerelease line — the candidates a maintainer can
  * graduate. Used to seed the per-package `graduate:<package>` labels so they exist in the picker.
  */
 function prereleasePackageNames(versionOutput: VersionOutput): string[] {
@@ -725,7 +725,7 @@ function prereleasePackageNames(versionOutput: VersionOutput): string[] {
 }
 
 /**
- * Packages graduated from prerelease to stable on this run (#486), for the manifest's `graduated`
+ * Packages graduated from prerelease to stable on this run, for the manifest's `graduated`
  * provenance field. Sourced from each update's resolved `action` (`'graduated'`), then widened for
  * group atomicity: a fixed/linked group where any member graduated lists every releasing member, even
  * one whose own action read `'bumped'` because it adopted the group version from a different baseline.
@@ -774,7 +774,7 @@ function resolveStandingPrLabelOverrides(prLabels: string[], ciConfig: CIConfig 
     if (hasPrerelease) prerelease = true;
   }
 
-  // Per-package graduation (#486): each `graduate:<package>` label graduates that one prerelease to
+  // Per-package graduation: each `graduate:<package>` label graduates that one prerelease to
   // stable. The whole-batch `release:graduate` (stable) supersedes them — it graduates everything, so
   // a per-package subset would only narrow it; drop the per-package set then. `channel:prerelease`
   // forces a prerelease line, which directly contradicts graduating, so flag it as a conflict.
@@ -807,7 +807,7 @@ function resolveStandingPrLabelOverrides(prLabels: string[], ciConfig: CIConfig 
   //   - release:graduate wins and drops the bump — graduation is bump-less, so don't leak a stale
   //     magnitude into { bump, stable } (engine ignores it today, but the contract must hold).
   //   - prerelease + magnitude escalates to a fresh line (premajor → 2.0.0-next.0) rather than
-  //     incrementing an existing prerelease (#335).
+  //     incrementing an existing prerelease.
   // (The one deliberate divergence from the SSOT: prerelease *alone* stays commit-driven here —
   // bump undefined + prerelease flag — rather than forcing a 'prerelease' bump, so a standing PR's
   // channel:prerelease label still lets commits pick the magnitude.)
@@ -836,9 +836,9 @@ interface BuildOptionsExtras {
   stable?: boolean;
   prerelease?: boolean;
   includePrerequisites?: boolean;
-  /** Per-package graduation (#486): package patterns to graduate to stable; others stay on their line. */
+  /** Per-package graduation: package patterns to graduate to stable; others stay on their line. */
   graduate?: string[];
-  /** Per-package prerelease (#521): package patterns to shift onto a prerelease line; others stay on
+  /** Per-package prerelease: package patterns to shift onto a prerelease line; others stay on
    *  their projected line. The symmetric twin of `graduate`. */
   prereleaseScope?: string[];
   /** Packages to hold back from the release (standing-PR ad-hoc deselection). Exact name match. */
@@ -877,7 +877,7 @@ function buildBaseReleaseOptions(
 
 /**
  * Close the standing PR (when one exists and we have a token) or noop — the empty-queue outcome.
- * Shared by the dry-run empty-queue guard and the write-step empty guard (#396), so a queue that
+ * Shared by the dry-run empty-queue guard and the write-step empty guard, so a queue that
  * empties out is handled identically whichever step observes it.
  */
 async function closeEmptyQueue(
@@ -907,7 +907,7 @@ function setsEqual(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
  * {@link isAuthorizedActor}, but it never throws. The permission check is a forge API call that can
  * fail (rate-limit, network, a mis-scoped token — `getActorPermission` rethrows non-404s); on failure
  * we warn and fail **closed** (treat the actor as unauthorized), so a transient hiccup reverts the
- * standing PR to its authoritative manifest state rather than crashing the whole update (#401).
+ * standing PR to its authoritative manifest state rather than crashing the whole update.
  */
 async function authorizedOrWarn(forge: Forge, actor: EventActor, authz: StandingPrAuthorization): Promise<boolean> {
   try {
@@ -929,7 +929,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   const branch = standingPrConfig?.branch ?? 'release/next';
   const base = releaseKitConfig.git?.branch ?? 'main';
-  // How bare `#NNN` refs render in the PR-body changelogs (#499). The setting lives under
+  // How bare `#NNN` refs render in the PR-body changelogs. The setting lives under
   // notes.changelog; when that's disabled (`changelog: false`) the standing PR still renders
   // changelogs, so fall back to the 'link' default.
   // `changelog` is `false` (disabled), a config object, or absent; `false` and `undefined` are both
@@ -937,11 +937,11 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const changelogConfig = releaseKitConfig.notes?.changelog;
   const changelogRefsMode = (changelogConfig ? changelogConfig.refs : undefined) ?? 'link';
   // Scopes whose changelog entries are demoted into a trailing "Dependencies & version bumps"
-  // subsection rather than interleaved (#522). Same narrowing as refs: `false`/absent → the default.
+  // subsection rather than interleaved. Same narrowing as refs: `false`/absent → the default.
   const demoteScopes = (changelogConfig ? changelogConfig.demoteScopes : undefined) ?? ['deps'];
   const skipPatterns = releaseKitConfig.release?.ci?.skipPatterns ?? ['chore: release '];
 
-  // Label-triggered runs (a maintainer added/removed an override label on the standing PR, #336)
+  // Label-triggered runs (a maintainer added/removed an override label on the standing PR)
   // must bypass the skip-pattern guards just like reconcile: the guards reject runs reacting to a
   // release commit on HEAD, but a label event isn't reacting to HEAD at all — skipping would leave
   // the new override unapplied until the next push or the hourly cron.
@@ -1006,24 +1006,24 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // The maintainer's prior package selection — names whose row was unticked (held back). Reconciled
   // against the actually-changed set after the dry-run below (a name no longer changed is dropped).
   //
-  // Authorization (#401): when `ci.standingPr.authorization` is set, the manifest's recorded
+  // Authorization: when `ci.standingPr.authorization` is set, the manifest's recorded
   // selection is AUTHORITATIVE; the live body is only trusted when an authorized actor `edited` it.
   // Otherwise (an unauthorized edit, or a push/schedule run) we keep the manifest's selection so the
   // re-render reverts any unauthorized tick/untick. With no policy configured, the body is
   // authoritative (original behavior).
   const bodyDeselected = new Set<string>((liveBody && extractSelection(liveBody)?.deselected) || []);
-  // Per-row channel toggles (#521): the packages a maintainer ticked to ship as a prerelease (rk-pre)
+  // Per-row channel toggles: the packages a maintainer ticked to ship as a prerelease (rk-pre)
   // or graduate to stable (rk-grad). Only read when the feature is enabled. A held-back row's toggle is
   // already dropped by extractChannelSelection. Fed into the version WRITE step below (not the dry run,
   // so the projected-channel render keeps the marker that round-trips the tick), like ad-hoc
   // deselection. Reassigned to the manifest's approved channels for an unauthorized editor by the
-  // channel-toggle gate (#526) at the write wiring.
+  // channel-toggle gate at the write wiring.
   const channelToggleEnabled = standingPrConfig?.channelToggle === true;
   let channelSelection =
     channelToggleEnabled && liveBody ? extractChannelSelection(liveBody) : { prereleased: [], graduated: [] };
   const authz = standingPrConfig?.authorization;
   // Resolve the triggering actor and whether their body `edited` event is authorized ONCE, so the
-  // ad-hoc selection gate (#401) here and the channel-toggle gate (#526) at the write wiring share a
+  // ad-hoc selection gate here and the channel-toggle gate at the write wiring share a
   // single collaborator-permission lookup. A non-`edited` trigger (push/schedule/label) is never an
   // authorized edit, so those runs fall through to the manifest's recorded selection.
   let eventActor: EventActor | undefined;
@@ -1053,7 +1053,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   }
 
-  // Label authorization (#402): release-control labels (bump:/scope:/channel:/with-prerequisites and
+  // Label authorization: release-control labels (bump:/scope:/channel:/with-prerequisites and
   // configured scope:*) on the standing PR drive the next release, but GitHub can't restrict who
   // applies a label. When authorization is set, the manifest's `overrideLabels` are AUTHORITATIVE; an
   // unauthorized `labeled`/`unlabeled` event is ignored and the PR's release-control labels are
@@ -1088,7 +1088,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   }
 
-  // Preview-notes opt-in (#200): when the standing PR carries the preview-notes label, generate LLM
+  // Preview-notes opt-in: when the standing PR carries the preview-notes label, generate LLM
   // release notes on demand into an editable region in the PR body. Default path stays LLM-free.
   const previewNotesLabel = (ciConfig?.labels ?? DEFAULT_LABELS).previewNotes;
   const previewNotesEnabled = effectiveLabels.includes(previewNotesLabel);
@@ -1111,7 +1111,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // the CLI flag OR the `release:with-prerequisites` label, either way.
   const cliTarget = options.target ?? overrides.target;
   const includePrerequisites = options.includePrerequisites || overrides.withPrerequisites;
-  // Per-package graduation (#486) is a non-sync concept — a sync release moves as one atomic unit
+  // Per-package graduation is a non-sync concept — a sync release moves as one atomic unit
   // (no selection region, single shared version), so `graduate:<package>` has no meaning there; the
   // whole-batch `release:graduate` still graduates the synced unit. Drop the per-package set for sync.
   const graduate = sync ? undefined : overrides.graduate;
@@ -1168,7 +1168,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // but not yet tagged; recomputing from it would double-bump (package.json ahead of the last tag →
   // bump again under `mismatchStrategy: prefer-package`). Re-check the skip pattern post-reset and
   // bow out — the post-release reconcile (or the next push) rebuilds the standing PR cleanly once the
-  // release has tagged. Reconcile runs are exempt: HEAD is a release commit by design there. See #323.
+  // release has tagged. Reconcile runs are exempt: HEAD is a release commit by design there.
   if (!options.reconcile) {
     const resetHeadSubject = await getHeadCommitMessage(cwd);
     if (resetHeadSubject && matchesSkipPattern(resetHeadSubject, skipPatterns)) {
@@ -1185,7 +1185,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const dryUpdates = publishableUpdates(versionOutputDry);
   const groups = releaseKitConfig.version?.groups ?? {};
   const changedNames = new Set(dryUpdates.map((u) => u.packageName));
-  // Release-unit selection (#464): with `primaryPackages` configured the list renders primaries as
+  // Release-unit selection: with `primaryPackages` configured the list renders primaries as
   // parent rows with their coupled members nested beneath. Resolving primaries — including ones not
   // bumping this run — needs the full workspace package list, loaded lazily only when the feature is
   // on. Sync releases never render a selection region, so this is all skipped for them.
@@ -1230,7 +1230,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   }
 
-  // Per-row channel toggles (#521) resolved for the WRITE step. A held-back package is dropped
+  // Per-row channel toggles resolved for the WRITE step. A held-back package is dropped
   // (held back ⇒ channel moot; and it's excluded anyway). Group atomicity: a channel shift must move
   // the package's whole group, so each toggled package is expanded to its group-mates — independent
   // groups release each member on its own prerelease line, fixed/linked share one (via
@@ -1247,7 +1247,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     return [...out];
   };
 
-  // Channel-toggle authorization (#526): the twin of the ad-hoc selection gate (#401). When channel
+  // Channel-toggle authorization: the twin of the ad-hoc selection gate. When channel
   // toggles are enabled and an unauthorized actor edited the body, the manifest's recorded channel
   // selection is AUTHORITATIVE — reset to it so the WRITE publishes the approved channels and the
   // re-render below reverts the rogue tick, exactly as deselection does. The manifest stores the
@@ -1326,8 +1326,8 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // The write step recomputes from the post-reset HEAD, which can differ from the dry run when a
   // release landed on `base` mid-run (a reconcile race exempt from the skip-pattern bail above): the
   // dry-run guard saw updates, but the write set is now empty. Without this second guard the empty
-  // output renders a degenerate `****` body and an empty `chore: release ` title onto the open PR
-  // (#396). Gate on publishable updates so a sync root-only bump with nothing to publish is caught too.
+  // output renders a degenerate `****` body and an empty `chore: release ` title onto the open PR.
+  // Gate on publishable updates so a sync root-only bump with nothing to publish is caught too.
   if (publishableUpdates(versionOutput).length === 0) {
     return closeEmptyQueue(existingStandingPr, githubContext);
   }
@@ -1341,7 +1341,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   }
 
   // Generate per-package CHANGELOG.md always; LLM release notes only when previewing. To keep LLM
-  // load low (#200), skip generation when every releasing package already has an edited region —
+  // load low, skip generation when every releasing package already has an edited region —
   // notes are seeded once when the label is first applied, then preserved on later pushes.
   info('Generating changelog...');
   const allPackagesHaveRegions = previewPackages.length > 0 && previewPackages.every((p) => p in editedNotes);
@@ -1433,7 +1433,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     // Per-row changelogs are sourced from the DRY changelogs (the full changed set) so a held-back
     // row still shows its greyed changelog — the write output omits held-back packages entirely.
     const rowChangelog = makeRowChangelogRenderer(versionOutputDry.changelogs, changelogRefsMode, demoteScopes);
-    // The per-row channel toggle (#521), reflecting the parsed tick state so it round-trips. Only when
+    // The per-row channel toggle, reflecting the parsed tick state so it round-trips. Only when
     // the feature is enabled; a held-back row's toggle is suppressed by the renderer.
     const channelToggle: ChannelToggleConfig | undefined = channelToggleEnabled
       ? {
@@ -1463,7 +1463,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
       ? renderCombinedFooter(versionOutput, { refs: changelogRefsMode, demoteScopes })
       : renderCombinedFooter(versionOutput, { sharedOnly: true, refs: changelogRefsMode, demoteScopes });
 
-  // Additive top-of-body summaries (#520), for the per-package path only — sync ships atomically with
+  // Additive top-of-body summaries, for the per-package path only — sync ships atomically with
   // its own single-version display. The headline always renders; the table is opt-in. Held-back count
   // is the changed set (dry) minus what the write output will publish.
   let summaryLine: string | undefined;
@@ -1503,9 +1503,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   // Ensure the full ReleaseKit label set exists in the repo from the shared definitions. The
   // retry label is created but NOT applied — a maintainer applies it on demand after merge to
-  // retry a failed publish (issue #245). Best-effort: a sync failure must not block the update.
+  // retry a failed publish. Best-effort: a sync failure must not block the update.
   try {
-    // Seed a `graduate:<package>` label for every package currently on a prerelease line (#486) so a
+    // Seed a `graduate:<package>` label for every package currently on a prerelease line so a
     // maintainer can pick one from GitHub's label list — labels must exist before they can be applied.
     await syncLabels(forge, deriveLabelDefinitions(ciConfig, prereleasePackageNames(versionOutput)));
   } catch (err) {
@@ -1516,7 +1516,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // scope:foo) by taking the union of the currently-applied labels and the configured set. Without
   // this, every update would wipe maintainer overrides. Base the union on `effectiveLabels` (not the
   // raw live labels) so an unauthorized release-control label reconciled out above is removed here
-  // rather than re-added (#402); run even with no configured labels when that reconcile changed the set.
+  // rather than re-added; run even with no configured labels when that reconcile changed the set.
   const labelsReconciled = !setsEqual(new Set(effectiveLabels), new Set(existingStandingPr?.labels ?? []));
   if (labels.length > 0 || labelsReconciled) {
     try {
@@ -1533,8 +1533,8 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     firstUpdatedAt = existingManifest.firstUpdatedAt ?? existingManifest.createdAt;
   }
 
-  // Packages that graduated to stable this run (#486), recorded in the manifest below for provenance
-  // and for the channel-grouped render (#487). Derived from what actually resolved, so it reflects
+  // Packages that graduated to stable this run, recorded in the manifest below for provenance
+  // and for the channel-grouped render. Derived from what actually resolved, so it reflects
   // group atomicity and the whole-batch graduate as well as the per-package labels.
   const graduatedPackages = graduatedPackageNames(versionOutput);
 
@@ -1550,15 +1550,15 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     baseSha,
     firstUpdatedAt,
     // Record the labels this manifest was computed under so publish can detect a stale manifest if
-    // they're changed after this update without a re-run (#337).
+    // they're changed after this update without a re-run.
     overrideLabels: extractOverrideLabels(effectiveLabels, ciConfig),
     // Record any packages held back via the selection region (provenance; the release set in
     // `versionOutput` is already narrowed). Omitted when nothing was deselected.
     deselected: effectiveDeselected.size > 0 ? [...effectiveDeselected].sort() : undefined,
-    // Record which packages graduated to stable this run (#486) so the state survives re-runs and
-    // consumers (#487) can flag a graduated row. Omitted when nothing graduated.
+    // Record which packages graduated to stable this run so the state survives re-runs and
+    // consumers can flag a graduated row. Omitted when nothing graduated.
     graduated: graduatedPackages.length > 0 ? graduatedPackages : undefined,
-    // Record which packages were channel-shifted onto a prerelease line via the per-row toggle (#521),
+    // Record which packages were channel-shifted onto a prerelease line via the per-row toggle,
     // group-expanded, for provenance/round-trip. Omitted when nothing was channel-shifted.
     prereleased: writePrereleaseScope.length > 0 ? [...writePrereleaseScope].sort() : undefined,
   };
@@ -1721,11 +1721,11 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     );
   }
 
-  // Publish-author gate (#403): defense-in-depth behind a branch-protection ruleset (the primary
+  // Publish-author gate: defense-in-depth behind a branch-protection ruleset (the primary
   // merge gate). Refuse to publish when the actor who merged the PR isn't authorized to steer
   // releases — catching a missing/misconfigured ruleset. On an unverifiable permission check we
   // proceed rather than block a legitimate release (the ruleset already gated the merge). Mirrors
-  // the #337 staleness refusal: a publish that shouldn't happen is stopped here, not retried.
+  // the staleness refusal: a publish that shouldn't happen is stopped here, not retried.
   const authz = standingPrConfig?.authorization;
   if (authz?.enforceMergeAuthor) {
     const actor = getEventActor();
@@ -1806,7 +1806,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     warn(`Could not read PR #${prNumber}: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  // Staleness guard (#337): refuse to publish a manifest whose override labels diverge from the
+  // Staleness guard: refuse to publish a manifest whose override labels diverge from the
   // merged PR's. This catches "label changed then merged before the standing-PR update re-ran" —
   // publishing then would ship a release the labels no longer describe. Only enforced when the
   // manifest actually recorded labels; manifests written before this field skip the check.
@@ -1837,7 +1837,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     }
   }
 
-  // Pull any human-edited release notes from the live PR body (#200). Marker slicing only — the
+  // Pull any human-edited release notes from the live PR body. Marker slicing only — the
   // manifest never stores prose, so "manifest = machine state only" holds.
   let editedNotes: Record<string, string> = {};
   if (livePr) {

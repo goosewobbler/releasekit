@@ -106,7 +106,7 @@ describe('parseJsonc', () => {
     expect(result).toEqual({ url: 'https://example.com/path?q=1&a=2' });
   });
 
-  // Regression for #247: a real comment forces the JSONC path, and the `//`
+  // Regression: a real comment forces the JSONC path, and the `//`
   // inside the $schema URL must not be treated as a line comment.
   it('should parse a config with a comment and an https URL ($schema)', () => {
     const jsonc = `{

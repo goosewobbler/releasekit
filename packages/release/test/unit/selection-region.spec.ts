@@ -178,7 +178,7 @@ describe('selection-region', () => {
     });
   });
 
-  // --- Hierarchical / release-unit selection (#464) ---
+  // --- Hierarchical / release-unit selection ---
 
   describe('hierarchical selection', () => {
     const tauriGroups = { tauri: { sync: 'linked' as const, packages: ['@wdio/tauri-*', 'tauri-plugin-*'] } };
@@ -430,7 +430,7 @@ describe('selection-region', () => {
     });
   });
 
-  // --- Channel-grouped sections (#487) ---
+  // --- Channel-grouped sections ---
 
   describe('channel-grouped sections', () => {
     const STABLE = '#### Stable — advancing on `latest`';
@@ -492,7 +492,7 @@ describe('selection-region', () => {
     });
 
     it('should derive the channel from the version when the update carries none (old manifest)', () => {
-      // No `channel` field (pre-#485 manifest): the section split falls back to deriveReleaseChannel.
+      // No `channel` field (old manifest): the section split falls back to deriveReleaseChannel.
       const updates: Update[] = [
         { packageName: '@scope/a', newVersion: '1.1.0', filePath: '' },
         { packageName: '@scope/b', newVersion: '2.0.0-next.1', filePath: '' },
@@ -697,7 +697,7 @@ describe('selection-region', () => {
 
       it('should drop a package from graduate when it is also prereleased — the rk-pre toggle wins', () => {
         // Otherwise the engine's authoritative stableOnly silently overrides the accepted prerelease
-        // toggle: the PR shows the toggle ticked but the write publishes stable (#521).
+        // toggle: the PR shows the toggle ticked but the write publishes stable.
         expect(resolveChannelConflicts(['@scope/a', '@scope/b'], ['@scope/a'])).toEqual({
           graduate: ['@scope/b'],
           conflicts: ['@scope/a'],
@@ -706,7 +706,7 @@ describe('selection-region', () => {
 
       it('should treat a graduate glob target that covers a prereleased package as a conflict', () => {
         // A broad graduate label like `graduate:@scope/*` must not slip past the exact prerelease name
-        // — an exact-string check would miss it and pass both scopes to the engine (#521).
+        // — an exact-string check would miss it and pass both scopes to the engine.
         expect(resolveChannelConflicts(['@scope/*'], ['@scope/a'])).toEqual({
           graduate: [],
           conflicts: ['@scope/*'],

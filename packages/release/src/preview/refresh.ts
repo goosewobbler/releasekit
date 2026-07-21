@@ -81,7 +81,7 @@ export async function refreshFeederPreviews(options: RefreshAfterReleaseOptions)
     const eligible: OpenPullRequest[] = [];
     for (const pr of open) {
       if (pr.draft) continue; // drafts don't carry previews
-      if (pr.headRef === branch) continue; // the standing PR's manifest is authoritative, never previewed (#424)
+      if (pr.headRef === branch) continue; // the standing PR's manifest is authoritative, never previewed
       // Only refresh PRs that already have a preview — never manufacture one on a PR that opted out.
       if (!(await forge.findComment(pr.number, MARKER))) continue;
       eligible.push(pr);

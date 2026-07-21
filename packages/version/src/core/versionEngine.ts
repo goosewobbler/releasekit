@@ -58,7 +58,7 @@ export class VersionEngine {
         effective.isPrerelease = true;
       }
       if (runOptions.stable) effective.stableOnly = true;
-      // Per-package graduation (#486): graduate only the named packages, leaving other prereleases on
+      // Per-package graduation: graduate only the named packages, leaving other prereleases on
       // their line. Sets stableOnly + graduateScope; applyOverrideScope clears stableOnly for any
       // package outside the scope. The global `stable` flag wins — when it's set we graduate ALL
       // prereleases, so a per-package scope would only narrow it (don't set graduateScope then).
@@ -66,7 +66,7 @@ export class VersionEngine {
         effective.stableOnly = true;
         effective.graduateScope = runOptions.graduate;
       }
-      // Per-package prerelease (#521): the symmetric twin of graduate. Shift only the named packages
+      // Per-package prerelease: the symmetric twin of graduate. Shift only the named packages
       // onto a prerelease line, leaving others on their projected version. Sets isPrerelease +
       // prereleaseScope; applyOverrideScope clears isPrerelease for any package outside the scope, and
       // computeGroup gates the group-level prerelease on scope membership. The global `prerelease` flag
@@ -466,7 +466,7 @@ export class VersionEngine {
 
       // Capture the FULL discovered workspace (name+dir) before any release-set filtering below, so
       // the repo-level changelog classifier can tell "touches a non-releasing package" apart from
-      // "genuinely repo-level" (#397) and resolve shared-package globs against every package (#406).
+      // "genuinely repo-level" and resolve shared-package globs against every package.
       this.config.allWorkspacePackages = mergedPackages.packages.map((p) => ({
         name: p.packageJson.name,
         dir: p.dir,

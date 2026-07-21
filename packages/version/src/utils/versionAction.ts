@@ -1,7 +1,7 @@
 /**
  * Resolved version action: the *reason* a package's version landed where it did.
  *
- * This is purely additive observability (#420) — it never changes which version is resolved. It
+ * This is purely additive observability — it never changes which version is resolved. It
  * surfaces, in the human summary and `--json`, the graduate-vs-bump reasoning that previously lived
  * only in DEBUG logs, so a dry run can explain *why* a version resolved as it did.
  *

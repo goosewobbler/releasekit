@@ -1,3 +1,4 @@
+/* eslint-disable local/no-bare-issue-refs -- the #NNN below are examples of the reference format this module renders, not issue citations */
 /**
  * Neutralising bare GitHub-autolinked tokens in changelog output. GitHub auto-links a bare `#NNN`
  * issue/PR ref (with a hovercard) and treats a bare `@scope/pkg` / `@user` as a mention (a stray

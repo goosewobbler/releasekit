@@ -52,7 +52,7 @@ export interface VersionPackageChangelog {
 }
 
 /**
- * The resolved action a package's version landed on — purely additive observability (#420), it
+ * The resolved action a package's version landed on — purely additive observability, it
  * never changes which version resolves. `'graduated'` means a prerelease was promoted to stable and
  * any requested bump was ignored; `'bumped'` is the ordinary commit/label-driven bump;
  * `'first-release'` is a package with no prior tag. Defined as a string-literal union (core cannot
@@ -64,8 +64,7 @@ export type VersionAction = 'first-release' | 'graduated' | 'bumped';
  * The release channel a version sits on. Derived per-package and purely from the resolved
  * version: `'prerelease'` when the version carries a semver prerelease segment (`…-<preid>.N`), else
  * `'stable'`. A standing PR with permanently-mixed maturity carries both at once — some `'stable'`
- * packages, some `'prerelease'` — each advancing along its own line. #486 (per-package graduation)
- * and #487 (channel-grouped rendering) build on this.
+ * packages, some `'prerelease'` — each advancing along its own line.
  */
 export type ReleaseChannel = 'stable' | 'prerelease';
 
@@ -126,8 +125,8 @@ export interface VersionPackageUpdate {
   /**
    * The resolved baseline version this update bumped from — the package's prior release, in the same
    * consumer-tag display form the changelog carries ({@link VersionPackageChangelog.previousVersion}).
-   * Absent for a first release and whenever the baseline was unreachable / fell back to all-history
-   * (#339), so consumers derive the bump magnitude only when it is present. Optional for backwards
+   * Absent for a first release and whenever the baseline was unreachable / fell back to all-history,
+   * so consumers derive the bump magnitude only when it is present. Optional for backwards
    * compatibility: standing-PR manifests written before this field existed omit it (old PRs still
    * open), so every consumer must tolerate its absence (render a dash / skip the delta).
    */
@@ -163,7 +162,7 @@ export interface VersionPackageUpdate {
    */
   prerequisiteOf?: string[];
   /**
-   * The resolved version action for this update (#420): `'graduated'` (prerelease → stable, bump
+   * The resolved version action for this update: `'graduated'` (prerelease → stable, bump
    * ignored), `'bumped'` (commit/label-driven), or `'first-release'`. Purely additive observability —
    * it never affects which version resolved. Optional for backwards compatibility: standing-PR
    * manifests produced before this field existed won't carry it, so every consumer must tolerate
@@ -173,12 +172,12 @@ export interface VersionPackageUpdate {
   /** Short human-readable reason for {@link action} (e.g. `Graduated 1.0.0-next.1 → 1.0.0 (bump ignored).`). Optional, same back-compat rule as {@link action}. */
   actionReason?: string;
   /**
-   * The release channel this package's new version sits on (#485): `'prerelease'` when `newVersion`
+   * The release channel this package's new version sits on: `'prerelease'` when `newVersion`
    * carries a semver prerelease segment, else `'stable'`. Derived from the resolved version via
    * {@link deriveReleaseChannel}; a mixed standing PR carries both, each package advancing on its own
    * line. Purely additive observability — it never affects which version resolves. Optional for
    * backwards compatibility: standing-PR manifests written before this field existed omit it, so every
-   * consumer must tolerate its absence (re-derive from `newVersion`). #486/#487 build on it.
+   * consumer must tolerate its absence (re-derive from `newVersion`).
    */
   channel?: ReleaseChannel;
 }

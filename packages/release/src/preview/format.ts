@@ -306,7 +306,7 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
     pkgSummary = syncVersionRange(versionOutput);
   } else if (pkgCount === 1) {
     const only = versionOutput.updates[0];
-    // Annotate the resolved version action (#420) when present; absent on pre-field manifests.
+    // Annotate the resolved version action when present; absent on pre-field manifests.
     const annotation = only?.action ? ` (${only.action})` : '';
     pkgSummary = `${only?.packageName} ${only?.newVersion}${annotation}`;
   } else {
@@ -319,7 +319,7 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
   lines.push(getIntroMessage(effectiveStrategy, options?.standingPrNumber), '');
 
   // Changelog section
-  // How bare `#NNN` refs render + always-on mention escaping (#499/#504). All packages in a release
+  // How bare `#NNN` refs render + always-on mention escaping. All packages in a release
   // share one repo, so the first non-null changelog repoUrl governs the project-wide (shared) entries.
   const refs = options?.refs ?? 'link';
   const sharedRepoUrl = versionOutput.changelogs.find((cl) => cl.repoUrl)?.repoUrl ?? null;
@@ -327,7 +327,7 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
   // A changelog whose entries are *all* synthetic `Update version to X` placeholders (a sync/
   // lockstep carry with no commits of its own) has nothing real to show — treat it like an empty
   // changelog so the package collapses into the "Also bumped" list below rather than rendering a
-  // full block of placeholder noise (#468).
+  // full block of placeholder noise.
   const hasRealEntries = (cl: VersionPackageChangelog) => cl.entries.some((e) => !e.synthetic);
   const hasPackageChangelogs = versionOutput.changelogs.some(hasRealEntries);
 
@@ -537,7 +537,7 @@ function formatEntryGroup(
 
   for (const entry of entries) {
     // Always neutralise `@`-mentions in the description; the scope is already backticked (safe). Bare
-    // `#N` refs carried over from the commit subject are neutralised / de-duped against the label (#507).
+    // `#N` refs carried over from the commit subject are neutralised / de-duped against the label.
     const appendedRefs = [...(entry.issueIds ?? []), entry.prNumber];
     let line = `- ${escapeChangelogMentions(neutralizeDescriptionRefs(entry.description, appendedRefs, refs, repoUrl))}`;
     if (entry.scope) {

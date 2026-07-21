@@ -99,7 +99,7 @@ describe('createDispatcherProgram', () => {
 
   // Durable drift guard: the public `releasekit` bin (dispatcher) must expose every release-domain
   // command the `releasekit-release` bin does, or `releasekit <cmd>` silently routes to the default
-  // `preview` command (#519). Registering a new command in cli.ts without the dispatcher trips this.
+  // `preview` command. Registering a new command in cli.ts without the dispatcher trips this.
   it('should expose every release-domain command the release CLI does', () => {
     const dispatcher = new Set(createDispatcherProgram().commands.map((c) => c.name()));
     const releaseCli = createReleaseProgram().commands.map((c) => c.name());
@@ -110,7 +110,7 @@ describe('createDispatcherProgram', () => {
   });
 
   it('should route `refresh-after-release` to its own command, not the default preview', () => {
-    // The reported symptom (#519): an unregistered command falls through to the default `preview`, which
+    // The reported symptom: an unregistered command falls through to the default `preview`, which
     // rejects the stray positional. preview is mocked with exitOverride and refresh with a no-op action
     // (both above), so a misroute throws instead of exiting — a clean parse proves correct routing.
     const program = createDispatcherProgram().exitOverride();
