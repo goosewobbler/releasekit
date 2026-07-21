@@ -2,6 +2,7 @@ import { EXIT_CODES } from '@releasekit/core';
 import { Command } from 'commander';
 import type { StandingPROptions } from '../standing-pr/standing-pr.js';
 import { runStandingPRMerge, runStandingPRPublish, runStandingPRUpdate } from '../standing-pr/standing-pr.js';
+import { emitResult } from './emitResult.js';
 
 export function createStandingPRCommand(): Command {
   const cmd = new Command('standing-pr').description(
@@ -14,6 +15,7 @@ export function createStandingPRCommand(): Command {
       .option('--project-dir <path>', 'Project directory', process.cwd())
       .option('--npm-auth <method>', 'NPM auth method (auto|oidc|token)', 'auto')
       .option('-j, --json', 'Output results as JSON', false)
+      .option('--output <path>', 'Write the JSON result to a file instead of stdout')
       .option('-v, --verbose', 'Verbose logging', false)
       .option('-q, --quiet', 'Suppress non-error output', false);
 
@@ -47,9 +49,7 @@ export function createStandingPRCommand(): Command {
 
     try {
       const result = await runStandingPRUpdate(options);
-      if (opts.json) {
-        console.log(JSON.stringify(result, null, 2));
-      }
+      emitResult(result, { json: opts.json, output: opts.output });
     } catch (err) {
       console.error(err instanceof Error ? err.message : String(err));
       process.exit(EXIT_CODES.GENERAL_ERROR);
@@ -88,9 +88,7 @@ export function createStandingPRCommand(): Command {
 
     try {
       const result = await runStandingPRPublish(options, prNumber);
-      if (opts.json && result) {
-        console.log(JSON.stringify(result, null, 2));
-      }
+      emitResult(result, { json: opts.json, output: opts.output });
     } catch (err) {
       console.error(err instanceof Error ? err.message : String(err));
       process.exit(EXIT_CODES.GENERAL_ERROR);
@@ -114,9 +112,7 @@ export function createStandingPRCommand(): Command {
 
     try {
       const result = await runStandingPRMerge(options, { publish: opts.publish });
-      if (opts.json && result) {
-        console.log(JSON.stringify(result, null, 2));
-      }
+      emitResult(result, { json: opts.json, output: opts.output });
     } catch (err) {
       console.error(err instanceof Error ? err.message : String(err));
       process.exit(EXIT_CODES.GENERAL_ERROR);

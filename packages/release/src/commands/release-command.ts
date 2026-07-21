@@ -3,6 +3,7 @@ import { Command, Option } from 'commander';
 import { publishFromDraft, runReleaseDraft } from '../draft/draft.js';
 import { runRelease } from '../release.js';
 import type { ReleaseOptions } from '../types.js';
+import { emitResult } from './emitResult.js';
 
 export function createReleaseCommand(): Command {
   return new Command('release')
@@ -42,6 +43,7 @@ export function createReleaseCommand(): Command {
     .option('--skip-github-release', 'Skip GitHub release creation', false)
     .option('--skip-verification', 'Skip post-publish verification', false)
     .option('-j, --json', 'Output results as JSON', false)
+    .option('--output <path>', 'Write the JSON result to a file instead of stdout')
     .option('-v, --verbose', 'Verbose logging', false)
     .option('-q, --quiet', 'Suppress non-error output', false)
     .option('--project-dir <path>', 'Project directory', process.cwd())
@@ -97,9 +99,7 @@ export function createReleaseCommand(): Command {
               ? await runReleaseDraft(options)
               : await runRelease(options);
 
-        if (options.json && result) {
-          console.log(JSON.stringify(result, null, 2));
-        }
+        emitResult(result, { json: options.json, output: opts.output });
 
         if (!result) {
           process.exit(0);

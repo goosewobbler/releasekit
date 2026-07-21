@@ -2,6 +2,7 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -309,6 +310,18 @@ export async function runAction(input, options = {}) {
   // `mode` is validated against validModes above, and every entry has a key here.
   const args = argBuilders[mode](input);
 
+  // Capture the JSON-result modes' structured output via a temp file (--output) instead of scraping
+  // stdout, which subprocess/log noise can corrupt — a single stray byte breaks JSON.parse. The CLI
+  // writes the result JSON to this file; we read it back after the run (see the `close` handler).
+  const OUTPUT_MODES = new Set(['release', 'gate', 'standing-pr-update', 'standing-pr-publish']);
+  let outputFile;
+  let outputDir;
+  if (OUTPUT_MODES.has(mode)) {
+    outputDir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-action-'));
+    outputFile = path.join(outputDir, 'result.json');
+    args.push('--output', outputFile);
+  }
+
   const projectDir = input.projectDir || '.';
   const actionDir = fileURLToPath(import.meta.url).replace(/[/\\]scripts[/\\]run-action.mjs$/, '');
 
@@ -433,7 +446,21 @@ export async function runAction(input, options = {}) {
     });
 
     child.on('close', (status, signal) => {
-      resolve({ mode, args, status, signal, stdout, stderr });
+      // Prefer the --output file (reliable) over captured stdout for the structured result.
+      let outputJson = '';
+      if (outputFile) {
+        try {
+          outputJson = fs.readFileSync(outputFile, 'utf-8');
+        } catch {
+          outputJson = '';
+        }
+        try {
+          fs.rmSync(outputDir, { recursive: true, force: true });
+        } catch {
+          // best-effort temp cleanup
+        }
+      }
+      resolve({ mode, args, status, signal, stdout, stderr, outputJson });
     });
   });
 }
@@ -613,15 +640,19 @@ async function main() {
   const success = result.status === 0;
   const verbose = normalizeBoolean(input.verbose);
 
+  // The structured result comes from the --output file for the JSON-result modes (reliable), falling
+  // back to captured stdout for the rest (preview) and if the file is missing.
+  const structured = result.outputJson || (result.stdout ?? '');
+
   // parsed is used for release/preview output; gateParsed is parsed separately for gate output
-  const parsed = normalizeBoolean(input.json) ? parseReleaseOutput(result.stdout ?? '', verbose) : undefined;
+  const parsed = normalizeBoolean(input.json) ? parseReleaseOutput(structured, verbose) : undefined;
 
   // Write summary BEFORE setFailure (which calls process.exit)
   if (normalizeBoolean(input.summary, true)) {
     if (result.mode === 'release') {
       writeSummary(buildReleaseSummary(input, parsed, success));
     } else if (result.mode === 'gate') {
-      const gateParsed = parseReleaseOutput(result.stdout ?? '', verbose);
+      const gateParsed = parseReleaseOutput(structured, verbose);
       writeSummary(buildGateSummary(input, gateParsed, success));
     }
   }
@@ -631,9 +662,9 @@ async function main() {
   if (!success) {
     writeCoreOutputs(result.mode, false);
     if (result.mode === 'gate') {
-      writeGateOutputs(result.stdout ?? '', verbose);
+      writeGateOutputs(structured, verbose);
     } else if (result.mode === 'standing-pr-update' || result.mode === 'standing-pr-publish') {
-      writeStandingPROutputs(result.stdout ?? '', verbose);
+      writeStandingPROutputs(structured, verbose);
     }
     setFailure(`ReleaseKit ${result.mode} failed with exit code ${result.status ?? 1}`);
   }
@@ -641,11 +672,11 @@ async function main() {
   writeCoreOutputs(result.mode, true);
 
   if (result.mode === 'release') {
-    writeReleaseOutputs(input, result.stdout ?? '');
+    writeReleaseOutputs(input, structured);
   } else if (result.mode === 'gate') {
-    writeGateOutputs(result.stdout ?? '', verbose);
+    writeGateOutputs(structured, verbose);
   } else if (result.mode === 'standing-pr-update' || result.mode === 'standing-pr-publish') {
-    writeStandingPROutputs(result.stdout ?? '', verbose);
+    writeStandingPROutputs(structured, verbose);
   } else if (result.mode === 'backfill' || result.mode === 'refresh-after-release') {
     // These stream their own progress and expose only the core success/mode outputs.
   } else {

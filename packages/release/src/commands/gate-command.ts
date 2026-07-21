@@ -1,6 +1,7 @@
 import { setJsonMode, setLogLevel, setQuietMode } from '@releasekit/core';
 import { Command } from 'commander';
 import { runGate } from '../gate/gate.js';
+import { emitResult } from './emitResult.js';
 
 export function createGateCommand(): Command {
   return new Command('gate')
@@ -8,6 +9,7 @@ export function createGateCommand(): Command {
     .option('-c, --config <path>', 'Path to config file')
     .option('--scope <name>', 'Resolve scope name to target packages from ci.scopeLabels config')
     .option('-j, --json', 'Output results as JSON', false)
+    .option('--output <path>', 'Write the JSON result to a file instead of stdout')
     .option('-v, --verbose', 'Verbose logging', false)
     .option('-q, --quiet', 'Suppress non-error output', false)
     .option('--project-dir <path>', 'Project directory', process.cwd())
@@ -26,9 +28,7 @@ export function createGateCommand(): Command {
           quiet: opts.quiet,
         });
 
-        if (opts.json) {
-          console.log(JSON.stringify(result, null, 2));
-        }
+        emitResult(result, { json: opts.json, output: opts.output });
 
         process.exit(0);
       } catch (error) {

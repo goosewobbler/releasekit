@@ -317,6 +317,41 @@ describe('action runner', () => {
     expect(result.args).toContain('--dry-run');
   });
 
+  it('should pass --output and read the structured result from that file (not stdout)', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-action-runner-test-'));
+    tempDirs.push(tempDir);
+    const cliPath = path.join(tempDir, 'fake-cli.mjs');
+    // The fake CLI writes JSON to its --output path and prints noise to stdout — outputJson must come
+    // from the file, immune to the stdout noise.
+    fs.writeFileSync(
+      cliPath,
+      [
+        "import { writeFileSync } from 'node:fs';",
+        "const i = process.argv.indexOf('--output');",
+        "if (i !== -1) writeFileSync(process.argv[i + 1], JSON.stringify({ versionOutput: { tags: ['v1.2.3'] } }));",
+        "console.log('log noise that would corrupt JSON parsing');",
+      ].join('\n'),
+      'utf-8',
+    );
+
+    const result = await runAction({ mode: 'release', projectDir: '.', json: 'true' }, { cliPath });
+
+    expect(result.args).toContain('--output');
+    expect(JSON.parse(result.outputJson)).toEqual({ versionOutput: { tags: ['v1.2.3'] } });
+  });
+
+  it('should not pass --output for modes without structured output (preview)', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-action-runner-test-'));
+    tempDirs.push(tempDir);
+    const cliPath = path.join(tempDir, 'fake-cli.mjs');
+    fs.writeFileSync(cliPath, "console.log('ok')\n", 'utf-8');
+
+    const result = await runAction({ mode: 'preview', projectDir: '.' }, { cliPath });
+
+    expect(result.args).not.toContain('--output');
+    expect(result.outputJson).toBe('');
+  });
+
   it('should resolve with non-zero status for a failing cli', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-action-runner-test-'));
     tempDirs.push(tempDir);
