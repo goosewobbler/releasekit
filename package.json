@@ -37,6 +37,7 @@
     "schema:gen": "tsx scripts/generate-schema.ts",
     "schema:check": "tsx scripts/generate-schema.ts --check",
     "docs:config": "tsx scripts/generate-config-docs.ts",
+    "docs:check": "tsx scripts/generate-config-docs.ts --check",
     "examples:smoke:generate": "tsx scripts/examples-smoke/generate-smoke-workflow.ts",
     "examples:smoke:check": "tsx scripts/examples-smoke/generate-smoke-workflow.ts --check",
     "prepare": "husky"

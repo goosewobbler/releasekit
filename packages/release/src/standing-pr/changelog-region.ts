@@ -80,7 +80,7 @@ function dedupeKey(e: VersionChangelogEntry): string {
 }
 
 /** De-duplicate by underlying change, preserving first-seen order and collecting contributing
- *  packages. Synthetic lockstep-carry placeholders (`Update version to X`, #468) are dropped — they
+ *  packages. Synthetic lockstep-carry placeholders (`Update version to X`) are dropped — they
  *  are not real changes. */
 function dedupe(attributed: AttributedEntry[]): DedupedEntry[] {
   const byKey = new Map<string, DedupedEntry>();
@@ -105,7 +105,7 @@ function shortName(pkg: string): string {
   return slash === -1 ? pkg : pkg.slice(slash + 1);
 }
 
-/** How bare `#NNN` refs render plus the repo to resolve canonical issue links against (#499). */
+/** How bare `#NNN` refs render plus the repo to resolve canonical issue links against. */
 interface RefRenderOptions {
   refs: ChangelogRefsMode;
   repoUrl: string | null;
@@ -115,7 +115,7 @@ function entryLine(d: DedupedEntry, attribution: boolean, refOpts: RefRenderOpti
   const { entry, pkgs } = d;
   // GitHub treats a bare `@scope/pkg` / `@user` in the description as a mention (stray link, can ping
   // a real org/team on the standing PR) — always neutralise it, regardless of the refs mode. Bare `#N`
-  // refs carried over from the commit subject are neutralised / de-duped against the appended label (#507).
+  // refs carried over from the commit subject are neutralised / de-duped against the appended label.
   const appendedRefs = [...(entry.issueIds ?? []), entry.prNumber];
   const description = escapeChangelogMentions(
     neutralizeDescriptionRefs(entry.description, appendedRefs, refOpts.refs, refOpts.repoUrl),
@@ -127,14 +127,14 @@ function entryLine(d: DedupedEntry, attribution: boolean, refOpts: RefRenderOpti
   return `- ${description}${scope}${issues}${attr}`;
 }
 
-/** Bare heading for the trailing demoted subsection (#522) — deliberately no count and no
+/** Bare heading for the trailing demoted subsection — deliberately no count and no
  *  "shared across packages" descriptor: the descriptor isn't reliably true (`Update version to X` is
  *  package-specific), and where provenance matters it's already carried by the per-entry attribution. */
 const DEMOTED_HEADING = 'Dependencies & version bumps';
 
 /** Render the deduped entries as flat, type-grouped Markdown (no per-package sections). Entries whose
  *  scope is in `demoteScopes` are pulled out of their type buckets and rendered last, under a bare
- *  `#### Dependencies & version bumps` subsection — organized, never hidden (#522). Nothing is
+ *  `#### Dependencies & version bumps` subsection — organized, never hidden. Nothing is
  *  removed, so the caller's de-duplicated change count is unchanged. */
 function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions, demoteScopes: readonly string[]): string[] {
   const distinct = new Set<string>();
@@ -165,9 +165,9 @@ function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions, demot
   const emit = (label: string): void => {
     const list = byLabel.get(label);
     if (!list?.length) return;
-    // `#### `, not bold `**…**`: inside the blockquote (#506) GitHub gives a heading paragraph-level
+    // `#### `, not bold `**…**`: inside the blockquote GitHub gives a heading paragraph-level
     // top margin, so consecutive sections stay visually separated — bold text collapses to near-zero
-    // spacing there (#508). Matches the preview surface, which already uses `#### ` headings.
+    // spacing there. Matches the preview surface, which already uses `#### ` headings.
     lines.push(`#### ${label}`, '');
     for (const d of list) lines.push(entryLine(d, attribution, refOpts));
     lines.push('');
@@ -220,11 +220,12 @@ function repoUrlOf(changelogs: VersionOutput['changelogs']): string | null {
  * the indent that nests the block under its row. It returns the collapsed `<details>` block, or `''`
  * when those packages have no real changelog entries.
  *
- * #487 regroups *where* rows are placed; it reuses this renderer unchanged to keep *how* changelogs
- * attach to a row identical. `refs` (`changelog.refs`, default `'link'`) controls how bare `#NNN`
- * refs render (#499). `demoteScopes` (`changelog.demoteScopes`, default `['deps']`) routes matching-
+ * The channel-section grouping regroups *where* rows are placed; it reuses this renderer unchanged
+ * to keep *how* changelogs attach to a row identical. `refs` (`changelog.refs`, default `'link'`)
+ * controls how bare `#NNN`
+ * refs render. `demoteScopes` (`changelog.demoteScopes`, default `['deps']`) routes matching-
  * scope entries into a trailing "Dependencies & version bumps" subsection instead of interleaving
- * them; the `(N entries)` count still counts every entry, demoted included (#522).
+ * them; the `(N entries)` count still counts every entry, demoted included.
  */
 export function makeRowChangelogRenderer(
   changelogs: VersionOutput['changelogs'],
@@ -251,7 +252,7 @@ export function makeRowChangelogRenderer(
 
 /** Collect the changelog + shared entries the combined footer draws from, ready to dedupe. `sharedOnly`
  *  narrows to the project-wide (`sharedEntries`) changes with no per-row home. Shared by the footer and
- *  the release summary's change count (#520) so both read one authoritative set. */
+ *  the release summary's change count so both read one authoritative set. */
 function collectAttributed(versionOutput: VersionOutput, sharedOnly: boolean): AttributedEntry[] {
   const attributed: AttributedEntry[] = [];
   if (!sharedOnly) {
@@ -265,7 +266,7 @@ function collectAttributed(versionOutput: VersionOutput, sharedOnly: boolean): A
 
 /** The de-duplicated change count the full combined footer totals — every distinct change once, across
  *  every package changelog plus shared entries. Held-back packages are already excluded from the write
- *  output, so this mirrors exactly what will publish. Feeds the release summary line (#520). */
+ *  output, so this mirrors exactly what will publish. Feeds the release summary line. */
 export function countCombinedChanges(versionOutput: VersionOutput): number {
   return dedupe(collectAttributed(versionOutput, false)).length;
 }

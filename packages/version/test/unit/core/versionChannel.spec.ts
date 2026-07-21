@@ -7,7 +7,7 @@ import type { Config, VersionOptions } from '../../../src/types.js';
 import * as manifestHelpers from '../../../src/utils/manifestHelpers.js';
 import * as versionUtils from '../../../src/utils/versionUtils.js';
 
-// Per-package release channel (#485): a package's channel is DERIVED from its current version and
+// Per-package release channel: a package's channel is DERIVED from its current version and
 // the default (no explicit channel action) advances it ALONG that channel — a prerelease stays a
 // prerelease, a stable stays stable, and a `-next` package never graduates without an explicit
 // graduate action. These specs drive the real `calculateVersion` with real semver and a real
@@ -69,7 +69,7 @@ describe('Per-package release channel — advance along the current line (#485)'
     });
 
     it('should increment the counter for a minor-level change, not escalate the base (1.0.0-next.1 -> 1.0.0-next.2)', async () => {
-      // The base is a fixed target until graduation (#500) — a minor doesn't move it to 1.1.0-next.0.
+      // The base is a fixed target until graduation — a minor doesn't move it to 1.1.0-next.0.
       baselineAt('1.0.0-next.1');
       inferredBump('minor');
       const next = await calculateVersion(baseConfig as Config, options());
@@ -83,7 +83,7 @@ describe('Per-package release channel — advance along the current line (#485)'
       expect(next).toBe('1.0.0-next.2');
     });
 
-    it('should increment a higher prerelease counter without resetting it (#500: 1.0.0-next.3 -> 1.0.0-next.4)', async () => {
+    it('should increment a higher prerelease counter without resetting it (1.0.0-next.3 -> 1.0.0-next.4)', async () => {
       baselineAt('1.0.0-next.3');
       inferredBump('minor');
       const next = await calculateVersion(baseConfig as Config, options({ latestTag: 'v1.0.0-next.3' }));
@@ -129,7 +129,7 @@ describe('Per-package release channel — advance along the current line (#485)'
   describe('explicit bump magnitude (release:major/minor/patch) without a channel action', () => {
     // A bump LABEL is a deliberate magnitude declaration, so it is honoured: on a prerelease it
     // escalates the base to a fresh line (unlike the commit-inferred default, which increments the
-    // counter — the base is a fixed target until graduation, #500). It still doesn't graduate.
+    // counter — the base is a fixed target until graduation). It still doesn't graduate.
     it('should escalate the base under an explicit minor bump (1.0.0-next.1 -> 1.1.0-next.0)', async () => {
       baselineAt('1.0.0-next.1');
       const next = await calculateVersion(baseConfig as Config, options({ type: 'minor' }));

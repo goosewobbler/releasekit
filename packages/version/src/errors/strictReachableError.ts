@@ -8,7 +8,7 @@ import { BaseVersionError } from './baseError.js';
  * apart from a genuine changelog-extraction failure: genuine failures degrade to a minimal entry and
  * the run continues, but this one is **rethrown** so it aborts the whole run — which is the entire
  * point of `strictReachable` (surface the misconfiguration loudly, don't ship a silently-degraded
- * whole-history changelog on a green run). See #372.
+ * whole-history changelog on a green run).
  */
 export class StrictReachableError extends BaseVersionError {
   constructor(message: string) {

@@ -125,7 +125,7 @@ describe('JSON Output Utilities', () => {
 
     // A hybrid package (one dir, both package.json + a native manifest) is a single package — npm
     // owns its identity. Without dir-keyed dedup the native sibling's write registers a second
-    // update under its crate/pub name and the package surfaces twice downstream (#476).
+    // update under its crate/pub name and the package surfaces twice downstream.
     it('should keep one update per directory for a hybrid, with npm winning regardless of write order', () => {
       enableJsonOutput();
       // package.json written first (the order every strategy uses), then the Cargo.toml sibling.
@@ -171,13 +171,13 @@ describe('JSON Output Utilities', () => {
       });
     });
 
-    it('should derive the per-package channel from the resolved version (#485)', () => {
+    it('should derive the per-package channel from the resolved version', () => {
       enableJsonOutput();
       addPackageUpdate('stable-pkg', '10.2.0', '/ws/packages/stable/package.json');
       addPackageUpdate('pre-pkg', '1.0.0-next.2', '/ws/packages/pre/package.json');
 
       const updates = getJsonData().updates;
-      // A mixed standing PR carries both channels at once, each on its own line (#485).
+      // A mixed standing PR carries both channels at once, each on its own line.
       expect(updates.find((u) => u.packageName === 'stable-pkg')?.channel).toBe('stable');
       expect(updates.find((u) => u.packageName === 'pre-pkg')?.channel).toBe('prerelease');
     });
@@ -186,7 +186,7 @@ describe('JSON Output Utilities', () => {
       enableJsonOutput();
       addPackageUpdate('@scope/x-y', '1.1.0', '/ws/packages/x/package.json');
       // Same directory, written via a non-normalized path form — keying on path.dirname alone would
-      // miss this and re-admit the crate-name duplicate; resolving first dedupes it (#476).
+      // miss this and re-admit the crate-name duplicate; resolving first dedupes it.
       addPackageUpdate('x-y', '1.1.0', '/ws/packages/./x/Cargo.toml');
 
       const data = getJsonData();

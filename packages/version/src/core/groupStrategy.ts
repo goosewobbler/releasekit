@@ -159,7 +159,7 @@ interface GroupComputation {
 }
 
 /**
- * Whether this whole group is graduating to stable on this run (#486). A fixed/linked group shares
+ * Whether this whole group is graduating to stable on this run. A fixed/linked group shares
  * one version and channel, so graduation is all-or-nothing: graduating ANY member graduates the
  * group. True when `stableOnly` is set and either there's no per-package `graduateScope` (the global
  * `release:graduate` path → every group graduates) or some member falls inside that scope.
@@ -172,7 +172,7 @@ function isGroupGraduating(group: ResolvedGroup, config: Config): boolean {
 }
 
 /**
- * Whether this whole group belongs on a prerelease line by explicit request (#521) — the symmetric
+ * Whether this whole group belongs on a prerelease line by explicit request — the symmetric
  * twin of {@link isGroupGraduating}. A fixed/linked group shares one version and channel, so a single
  * scoped member pulls the whole group onto the prerelease line. True when `isPrerelease` is set and
  * either there's no per-package `prereleaseScope` (the global `channel:prerelease` path → every group)
@@ -205,7 +205,7 @@ function computeGroup(group: ResolvedGroup, plans: MemberPlan[], config: Config)
 
   const maxBaseline = plans.map((p) => p.baseline).sort(semver.rcompare)[0];
 
-  // Group graduation (#486): drop the prerelease segment of the highest baseline so the whole
+  // Group graduation: drop the prerelease segment of the highest baseline so the whole
   // fixed/linked group lands on its stable base (e.g. 1.2.0-next.3 → 1.2.0), atomically — every
   // member adopts it regardless of which one carried the graduate label, and the bump magnitude is
   // ignored (graduation is bump-less). Only when the group is actually on a prerelease line; an
@@ -227,7 +227,7 @@ function computeGroup(group: ResolvedGroup, plans: MemberPlan[], config: Config)
 
   // Whether this release belongs on a prerelease line. Two signals, by design: the group-scoped
   // prerelease flag is the explicit, authoritative request (the user passed --prerelease / the
-  // prerelease channel, possibly scoped to a subset of packages via `prereleaseScope`, #521); the
+  // prerelease channel, possibly scoped to a subset of packages via `prereleaseScope`); the
   // member-scan is the inference fallback for when the flag isn't set but a member's own calculation
   // already produced a prerelease. `isGroupPrereleasing` (not the raw `config.isPrerelease`) keeps a
   // per-package prerelease scoped: a group with no scoped member falls through to the member-scan
@@ -248,9 +248,9 @@ function computeGroup(group: ResolvedGroup, plans: MemberPlan[], config: Config)
   // graduation requires stable=true. This covers two ways the published baseline would otherwise be
   // re-emitted, neither of which never-regress can recover when a member's ownNext sits below it:
   //  - a *stable* aggregate magnitude that's spurious because a member's manifest lags its prerelease
-  //    tag, so the backwards `semver.diff` reads as a `major` (#458); and
+  //    tag, so the backwards `semver.diff` reads as a `major`; and
   //  - a *prerelease* aggregate rank with no identifier, where the legacy branch returned the
-  //    baseline unchanged (#460).
+  //    baseline unchanged.
   // It is gated on a prerelease baseline, so incrementing never regresses a stable release.
   const stayOnPrereleaseLine = !!semver.prerelease(maxBaseline) && wantsPrerelease;
 
@@ -343,7 +343,7 @@ async function extractEntries(
     previousVersion = baseline.previousVersion;
     entries = await extractChangelogEntriesFromCommits(input.pkgDir, revisionRange);
   } catch (error) {
-    // A strictReachable violation must abort the run, not degrade to a minimal entry (#372).
+    // A strictReachable violation must abort the run, not degrade to a minimal entry.
     if (error instanceof StrictReachableError) throw error;
     log(`Error extracting changelog entries: ${error instanceof Error ? error.message : String(error)}`, 'warning');
   }
@@ -351,9 +351,9 @@ async function extractEntries(
     // No changelog entries to show. Flag the placeholder synthetic only for a genuine lockstep
     // carry — a member that earned no releasable change of its own and is written purely to stay at
     // the fixed-group version (`isCarry`). The preview collapses those into "Also bumped" rather
-    // than a full "Update version to X" block (#468). A member that DID earn a change yet still came
+    // than a full "Update version to X" block. A member that DID earn a change yet still came
     // back empty means extraction couldn't read its commits — extractChangelogEntriesFromCommits
-    // swallows git failures and returns [] (#469) — so leave it unflagged and let the bump render a
+    // swallows git failures and returns [] — so leave it unflagged and let the bump render a
     // visible block instead of vanishing as a no-change carry.
     const fallback: ChangelogEntry = { type: 'changed', description: `Update version to ${input.nextVersion}` };
     if (input.isCarry) fallback.synthetic = true;
@@ -430,7 +430,7 @@ async function releaseGroup(
     addTag(tag);
     setPackageUpdateTag(name, tag);
     setPackageUpdateGroup(name, group.name);
-    // Resolved version action (#420), derived from the member's own tag facts and the version it
+    // Resolved version action, derived from the member's own tag facts and the version it
     // actually resolved to (group version for fixed/linked, own line for independent).
     const { action: memberAction, reason: memberReason } = resolveVersionAction({
       hasNoTags: plan.latestTag === '',
@@ -459,7 +459,7 @@ async function releaseGroup(
       repoUrl: readRepoUrl(pkg.dir),
       entries,
     });
-    // Baseline for the bump delta (#520) — the member's own prior version, even when it rode along to
+    // Baseline for the bump delta — the member's own prior version, even when it rode along to
     // a higher group version. Same value the changelog carries; null (unreachable baseline) omits it.
     setPackageUpdatePreviousVersion(name, previousVersion);
 
@@ -581,7 +581,7 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
         const tag = formatTag(plan.ownNext, formattedPrefix, name, config.tagTemplate, config.packageSpecificTags);
         addTag(tag);
         setPackageUpdateTag(name, tag);
-        // Resolved version action (#420) for an independently-versioned ungrouped package.
+        // Resolved version action for an independently-versioned ungrouped package.
         const { action: ungroupedAction, reason: ungroupedReason } = resolveVersionAction({
           hasNoTags: plan.latestTag === '',
           latestTag: plan.latestTag,

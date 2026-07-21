@@ -34,7 +34,7 @@ interface FakeComment {
    */
   prNumber?: number;
   /** The comment's author. Left undefined, a seeded comment reads as bot-authored (the common case).
-   *  Seed `{ type: 'User' }` to simulate a human-authored forgery for author-binding tests (#556). */
+   *  Seed `{ type: 'User' }` to simulate a human-authored forgery for author-binding tests. */
   user?: CommentAuthor;
 }
 
@@ -204,7 +204,7 @@ export class FakeForge implements Forge {
 
   async findOpenIssueByLabel(label: string): Promise<IssueRef | null> {
     // GitHub returns newest-first; approximate "newest" with the highest number so multiple seeded
-    // matches resolve the way production would (#462 review).
+    // matches resolve the way production would.
     const matches = this.openIssues.filter((i) => i.labels.includes(label)).sort((a, b) => b.number - a.number);
     return matches[0] ? { number: matches[0].number, url: matches[0].url } : null;
   }
@@ -214,7 +214,7 @@ export class FakeForge implements Forge {
       (c) => c.body.startsWith(marker) && (c.prNumber === undefined || c.prNumber === prNumber),
     );
     // Mirror the real adapter: prefer a bot-authored match, falling back to a human-authored one so
-    // the caller can still see (and reject) it when it's the only marker comment present (#556).
+    // the caller can still see (and reject) it when it's the only marker comment present.
     return matches.find((c) => isBotComment(c)) ?? matches[0] ?? null;
   }
 
@@ -232,7 +232,7 @@ export class FakeForge implements Forge {
   async upsertMarkerComment(prNumber: number, marker: string, body: string): Promise<void> {
     this.upsertedComments.push({ prNumber, marker, body });
     const existing = await this.findComment(prNumber, marker);
-    // Only adopt a bot-authored comment; a human-authored marker is left alone (#556).
+    // Only adopt a bot-authored comment; a human-authored marker is left alone.
     if (existing && isBotComment(existing)) {
       await this.updateComment(existing.id, body);
     } else {

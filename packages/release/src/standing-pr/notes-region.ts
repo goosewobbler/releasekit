@@ -16,7 +16,7 @@ const REGION_HINT =
  * Upper bound on a single package's rendered release notes. Release notes are otherwise unbounded
  * (the LLM output isn't length-capped, and raw commit bodies flow through), so an inflated note —
  * accidental or adversarial — could push the standing-PR body past GitHub's hard limit and wedge
- * every update (#558). Generous enough that normal notes are untouched; a note beyond it is trimmed
+ * every update. Generous enough that normal notes are untouched; a note beyond it is trimmed
  * at a line boundary with an explicit marker.
  */
 export const MAX_NOTES_CHARS_PER_PACKAGE = 8000;

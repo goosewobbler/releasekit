@@ -157,7 +157,7 @@ describe('neutralizeDescriptionRefs', () => {
   const repo = 'https://github.com/octocat/hello';
 
   it('should remove a parenthesised ref that is duplicated in the appended label', () => {
-    // #507: `(#467)` in the subject-derived description also appears as `closes #467` in the label.
+    // `(#467)` in the subject-derived description also appears as `closes #467` in the label.
     expect(neutralizeDescriptionRefs('failed queued batch (#467)', ['#475', '#467'], 'link', repo)).toBe(
       'failed queued batch',
     );

@@ -389,7 +389,7 @@ describe('createGroupStrategy', () => {
       );
     });
 
-    it('should not graduate an explicit prerelease when a member manifest lags its prerelease tag (#458)', async () => {
+    it('should not graduate an explicit prerelease when a member manifest lags its prerelease tag', async () => {
       // Interrupted release: the published prerelease (1.0.0-next.0) lives in the tag, but the member's
       // manifest still reads 0.0.1 AND the tag isn't reachable from HEAD, so the per-package calculator
       // computes ownNext from the manifest (0.0.2-next.0) — *below* the tag-derived group baseline
@@ -423,7 +423,7 @@ describe('createGroupStrategy', () => {
       );
     });
 
-    it('should not graduate an explicit prerelease in a fixed group when a member manifest lags its tag (#458)', async () => {
+    it('should not graduate an explicit prerelease in a fixed group when a member manifest lags its tag', async () => {
       // As above, but `fixed` writes the shared version to ALL members — a silent graduation would
       // stamp a stable 1.0.0 across the whole group. Both must stay on 1.0.0-next.1.
       const service = mkPackage('@wdio/flutter-service', '0.0.1');
@@ -458,7 +458,7 @@ describe('createGroupStrategy', () => {
       );
     });
 
-    it('should still advance the prerelease when no prereleaseIdentifier is configured (#460)', async () => {
+    it('should still advance the prerelease when no prereleaseIdentifier is configured', async () => {
       // Same manifest-lags-tag scenario, but with no configured prereleaseIdentifier. The group must
       // still increment the existing prerelease (1.0.0-next.0 -> 1.0.0-next.1) rather than re-emit the
       // published baseline — never-regress can't help (ownNext sits below maxBaseline).
@@ -487,7 +487,7 @@ describe('createGroupStrategy', () => {
       );
     });
 
-    it('should advance the prerelease when the aggregate rank is itself prerelease and no identifier is set (#460)', async () => {
+    it('should advance the prerelease when the aggregate rank is itself prerelease and no identifier is set', async () => {
       // The changed member earns a *prerelease-rank* bump (its own line increments), while a higher
       // member's prerelease tag sets the group baseline (1.0.0-next.0). Pre-fix, the prerelease-rank
       // branch returned the baseline unchanged when no identifier was set, and never-regress couldn't
@@ -1047,7 +1047,7 @@ describe('createGroupStrategy', () => {
       );
     });
 
-    it('should leave a changed member unflagged when its extraction comes back empty (swallowed git failure, #469)', async () => {
+    it('should leave a changed member unflagged when its extraction comes back empty (swallowed git failure)', async () => {
       const core = mkPackage('@wdio/native-core', '2.3.0');
 
       // core earned a real bump, so it is NOT a carry...

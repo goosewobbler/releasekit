@@ -62,7 +62,7 @@ describe('generate-schema', () => {
       const schema = buildSchema() as {
         properties?: Record<string, { properties?: Record<string, { description?: string }> }>;
       };
-      // ci.scopeLabels is the field #277 is about — it must keep its description
+      // ci.scopeLabels must keep its description
       // (an empty description here is the exact regression this generator prevents).
       const scopeLabels = schema.properties?.ci?.properties?.scopeLabels;
       expect(scopeLabels?.description).toBeDefined();

@@ -293,6 +293,7 @@ function parseCommitMessage(message: string): ChangelogEntry | null {
     const prNumber = prMatch ? `#${prMatch[1]}` : undefined;
     const subjectText = prMatch ? subjectRaw.slice(0, prMatch.index).trimEnd() : subjectRaw;
 
+    // eslint-disable-next-line local/no-bare-issue-refs -- the "Fixes" footer example on the next line is a format sample, not a citation
     // Extract issue IDs from footer (assuming format like "Fixes #123"). issueIds is the full flat
     // list: the PR (when present) plus the closed issues, so a consumer that ignores prNumber still
     // shows every ref.

@@ -121,7 +121,7 @@ describe('runReleaseDraft', () => {
     expect(seeded.updatedIssues.map((u) => u.issueNumber)).toContain(7);
   });
 
-  it('should NOT overwrite a human-labelled issue that lacks a manifest comment (#463 review)', async () => {
+  it('should NOT overwrite a human-labelled issue that lacks a manifest comment', async () => {
     // An unrelated open issue happens to carry the `release:draft` label but is not a real draft.
     const seeded = createFakeForge({
       openIssues: [{ number: 7, url: 'u', labels: [DRAFT_LABEL] }],
@@ -135,7 +135,7 @@ describe('runReleaseDraft', () => {
     expect(seeded.updatedIssues.map((u) => u.issueNumber)).not.toContain(7);
   });
 
-  it('should NOT reuse an issue whose marker comment is not a valid manifest (#463 review)', async () => {
+  it('should NOT reuse an issue whose marker comment is not a valid manifest', async () => {
     // Hand-labelled issue with an accidental marker-prefixed comment that does not decode to a manifest.
     const seeded = createFakeForge({
       openIssues: [{ number: 7, url: 'u', labels: [DRAFT_LABEL] }],
@@ -208,7 +208,7 @@ describe('publishFromDraft', () => {
     expect(mockRunRelease).not.toHaveBeenCalled();
   });
 
-  it('should refuse when the recomputed plan differs from the reviewed draft (#463 review)', async () => {
+  it('should refuse when the recomputed plan differs from the reviewed draft', async () => {
     // Preview (first runRelease call) recomputes a different plan than the manifest stored.
     mockRunRelease.mockReset();
     mockRunRelease.mockResolvedValueOnce({
@@ -226,7 +226,7 @@ describe('publishFromDraft', () => {
     expect(forge.updatedIssues).not.toContainEqual({ issueNumber: 9, changes: { state: 'closed' } });
   });
 
-  it('should refuse when only tags/commit-message drift even though name@version matches (#463 review)', async () => {
+  it('should refuse when only tags/commit-message drift even though name@version matches', async () => {
     // Same publishable name@version as the manifest, but different tags + commit message — the narrow
     // name@version check would have waved this through; the full-plan fingerprint catches it.
     mockRunRelease.mockReset();
@@ -241,7 +241,7 @@ describe('publishFromDraft', () => {
     expect(forge.updatedIssues).not.toContainEqual({ issueNumber: 9, changes: { state: 'closed' } });
   });
 
-  it('should respect --dry-run: validate without publishing or closing (#463 review)', async () => {
+  it('should respect --dry-run: validate without publishing or closing', async () => {
     const forge = forgeWithDraft('## Release Notes');
     mockForgeFor.mockReturnValue(forge);
 
@@ -251,7 +251,7 @@ describe('publishFromDraft', () => {
     expect(forge.updatedIssues).not.toContainEqual({ issueNumber: 9, changes: { state: 'closed' } });
   });
 
-  it('should not close the issue on a --skip-publish run (#463 review)', async () => {
+  it('should not close the issue on a --skip-publish run', async () => {
     const forge = forgeWithDraft('## Release Notes');
     mockForgeFor.mockReturnValue(forge);
 
@@ -260,7 +260,7 @@ describe('publishFromDraft', () => {
     expect(forge.updatedIssues).not.toContainEqual({ issueNumber: 9, changes: { state: 'closed' } });
   });
 
-  it('should fall back to drafted notes and warn when an editable region was removed (#463 review)', async () => {
+  it('should fall back to drafted notes and warn when an editable region was removed', async () => {
     const { warn } = await import('@releasekit/core');
     // The draft stored notes for @scope/core, but the editable region is gone from the body.
     const draftWithNotes = { ...manifest, releaseNotes: { '@scope/core': '- reviewed in the draft' } };

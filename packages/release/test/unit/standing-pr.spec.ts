@@ -21,7 +21,7 @@ import {
  * two formatted `log` reads that need independent control:
  *  - `getHeadCommitMessage` (`--format=%s`) — the HEAD commit subject the skip-pattern guards key on;
  *    `nextSubject` is a queue so a single test can return different subjects across the two guard
- *    calls (the #323 / #336 mid-run-reset scenarios).
+ *    calls (the mid-run-reset scenarios).
  *  - `createReleaseTags`' tag→commit resolution (`--format=%H`) — answered with the seeded HEAD SHA so
  *    a present tag reads as "at HEAD".
  * Everything else (commit/tag/push/checkout/reset/fetch/add) is the real FakeGit recorder, so specs
@@ -544,7 +544,7 @@ describe('runStandingPRUpdate', () => {
     expect(updatedBody).toContain('- [x] `@scope/a`');
   });
 
-  // --- Release-unit selection: primaryPackages wiring (#464) ---
+  // --- Release-unit selection: primaryPackages wiring ---
 
   // Config with `@wdio/tauri-service` as a primary over a linked `tauri` group, and the workspace
   // resolver returning both packages so the primary (changed here) anchors the plugin as its child.
@@ -658,7 +658,7 @@ describe('runStandingPRUpdate', () => {
     } as unknown as ReturnType<typeof loadConfig>);
   };
 
-  // Authorization AND per-row channel toggles both enabled — the combination the #526 gate protects.
+  // Authorization AND per-row channel toggles both enabled — the combination the gate protects.
   const withAuthzChannel = async () => {
     const { loadConfig } = await import('@releasekit/config');
     vi.mocked(loadConfig).mockReturnValue({
@@ -868,7 +868,7 @@ describe('runStandingPRUpdate', () => {
     expect(writeCall.bump).toBe('major'); // authorized override honoured
   });
 
-  // #526 — channel toggles (rk-pre/rk-grad) get the same manifest reconciliation as ad-hoc deselection.
+  // Channel toggles (rk-pre/rk-grad) get the same manifest reconciliation as ad-hoc deselection.
   const channelWriteOutput = async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = {
@@ -1389,7 +1389,7 @@ describe('runStandingPRUpdate', () => {
     expect(body).toContain('<details><summary>Changelog (1 entry)</summary>');
   });
 
-  // Build a mixed-channel async version output whose updates carry the #520 baseline/channel fields the
+  // Build a mixed-channel async version output whose updates carry the baseline/channel fields the
   // summary line and table render from.
   function mixedChannelOutput() {
     return {
@@ -1435,7 +1435,7 @@ describe('runStandingPRUpdate', () => {
     };
   }
 
-  it('should render the #520 release summary line and omit the version-summary table by default', async () => {
+  it('should render the release summary line and omit the version-summary table by default', async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = mixedChannelOutput();
     vi.mocked(runVersionStep)
@@ -1453,7 +1453,7 @@ describe('runStandingPRUpdate', () => {
     expect(body).not.toContain('Version summary (');
   });
 
-  it('should render the #520 version-summary table when ci.standingPr.summaryTable is true', async () => {
+  it('should render the version-summary table when ci.standingPr.summaryTable is true', async () => {
     const { loadConfig } = await import('@releasekit/config');
     vi.mocked(loadConfig).mockReturnValueOnce({
       ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true, summaryTable: true } },
@@ -2079,7 +2079,7 @@ describe('runStandingPRUpdate', () => {
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
       // Composed so an already-prerelease package escalates a fresh line (premajor → 2.0.0-next.0)
-      // rather than degrading to a prerelease increment (#335). Both dry-run and write calls agree.
+      // rather than degrading to a prerelease increment. Both dry-run and write calls agree.
       expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ bump: 'premajor', prerelease: true });
       expect(runVersionStepMock.mock.calls[1]?.[0]).toMatchObject({ bump: 'premajor', prerelease: true });
     });
@@ -2574,7 +2574,7 @@ describe('runStandingPRPublish', () => {
       { '@scope/core': '- regenerated at publish time' },
       expect.arrayContaining(['RELEASE_NOTES.md', ...baseManifest.notesFiles]),
     );
-    // The publish moved `main`, so feeder-PR previews are refreshed in-process (#459).
+    // The publish moved `main`, so feeder-PR previews are refreshed in-process.
     const { refreshFeederPreviews } = await import('../../src/preview/refresh.js');
     expect(vi.mocked(refreshFeederPreviews)).toHaveBeenCalledWith(expect.objectContaining({ projectDir: '/test' }));
   });
@@ -2747,7 +2747,7 @@ describe('runStandingPRPublish', () => {
       JSON.stringify({ pull_request: { head: { ref: 'release/next' }, number: 42, merged: true } }),
     );
 
-    // baseManifest has no overrideLabels (pre-#337) — the check must be skipped even if labels differ.
+    // baseManifest has no overrideLabels — the check must be skipped even if labels differ.
     await mockForge({
       comments: [{ id: 1, body: serializeManifest(baseManifest) }],
       pullRequests: { 42: { body: '', labels: ['bump:major'] } },
