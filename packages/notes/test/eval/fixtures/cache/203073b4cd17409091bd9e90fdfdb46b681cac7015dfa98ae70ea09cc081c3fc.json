@@ -1,0 +1,3 @@
+{
+  "content": "## What's new in 2.0.0\n\nThis release brought real-time capabilities to the widget and smoothed over a few rough edges since 1.4.2.\n\n### Added\n- Added a streaming API for real-time updates.\n- Added deeplink support for the mobile client.\n\n### Fixed\n- Fixed a crash that occurred when the config file was missing.\n\n### Changed\n- Improved error messages for invalid configuration.\n- Updated dependencies.\n\nThanks to everyone who contributed to this release!"
+}
