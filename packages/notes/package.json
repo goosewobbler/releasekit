@@ -57,7 +57,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.112.3",
+    "@anthropic-ai/sdk": "^0.112.4",
     "@octokit/rest": "catalog:",
     "chalk": "catalog:",
     "commander": "catalog:",
