@@ -33,6 +33,7 @@ export interface RunActionOptions {
 
 export function buildReleaseArgs(input: ActionInputs): string[];
 export function buildPreviewArgs(input: ActionInputs): string[];
+export function buildRefreshAfterReleaseArgs(input: ActionInputs): string[];
 export function parseReleaseOutput(
   stdout: string,
 ): { versionOutput?: { tags?: string[]; updates?: unknown[] } } | undefined;
