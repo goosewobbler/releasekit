@@ -1,7 +1,7 @@
-import { setJsonMode, setLogLevel, setQuietMode } from '@releasekit/core';
+import { exitCodeForError, setJsonMode, setLogLevel, setQuietMode } from '@releasekit/core';
 import { Command } from 'commander';
 import { runGate } from '../gate/gate.js';
-import { emitResult } from './emitResult.js';
+import { emitError, emitResult } from './emitResult.js';
 
 export function createGateCommand(): Command {
   return new Command('gate')
@@ -28,12 +28,14 @@ export function createGateCommand(): Command {
           quiet: opts.quiet,
         });
 
-        emitResult(result, { json: opts.json, output: opts.output });
+        // gate is a read-only check — it never mutates state, so changed is always false.
+        emitResult(result, { json: opts.json, output: opts.output, changed: false });
 
         process.exit(0);
       } catch (error) {
+        emitError(error, { json: opts.json, output: opts.output });
         console.error(error instanceof Error ? error.message : String(error));
-        process.exit(1);
+        process.exit(exitCodeForError(error));
       }
     });
 }

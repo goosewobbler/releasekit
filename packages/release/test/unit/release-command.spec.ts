@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@releasekit/core');
 vi.mock('../../src/release.js');
 
-import { EXIT_CODES } from '@releasekit/core';
+import { EXIT_CODES, successEnvelope } from '@releasekit/core';
 import { createReleaseCommand } from '../../src/commands/release-command.js';
 import { runRelease } from '../../src/release.js';
 import type { ReleaseOptions, ReleaseOutput } from '../../src/types.js';
@@ -127,10 +126,10 @@ describe('createReleaseCommand', () => {
   });
 
   describe('JSON output', () => {
-    it('should print result as JSON when --json is passed and runRelease returns output', async () => {
+    it('should print result wrapped in a success envelope when --json is passed', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
       await createReleaseCommand().parseAsync(['node', 'test', '--json']);
-      expect(consoleSpy).toHaveBeenCalledWith(JSON.stringify(mockOutput, null, 2));
+      expect(consoleSpy).toHaveBeenCalledWith(JSON.stringify(successEnvelope(mockOutput, { changed: false }), null, 2));
       consoleSpy.mockRestore();
     });
 
@@ -141,11 +140,11 @@ describe('createReleaseCommand', () => {
       consoleSpy.mockRestore();
     });
 
-    it('should not print JSON when runRelease returns null', async () => {
+    it('should print an envelope with null data when runRelease returns null', async () => {
       vi.mocked(runRelease).mockResolvedValue(null);
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
       await createReleaseCommand().parseAsync(['node', 'test', '--json']);
-      expect(consoleSpy).not.toHaveBeenCalled();
+      expect(consoleSpy).toHaveBeenCalledWith(JSON.stringify(successEnvelope(null, { changed: false }), null, 2));
       consoleSpy.mockRestore();
     });
   });
@@ -177,6 +176,26 @@ describe('createReleaseCommand', () => {
       await createReleaseCommand().parseAsync(['node', 'test']);
       expect(consoleSpy).toHaveBeenCalledWith('string error');
       consoleSpy.mockRestore();
+    });
+  });
+
+  describe('input validation', () => {
+    it('should emit an INPUT_ERROR envelope and exit 3 for --stable with --prerelease in json mode', async () => {
+      mockExit.mockImplementation(((code?: number) => {
+        throw new Error(`exit(${code})`);
+      }) as never);
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      await expect(
+        createReleaseCommand().parseAsync(['node', 'test', '--json', '--stable', '--prerelease']),
+      ).rejects.toThrow(/exit\(3\)/);
+
+      expect(runRelease).not.toHaveBeenCalled();
+      const envelope = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
+      expect(envelope.status).toBe('error');
+      expect(envelope.errors[0]).toMatchObject({ code: 'INPUT_ERROR', category: 'input', retryable: false });
+      logSpy.mockRestore();
     });
   });
 });

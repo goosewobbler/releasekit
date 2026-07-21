@@ -1,9 +1,9 @@
-import { EXIT_CODES } from '@releasekit/core';
+import { exitCodeForError } from '@releasekit/core';
 import { Command, Option } from 'commander';
 import { publishFromDraft, runReleaseDraft } from '../draft/draft.js';
 import { runRelease } from '../release.js';
 import type { ReleaseOptions } from '../types.js';
-import { emitResult } from './emitResult.js';
+import { emitError, emitResult, failInput } from './emitResult.js';
 
 export function createReleaseCommand(): Command {
   return new Command('release')
@@ -48,22 +48,21 @@ export function createReleaseCommand(): Command {
     .option('-q, --quiet', 'Suppress non-error output', false)
     .option('--project-dir <path>', 'Project directory', process.cwd())
     .action(async (opts) => {
+      const io = { json: opts.json, output: opts.output };
+
       if (opts.stable && opts.prerelease) {
-        console.error('Error: Cannot use both --stable and --prerelease at the same time');
-        process.exit(EXIT_CODES.INPUT_ERROR);
+        failInput('Cannot use both --stable and --prerelease at the same time', io);
       }
 
       if (opts.draft && opts.fromDraft !== undefined) {
-        console.error('Error: Cannot use both --draft and --from-draft at the same time');
-        process.exit(EXIT_CODES.INPUT_ERROR);
+        failInput('Cannot use both --draft and --from-draft at the same time', io);
       }
 
       let fromDraftNumber: number | undefined;
       if (opts.fromDraft !== undefined) {
         fromDraftNumber = Number(opts.fromDraft);
         if (!Number.isInteger(fromDraftNumber) || fromDraftNumber <= 0) {
-          console.error(`Error: --from-draft expects a positive issue number, got "${opts.fromDraft}"`);
-          process.exit(EXIT_CODES.INPUT_ERROR);
+          failInput(`--from-draft expects a positive issue number, got "${opts.fromDraft}"`, io);
         }
       }
 
@@ -99,14 +98,18 @@ export function createReleaseCommand(): Command {
               ? await runReleaseDraft(options)
               : await runRelease(options);
 
-        emitResult(result, { json: options.json, output: opts.output });
+        // A dry run plans but never mutates state, so it is never "changed"; a real run changed
+        // state iff it produced version updates.
+        const changed = !opts.dryRun && Boolean(result?.versionOutput?.updates?.length);
+        emitResult(result, { json: options.json, output: opts.output, changed });
 
         if (!result) {
           process.exit(0);
         }
       } catch (error) {
+        emitError(error, { json: opts.json, output: opts.output });
         console.error(error instanceof Error ? error.message : String(error));
-        process.exit(EXIT_CODES.GENERAL_ERROR);
+        process.exit(exitCodeForError(error));
       }
     });
 }

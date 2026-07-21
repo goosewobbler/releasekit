@@ -165,6 +165,13 @@ jobs:
             exit $EXIT_CODE
           fi
 
+          # Unwrap the uniform CLI envelope ({ schemaVersion, status, data, … }) to its data payload so
+          # the .versionOutput / .releaseNotes reads below (and in release-output.json) work unchanged.
+          # Tolerate non-enveloped output.
+          if echo "$RELEASE_OUTPUT" | jq -e 'type == "object" and has("schemaVersion") and has("data")' > /dev/null 2>&1; then
+            RELEASE_OUTPUT=$(echo "$RELEASE_OUTPUT" | jq '.data')
+          fi
+
           # Check if output is valid JSON (releasekit returns null for no changes)
           if echo "$RELEASE_OUTPUT" | jq -e '.versionOutput' > /dev/null 2>&1; then
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
@@ -201,6 +208,11 @@ jobs:
           if [ $EXIT_CODE -ne 0 ]; then
             echo "::error::standing-pr publish failed with exit code $EXIT_CODE"
             exit $EXIT_CODE
+          fi
+
+          # Unwrap the uniform CLI envelope (see the release path above) so the reads below work.
+          if echo "$RELEASE_OUTPUT" | jq -e 'type == "object" and has("schemaVersion") and has("data")' > /dev/null 2>&1; then
+            RELEASE_OUTPUT=$(echo "$RELEASE_OUTPUT" | jq '.data')
           fi
 
           if echo "$RELEASE_OUTPUT" | jq -e '.versionOutput' > /dev/null 2>&1; then

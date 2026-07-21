@@ -13,7 +13,18 @@ export {
   type GraphPackage,
   type WorkspaceDependencyGraph,
 } from './dependencyGraph.js';
-export { EXIT_CODES, type ExitCode, ReleaseKitError } from './errors.js';
+export {
+  ENVELOPE_SCHEMA_VERSION,
+  type Envelope,
+  type EnvelopeError,
+  type EnvelopeStatus,
+  type EnvelopeWarning,
+  errorEnvelope,
+  exitCodeForError,
+  successEnvelope,
+  toEnvelopeError,
+} from './envelope.js';
+export { EXIT_CODES, type ExitCode, InputError, ReleaseKitError } from './errors.js';
 export {
   debug,
   error,

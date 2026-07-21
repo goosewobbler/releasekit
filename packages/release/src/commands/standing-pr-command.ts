@@ -1,8 +1,8 @@
-import { EXIT_CODES } from '@releasekit/core';
+import { exitCodeForError } from '@releasekit/core';
 import { Command } from 'commander';
 import type { StandingPROptions } from '../standing-pr/standing-pr.js';
 import { runStandingPRMerge, runStandingPRPublish, runStandingPRUpdate } from '../standing-pr/standing-pr.js';
-import { emitResult } from './emitResult.js';
+import { emitError, emitResult, failInput } from './emitResult.js';
 
 export function createStandingPRCommand(): Command {
   const cmd = new Command('standing-pr').description(
@@ -49,10 +49,11 @@ export function createStandingPRCommand(): Command {
 
     try {
       const result = await runStandingPRUpdate(options);
-      emitResult(result, { json: opts.json, output: opts.output });
+      emitResult(result, { json: opts.json, output: opts.output, changed: result.action !== 'noop' });
     } catch (err) {
+      emitError(err, { json: opts.json, output: opts.output });
       console.error(err instanceof Error ? err.message : String(err));
-      process.exit(EXIT_CODES.GENERAL_ERROR);
+      process.exit(exitCodeForError(err));
     }
   });
 
@@ -80,18 +81,23 @@ export function createStandingPRCommand(): Command {
       // non-digit characters ('123abc' → 123), which would mask genuine input errors.
       const trimmed = String(opts.pr).trim();
       if (!/^[1-9]\d*$/.test(trimmed)) {
-        console.error(`--pr must be a positive integer (got: ${opts.pr})`);
-        process.exit(EXIT_CODES.GENERAL_ERROR);
+        failInput(`--pr must be a positive integer (got: ${opts.pr})`, { json: opts.json, output: opts.output });
       }
       prNumber = Number.parseInt(trimmed, 10);
     }
 
     try {
       const result = await runStandingPRPublish(options, prNumber);
-      emitResult(result, { json: opts.json, output: opts.output });
+      // skip-if-published returns no updates — surface that as changed:false.
+      emitResult(result, {
+        json: opts.json,
+        output: opts.output,
+        changed: Boolean(result?.versionOutput?.updates?.length),
+      });
     } catch (err) {
+      emitError(err, { json: opts.json, output: opts.output });
       console.error(err instanceof Error ? err.message : String(err));
-      process.exit(EXIT_CODES.GENERAL_ERROR);
+      process.exit(exitCodeForError(err));
     }
   });
 
@@ -112,10 +118,12 @@ export function createStandingPRCommand(): Command {
 
     try {
       const result = await runStandingPRMerge(options, { publish: opts.publish });
-      emitResult(result, { json: opts.json, output: opts.output });
+      // A non-null result means the PR was merged (nothing-to-merge returns null).
+      emitResult(result, { json: opts.json, output: opts.output, changed: result != null });
     } catch (err) {
+      emitError(err, { json: opts.json, output: opts.output });
       console.error(err instanceof Error ? err.message : String(err));
-      process.exit(EXIT_CODES.GENERAL_ERROR);
+      process.exit(exitCodeForError(err));
     }
   });
 
