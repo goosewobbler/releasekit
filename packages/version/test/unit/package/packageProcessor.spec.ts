@@ -400,7 +400,7 @@ describe('Package Processor', () => {
       expect(calls[0][0]).toMatchObject({ previousVersion: 'v1.0.0' });
     });
 
-    it('should record the resolved previousVersion on the package update (#520)', async () => {
+    it('should record the resolved previousVersion on the package update', async () => {
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('release/v1.0.0');
       vi.spyOn(formatting, 'deriveBaselineTagPrefix').mockReturnValue('release/v');
       vi.spyOn(formatting, 'displayTag').mockImplementation((tag, baselineTagPrefix, formattedPrefix) => {
@@ -423,7 +423,7 @@ describe('Package Processor', () => {
       expect(jsonOutput.setPackageUpdatePreviousVersion).toHaveBeenCalledWith('package-a', 'v1.0.0');
     });
 
-    it('should warn and omit previousVersion when the baseline tag is unreachable (#339)', async () => {
+    it('should warn and omit previousVersion when the baseline tag is unreachable', async () => {
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('release/v1.0.0');
       vi.spyOn(formatting, 'deriveBaselineTagPrefix').mockReturnValue('release/v');
       vi.spyOn(formatting, 'displayTag').mockImplementation((tag, baselineTagPrefix, formattedPrefix) => {
@@ -554,7 +554,7 @@ describe('Package Processor', () => {
       expect(calls[0][0]).toMatchObject({ previousVersion: 'v1.0.0' });
     });
 
-    it('should warn when a package has no prior tag (full-history changelog, #334)', async () => {
+    it('should warn when a package has no prior tag (full-history changelog)', async () => {
       // No package tag and no global tag — only the manifest version is available, so hasRealTag is
       // false and the changelog spans the full history. The warning makes this visible (and heads off
       // the opaque oversized-PR-body 422 in #333).
@@ -585,7 +585,7 @@ describe('Package Processor', () => {
       );
     });
 
-    it('should bound repo-level changelog by the nearest reachable tag, even when getLatestTag is prefix-blind (#348)', async () => {
+    it('should bound repo-level changelog by the nearest reachable tag, even when getLatestTag is prefix-blind', async () => {
       // package-a has no specific tag; getVersionFromManifests returns a manifest version via the
       // global beforeEach mock, making hasRealTag=false and revisionRange='HEAD'. The baseline floor
       // must come from getNearestReachableTag (git describe), which finds per-package prefixed tags.
@@ -613,7 +613,7 @@ describe('Package Processor', () => {
       );
     });
 
-    it('should fall back to HEAD range for shared entries when no tag is reachable (#348)', async () => {
+    it('should fall back to HEAD range for shared entries when no tag is reachable', async () => {
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
       vi.spyOn(gitTags, 'getNearestReachableTag').mockResolvedValue('');
       vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
@@ -630,7 +630,7 @@ describe('Package Processor', () => {
       expect(extractSharedSpy).toHaveBeenCalledWith(expect.any(String), 'HEAD', expect.any(Array), expect.any(Array));
     });
 
-    it('should classify against the full workspace, not the release set, so a non-releasing package does not leak into shared (#397)', async () => {
+    it('should classify against the full workspace, not the release set, so a non-releasing package does not leak into shared', async () => {
       const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockResolvedValue([]);
       const processor = new PackageProcessor({
         ...defaultOptions,
@@ -655,7 +655,7 @@ describe('Package Processor', () => {
       );
     });
 
-    it('should route a configured sharedPackages package to repo-level via its dir (#406)', async () => {
+    it('should route a configured sharedPackages package to repo-level via its dir', async () => {
       const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockResolvedValue([]);
       const processor = new PackageProcessor({
         ...defaultOptions,
@@ -676,7 +676,7 @@ describe('Package Processor', () => {
       ]);
     });
 
-    it('should treat no package as shared when sharedPackages is unset — no hardcoded names (#406)', async () => {
+    it('should treat no package as shared when sharedPackages is unset — no hardcoded names', async () => {
       const extractSharedSpy = vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockResolvedValue([]);
       const processor = new PackageProcessor({
         ...defaultOptions,

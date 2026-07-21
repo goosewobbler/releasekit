@@ -174,7 +174,7 @@ describe('Version Engine', () => {
       );
     });
 
-    it('should fold prereleaseScope into isPrerelease + prereleaseScope on effective config (#521)', () => {
+    it('should fold prereleaseScope into isPrerelease + prereleaseScope on effective config', () => {
       new VersionEngine(defaultConfig as Config, { prereleaseScope: ['@scope/a'] });
 
       expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(
@@ -182,7 +182,7 @@ describe('Version Engine', () => {
       );
     });
 
-    it('should keep the configured identifier when folding prereleaseScope (#521)', () => {
+    it('should keep the configured identifier when folding prereleaseScope', () => {
       const configWithAlpha = { ...defaultConfig, prereleaseIdentifier: 'alpha' } as Config;
       new VersionEngine(configWithAlpha, { prereleaseScope: ['@scope/a'] });
 
@@ -191,7 +191,7 @@ describe('Version Engine', () => {
       );
     });
 
-    it('should drop prereleaseScope when the global prerelease flag is also set — global wins (#521)', () => {
+    it('should drop prereleaseScope when the global prerelease flag is also set — global wins', () => {
       new VersionEngine(defaultConfig as Config, { prerelease: true, prereleaseScope: ['@scope/a'] });
 
       // The scope is left unset (key absent) rather than set to undefined, so assert on the passed

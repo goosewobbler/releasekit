@@ -62,7 +62,6 @@ export class OpenAIProvider extends BaseLLMProvider {
             type: 'json_schema' as const,
             json_schema: {
               name: options.toolName ?? 'release_notes',
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               schema: options.schema as any,
               strict: true,
             },

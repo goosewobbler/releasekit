@@ -179,7 +179,7 @@ describe('FakeForge', () => {
     });
   });
 
-  it('should discover an issue seeded only via the issues map (#462 review)', async () => {
+  it('should discover an issue seeded only via the issues map', async () => {
     const forge = createFakeForge({
       issues: { 7: { body: 'b', title: 't', labels: ['release:draft'], isPullRequest: false } },
     });
@@ -191,7 +191,7 @@ describe('FakeForge', () => {
     expect(await withPr.findOpenIssueByLabel('release:draft')).toBeNull();
   });
 
-  it('should return the newest (highest-numbered) matching open issue (#462 review)', async () => {
+  it('should return the newest (highest-numbered) matching open issue', async () => {
     const forge = createFakeForge({
       openIssues: [
         { number: 3, url: 'u3', labels: ['release:draft'] },
