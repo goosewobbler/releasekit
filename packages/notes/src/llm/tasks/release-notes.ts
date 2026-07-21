@@ -5,7 +5,7 @@ import type { LLMMessage } from '../messages.js';
 import { resolveSystemPrompt } from '../prompts.js';
 import { INSTRUCTION_HIERARCHY, renderEntries } from './shared.js';
 
-const DEFAULT_SYSTEM_PROMPT = `You are writing release notes for a software project.
+export const DEFAULT_SYSTEM_PROMPT = `You are writing release notes for a software project.
 
 ${INSTRUCTION_HIERARCHY}
 

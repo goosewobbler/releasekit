@@ -13,7 +13,10 @@
       "!**/dist",
       "!**/out",
       "!.turbo",
-      "!**/node_modules"
+      "!**/node_modules",
+      // Recorded eval fixtures — opaque provider-response blobs in the cache's native (compact) format.
+      // Formatting them would churn on every re-record and diverge from what the harness writes.
+      "!packages/notes/test/eval/fixtures/cache"
     ]
   },
   "formatter": {

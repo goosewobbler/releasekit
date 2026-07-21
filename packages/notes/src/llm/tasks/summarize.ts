@@ -4,7 +4,7 @@ import type { LLMMessage } from '../messages.js';
 import { resolveSystemPrompt } from '../prompts.js';
 import { INSTRUCTION_HIERARCHY, renderEntries } from './shared.js';
 
-const DEFAULT_SYSTEM_PROMPT = `You are creating a summary of changes for a software release.
+export const DEFAULT_SYSTEM_PROMPT = `You are creating a summary of changes for a software release.
 Create a brief summary (2-3 sentences) that captures the main themes of this release.
 
 ${INSTRUCTION_HIERARCHY}

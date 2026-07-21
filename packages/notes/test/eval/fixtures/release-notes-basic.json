@@ -1,0 +1,30 @@
+{
+  "context": {
+    "packageName": "@acme/widget",
+    "version": "2.0.0",
+    "previousVersion": "1.4.2",
+    "date": "2026-01-01"
+  },
+  "entries": [
+    {
+      "type": "added",
+      "description": "Add a streaming API for real-time updates"
+    },
+    {
+      "type": "added",
+      "description": "Add deeplink support for the mobile client"
+    },
+    {
+      "type": "fixed",
+      "description": "Fix a crash when the config file is missing"
+    },
+    {
+      "type": "changed",
+      "description": "Improve error messages for invalid configuration"
+    },
+    {
+      "type": "changed",
+      "description": "Update dependencies"
+    }
+  ]
+}

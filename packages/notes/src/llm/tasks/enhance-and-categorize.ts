@@ -25,7 +25,7 @@ export interface CombinedResult {
   categories: CategorizedEntries[];
 }
 
-function buildSystemPrompt(categories: LLMCategory[] | undefined, style: string | undefined): string {
+export function buildSystemPrompt(categories: LLMCategory[] | undefined, style: string | undefined): string {
   const styleText = style || 'Use past tense ("Added feature" not "Add feature"). Be concise.';
 
   const categorySection = buildCategorySection(

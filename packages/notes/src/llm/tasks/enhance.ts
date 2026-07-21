@@ -6,7 +6,7 @@ import type { LLMMessage } from '../messages.js';
 import { resolveSystemPrompt } from '../prompts.js';
 import { INSTRUCTION_HIERARCHY, renderEntry } from './shared.js';
 
-function buildSystemPrompt(style: string | undefined): string {
+export function buildSystemPrompt(style: string | undefined): string {
   const styleText = style ? `- ${style}` : '- Use past tense ("Added feature" not "Add feature")';
   return `You are improving changelog entries for a software project.
 Given a technical commit message, rewrite it as a clear, user-friendly changelog entry.

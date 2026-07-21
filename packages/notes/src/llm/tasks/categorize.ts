@@ -18,7 +18,7 @@ import {
   type TaskValidator,
 } from './shared.js';
 
-function buildSystemPrompt(categories: LLMCategory[] | undefined): string {
+export function buildSystemPrompt(categories: LLMCategory[] | undefined): string {
   const categorySection = buildCategorySection(
     categories,
     `Categories: Group into meaningful categories (e.g., "Core", "UI", "API", "Performance", "Bug Fixes", "Documentation").`,
