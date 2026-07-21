@@ -44,7 +44,7 @@
   "devDependencies": {
     "@biomejs/biome": "catalog:",
     "@types/node": "catalog:",
-    "@typescript-eslint/parser": "^8.64.0",
+    "@typescript-eslint/parser": "^8.65.0",
     "@vitest/eslint-plugin": "^1.6.23",
     "eslint": "^10.7.0",
     "husky": "^9.1.7",
