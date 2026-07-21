@@ -117,7 +117,7 @@ jobs:
       - name: Restore fixture into workspace
         run: git clone --quiet "$RUNNER_TEMP/fixture/minimal.bundle" .
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: "24"
           cache: pnpm
@@ -140,7 +140,7 @@ jobs:
       - name: Restore fixture into workspace
         run: git clone --quiet "$RUNNER_TEMP/fixture/label-driven.bundle" .
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: "24"
           cache: pnpm
@@ -163,7 +163,7 @@ jobs:
       - name: Restore fixture into workspace
         run: git clone --quiet "$RUNNER_TEMP/fixture/oidc.bundle" .
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: "24"
           cache: pnpm
@@ -186,7 +186,7 @@ jobs:
       - name: Restore fixture into workspace
         run: git clone --quiet "$RUNNER_TEMP/fixture/monorepo-rust.bundle" .
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: "24"
           cache: pnpm
@@ -212,7 +212,7 @@ jobs:
       - name: Restore fixture into workspace
         run: git clone --quiet "$RUNNER_TEMP/fixture/prerelease.bundle" .
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: "24"
           cache: pnpm
@@ -235,7 +235,7 @@ jobs:
       - name: Restore fixture into workspace
         run: git clone --quiet "$RUNNER_TEMP/fixture/standing-pr.bundle" .
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: "24"
           cache: pnpm
