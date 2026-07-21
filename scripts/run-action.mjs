@@ -140,6 +140,15 @@ export function buildBackfillArgs(input) {
   return args;
 }
 
+export function buildRefreshAfterReleaseArgs(input) {
+  const args = ['refresh-after-release'];
+
+  pushOptionalArg(args, '--config', input.config);
+  pushOptionalArg(args, '--project-dir', input.projectDir);
+
+  return args;
+}
+
 export function writeGateOutputs(stdout, verbose = false) {
   const parsed = parseReleaseOutput(stdout, verbose);
   setOutput('should-release', parsed?.shouldRelease ? 'true' : 'false');
@@ -253,7 +262,15 @@ export function parseInputs(env = process.env) {
     backfillApply: env.INPUT_APPLY,
   };
 
-  const validModes = ['release', 'preview', 'gate', 'standing-pr-update', 'standing-pr-publish', 'backfill'];
+  const validModes = [
+    'release',
+    'preview',
+    'gate',
+    'standing-pr-update',
+    'standing-pr-publish',
+    'backfill',
+    'refresh-after-release',
+  ];
   if (!validModes.includes(input.mode)) {
     throw new Error(`Invalid mode: ${input.mode}. Must be one of: ${validModes.join(', ')}`);
   }
@@ -263,7 +280,15 @@ export function parseInputs(env = process.env) {
 
 export async function runAction(input, options = {}) {
   const mode = input.mode;
-  const validModes = ['release', 'preview', 'gate', 'standing-pr-update', 'standing-pr-publish', 'backfill'];
+  const validModes = [
+    'release',
+    'preview',
+    'gate',
+    'standing-pr-update',
+    'standing-pr-publish',
+    'backfill',
+    'refresh-after-release',
+  ];
   if (!validModes.includes(mode)) {
     throw new Error(`Invalid mode: ${mode}. Expected one of: ${validModes.join(', ')}.`);
   }
@@ -279,6 +304,7 @@ export async function runAction(input, options = {}) {
     'standing-pr-publish': buildStandingPRPublishArgs,
     backfill: buildBackfillArgs,
     preview: buildPreviewArgs,
+    'refresh-after-release': buildRefreshAfterReleaseArgs,
   };
   // `mode` is validated against validModes above, and every entry has a key here.
   const args = argBuilders[mode](input);
@@ -620,8 +646,8 @@ async function main() {
     writeGateOutputs(result.stdout ?? '', verbose);
   } else if (result.mode === 'standing-pr-update' || result.mode === 'standing-pr-publish') {
     writeStandingPROutputs(result.stdout ?? '', verbose);
-  } else if (result.mode === 'backfill') {
-    // Backfill streams its own progress and exposes only the core success/mode outputs.
+  } else if (result.mode === 'backfill' || result.mode === 'refresh-after-release') {
+    // These stream their own progress and expose only the core success/mode outputs.
   } else {
     writePreviewOutputs(input, result.stdout ?? '');
   }

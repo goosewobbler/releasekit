@@ -182,10 +182,12 @@ jobs:
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
       - name: Reconcile standing PR
-        # The release above tagged new versions. Re-run standing PR update so the queued
-        # release reflects the post-immediate state (released packages drop out of the
-        # queue, anything still queued stays). Zero-staleness reconciliation.
-        run: pnpm exec releasekit standing-pr update
+        # The release above tagged new versions. Use refresh-after-release, not `standing-pr update`:
+        # HEAD is now a `chore: release …` commit, which the skip-pattern guard matches, so a plain
+        # update no-ops. refresh-after-release forces the reconcile bypass so the queued release
+        # actually reflects the post-immediate state (released packages drop out, anything still
+        # queued stays) and refreshes stale feeder-PR previews. Zero-staleness reconciliation.
+        run: pnpm exec releasekit refresh-after-release
         env:
           GITHUB_TOKEN: ${{ github.token }}
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
