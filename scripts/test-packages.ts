@@ -215,9 +215,12 @@ function testReleaseDryRun(dir: string): void {
     'Running releasekit release --dry-run --json',
   );
 
-  // Validate JSON output
+  // Validate JSON output. Unwrap the uniform CLI envelope ({ schemaVersion, status, data, … }) to its
+  // data payload; tolerate legacy un-enveloped output.
   try {
-    const result = JSON.parse(output.trim());
+    const parsed = JSON.parse(output.trim());
+    const result =
+      parsed && typeof parsed === 'object' && 'schemaVersion' in parsed && 'data' in parsed ? parsed.data : parsed;
     if (!result.versionOutput) {
       throw new Error('Missing versionOutput in release output');
     }
