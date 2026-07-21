@@ -178,4 +178,24 @@ describe('createReleaseCommand', () => {
       consoleSpy.mockRestore();
     });
   });
+
+  describe('input validation', () => {
+    it('should emit an INPUT_ERROR envelope and exit 3 for --stable with --prerelease in json mode', async () => {
+      mockExit.mockImplementation(((code?: number) => {
+        throw new Error(`exit(${code})`);
+      }) as never);
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      await expect(
+        createReleaseCommand().parseAsync(['node', 'test', '--json', '--stable', '--prerelease']),
+      ).rejects.toThrow(/exit\(3\)/);
+
+      expect(runRelease).not.toHaveBeenCalled();
+      const envelope = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
+      expect(envelope.status).toBe('error');
+      expect(envelope.errors[0]).toMatchObject({ code: 'INPUT_ERROR', category: 'input', retryable: false });
+      logSpy.mockRestore();
+    });
+  });
 });

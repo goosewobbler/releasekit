@@ -54,13 +54,36 @@ describe('createStandingPRCommand', () => {
     }) as never);
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
+      // Exits with INPUT_ERROR (3), not the general error code.
       await expect(parseCommand(['publish', '--project-dir', '/test', '--pr', '123abc'])).rejects.toThrow(
-        /process\.exit/,
+        /process\.exit\(3\)/,
       );
       expect(runStandingPRPublish).not.toHaveBeenCalled();
       expect(errSpy).toHaveBeenCalledWith(expect.stringContaining('positive integer'));
     } finally {
       exitSpy.mockRestore();
+      errSpy.mockRestore();
+    }
+  });
+
+  it('should emit an INPUT_ERROR envelope for an invalid --pr in json mode', async () => {
+    const { runStandingPRPublish } = await import('../../src/standing-pr/standing-pr.js');
+    vi.mocked(runStandingPRPublish).mockClear();
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`process.exit(${code})`);
+    }) as never);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await expect(parseCommand(['publish', '--project-dir', '/test', '--json', '--pr', 'abc'])).rejects.toThrow(
+        /process\.exit\(3\)/,
+      );
+      const envelope = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
+      expect(envelope.status).toBe('error');
+      expect(envelope.errors[0]).toMatchObject({ code: 'INPUT_ERROR', category: 'input', retryable: false });
+    } finally {
+      exitSpy.mockRestore();
+      logSpy.mockRestore();
       errSpy.mockRestore();
     }
   });

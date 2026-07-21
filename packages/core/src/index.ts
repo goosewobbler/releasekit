@@ -24,7 +24,7 @@ export {
   successEnvelope,
   toEnvelopeError,
 } from './envelope.js';
-export { EXIT_CODES, type ExitCode, ReleaseKitError } from './errors.js';
+export { EXIT_CODES, type ExitCode, InputError, ReleaseKitError } from './errors.js';
 export {
   debug,
   error,

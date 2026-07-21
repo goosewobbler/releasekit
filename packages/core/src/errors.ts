@@ -29,6 +29,12 @@ export abstract class ReleaseKitError extends Error {
   }
 }
 
+/** A CLI input-validation failure — a bad flag combination or a malformed argument. */
+export class InputError extends ReleaseKitError {
+  readonly code = 'INPUT_ERROR';
+  readonly suggestions: string[] = [];
+}
+
 export const EXIT_CODES = {
   SUCCESS: 0,
   GENERAL_ERROR: 1,

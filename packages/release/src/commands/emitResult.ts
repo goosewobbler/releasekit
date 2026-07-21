@@ -1,5 +1,13 @@
 import { writeFileSync } from 'node:fs';
-import { type Envelope, type EnvelopeWarning, errorEnvelope, successEnvelope, toEnvelopeError } from '@releasekit/core';
+import {
+  type Envelope,
+  type EnvelopeWarning,
+  EXIT_CODES,
+  errorEnvelope,
+  InputError,
+  successEnvelope,
+  toEnvelopeError,
+} from '@releasekit/core';
 
 /**
  * Write an envelope to the JSON channel. When `--output` is given, write to that file — the reliable
@@ -32,4 +40,15 @@ export function emitResult(
 export function emitError(error: unknown, opts: { json?: boolean; output?: string }): void {
   if (!opts.json && !opts.output) return;
   writeEnvelope(errorEnvelope([toEnvelopeError(error)]), opts);
+}
+
+/**
+ * Report a CLI input-validation failure through the uniform contract: emit a structured INPUT_ERROR
+ * envelope on the JSON channel, log the message to stderr, and exit with the input-error code. Used
+ * for pre-flight arg checks so they honour the same envelope guarantee as runtime errors.
+ */
+export function failInput(message: string, opts: { json?: boolean; output?: string }): never {
+  emitError(new InputError(message), opts);
+  console.error(message);
+  process.exit(EXIT_CODES.INPUT_ERROR);
 }

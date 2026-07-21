@@ -1,8 +1,8 @@
-import { EXIT_CODES, exitCodeForError } from '@releasekit/core';
+import { exitCodeForError } from '@releasekit/core';
 import { Command } from 'commander';
 import type { StandingPROptions } from '../standing-pr/standing-pr.js';
 import { runStandingPRMerge, runStandingPRPublish, runStandingPRUpdate } from '../standing-pr/standing-pr.js';
-import { emitError, emitResult } from './emitResult.js';
+import { emitError, emitResult, failInput } from './emitResult.js';
 
 export function createStandingPRCommand(): Command {
   const cmd = new Command('standing-pr').description(
@@ -81,8 +81,7 @@ export function createStandingPRCommand(): Command {
       // non-digit characters ('123abc' → 123), which would mask genuine input errors.
       const trimmed = String(opts.pr).trim();
       if (!/^[1-9]\d*$/.test(trimmed)) {
-        console.error(`--pr must be a positive integer (got: ${opts.pr})`);
-        process.exit(EXIT_CODES.GENERAL_ERROR);
+        failInput(`--pr must be a positive integer (got: ${opts.pr})`, { json: opts.json, output: opts.output });
       }
       prNumber = Number.parseInt(trimmed, 10);
     }
