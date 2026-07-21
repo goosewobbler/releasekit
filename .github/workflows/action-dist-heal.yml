@@ -1,10 +1,19 @@
 name: Action Dist Heal
 
 # Backstop for the action tag's committed dist. The in-run build (release.yml -> _action-release) is
-# the primary path; this heals a vX.Y.Z tag that ended up dist-less anyway — e.g. the release job died
-# after pushing the tag but before committing dist. Reuses _action-release, which no-ops when the dist
-# is already committed, so it is safe to run any time. Deliberately NOT triggered on tag push, so it
-# never races the in-run path.
+# the primary path; this heals a vX.Y.Z tag that ended up dist-less anyway. Reuses _action-release,
+# which no-ops when the dist is already committed, so it is safe to run any time.
+#
+# Triggers, in order of responsiveness:
+#   - workflow_run on a non-success Release run — the realistic remaining failure is the release run
+#     dying mid-build, which nothing in-workflow can catch (you can't self-heal from inside a run that
+#     died). Fires within minutes; success/skipped runs are ignored because the in-run build already
+#     committed dist there.
+#   - schedule — cause-agnostic daily backstop for any unknown mode that leaves a green run dist-less.
+#   - workflow_dispatch — manual lever for a specific tag.
+#
+# NOT triggered on tag push, and _action-release commits with [skip ci] then force-pushes, so a heal
+# never re-triggers CI/Release — no loop.
 
 on:
   workflow_dispatch:
@@ -13,8 +22,11 @@ on:
         description: 'Version tag to heal (e.g. v1.2.3)'
         required: true
         type: string
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
   schedule:
-    - cron: '17 6 * * *' # daily: heal the newest stable release if it is missing dist
+    - cron: '17 6 * * *'
 
 permissions:
   contents: write
@@ -23,6 +35,12 @@ jobs:
   resolve:
     name: Resolve tag
     runs-on: ubuntu-latest
+    # On workflow_run, only act when the Release run didn't cleanly succeed: a successful run already
+    # committed dist in-run, and a skipped run released nothing. dispatch/schedule always run.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion != 'success' &&
+       github.event.workflow_run.conclusion != 'skipped')
     outputs:
       tag: ${{ steps.pick.outputs.tag }}
     steps:
@@ -33,16 +51,21 @@ jobs:
       - name: Pick tag to heal
         id: pick
         env:
+          EVENT: ${{ github.event_name }}
           DISPATCH_TAG: ${{ github.event.inputs.tag }}
         run: |
-          # Manual dispatch heals the requested tag; the scheduled run heals the newest stable
-          # release (the realistic failure — a just-cut release missing its dist). Use the exact-tag
-          # dispatch input to heal a prerelease.
-          if [ -n "$DISPATCH_TAG" ]; then
-            TAG="$DISPATCH_TAG"
-          else
-            TAG=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | grep -vE -- '-' | sort -V | tail -1)
-          fi
+          case "$EVENT" in
+            workflow_dispatch)
+              # Heal exactly the requested tag.
+              TAG="$DISPATCH_TAG" ;;
+            workflow_run)
+              # A Release run just failed/cancelled — target the most recently created version tag
+              # (stable or prerelease); if it already carries dist the guard no-ops.
+              TAG=$(git tag -l --sort=-creatordate 'v[0-9]*.[0-9]*.[0-9]*' | head -1) ;;
+            *)
+              # Scheduled backstop — the newest stable release, the most consumer-critical tag.
+              TAG=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | grep -vE -- '-' | sort -V | tail -1) ;;
+          esac
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
   heal:

@@ -63,6 +63,23 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Retry the network/API operations only — a transient push rejection or GitHub API blip
+          # shouldn't strand a dist-less tag while the job is otherwise healthy. Local git ops and
+          # `pnpm build` are deliberately not retried: those fail deterministically and should surface.
+          retry() {
+            local -r what="$*"
+            local n=1
+            until "$@"; do
+              if [ "$n" -ge 3 ]; then
+                echo "::error::failed after 3 attempts: ${what}"
+                return 1
+              fi
+              echo "attempt ${n}/3 failed: ${what} — retrying in $((n * 5))s"
+              sleep "$((n * 5))"
+              n=$((n + 1))
+            done
+          }
+
           git add -f packages/release/dist/
           git commit --no-verify -m "chore: build action dist for ${RELEASE_TAG} [skip ci]"
 
@@ -76,21 +93,21 @@ jobs:
             echo "Release v${VERSION} already exists, skipping"
           else
             if [[ "${VERSION}" != *"-"* ]]; then
-              gh release create "v${VERSION}" --title "v${VERSION}" --generate-notes
+              retry gh release create "v${VERSION}" --title "v${VERSION}" --generate-notes
             else
-              gh release create "v${VERSION}" --title "v${VERSION}" --generate-notes --prerelease
+              retry gh release create "v${VERSION}" --title "v${VERSION}" --generate-notes --prerelease
             fi
           fi
 
           # Force-move the exact version tag to the dist commit so consumers
           # pinning `uses: goosewobbler/releasekit@v1.2.3` get the built dist.
           git tag -f "v${VERSION}"
-          git push origin -f "v${VERSION}"
+          retry git push origin -f "v${VERSION}"
 
           # Moving major alias — only update for stable releases
           if [[ "${VERSION}" != *"-"* ]]; then
             git tag -f "v${MAJOR}"
-            git push origin -f "v${MAJOR}"
+            retry git push origin -f "v${MAJOR}"
           else
             echo "Prerelease ${VERSION} — skipping major alias update"
           fi
