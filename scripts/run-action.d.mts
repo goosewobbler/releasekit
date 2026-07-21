@@ -52,4 +52,5 @@ export function runAction(
   signal: NodeJS.Signals | null;
   stdout: string;
   stderr: string;
+  outputJson: string;
 }>;
