@@ -30,21 +30,23 @@ function looksPastTense(word: string): boolean {
   return w.endsWith('ed') || IRREGULAR_PAST.has(w);
 }
 
-/** Extract markdown bullet lines (`- …` / `* …`). */
-export function bulletLines(text: string): string[] {
-  return text.split('\n').filter((line) => /^\s*[-*]\s+\S/.test(line));
+/** Markdown list-item lines — bullets (`- …`, `* …`) and ordered items (`1. …`). */
+export function listItemLines(text: string): string[] {
+  return text.split('\n').filter((line) => /^\s*(?:[-*]|\d+\.)\s+\S/.test(line));
 }
 
 /**
  * The style guides all mandate past tense ("Added feature", not "Add feature"). Check that a majority
- * of bullets lead with a past-tense verb — a ratio, not all-or-nothing, since a bullet may legitimately
- * open with a proper noun or an API name.
+ * of list items lead with a past-tense verb — a ratio, not all-or-nothing, since an item may
+ * legitimately open with a proper noun or an API name. Both bullet and numbered lists are inspected,
+ * so a model that switches to a numbered list can't bypass the check. Pure prose (no list items) has
+ * no reliable per-change verb to inspect, so it is not tense-checked here.
  */
 export function checkPastTenseLeaning(text: string, minRatio = 0.6): string[] {
-  const bullets = bulletLines(text);
-  if (bullets.length === 0) return [];
-  const firstWords = bullets.map((line) => line.replace(/^\s*[-*]\s+/, '').split(/\s+/)[0] ?? '');
+  const items = listItemLines(text);
+  if (items.length === 0) return [];
+  const firstWords = items.map((line) => line.replace(/^\s*(?:[-*]|\d+\.)\s+/, '').split(/\s+/)[0] ?? '');
   const pastCount = firstWords.filter(looksPastTense).length;
-  const ratio = pastCount / bullets.length;
-  return ratio >= minRatio ? [] : [`only ${pastCount}/${bullets.length} bullets lead past-tense (< ${minRatio})`];
+  const ratio = pastCount / items.length;
+  return ratio >= minRatio ? [] : [`only ${pastCount}/${items.length} items lead past-tense (< ${minRatio})`];
 }

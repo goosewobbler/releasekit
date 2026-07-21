@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { ChangelogEntry } from '../../src/core/types.js';
 import { type CacheIdentity, withContentHashCache } from '../../src/llm/cache.js';
@@ -31,7 +31,14 @@ const CAPABILITIES: ProviderCapabilities = { systemRole: true, structuredOutputs
 export const isLiveMode = process.env.RELEASEKIT_EVAL === '1' || process.env.RELEASEKIT_EVAL === 'true';
 export const isRecordMode = process.env.RELEASEKIT_EVAL_RECORD === '1' || process.env.RELEASEKIT_EVAL_RECORD === 'true';
 
-/** Base provider that refuses every call — a cache miss under replay means a missing/stale fixture. */
+// Record and live modes regenerate fixtures, but withContentHashCache is read-first — it would serve
+// an existing entry before ever calling the canned/real provider, so an edited recording or a live
+// re-run could never replace a stale fixture. Clear the cache once up front so these modes always
+// re-record from scratch. Replay (default) never clears: it reads the committed fixtures.
+if (isRecordMode || isLiveMode) {
+  rmSync(CACHE_DIR, { recursive: true, force: true });
+}
+
 const strictOfflineProvider: LLMProvider = {
   name: EVAL_PROVIDER_NAME,
   capabilities: CAPABILITIES,
