@@ -36,6 +36,10 @@ export function buildPreviewArgs(input: ActionInputs): string[];
 export function parseReleaseOutput(
   stdout: string,
 ): { versionOutput?: { tags?: string[]; updates?: unknown[] } } | undefined;
+export function resolveReleaseTags(args: { parsedTags?: string[]; gitTags?: string[]; allowRecovery?: boolean }): {
+  tags: string[];
+  recovered: boolean;
+};
 export function parseInputs(env?: NodeJS.ProcessEnv | Record<string, string | undefined>): ActionInputs;
 export function runAction(
   input: ActionInputs,

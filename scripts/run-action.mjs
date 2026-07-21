@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -160,6 +160,34 @@ export function parseReleaseOutput(stdout, verbose = false) {
     }
     return undefined;
   }
+}
+
+// Sync-mode version tags on HEAD, straight from git. The release creates them at HEAD, so they
+// survive a stdout-capture hiccup that would empty the parsed JSON — the authoritative fallback for
+// the `tags` output. Per-package tag formats aren't matched here and still rely on the parsed output.
+function gitVersionTagsAtHead(cwd) {
+  try {
+    const out = execFileSync('git', ['tag', '--points-at', 'HEAD'], { cwd, encoding: 'utf8' });
+    return out
+      .split('\n')
+      .map((tag) => tag.trim())
+      .filter((tag) => /^v\d+\.\d+\.\d+/.test(tag));
+  } catch {
+    return [];
+  }
+}
+
+// Pure tag selection, testable without git or GITHUB_OUTPUT. Prefer the parsed release output; only
+// when recovery is allowed (json output was expected but couldn't be parsed — see writeReleaseOutputs)
+// do we fall back to git's authoritative tags so a stdout hiccup can't silently empty `tags`.
+// `recovered` flags that fallback so the caller can surface it.
+export function resolveReleaseTags({ parsedTags, gitTags, allowRecovery }) {
+  const parsed = Array.isArray(parsedTags) ? parsedTags : [];
+  if (parsed.length > 0 || !allowRecovery) {
+    return { tags: parsed, recovered: false };
+  }
+  const git = Array.isArray(gitTags) ? gitTags : [];
+  return git.length > 0 ? { tags: git, recovered: true } : { tags: [], recovered: false };
 }
 
 function setOutput(name, value) {
@@ -390,7 +418,8 @@ function writeCoreOutputs(mode, success) {
 }
 
 function writeReleaseOutputs(input, stdout) {
-  const parsed = normalizeBoolean(input.json) ? parseReleaseOutput(stdout, normalizeBoolean(input.verbose)) : undefined;
+  const jsonMode = normalizeBoolean(input.json);
+  const parsed = jsonMode ? parseReleaseOutput(stdout, normalizeBoolean(input.verbose)) : undefined;
   const hasChanges = !!parsed?.versionOutput?.updates?.length;
   setOutput('has-changes', hasChanges ? 'true' : 'false');
   setOutput('release-output', parsed ? JSON.stringify(parsed) : '');
@@ -398,8 +427,21 @@ function writeReleaseOutputs(input, stdout) {
   const versionOutput = parsed?.versionOutput ? JSON.stringify(parsed.versionOutput) : '';
   setOutput('version-output', versionOutput);
 
-  const tags = parsed?.versionOutput?.tags;
-  setOutput('tags', Array.isArray(tags) ? tags.join(',') : '');
+  // Recover `tags` from git only when json output was expected but did not parse — a stdout hiccup
+  // must not silently empty it. Never when json mode is off (no parse was attempted, so an empty
+  // `tags` is intentional), on a dry run (nothing tagged), or with --skip-git (a version tag on HEAD
+  // would be the *previous* release's, not this run's).
+  const allowRecovery =
+    jsonMode && parsed === undefined && !normalizeBoolean(input.dryRun) && !normalizeBoolean(input.skipGit);
+  const parsedTags = parsed?.versionOutput?.tags;
+  const gitTags = allowRecovery ? gitVersionTagsAtHead(input.projectDir ?? '.') : [];
+  const { tags, recovered } = resolveReleaseTags({ parsedTags, gitTags, allowRecovery });
+  if (recovered) {
+    console.log(
+      '::warning::releasekit: recovered the `tags` output from git after the release JSON output could not be parsed — check this run for a stdout capture issue',
+    );
+  }
+  setOutput('tags', tags.join(','));
 }
 
 function writePreviewOutputs(input, stdout) {
