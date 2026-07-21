@@ -211,7 +211,7 @@ describe('runPreview', () => {
 
     it('should skip the preview when the PR is the standing release PR', async () => {
       // The standing PR's head IS the release branch; its commits already carry the release-prep
-      // bump, so previewing it would double-count the version (#424).
+      // bump, so previewing it would double-count the version.
       mockLoadCIConfig.mockReturnValue({
         releaseStrategy: 'standing-pr',
         standingPr: { branch: 'release/next' },
@@ -475,7 +475,7 @@ describe('runPreview', () => {
         await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         // minor + prerelease composes to preminor so an existing prerelease escalates a fresh
-        // line rather than degrading to a prerelease increment (#335).
+        // line rather than degrading to a prerelease increment.
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'preminor', prerelease: true }));
       });
 
@@ -590,7 +590,7 @@ describe('runPreview', () => {
       });
 
       it('should surface the gate reason in the banner when channel:prerelease + scope but no bump (honest preview)', async () => {
-        // Reproduces the wdio-desktop-mobile #225 scenario: channel:prerelease + scope:tauri.
+        // Reproduces the wdio-desktop-mobile scenario: channel:prerelease + scope:tauri.
         // The OLD preview lied — it showed a version bump table because scope was present.
         // The NEW preview matches the gate's verdict: this PR will NOT trigger a release.
         mockLoadCIConfig.mockReturnValue({

@@ -214,7 +214,7 @@ describe('Version Engine', () => {
     it('should discover from an explicit workspaceRoot instead of process cwd', async () => {
       // The standing-PR primary-package resolver loads config and discovers packages from the same
       // caller-provided root; without honouring the argument, discovery would silently fall back to
-      // process.cwd() and could match a different workspace (#471).
+      // process.cwd() and could match a different workspace.
       const engine = new VersionEngine(defaultConfig as Config);
       await engine.getWorkspacePackages('/custom/root');
 
@@ -454,7 +454,7 @@ describe('Version Engine', () => {
 
     it('should exclude private npm packages from the release set by default', async () => {
       // A private package can't be published to any registry, so it never belongs in the release
-      // set — discovery drops it without a version.skip entry (#477).
+      // set — discovery drops it without a version.skip entry.
       vi.mocked(getPackagesSync, { partial: true }).mockReturnValue({
         root: '/test/workspace',
         tool: 'pnpm' as any,

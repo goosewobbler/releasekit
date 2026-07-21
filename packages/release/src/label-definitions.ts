@@ -26,7 +26,7 @@ const COLOR_STANDING = 'ededed'; // grey — standing PR markers (matches legacy
  * if a rename collides with another label (or a scope label reuses a reserved name) the first
  * definition wins, so we never emit two definitions for the same label name.
  *
- * `graduatablePackages` (#486) seeds the per-package `graduate:<package>` labels — GitHub can only
+ * `graduatablePackages` seeds the per-package `graduate:<package>` labels — GitHub can only
  * apply labels that already exist, so the standing-PR update passes the names of packages currently
  * on a prerelease line so a maintainer can pick one from the label picker. Callers without that
  * context (the label-sync command) omit it; those labels are then minted lazily on the next update.
@@ -84,7 +84,7 @@ export function deriveLabelDefinitions(
     });
   }
 
-  // Per-package graduate labels (#486): one `graduate:<package>` per package currently on a
+  // Per-package graduate labels: one `graduate:<package>` per package currently on a
   // prerelease line, so a maintainer can graduate just that package (and its lockstep group) to
   // stable from the GitHub label picker. Channel-blue like the prerelease label — they steer channel.
   for (const pkg of graduatablePackages) {

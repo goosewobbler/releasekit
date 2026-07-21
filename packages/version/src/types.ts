@@ -24,7 +24,7 @@ export interface VersionRunOptions {
    *  unless bump is also set, in which case bump applies to stable packages. */
   stable?: boolean;
   /**
-   * Per-package graduation (#486): package name patterns to graduate to stable on this run, leaving
+   * Per-package graduation: package name patterns to graduate to stable on this run, leaving
    * every other prerelease package on its own line. Drives `stableOnly` scoped to just these packages
    * (see {@link Config.graduateScope}). Distinct from the global `stable` flag, which graduates ALL
    * prereleases. When both are set, `stable` wins (graduate everything). Empty/undefined → no
@@ -32,7 +32,7 @@ export interface VersionRunOptions {
    */
   graduate?: string[];
   /**
-   * Per-package prerelease (#521): the symmetric twin of {@link graduate}. Package name patterns to
+   * Per-package prerelease: the symmetric twin of {@link graduate}. Package name patterns to
    * shift onto a prerelease line on this run, leaving every other package on its projected line. Drives
    * `isPrerelease` scoped to just these packages (see {@link Config.prereleaseScope}) WITHOUT narrowing
    * the release — out-of-scope packages keep their commit-driven versions. Distinct from the global
@@ -40,7 +40,7 @@ export interface VersionRunOptions {
    * everything). Empty/undefined → no per-package prerelease.
    */
   prereleaseScope?: string[];
-  /** Acknowledge a first-release bump on a stable manifest, silencing the #388 overshoot guard. */
+  /** Acknowledge a first-release bump on a stable manifest, silencing the overshoot guard. */
   allowFirstBump?: boolean;
   dryRun?: boolean;
   sync?: boolean;
@@ -136,12 +136,12 @@ export interface Config extends VersionConfigBase {
   /** Runtime override: package patterns the forced bump/prerelease/stable applies to. When set,
    *  non-matching packages ignore the override and compute commit-driven. See VersionRunOptions.overrideScope. */
   overrideScope?: string[];
-  /** Runtime override (#486): package patterns to graduate to stable. Set together with `stableOnly`
+  /** Runtime override: package patterns to graduate to stable. Set together with `stableOnly`
    *  by per-package graduation; a package outside this scope keeps `stableOnly` cleared and advances
    *  along its own line. `undefined`/empty with `stableOnly` set means "graduate every prerelease"
    *  (the global `release:graduate` path). See VersionRunOptions.graduate. */
   graduateScope?: string[];
-  /** Runtime override (#521): package patterns to shift onto a prerelease line. Set together with
+  /** Runtime override: package patterns to shift onto a prerelease line. Set together with
    *  `isPrerelease` by per-package prerelease; a package outside this scope keeps `isPrerelease`
    *  cleared and advances along its projected line. `undefined`/empty with `isPrerelease` set means
    *  "prerelease every package" (the global `channel:prerelease` path). The symmetric twin of
@@ -150,10 +150,10 @@ export interface Config extends VersionConfigBase {
   /** Runtime (engine-populated): the FULL discovered workspace — every package's name+dir, before
    *  the release-set filters (targets/exclude/config.packages). The repo-level changelog classifier
    *  uses this so a commit touching a non-releasing package's dir is attributed to that package, not
-   *  leaked into "Project-wide changes" (#397). Not user config. */
+   *  leaked into "Project-wide changes". Not user config. */
   allWorkspacePackages?: Array<{ name: string; dir: string }>;
   mismatchStrategy?: 'error' | 'warn' | 'ignore' | 'prefer-package' | 'prefer-git';
-  /** Acknowledge a first-release bump on an already-stable manifest, silencing the #388 overshoot
+  /** Acknowledge a first-release bump on an already-stable manifest, silencing the overshoot
    *  guard (which otherwise warns, or aborts under mismatchStrategy 'error'). See VersionConfig.allowFirstBump. */
   allowFirstBump?: boolean;
   strictReachable?: boolean;

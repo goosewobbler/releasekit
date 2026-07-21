@@ -63,7 +63,7 @@ export function refExists(ref: string, cwd?: string, git: Git = createGitCli()):
  * Unlike `getLatestTag` — which goes through git-semver-tags and only matches *bare* semver tags
  * (`v1.2.3`) — this walks HEAD's ancestors via `git describe`, so it also finds the per-package
  * tags monorepos actually use (`pkg@vX.Y.Z`, `release/vX.Y.Z`). The result is reachable by
- * construction, which is exactly what a `<tag>..HEAD` baseline floor needs (#348).
+ * construction, which is exactly what a `<tag>..HEAD` baseline floor needs.
  *
  * @returns The nearest reachable tag, or '' when none is reachable (no releases yet / shallow clone).
  */

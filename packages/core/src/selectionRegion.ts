@@ -34,7 +34,7 @@ export function rkPreMarker(packageName: string): string {
 }
 
 /**
- * Identity marker for a prerelease row's channel toggle — "graduate this package to stable" (#521),
+ * Identity marker for a prerelease row's channel toggle — "graduate this package to stable",
  * the inverse of {@link rkPreMarker}. Machine-read, never the row's prose.
  */
 export function rkGradMarker(packageName: string): string {

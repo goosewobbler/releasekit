@@ -156,8 +156,8 @@ export class GitHubForge implements Forge {
   async findOpenIssueByLabel(label: string): Promise<IssueRef | null> {
     // listForRepo returns issues AND PRs; a PR carries a `pull_request` field, so skip those — we
     // only want a real issue. Paginate rather than read one page, so a page full of label-carrying
-    // PRs (or an older reusable issue) can't hide the issue and leave the caller stacking a duplicate
-    // (#462 review). Default sort is newest-first, so the first real issue we reach is the most recent.
+    // PRs (or an older reusable issue) can't hide the issue and leave the caller stacking a duplicate.
+    // Default sort is newest-first, so the first real issue we reach is the most recent.
     const iterator = this.octokit.paginate.iterator(this.octokit.rest.issues.listForRepo, {
       ...this.base,
       state: 'open',
@@ -211,7 +211,7 @@ export class GitHubForge implements Forge {
       per_page: 100,
     });
     // Prefer a bot-authored match over a human-authored one carrying the same marker: a pre-seeded
-    // marker comment (write access, or the upsert race) must never shadow the bot's real one (#556).
+    // marker comment (write access, or the upsert race) must never shadow the bot's real one.
     // A human-authored match is still returned when it's the only one, so the caller can reject it.
     let humanMatch: ForgeComment | null = null;
     for await (const response of iterator) {
@@ -241,7 +241,7 @@ export class GitHubForge implements Forge {
     const existing = await this.findComment(prNumber, marker);
     // Only adopt (update in place) a comment the bot itself authored. A human-authored comment
     // carrying the marker — pre-seeded to win the adoption race — is left alone; the bot posts its
-    // own so its content is authoritative and never laundered through an attacker-owned comment (#556).
+    // own so its content is authoritative and never laundered through an attacker-owned comment.
     if (existing && isBotComment(existing)) {
       await this.updateComment(existing.id, body);
     } else {

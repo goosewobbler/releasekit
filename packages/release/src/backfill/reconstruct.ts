@@ -54,7 +54,7 @@ export interface ReconstructedVersion {
  * tag with its predecessor to scope the commit range (`prevTag..tag`; the first tag uses all commits
  * reachable from it). Tags are re-sorted ascending by semver so the pairing is chronological by
  * version regardless of creation order. This is the offline counterpart of the live version stage's
- * per-package changelog build, for the notes-backfill command (#293).
+ * per-package changelog build, for the notes-backfill command.
  */
 export async function reconstructChangelogs(opts: ReconstructOptions): Promise<ReconstructedVersion[]> {
   // Package-specific repos tag each package (`pkg@v1.2.0`); sync/single repos share one global tag

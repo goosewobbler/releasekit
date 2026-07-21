@@ -43,7 +43,7 @@ function readPackageJson(pkgPath: string): { name?: string; repoUrl?: string } {
  * version's notes from git history. Renders each version through the notes pipeline and writes the
  * result to per-version files (`notes.releaseNotes.file.dir`), to the matching GitHub release bodies
  * (`--update-releases`), or both. Single package by default; `--all` discovers every workspace
- * package. Dry-run by default. (#293 — LLM caching and the Action surface are follow-ups.)
+ * package. Dry-run by default. (LLM caching and the Action surface are follow-ups.)
  */
 export function createBackfillCommand(): Command {
   return new Command('backfill')

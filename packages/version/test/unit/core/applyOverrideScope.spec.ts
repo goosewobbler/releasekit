@@ -67,7 +67,7 @@ describe('applyOverrideScope', () => {
   });
 });
 
-// Per-package graduation (#486): `graduateScope` gates ONLY the `stableOnly` graduation, leaving any
+// Per-package graduation: `graduateScope` gates ONLY the `stableOnly` graduation, leaving any
 // bump/prerelease the run also carries intact. A graduate config carries stableOnly (no other override).
 const gradCfg = (graduateScope?: string[]): Config =>
   ({
@@ -115,7 +115,7 @@ describe('applyOverrideScope — graduateScope (#486)', () => {
 
 // `release:with-prerequisites` scopes the bump override to the explicit targets (overrideScope), while
 // `graduate:<pkg>` can target a transitive prerequisite that sits OUTSIDE that overrideScope. The two
-// scopes interact: graduateScope must win for stableOnly so the explicit graduation isn't lost (#486).
+// scopes interact: graduateScope must win for stableOnly so the explicit graduation isn't lost.
 const comboCfg = (): Config =>
   ({
     tagTemplate: '${prefix}${version}',
@@ -151,7 +151,7 @@ describe('applyOverrideScope — graduateScope + overrideScope combo (#486)', ()
   });
 });
 
-// Per-package prerelease (#521): the symmetric twin of graduateScope. `prereleaseScope` gates ONLY the
+// Per-package prerelease: the symmetric twin of graduateScope. `prereleaseScope` gates ONLY the
 // `isPrerelease` shift, re-asserting it for an in-scope package and clearing it for an out-of-scope one
 // so the latter advances along its projected (commit-driven) line. A prerelease config carries
 // isPrerelease (folded from runOptions.prereleaseScope) with no other override.

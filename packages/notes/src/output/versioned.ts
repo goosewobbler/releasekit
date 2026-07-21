@@ -15,7 +15,7 @@ import type { TemplateContext } from '../core/types.js';
  * flat path would silently overwrite another package that shares a version number — the history loss
  * this mode exists to prevent. Each release writes a *new* file keyed by version; re-running the same
  * release rewrites it idempotently. Standalone so both the live pipeline and the notes-backfill
- * command (#293) share one writer.
+ * command share one writer.
  */
 export function writeVersionedNotes(
   contexts: TemplateContext[],

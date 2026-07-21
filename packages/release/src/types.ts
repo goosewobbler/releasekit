@@ -7,14 +7,14 @@ export interface ReleaseOptions {
   bump?: string;
   prerelease?: string | boolean;
   stable?: boolean;
-  /** Per-package graduation (#486): package name patterns to graduate to stable, leaving other
+  /** Per-package graduation: package name patterns to graduate to stable, leaving other
    *  prereleases on their line. Distinct from `stable`, which graduates ALL prereleases. */
   graduate?: string[];
-  /** Per-package prerelease (#521): package name patterns to shift onto a prerelease line, leaving
+  /** Per-package prerelease: package name patterns to shift onto a prerelease line, leaving
    *  every other package on its projected version. The symmetric twin of `graduate`; distinct from
    *  `prerelease`, which shifts ALL packages. */
   prereleaseScope?: string[];
-  /** Acknowledge a first-release bump on an already-stable manifest (silences the #388 overshoot guard). */
+  /** Acknowledge a first-release bump on an already-stable manifest (silences the overshoot guard). */
   allowFirstBump?: boolean;
   sync: boolean;
   target?: string;
@@ -52,7 +52,7 @@ export interface ReleaseOptions {
   baseRef?: string;
   /**
    * Per-package human-edited release notes that win over freshly generated notes (edited wins per
-   * package, new packages fall back to fresh). Set by the manual-mode draft dispatch (#319) from the
+   * package, new packages fall back to fresh). Set by the manual-mode draft dispatch from the
    * edited tracking-issue body; not a CLI flag.
    */
   editedNotes?: Record<string, string>;

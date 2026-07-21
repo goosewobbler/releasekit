@@ -50,7 +50,7 @@ function planFingerprint(v: VersionOutput): string {
  * just the publishable name@version projection. A recompute at the pinned baseSha can keep identical
  * package versions yet differ in tags, commit message, the root update, or changelog shape (drifted
  * flags or config); the narrow check would wave those through and publish a plan the human never
- * reviewed (#463 review).
+ * reviewed.
  */
 function samePlan(a: VersionOutput | undefined, b: VersionOutput): boolean {
   if (!a) return false;
@@ -60,7 +60,7 @@ function samePlan(a: VersionOutput | undefined, b: VersionOutput): boolean {
 /**
  * Whether a marker comment body actually decodes to a release manifest. Guards the `--draft` reuse
  * path against an unrelated issue that was hand-labelled `release:draft` and happens to carry a
- * marker-prefixed comment: without this, `--draft` would overwrite that issue's title/body (#463 review).
+ * marker-prefixed comment: without this, `--draft` would overwrite that issue's title/body.
  */
 function isReleaseManifestComment(body: string): boolean {
   try {
@@ -96,7 +96,7 @@ function renderDraftBody(versionOutput: VersionOutput, releaseNotes: Record<stri
 }
 
 /**
- * Phase 1 of manual-mode draft-then-dispatch (#319). Computes the release without mutating the tree
+ * Phase 1 of manual-mode draft-then-dispatch. Computes the release without mutating the tree
  * or publishing (a dry-run pass), then opens — or updates in place — a tracking issue holding the
  * editable per-package notes in its body and the base64 manifest in a marker comment. A human edits
  * the notes; {@link publishFromDraft} consumes them.
@@ -122,7 +122,7 @@ export async function runReleaseDraft(options: ReleaseOptions): Promise<ReleaseO
     // Store the drafted notes alongside the editable copy in the issue body. The draft is pinned to
     // baseSha (no drift), so these are the reviewed baseline: at dispatch they back-stop any package
     // whose editable region was removed/mangled, so a lost marker degrades to the reviewed notes
-    // rather than silently regenerating different ones (#463 review).
+    // rather than silently regenerating different ones.
     releaseNotes: releaseNotes ?? {},
     notesFiles: [],
     createdAt: nowIso(),
@@ -138,7 +138,7 @@ export async function runReleaseDraft(options: ReleaseOptions): Promise<ReleaseO
   // Reuse the existing draft only if it's actually ours — an open issue carrying the label AND a
   // comment that decodes to a real release manifest. A human-labelled, unrelated issue (even one with
   // an accidental marker-prefixed comment) must not have its title/body overwritten with a release
-  // draft (#463 review); fall through to creating a fresh draft instead.
+  // draft; fall through to creating a fresh draft instead.
   const existing = await forge.findOpenIssueByLabel(DRAFT_LABEL);
   const existingManifest = existing ? await forge.findComment(existing.number, MANIFEST_MARKER) : undefined;
   const reusable = existing && existingManifest && isReleaseManifestComment(existingManifest.body) ? existing : null;
@@ -158,7 +158,7 @@ export async function runReleaseDraft(options: ReleaseOptions): Promise<ReleaseO
 }
 
 /**
- * Phase 2 of manual-mode draft-then-dispatch (#319). Reads the manifest + human-edited notes from the
+ * Phase 2 of manual-mode draft-then-dispatch. Reads the manifest + human-edited notes from the
  * draft issue, recomputes the release against HEAD (identical to the drafted plan because the baseSha
  * guard requires HEAD to match), applies the edited notes (edited wins per package), publishes, and
  * closes the issue on success.
@@ -189,7 +189,7 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
   // baseSha pins the commit, but not the CLI flags: a dispatch run with different --target / --scope /
   // --bump (or drifted config) would recompute a different plan than the reviewed draft. Recompute the
   // plan (dry-run, no notes) and refuse if it no longer matches the manifest, so we never publish a
-  // plan the human didn't review (#463 review).
+  // plan the human didn't review.
   const preview = await runRelease({ ...options, dryRun: true, skipNotes: true });
   if (!samePlan(preview?.versionOutput, manifest.versionOutput)) {
     throw new Error(
@@ -206,7 +206,7 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
   );
   // Reviewed notes win: edits read back from the body override the drafted baseline; any package
   // whose editable region went missing (markers removed/mangled) falls back to the drafted notes
-  // rather than fresh regeneration, and is flagged (#463 review).
+  // rather than fresh regeneration, and is flagged.
   const editedNotes = { ...draftedNotes, ...extracted };
   const droppedRegions = Object.keys(draftedNotes).filter((pkg) => !(pkg in extracted));
   if (droppedRegions.length > 0) {
@@ -219,11 +219,11 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
     info(`Applying reviewed notes for ${Object.keys(editedNotes).length} package(s) from draft #${issueNumber}.`);
   }
 
-  // Respect --dry-run: a dry dispatch validates without publishing or closing the issue (#463 review).
+  // Respect --dry-run: a dry dispatch validates without publishing or closing the issue.
   const result = await runRelease({ ...options, dryRun: options.dryRun, editedNotes });
 
   // Close the draft only after a real publish landed — never on a dry run or a --skip-publish run,
-  // which compute without publishing anything (#463 review).
+  // which compute without publishing anything.
   if (result && !options.dryRun && !options.skipPublish) {
     await forge.updateIssue(issueNumber, { state: 'closed' });
     success(`Published from draft #${issueNumber}; closed the draft issue.`);

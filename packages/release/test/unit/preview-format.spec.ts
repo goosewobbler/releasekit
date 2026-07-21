@@ -206,7 +206,7 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('#### Added');
     expect(result).toContain('- New dry-run flag (`cli`)');
     expect(result).toContain('#### Fixed');
-    // #499: bare #NNN renders as a canonical link by default (refs: 'link'); the ref group carries
+    // Bare #NNN renders as a canonical link by default (refs: 'link'); the ref group carries
     // its own parens (an entry with no identified PR falls back to the plain list).
     expect(result).toContain(
       '- Fix prerelease sorting (`semver`) ([#42](https://github.com/goosewobbler/releasekit/issues/42))',
@@ -972,7 +972,7 @@ describe('formatPreviewComment', () => {
     });
   });
 
-  // --- Synthetic version-bump entries (#468) ---
+  // --- Synthetic version-bump entries ---
 
   describe('synthetic version-bump entries', () => {
     // A sync/lockstep carry: a bumped package with no commits of its own gets a fabricated

@@ -372,7 +372,7 @@ describe('Version Calculator', () => {
       expect(version).toBe('1.0.0-next.0');
     });
 
-    // #388: a stable manifest on a first release with --stable applies the bump (1.0.0 → 2.0.0)
+    // A stable manifest on a first release with --stable applies the bump (1.0.0 → 2.0.0)
     // rather than graduating, silently overshooting. The guard makes it visible/escapable without
     // changing the resolved version.
     function stableFirstReleaseMocks() {
@@ -832,7 +832,7 @@ describe('Version Calculator', () => {
     });
 
     it('should bound the bumper to latestTag when baseRef is absent and the tag exists', async () => {
-      // Regression for #330: without baseRef the scan must still be bounded to the last release
+      // Regression: without baseRef the scan must still be bounded to the last release
       // tag. Otherwise conventional-recommended-bump scans the entire history and historical feats
       // inflate the bump magnitude (a docs-only window bumps minor instead of patch).
       const commitsSpy = vi.spyOn(Bumper.prototype, 'commits').mockReturnThis();
@@ -847,7 +847,7 @@ describe('Version Calculator', () => {
     });
 
     it('should bound the bumper to a multi-segment baseline tag when baseRef is absent', async () => {
-      // Mirrors the standing-PR / sync shape that surfaced #330: the baseline tag carries the
+      // Mirrors the standing-PR / sync shape that surfaced the regression: the baseline tag carries the
       // `baselineTagTemplate` prefix (e.g. `release/v0.29.0`), which must still bound the scan.
       const commitsSpy = vi.spyOn(Bumper.prototype, 'commits').mockReturnThis();
       vi.spyOn(gitTags, 'refExists').mockReturnValue(true);
@@ -1184,7 +1184,7 @@ describe('Version Calculator', () => {
     });
 
     it('should apply bump to manifest version for first release with explicit bump', async () => {
-      // After #347 fix: first release no longer returns manifest verbatim; bump is applied.
+      // After the fix: first release no longer returns manifest verbatim; bump is applied.
       vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
         version: '1.0.0-beta.1',
         manifestFound: true,
@@ -1213,7 +1213,7 @@ describe('Version Calculator', () => {
     });
 
     it('should apply bump to prerelease manifest version on first release', async () => {
-      // After #347 fix: bump is applied to the manifest version as the base.
+      // After the fix: bump is applied to the manifest version as the base.
       vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
         version: '1.0.0-next.0',
         manifestFound: true,
@@ -1244,7 +1244,7 @@ describe('Version Calculator', () => {
     });
 
     it('should apply bump to stable manifest version on first release', async () => {
-      // After #347 fix: bump is applied even when the manifest is already stable.
+      // After the fix: bump is applied even when the manifest is already stable.
       vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
         version: '1.0.0',
         manifestFound: true,
@@ -1486,7 +1486,7 @@ describe('Version Calculator', () => {
     });
 
     it('should apply bump to package.json version for first release when hasNoTags is true', async () => {
-      // After #347 fix: first release applies bump/stable/prerelease logic, not verbatim.
+      // After the fix: first release applies bump/stable/prerelease logic, not verbatim.
       vi.spyOn(versionUtils, 'getBestVersionSource').mockResolvedValueOnce({
         source: 'package',
         version: '1.0.0',

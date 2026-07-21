@@ -6,7 +6,7 @@ import { publishableUpdates, toDisplayVersion } from '../version-display.js';
 import { countCombinedChanges } from './changelog-region.js';
 
 /**
- * The two additive, non-interactive summary surfaces at the top of a standing-PR body (#520):
+ * The two additive, non-interactive summary surfaces at the top of a standing-PR body:
  *  - {@link renderReleaseSummaryLine} — a one-line headline (package count, channel split, change
  *    count, major-bump flag, held-back count).
  *  - {@link renderVersionSummaryTable} — a collapsed `current → next` table with bump magnitude and
@@ -20,8 +20,8 @@ import { countCombinedChanges } from './changelog-region.js';
 
 type Update = VersionOutput['updates'][number];
 
-/** The channel a row sits on: the per-package value stamped by #485, falling back to deriving it from
- *  the resolved version for manifests written before that field existed (old PRs still open). */
+/** The channel a row sits on: the per-package value stamped on the update, falling back to deriving it
+ *  from the resolved version for manifests written before that field existed (old PRs still open). */
 function channelOf(update: Update): ReleaseChannel {
   return update.channel ?? deriveReleaseChannel(update.newVersion);
 }

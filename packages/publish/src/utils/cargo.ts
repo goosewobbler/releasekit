@@ -12,7 +12,7 @@ export { parseCargoToml };
 
 /**
  * Refresh a crate's `Cargo.lock` self-version entry after its `Cargo.toml` was bumped, so the
- * committed lock doesn't drift (#496). `cargo update --workspace --offline` moves only workspace
+ * committed lock doesn't drift. `cargo update --workspace --offline` moves only workspace
  * members' own lock entries to match their manifests — registry dependencies are never re-resolved.
  *
  * Returns the lock path (so the caller can stage it) or `undefined` when there's no committed lock,

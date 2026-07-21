@@ -89,7 +89,7 @@ function updateCargoFiles(
   const cargoPaths = cargoConfig?.paths;
 
   // After rewriting a Cargo.toml version, sync its Cargo.lock self-entry so the committed lock
-  // doesn't drift (#496). The returned lock path is staged alongside the manifest; deduped because
+  // doesn't drift. The returned lock path is staged alongside the manifest; deduped because
   // crates in one workspace share a single workspace-root lock.
   const stageCargo = (cargoTomlPath: string): void => {
     updatePackageVersion(cargoTomlPath, version, dryRun);
@@ -347,7 +347,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
           changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];
         }
       } catch (error) {
-        // A strictReachable violation must abort the run, not degrade to a minimal entry (#372).
+        // A strictReachable violation must abort the run, not degrade to a minimal entry.
         if (error instanceof StrictReachableError) throw error;
         log(`Error extracting changelog entries: ${error instanceof Error ? error.message : String(error)}`, 'warning');
         changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];
@@ -392,9 +392,9 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       // In per-package tag mode, emit one changelog entry per workspace package so the
       // notes pipeline can write a CHANGELOG.md to each package directory and the
       // publish pipeline can match tags to the right release notes.
-      // Omit previousVersion when we fell back to all-history (#339): claiming a baseline the
+      // Omit previousVersion when we fell back to all-history: claiming a baseline the
       // changelog never diffed against produces a self-contradictory "since <tag>" + full log.
-      // previousVersion is resolved by BaselineResolver (null when we fell back to all-history, #339).
+      // previousVersion is resolved by BaselineResolver (null when we fell back to all-history).
       const displayPrevious = previousVersion;
       if (config.packageSpecificTags && workspaceNames.length > 0) {
         for (const pkgName of workspaceNames) {
@@ -477,7 +477,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
           if (pkgName && pkgTag) setPackageUpdateTag(pkgName, pkgTag);
         }
       }
-      // Resolved version action (#420). Every package moves in lockstep to the same nextVersion
+      // Resolved version action. Every package moves in lockstep to the same nextVersion
       // against the same latestTag, so the action is identical across the sync unit — record it on
       // every update record (including the root lockstep bump).
       const { action: syncAction, reason: syncReason } = resolveVersionAction({
@@ -486,7 +486,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         nextVersion,
       });
       setAllPackageUpdateActions(syncAction, syncReason);
-      // Every package moved in lockstep from the same baseline, so the prior version (#520) is shared.
+      // Every package moved in lockstep from the same baseline, so the prior version is shared.
       setAllPackageUpdatePreviousVersions(displayPrevious);
       setCommitMessage(formattedCommitMessage);
 
@@ -617,7 +617,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
           changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];
         }
       } catch (error) {
-        // A strictReachable violation must abort the run, not degrade to a minimal entry (#372).
+        // A strictReachable violation must abort the run, not degrade to a minimal entry.
         if (error instanceof StrictReachableError) throw error;
         log(`Error extracting changelog entries: ${error instanceof Error ? error.message : String(error)}`, 'warning');
         // Fall back to minimal entry
@@ -651,7 +651,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
       }
 
       // Track changelog data for JSON output. previousVersion is resolved by BaselineResolver and is
-      // null when we fell back to all-history (#339) so the changelog doesn't claim an undiffed baseline.
+      // null when we fell back to all-history so the changelog doesn't claim an undiffed baseline.
       addChangelogData({
         packageName,
         version: nextVersion,
@@ -690,7 +690,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
 
       addTag(tagName);
       setPackageUpdateTag(packageName, tagName);
-      // Resolved version action (#420). In single mode an empty `latestTag` means no prior tag
+      // Resolved version action. In single mode an empty `latestTag` means no prior tag
       // (no manifest-fallback synthetic tag here), matching the baseline resolve's `hasRealTag`.
       const { action: singleAction, reason: singleReason } = resolveVersionAction({
         hasNoTags: latestTag === '',
@@ -741,7 +741,7 @@ export function createAsyncStrategy(config: Config): StrategyFunction {
       prereleaseIdentifier: config.prereleaseIdentifier,
       type: config.type,
       // Without this the per-package resolver always saw strictReachable=false, so the async path
-      // never enforced it — the guard silently no-op'd for per-package repos (#372).
+      // never enforced it — the guard silently no-op'd for per-package repos.
       strictReachable: config.strictReachable,
     },
   };

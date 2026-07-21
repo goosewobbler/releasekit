@@ -57,7 +57,7 @@ export async function runPrepareStage(ctx: PipelineContext): Promise<void> {
 
   // Update Cargo.toml versions for cargo packages
   if (config.cargo.enabled) {
-    // Cargo.lock files to stage alongside the manifests (#496), deduped — crates in one workspace
+    // Cargo.lock files to stage alongside the manifests, deduped — crates in one workspace
     // share a single workspace-root lock. We re-sync the lock here (rather than trust the version
     // step) so the direct-commit flow — git-commit stages an explicit file list, not `git add -A` —
     // is self-sufficient and correct even run in isolation. The standing-PR flow stages the lock via
