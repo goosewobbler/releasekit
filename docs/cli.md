@@ -18,6 +18,44 @@ The `releasekit` dispatcher re-exports `version`, `notes`, and `publish`, so `re
 
 ---
 
+## JSON output contract
+
+Every command that accepts `-j, --json` emits its result as a single **envelope** — one uniform shape shared by humans, CI, and agents. `--output <path>` writes the same envelope to a file instead of stdout (the reliable channel for the GitHub Action, since stdout can be polluted by subprocess or log noise, and a single stray byte breaks JSON parsing).
+
+```jsonc
+{
+  "schemaVersion": 1,   // envelope contract version; stable across minor releases
+  "status": "success",  // "success" | "error"
+  "changed": true,      // did the command change state, or was everything already as desired?
+  "data": { /* … */ },  // command-specific payload (VersionOutput, gate result, …); null on error
+  "warnings": [{ "code": "…", "message": "…" }],
+  "errors": [{ "code": "…", "category": "…", "retryable": false, "message": "…" }]
+}
+```
+
+- **`data`** carries the command's payload verbatim — the envelope wraps it, never replaces it. `releasekit release --json` still exposes its `VersionOutput` at `data.versionOutput`.
+- **`changed`** separates real work from a no-op: a dry run is never `changed`; `standing-pr publish` reports `changed: false` when the release was already published (skip-if-published); `gate` is read-only and always `changed: false`.
+- **`errors[]`** replaces prose-only failures in JSON mode. Each carries a stable machine `code`, a coarse `category`, a `retryable` flag (only `true` for known-transient failures — a timeout, 429, or 5xx from a provider — so an agent never retries an unknown failure), and a human `message`.
+- **Stream discipline:** the envelope is the only thing on stdout; all diagnostics (progress, warnings, error text) go to stderr. Parsing stdout as JSON is always safe, and no command prompts interactively on a CI path.
+
+### Error codes and exit codes
+
+| `code` | `category` | Exit code |
+|---|---|---|
+| `GENERAL_ERROR` | `general` | 1 |
+| `CONFIG_ERROR` | `config` | 2 |
+| `INPUT_ERROR` / `INPUT_PARSE_ERROR` | `input` / `input-parse` | 3 |
+| `TEMPLATE_ERROR` | `template` | 4 |
+| `LLM_ERROR` | `llm` | 5 |
+| `GITHUB_ERROR` | `github` | 6 |
+| `GIT_ERROR` | `git` | 7 |
+| `VERSION_ERROR` | `version` | 8 |
+| `PUBLISH_ERROR` | `publish` | 9 |
+
+`schemaVersion` bumps only on a breaking change to the envelope shape and is stable across minor releases, so agents and CI can pin against it.
+
+---
+
 ## `releasekit preview`
 
 Post a release preview comment on the current pull request. This is the default command, so `releasekit` with no arguments runs `preview`.

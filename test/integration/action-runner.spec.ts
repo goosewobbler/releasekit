@@ -256,6 +256,30 @@ describe('action runner', () => {
     expect(parsed?.versionOutput?.tags).toEqual(['v1.0.0']);
   });
 
+  it('should unwrap the data payload from an enveloped success result', () => {
+    const enveloped = JSON.stringify({
+      schemaVersion: 1,
+      status: 'success',
+      changed: true,
+      data: { versionOutput: { updates: [{ packageName: 'a' }], tags: ['v1.0.0'] } },
+      warnings: [],
+      errors: [],
+    });
+    expect(parseReleaseOutput(enveloped)?.versionOutput?.tags).toEqual(['v1.0.0']);
+  });
+
+  it('should unwrap null data from an enveloped error result', () => {
+    const enveloped = JSON.stringify({
+      schemaVersion: 1,
+      status: 'error',
+      changed: false,
+      data: null,
+      warnings: [],
+      errors: [{ code: 'GENERAL_ERROR', category: 'general', retryable: false, message: 'boom' }],
+    });
+    expect(parseReleaseOutput(enveloped)).toBeNull();
+  });
+
   it('should return undefined for non-JSON release output', () => {
     expect(parseReleaseOutput('plain logs')).toBeUndefined();
   });

@@ -1,9 +1,9 @@
-import { EXIT_CODES } from '@releasekit/core';
+import { EXIT_CODES, exitCodeForError } from '@releasekit/core';
 import { Command, Option } from 'commander';
 import { publishFromDraft, runReleaseDraft } from '../draft/draft.js';
 import { runRelease } from '../release.js';
 import type { ReleaseOptions } from '../types.js';
-import { emitResult } from './emitResult.js';
+import { emitError, emitResult } from './emitResult.js';
 
 export function createReleaseCommand(): Command {
   return new Command('release')
@@ -99,14 +99,18 @@ export function createReleaseCommand(): Command {
               ? await runReleaseDraft(options)
               : await runRelease(options);
 
-        emitResult(result, { json: options.json, output: opts.output });
+        // A dry run plans but never mutates state, so it is never "changed"; a real run changed
+        // state iff it produced version updates.
+        const changed = !opts.dryRun && Boolean(result?.versionOutput?.updates?.length);
+        emitResult(result, { json: options.json, output: opts.output, changed });
 
         if (!result) {
           process.exit(0);
         }
       } catch (error) {
+        emitError(error, { json: opts.json, output: opts.output });
         console.error(error instanceof Error ? error.message : String(error));
-        process.exit(EXIT_CODES.GENERAL_ERROR);
+        process.exit(exitCodeForError(error));
       }
     });
 }

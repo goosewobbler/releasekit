@@ -162,14 +162,22 @@ export function writeGateOutputs(stdout, verbose = false) {
 export function parseReleaseOutput(stdout, verbose = false) {
   const trimmed = stdout.trim();
   if (!trimmed) return undefined;
+  let parsed;
   try {
-    return JSON.parse(trimmed);
+    parsed = JSON.parse(trimmed);
   } catch (err) {
     if (verbose) {
       console.error(`[run-action] Failed to parse JSON output: ${err.message}`);
     }
     return undefined;
   }
+  // The CLI wraps every result in the uniform envelope { schemaVersion, status, data, ... }; unwrap
+  // to the data payload so output derivation reads result fields (versionOutput, shouldRelease)
+  // directly. Legacy un-enveloped output is returned as-is for backward compatibility.
+  if (parsed && typeof parsed === 'object' && 'schemaVersion' in parsed && 'data' in parsed) {
+    return parsed.data;
+  }
+  return parsed;
 }
 
 // Sync-mode version tags on HEAD, straight from git. The release creates them at HEAD, so they
