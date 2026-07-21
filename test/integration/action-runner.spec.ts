@@ -7,6 +7,7 @@ import {
   buildGateArgs,
   buildGateSummary,
   buildPreviewArgs,
+  buildRefreshAfterReleaseArgs,
   buildReleaseArgs,
   buildReleaseSummary,
   buildStandingPRPublishArgs,
@@ -203,6 +204,26 @@ describe('action runner', () => {
 
     expect(args).not.toContain('--reconcile');
     expect(args).toEqual(expect.arrayContaining(['standing-pr', 'update', '--json']));
+  });
+
+  it('should build refresh-after-release args', () => {
+    const args = buildRefreshAfterReleaseArgs({ config: 'releasekit.config.json', projectDir: '.' });
+    expect(args).toEqual(['refresh-after-release', '--config', 'releasekit.config.json', '--project-dir', '.']);
+  });
+
+  it('should accept refresh-after-release mode and run the cli with its args', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-action-runner-test-'));
+    tempDirs.push(tempDir);
+    const cliPath = path.join(tempDir, 'fake-cli.mjs');
+    fs.writeFileSync(cliPath, "console.log('ok')\n", 'utf-8');
+
+    const result = await runAction(
+      { mode: 'refresh-after-release', projectDir: '.', config: 'releasekit.config.json' },
+      { cliPath },
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.args).toEqual(['refresh-after-release', '--config', 'releasekit.config.json', '--project-dir', '.']);
   });
 
   it('should parse INPUT_RECONCILE into the reconcile input', () => {
