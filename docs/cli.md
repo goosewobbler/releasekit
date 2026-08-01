@@ -20,7 +20,9 @@ The `releasekit` dispatcher re-exports `version`, `notes`, and `publish`, so `re
 
 ## JSON output contract
 
-Every command that accepts `-j, --json` emits its result as a single **envelope** — one uniform shape shared by humans, CI, and agents. `--output <path>` writes the same envelope to a file instead of stdout (the reliable channel for the GitHub Action, since stdout can be polluted by subprocess or log noise, and a single stray byte breaks JSON parsing).
+The orchestration commands — `release`, `gate`, and `standing-pr` — emit their `-j, --json` result as a single **envelope**, one uniform shape shared by humans, CI, and agents. `--output <path>` writes the same envelope to a file instead of stdout (the reliable channel for the GitHub Action, since stdout can be polluted by subprocess or log noise, and a single stray byte breaks JSON parsing).
+
+> **Not yet enveloped:** the pipe commands `version`, `notes`, and `publish` still print their payload bare. They pipe JSON between processes, so wrapping their output means teaching the consuming side to unwrap on input — a separate change. Don't unwrap `.data` from those; check for `schemaVersion` if you need to handle both.
 
 ```jsonc
 {
@@ -34,7 +36,7 @@ Every command that accepts `-j, --json` emits its result as a single **envelope*
 ```
 
 - **`data`** carries the command's payload verbatim — the envelope wraps it, never replaces it. `releasekit release --json` still exposes its `VersionOutput` at `data.versionOutput`.
-- **`changed`** separates real work from a no-op: a dry run is never `changed`; `standing-pr publish` reports `changed: false` when the release was already published (skip-if-published); `gate` is read-only and always `changed: false`.
+- **`changed`** separates real work from a no-op: a dry run is never `changed`; `standing-pr publish` reads its registry results, so a re-run where every version was already published reports `changed: false`; `gate` is read-only and always `changed: false`.
 - **`errors[]`** replaces prose-only failures in JSON mode. Each carries a stable machine `code`, a coarse `category`, a `retryable` flag (only `true` for known-transient failures — a timeout, 429, or 5xx from a provider — so an agent never retries an unknown failure), and a human `message`.
 - **Stream discipline:** the envelope is the only thing on stdout; all diagnostics (progress, warnings, error text) go to stderr. Parsing stdout as JSON is always safe, and no command prompts interactively on a CI path.
 

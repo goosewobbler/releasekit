@@ -88,6 +88,67 @@ describe('createStandingPRCommand', () => {
     }
   });
 
+  // The manifest's versionOutput.updates is populated on every publish run, so it can't distinguish a
+  // real publish from an idempotent re-run — `changed` has to come from the publish effects.
+  describe('publish changed reporting', () => {
+    const manifestVersionOutput = {
+      dryRun: false,
+      updates: [{ packageName: '@acme/widget', currentVersion: '1.4.2', newVersion: '2.0.0', bumpType: 'major' }],
+      changelogs: [],
+      tags: ['v2.0.0'],
+    };
+    const npmResult = { packageName: '@acme/widget', version: '2.0.0', registry: 'npm', success: true };
+
+    async function publishEnvelope(publishOutput: unknown) {
+      const { runStandingPRPublish } = await import('../../src/standing-pr/standing-pr.js');
+      vi.mocked(runStandingPRPublish).mockResolvedValueOnce({
+        versionOutput: manifestVersionOutput,
+        notesGenerated: false,
+        publishOutput,
+      } as never);
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      try {
+        await parseCommand(['publish', '--project-dir', '/test', '--json', '--pr', '189']);
+        return JSON.parse(logSpy.mock.calls[0]?.[0] as string);
+      } finally {
+        logSpy.mockRestore();
+      }
+    }
+
+    it('should report changed:true when a package actually published', async () => {
+      const envelope = await publishEnvelope({
+        dryRun: false,
+        git: { committed: false, tags: ['v2.0.0'], pushed: true },
+        npm: [{ ...npmResult, skipped: false }],
+        cargo: [],
+        pub: [],
+        verification: [],
+        githubReleases: [],
+        publishSucceeded: true,
+      });
+      expect(envelope.status).toBe('success');
+      expect(envelope.changed).toBe(true);
+    });
+
+    it('should report changed:false when every version was already published', async () => {
+      const envelope = await publishEnvelope({
+        dryRun: false,
+        // Tags pushed and the GitHub release "succeeded" (it already existed) — neither is a change.
+        git: { committed: false, tags: ['v2.0.0'], pushed: true },
+        npm: [{ ...npmResult, skipped: true, alreadyPublished: true }],
+        cargo: [],
+        pub: [],
+        verification: [],
+        githubReleases: [{ tag: 'v2.0.0', draft: false, prerelease: false, success: true }],
+        publishSucceeded: true,
+      });
+      expect(envelope.status).toBe('success');
+      expect(envelope.changed).toBe(false);
+      // The manifest payload still rides along untouched — the envelope wraps, never replaces.
+      expect(envelope.data.versionOutput.updates).toHaveLength(1);
+    });
+  });
+
   it('should pass --verbose, --quiet, --json flags through', async () => {
     const { runStandingPRUpdate } = await import('../../src/standing-pr/standing-pr.js');
     await parseCommand(['update', '--verbose', '--quiet', '--json']);

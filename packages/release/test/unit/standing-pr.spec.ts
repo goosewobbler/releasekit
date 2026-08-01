@@ -2450,33 +2450,26 @@ describe('runStandingPRPublish', () => {
     ).rejects.toThrow(/manifest not found/);
   });
 
-  it('should return null when API inference finds no merged standing PR', async () => {
+  // The two cases below are failures to resolve a PR, not "nothing to release" — they throw so the
+  // JSON envelope reports status:"error" rather than a successful no-op. Contrast with the head-ref
+  // and not-merged skips below, which stay null: pull_request:closed fires for every closed PR.
+  it('should throw when API inference finds no merged standing PR', async () => {
     delete process.env.GITHUB_EVENT_PATH;
 
     await mockForge({ recentlyClosedPRs: [{ number: 80, mergedAt: null }] });
 
-    const result = await runStandingPRPublish({
-      projectDir: '/test',
-      verbose: false,
-      quiet: false,
-      json: false,
-    });
-
-    expect(result).toBeNull();
+    await expect(
+      runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/No merged standing release PR found/);
   });
 
-  it('should return null when inference is needed but no GitHub token is available', async () => {
+  it('should throw when inference is needed but no GitHub token is available', async () => {
     delete process.env.GITHUB_EVENT_PATH;
     delete process.env.GITHUB_TOKEN;
 
-    const result = await runStandingPRPublish({
-      projectDir: '/test',
-      verbose: false,
-      quiet: false,
-      json: false,
-    });
-
-    expect(result).toBeNull();
+    await expect(
+      runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/No GitHub context/);
   });
 
   it('should return null when merged PR head ref does not match release branch', async () => {
@@ -2864,7 +2857,7 @@ describe('runStandingPRPublish', () => {
     expect(branchDeletePushes()).toHaveLength(0);
   });
 
-  it('should return null when no GitHub context is available for a merged release PR', async () => {
+  it('should throw when no GitHub context is available for a merged release PR', async () => {
     delete process.env.GITHUB_REPOSITORY;
     delete process.env.GITHUB_TOKEN;
 
@@ -2875,9 +2868,9 @@ describe('runStandingPRPublish', () => {
       }),
     );
 
-    const result = await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
-
-    expect(result).toBeNull();
+    await expect(
+      runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/No GitHub context/);
   });
 
   it('should throw with actionable message when manifest JSON is malformed', async () => {
@@ -2925,18 +2918,13 @@ describe('publishFromManifest', () => {
     process.env = { ...originalEnv };
   });
 
-  it('should return null when no GitHub context is available', async () => {
+  it('should throw when no GitHub context is available', async () => {
     delete process.env.GITHUB_REPOSITORY;
     delete process.env.GITHUB_TOKEN;
 
-    const result = await publishFromManifest(42, {
-      projectDir: '/test',
-      verbose: false,
-      quiet: false,
-      json: false,
-    });
-
-    expect(result).toBeNull();
+    await expect(
+      publishFromManifest(42, { projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow(/No GitHub context/);
   });
 
   it('should throw when manifest comment is missing from PR', async () => {

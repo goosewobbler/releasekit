@@ -101,13 +101,13 @@ export function createReleaseCommand(): Command {
         // A dry run plans but never mutates state, so it is never "changed"; a real run changed
         // state iff it produced version updates.
         const changed = !opts.dryRun && Boolean(result?.versionOutput?.updates?.length);
-        emitResult(result, { json: options.json, output: opts.output, changed });
+        emitResult(result, { ...io, changed });
 
         if (!result) {
           process.exit(0);
         }
       } catch (error) {
-        emitError(error, { json: opts.json, output: opts.output });
+        emitError(error, io);
         console.error(error instanceof Error ? error.message : String(error));
         process.exit(exitCodeForError(error));
       }

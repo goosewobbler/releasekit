@@ -2,6 +2,7 @@ import { exitCodeForError } from '@releasekit/core';
 import { Command } from 'commander';
 import type { StandingPROptions } from '../standing-pr/standing-pr.js';
 import { runStandingPRMerge, runStandingPRPublish, runStandingPRUpdate } from '../standing-pr/standing-pr.js';
+import { publishDidChange } from './changed.js';
 import { emitError, emitResult, failInput } from './emitResult.js';
 
 export function createStandingPRCommand(): Command {
@@ -88,12 +89,8 @@ export function createStandingPRCommand(): Command {
 
     try {
       const result = await runStandingPRPublish(options, prNumber);
-      // skip-if-published returns no updates — surface that as changed:false.
-      emitResult(result, {
-        json: opts.json,
-        output: opts.output,
-        changed: Boolean(result?.versionOutput?.updates?.length),
-      });
+      // Read the publish effects, not the manifest's versions — see publishDidChange.
+      emitResult(result, { json: opts.json, output: opts.output, changed: publishDidChange(result) });
     } catch (err) {
       emitError(err, { json: opts.json, output: opts.output });
       console.error(err instanceof Error ? err.message : String(err));

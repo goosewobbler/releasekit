@@ -1678,13 +1678,20 @@ async function assertManifestMatchesSource(
 
 // Core publish logic: finds manifest on the given PR, optionally extracts user-edited
 // notes from the PR body, then runs the publish step and cleans up the release branch.
-export async function publishFromManifest(prNumber: number, options: StandingPROptions): Promise<ReleaseOutput | null> {
+/**
+ * Publish the release described by a merged standing PR's manifest. Every failure throws — there is
+ * no "nothing to do" outcome once a specific PR has been named, so a caller that gets a result back
+ * knows the publish ran.
+ */
+export async function publishFromManifest(prNumber: number, options: StandingPROptions): Promise<ReleaseOutput> {
   const cwd = options.projectDir;
 
   const githubContext = getGitHubContext();
   if (!githubContext?.token) {
-    error('No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available');
-    return null;
+    throw new Error(
+      `No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available — cannot read the release manifest from ` +
+        `PR #${prNumber}.`,
+    );
   }
 
   const forge = forgeFor(githubContext);
@@ -1974,6 +1981,15 @@ export async function findLatestMergedStandingPR(forge: Forge, branch: string): 
   return merged[0]?.number ?? null;
 }
 
+/**
+ * Publish from a merged standing release PR.
+ *
+ * `null` means "nothing to do" — this run legitimately had no release to publish, and the caller
+ * reports success. Everything that went *wrong* throws: the JSON envelope reports `status: "error"`
+ * on those, so an agent or workflow can't read a misconfiguration as a successful no-op. The
+ * distinction matters most on the `pull_request: closed` trigger, which fires for every closed PR
+ * and must stay a quiet no-op for the ones that aren't the release branch.
+ */
 export async function runStandingPRPublish(
   options: StandingPROptions,
   explicitPrNumber?: number,
@@ -1998,8 +2014,10 @@ export async function runStandingPRPublish(
     try {
       event = JSON.parse(fs.readFileSync(eventPath, 'utf-8'));
     } catch (err) {
-      error(`Failed to read GitHub event: ${err instanceof Error ? err.message : String(err)}`);
-      return null;
+      throw new Error(
+        `Failed to read the GitHub event at ${eventPath}: ${err instanceof Error ? err.message : String(err)}. ` +
+          `The event payload decides which PR to publish — pass --pr explicitly to bypass it.`,
+      );
     }
   }
 
@@ -2019,8 +2037,10 @@ export async function runStandingPRPublish(
     }
 
     if (!prNumber) {
-      error('Could not determine PR number from GitHub event');
-      return null;
+      throw new Error(
+        `Could not determine the PR number from the GitHub event: its pull_request payload matched release branch ` +
+          `'${releaseBranch}' and is merged, but carries no number. Pass --pr explicitly.`,
+      );
     }
 
     return publishFromManifest(prNumber, options);
@@ -2029,14 +2049,15 @@ export async function runStandingPRPublish(
   // No pull_request context — infer the merged standing PR from the API.
   const githubContext = getGitHubContext();
   if (!githubContext?.token) {
-    error('No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available — pass --pr explicitly');
-    return null;
+    throw new Error(
+      'No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available, so the merged standing PR cannot be ' +
+        'inferred — pass --pr explicitly.',
+    );
   }
 
   const inferred = await findLatestMergedStandingPR(forgeFor(githubContext), releaseBranch);
   if (inferred === null) {
-    error(`No merged standing release PR found for branch '${releaseBranch}' — pass --pr explicitly`);
-    return null;
+    throw new Error(`No merged standing release PR found for branch '${releaseBranch}' — pass --pr explicitly.`);
   }
 
   info(
