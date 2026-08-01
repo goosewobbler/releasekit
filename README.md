@@ -162,9 +162,11 @@ See the [package docs](#documentation) for the full option reference.
 - [Rust / Cargo](./docs/rust.md) — Rust crate versioning and crates.io publishing
 - [Dart / pub.dev](./docs/dart.md) — Dart/Flutter versioning and pub.dev publishing
 - [Migration](./docs/migration.md) — from semantic-release or changesets
+- [Agents](./docs/agents.md) — AGENTS.md snippet, the propose → approve → publish boundary
 
 **Reference**
 - [CLI](./docs/cli.md) — every command and flag for the `releasekit` CLI
+- [Standing-PR body](./docs/standing-pr-body.md) — the editable regions, what an edit does, what is bot-owned
 - [Configuration](./docs/configuration.md) — full config reference (all `releasekit.config.json` options)
 - [GitHub Action](./docs/action.md) — `goosewobbler/releasekit` action inputs, outputs, and rollout
 - [@releasekit/release](./packages/release/README.md) — unified pipeline, CI automation, programmatic API
