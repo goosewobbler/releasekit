@@ -1,3 +1,5 @@
+<!-- recorded: hand-authored -->
+
 ## What's new in 2.0.0
 
 This release brought real-time capabilities to the widget and smoothed over a few rough edges since 1.4.2.

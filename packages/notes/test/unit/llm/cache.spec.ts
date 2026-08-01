@@ -48,6 +48,29 @@ describe('withContentHashCache', () => {
     expect(provider.calls).toBe(1);
   });
 
+  it('should bypass the read and overwrite the entry when refresh is set', async () => {
+    const dir = freshDir();
+    const stale = mockProvider(() => 'stale');
+    await withContentHashCache(stale, { model: 'model-x' }, dir).complete(msgs);
+
+    const fresh = mockProvider(() => 'fresh');
+    const refreshed = withContentHashCache(fresh, { model: 'model-x' }, dir, { refresh: true });
+
+    // The cached entry is not served back, and the new response replaces it on disk — without a
+    // refresh the read-first cache would return 'stale' forever and re-recording could never happen.
+    expect(await refreshed.complete(msgs)).toEqual({ content: 'fresh' });
+    expect(fresh.calls).toBe(1);
+    expect(
+      await withContentHashCache(
+        mockProvider(() => 'unused'),
+        { model: 'model-x' },
+        dir,
+      ).complete(msgs),
+    ).toEqual({
+      content: 'fresh',
+    });
+  });
+
   it('should miss when the messages change', async () => {
     const dir = freshDir();
     const provider = mockProvider((m) => `echo:${m[0]?.content}`);

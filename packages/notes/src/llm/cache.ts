@@ -33,11 +33,16 @@ export interface CacheIdentity {
  * temperature and maxTokens, and any structured-output schema/tool — so a changed input misses
  * cleanly. Lets a dry-run → `--apply` backfill (or a retried run) reuse prior generations instead of
  * paying the LLM again. Best-effort: any read/parse/write failure falls back to a live call.
+ *
+ * `refresh` skips the read and always calls the provider, writing the result over any existing entry.
+ * Regenerating on purpose needs that: the cache is otherwise read-first, so a stale entry would be
+ * served back forever and the refresh would never happen.
  */
 export function withContentHashCache(
   provider: LLMProvider,
   identity: CacheIdentity,
   dir: string = defaultCacheDir(),
+  { refresh = false }: { refresh?: boolean } = {},
 ): LLMProvider {
   return {
     name: provider.name,
@@ -63,10 +68,12 @@ export function withContentHashCache(
         .digest('hex');
       const file = path.join(dir, `${key}.json`);
 
-      try {
-        return JSON.parse(await fs.readFile(file, 'utf-8')) as CompleteResult;
-      } catch {
-        // Cache miss or unreadable entry — fall through to a live call.
+      if (!refresh) {
+        try {
+          return JSON.parse(await fs.readFile(file, 'utf-8')) as CompleteResult;
+        } catch {
+          // Cache miss or unreadable entry — fall through to a live call.
+        }
       }
 
       const result = await provider.complete(messages, options);

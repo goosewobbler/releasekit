@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { CompleteResult, LLMProvider } from '../../src/llm/provider.js';
 import { generateReleaseNotes } from '../../src/llm/tasks/release-notes.js';
 import {
   checkLengthBounds,
@@ -6,7 +7,7 @@ import {
   findDuplicateDependencyChurn,
   findMarkerLeaks,
 } from './assertions.js';
-import { evalProvider, isLiveMode, loadGoldenCase } from './harness.js';
+import { asEvalProvider, CAPABILITIES, evalProvider, isLiveMode, loadGoldenCase } from './harness.js';
 
 /**
  * Golden-fixture eval for the LLM-notes pipeline. Runs a real commit set through the real pipeline and
@@ -32,4 +33,19 @@ describe('notes eval: release notes', () => {
     },
     isLiveMode ? 180_000 : 10_000,
   );
+
+  // Guards the one thing that makes record→replay work at all. Capabilities decide whether a task
+  // sends a structured-output schema/toolName, and those are part of the cache key — so a live
+  // recording made under the real provider's capabilities would key differently from the replay that
+  // has to read it back. Ollama advertises structuredOutputs: true, so this fails the moment the
+  // wrapper passes the base provider's capabilities through instead of the harness's fixed set.
+  it('should report the fixed eval capabilities regardless of what the live provider advertises', () => {
+    const ollamaLike: LLMProvider = {
+      name: 'ollama',
+      capabilities: { systemRole: true, structuredOutputs: true, toolUse: false, honorsTemperature: true },
+      complete: async (): Promise<CompleteResult> => ({ content: '' }),
+    };
+
+    expect(asEvalProvider(ollamaLike, 'unused', 'test').capabilities).toEqual(CAPABILITIES);
+  });
 });

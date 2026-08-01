@@ -1,4 +1,4 @@
-import { readFileSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { ChangelogEntry } from '../../src/core/types.js';
 import { type CacheIdentity, withContentHashCache } from '../../src/llm/cache.js';
@@ -15,7 +15,16 @@ import type { CompleteResult, LLMMessage, LLMProvider, ProviderCapabilities } fr
  * Modes (env):
  *   default              strict replay from the committed cache; a cache miss fails loudly.
  *   RELEASEKIT_EVAL_RECORD=1   seed the cache from the human-readable `*.recorded.md` fixtures (no model).
- *   RELEASEKIT_EVAL=1          run a real provider (Ollama), recording fresh responses into the cache.
+ *   RELEASEKIT_EVAL=1          run a real provider (Ollama), recording fresh responses into the cache
+ *                              and back into `*.recorded.md`.
+ *
+ * The recording modes pass `refresh` so the cache writes through instead of serving the entry it is
+ * meant to replace. They rewrite the entries the cases they run produce, and nothing else — changing
+ * a prompt therefore leaves the old entry behind under its now-unreachable key. To re-record from a
+ * clean slate, delete the fixture cache first:
+ *
+ *   rm -rf packages/notes/test/eval/fixtures/cache
+ *   RELEASEKIT_EVAL_RECORD=1 pnpm --filter @releasekit/notes test
  */
 
 export const EVAL_DIR = fileURLToPath(new URL('.', import.meta.url));
@@ -26,18 +35,17 @@ export const CACHE_DIR = fileURLToPath(new URL('./fixtures/cache', import.meta.u
 const EVAL_PROVIDER_NAME = 'eval';
 export const EVAL_IDENTITY: CacheIdentity = { model: 'eval-fixture' };
 
-const CAPABILITIES: ProviderCapabilities = { systemRole: true, structuredOutputs: false, toolUse: false };
+/**
+ * Every mode reports these, the real provider included — capabilities are not free-floating metadata.
+ * A task consults them to decide whether to send a structured-output `schema`/`toolName`, and both are
+ * part of the cache key, so a provider that advertises different capabilities keys the same golden
+ * input differently. Ollama advertises `structuredOutputs: true`; letting that through would mean a
+ * live recording of a structured case could never be found by the replay that has to read it back.
+ */
+export const CAPABILITIES: ProviderCapabilities = { systemRole: true, structuredOutputs: false, toolUse: false };
 
 export const isLiveMode = process.env.RELEASEKIT_EVAL === '1' || process.env.RELEASEKIT_EVAL === 'true';
 export const isRecordMode = process.env.RELEASEKIT_EVAL_RECORD === '1' || process.env.RELEASEKIT_EVAL_RECORD === 'true';
-
-// Record and live modes regenerate fixtures, but withContentHashCache is read-first — it would serve
-// an existing entry before ever calling the canned/real provider, so an edited recording or a live
-// re-run could never replace a stale fixture. Clear the cache once up front so these modes always
-// re-record from scratch. Replay (default) never clears: it reads the committed fixtures.
-if (isRecordMode || isLiveMode) {
-  rmSync(CACHE_DIR, { recursive: true, force: true });
-}
 
 const strictOfflineProvider: LLMProvider = {
   name: EVAL_PROVIDER_NAME,
@@ -61,12 +69,20 @@ function cannedProvider(content: string): LLMProvider {
   };
 }
 
-/** Re-brand a real provider under the fixed eval name so its recorded responses key like the rest. */
-function asEvalProvider(base: LLMProvider): LLMProvider {
+/**
+ * Re-brand a real provider under the fixed eval name and capabilities so its recorded responses key
+ * like the rest, and tee each response back into `*.recorded.md` so the human-readable fixture and
+ * the cache entry stay the same generation — with the model that produced it recorded alongside.
+ */
+export function asEvalProvider(base: LLMProvider, caseName: string, provenance: string): LLMProvider {
   return {
     name: EVAL_PROVIDER_NAME,
-    capabilities: base.capabilities,
-    complete: (messages: LLMMessage[], options) => base.complete(messages, options),
+    capabilities: CAPABILITIES,
+    async complete(messages: LLMMessage[], options): Promise<CompleteResult> {
+      const result = await base.complete(messages, options);
+      writeRecorded(caseName, result.content, provenance);
+      return result;
+    },
   };
 }
 
@@ -81,9 +97,21 @@ export function loadGoldenCase(name: string): GoldenCase {
   return JSON.parse(readFileSync(path, 'utf-8')) as GoldenCase;
 }
 
+function recordedPath(name: string): string {
+  return fileURLToPath(new URL(`./fixtures/${name}.recorded.md`, import.meta.url));
+}
+
+// Provenance header stamped on a recording. The assertions' calibration (length bounds, tense ratio)
+// is implicitly tuned to whatever produced the fixture, and the cache key deliberately pins the model
+// to EVAL_IDENTITY so replay works — which leaves nothing else recording what actually generated it.
+const PROVENANCE_HEADER = /^<!--\s*recorded:.*?-->\n+/;
+
 function loadRecorded(name: string): string {
-  const path = fileURLToPath(new URL(`./fixtures/${name}.recorded.md`, import.meta.url));
-  return readFileSync(path, 'utf-8').trimEnd();
+  return readFileSync(recordedPath(name), 'utf-8').replace(PROVENANCE_HEADER, '').trimEnd();
+}
+
+function writeRecorded(name: string, content: string, provenance: string): void {
+  writeFileSync(recordedPath(name), `<!-- recorded: ${provenance} -->\n\n${content.trimEnd()}\n`);
 }
 
 /**
@@ -96,10 +124,11 @@ export async function evalProvider(caseName: string): Promise<LLMProvider> {
     const { OllamaProvider } = await import('../../src/llm/ollama.js');
     const model = process.env.RELEASEKIT_EVAL_MODEL ?? 'llama3.2';
     const baseURL = process.env.OLLAMA_BASE_URL;
-    return withContentHashCache(asEvalProvider(new OllamaProvider({ model, baseURL })), EVAL_IDENTITY, CACHE_DIR);
+    const live = asEvalProvider(new OllamaProvider({ model, baseURL }), caseName, `ollama/${model}`);
+    return withContentHashCache(live, EVAL_IDENTITY, CACHE_DIR, { refresh: true });
   }
   if (isRecordMode) {
-    return withContentHashCache(cannedProvider(loadRecorded(caseName)), EVAL_IDENTITY, CACHE_DIR);
+    return withContentHashCache(cannedProvider(loadRecorded(caseName)), EVAL_IDENTITY, CACHE_DIR, { refresh: true });
   }
   return withContentHashCache(strictOfflineProvider, EVAL_IDENTITY, CACHE_DIR);
 }
