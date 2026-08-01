@@ -64,7 +64,9 @@ When `publish` fails partway, its error envelope carries what already landed in 
 | `VERSION_ERROR` | `version` | 8 |
 | `PUBLISH_ERROR` | `publish` | 9 |
 
-`schemaVersion` bumps only on a breaking change to the envelope shape and is stable across minor releases, so agents and CI can pin against it.
+Commands throw more specific codes than these nine families — `TAG_ALREADY_EXISTS`, `NPM_AUTH_ERROR`, and so on. The `code` in `errors[]` is that specific code; the **exit code** is its family's, so `releasekit version` failing on `NOT_GIT_REPO` exits `7` and a script can branch on "git problem" without enumerating every code.
+
+`schemaVersion` bumps only on a breaking change to the envelope shape and is stable across minor releases, so agents and CI can pin against it. A consumer reading an envelope from a **newer** producer fails with a version-mismatch error rather than acting on a payload whose shape it may not understand.
 
 ---
 
