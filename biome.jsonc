@@ -14,6 +14,9 @@
       "!**/out",
       "!.turbo",
       "!**/node_modules",
+      // Agent worktrees are full checkouts carrying their own root biome.jsonc, and Biome refuses to
+      // run at all on a nested root config — in scope, one breaks `pnpm lint` for the whole repo.
+      "!**/.claude",
       // Recorded eval fixtures — opaque provider-response blobs in the cache's native (compact) format.
       // Formatting them would churn on every re-record and diverge from what the harness writes.
       "!packages/notes/test/eval/fixtures/cache"
