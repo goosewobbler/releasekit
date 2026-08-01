@@ -50,3 +50,51 @@ export function checkPastTenseLeaning(text: string, minRatio = 0.6): string[] {
   const ratio = pastCount / items.length;
   return ratio >= minRatio ? [] : [`only ${pastCount}/${items.length} items lead past-tense (< ${minRatio})`];
 }
+
+/** Same shape as the pipeline's `CategorizedEntries`, kept structural so the assertions stay pure. */
+interface CategoryGroup {
+  category: string;
+  entries: unknown[];
+}
+
+/**
+ * Grouping has to discriminate, not just be legal. The task validator already rejects category names
+ * outside the configured set, so a model that drops every entry into one bucket passes validation and
+ * still produces a useless grouping. Checks the two ways that degrades: too few distinct categories,
+ * and one category swallowing most of the entries.
+ *
+ * `maxShare` is only meaningful once there are enough entries to spread, so it is skipped below four.
+ */
+export function checkCategoryDistribution(
+  categories: CategoryGroup[],
+  opts: { minCategories?: number; maxShare?: number } = {},
+): string[] {
+  const { minCategories = 2, maxShare = 0.8 } = opts;
+  const total = categories.reduce((n, c) => n + c.entries.length, 0);
+  if (total === 0) return ['no categorized entries'];
+
+  const violations: string[] = [];
+  const populated = categories.filter((c) => c.entries.length > 0);
+
+  if (populated.length < minCategories) {
+    violations.push(`only ${populated.length} populated categor(ies), expected >= ${minCategories}`);
+  }
+
+  const empty = categories.filter((c) => c.entries.length === 0).map((c) => c.category);
+  if (empty.length > 0) violations.push(`empty categories emitted: ${empty.join(', ')}`);
+
+  if (total >= 4) {
+    const largest = populated.reduce((a, b) => (b.entries.length > a.entries.length ? b : a), populated[0]);
+    if (largest && largest.entries.length / total > maxShare) {
+      violations.push(`"${largest.category}" holds ${largest.entries.length}/${total} entries (> ${maxShare})`);
+    }
+  }
+
+  return violations;
+}
+
+/** Every entry survived categorization exactly once — none dropped, none duplicated across buckets. */
+export function checkNoEntryLoss(categories: CategoryGroup[], expectedCount: number): string[] {
+  const total = categories.reduce((n, c) => n + c.entries.length, 0);
+  return total === expectedCount ? [] : [`categorized ${total} entries, expected ${expectedCount}`];
+}

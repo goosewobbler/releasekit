@@ -1,0 +1,54 @@
+{
+  "context": {
+    "categories": [
+      {
+        "name": "New",
+        "description": "New features and capabilities"
+      },
+      {
+        "name": "Fixed",
+        "description": "Bug fixes and corrections"
+      },
+      {
+        "name": "Changed",
+        "description": "Changes to existing behaviour, including dependency updates"
+      }
+    ]
+  },
+  "entries": [
+    {
+      "type": "added",
+      "description": "feat(api): add a streaming API for real-time updates",
+      "issueIds": [
+        "#101"
+      ]
+    },
+    {
+      "type": "added",
+      "description": "feat(mobile): add deeplink support for the mobile client",
+      "issueIds": []
+    },
+    {
+      "type": "fixed",
+      "description": "fix(config): handle a missing config file instead of throwing",
+      "issueIds": [
+        "#118"
+      ]
+    },
+    {
+      "type": "fixed",
+      "description": "fix(api): stop dropping the final chunk on slow connections",
+      "issueIds": []
+    },
+    {
+      "type": "changed",
+      "description": "refactor(config): improve error messages for invalid configuration",
+      "issueIds": []
+    },
+    {
+      "type": "changed",
+      "description": "chore(deps): update dependencies",
+      "issueIds": []
+    }
+  ]
+}

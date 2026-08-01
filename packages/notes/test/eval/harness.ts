@@ -86,15 +86,19 @@ export function asEvalProvider(base: LLMProvider, caseName: string, provenance: 
   };
 }
 
-export interface GoldenCase {
+export interface GoldenCase<TContext = ReleaseNotesContext> {
   entries: ChangelogEntry[];
-  context: ReleaseNotesContext;
+  context: TContext;
 }
 
-/** Load a golden input fixture (a real-shaped commit set with a fixed date, so cache keys are stable). */
-export function loadGoldenCase(name: string): GoldenCase {
+/**
+ * Load a golden input fixture (a real-shaped commit set with a fixed date, so cache keys are stable).
+ * The context type varies by task — release notes take a `ReleaseNotesContext`, enhance-and-categorize
+ * an `EnhanceContext & CategorizeContext` — so the caller names what it expects.
+ */
+export function loadGoldenCase<TContext = ReleaseNotesContext>(name: string): GoldenCase<TContext> {
   const path = fileURLToPath(new URL(`./fixtures/${name}.json`, import.meta.url));
-  return JSON.parse(readFileSync(path, 'utf-8')) as GoldenCase;
+  return JSON.parse(readFileSync(path, 'utf-8')) as GoldenCase<TContext>;
 }
 
 function recordedPath(name: string): string {

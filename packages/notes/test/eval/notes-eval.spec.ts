@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import type { CategorizeContext, EnhanceContext } from '../../src/llm/index.js';
 import type { CompleteResult, LLMProvider } from '../../src/llm/provider.js';
+import { enhanceAndCategorize } from '../../src/llm/tasks/enhance-and-categorize.js';
 import { generateReleaseNotes } from '../../src/llm/tasks/release-notes.js';
 import {
+  checkCategoryDistribution,
   checkLengthBounds,
+  checkNoEntryLoss,
   checkPastTenseLeaning,
   findDuplicateDependencyChurn,
   findMarkerLeaks,
@@ -30,6 +34,31 @@ describe('notes eval: release notes', () => {
       expect(findDuplicateDependencyChurn(notes)).toEqual([]);
       expect(checkLengthBounds(notes, 80, 4000)).toEqual([]);
       expect(checkPastTenseLeaning(notes)).toEqual([]);
+    },
+    isLiveMode ? 180_000 : 10_000,
+  );
+
+  it(
+    'should enhance and categorize the structured golden case into a usable grouping',
+    async () => {
+      const golden = loadGoldenCase<EnhanceContext & CategorizeContext>('enhance-and-categorize-basic');
+      const provider = await evalProvider('enhance-and-categorize-basic');
+
+      const { enhancedEntries, categories } = await enhanceAndCategorize(provider, golden.entries, golden.context);
+
+      // Structured-path checks the free-text case can't reach: the grouping has to discriminate, and
+      // nothing may be lost or duplicated on the way through categorization.
+      expect(checkNoEntryLoss(categories, golden.entries.length)).toEqual([]);
+      expect(checkCategoryDistribution(categories)).toEqual([]);
+
+      // The content assertions hold here too — the descriptions are user-facing prose.
+      const descriptions = enhancedEntries.map((e) => `- ${e.description}`).join('\n');
+      expect(findMarkerLeaks(descriptions)).toEqual([]);
+      expect(findDuplicateDependencyChurn(descriptions)).toEqual([]);
+      expect(checkPastTenseLeaning(descriptions)).toEqual([]);
+
+      // Enhancement must rewrite the conventional-commit prefixes out, not pass them through.
+      expect(descriptions).not.toMatch(/\b(feat|fix|chore|refactor)\(/);
     },
     isLiveMode ? 180_000 : 10_000,
   );
