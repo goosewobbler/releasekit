@@ -2,13 +2,16 @@
   "context": {
     "categories": [
       {
-        "name": "New"
+        "name": "New",
+        "description": "New features and capabilities"
       },
       {
-        "name": "Fixed"
+        "name": "Fixed",
+        "description": "Bug fixes and corrections"
       },
       {
-        "name": "Changed"
+        "name": "Changed",
+        "description": "Changes to existing behaviour, including dependency updates"
       }
     ]
   },
