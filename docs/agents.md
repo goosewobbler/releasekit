@@ -34,9 +34,11 @@ releasekit's standing-PR mode already has the shape the post-incident guidance c
 
 - An agent contributes the way anyone else does: a feeder PR, or an edit to the standing PR's notes region. It never holds a registry credential.
 - The **merge is the approval**, and a branch-protection ruleset on the release branch is what enforces it. This is the actual gate — not the instructions above, which are advisory.
-- **CI publishes**, authenticating with short-lived OIDC tokens rather than a long-lived token an agent (or a compromised dependency) could exfiltrate. See [OIDC setup](../packages/release/docs/ci-setup.md).
+- **CI publishes**, using short-lived OIDC tokens where the registry supports them — npm and pub.dev do. See [OIDC setup](../packages/release/docs/ci-setup.md).
 
-The properties that matter fall out of that split: nothing an agent does reaches a registry without a human merge, and the credential that can publish exists only inside a CI job, only for its duration.
+The property that holds regardless of registry is the one that matters most: nothing an agent does reaches a registry without a human merge, because the credential lives in CI and CI only runs the publish after the merge.
+
+**crates.io is the exception on credentials.** It has no OIDC support yet, so cargo publishing needs a long-lived `CARGO_REGISTRY_TOKEN` repository secret. That secret outlives any single job, so it wants the handling a long-lived credential always wants — scoped as narrowly as the registry allows, rotated, and restricted to the environment the release job runs in. Tracked in [#546](https://github.com/goosewobbler/releasekit/issues/546).
 
 Two supporting checks: the manifest is validated against the merged source before publishing — versions re-read from the actual package manifests, base SHA required to be an ancestor of `HEAD` — so an edited manifest is refused, not trusted; and selection, channel, and release-control label changes are reverted when made by an unauthorized actor, if [`ci.standingPr.authorization`](./configuration.md) is configured.
 
