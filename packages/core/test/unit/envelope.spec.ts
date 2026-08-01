@@ -3,8 +3,10 @@ import {
   ENVELOPE_SCHEMA_VERSION,
   errorEnvelope,
   exitCodeForError,
+  isEnvelope,
   successEnvelope,
   toEnvelopeError,
+  unwrapEnvelope,
 } from '../../src/envelope.js';
 import { EXIT_CODES, ReleaseKitError } from '../../src/errors.js';
 
@@ -96,6 +98,48 @@ describe('envelope', () => {
 
     it('should default to GENERAL_ERROR for a plain Error', () => {
       expect(exitCodeForError(new Error('x'))).toBe(EXIT_CODES.GENERAL_ERROR);
+    });
+  });
+
+  describe('errorEnvelope partial progress', () => {
+    it('should carry data and changed when a command failed partway with progress to report', () => {
+      const env = errorEnvelope([toEnvelopeError(new Error('registry rejected'))], {
+        data: { npm: ['@acme/a'] },
+        changed: true,
+      });
+      expect(env.status).toBe('error');
+      expect(env.data).toEqual({ npm: ['@acme/a'] });
+      expect(env.changed).toBe(true);
+    });
+  });
+
+  describe('isEnvelope', () => {
+    it('should accept an envelope and reject bare payloads', () => {
+      expect(isEnvelope(successEnvelope({ tags: [] }))).toBe(true);
+      expect(isEnvelope({ dryRun: false, updates: [], tags: [] })).toBe(false);
+      expect(isEnvelope(null)).toBe(false);
+      expect(isEnvelope('a string')).toBe(false);
+    });
+  });
+
+  describe('unwrapEnvelope', () => {
+    it('should return the payload from a success envelope', () => {
+      const payload = { dryRun: false, updates: [{ packageName: 'a' }], tags: ['v1.0.0'] };
+      expect(unwrapEnvelope(successEnvelope(payload))).toEqual(payload);
+    });
+
+    it('should pass a bare payload through unchanged', () => {
+      const bare = { dryRun: false, updates: [], tags: [] };
+      expect(unwrapEnvelope(bare)).toBe(bare);
+    });
+
+    it('should throw with the upstream message and code for an error envelope', () => {
+      const env = errorEnvelope([toEnvelopeError(new TestConfigError('bad config'))]);
+      expect(() => unwrapEnvelope(env)).toThrow(/CONFIG_ERROR.*bad config/);
+    });
+
+    it('should throw even when an error envelope carries no error detail', () => {
+      expect(() => unwrapEnvelope(errorEnvelope([]))).toThrow(/reported no error detail/);
     });
   });
 });

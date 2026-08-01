@@ -52,15 +52,51 @@ export function successEnvelope<T>(
   };
 }
 
-export function errorEnvelope(errors: EnvelopeError[], opts: { warnings?: EnvelopeWarning[] } = {}): Envelope<null> {
+/**
+ * `data` and `changed` exist for commands that fail partway with real progress to report: a publish
+ * that failed after landing some packages knows what landed, and did change state. Hardcoding
+ * `null`/`false` here would drop that, and the retry is what needs it.
+ */
+export function errorEnvelope<T = null>(
+  errors: EnvelopeError[],
+  opts: { warnings?: EnvelopeWarning[]; data?: T; changed?: boolean } = {},
+): Envelope<T | null> {
   return {
     schemaVersion: ENVELOPE_SCHEMA_VERSION,
     status: 'error',
-    changed: false,
-    data: null,
+    changed: opts.changed ?? false,
+    data: opts.data ?? null,
     warnings: opts.warnings ?? [],
     errors,
   };
+}
+
+/** Structural test for the envelope. */
+export function isEnvelope(value: unknown): value is Envelope {
+  return (
+    typeof value === 'object' && value !== null && 'schemaVersion' in value && 'status' in value && 'data' in value
+  );
+}
+
+/**
+ * Unwrap a piped envelope to its payload; a bare payload passes through unchanged, so a
+ * hand-assembled input or an older releasekit still works.
+ *
+ * An error envelope throws rather than yielding null: piping a failed stage into the next one should
+ * fail with the upstream message, not with a schema complaint about missing fields that sends the
+ * reader looking in the wrong place.
+ */
+export function unwrapEnvelope(value: unknown): unknown {
+  if (!isEnvelope(value)) return value;
+  if (value.status === 'error') {
+    const first = value.errors[0];
+    throw new Error(
+      first
+        ? `Upstream releasekit stage failed (${first.code}): ${first.message}`
+        : 'Upstream releasekit stage failed, but reported no error detail.',
+    );
+  }
+  return value.data;
 }
 
 const CODE_TO_EXIT: Record<string, number> = {

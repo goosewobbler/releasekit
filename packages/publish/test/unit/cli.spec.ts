@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@releasekit/core');
+// Partial mock: the envelope builders and writer must stay real, since these tests assert on the
+// envelope the command actually emits. Only the logging setters are stubbed, to assert they're wired.
+vi.mock('@releasekit/core', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@releasekit/core')>()),
+  setJsonMode: vi.fn(),
+  setLogLevel: vi.fn(),
+}));
 vi.mock('../../src/config.js');
 vi.mock('../../src/pipeline/index.js');
 vi.mock('../../src/stages/input.js');
@@ -46,8 +52,10 @@ const mockOutput: PublishOutput = {
   git: { committed: false, tags: [], pushed: false },
   npm: [],
   cargo: [],
+  pub: [],
   verification: [],
   githubReleases: [],
+  publishSucceeded: true,
 };
 
 describe('createPublishCommand', () => {
@@ -106,12 +114,15 @@ describe('createPublishCommand', () => {
   });
 
   describe('JSON output', () => {
-    it('should print output as JSON when --json is passed and pipeline succeeds', async () => {
+    it('should print a success envelope wrapping the output when --json is passed', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
       await createPublishCommand().parseAsync(['node', 'test', '--json']);
 
-      expect(consoleSpy).toHaveBeenCalledWith(JSON.stringify(mockOutput, null, 2));
+      const envelope = JSON.parse(consoleSpy.mock.calls[0]?.[0] as string);
+      expect(envelope.status).toBe('success');
+      // The payload rides in `data` verbatim, so the pipe's contract is unchanged.
+      expect(envelope.data).toEqual(mockOutput);
       consoleSpy.mockRestore();
     });
 
@@ -126,16 +137,25 @@ describe('createPublishCommand', () => {
   });
 
   describe('error handling', () => {
-    it('should print PipelineError as JSON and exit with PUBLISH_ERROR when --json is passed', async () => {
-      const partialOutput: PublishOutput = { ...mockOutput };
-      const pipelineError = new PipelineError('stage failed', 'npm', partialOutput);
-      vi.mocked(runPipeline).mockRejectedValue(pipelineError);
+    it('should print a PipelineError envelope carrying the partial output and exit with PUBLISH_ERROR', async () => {
+      const partialOutput: PublishOutput = {
+        ...mockOutput,
+        npm: [{ packageName: '@acme/a', version: '1.0.0', registry: 'npm', success: true, skipped: false }],
+      };
+      vi.mocked(runPipeline).mockRejectedValue(new PipelineError('registry rejected', 'npm', partialOutput));
 
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
       await createPublishCommand().parseAsync(['node', 'test', '--json']);
 
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('"failedStage": "npm"'));
+      const envelope = JSON.parse(consoleSpy.mock.calls[0]?.[0] as string);
+      expect(envelope.status).toBe('error');
+      // What landed before the failure survives — the retry needs it — and the stage that failed is
+      // named in the message, since the envelope has no field for it.
+      expect(envelope.data).toEqual(partialOutput);
+      expect(envelope.changed).toBe(true);
+      expect(envelope.errors[0].message).toContain('npm');
+      expect(envelope.errors[0].message).toContain('registry rejected');
       expect(mockExit).toHaveBeenCalledWith(EXIT_CODES.PUBLISH_ERROR);
       consoleSpy.mockRestore();
     });

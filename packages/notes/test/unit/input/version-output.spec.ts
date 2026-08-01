@@ -1,4 +1,4 @@
-import type { VersionOutput } from '@releasekit/core';
+import { errorEnvelope, successEnvelope, type VersionOutput } from '@releasekit/core';
 import { describe, expect, it } from 'vitest';
 import { parseVersionOutput, versionOutputToChangelogInput } from '../../../src/input/version-output.js';
 
@@ -194,5 +194,16 @@ describe('parseVersionOutput', () => {
 
   it('should throw on invalid JSON', () => {
     expect(() => parseVersionOutput('not valid json')).toThrow('Invalid JSON input');
+  });
+
+  it('should unwrap the envelope emitted by `version --json`', () => {
+    const result = parseVersionOutput(JSON.stringify(successEnvelope(baseVersionOutput, { changed: true })));
+    expect(result.source).toBe('version');
+    expect(result.packages[0]?.packageName).toBe('@scope/my-package');
+  });
+
+  it('should surface an upstream failure rather than a shape complaint', () => {
+    const failed = errorEnvelope([{ code: 'GIT_ERROR', category: 'git', retryable: false, message: 'no such ref' }]);
+    expect(() => parseVersionOutput(JSON.stringify(failed))).toThrow(/GIT_ERROR.*no such ref/);
   });
 });
