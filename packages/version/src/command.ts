@@ -1,10 +1,22 @@
-import { EXIT_CODES } from '@releasekit/core';
+import {
+  EXIT_CODES,
+  errorEnvelope,
+  exitCodeForError,
+  InputError,
+  toEnvelopeError,
+  writeEnvelope,
+} from '@releasekit/core';
 import { Command } from 'commander';
 import { loadConfig } from './config.js';
 import { VersionEngine } from './core/versionEngine.js';
 import type { Config } from './types.js';
 import { enableJsonOutput, printJsonOutput } from './utils/jsonOutput.js';
 import { log } from './utils/logging.js';
+
+/** Report a failure on the JSON channel, so a `--json` caller gets the same shape as on success. */
+function emitErrorEnvelope(error: unknown, opts: { json?: boolean; output?: string }): void {
+  writeEnvelope(errorEnvelope([toEnvelopeError(error)]), opts);
+}
 
 export function createVersionCommand(): Command {
   return new Command('version')
@@ -21,6 +33,7 @@ export function createVersionCommand(): Command {
     )
     .option('-s, --sync', 'Use synchronized versioning across all packages')
     .option('-j, --json', 'Output results as JSON', false)
+    .option('--output <path>', 'Write the JSON result to a file instead of stdout')
     .option('-t, --target <packages>', 'Comma-delimited list of package names to target')
     .option(
       '--include-prerequisites',
@@ -29,12 +42,16 @@ export function createVersionCommand(): Command {
     )
     .option('--project-dir <path>', 'Project directory to run commands in', process.cwd())
     .action(async (options) => {
+      const io = { json: options.json, output: options.output };
+
       if (options.stable && options.prerelease) {
-        console.error('Error: Cannot use both --stable and --prerelease at the same time');
+        const message = 'Cannot use both --stable and --prerelease at the same time';
+        emitErrorEnvelope(new InputError(message), io);
+        console.error(`Error: ${message}`);
         process.exit(EXIT_CODES.INPUT_ERROR);
       }
 
-      if (options.json) {
+      if (options.json || options.output) {
         enableJsonOutput(options.dryRun);
       }
 
@@ -110,16 +127,17 @@ export function createVersionCommand(): Command {
 
         log('Versioning process completed.', 'success');
 
-        printJsonOutput();
+        printJsonOutput(options.output);
       } catch (error) {
         const { BaseVersionError } = await import('./errors/baseError.js');
 
+        emitErrorEnvelope(error, io);
         if (BaseVersionError.isVersionError(error)) {
           error.logError();
         } else {
           log(`Error: ${error instanceof Error ? error.message : String(error)}`, 'error');
         }
-        process.exit(1);
+        process.exit(exitCodeForError(error));
       }
     });
 }

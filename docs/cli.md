@@ -20,25 +20,35 @@ The `releasekit` dispatcher re-exports `version`, `notes`, and `publish`, so `re
 
 ## JSON output contract
 
-The orchestration commands — `release`, `gate`, and `standing-pr` — emit their `-j, --json` result as a single **envelope**, one uniform shape shared by humans, CI, and agents. `--output <path>` writes the same envelope to a file instead of stdout (the reliable channel for the GitHub Action, since stdout can be polluted by subprocess or log noise, and a single stray byte breaks JSON parsing).
-
-> **Not yet enveloped:** the pipe commands `version`, `notes`, and `publish` still print their payload bare. They pipe JSON between processes, so wrapping their output means teaching the consuming side to unwrap on input — a separate change. Don't unwrap `.data` from those; check for `schemaVersion` if you need to handle both.
+Every command that produces a JSON result — `release`, `gate`, `standing-pr`, `version`, and `publish` — emits it as a single **envelope**, one uniform shape shared by humans, CI, and agents. `--output <path>` writes the same envelope to a file instead of stdout (the reliable channel for the GitHub Action, since stdout can be polluted by subprocess or log noise, and a single stray byte breaks JSON parsing).
 
 ```jsonc
 {
   "schemaVersion": 1,   // envelope contract version; stable across minor releases
   "status": "success",  // "success" | "error"
   "changed": true,      // did the command change state, or was everything already as desired?
-  "data": { /* … */ },  // command-specific payload (VersionOutput, gate result, …); null on error
+  "data": { /* … */ },  // command-specific payload (VersionOutput, gate result, …); null on error, except partial progress
   "warnings": [{ "code": "…", "message": "…" }],
   "errors": [{ "code": "…", "category": "…", "retryable": false, "message": "…" }]
 }
 ```
 
-- **`data`** carries the command's payload verbatim — the envelope wraps it, never replaces it. `releasekit release --json` still exposes its `VersionOutput` at `data.versionOutput`.
+- **`data`** carries the command's payload verbatim — the envelope wraps it, never replaces it. `releasekit release --json` still exposes its `VersionOutput` at `data.versionOutput`, and `releasekit version --json` exposes it at `data`. It is `null` on error, except where a command failed partway with real progress to report (see the pipe section below).
 - **`changed`** separates real work from a no-op: a dry run is never `changed`; `standing-pr publish` reads its registry results, so a re-run where every version was already published reports `changed: false`; `gate` is read-only and always `changed: false`.
 - **`errors[]`** replaces prose-only failures in JSON mode. Each carries a stable machine `code`, a coarse `category`, a `retryable` flag (only `true` for known-transient failures — a timeout, 429, or 5xx from a provider — so an agent never retries an unknown failure), and a human `message`.
 - **Stream discipline:** the envelope is the only thing on stdout; all diagnostics (progress, warnings, error text) go to stderr. Parsing stdout as JSON is always safe, and no command prompts interactively on a CI path.
+
+### The `version | notes | publish` pipe
+
+The pipe is unchanged: `notes` and `publish` unwrap the envelope on the way in and read the `VersionOutput` from `data`, so the three still chain directly.
+
+```sh
+releasekit version --json | releasekit notes | releasekit publish
+```
+
+A bare `VersionOutput` is still accepted on input, so a hand-assembled file or output from an older releasekit keeps working. Piping a *failed* stage forward fails with that stage's error rather than a schema complaint about missing fields — the message names the upstream code, so the report points at the stage that actually broke.
+
+When `publish` fails partway, its error envelope carries what already landed in `data` and reports `changed: true`; the failing stage is named in the error `message`. Publishes are idempotent, so a retry uses that to skip what is already out.
 
 ### Error codes and exit codes
 
@@ -54,7 +64,9 @@ The orchestration commands — `release`, `gate`, and `standing-pr` — emit the
 | `VERSION_ERROR` | `version` | 8 |
 | `PUBLISH_ERROR` | `publish` | 9 |
 
-`schemaVersion` bumps only on a breaking change to the envelope shape and is stable across minor releases, so agents and CI can pin against it.
+Commands throw more specific codes than these nine families — `TAG_ALREADY_EXISTS`, `NPM_AUTH_ERROR`, and so on. The `code` in `errors[]` is that specific code; the **exit code** is its family's, so `releasekit version` failing on `NOT_GIT_REPO` exits `7` and a script can branch on "git problem" without enumerating every code.
+
+`schemaVersion` bumps only on a breaking change to the envelope shape and is stable across minor releases, so agents and CI can pin against it. A consumer reading an envelope from a **newer** producer fails with a version-mismatch error rather than acting on a payload whose shape it may not understand.
 
 ---
 
@@ -275,6 +287,7 @@ Version a package or packages based on configuration and conventional commits. A
 | `--allow-first-bump` | boolean | `false` | Acknowledge applying a bump on a first release with an already-stable manifest (silences the overshoot warning; see [`version.allowFirstBump`](./configuration.md#version)) |
 | `-s, --sync` | boolean | config | Use synchronized versioning across all packages |
 | `-j, --json` | boolean | `false` | Output results as JSON |
+| `--output <path>` | string | stdout | Write the JSON result to a file instead of stdout |
 | `-t, --target <packages>` | string | all | Comma-delimited list of package names to target |
 | `--include-prerequisites` | boolean | `false` | Also release the changed internal dependencies of `--target` packages (and the rest of their groups) |
 | `--project-dir <path>` | string | `cwd` | Project directory to run commands in |
@@ -360,6 +373,7 @@ Publish packages to registries with git tagging and GitHub releases. Reads a ver
 | `--skip-github-release` | boolean | `false` | Skip GitHub Release creation |
 | `--skip-verification` | boolean | `false` | Skip post-publish verification |
 | `--json` | boolean | `false` | Output results as JSON |
+| `--output <path>` | string | stdout | Write the JSON result to a file instead of stdout |
 | `--verbose` | boolean | `false` | Verbose logging |
 
 ```bash

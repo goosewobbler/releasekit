@@ -7,10 +7,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   deriveReleaseChannel,
+  successEnvelope,
   type VersionAction,
   type VersionChangelogEntry,
   type VersionOutput,
   type VersionPackageChangelog,
+  writeEnvelope,
 } from '@releasekit/core';
 
 /** @deprecated Use {@link VersionOutput} from `@releasekit/core` instead. */
@@ -287,10 +289,15 @@ export function getJsonData(): VersionOutput {
 }
 
 /**
- * Print JSON output at the end of execution
+ * Emit the collected `VersionOutput` inside the uniform CLI envelope. The payload rides in `data`
+ * verbatim — `notes` and `publish` unwrap it on the way in, so the pipe's contract is unchanged.
+ *
+ * A dry run writes nothing, so it is never `changed`.
  */
-export function printJsonOutput(): void {
-  if (_jsonOutputMode) {
-    console.log(JSON.stringify(_jsonData, null, 2));
-  }
+export function printJsonOutput(outputPath?: string): void {
+  if (!_jsonOutputMode) return;
+  writeEnvelope(successEnvelope(_jsonData, { changed: !_jsonData.dryRun && _jsonData.updates.length > 0 }), {
+    json: true,
+    output: outputPath,
+  });
 }

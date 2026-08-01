@@ -525,10 +525,31 @@ describe('JSON Output Utilities', () => {
       });
       printJsonOutput();
 
-      const output = consoleSpy.mock.calls[0][0];
-      const parsed = JSON.parse(output);
-      expect(parsed.changelogs).toHaveLength(1);
-      expect(parsed.changelogs[0].entries[0].description).toBe('New feature');
+      const envelope = JSON.parse(consoleSpy.mock.calls[0][0]);
+      expect(envelope.status).toBe('success');
+      // The VersionOutput rides in `data` verbatim — notes and publish unwrap it back on the way in.
+      expect(envelope.data.changelogs).toHaveLength(1);
+      expect(envelope.data.changelogs[0].entries[0].description).toBe('New feature');
+    });
+
+    it('should report changed only when a real run produced updates', () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      enableJsonOutput(true);
+      addPackageUpdate('test-package', '1.0.0', '/path/to/package.json');
+      printJsonOutput();
+      expect(JSON.parse(consoleSpy.mock.calls[0][0]).changed).toBe(false);
+
+      consoleSpy.mockClear();
+      enableJsonOutput(false);
+      addPackageUpdate('test-package', '1.0.0', '/path/to/package.json');
+      printJsonOutput();
+      expect(JSON.parse(consoleSpy.mock.calls[0][0]).changed).toBe(true);
+
+      consoleSpy.mockClear();
+      enableJsonOutput(false);
+      printJsonOutput();
+      expect(JSON.parse(consoleSpy.mock.calls[0][0]).changed).toBe(false);
     });
   });
 
