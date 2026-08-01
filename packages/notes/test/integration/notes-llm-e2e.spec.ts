@@ -54,19 +54,24 @@ async function callProvider<T>(ctx: TestContext, label: string, run: () => Promi
 describe.skipIf(!E2E_ENABLED)('notes LLM e2e (real Ollama)', () => {
   const provider = new OllamaProvider({ model: MODEL });
 
-  // Establish reachability once, up front, rather than inferring it from a failed assertion later.
   // enhanceAndCategorize never throws on a provider failure — its per-chunk fallback preserves the
-  // input entries — so a test that only counts entries passes against a server that isn't there. The
-  // probe is what lets the assertions below be strict about the model having actually done work.
+  // input entries — so nothing downstream can tell "the model declined to rewrite" from "the model
+  // wasn't there". A cheap completion answers that directly, and is the only thing that can.
+  async function probeReachability(): Promise<string | undefined> {
+    try {
+      await provider.complete([{ role: 'user', content: 'ping' }], { maxTokens: 1 });
+      return undefined;
+    } catch (error) {
+      if (!isProviderUnreachable(error)) throw error;
+      return error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  // Established up front so the assertions below can be strict about the model having done work.
   let unreachable: string | undefined;
 
   beforeAll(async () => {
-    try {
-      await provider.complete([{ role: 'user', content: 'ping' }], { maxTokens: 1 });
-    } catch (error) {
-      if (!isProviderUnreachable(error)) throw error;
-      unreachable = error instanceof Error ? error.message : String(error);
-    }
+    unreachable = await probeReachability();
   }, 120_000);
 
   function skipIfUnreachable(ctx: TestContext): void {
@@ -91,6 +96,21 @@ describe.skipIf(!E2E_ENABLED)('notes LLM e2e (real Ollama)', () => {
     // The model has to have actually rewritten something. The fallback returns descriptions verbatim,
     // so without this the entry-count assertions below hold just as well with no provider at all.
     const rewritten = result.enhancedEntries.filter((e, i) => e.description !== entries[i]?.description);
+
+    // "Nothing was rewritten" is ambiguous, because the fallback produces exactly that when the host
+    // goes away mid-run — and the up-front probe can't see an outage that starts after it. Ask again
+    // before calling it a regression, so a blocking red always means releasekit broke.
+    if (rewritten.length === 0) {
+      const wentAway = await probeReachability();
+      if (wentAway) {
+        console.warn(`[notes-e2e] SKIPPED mid-run: provider became unreachable — ${wentAway}`);
+        // A runtime skip on a proven outage, not a test parked with .skip — .todo() would disable it
+        // permanently, which is the opposite of the intent.
+        // eslint-disable-next-line vitest/no-disabled-tests
+        ctx.skip();
+      }
+    }
+
     expect(rewritten.length).toBeGreaterThan(0);
 
     // Every input entry is accounted for exactly once (enhanced or fallback-preserved), with non-empty
