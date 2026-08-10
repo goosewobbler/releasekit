@@ -64,7 +64,7 @@
     "ejs": "^4.0.1",
     "handlebars": "^4.7.9",
     "jsonc-parser": "catalog:",
-    "liquidjs": "^10.27.2",
+    "liquidjs": "^10.28.0",
     "minimatch": "catalog:",
     "openai": "^6.49.0",
     "smol-toml": "catalog:",
