@@ -415,6 +415,19 @@ describe('changelog-region', () => {
       expect(footer).toContain('_(a, b)_');
     });
 
+    it('should demote Dependabot deps-dev entries by default', () => {
+      const render = makeRowChangelogRenderer([
+        cl('@scope/app', [
+          { type: 'feat', description: 'App feature' },
+          { type: 'changed', description: 'bump the development-dependencies group', scope: 'deps-dev' },
+        ]),
+      ]);
+      const block = render(['@scope/app'], false, '');
+      expect(block).not.toContain('#### Changed');
+      expect(block).toContain('#### Dependencies & version bumps');
+      expect(block).toContain('- bump the development-dependencies group (`deps-dev`)');
+    });
+
     it('should render every scope inline when demoteScopes is empty', () => {
       const render = makeRowChangelogRenderer(
         [cl('@scope/app', [{ type: 'changed', description: 'bump deps', scope: 'deps' }])],

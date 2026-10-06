@@ -90,6 +90,7 @@ vi.mock('node:fs', () => ({
 }));
 
 vi.mock('@releasekit/config', () => ({
+  DEFAULT_DEMOTE_SCOPES: ['deps', 'deps-dev'],
   loadCIConfig: vi.fn(),
   loadConfig: vi.fn().mockReturnValue({
     ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true } },

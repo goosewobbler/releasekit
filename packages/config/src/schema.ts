@@ -12,6 +12,9 @@ import { z } from 'zod';
 // schema:gen` (then `pnpm docs:config`).
 // ---------------------------------------------------------------------------
 
+/** Dependabot's default commit scopes: `deps` for production bumps, `deps-dev` for development bumps. */
+export const DEFAULT_DEMOTE_SCOPES: readonly string[] = ['deps', 'deps-dev'];
+
 export const GitConfigSchema = z.object({
   remote: z.string().default('origin').describe('Git remote name'),
   branch: z.string().default('main').describe('Default branch name'),
@@ -353,9 +356,9 @@ export const ChangelogConfigSchema = z
       ),
     demoteScopes: z
       .array(z.string())
-      .default(['deps'])
+      .default([...DEFAULT_DEMOTE_SCOPES])
       .describe(
-        'Conventional-commit scopes whose changelog entries are demoted into a trailing "Dependencies & version bumps" subsection instead of interleaving with Added / Fixed / Changed. Applies to the standing-PR changelogs — each releasable row and the "Show all changes" footer. Nothing is hidden or dropped: low-signal dependency bumps just stop crowding the user-facing changes at the top, and a reader who wants the exact per-package deps expands the subsection. The de-duplicated change count is unchanged. Default: ["deps"]. Set to [] to render every scope inline.',
+        'Conventional-commit scopes whose changelog entries are demoted into a trailing "Dependencies & version bumps" subsection instead of interleaving with Added / Fixed / Changed. Applies to the standing-PR changelogs — each releasable row and the "Show all changes" footer. Nothing is hidden or dropped: low-signal dependency bumps just stop crowding the user-facing changes at the top, and a reader who wants the exact per-package deps expands the subsection. The de-duplicated change count is unchanged. Default: ["deps", "deps-dev"] (the scopes Dependabot uses for production and development bumps). Set to [] to render every scope inline.',
       ),
   })
   .describe('Changelog file configuration');
