@@ -1,6 +1,6 @@
 import {
-  EXIT_CODES,
   errorEnvelope,
+  exitCodeForError,
   setJsonMode,
   setLogLevel,
   successEnvelope,
@@ -63,8 +63,8 @@ export function createPublishCommand(): Command {
         writeEnvelope(successEnvelope(output, { changed: publishDidChange(output) }), io);
       } catch (err) {
         if (err instanceof PipelineError) {
-          // Carry what landed before the failure — the retry needs it. `failedStage` has no envelope
-          // field of its own, so it goes in the message rather than being dropped.
+          // Carry what landed before the failure, so the caller can see what is already out. `failedStage`
+          // has no envelope field of its own, so it goes in the message rather than being dropped.
           const error = toEnvelopeError(err);
           writeEnvelope(
             errorEnvelope([{ ...error, message: `publish failed in the ${err.failedStage} stage: ${error.message}` }], {
@@ -74,15 +74,17 @@ export function createPublishCommand(): Command {
             io,
           );
           err.logError();
-          process.exit(EXIT_CODES.PUBLISH_ERROR);
+        } else {
+          writeEnvelope(errorEnvelope([toEnvelopeError(err)]), io);
+          if (BasePublishError.isPublishError(err)) {
+            err.logError();
+          } else {
+            console.error(err instanceof Error ? err.message : String(err));
+          }
         }
-        writeEnvelope(errorEnvelope([toEnvelopeError(err)]), io);
-        if (BasePublishError.isPublishError(err)) {
-          err.logError();
-          process.exit(EXIT_CODES.PUBLISH_ERROR);
-        }
-        console.error(err instanceof Error ? err.message : String(err));
-        process.exit(EXIT_CODES.GENERAL_ERROR);
+        // Exit by the code's family (docs/cli.md), the same table every other command uses, so a config
+        // or input failure isn't reported as a publish failure.
+        process.exit(exitCodeForError(err));
       }
     });
 }

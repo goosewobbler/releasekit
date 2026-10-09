@@ -45,7 +45,7 @@ describe('publishDidChange', () => {
     // already-existing release, so neither can stand in for "something happened".
     const out = output({
       npm: [result({ skipped: true, alreadyPublished: true })],
-      git: { committed: true, tags: ['v2.0.0'], pushed: true },
+      git: { committed: false, tags: ['v2.0.0'], pushed: true },
       githubReleases: [{ tag: 'v2.0.0', draft: false, prerelease: false, success: true }],
     });
     expect(publishDidChange(out)).toBe(false);
@@ -56,6 +56,17 @@ describe('publishDidChange', () => {
       npm: [result({ packageName: '@acme/a', skipped: true, alreadyPublished: true }), result()],
     });
     expect(publishDidChange(out)).toBe(true);
+  });
+
+  it('should be true when the release commit was created, even with no registry publish', () => {
+    // A GitHub-release-only or --skip-publish run still commits and tags the release. `committed` is
+    // only set for a commit this run created, so it can't fire on an idempotent re-run.
+    const out = output({ git: { committed: true, tags: ['v2.0.0'], pushed: true } });
+    expect(publishDidChange(out)).toBe(true);
+  });
+
+  it('should be false for a dry run that would have committed', () => {
+    expect(publishDidChange(output({ dryRun: true, git: { committed: true, tags: [], pushed: false } }))).toBe(false);
   });
 
   it('should read cargo and pub results alongside npm', () => {

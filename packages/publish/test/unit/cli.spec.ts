@@ -14,7 +14,7 @@ vi.mock('../../src/stages/input.js');
 import { EXIT_CODES, setJsonMode, setLogLevel } from '@releasekit/core';
 import { createPublishCommand } from '../../src/cli.js';
 import { loadConfig } from '../../src/config.js';
-import { BasePublishError, PipelineError } from '../../src/errors/index.js';
+import { BasePublishError, PipelineError, PublishErrorCode } from '../../src/errors/index.js';
 import { runPipeline } from '../../src/pipeline/index.js';
 import { parseInput } from '../../src/stages/input.js';
 import type { PublishConfig, PublishOutput } from '../../src/types.js';
@@ -126,6 +126,19 @@ describe('createPublishCommand', () => {
       consoleSpy.mockRestore();
     });
 
+    it('should report changed when the release commit was created with no registry publish', async () => {
+      vi.mocked(runPipeline).mockResolvedValue({
+        ...mockOutput,
+        git: { committed: true, tags: ['v1.1.0'], pushed: false },
+      });
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+      await createPublishCommand().parseAsync(['node', 'test', '--json']);
+
+      expect(JSON.parse(consoleSpy.mock.calls[0]?.[0] as string).changed).toBe(true);
+      consoleSpy.mockRestore();
+    });
+
     it('should not print JSON output when --json is not passed', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
@@ -160,8 +173,8 @@ describe('createPublishCommand', () => {
       consoleSpy.mockRestore();
     });
 
-    it('should call logError and exit with PUBLISH_ERROR for BasePublishError', async () => {
-      const publishError = new BasePublishError('publish failed', 'PUBLISH_FAILED');
+    it('should call logError and exit with PUBLISH_ERROR for a registry failure', async () => {
+      const publishError = new BasePublishError('publish failed', PublishErrorCode.NPM_PUBLISH_ERROR);
       const logErrorSpy = vi.spyOn(publishError, 'logError').mockImplementation(() => undefined);
       vi.mocked(runPipeline).mockRejectedValue(publishError);
 
@@ -169,6 +182,32 @@ describe('createPublishCommand', () => {
 
       expect(logErrorSpy).toHaveBeenCalled();
       expect(mockExit).toHaveBeenCalledWith(EXIT_CODES.PUBLISH_ERROR);
+    });
+
+    it('should exit with CONFIG_ERROR for a configuration failure', async () => {
+      const configError = new BasePublishError('bad npm.auth', PublishErrorCode.CONFIG_ERROR);
+      vi.spyOn(configError, 'logError').mockImplementation(() => undefined);
+      vi.mocked(loadConfig).mockImplementation(() => {
+        throw configError;
+      });
+
+      await createPublishCommand().parseAsync(['node', 'test']);
+
+      expect(mockExit).toHaveBeenCalledWith(EXIT_CODES.CONFIG_ERROR);
+    });
+
+    it('should exit with INPUT_ERROR when the input cannot be parsed', async () => {
+      const inputError = new BasePublishError('not JSON', PublishErrorCode.INPUT_PARSE_ERROR);
+      vi.spyOn(inputError, 'logError').mockImplementation(() => undefined);
+      vi.mocked(parseInput).mockRejectedValue(inputError);
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+      await createPublishCommand().parseAsync(['node', 'test', '--json']);
+
+      const envelope = JSON.parse(consoleSpy.mock.calls[0]?.[0] as string);
+      expect(envelope.errors[0].code).toBe('INPUT_PARSE_ERROR');
+      expect(mockExit).toHaveBeenCalledWith(EXIT_CODES.INPUT_ERROR);
+      consoleSpy.mockRestore();
     });
 
     it('should log and exit with GENERAL_ERROR for unknown errors', async () => {

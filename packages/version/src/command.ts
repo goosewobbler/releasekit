@@ -1,3 +1,4 @@
+import * as path from 'node:path';
 import {
   EXIT_CODES,
   errorEnvelope,
@@ -42,7 +43,10 @@ export function createVersionCommand(): Command {
     )
     .option('--project-dir <path>', 'Project directory to run commands in', process.cwd())
     .action(async (options) => {
-      const io = { json: options.json, output: options.output };
+      // Resolve --output against the invocation directory before --project-dir changes it, so the file
+      // lands where the caller asked (as `release --output` does) on every path, success or error.
+      const output: string | undefined = options.output ? path.resolve(options.output) : undefined;
+      const io = { json: options.json, output };
 
       if (options.stable && options.prerelease) {
         const message = 'Cannot use both --stable and --prerelease at the same time';
@@ -127,7 +131,7 @@ export function createVersionCommand(): Command {
 
         log('Versioning process completed.', 'success');
 
-        printJsonOutput(options.output);
+        printJsonOutput(output);
       } catch (error) {
         const { BaseVersionError } = await import('./errors/baseError.js');
 
