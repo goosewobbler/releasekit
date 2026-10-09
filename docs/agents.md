@@ -15,8 +15,9 @@ Releases run from an open standing release PR. Its body contains machine-read re
 delimited by `<!-- releasekit-* -->` / `<!-- rk-* -->` markers — reflowing the markdown or
 stripping those comments changes what ships.
 
+- Don't reformat the PR body — no reflowing, tidying, or stripping HTML comments.
 - Never edit, move, or delete a marker comment. Rewording a row's visible label is fine.
-- Write release notes only between the `releasekit-notes` markers.
+- Write release notes only between the `releasekit-notes` markers, and only when asked.
 - Don't tick/untick the "Packages to release" rows unless that is the change being asked for —
   each decides whether, and on which channel, a package releases. A change applies only once
   the bot rebuilds the PR.
