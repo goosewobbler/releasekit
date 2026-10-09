@@ -144,6 +144,22 @@ describe('eval assertions', () => {
       ]);
     });
 
+    it('should not let a copy hide a real drop', () => {
+      // One entry copied, another genuinely gone: not a clean copy, so both read as loss.
+      expect(checkNoEntryLoss([bucket('New', [a, { ...b }])], [a, b, c], 3)).toEqual([
+        'entry 1 was dropped from categorization',
+        'entry 2 was dropped from categorization',
+        '1 categorized entr(ies) are not among the enhanced entries',
+      ]);
+    });
+
+    it('should match a copy whose keys were rebuilt in another order', () => {
+      const entry = { id: 'a', scope: 'api' };
+      expect(checkNoEntryLoss([bucket('New', [{ scope: 'api', id: 'a' }])], [entry], 1)).toEqual([
+        'categories hold copies of 1 enhanced entr(ies), not the same objects — this check compares by identity, so compare by content instead',
+      ]);
+    });
+
     it('should not call a duplicated copy a clean copy', () => {
       const copy = { ...b };
       expect(checkNoEntryLoss([bucket('New', [a, copy, c]), bucket('Fixed', [copy])], [a, b, c], 3)).toEqual([

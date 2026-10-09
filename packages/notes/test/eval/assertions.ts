@@ -145,11 +145,20 @@ export function checkNoEntryLoss(categories: CategoryGroup[], entries: unknown[]
 function isOneToOneCopy(strays: unknown[], missing: unknown[], occurrences: Map<unknown, number>): boolean {
   if (strays.length !== missing.length) return false;
   if (strays.some((stray) => occurrences.get(stray) !== 1)) return false;
-  const unmatched = missing.map((entry) => JSON.stringify(entry));
+  const unmatched = missing.map(canonicalJson);
   for (const stray of strays) {
-    const i = unmatched.indexOf(JSON.stringify(stray));
+    const i = unmatched.indexOf(canonicalJson(stray));
     if (i === -1) return false;
     unmatched.splice(i, 1);
   }
   return true;
+}
+
+/** JSON with object keys sorted, so a copy that rebuilt an entry with its keys in another order still matches. */
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) =>
+    v !== null && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+      : v,
+  );
 }

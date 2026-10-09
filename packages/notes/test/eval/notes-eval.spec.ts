@@ -55,11 +55,15 @@ describe('notes eval: release notes', () => {
 
       // The golden case restricts scopes, so what gets grouped must be the scope-validated entries: a
       // disallowed scope surviving into any bucket means grouping read the unvalidated response.
-      const allowedScopes = golden.context.scopes?.rules?.allowed ?? [];
+      // Matched the way production validates (case-insensitive unless the config says otherwise), so a
+      // live model's "API" for an allowed "api" isn't a false failure.
+      const scopeRules = golden.context.scopes?.rules;
+      const fold = (scope: string) => (scopeRules?.caseSensitive ? scope : scope.toLowerCase());
+      const allowedScopes = (scopeRules?.allowed ?? []).map(fold);
       const leakedScopes = categories
         .flatMap((c) => c.entries)
         .map((e) => e.scope)
-        .filter((scope) => scope !== undefined && !allowedScopes.includes(scope));
+        .filter((scope) => scope !== undefined && !allowedScopes.includes(fold(scope)));
       expect(leakedScopes).toEqual([]);
 
       // The content assertions hold here too — the descriptions are user-facing prose.
