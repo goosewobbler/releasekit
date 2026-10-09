@@ -18,37 +18,45 @@
   "entries": [
     {
       "type": "added",
-      "description": "feat(api): add a streaming API for real-time updates",
+      "description": "add a streaming API for real-time updates",
+      "scope": "api",
       "issueIds": [
         "#101"
-      ]
+      ],
+      "originalType": "feat"
     },
     {
       "type": "added",
-      "description": "feat(mobile): add deeplink support for the mobile client",
-      "issueIds": []
+      "description": "add deeplink support for the mobile client",
+      "scope": "mobile",
+      "originalType": "feat"
     },
     {
       "type": "fixed",
-      "description": "fix(config): handle a missing config file instead of throwing",
+      "description": "handle a missing config file instead of throwing",
+      "scope": "config",
       "issueIds": [
         "#118"
-      ]
+      ],
+      "originalType": "fix"
     },
     {
       "type": "fixed",
-      "description": "fix(api): stop dropping the final chunk on slow connections",
-      "issueIds": []
+      "description": "stop dropping the final chunk on slow connections",
+      "scope": "api",
+      "originalType": "fix"
     },
     {
       "type": "changed",
-      "description": "refactor(config): improve error messages for invalid configuration",
-      "issueIds": []
+      "description": "improve error messages for invalid configuration",
+      "scope": "config",
+      "originalType": "refactor"
     },
     {
       "type": "changed",
-      "description": "chore(deps): update dependencies",
-      "issueIds": []
+      "description": "update dependencies",
+      "scope": "deps",
+      "originalType": "chore"
     }
   ]
 }

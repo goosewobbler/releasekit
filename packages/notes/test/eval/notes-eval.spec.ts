@@ -47,8 +47,10 @@ describe('notes eval: release notes', () => {
       const { enhancedEntries, categories } = await enhanceAndCategorize(provider, golden.entries, golden.context);
 
       // Structured-path checks the free-text case can't reach: the grouping has to discriminate, and
-      // nothing may be lost or duplicated on the way through categorization.
-      expect(checkNoEntryLoss(categories, golden.entries.length)).toEqual([]);
+      // nothing may be lost or duplicated on the way through categorization. The eval capabilities
+      // advertise no structured outputs, so this exercises the text → JSON parse path, not the
+      // schema/tool-call branch a provider with `structuredOutputs` takes.
+      expect(checkNoEntryLoss(categories, enhancedEntries, golden.entries.length)).toEqual([]);
       expect(checkCategoryDistribution(categories)).toEqual([]);
 
       // The content assertions hold here too — the descriptions are user-facing prose.
@@ -57,7 +59,8 @@ describe('notes eval: release notes', () => {
       expect(findDuplicateDependencyChurn(descriptions)).toEqual([]);
       expect(checkPastTenseLeaning(descriptions)).toEqual([]);
 
-      // Enhancement must rewrite the conventional-commit prefixes out, not pass them through.
+      // The prompt carries type and scope as entry attributes; neither may leak back into the prose
+      // as a conventional-commit prefix.
       expect(descriptions).not.toMatch(/\b(feat|fix|chore|refactor)\(/);
     },
     isLiveMode ? 180_000 : 10_000,

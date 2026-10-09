@@ -93,8 +93,34 @@ export function checkCategoryDistribution(
   return violations;
 }
 
-/** Every entry survived categorization exactly once — none dropped, none duplicated across buckets. */
-export function checkNoEntryLoss(categories: CategoryGroup[], expectedCount: number): string[] {
-  const total = categories.reduce((n, c) => n + c.entries.length, 0);
-  return total === expectedCount ? [] : [`categorized ${total} entries, expected ${expectedCount}`];
+/**
+ * Every entry survived categorization exactly once — none dropped, none duplicated across buckets.
+ *
+ * Checked by identity, not by count: a dropped entry and a duplicated one cancel out in a total. The
+ * task's `categories[].entries` are the same objects as its `enhancedEntries`, so each enhanced entry
+ * must sit in exactly one bucket, once, and no bucket may hold anything else. `expectedCount` is the
+ * golden input size, guarding the enhancement step against dropping entries before grouping sees them.
+ */
+export function checkNoEntryLoss(categories: CategoryGroup[], entries: unknown[], expectedCount: number): string[] {
+  const violations: string[] = [];
+  if (entries.length !== expectedCount) {
+    violations.push(`enhanced ${entries.length} entries, expected ${expectedCount}`);
+  }
+
+  const occurrences = new Map<unknown, number>();
+  for (const group of categories) {
+    for (const entry of group.entries) occurrences.set(entry, (occurrences.get(entry) ?? 0) + 1);
+  }
+
+  entries.forEach((entry, i) => {
+    const n = occurrences.get(entry) ?? 0;
+    if (n === 0) violations.push(`entry ${i} was dropped from categorization`);
+    else if (n > 1) violations.push(`entry ${i} was categorized ${n} times`);
+  });
+
+  const known = new Set(entries);
+  const strays = [...occurrences.keys()].filter((entry) => !known.has(entry)).length;
+  if (strays > 0) violations.push(`${strays} categorized entr(ies) are not among the enhanced entries`);
+
+  return violations;
 }

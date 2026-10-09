@@ -88,13 +88,41 @@ describe('eval assertions', () => {
   });
 
   describe('checkNoEntryLoss', () => {
-    it('should catch dropped and duplicated entries', () => {
-      expect(checkNoEntryLoss([group('New', 2)], 3)).toHaveLength(1);
-      expect(checkNoEntryLoss([group('New', 2), group('Fixed', 2)], 3)).toHaveLength(1);
+    const [a, b, c] = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+    const bucket = (category: string, entries: object[]) => ({ category, entries });
+
+    it('should catch a dropped entry', () => {
+      expect(checkNoEntryLoss([bucket('New', [a, b])], [a, b, c], 3)).toEqual([
+        'entry 2 was dropped from categorization',
+      ]);
+    });
+
+    it('should catch an entry categorized twice', () => {
+      expect(checkNoEntryLoss([bucket('New', [a, b]), bucket('Fixed', [b, c])], [a, b, c], 3)).toEqual([
+        'entry 1 was categorized 2 times',
+      ]);
+    });
+
+    it('should catch a drop and a duplicate that cancel out in a total', () => {
+      // Three entries in, three bucketed — a count-only check passes this.
+      expect(checkNoEntryLoss([bucket('New', [a, c]), bucket('Fixed', [c])], [a, b, c], 3)).toEqual([
+        'entry 1 was dropped from categorization',
+        'entry 2 was categorized 2 times',
+      ]);
+    });
+
+    it('should catch enhancement dropping an entry before grouping', () => {
+      expect(checkNoEntryLoss([bucket('New', [a, b])], [a, b], 3)).toEqual(['enhanced 2 entries, expected 3']);
+    });
+
+    it('should catch a bucketed entry that is not an enhanced entry', () => {
+      expect(checkNoEntryLoss([bucket('New', [a, b, { id: 'a' }])], [a, b], 2)).toEqual([
+        '1 categorized entr(ies) are not among the enhanced entries',
+      ]);
     });
 
     it('should accept every entry surviving exactly once', () => {
-      expect(checkNoEntryLoss([group('New', 2), group('Fixed', 1)], 3)).toEqual([]);
+      expect(checkNoEntryLoss([bucket('New', [a, b]), bucket('Fixed', [c])], [a, b, c], 3)).toEqual([]);
     });
   });
 });
