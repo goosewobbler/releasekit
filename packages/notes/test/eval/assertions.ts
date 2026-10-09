@@ -60,8 +60,8 @@ interface CategoryGroup {
 /**
  * Grouping has to discriminate, not just be legal. The task validator already rejects category names
  * outside the configured set, so a model that drops every entry into one bucket passes validation and
- * still produces a useless grouping. Checks the two ways that degrades: too few distinct categories,
- * and one category swallowing most of the entries.
+ * still produces a useless grouping. Checks the three ways that degrades: too few distinct categories,
+ * an emitted-but-empty category, and one category swallowing most of the entries.
  *
  * `maxShare` is only meaningful once there are enough entries to spread, so it is skipped below four.
  */
@@ -115,25 +115,41 @@ export function checkNoEntryLoss(categories: CategoryGroup[], entries: unknown[]
     for (const entry of group.entries) occurrences.set(entry, (occurrences.get(entry) ?? 0) + 1);
   }
 
+  const known = new Set(entries);
+  const strays = [...occurrences.keys()].filter((entry) => !known.has(entry));
+  const missing = entries.filter((entry) => !occurrences.has(entry));
+
+  // Grouping that copies entries (same content, new objects) breaks this check's identity assumption
+  // without losing anything. Say so — but only when that is exactly what happened, so a real loss or
+  // substitution (say, bucketing the un-enhanced input) still reads as one.
+  const copiesOnly = strays.length > 0 && isOneToOneCopy(strays, missing, occurrences);
+
   entries.forEach((entry, i) => {
     const n = occurrences.get(entry) ?? 0;
-    if (n === 0) violations.push(`entry ${i} was dropped from categorization`);
+    if (n === 0 && !copiesOnly) violations.push(`entry ${i} was dropped from categorization`);
     else if (n > 1) violations.push(`entry ${i} was categorized ${n} times`);
   });
 
-  const known = new Set(entries);
-  const strays = [...occurrences.keys()].filter((entry) => !known.has(entry)).length;
-
-  // Every entry missing and exactly that many unknown ones in the buckets is the signature of grouping
-  // having copied the entries rather than lost them. Say that, not "dropped" six times over.
-  const missing = entries.filter((entry) => !occurrences.has(entry)).length;
-  if (entries.length > 0 && missing === entries.length && strays === entries.length) {
-    return [
-      ...violations.filter((v) => v.startsWith('enhanced ')),
-      'categories hold copies of the enhanced entries, not the same objects — this check compares by identity, so compare by content instead',
-    ];
+  if (copiesOnly) {
+    violations.push(
+      `categories hold copies of ${strays.length} enhanced entr(ies), not the same objects — ` +
+        'this check compares by identity, so compare by content instead',
+    );
+  } else if (strays.length > 0) {
+    violations.push(`${strays.length} categorized entr(ies) are not among the enhanced entries`);
   }
-
-  if (strays > 0) violations.push(`${strays} categorized entr(ies) are not among the enhanced entries`);
   return violations;
+}
+
+/** Each stray is bucketed once and matches a distinct missing entry by content, covering all of them. */
+function isOneToOneCopy(strays: unknown[], missing: unknown[], occurrences: Map<unknown, number>): boolean {
+  if (strays.length !== missing.length) return false;
+  if (strays.some((stray) => occurrences.get(stray) !== 1)) return false;
+  const unmatched = missing.map((entry) => JSON.stringify(entry));
+  for (const stray of strays) {
+    const i = unmatched.indexOf(JSON.stringify(stray));
+    if (i === -1) return false;
+    unmatched.splice(i, 1);
+  }
+  return true;
 }

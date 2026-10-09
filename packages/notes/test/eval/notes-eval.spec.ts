@@ -53,6 +53,15 @@ describe('notes eval: release notes', () => {
       expect(checkNoEntryLoss(categories, enhancedEntries, golden.entries.length)).toEqual([]);
       expect(checkCategoryDistribution(categories)).toEqual([]);
 
+      // The golden case restricts scopes, so what gets grouped must be the scope-validated entries: a
+      // disallowed scope surviving into any bucket means grouping read the unvalidated response.
+      const allowedScopes = golden.context.scopes?.rules?.allowed ?? [];
+      const leakedScopes = categories
+        .flatMap((c) => c.entries)
+        .map((e) => e.scope)
+        .filter((scope) => scope !== undefined && !allowedScopes.includes(scope));
+      expect(leakedScopes).toEqual([]);
+
       // The content assertions hold here too — the descriptions are user-facing prose.
       const descriptions = enhancedEntries.map((e) => `- ${e.description}`).join('\n');
       expect(findMarkerLeaks(descriptions)).toEqual([]);
@@ -60,8 +69,14 @@ describe('notes eval: release notes', () => {
       expect(checkPastTenseLeaning(descriptions)).toEqual([]);
 
       // The prompt carries type and scope as entry attributes; neither may leak back into the prose as a
-      // leading prefix — `added(api): …`, `feat(api): …`, or a bare `api: …`.
-      expect(descriptions).not.toMatch(/^- [\w-]+(\([^)]*\))?!?:\s/m);
+      // leading prefix — `added(api): …`, `feat(api): …`, or a bare `api: …`. Built from the golden case's
+      // own labels so a legitimate lead-in ("CLI: …") isn't mistaken for a leak.
+      const labels = [...new Set(golden.entries.flatMap((e) => [e.type, e.originalType, e.scope]))].filter(
+        (label): label is string => typeof label === 'string' && label.length > 0,
+      );
+      const alternation = labels.map((l) => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      const prefixLeak = new RegExp(`^- (?:${alternation})(?:\\([^)]*\\))?!?:\\s`, 'im');
+      expect(descriptions).not.toMatch(prefixLeak);
     },
     isLiveMode ? 180_000 : 10_000,
   );

@@ -124,7 +124,31 @@ describe('eval assertions', () => {
     it('should report copied entries as a broken identity assumption, not as data loss', () => {
       const copies = [{ ...a }, { ...b }, { ...c }];
       expect(checkNoEntryLoss([bucket('New', copies)], [a, b, c], 3)).toEqual([
-        'categories hold copies of the enhanced entries, not the same objects — this check compares by identity, so compare by content instead',
+        'categories hold copies of 3 enhanced entr(ies), not the same objects — this check compares by identity, so compare by content instead',
+      ]);
+    });
+
+    it('should report a partial copy as a copy', () => {
+      expect(checkNoEntryLoss([bucket('New', [a, { ...b }, c])], [a, b, c], 3)).toEqual([
+        'categories hold copies of 1 enhanced entr(ies), not the same objects — this check compares by identity, so compare by content instead',
+      ]);
+    });
+
+    it('should not call different objects copies — bucketing the wrong entries is a real loss', () => {
+      // e.g. grouping the un-enhanced input instead of the enhanced entries
+      expect(checkNoEntryLoss([bucket('New', [{ id: 'x' }, { id: 'y' }, { id: 'z' }])], [a, b, c], 3)).toEqual([
+        'entry 0 was dropped from categorization',
+        'entry 1 was dropped from categorization',
+        'entry 2 was dropped from categorization',
+        '3 categorized entr(ies) are not among the enhanced entries',
+      ]);
+    });
+
+    it('should not call a duplicated copy a clean copy', () => {
+      const copy = { ...b };
+      expect(checkNoEntryLoss([bucket('New', [a, copy, c]), bucket('Fixed', [copy])], [a, b, c], 3)).toEqual([
+        'entry 1 was dropped from categorization',
+        '1 categorized entr(ies) are not among the enhanced entries',
       ]);
     });
 
