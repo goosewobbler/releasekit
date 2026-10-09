@@ -13,7 +13,16 @@
         "name": "Changed",
         "description": "Changes to existing behaviour, including dependency updates"
       }
-    ]
+    ],
+    "scopes": {
+      "mode": "restricted",
+      "rules": {
+        "allowed": [
+          "api",
+          "config"
+        ]
+      }
+    }
   },
   "entries": [
     {

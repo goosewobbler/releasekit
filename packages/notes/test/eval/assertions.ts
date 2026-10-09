@@ -84,7 +84,10 @@ export function checkCategoryDistribution(
   if (empty.length > 0) violations.push(`empty categories emitted: ${empty.join(', ')}`);
 
   if (total >= 4) {
-    const largest = populated.reduce((a, b) => (b.entries.length > a.entries.length ? b : a), populated[0]);
+    const largest = populated.reduce<CategoryGroup | undefined>(
+      (a, b) => (!a || b.entries.length > a.entries.length ? b : a),
+      undefined,
+    );
     if (largest && largest.entries.length / total > maxShare) {
       violations.push(`"${largest.category}" holds ${largest.entries.length}/${total} entries (> ${maxShare})`);
     }
@@ -120,7 +123,17 @@ export function checkNoEntryLoss(categories: CategoryGroup[], entries: unknown[]
 
   const known = new Set(entries);
   const strays = [...occurrences.keys()].filter((entry) => !known.has(entry)).length;
-  if (strays > 0) violations.push(`${strays} categorized entr(ies) are not among the enhanced entries`);
 
+  // Every entry missing and exactly that many unknown ones in the buckets is the signature of grouping
+  // having copied the entries rather than lost them. Say that, not "dropped" six times over.
+  const missing = entries.filter((entry) => !occurrences.has(entry)).length;
+  if (entries.length > 0 && missing === entries.length && strays === entries.length) {
+    return [
+      ...violations.filter((v) => v.startsWith('enhanced ')),
+      'categories hold copies of the enhanced entries, not the same objects — this check compares by identity, so compare by content instead',
+    ];
+  }
+
+  if (strays > 0) violations.push(`${strays} categorized entr(ies) are not among the enhanced entries`);
   return violations;
 }

@@ -121,6 +121,13 @@ describe('eval assertions', () => {
       ]);
     });
 
+    it('should report copied entries as a broken identity assumption, not as data loss', () => {
+      const copies = [{ ...a }, { ...b }, { ...c }];
+      expect(checkNoEntryLoss([bucket('New', copies)], [a, b, c], 3)).toEqual([
+        'categories hold copies of the enhanced entries, not the same objects — this check compares by identity, so compare by content instead',
+      ]);
+    });
+
     it('should accept every entry surviving exactly once', () => {
       expect(checkNoEntryLoss([bucket('New', [a, b]), bucket('Fixed', [c])], [a, b, c], 3)).toEqual([]);
     });

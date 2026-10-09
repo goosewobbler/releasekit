@@ -59,9 +59,9 @@ describe('notes eval: release notes', () => {
       expect(findDuplicateDependencyChurn(descriptions)).toEqual([]);
       expect(checkPastTenseLeaning(descriptions)).toEqual([]);
 
-      // The prompt carries type and scope as entry attributes; neither may leak back into the prose
-      // as a conventional-commit prefix.
-      expect(descriptions).not.toMatch(/\b(feat|fix|chore|refactor)\(/);
+      // The prompt carries type and scope as entry attributes; neither may leak back into the prose as a
+      // leading prefix — `added(api): …`, `feat(api): …`, or a bare `api: …`.
+      expect(descriptions).not.toMatch(/^- [\w-]+(\([^)]*\))?!?:\s/m);
     },
     isLiveMode ? 180_000 : 10_000,
   );
