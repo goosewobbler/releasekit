@@ -26,7 +26,7 @@ A tick or untick takes effect only when the next `standing-pr update` run rebuil
 
 - Sync releases have no checklist — they ship as one unit.
 - In the flat and granular lists, a member of a `fixed` or `linked` group can't be held back on its own; its untick is ignored and the row re-ticks.
-- With [`ci.standingPr.primaryPackages`](./configuration.md#cistandingpr) in the default `streamlined` mode, only primaries (and packages outside every unit) have checkboxes; unticking a primary holds back its unit, except members it shares with another selected primary. A `fixed` or `linked` group with no declared primary can currently be split by unticking one member ([#657](https://github.com/goosewobbler/releasekit/issues/657)).
+- With [`ci.standingPr.primaryPackages`](./configuration.md#cistandingpr) in the default `streamlined` mode, only primaries (and packages outside every unit) have checkboxes; unticking a primary holds back its unit, except members it shares with another selected primary. Streamlined mode can currently split a `fixed` or `linked` group — for example, by unticking one member of a group with no declared primary ([#657](https://github.com/goosewobbler/releasekit/issues/657)).
 - The `rk-pre` / `rk-grad` toggles appear only with `ci.standingPr.channelToggle: true`, and only a lowercase `[x]` counts as ticked. A toggle moves the package's whole group, a held-back row's toggle is ignored, and a package set to both prerelease and graduate (say, `rk-pre` plus a `graduate:` label) goes prerelease.
 
 ### Editable release notes
@@ -47,7 +47,7 @@ Edits can still be lost or bypassed:
 
 ### The manifest
 
-The manifest comment carries the machine state for the merge: the computed versions, the base SHA the plan was built against, the labels in force, and the selection and channel choices. At publish it is checked against the merged source — the comment must be bot-authored, its base SHA must be an ancestor of `HEAD`, every package, version and tag it lists must match what was merged, and the PR's release-control labels must still match the ones it recorded — so it can't publish anything that isn't in the merged code. It is not tamper-proof, though; treat edits to it as unsupported.
+The manifest comment carries the machine state for the merge: the computed versions, the base SHA the plan was built against, the labels in force, and the selection and channel choices. At publish it is checked against the merged source — the comment must be bot-authored, its base SHA must be an ancestor of `HEAD`, every package and version it lists must match what was merged, and the PR's release-control labels must still match the ones it recorded — so it can't publish anything that isn't in the merged code. It is not tamper-proof, though; treat edits to it as unsupported.
 
 Don't edit it. To regenerate it, re-run the Standing Release PR workflow, or wait for the next push or scheduled run. Don't run `standing-pr update` from a local checkout to do it: the command discards uncommitted changes, commits any untracked files along with the version bumps, and force-pushes the release branch with your credentials — and outside the workflow it can leave the branch and the manifest out of step.
 
