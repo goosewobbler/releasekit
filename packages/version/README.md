@@ -56,16 +56,18 @@ releasekit-version --prerelease beta
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `--bump <type>` | Force bump type: `patch`, `minor`, `major` | auto |
-| `--prerelease [id]` | Create prerelease version (e.g. `beta`) | — |
-| `--target <packages>` | Target specific packages (comma-separated) | all |
+| `-c, --config <path>` | Path to config file | `releasekit.config.json` |
+| `-b, --bump <type>` | Force bump type: `patch`, `minor`, `major`, `prerelease` | auto |
+| `-p, --prerelease [id]` | Create prerelease version (e.g. `beta`) | — |
+| `--stable` | Graduate prerelease packages to stable without bumping | `false` |
+| `--allow-first-bump` | Acknowledge applying a bump on a first release with an already-stable manifest | `false` |
+| `-s, --sync` | Use synchronized versioning across all packages | config |
+| `-t, --target <packages>` | Target specific packages (comma-separated) | all |
+| `--include-prerequisites` | Also release the changed internal dependencies of `--target` packages | `false` |
 | `--project-dir <path>` | Project directory | cwd |
-| `--dry-run` | Preview without file changes or git operations | `false` |
-| `--json` | Output results as a JSON envelope (see below) | `false` |
+| `-d, --dry-run` | Preview without file changes or git operations | `false` |
+| `-j, --json` | Output results as a JSON envelope (see below) | `false` |
 | `--output <path>` | Write the JSON envelope to a file instead of stdout (resolved against the directory you run from) | — |
-| `--strict-reachable` | Only use tags reachable from current commit | `false` |
-| `--verbose` | Verbose logging | `false` |
-| `--quiet` | Suppress non-error output | `false` |
 
 ## JSON Output
 

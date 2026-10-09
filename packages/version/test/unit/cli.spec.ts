@@ -1,3 +1,4 @@
+import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createVersionCommand, createVersionProgram } from '../../src/cli.js';
 import * as configModule from '../../src/config.js';
@@ -156,6 +157,36 @@ describe('createVersionCommand', () => {
       await createVersionCommand().parseAsync(['node', 'test']);
 
       expect(jsonOutputModule.enableJsonOutput).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('--output', () => {
+    it('should resolve a relative --output against the invocation directory, before --project-dir changes it', async () => {
+      // `version --project-dir app --output v.json && publish --input v.json` must find the file where the
+      // caller put it. Model the chdir so a path resolved after it would land inside --project-dir.
+      const invocationDir = process.cwd();
+      let cwd = invocationDir;
+      const chdir = vi.spyOn(process, 'chdir').mockImplementation((dir) => {
+        cwd = path.resolve(cwd, String(dir));
+      });
+      const getCwd = vi.spyOn(process, 'cwd').mockImplementation(() => cwd);
+
+      try {
+        await createVersionCommand().parseAsync([
+          'node',
+          'test',
+          '--project-dir',
+          path.join(invocationDir, 'app'),
+          '--output',
+          'version.json',
+        ]);
+
+        expect(chdir).toHaveBeenCalledWith(path.join(invocationDir, 'app'));
+        expect(jsonOutputModule.printJsonOutput).toHaveBeenCalledWith(path.join(invocationDir, 'version.json'));
+      } finally {
+        chdir.mockRestore();
+        getCwd.mockRestore();
+      }
     });
   });
 

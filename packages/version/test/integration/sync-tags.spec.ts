@@ -8,7 +8,7 @@
  *
  * Requires: `pnpm build` in @releasekit/version before running.
  */
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -92,41 +92,5 @@ describe('sync strategy — JSON tag output', () => {
 
     expect(output.tags).toContain('v0.2.0');
     expect(output.tags).toHaveLength(1);
-  });
-});
-
-describe('--output with --project-dir', () => {
-  let callerDir: string;
-
-  beforeEach(() => {
-    tempDir = mkdtempSync(join(tmpdir(), 'rk-sync-'));
-    createMonorepoFixture(tempDir);
-    symlinkNodeModules(tempDir);
-    initGitRepo(tempDir);
-    callerDir = mkdtempSync(join(tmpdir(), 'rk-caller-'));
-  });
-
-  afterEach(() => {
-    cleanupTempDir(tempDir);
-    cleanupTempDir(callerDir);
-  });
-
-  it('should resolve a relative --output against the invocation directory, not --project-dir', () => {
-    writeReleaseKitConfig(tempDir, {
-      preset: 'angular',
-      packages: ['packages/pkg-a', 'packages/pkg-b'],
-      sync: true,
-      versionPrefix: 'v',
-    });
-    createConventionalCommit(tempDir, 'feat', 'add new feature');
-
-    // `version --project-dir app --output v.json && publish --input v.json` must find the file where
-    // the caller put it — the command chdirs into --project-dir before it writes.
-    const result = executeCliCommand(`--project-dir ${tempDir} --output version.json`, callerDir);
-
-    expect(result.status).toBe(0);
-    expect(existsSync(join(tempDir, 'version.json'))).toBe(false);
-    const { data } = parseCliEnvelope(readFileSync(join(callerDir, 'version.json'), 'utf-8'));
-    expect(data.tags).toContain('v0.2.0');
   });
 });

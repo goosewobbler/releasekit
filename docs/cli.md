@@ -40,11 +40,12 @@ Every command that produces a JSON result — `release`, `gate`, `standing-pr`, 
 
 ### Chaining `version`, `notes`, and `publish`
 
-`notes` and `publish` unwrap the envelope on the way in and read the `VersionOutput` from `data`. `notes` consumes the `VersionOutput` and writes changelogs and release notes; it never passes the `VersionOutput` on, so it can't sit in the middle of a pipe. Hand the same file to each stage instead:
+`notes` and `publish` unwrap the envelope on the way in and read the `VersionOutput` from `data`. `notes` consumes the `VersionOutput` and writes changelogs and release notes; it never passes the `VersionOutput` on, so it can't sit in the middle of a pipe. Hand the same file to each stage instead, and stage what `notes` wrote — `publish` commits the files `version` changed plus whatever is already staged:
 
 ```sh
 releasekit version --output version.json
 releasekit notes --input version.json
+git add CHANGELOG.md   # or each package's changelog in `packages` mode
 releasekit publish --input version.json
 ```
 
@@ -52,7 +53,7 @@ releasekit publish --input version.json
 
 A bare `VersionOutput` is still accepted on input, so a hand-assembled file or output from an older releasekit keeps working. Piping a *failed* stage forward fails with that stage's error rather than a schema complaint about missing fields — the message names the upstream code, so the report points at the stage that actually broke.
 
-When `publish` fails partway, its error envelope carries what already landed in `data`, and reports `changed: true` if anything did (a registry publish or the release commit); the failing stage is named in the error `message`. A retry is safe: publishes are idempotent, and versions already on the registry are skipped.
+When `publish` fails partway, its error envelope carries what already landed in `data`, and reports `changed: true` if anything did (a registry publish or the release commit); the failing stage is named in the error `message`. Registry publishes are idempotent — versions already on the registry are skipped on a later run — but the standalone `publish` also makes the release commit, so re-running it in the same working tree stops at the git-commit stage: there is nothing left to commit.
 
 ### Error codes and exit codes
 
@@ -68,7 +69,7 @@ When `publish` fails partway, its error envelope carries what already landed in 
 | `VERSION_ERROR` | `version` | 8 |
 | `PUBLISH_ERROR` | `publish` | 9 |
 
-Commands throw more specific codes than these nine families — `TAG_ALREADY_EXISTS`, `NPM_AUTH_ERROR`, and so on. The `code` in `errors[]` is that specific code; the **exit code** is its family's — `version` failing on `TAG_ALREADY_EXISTS` or `GIT_PROCESS_ERROR` exits `7` — so a script can branch on "git problem" without enumerating every code. `publish` reports any failure inside its pipeline as `PIPELINE_STAGE_ERROR` (exit `9`), naming the failing stage in the message; config and input failures before the pipeline starts exit `2` and `3`.
+Commands throw more specific codes than these nine families — `INPUT_VALIDATION_ERROR`, `PIPELINE_STAGE_ERROR`, and so on. The `code` in `errors[]` is that specific code; the **exit code** is its family's, so a script can branch on the family without enumerating every code — `publish` exits `3` for any input problem (`INPUT_PARSE_ERROR`, `INPUT_VALIDATION_ERROR`, or a failed upstream envelope) and `2` for an invalid config. `publish` reports any failure inside its pipeline as `PIPELINE_STAGE_ERROR` (exit `9`), naming the failing stage in the message.
 
 `schemaVersion` bumps only on a breaking change to the envelope shape and is stable across minor releases, so agents and CI can pin against it. A consumer reading an envelope from a **newer** producer fails with a version-mismatch error rather than acting on a payload whose shape it may not understand.
 
