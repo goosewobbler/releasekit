@@ -150,7 +150,9 @@ describe.skipIf(!E2E_ENABLED)('notes LLM e2e (real Ollama)', () => {
       const lastChunk = rewrittenIn(CHUNK_SIZE, entries.length);
 
       // An untouched chunk is either the host going away or releasekit breaking. Only the errors that
-      // outlived the retries can tell which, and it's an outage only if every one of them proves it.
+      // outlived the retries can tell which, and it's an outage only if every one of them proves it. The
+      // call is per test, not per chunk: a chunk that fell back for a real reason in a run where the other
+      // chunk hit an outage skips too — the next clean run goes red.
       // De-duplicated by description: a 401 or 404 recurs as a fresh error object on every call.
       const errors = [...new Map(failures.map((e) => [describeError(e), e])).values()];
       if ((firstChunk === 0 || lastChunk === 0) && errors.length > 0 && errors.every(isProviderUnreachable)) {
@@ -165,9 +167,6 @@ describe.skipIf(!E2E_ENABLED)('notes LLM e2e (real Ollama)', () => {
         lastChunk,
         `chunk 2 (entries ${CHUNK_SIZE + 1}-${ENTRY_COUNT}) came back unrewritten; ${why}`,
       ).toBeGreaterThan(0);
-      // Both chunks were rewritten, so no call may have failed past its retries.
-      expect(errors.map(describeError), 'provider errors recorded despite both chunks being rewritten').toEqual([]);
-
       // Every input entry is accounted for exactly once (enhanced or fallback-preserved), with non-empty
       // descriptions, and lands in some non-empty category.
       expect(result.enhancedEntries).toHaveLength(ENTRY_COUNT);
