@@ -18,13 +18,13 @@ export function writeEnvelope(envelope: Envelope, opts: { json?: boolean; output
   try {
     fs.writeFileSync(opts.output, text);
   } catch (err) {
-    // An unwritable --output fails the command: rethrow a result write so the caller's error path runs.
-    // That path writes its error envelope to the same file and fails again — note it on stderr instead of
+    // An unwritable --output fails the command: throw for a result write so the caller's error path runs,
+    // naming what was lost — the command's work is done, only its result never reached the file. That
+    // path writes its error envelope to the same file and fails again — note it on stderr instead of
     // throwing out of the error handler, which would crash with a stack and bury the original failure.
-    if (envelope.status !== 'error') throw err;
-    console.error(
-      `Could not write the error envelope to ${opts.output}: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    const reason = err instanceof Error ? err.message : String(err);
+    if (envelope.status !== 'error') throw new Error(`Could not write the result to ${opts.output}: ${reason}`);
+    console.error(`Could not write the error envelope to ${opts.output}: ${reason}`);
   }
 }
 
