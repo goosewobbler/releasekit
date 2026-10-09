@@ -11,10 +11,20 @@ import type { Envelope } from './envelope.js';
 export function writeEnvelope(envelope: Envelope, opts: { json?: boolean; output?: string }): void {
   if (!opts.json && !opts.output) return;
   const text = JSON.stringify(envelope, null, 2);
-  if (opts.output) {
-    fs.writeFileSync(opts.output, text);
-  } else {
+  if (!opts.output) {
     console.log(text);
+    return;
+  }
+  try {
+    fs.writeFileSync(opts.output, text);
+  } catch (err) {
+    // An unwritable --output fails the command: rethrow a result write so the caller's error path runs.
+    // That path writes its error envelope to the same file and fails again — note it on stderr instead of
+    // throwing out of the error handler, which would crash with a stack and bury the original failure.
+    if (envelope.status !== 'error') throw err;
+    console.error(
+      `Could not write the error envelope to ${opts.output}: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 }
 
