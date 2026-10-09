@@ -110,6 +110,11 @@ describe('ReleaseKitError', () => {
       expect(ReleaseKitError.isReleaseKitError(error)).toBe(true);
     });
 
+    it('should not accept a branded object without a string code', () => {
+      const forged = Object.defineProperty({}, Symbol.for('@releasekit/core:ReleaseKitError'), { value: true });
+      expect(ReleaseKitError.isReleaseKitError(forged)).toBe(false);
+    });
+
     it('should keep the brand out of enumerable properties', () => {
       const error = new TestError('Test');
       expect(Object.getOwnPropertySymbols({ ...error })).toEqual([]);

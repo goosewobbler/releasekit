@@ -70,7 +70,7 @@ ReleaseKit's pipeline is registry-agnostic; this section tracks which ecosystems
 | **crates.io** (Rust) | Push API (OIDC queued — [#546](https://github.com/goosewobbler/releasekit/issues/546)) |
 | **pub.dev** (Dart/Flutter) | Push API, OIDC (tag-triggered) |
 
-Enablement is symmetric across ecosystems: detection enables, config opts out ([ADR-0004](./docs/adr/0004-ecosystem-enablement-detection-enables-config-opts-out.md), [#554](https://github.com/goosewobbler/releasekit/issues/554)). Every detected ecosystem is versioned and published by default, with `version.<eco>.enabled` and `publish.<eco>.enabled` as independent opt-outs.
+Enablement is symmetric across ecosystems: detection enables, config opts out ([ADR-0004](./docs/adr/0004-ecosystem-enablement-detection-enables-config-opts-out.md), [#554](https://github.com/goosewobbler/releasekit/issues/554)). Every detected ecosystem is versioned and published by default, with `version.<eco>.enabled` and `publish.<eco>.enabled` as independent opt-outs. Known gap: version-groups mode doesn't yet bump `pubspec.yaml` or honour `version.pub.enabled` ([#649](https://github.com/goosewobbler/releasekit/issues/649)).
 
 ### Deepening the supported three ⏭️
 

@@ -38,11 +38,10 @@ export abstract class ReleaseKitError extends Error {
   /** True for an error from any copy of core (see {@link RELEASEKIT_ERROR_BRAND}), not just this one. */
   static isReleaseKitError(error: unknown): error is ReleaseKitError {
     if (error instanceof ReleaseKitError) return true;
-    return (
-      typeof error === 'object' &&
-      error !== null &&
-      (error as { [RELEASEKIT_ERROR_BRAND]?: unknown })[RELEASEKIT_ERROR_BRAND] === true
-    );
+    if (typeof error !== 'object' || error === null) return false;
+    const branded = error as { [RELEASEKIT_ERROR_BRAND]?: unknown; code?: unknown };
+    // Callers read `code` straight off a match, so a brand without a string code doesn't count.
+    return branded[RELEASEKIT_ERROR_BRAND] === true && typeof branded.code === 'string';
   }
 }
 
