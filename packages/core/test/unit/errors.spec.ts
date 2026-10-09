@@ -93,6 +93,27 @@ describe('ReleaseKitError', () => {
       expect(ReleaseKitError.isReleaseKitError('error')).toBe(false);
       expect(ReleaseKitError.isReleaseKitError({})).toBe(false);
     });
+
+    it('should recognise an error from another copy of this module', async () => {
+      // A bundle that inlines core more than once holds several ReleaseKitError classes; a fresh
+      // module instance stands in for one of the other copies.
+      vi.resetModules();
+      const other = await import('../../src/errors.js');
+      class OtherCopyError extends other.ReleaseKitError {
+        readonly code = 'CONFIG_ERROR';
+        readonly suggestions: string[] = [];
+      }
+      const error = new OtherCopyError('from the other copy');
+
+      expect(other.ReleaseKitError).not.toBe(ReleaseKitError);
+      expect(error instanceof ReleaseKitError).toBe(false);
+      expect(ReleaseKitError.isReleaseKitError(error)).toBe(true);
+    });
+
+    it('should keep the brand out of enumerable properties', () => {
+      const error = new TestError('Test');
+      expect(Object.getOwnPropertySymbols({ ...error })).toEqual([]);
+    });
   });
 });
 

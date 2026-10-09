@@ -1,6 +1,15 @@
 import { log } from './logger.js';
 
 /**
+ * Brand recognised across copies of this module. `@releasekit/release` bundles version, notes and
+ * publish from their own builds, and each of those inlines its own copy of core — so one process can
+ * hold several distinct `ReleaseKitError` classes, and `instanceof` against any one of them misses an
+ * error thrown through another (its code then degrades to GENERAL_ERROR). `Symbol.for` keys a
+ * process-wide registry, so every copy stamps and recognises the same brand.
+ */
+const RELEASEKIT_ERROR_BRAND = Symbol.for('@releasekit/core:ReleaseKitError');
+
+/**
  * Base error class that all releasekit errors should extend.
  * Provides consistent error handling with codes and suggestions.
  */
@@ -11,6 +20,8 @@ export abstract class ReleaseKitError extends Error {
   constructor(message: string) {
     super(message);
     this.name = this.constructor.name;
+    // Non-enumerable, so it never shows up in a spread, JSON output, or a test's toEqual.
+    Object.defineProperty(this, RELEASEKIT_ERROR_BRAND, { value: true });
   }
 
   logError(): void {
@@ -24,8 +35,14 @@ export abstract class ReleaseKitError extends Error {
     }
   }
 
+  /** True for an error from any copy of core (see {@link RELEASEKIT_ERROR_BRAND}), not just this one. */
   static isReleaseKitError(error: unknown): error is ReleaseKitError {
-    return error instanceof ReleaseKitError;
+    if (error instanceof ReleaseKitError) return true;
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      (error as { [RELEASEKIT_ERROR_BRAND]?: unknown })[RELEASEKIT_ERROR_BRAND] === true
+    );
   }
 }
 
