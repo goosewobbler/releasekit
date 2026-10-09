@@ -12,7 +12,7 @@ Every input in the body is delimited by an HTML comment marker. **The markers ar
 
 | Marker | What it is | What an edit does |
 |---|---|---|
-| `<!-- releasekit-notes:<pkg> -->` … `<!-- releasekit-notes-end:<pkg> -->` | Editable release notes, one region per releasing package — always keyed by package name, even when only one package releases | Text inside **replaces** the generated release notes for that package, at publish |
+| `<!-- releasekit-notes:<pkg> -->` … `<!-- releasekit-notes-end:<pkg> -->` | Editable release notes, one region per releasing package — always keyed by package name, even when only one package releases (a `sync` release without `version.mainPackage` has one region keyed `monorepo`) | Text inside **replaces** the generated release notes for that package, at publish |
 | `<!-- rk-sel:<pkg> -->` | A row in the **Packages to release** checklist | Unticking asks the bot to hold that package back from the next release |
 | `<!-- rk-pre:<pkg> -->` | Channel toggle on a stable row | Ticking asks the bot to ship that package as a prerelease |
 | `<!-- rk-grad:<pkg> -->` | Channel toggle on a prerelease row | Ticking asks the bot to graduate that package to stable |
@@ -26,7 +26,7 @@ A tick or untick takes effect only when the next `standing-pr update` run rebuil
 
 - Sync releases have no checklist — they ship as one unit.
 - A member of a `fixed` or `linked` group can't be held back on its own; its untick is ignored and the row re-ticks.
-- With [`ci.standingPr.primaryPackages`](./configuration.md#cistandingpr) in the default `streamlined` mode, only primaries (and packages outside every unit) have checkboxes; unticking a primary holds back its whole unit.
+- With [`ci.standingPr.primaryPackages`](./configuration.md#cistandingpr) in the default `streamlined` mode, only primaries (and packages outside every unit) have checkboxes; unticking a primary holds back its unit, except packages another selected primary also needs.
 - The `rk-pre` / `rk-grad` toggles appear only with `ci.standingPr.channelToggle: true`, and only a lowercase `[x]` counts as ticked. A toggle moves the package's whole group, a held-back row's toggle is ignored, and a package set to both prerelease and graduate (say, `rk-pre` plus a `graduate:` label) goes prerelease.
 
 ### Editable release notes
@@ -35,11 +35,19 @@ Only present when the standing PR carries the preview-notes label (`release:prev
 
 Write inside the markers. Content outside them is regenerated.
 
-Edits can still be lost or bypassed. An emptied region falls back to generated notes; the bot trims a package's notes past 8,000 characters and drops the whole region if the body would exceed GitHub's size limit; removing the label removes the region; and an edit saved while an update is rewriting the body can be overwritten. At publish, the region is read from the body as it is at that moment — so an edit made after the merge still ships if it lands before the publish job reads it — and only the GitHub Release gets it: a file written by `notes.releaseNotes.file` gets generated notes, not your edits.
+Edits can still be lost or bypassed:
+
+- An emptied region falls back to generated notes.
+- The bot trims a package's notes past 8,000 characters, and drops the whole region if the body would exceed GitHub's size limit.
+- Removing the label removes the region.
+- An edit saved while an update is rewriting the body can be overwritten.
+- At publish, the region is read from the body as it is at that moment — an edit made after the merge still ships if it lands before the publish job reads it.
+- Only the GitHub Release gets your edits; a file written by `notes.releaseNotes.file` gets generated notes.
+- In a `sync` release without `version.mainPackage`, edits to the `monorepo` region are currently discarded ([#656](https://github.com/goosewobbler/releasekit/issues/656)); set `mainPackage` to keep them.
 
 ### The manifest
 
-The manifest comment carries the machine state for the merge: the computed versions, the base SHA the plan was built against, the labels in force, and the selection and channel choices. At publish it is checked against the merged source — the comment must be bot-authored, its base SHA must be an ancestor of `HEAD`, every package, version and tag it lists must match what was merged, and the PR's release-control labels must still match the ones it recorded — so it can't publish anything that isn't in the merged code. It is not a tamper-proof record of the selection, though; treat edits to it as unsupported.
+The manifest comment carries the machine state for the merge: the computed versions, the base SHA the plan was built against, the labels in force, and the selection and channel choices. At publish it is checked against the merged source — the comment must be bot-authored, its base SHA must be an ancestor of `HEAD`, every package, version and tag it lists must match what was merged, and the PR's release-control labels must still match the ones it recorded — so it can't publish anything that isn't in the merged code. It is not tamper-proof, though; treat edits to it as unsupported.
 
 Don't edit it. To regenerate it, re-run the Standing Release PR workflow, or wait for the next push or scheduled run. Don't run `standing-pr update` from a local checkout to do it: the command discards uncommitted changes, commits any untracked files along with the version bumps, and force-pushes the release branch with your credentials — and outside the workflow it can leave the branch and the manifest out of step.
 
@@ -55,14 +63,4 @@ Neither substitutes for branch rulesets. Merging the standing PR is the publish,
 
 ## For agents
 
-If you are an AI agent working in a repository with an open standing release PR:
-
-- **Don't reformat the PR body.** It contains machine-read regions. Reflowing markdown or stripping HTML comments can change what ships.
-- **Don't edit, move, or delete any `<!-- releasekit-* -->` or `<!-- rk-* -->` marker.** Rewording a row's visible label is safe; touching its marker is not.
-- **Write release notes only between the `releasekit-notes` markers**, and only when asked to.
-- **Don't tick or untick checklist rows** unless the change is what was asked for — each one decides whether, and on which channel, a package releases. A change applies only when the bot next rebuilds the PR.
-- **Don't add or remove release labels** (`bump:*`, `channel:*`, `scope:*`, `graduate:*`, `release:*`) on any PR unless asked — `release:immediate` on a feeder PR releases it directly when it merges.
-- **Don't edit the manifest comment, and never run `releasekit standing-pr update` yourself.** If the manifest looks stale, ask a maintainer to re-run the Standing Release PR workflow, or wait for the next push or scheduled run.
-- **Don't publish, tag, or push directly.** The release happens on merge, from CI.
-
-A paste-ready version of this list for your own `AGENTS.md` is in [Agents](./agents.md#agentsmd-snippet).
+If you are an AI agent working in a repository with an open standing release PR: don't reformat the body, don't touch any marker, and change notes, checklist rows or release labels only when asked. The full rules, as a paste-ready `AGENTS.md` snippet, are in [Agents](./agents.md#agentsmd-snippet).

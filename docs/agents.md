@@ -54,7 +54,7 @@ In `direct` mode there is no standing PR: merging a feeder PR to `main` is what 
 
 **crates.io is the exception on credentials.** crates.io supports trusted publishing, but releasekit doesn't use it yet ([#546](https://github.com/goosewobbler/releasekit/issues/546)) — its cargo publish reads `CARGO_REGISTRY_TOKEN`, which in practice is a long-lived repository secret. That secret outlives any single job, so it wants the handling a long-lived credential always wants — scoped as narrowly as the registry allows, rotated, and restricted to the environment the release job runs in.
 
-Two supporting checks: the manifest is checked at publish against the merged source — bot-authored comment, base SHA an ancestor of `HEAD`, packages, versions and tags matching what was merged — so it can't publish anything that isn't in the merged code, though it is not a tamper-proof record of the selection; and selection, channel, and release-control label changes are reverted when made by an unauthorized actor, if [`ci.standingPr.authorization`](./configuration.md#cistandingpr) is configured.
+Two supporting checks: the manifest is checked at publish against the merged source, so it can't publish anything that isn't in the merged code ([details](./standing-pr-body.md#the-manifest)); and selection, channel, and release-control label changes are reverted when made by an unauthorized actor, if [`ci.standingPr.authorization`](./configuration.md#cistandingpr) is configured.
 
 ## Why not have an AI write your release script?
 

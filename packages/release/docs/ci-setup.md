@@ -310,7 +310,7 @@ Accumulate release changes in a persistent "standing" PR that auto-updates as co
 **Benefits:**
 - Changes accumulate in a single PR — easier code review for release notes and version decisions
 - Merge controls timing — release when business/product goals align
-- Can coexist with label-triggered direct releases (see [combining strategies](#combining-standing-pr-with-label-triggered-direct-releases) below)
+- Can coexist with label-triggered direct releases (see [combining strategies](#combining-queued-and-immediate-releases) below)
 
 ### Setup requirements
 
@@ -432,7 +432,7 @@ The in-code gates keep the *manifest* clean, but the merge itself is a GitHub ac
 
 > ⚠️ The release bot pushes (and force-pushes) this branch, so it **must** be on the ruleset's *Bypass list* or releases break — ReleaseKit can't infer the bot's identity for you. **Add the bot as a bypass actor before the ruleset goes `active`.** On **GitHub Enterprise** you can instead create it in **evaluate** (dry-run) mode first and confirm in the repo's *rule insights* that the bot isn't tripped, then switch to active — but **evaluate mode is Enterprise-only**, so on every other plan add the bypass actor first and create the ruleset directly as `active`. (A bypass actor's force-push is not blocked by the lock, so the standing-PR refresh keeps working.)
 
-**2. Require review on the default branch** — target `main` (or `~DEFAULT_BRANCH`). Enable **Require a pull request before merging** (≥ 1 approval), **Block force pushes**, and **Restrict deletions**. Since merging the standing PR is the publish, this gates the publish behind review.
+**2. Require review on the default branch** — target `main` (or `~DEFAULT_BRANCH`). Enable **Require a pull request before merging** (≥ 1 approval), **Block force pushes**, and **Restrict deletions**. Since merging the standing PR is the publish, this gates the publish behind review. The standing-PR template needs *Allow GitHub Actions to create and approve pull requests*, which also lets workflow tokens approve pull requests — so require code-owner or team review rather than relying on "≥ 1 approval" alone ([#653](https://github.com/goosewobbler/releasekit/issues/653)).
 
 **Mapping `allowedActors` to ruleset bypass actors:** a `@org/team-slug` entry maps to a **Team** bypass actor and a plain **username** maps to a **User** bypass actor — add either to the ruleset's *Bypass list*. (GitHub also exposes repository **roles** and **Apps**, which is how a bot running as a GitHub App or the Actions bot is exempted.) Always keep org/repo admins on the bypass list so you can't lock yourself out.
 
