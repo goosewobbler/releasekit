@@ -20,8 +20,33 @@ describe('isProviderUnreachable', () => {
   });
 
   it('should treat an unclassified LLMError as our bug', () => {
-    // Every provider sets the flag explicitly, so an absent one means something unrecognised happened.
+    // Unflagged throw sites (e.g. Ollama's "Empty response", a validation failure) aren't transport errors.
     expect(isProviderUnreachable(new LLMError('something odd'))).toBe(false);
+  });
+
+  it("should treat a connection refused under undici's fetch failure as infra", () => {
+    // undici nests the socket error a level down: TypeError('fetch failed') → Error{ code: 'ECONNREFUSED' }.
+    const socket = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:11434'), { code: 'ECONNREFUSED' });
+    const fetchFailed = new TypeError('fetch failed', { cause: socket });
+    expect(
+      isProviderUnreachable(new LLMError('Ollama error: fetch failed', { cause: fetchFailed, retryable: true })),
+    ).toBe(true);
+  });
+
+  it('should not trust the retryable flag when the cause is a bug in our code', () => {
+    // Providers wrap any unexpected error as retryable — a TypeError from our own code included.
+    const bug = new TypeError("Cannot read properties of null (reading 'message')");
+    expect(isProviderUnreachable(new LLMError(`Ollama error: ${bug.message}`, { cause: bug, retryable: true }))).toBe(
+      false,
+    );
+  });
+
+  it('should not trust the retryable flag when the cause is an unparseable response', () => {
+    // A 200 HTML page (captive portal, wrong base URL) reached a server — it just isn't the provider's API.
+    const parse = new SyntaxError('Unexpected token \'<\', "<html><bod"... is not valid JSON');
+    expect(
+      isProviderUnreachable(new LLMError(`Ollama error: ${parse.message}`, { cause: parse, retryable: true })),
+    ).toBe(false);
   });
 
   it('should never classify a non-LLM failure as infra', () => {
