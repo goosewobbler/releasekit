@@ -42,9 +42,11 @@ const CHUNK_SIZE = LLM_DEFAULTS.enhanceCategorizeChunkSize;
 const ENTRY_COUNT = CHUNK_SIZE + 5;
 
 // A host that hangs mid-run costs one call's whole retry budget before the breaker below trips:
-// 3 attempts × 45s + backoff (1s + 2s, ±20%) ≈ 140s. The 240s test timeouts leave ~100s on top of that
-// for the calls that succeeded before the hang. A host too slow for 45s a call times out and skips — loudly.
+// 3 attempts × 45s + backoff (1s + 2s, ±20%) ≈ 140s. The 330s test timeout covers that plus a chunk that
+// needed its two corrective calls first (~135s); beyond it the test fails red on timeout. A host too slow
+// for 45s a call times out and skips — loudly.
 const CALL_TIMEOUT_MS = 45_000;
+const TEST_TIMEOUT_MS = 330_000;
 
 /** An error with its cause chain — `fetch failed` alone doesn't say what failed. */
 function describeError(error: unknown): string {
@@ -58,10 +60,13 @@ function describeError(error: unknown): string {
 }
 
 function skipUnreachable(ctx: TestContext, errors: unknown[]): never {
-  // A GitHub Actions annotation (a single stdout line), so a blocking check that skipped shows on the run
-  // summary instead of passing as quietly as a real green.
-  console.log(`::warning title=notes LLM e2e skipped::provider unreachable — ${errors.map(describeError).join('; ')}`);
-  return ctx.skip();
+  const reason = `provider unreachable — ${errors.map(describeError).join('; ')}`;
+  // A GitHub Actions annotation, so a blocking check that skipped shows on the run summary instead of
+  // passing as quietly as a real green. The leading newline matters: under CI vitest colours the
+  // `stdout | <test>` header, and its closing escape codes would otherwise sit in front of `::`, which
+  // the runner then doesn't parse as a command.
+  console.log(`\n::warning title=notes LLM e2e skipped::${reason}`);
+  return ctx.skip(reason);
 }
 
 /**
@@ -91,8 +96,9 @@ describe.skipIf(!E2E_ENABLED)('notes LLM e2e (real Ollama)', () => {
 
   // Per test. Errors that outlived the retry budget, kept for the test to classify: enhanceAndCategorize
   // falls back per chunk instead of throwing, so they're the only record of *why* a chunk came back
-  // untouched. And a breaker: once a transient error has exhausted its retries, every later call rethrows
-  // it at once, so a host that hangs costs the test one retry budget rather than one per call.
+  // untouched. And a breaker: once a call has failed with a retryable error even after its retries, every
+  // later call rethrows it at once, so a host that hangs costs the test one retry budget rather than one per
+  // call. (Retryable includes errors the provider couldn't classify; those still go red — see below.)
   let failures: unknown[] = [];
   let tripped: unknown;
 
@@ -121,62 +127,74 @@ describe.skipIf(!E2E_ENABLED)('notes LLM e2e (real Ollama)', () => {
     tripped = undefined;
   });
 
-  it('should enhance and categorize a large release across chunk boundaries', async (ctx) => {
-    // Crosses the chunk boundary → two real structured calls, then a category merge.
-    const entries: ChangelogEntry[] = Array.from({ length: ENTRY_COUNT }, (_, i) => ({
-      type: i % 2 === 0 ? 'fixed' : 'added',
-      description: `${i % 2 === 0 ? 'Fix' : 'Add'} behaviour ${i} in the widget subsystem`,
-    }));
+  it(
+    'should enhance and categorize a large release across chunk boundaries',
+    async (ctx) => {
+      // Crosses the chunk boundary → two real structured calls, then a category merge.
+      const entries: ChangelogEntry[] = Array.from({ length: ENTRY_COUNT }, (_, i) => ({
+        type: i % 2 === 0 ? 'fixed' : 'added',
+        description: `${i % 2 === 0 ? 'Fix' : 'Add'} behaviour ${i} in the widget subsystem`,
+      }));
 
-    const result = await enhanceAndCategorize(provider, entries, context);
+      const result = await enhanceAndCategorize(provider, entries, context);
 
-    // The model has to have actually rewritten something — the fallback returns descriptions verbatim,
-    // so entry counts alone hold just as well with no provider at all. Counted per chunk rather than
-    // over the whole set: chunks fall back independently, so a healthy first chunk would otherwise mask
-    // a second that got nothing, which is exactly what a mid-run outage looks like at the boundary this
-    // test exists to cover.
-    const rewrittenIn = (from: number, to: number) =>
-      result.enhancedEntries.slice(from, to).filter((e, i) => e.description !== entries[from + i]?.description).length;
-    const firstChunk = rewrittenIn(0, CHUNK_SIZE);
-    const lastChunk = rewrittenIn(CHUNK_SIZE, entries.length);
+      // The model has to have actually rewritten something — the fallback returns descriptions verbatim,
+      // so entry counts alone hold just as well with no provider at all. Counted per chunk rather than
+      // over the whole set: chunks fall back independently, so a healthy first chunk would otherwise mask
+      // a second that got nothing, which is exactly what a mid-run outage looks like at the boundary this
+      // test exists to cover.
+      const rewrittenIn = (from: number, to: number) =>
+        result.enhancedEntries.slice(from, to).filter((e, i) => e.description !== entries[from + i]?.description)
+          .length;
+      const firstChunk = rewrittenIn(0, CHUNK_SIZE);
+      const lastChunk = rewrittenIn(CHUNK_SIZE, entries.length);
 
-    // An untouched chunk is either the host going away or releasekit breaking. Only the errors that
-    // outlived the retries can tell which, and it's an outage only if every one of them proves it.
-    const errors = [...new Set(failures)];
-    if ((firstChunk === 0 || lastChunk === 0) && errors.length > 0 && errors.every(isProviderUnreachable)) {
-      skipUnreachable(ctx, errors);
-    }
-    const why =
-      errors.length > 0
-        ? `provider errors: ${errors.map(describeError).join('; ')}`
-        : 'no provider error, so its output failed validation or came back verbatim (see the warnings above)';
-    expect(firstChunk, `chunk 1 (entries 1-${CHUNK_SIZE}) came back unrewritten; ${why}`).toBeGreaterThan(0);
-    expect(
-      lastChunk,
-      `chunk 2 (entries ${CHUNK_SIZE + 1}-${ENTRY_COUNT}) came back unrewritten; ${why}`,
-    ).toBeGreaterThan(0);
+      // An untouched chunk is either the host going away or releasekit breaking. Only the errors that
+      // outlived the retries can tell which, and it's an outage only if every one of them proves it.
+      // De-duplicated by description: a 401 or 404 recurs as a fresh error object on every call.
+      const errors = [...new Map(failures.map((e) => [describeError(e), e])).values()];
+      if ((firstChunk === 0 || lastChunk === 0) && errors.length > 0 && errors.every(isProviderUnreachable)) {
+        skipUnreachable(ctx, errors);
+      }
+      const why =
+        errors.length > 0
+          ? `provider errors: ${errors.map(describeError).join('; ')}`
+          : 'no provider error, so its output failed validation or came back verbatim (see the warnings above)';
+      expect(firstChunk, `chunk 1 (entries 1-${CHUNK_SIZE}) came back unrewritten; ${why}`).toBeGreaterThan(0);
+      expect(
+        lastChunk,
+        `chunk 2 (entries ${CHUNK_SIZE + 1}-${ENTRY_COUNT}) came back unrewritten; ${why}`,
+      ).toBeGreaterThan(0);
+      // Both chunks were rewritten, so no call may have failed past its retries.
+      expect(errors.map(describeError), 'provider errors recorded despite both chunks being rewritten').toEqual([]);
 
-    // Every input entry is accounted for exactly once (enhanced or fallback-preserved), with non-empty
-    // descriptions, and lands in some non-empty category.
-    expect(result.enhancedEntries).toHaveLength(ENTRY_COUNT);
-    expect(result.enhancedEntries.every((e) => typeof e.description === 'string' && e.description.length > 0)).toBe(
-      true,
-    );
-    expect(result.categories.length).toBeGreaterThan(0);
-    const categorized = result.categories.reduce((total, c) => total + c.entries.length, 0);
-    expect(categorized).toBe(ENTRY_COUNT);
-  }, 240_000);
+      // Every input entry is accounted for exactly once (enhanced or fallback-preserved), with non-empty
+      // descriptions, and lands in some non-empty category.
+      expect(result.enhancedEntries).toHaveLength(ENTRY_COUNT);
+      expect(result.enhancedEntries.every((e) => typeof e.description === 'string' && e.description.length > 0)).toBe(
+        true,
+      );
+      expect(result.categories.length).toBeGreaterThan(0);
+      const categorized = result.categories.reduce((total, c) => total + c.entries.length, 0);
+      expect(categorized).toBe(ENTRY_COUNT);
+    },
+    TEST_TIMEOUT_MS,
+  );
 
-  it('should produce a prose summary and release notes via the text path', async (ctx) => {
-    const entries: ChangelogEntry[] = [
-      { type: 'added', description: 'Add deeplink support for the mobile client' },
-      { type: 'fixed', description: 'Fix a crash when the config file is missing' },
-    ];
+  it(
+    'should produce a prose summary and release notes via the text path',
+    async (ctx) => {
+      const entries: ChangelogEntry[] = [
+        { type: 'added', description: 'Add deeplink support for the mobile client' },
+        { type: 'fixed', description: 'Fix a crash when the config file is missing' },
+      ];
 
-    const summary = await callProvider(ctx, () => summarizeEntries(provider, entries, context));
-    expect(summary.trim().length).toBeGreaterThan(0);
+      const summary = await callProvider(ctx, () => summarizeEntries(provider, entries, context));
+      expect(summary.trim().length).toBeGreaterThan(0);
 
-    const notes = await callProvider(ctx, () => generateReleaseNotes(provider, entries, context));
-    expect(notes.trim().length).toBeGreaterThan(0);
-  }, 240_000);
+      const notes = await callProvider(ctx, () => generateReleaseNotes(provider, entries, context));
+      expect(notes.trim().length).toBeGreaterThan(0);
+    },
+    TEST_TIMEOUT_MS,
+  );
 });

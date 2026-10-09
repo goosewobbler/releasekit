@@ -1,10 +1,9 @@
 import { LLMError } from '../../src/errors/index.js';
-import { isRetryableStatus } from '../../src/llm/retryable.js';
 
 /**
  * Socket-level failure codes: production's `NETWORK_ERROR_CODES` (`src/llm/retryable.ts`, copied rather
- * than exported for a test) plus undici's socket and timeout codes. If the two drift, this side only gets
- * stricter — a red, never a silent skip.
+ * than exported for a test) plus the host-unreachable codes and undici's socket and connect-timeout codes.
+ * If the two drift, this side only gets stricter — a red, never a silent skip.
  */
 const TRANSPORT_ERROR_CODES = new Set([
   'ECONNRESET',
@@ -16,18 +15,16 @@ const TRANSPORT_ERROR_CODES = new Set([
   'EPIPE',
   'ENETUNREACH',
   'ENETDOWN',
+  'EHOSTUNREACH',
+  'EHOSTDOWN',
   'UND_ERR_SOCKET',
   'UND_ERR_CONNECT_TIMEOUT',
-  'UND_ERR_HEADERS_TIMEOUT',
-  'UND_ERR_BODY_TIMEOUT',
 ]);
 
-/** Positive evidence of a transport failure on one error in a cause chain. */
+/** Positive evidence of a transport failure on one error in a cause chain: a socket error code. */
 function isTransportFailure(error: object): boolean {
-  const e = error as { status?: unknown; code?: unknown; name?: unknown };
-  if (typeof e.status === 'number') return e.status >= 400 && isRetryableStatus(e.status);
-  if (typeof e.code === 'string' && TRANSPORT_ERROR_CODES.has(e.code)) return true;
-  return e.name === 'AbortError' || e.name === 'TimeoutError';
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' && TRANSPORT_ERROR_CODES.has(code);
 }
 
 /**
@@ -43,9 +40,13 @@ function isTransportFailure(error: object): boolean {
  * URL all arrive flagged retryable. What separates them is the cause:
  *  - no cause → the provider classified the failure itself, from a retryable HTTP status (429, 5xx, …)
  *    or its own request timeout. Accepted.
- *  - a cause → some error in the chain must be positive transport evidence: a retryable HTTP status, a
- *    socket error code, or an abort/timeout. undici nests the socket error a level down
- *    (`TypeError: fetch failed` → `Error: connect ECONNREFUSED`), hence the walk.
+ *  - a cause → some error in the chain must carry a socket error code. undici nests it a level down
+ *    (`TypeError: fetch failed` → `Error: connect ECONNREFUSED`), hence the walk. (The Ollama provider
+ *    classifies HTTP statuses and its own timeout itself, so those arrive without a cause.)
+ *
+ * The provider's own classification is trusted, which is the one blind spot: a request Ollama rejects
+ * with a 5xx (e.g. an invalid `format` schema on older servers) or a prompt slow enough to hit the timeout
+ * skips rather than fails.
  *
  * Everything else is our bug: a non-retryable 4xx (malformed request), an unflagged LLMError (e.g.
  * "Empty response", a validation failure — not every throw site sets the flag), and anything that isn't
