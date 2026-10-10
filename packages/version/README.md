@@ -56,49 +56,59 @@ releasekit-version --prerelease beta
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `--bump <type>` | Force bump type: `patch`, `minor`, `major` | auto |
-| `--prerelease [id]` | Create prerelease version (e.g. `beta`) | — |
-| `--target <packages>` | Target specific packages (comma-separated) | all |
+| `-c, --config <path>` | Path to config file | `releasekit.config.json` |
+| `-b, --bump <type>` | Force bump type: `patch`, `minor`, `major`, `prerelease` | auto |
+| `-p, --prerelease [id]` | Create prerelease version (e.g. `beta`) | — |
+| `--stable` | Graduate prerelease packages to stable without bumping | `false` |
+| `--allow-first-bump` | Acknowledge applying a bump on a first release with an already-stable manifest | `false` |
+| `-s, --sync` | Use synchronized versioning across all packages | config |
+| `-t, --target <packages>` | Target specific packages (comma-separated) | all |
+| `--include-prerequisites` | Also release the changed internal dependencies of `--target` packages | `false` |
 | `--project-dir <path>` | Project directory | cwd |
-| `--dry-run` | Preview without file changes or git operations | `false` |
-| `--json` | Output results as JSON | `false` |
-| `--strict-reachable` | Only use tags reachable from current commit | `false` |
-| `--verbose` | Verbose logging | `false` |
-| `--quiet` | Suppress non-error output | `false` |
+| `-d, --dry-run` | Preview without file changes or git operations | `false` |
+| `-j, --json` | Output results as a JSON envelope (see below) | `false` |
+| `--output <path>` | Write the JSON envelope to a file instead of stdout (resolved against the directory you run from) | — |
 
 ## JSON Output
 
-When using `--json`, the tool outputs structured data including version bumps and changelog entries:
+With `--json` (or `--output <file>`), the result is wrapped in the uniform [CLI envelope](../../docs/cli.md#json-output-contract): `status`, `changed`, `warnings`, and `errors` sit alongside the payload, and the version data itself is at `data`:
 
 ```json
 {
-  "dryRun": true,
-  "updates": [
-    {
-      "packageName": "@scope/core",
-      "newVersion": "1.2.3",
-      "filePath": "/path/to/package.json"
-    }
-  ],
-  "changelogs": [
-    {
-      "packageName": "@scope/core",
-      "version": "1.2.3",
-      "previousVersion": "v1.2.2",
-      "revisionRange": "v1.2.2..HEAD",
-      "repoUrl": "https://github.com/org/repo",
-      "entries": [
-        { "type": "added", "description": "New feature" },
-        { "type": "fixed", "description": "Bug fix" }
-      ]
-    }
-  ],
-  "commitMessage": "chore: release v1.2.3",
-  "tags": ["v1.2.3"]
+  "schemaVersion": 1,
+  "status": "success",
+  "changed": false,
+  "data": {
+    "dryRun": true,
+    "updates": [
+      {
+        "packageName": "@scope/core",
+        "newVersion": "1.2.3",
+        "filePath": "/path/to/package.json"
+      }
+    ],
+    "changelogs": [
+      {
+        "packageName": "@scope/core",
+        "version": "1.2.3",
+        "previousVersion": "v1.2.2",
+        "revisionRange": "v1.2.2..HEAD",
+        "repoUrl": "https://github.com/org/repo",
+        "entries": [
+          { "type": "added", "description": "New feature" },
+          { "type": "fixed", "description": "Bug fix" }
+        ]
+      }
+    ],
+    "commitMessage": "chore: release v1.2.3",
+    "tags": ["v1.2.3"]
+  },
+  "warnings": [],
+  "errors": []
 }
 ```
 
-This JSON is consumed by `@releasekit/notes` for changelog generation and `@releasekit/publish` for the publish pipeline.
+`@releasekit/notes` and `@releasekit/publish` unwrap the envelope on input, so their `--input` and stdin accept this output directly (a bare `data` object is still accepted too). A script reading the output itself should read `.data` — for example `jq '.data.updates[]'`. On failure, `status` is `"error"`, `data` is `null`, and `errors[]` carries a machine-readable `code`.
 
 ## Configuration
 
@@ -147,7 +157,7 @@ Configure via `releasekit.config.json`:
 A few things to keep in mind when running `releasekit-version` in a pipeline:
 
 - **Always pass `fetch-depth: 0`** on checkout — the tool reads git history to determine the version bump and will produce incorrect results on a shallow clone.
-- **Use `--json`** for reliable downstream parsing. Text output format can change; the JSON schema is stable.
+- **Use `--json` or `--output <file>`** for reliable downstream parsing. Text output format can change; the JSON envelope's `schemaVersion` changes only on a breaking change to its shape.
 - **`NO_COLOR=1`** disables ANSI colour codes in log output. Most CI environments set `CI=true` automatically, which the tool detects and adjusts for.
 
 If you are running the full release pipeline (version + changelog + publish), use `@releasekit/release` instead of invoking `releasekit-version` directly. See the [CI setup guide](../release/docs/ci-setup.md).

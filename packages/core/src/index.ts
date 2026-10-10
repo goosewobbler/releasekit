@@ -6,7 +6,7 @@ export {
   parseGitHubOwnerRepo,
   renderIssueRefs,
 } from './changelogRefs.js';
-export { readPackageVersion } from './cli.js';
+export { readPackageVersion, writeEnvelope } from './cli.js';
 export {
   buildDependencyGraph,
   type Ecosystem,
@@ -21,8 +21,10 @@ export {
   type EnvelopeWarning,
   errorEnvelope,
   exitCodeForError,
+  isEnvelope,
   successEnvelope,
   toEnvelopeError,
+  unwrapEnvelope,
 } from './envelope.js';
 export { EXIT_CODES, type ExitCode, InputError, ReleaseKitError } from './errors.js';
 export {

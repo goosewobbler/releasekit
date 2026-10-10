@@ -15,7 +15,7 @@ This is an internal package that defines the JSON contract between `@releasekit/
 
 | Type | Description |
 |------|-------------|
-| `VersionOutput` | Complete JSON output of `releasekit-version --json` |
+| `VersionOutput` | The version stage's result — the `data` of `releasekit-version --json`'s envelope, and what `notes` / `publish` read |
 | `VersionPackageUpdate` | A single package update record |
 | `VersionPackageChangelog` | Changelog data for one package |
 | `VersionChangelogEntry` | A single changelog entry |

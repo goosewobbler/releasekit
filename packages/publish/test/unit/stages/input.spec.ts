@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { errorEnvelope, successEnvelope } from '@releasekit/core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { PublishErrorCode } from '../../../src/errors/index.js';
 import { parseInput } from '../../../src/stages/input.js';
@@ -31,6 +32,26 @@ describe('input stage', () => {
       expect(result.updates[0]?.packageName).toBe('@releasekit/version');
       expect(result.tags).toHaveLength(2);
       expect(result.commitMessage).toContain('release');
+    });
+
+    it('should unwrap the envelope emitted by `version --json`', async () => {
+      const fixturePath = path.resolve(__dirname, '../../fixtures/version-output.json');
+      const bare = JSON.parse(fs.readFileSync(fixturePath, 'utf-8'));
+      const file = path.join(createTmpDir(), 'enveloped.json');
+      fs.writeFileSync(file, JSON.stringify(successEnvelope(bare, { changed: true })));
+
+      const result = await parseInput(file);
+
+      expect(result.updates).toHaveLength(2);
+      expect(result.updates[0]?.packageName).toBe('@releasekit/version');
+    });
+
+    it('should surface an upstream failure rather than a schema complaint', async () => {
+      const failed = errorEnvelope([{ code: 'GIT_ERROR', category: 'git', retryable: false, message: 'no such ref' }]);
+      const file = path.join(createTmpDir(), 'failed.json');
+      fs.writeFileSync(file, JSON.stringify(failed));
+
+      await expect(parseInput(file)).rejects.toThrow(/GIT_ERROR.*no such ref/);
     });
 
     it('should parse pre-release version output', async () => {

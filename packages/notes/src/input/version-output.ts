@@ -1,5 +1,5 @@
 import * as fs from 'node:fs';
-import type { VersionOutput } from '@releasekit/core';
+import { unwrapEnvelope, type VersionOutput } from '@releasekit/core';
 import type { ChangelogEntry, ChangelogInput, PackageChangelog } from '../core/types.js';
 import { InputParseError } from '../errors/index.js';
 
@@ -57,7 +57,7 @@ export function versionOutputToChangelogInput(data: VersionOutput): ChangelogInp
 }
 
 export function parseVersionOutput(json: string): ChangelogInput {
-  let data: VersionOutput;
+  let data: unknown;
 
   try {
     data = JSON.parse(json);
@@ -65,7 +65,14 @@ export function parseVersionOutput(json: string): ChangelogInput {
     throw new InputParseError(`Invalid JSON input: ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  return versionOutputToChangelogInput(data);
+  // Unwrap here rather than at each call site — this covers the string, file, and stdin entries at once.
+  try {
+    data = unwrapEnvelope(data);
+  } catch (error) {
+    throw new InputParseError(error instanceof Error ? error.message : String(error));
+  }
+
+  return versionOutputToChangelogInput(data as VersionOutput);
 }
 
 export function parseVersionOutputFile(filePath: string): ChangelogInput {

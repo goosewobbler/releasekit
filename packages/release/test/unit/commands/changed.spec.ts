@@ -1,6 +1,6 @@
 import type { PublishOutput, PublishResult } from '@releasekit/publish';
 import { describe, expect, it } from 'vitest';
-import { publishDidChange } from '../../../src/commands/changed.js';
+import { releaseDidPublish } from '../../../src/commands/changed.js';
 import type { ReleaseOutput } from '../../../src/types.js';
 
 function publishResult(overrides: Partial<PublishResult> = {}): PublishResult {
@@ -38,59 +38,24 @@ function releaseOutput(publish?: PublishOutput): ReleaseOutput {
       changelogs: [],
       tags: ['v2.0.0'],
     } as ReleaseOutput['versionOutput'],
-    notesGenerated: false,
     publishOutput: publish,
-  };
+  } as ReleaseOutput;
 }
 
-describe('publishDidChange', () => {
-  it('should be true when a package actually reached a registry', () => {
-    expect(publishDidChange(releaseOutput(publishOutput({ npm: [publishResult()] })))).toBe(true);
+// The predicate itself is covered in @releasekit/publish (output.spec.ts); these pin the
+// standing-pr wiring: `changed` follows what this invocation published, never the manifest.
+describe('releaseDidPublish', () => {
+  it('should be true when this run published a package', () => {
+    expect(releaseDidPublish(releaseOutput(publishOutput({ npm: [publishResult()] })))).toBe(true);
   });
 
-  it('should be false when every package was already published', () => {
-    const output = publishOutput({
-      npm: [publishResult({ skipped: true, alreadyPublished: true, reason: 'already published' })],
-    });
-    expect(publishDidChange(releaseOutput(output))).toBe(false);
+  it('should be false on a re-run where every version was already published, despite manifest updates', () => {
+    const out = releaseOutput(publishOutput({ npm: [publishResult({ skipped: true, alreadyPublished: true })] }));
+    expect(releaseDidPublish(out)).toBe(false);
   });
 
-  it('should be false when every package was skipped as private', () => {
-    const output = publishOutput({ npm: [publishResult({ skipped: true, reason: 'private' })] });
-    expect(publishDidChange(releaseOutput(output))).toBe(false);
-  });
-
-  it('should be false for a push of pre-existing tags and releases with nothing published', () => {
-    const output = publishOutput({
-      npm: [publishResult({ skipped: true, alreadyPublished: true })],
-      // Both report success for an already-existing tag/release, so neither is a change signal.
-      git: { committed: true, tags: ['v2.0.0'], pushed: true },
-      githubReleases: [{ tag: 'v2.0.0', draft: false, prerelease: false, success: true }],
-    });
-    expect(publishDidChange(releaseOutput(output))).toBe(false);
-  });
-
-  it('should be true when one package published among already-published ones', () => {
-    const output = publishOutput({
-      npm: [publishResult({ packageName: '@acme/a', skipped: true, alreadyPublished: true }), publishResult()],
-    });
-    expect(publishDidChange(releaseOutput(output))).toBe(true);
-  });
-
-  it('should read cargo and pub results alongside npm', () => {
-    expect(publishDidChange(releaseOutput(publishOutput({ cargo: [publishResult({ registry: 'cargo' })] })))).toBe(
-      true,
-    );
-    expect(publishDidChange(releaseOutput(publishOutput({ pub: [publishResult({ registry: 'pub' })] })))).toBe(true);
-  });
-
-  it('should be false for a dry run that reports successful publishes', () => {
-    const output = publishOutput({ dryRun: true, npm: [publishResult()] });
-    expect(publishDidChange(releaseOutput(output))).toBe(false);
-  });
-
-  it('should be false when there is no publish output at all', () => {
-    expect(publishDidChange(releaseOutput(undefined))).toBe(false);
-    expect(publishDidChange(null)).toBe(false);
+  it('should be false when nothing was published at all', () => {
+    expect(releaseDidPublish(releaseOutput(undefined))).toBe(false);
+    expect(releaseDidPublish(undefined)).toBe(false);
   });
 });

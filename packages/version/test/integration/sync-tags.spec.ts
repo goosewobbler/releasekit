@@ -12,7 +12,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { executeCliCommand } from '../utils/cli.js';
+import { executeCliCommand, parseCliEnvelope } from '../utils/cli.js';
 import { createConventionalCommit, initGitRepo } from '../utils/git.js';
 import { createPackageJson } from '../utils/package.js';
 import { cleanupTempDir, symlinkNodeModules } from '../utils/tempFixture.js';
@@ -65,7 +65,7 @@ describe('sync strategy — JSON tag output', () => {
     const result = executeCliCommand('--json', tempDir);
 
     expect(result.status).toBe(0);
-    const output = JSON.parse(result.stdout);
+    const { data: output } = parseCliEnvelope(result.stdout);
 
     // @test/pkg-a is sanitized to test-pkg-a (@ stripped, / replaced with -)
     expect(output.tags).toContain('test-pkg-a-v0.2.0');
@@ -88,7 +88,7 @@ describe('sync strategy — JSON tag output', () => {
     const result = executeCliCommand('--json', tempDir);
 
     expect(result.status).toBe(0);
-    const output = JSON.parse(result.stdout);
+    const { data: output } = parseCliEnvelope(result.stdout);
 
     expect(output.tags).toContain('v0.2.0');
     expect(output.tags).toHaveLength(1);
