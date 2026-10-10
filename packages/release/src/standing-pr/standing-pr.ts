@@ -1,5 +1,5 @@
 import * as fs from 'node:fs';
-import { type CIConfig, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
+import { type CIConfig, DEFAULT_DEMOTE_SCOPES, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
 import {
   deriveReleaseChannel,
@@ -938,7 +938,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const changelogRefsMode = (changelogConfig ? changelogConfig.refs : undefined) ?? 'link';
   // Scopes whose changelog entries are demoted into a trailing "Dependencies & version bumps"
   // subsection rather than interleaved. Same narrowing as refs: `false`/absent → the default.
-  const demoteScopes = (changelogConfig ? changelogConfig.demoteScopes : undefined) ?? ['deps'];
+  const demoteScopes = (changelogConfig ? changelogConfig.demoteScopes : undefined) ?? DEFAULT_DEMOTE_SCOPES;
   const skipPatterns = releaseKitConfig.release?.ci?.skipPatterns ?? ['chore: release '];
 
   // Label-triggered runs (a maintainer added/removed an override label on the standing PR)
