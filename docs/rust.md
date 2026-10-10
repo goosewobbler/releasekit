@@ -117,7 +117,7 @@ Controls how releasekit polls crates.io after each publish to confirm the versio
 
 ## Auth
 
-releasekit requires a crates.io API token set as `CARGO_REGISTRY_TOKEN`. There is no OIDC alternative for crates.io at this time.
+releasekit requires a crates.io API token set as `CARGO_REGISTRY_TOKEN`. It doesn't yet support crates.io trusted publishing (OIDC) — tracked in [#546](https://github.com/goosewobbler/releasekit/issues/546).
 
 **Generating a token:**
 
