@@ -50,3 +50,115 @@ export function checkPastTenseLeaning(text: string, minRatio = 0.6): string[] {
   const ratio = pastCount / items.length;
   return ratio >= minRatio ? [] : [`only ${pastCount}/${items.length} items lead past-tense (< ${minRatio})`];
 }
+
+/** Same shape as the pipeline's `CategorizedEntries`, kept structural so the assertions stay pure. */
+interface CategoryGroup {
+  category: string;
+  entries: unknown[];
+}
+
+/**
+ * Grouping has to discriminate, not just be legal. The task validator already rejects category names
+ * outside the configured set, so a model that drops every entry into one bucket passes validation and
+ * still produces a useless grouping. Checks the three ways that degrades: too few distinct categories,
+ * an emitted-but-empty category, and one category swallowing most of the entries.
+ *
+ * `maxShare` is only meaningful once there are enough entries to spread, so it is skipped below four.
+ */
+export function checkCategoryDistribution(
+  categories: CategoryGroup[],
+  opts: { minCategories?: number; maxShare?: number } = {},
+): string[] {
+  const { minCategories = 2, maxShare = 0.8 } = opts;
+  const total = categories.reduce((n, c) => n + c.entries.length, 0);
+  if (total === 0) return ['no categorized entries'];
+
+  const violations: string[] = [];
+  const populated = categories.filter((c) => c.entries.length > 0);
+
+  if (populated.length < minCategories) {
+    violations.push(`only ${populated.length} populated categor(ies), expected >= ${minCategories}`);
+  }
+
+  const empty = categories.filter((c) => c.entries.length === 0).map((c) => c.category);
+  if (empty.length > 0) violations.push(`empty categories emitted: ${empty.join(', ')}`);
+
+  if (total >= 4) {
+    const largest = populated.reduce<CategoryGroup | undefined>(
+      (a, b) => (!a || b.entries.length > a.entries.length ? b : a),
+      undefined,
+    );
+    if (largest && largest.entries.length / total > maxShare) {
+      violations.push(`"${largest.category}" holds ${largest.entries.length}/${total} entries (> ${maxShare})`);
+    }
+  }
+
+  return violations;
+}
+
+/**
+ * Every entry survived categorization exactly once — none dropped, none duplicated across buckets.
+ *
+ * Checked by identity, not by count: a dropped entry and a duplicated one cancel out in a total. The
+ * task's `categories[].entries` are the same objects as its `enhancedEntries`, so each enhanced entry
+ * must sit in exactly one bucket, once, and no bucket may hold anything else. `expectedCount` is the
+ * golden input size, guarding the enhancement step against dropping entries before grouping sees them.
+ */
+export function checkNoEntryLoss(categories: CategoryGroup[], entries: unknown[], expectedCount: number): string[] {
+  const violations: string[] = [];
+  if (entries.length !== expectedCount) {
+    violations.push(`enhanced ${entries.length} entries, expected ${expectedCount}`);
+  }
+
+  const occurrences = new Map<unknown, number>();
+  for (const group of categories) {
+    for (const entry of group.entries) occurrences.set(entry, (occurrences.get(entry) ?? 0) + 1);
+  }
+
+  const known = new Set(entries);
+  const strays = [...occurrences.keys()].filter((entry) => !known.has(entry));
+  const missing = entries.filter((entry) => !occurrences.has(entry));
+
+  // Grouping that copies entries (same content, new objects) breaks this check's identity assumption
+  // without losing anything. Say so — but only when that is exactly what happened, so a real loss or
+  // substitution (say, bucketing the un-enhanced input) still reads as one.
+  const copiesOnly = strays.length > 0 && isOneToOneCopy(strays, missing, occurrences);
+
+  entries.forEach((entry, i) => {
+    const n = occurrences.get(entry) ?? 0;
+    if (n === 0 && !copiesOnly) violations.push(`entry ${i} was dropped from categorization`);
+    else if (n > 1) violations.push(`entry ${i} was categorized ${n} times`);
+  });
+
+  if (copiesOnly) {
+    violations.push(
+      `categories hold copies of ${strays.length} enhanced entr(ies), not the same objects — ` +
+        'this check compares by identity, so compare by content instead',
+    );
+  } else if (strays.length > 0) {
+    violations.push(`${strays.length} categorized entr(ies) are not among the enhanced entries`);
+  }
+  return violations;
+}
+
+/** Each stray is bucketed once and matches a distinct missing entry by content, covering all of them. */
+function isOneToOneCopy(strays: unknown[], missing: unknown[], occurrences: Map<unknown, number>): boolean {
+  if (strays.length !== missing.length) return false;
+  if (strays.some((stray) => occurrences.get(stray) !== 1)) return false;
+  const unmatched = missing.map(canonicalJson);
+  for (const stray of strays) {
+    const i = unmatched.indexOf(canonicalJson(stray));
+    if (i === -1) return false;
+    unmatched.splice(i, 1);
+  }
+  return true;
+}
+
+/** JSON with object keys sorted, so a copy that rebuilt an entry with its keys in another order still matches. */
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) =>
+    v !== null && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+      : v,
+  );
+}

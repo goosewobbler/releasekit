@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import type { CategorizeContext, EnhanceContext } from '../../src/llm/index.js';
 import type { CompleteResult, LLMProvider } from '../../src/llm/provider.js';
+import { enhanceAndCategorize } from '../../src/llm/tasks/enhance-and-categorize.js';
 import { generateReleaseNotes } from '../../src/llm/tasks/release-notes.js';
 import {
+  checkCategoryDistribution,
   checkLengthBounds,
+  checkNoEntryLoss,
   checkPastTenseLeaning,
   findDuplicateDependencyChurn,
   findMarkerLeaks,
@@ -30,6 +34,53 @@ describe('notes eval: release notes', () => {
       expect(findDuplicateDependencyChurn(notes)).toEqual([]);
       expect(checkLengthBounds(notes, 80, 4000)).toEqual([]);
       expect(checkPastTenseLeaning(notes)).toEqual([]);
+    },
+    isLiveMode ? 180_000 : 10_000,
+  );
+
+  it(
+    'should enhance and categorize the structured golden case into a usable grouping',
+    async () => {
+      const golden = loadGoldenCase<EnhanceContext & CategorizeContext>('enhance-and-categorize-basic');
+      const provider = await evalProvider('enhance-and-categorize-basic');
+
+      const { enhancedEntries, categories } = await enhanceAndCategorize(provider, golden.entries, golden.context);
+
+      // Structured-path checks the free-text case can't reach: the grouping has to discriminate, and
+      // nothing may be lost or duplicated on the way through categorization. The eval capabilities
+      // advertise no structured outputs, so this exercises the text → JSON parse path, not the
+      // schema/tool-call branch a provider with `structuredOutputs` takes.
+      expect(checkNoEntryLoss(categories, enhancedEntries, golden.entries.length)).toEqual([]);
+      expect(checkCategoryDistribution(categories)).toEqual([]);
+
+      // The golden case restricts scopes, so what gets grouped must be the scope-validated entries: a
+      // disallowed scope surviving into any bucket means grouping read the unvalidated response.
+      // Matched the way production validates (case-insensitive unless the config says otherwise), so a
+      // live model's "API" for an allowed "api" isn't a false failure.
+      const scopeRules = golden.context.scopes?.rules;
+      const fold = (scope: string) => (scopeRules?.caseSensitive ? scope : scope.toLowerCase());
+      const allowedScopes = (scopeRules?.allowed ?? []).map(fold);
+      const leakedScopes = categories
+        .flatMap((c) => c.entries)
+        .map((e) => e.scope)
+        .filter((scope) => scope !== undefined && !allowedScopes.includes(fold(scope)));
+      expect(leakedScopes).toEqual([]);
+
+      // The content assertions hold here too — the descriptions are user-facing prose.
+      const descriptions = enhancedEntries.map((e) => `- ${e.description}`).join('\n');
+      expect(findMarkerLeaks(descriptions)).toEqual([]);
+      expect(findDuplicateDependencyChurn(descriptions)).toEqual([]);
+      expect(checkPastTenseLeaning(descriptions)).toEqual([]);
+
+      // The prompt carries type and scope as entry attributes; neither may leak back into the prose as a
+      // leading prefix — `added(api): …`, `feat(api): …`, or a bare `api: …`. Built from the golden case's
+      // own labels so a legitimate lead-in ("CLI: …") isn't mistaken for a leak.
+      const labels = [...new Set(golden.entries.flatMap((e) => [e.type, e.originalType, e.scope]))].filter(
+        (label): label is string => typeof label === 'string' && label.length > 0,
+      );
+      const alternation = labels.map((l) => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      const prefixLeak = new RegExp(`^- (?:${alternation})(?:\\([^)]*\\))?!?:\\s`, 'im');
+      expect(descriptions).not.toMatch(prefixLeak);
     },
     isLiveMode ? 180_000 : 10_000,
   );

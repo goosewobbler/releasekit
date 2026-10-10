@@ -47,10 +47,26 @@ export const CAPABILITIES: ProviderCapabilities = { systemRole: true, structured
 export const isLiveMode = process.env.RELEASEKIT_EVAL === '1' || process.env.RELEASEKIT_EVAL === 'true';
 export const isRecordMode = process.env.RELEASEKIT_EVAL_RECORD === '1' || process.env.RELEASEKIT_EVAL_RECORD === 'true';
 
+/**
+ * A corrective retry replays the rejected answer as an assistant turn: the recorded response itself
+ * failed the task's validator. Neither offline mode may answer it — replay has no entry for it, and a
+ * re-seed that answered with the same canned markdown would cache orphan entries that replay then
+ * serves, failing later on a misleading assertion. Fail at the source instead, in both modes.
+ */
+function refuseCorrectiveRetry(messages: LLMMessage[]): void {
+  if (messages.some((m) => m.role === 'assistant')) {
+    throw new Error(
+      'eval: the task rejected the recorded response and asked for a correction. Fix the *.recorded.md ' +
+        'response (or the validator), then re-seed with RELEASEKIT_EVAL_RECORD=1.',
+    );
+  }
+}
+
 const strictOfflineProvider: LLMProvider = {
   name: EVAL_PROVIDER_NAME,
   capabilities: CAPABILITIES,
-  async complete(): Promise<CompleteResult> {
+  async complete(messages: LLMMessage[]): Promise<CompleteResult> {
+    refuseCorrectiveRetry(messages);
     throw new Error(
       'eval replay: no recorded fixture for this request. The prompt or golden input changed — ' +
         're-record with RELEASEKIT_EVAL_RECORD=1 (from *.recorded.md) or RELEASEKIT_EVAL=1 (live provider).',
@@ -63,7 +79,8 @@ function cannedProvider(content: string): LLMProvider {
   return {
     name: EVAL_PROVIDER_NAME,
     capabilities: CAPABILITIES,
-    async complete(): Promise<CompleteResult> {
+    async complete(messages: LLMMessage[]): Promise<CompleteResult> {
+      refuseCorrectiveRetry(messages);
       return { content };
     },
   };
@@ -86,15 +103,19 @@ export function asEvalProvider(base: LLMProvider, caseName: string, provenance: 
   };
 }
 
-export interface GoldenCase {
+export interface GoldenCase<TContext = ReleaseNotesContext> {
   entries: ChangelogEntry[];
-  context: ReleaseNotesContext;
+  context: TContext;
 }
 
-/** Load a golden input fixture (a real-shaped commit set with a fixed date, so cache keys are stable). */
-export function loadGoldenCase(name: string): GoldenCase {
+/**
+ * Load a golden input fixture (a real-shaped commit set with a fixed date, so cache keys are stable).
+ * The context type varies by task — release notes take a `ReleaseNotesContext`, enhance-and-categorize
+ * an `EnhanceContext & CategorizeContext` — so the caller names what it expects.
+ */
+export function loadGoldenCase<TContext = ReleaseNotesContext>(name: string): GoldenCase<TContext> {
   const path = fileURLToPath(new URL(`./fixtures/${name}.json`, import.meta.url));
-  return JSON.parse(readFileSync(path, 'utf-8')) as GoldenCase;
+  return JSON.parse(readFileSync(path, 'utf-8')) as GoldenCase<TContext>;
 }
 
 function recordedPath(name: string): string {
