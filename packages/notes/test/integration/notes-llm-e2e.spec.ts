@@ -78,7 +78,9 @@ async function callProvider<T>(ctx: TestContext, run: () => Promise<T>): Promise
   try {
     return await run();
   } catch (error) {
-    if (isProviderUnreachable(error)) skipUnreachable(ctx, [error]);
+    if (isProviderUnreachable(error)) {
+      skipUnreachable(ctx, [error]);
+    }
     throw error;
   }
 }

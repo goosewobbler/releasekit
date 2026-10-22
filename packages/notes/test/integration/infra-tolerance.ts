@@ -51,11 +51,17 @@ function isTransportFailure(error: object): boolean {
  * an LLMError at all. A visible red beats a silent skip.
  */
 export function isProviderUnreachable(error: unknown): boolean {
-  if (!(error instanceof LLMError) || error.retryable !== true) return false;
-  if (error.cause === undefined) return true;
+  if (!(error instanceof LLMError) || error.retryable !== true) {
+    return false;
+  }
+  if (error.cause === undefined) {
+    return true;
+  }
   let cause: unknown = error.cause;
   while (cause !== null && typeof cause === 'object') {
-    if (isTransportFailure(cause)) return true;
+    if (isTransportFailure(cause)) {
+      return true;
+    }
     cause = (cause as { cause?: unknown }).cause;
   }
   return false;
