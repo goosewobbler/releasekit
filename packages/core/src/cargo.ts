@@ -47,6 +47,10 @@ export function findCargoLockfile(startDir: string): string | undefined {
 interface CargoLockEntry {
   name: string;
   version: string;
+  /** Index of the entry's `[[package]]` line. */
+  start: number;
+  /** Index of the entry's last non-blank line. */
+  end: number;
   /** Index of the entry's `version = "…"` line. */
   versionLine: number;
   /** Registry and git packages carry a `source`; path and workspace packages don't. */
@@ -56,12 +60,14 @@ interface CargoLockEntry {
 /** Read the `[[package]]` entries of a Cargo.lock split into lines, keeping each line's position. */
 function readCargoLockEntries(lines: string[]): CargoLockEntry[] {
   const entries: CargoLockEntry[] = [];
-  let current: { name?: string; version?: string; versionLine?: number; hasSource: boolean } | undefined;
+  let current: (Partial<CargoLockEntry> & { start: number; end: number; hasSource: boolean }) | undefined;
   const closeEntry = (): void => {
     if (current?.name !== undefined && current.version !== undefined && current.versionLine !== undefined) {
       entries.push({
         name: current.name,
         version: current.version,
+        start: current.start,
+        end: current.end,
         versionLine: current.versionLine,
         hasSource: current.hasSource,
       });
@@ -71,24 +77,119 @@ function readCargoLockEntries(lines: string[]): CargoLockEntry[] {
   for (const [index, line] of lines.entries()) {
     if (line.startsWith('[')) {
       closeEntry();
-      current = /^\[\[package\]\]\s*$/.test(line) ? { hasSource: false } : undefined;
+      current = /^\[\[package\]\]\s*$/.test(line) ? { start: index, end: index, hasSource: false } : undefined;
       continue;
     }
-    const field = current ? /^(name|version|source) = "([^"]*)"\s*$/.exec(line) : null;
-    if (!current || !field) {
+    if (!current) {
       continue;
     }
-    if (field[1] === 'name') {
+    if (line.trim() !== '') {
+      current.end = index;
+    }
+    const field = /^(name|version|source) = "([^"]*)"\s*$/.exec(line);
+    if (field?.[1] === 'name') {
       current.name = field[2];
-    } else if (field[1] === 'version') {
+    } else if (field?.[1] === 'version') {
       current.version = field[2];
       current.versionLine = index;
-    } else {
+    } else if (field?.[1] === 'source') {
       current.hasSource = true;
     }
   }
   closeEntry();
   return entries;
+}
+
+/** Split a version into its numeric core, pre-release identifiers and build metadata. */
+function parseVersion(version: string): { core: number[]; pre: string[]; build: string } {
+  const plus = version.indexOf('+');
+  const withoutBuild = plus === -1 ? version : version.slice(0, plus);
+  const dash = withoutBuild.indexOf('-');
+  return {
+    core: (dash === -1 ? withoutBuild : withoutBuild.slice(0, dash)).split('.').map(Number),
+    pre: dash === -1 ? [] : withoutBuild.slice(dash + 1).split('.'),
+    build: plus === -1 ? '' : version.slice(plus + 1),
+  };
+}
+
+const compareStrings = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
+/**
+ * Semver precedence, which is how cargo orders same-name `[[package]]` entries: numeric core, then a
+ * pre-release sorts before the release, identifier by identifier (numeric ones numerically and before
+ * alphanumeric ones). Build metadata only breaks ties.
+ */
+function compareVersions(a: string, b: string): number {
+  const left = parseVersion(a);
+  const right = parseVersion(b);
+  for (let i = 0; i < 3; i++) {
+    if (left.core[i] !== right.core[i]) {
+      return left.core[i] - right.core[i];
+    }
+  }
+  if (left.pre.length === 0 || right.pre.length === 0) {
+    return right.pre.length - left.pre.length || compareStrings(left.build, right.build);
+  }
+  for (let i = 0; i < Math.min(left.pre.length, right.pre.length); i++) {
+    const [x, y] = [left.pre[i], right.pre[i]];
+    const [xNumeric, yNumeric] = [/^\d+$/.test(x), /^\d+$/.test(y)];
+    if (xNumeric && yNumeric && x !== y) {
+      return x.length - y.length || compareStrings(x, y);
+    }
+    if (xNumeric !== yNumeric) {
+      return xNumeric ? -1 : 1;
+    }
+    if (x !== y) {
+      return compareStrings(x, y);
+    }
+  }
+  return left.pre.length - right.pre.length || compareStrings(left.build, right.build);
+}
+
+/**
+ * Put same-name `[[package]]` entries back in cargo's order (by version) after one of them changed
+ * version. They sit next to each other, so the entries are permuted while the blank lines between
+ * them stay put. A lock not laid out that way is left as it is.
+ */
+function sortSameNameEntries(lines: string[], group: Array<{ entry: CargoLockEntry; version: string }>): void {
+  const gaps = group.slice(1).map(({ entry }, i) => lines.slice(group[i].entry.end + 1, entry.start));
+  if (gaps.some((gap) => gap.some((line) => line.trim() !== ''))) {
+    return;
+  }
+  const blocks = group.map(({ entry }) => lines.slice(entry.start, entry.end + 1));
+  const order = group.map((_, i) => i).sort((a, b) => compareVersions(group[a].version, group[b].version));
+  const region = order.flatMap((blockIndex, slot) => [...(slot === 0 ? [] : gaps[slot - 1]), ...blocks[blockIndex]]);
+  const first = group[0].entry.start;
+  lines.splice(first, group[group.length - 1].entry.end + 1 - first, ...region);
+}
+
+/**
+ * Put the run of `name` references around each `"<name> <version>"` dependency line back in cargo's
+ * order. Cargo sorts a package's dependencies by name and then by the version as a string, so
+ * `"foo 10.0.0"` sorts before `"foo 2.0.0"`.
+ */
+function sortReferenceRuns(lines: string[], name: string, version: string): void {
+  const referenceVersion = (line: string): string | undefined => {
+    const reference = /^\s*"([^" ]+) ([^" ]+)[^"]*",?\s*$/.exec(line);
+    return reference?.[1] === name ? reference[2] : undefined;
+  };
+  for (let i = 0; i < lines.length; i++) {
+    if (referenceVersion(lines[i]) !== version) {
+      continue;
+    }
+    let first = i;
+    while (first > 0 && referenceVersion(lines[first - 1]) !== undefined) {
+      first--;
+    }
+    let last = i;
+    while (last + 1 < lines.length && referenceVersion(lines[last + 1]) !== undefined) {
+      last++;
+    }
+    const run = lines.slice(first, last + 1);
+    const sorted = [...run].sort((a, b) => compareStrings(referenceVersion(a) ?? '', referenceVersion(b) ?? ''));
+    lines.splice(first, run.length, ...sorted);
+    i = last;
+  }
 }
 
 /**
@@ -97,7 +198,8 @@ function readCargoLockEntries(lines: string[]): CargoLockEntry[] {
  * `"<name> <old version>"` dependency reference. Cargo only writes the version into a reference when
  * the lock holds more than one version of that name — otherwise dependents list the bare name, which
  * needs no edit. That encoding is the same in every lockfile format, and cargo never adds a source to
- * a reference to a path package. Registry and git entries of the same name are never touched.
+ * a reference to a path package. Registry and git entries of the same name are never touched, but
+ * when the new version passes one of theirs, the entries and references are put back in cargo's order.
  *
  * Returns the updated content (identical when the entry is already at `version`), or `undefined` when
  * the lock has no path entry for `crateName`. Throws rather than guess when the lock holds the name
@@ -126,7 +228,20 @@ export function setCargoLockVersion(lockContent: string, crateName: string, vers
   }
 
   lines[entry.versionLine] = lines[entry.versionLine].replace(`"${entry.version}"`, `"${version}"`);
-  return lines.join('\n').replaceAll(`"${crateName} ${entry.version}"`, `"${crateName} ${version}"`);
+  if (sameName.length > 1) {
+    sortSameNameEntries(
+      lines,
+      sameName.map((other) => ({ entry: other, version: other === entry ? version : other.version })),
+    );
+  }
+  const updated = lines
+    .join('\n')
+    .replaceAll(`"${crateName} ${entry.version}"`, `"${crateName} ${version}"`)
+    .split('\n');
+  if (sameName.length > 1) {
+    sortReferenceRuns(updated, crateName, version);
+  }
+  return updated.join('\n');
 }
 
 /** The part of `@releasekit/git`'s `Git` seam that lists tracked files (core doesn't depend on it). */

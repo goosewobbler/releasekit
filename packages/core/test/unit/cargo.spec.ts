@@ -157,6 +157,48 @@ describe('setCargoLockVersion', () => {
     expect(setCargoLockVersion(before, 'dupe', '1.1.0')).toBe(after);
   });
 
+  it('should keep cargo’s order when the new version passes same-named entries from other sources', () => {
+    // Byte-for-byte what `cargo update --workspace` writes after bumping the path crate `dupe` from
+    // 1.0.0 to 3.0.0: entries are ordered by semver, references by the version as a string.
+    const source = (repo: string) =>
+      `source = "git+https://example.com/${repo}#9a1327a6d3f8bc80a0f02fe01325c7828d587668"`;
+    const entry = (version: string, ...rest: string[]) => [
+      '',
+      '[[package]]',
+      'name = "dupe"',
+      `version = "${version}"`,
+      ...rest,
+    ];
+    const app = (...references: string[]) => [
+      '[[package]]',
+      'name = "app"',
+      'version = "0.1.0"',
+      'dependencies = [',
+      ...references.map((reference) => ` "dupe ${reference}",`),
+      ']',
+    ];
+    const before = lock(
+      'version = 4',
+      '',
+      ...app('1.0.0', '1.0.0-beta.1', '10.0.0', '2.0.0'),
+      ...entry('1.0.0-beta.1', source('pre')),
+      ...entry('1.0.0'),
+      ...entry('2.0.0', source('two')),
+      ...entry('10.0.0', source('ten')),
+    );
+    const after = lock(
+      'version = 4',
+      '',
+      ...app('1.0.0-beta.1', '10.0.0', '2.0.0', '3.0.0'),
+      ...entry('1.0.0-beta.1', source('pre')),
+      ...entry('2.0.0', source('two')),
+      ...entry('3.0.0'),
+      ...entry('10.0.0', source('ten')),
+    );
+
+    expect(setCargoLockVersion(before, 'dupe', '3.0.0')).toBe(after);
+  });
+
   it('should rewrite path references in a v1 lock without touching registry references or checksums', () => {
     // v1 locks always spell out the version, and add the source for registry packages.
     const before = lock(

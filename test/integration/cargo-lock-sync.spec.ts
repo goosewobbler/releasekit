@@ -170,14 +170,19 @@ describe.skipIf(!cargoAvailable())('Cargo.lock sync (real cargo)', () => {
     },
   );
 
-  it('should write the same lock cargo writes', () => {
-    // A git crate named like a workspace member puts two versions of `crate-b` in the lock, so cargo
-    // spells out versions in references to it ("crate-b 0.1.0") — the encoding a bump must edit.
-    const gitCrate = join(dir, 'git-crate-b');
-    writeCrate(gitCrate, 'crate-b', '0.0.9');
-    git(gitCrate, 'init', '-q');
-    git(gitCrate, 'add', '-A');
-    git(gitCrate, 'commit', '-qm', 'init');
+  it('should write the same lock cargo writes, also when the bump passes other versions of the crate', () => {
+    // Git crates named like a workspace member put several versions of `crate-b` in the lock, so cargo
+    // spells out versions in references to it ("crate-b 0.1.0"). Bumping crate-b from 0.1.0 to 0.2.0
+    // passes 0.1.5 in entry order (semver) and 0.10.0 in reference order (plain string), so the edit
+    // also has to put both back in cargo's order.
+    const gitDeps = ['0.0.9', '0.1.5', '0.10.0'].map((version) => {
+      const gitCrate = join(dir, `git-crate-b-${version}`);
+      writeCrate(gitCrate, 'crate-b', version);
+      git(gitCrate, 'init', '-q');
+      git(gitCrate, 'add', '-A');
+      git(gitCrate, 'commit', '-qm', 'init');
+      return `b-${version.replaceAll('.', '-')} = { package = "crate-b", git = "file://${gitCrate}" }\n`;
+    });
 
     const ws = join(dir, 'ws');
     mkdirSync(ws);
@@ -186,7 +191,7 @@ describe.skipIf(!cargoAvailable())('Cargo.lock sync (real cargo)', () => {
       join(ws, 'crate-a'),
       'crate-a',
       '0.1.0',
-      `\n[dependencies]\ncrate-b = { path = "../crate-b" }\nold-b = { package = "crate-b", git = "file://${gitCrate}" }\n`,
+      `\n[dependencies]\ncrate-b = { path = "../crate-b" }\n${gitDeps.join('')}`,
     );
     writeCrate(join(ws, 'crate-b'), 'crate-b', '0.1.0');
     cargo(ws, warmCargoHome, 'generate-lockfile');
