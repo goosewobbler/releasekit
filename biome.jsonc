@@ -24,7 +24,7 @@
   },
   "formatter": {
     "enabled": true,
-    // Skip generated YAML, and all Markdown: Biome's formatter drops the blank line before lists and mangles inline HTML.
+    // Skip generated YAML and all Markdown.
     "includes": [
       "**",
       "!**/*.md",
