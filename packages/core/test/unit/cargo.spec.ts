@@ -27,8 +27,9 @@ describe('findCargoLockfile', () => {
     expect(findCargoLockfile(dir)).toBe(lock);
   });
 
-  it('should walk up to the nearest ancestor lock for a workspace member', () => {
+  it('should walk up to the workspace root’s lock for a member', () => {
     const root = tmp();
+    fs.writeFileSync(path.join(root, 'Cargo.toml'), '[workspace]\nmembers = ["crates/*"]\n');
     const lock = path.join(root, 'Cargo.lock');
     fs.writeFileSync(lock, '');
     const member = path.join(root, 'crates', 'foo');
@@ -36,16 +37,56 @@ describe('findCargoLockfile', () => {
     expect(findCargoLockfile(member)).toBe(lock);
   });
 
-  it('should return the nearest lock for a standalone (non-workspace) crate when both a member and an ancestor have one', () => {
-    // No [workspace] manifest anywhere → the standalone fallback (nearest lock wins). With a
-    // workspace root present, the root lock would win instead — see the workspace-root test below.
+  it('should ignore a lock in an ancestor directory that is not a workspace root', () => {
+    // cargo only uses its workspace root's lock; with no `[workspace]` above, the crate is its own root.
     const root = tmp();
+    fs.writeFileSync(path.join(root, 'Cargo.toml'), '[package]\nname = "outer"\nversion = "1.0.0"\n');
     fs.writeFileSync(path.join(root, 'Cargo.lock'), '');
-    const member = path.join(root, 'crates', 'foo');
-    fs.mkdirSync(member, { recursive: true });
-    const memberLock = path.join(member, 'Cargo.lock');
-    fs.writeFileSync(memberLock, '');
-    expect(findCargoLockfile(member)).toBe(memberLock);
+    const crate = path.join(root, 'crates', 'foo');
+    fs.mkdirSync(crate, { recursive: true });
+    expect(findCargoLockfile(crate)).toBeUndefined();
+    fs.writeFileSync(path.join(crate, 'Cargo.lock'), '');
+    expect(findCargoLockfile(crate)).toBe(path.join(crate, 'Cargo.lock'));
+  });
+
+  it.each([
+    ['an ancestor workspace excludes it', '[workspace]\nmembers = ["crates/*"]\nexclude = ["apps/x"]\n', 'own'],
+    ['an ancestor workspace excludes a directory above it', '[workspace]\nexclude = ["./apps/"]\n', 'own'],
+    ['a literal member entry overrides an exclude', '[workspace]\nmembers = ["apps/x"]\nexclude = ["apps"]\n', 'root'],
+    ['an exclude is a glob, which cargo doesn’t expand', '[workspace]\nexclude = ["apps/*"]\n', 'root'],
+  ])('should follow cargo’s workspace-root rule when %s', (_label, rootManifest, expected) => {
+    const root = tmp();
+    fs.writeFileSync(path.join(root, 'Cargo.toml'), rootManifest);
+    fs.writeFileSync(path.join(root, 'Cargo.lock'), '');
+    const crate = path.join(root, 'apps', 'x');
+    fs.mkdirSync(crate, { recursive: true });
+    fs.writeFileSync(path.join(crate, 'Cargo.toml'), '[package]\nname = "x"\nversion = "0.1.0"\n');
+    fs.writeFileSync(path.join(crate, 'Cargo.lock'), '');
+
+    expect(findCargoLockfile(crate)).toBe(path.join(expected === 'own' ? crate : root, 'Cargo.lock'));
+  });
+
+  it('should skip a workspace that excludes the crate for an outer one that has it as a member', () => {
+    const root = tmp();
+    fs.writeFileSync(path.join(root, 'Cargo.toml'), '[workspace]\nmembers = ["inner/app"]\n');
+    fs.writeFileSync(path.join(root, 'Cargo.lock'), '');
+    fs.mkdirSync(path.join(root, 'inner', 'app'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'inner', 'Cargo.toml'), '[workspace]\nexclude = ["app"]\n');
+    fs.writeFileSync(path.join(root, 'inner', 'Cargo.lock'), '');
+
+    expect(findCargoLockfile(path.join(root, 'inner', 'app'))).toBe(path.join(root, 'Cargo.lock'));
+  });
+
+  it('should treat a crate whose manifest declares a workspace as its own root', () => {
+    const root = tmp();
+    fs.writeFileSync(path.join(root, 'Cargo.toml'), '[workspace]\nmembers = ["crates/*"]\n');
+    fs.writeFileSync(path.join(root, 'Cargo.lock'), '');
+    const app = path.join(root, 'fixtures', 'app');
+    fs.mkdirSync(app, { recursive: true });
+    fs.writeFileSync(path.join(app, 'Cargo.toml'), '[package]\nname = "app"\nversion = "0.1.0"\n\n[workspace]\n');
+    fs.writeFileSync(path.join(app, 'Cargo.lock'), '');
+
+    expect(findCargoLockfile(app)).toBe(path.join(app, 'Cargo.lock'));
   });
 
   it('should return undefined when no lock exists above the start dir', () => {

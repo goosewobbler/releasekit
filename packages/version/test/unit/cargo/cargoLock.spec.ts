@@ -246,32 +246,71 @@ describe('Cargo.lock sync on Cargo.toml bumps', () => {
     }
   });
 
+  const tauriLock = (version: string): string => `version = 4\n\n[[package]]\nname = "app"\nversion = "${version}"\n`;
+  const tauriLockOf = (name: string): string => path.join(root, 'apps', name, 'src-tauri', 'Cargo.lock');
+
+  /** A JS package `apps/<name>` whose src-tauri crate has the `tauri init` name, `app`. */
+  function tauriApp(name: string, version: string, withLock = true): Package {
+    const dir = path.join(root, 'apps', name);
+    writeCrate(path.join(dir, 'src-tauri'), 'app', version);
+    if (withLock) {
+      fs.writeFileSync(tauriLockOf(name), tauriLock(version));
+    }
+    fs.writeFileSync(path.join(dir, 'package.json'), `{ "name": "${name}", "version": "${version}" }\n`);
+    return { dir, relativeDir: `apps/${name}`, packageJson: { name, version } } as unknown as Package;
+  }
+
   it.each([
     ['both apps', { one: '0.2.0', two: '0.1.1' }],
     ['one app', { one: '0.2.0' }],
   ])(
     'should sync each Tauri app’s lock to its own crate when the crates share a name (%s bumped)',
     async (_label, next: Record<string, string>) => {
-      // Two JS packages whose src-tauri crates have the `tauri init` name and version, `app` 0.1.0.
-      const tauriLock = (version: string): string =>
-        `version = 4\n\n[[package]]\nname = "app"\nversion = "${version}"\n`;
-      const apps = ['one', 'two'].map((name) => {
-        const dir = path.join(root, 'apps', name);
-        writeCrate(path.join(dir, 'src-tauri'), 'app', '0.1.0');
-        fs.writeFileSync(path.join(dir, 'src-tauri', 'Cargo.lock'), tauriLock('0.1.0'));
-        fs.writeFileSync(path.join(dir, 'package.json'), `{ "name": "${name}", "version": "0.1.0" }\n`);
-        return { dir, relativeDir: `apps/${name}`, packageJson: { name, version: '0.1.0' } } as unknown as Package;
-      });
+      const apps = [tauriApp('one', '0.1.0'), tauriApp('two', '0.1.0')];
       git(root, 'add', '-A');
       bump(next);
 
       await runVersion('async', { cargo: { enabled: true, paths: ['src-tauri'] } }, workspace(root, apps));
 
       for (const name of ['one', 'two']) {
-        expect(read(path.join(root, 'apps', name, 'src-tauri', 'Cargo.lock'))).toBe(tauriLock(next[name] ?? '0.1.0'));
+        expect(read(tauriLockOf(name))).toBe(tauriLock(next[name] ?? '0.1.0'));
       }
     },
   );
+
+  it('should sync excluded apps’ own locks, not the ancestor workspace’s, when the crates share a name', async () => {
+    fs.writeFileSync(
+      path.join(root, 'Cargo.toml'),
+      '[workspace]\nmembers = ["shared"]\nexclude = ["apps/one/src-tauri", "apps/two/src-tauri"]\n',
+    );
+    const rootLock = 'version = 4\n\n[[package]]\nname = "shared"\nversion = "1.0.0"\n';
+    fs.writeFileSync(path.join(root, 'Cargo.lock'), rootLock);
+    const apps = [tauriApp('one', '0.1.0'), tauriApp('two', '0.3.0')];
+    git(root, 'add', '-A');
+    bump({ one: '0.2.0', two: '0.4.0' });
+
+    await runVersion('async', { cargo: { enabled: true, paths: ['src-tauri'] } }, workspace(root, apps));
+
+    expect(read(tauriLockOf('one'))).toBe(tauriLock('0.2.0'));
+    expect(read(tauriLockOf('two'))).toBe(tauriLock('0.4.0'));
+    expect(read(path.join(root, 'Cargo.lock'))).toBe(rootLock);
+  });
+
+  it('should leave an ancestor workspace’s member alone when an excluded crate of the same name is bumped', async () => {
+    fs.writeFileSync(
+      path.join(root, 'Cargo.toml'),
+      '[workspace]\nmembers = ["apps/one/src-tauri"]\nexclude = ["apps/two/src-tauri"]\n',
+    );
+    fs.writeFileSync(path.join(root, 'Cargo.lock'), tauriLock('0.1.0'));
+    const apps = [tauriApp('one', '0.1.0', false), tauriApp('two', '0.3.0')];
+    git(root, 'add', '-A');
+    bump({ two: '0.4.0' });
+
+    await runVersion('async', { cargo: { enabled: true, paths: ['src-tauri'] } }, workspace(root, apps));
+
+    expect(read(tauriLockOf('two'))).toBe(tauriLock('0.4.0'));
+    expect(read(path.join(root, 'Cargo.lock'))).toBe(tauriLock('0.1.0'));
+  });
 
   it('should sync the lock of a crate that an ancestor Cargo workspace excludes', async () => {
     fs.writeFileSync(path.join(root, 'Cargo.toml'), '[workspace]\nexclude = ["apps/desk/src-tauri"]\n');

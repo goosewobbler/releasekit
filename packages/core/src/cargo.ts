@@ -1,51 +1,61 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import * as TOML from 'smol-toml';
 
-/** A `Cargo.toml` declares a workspace when it has a `[workspace]` (or `[workspace.*]`) table. */
-function isWorkspaceManifest(cargoTomlPath: string): boolean {
+interface CargoWorkspace {
+  members?: unknown;
+  exclude?: unknown;
+}
+
+/** The `[workspace]` table of the manifest at `cargoTomlPath`, if it exists and declares one. */
+function readWorkspace(cargoTomlPath: string): CargoWorkspace | undefined {
   try {
-    return /^\s*\[workspace[\].]/m.test(fs.readFileSync(cargoTomlPath, 'utf8'));
+    return (TOML.parse(fs.readFileSync(cargoTomlPath, 'utf8')) as { workspace?: CargoWorkspace }).workspace;
   } catch {
-    return false;
+    return undefined;
   }
 }
 
 /**
- * Find the `Cargo.lock` that governs a crate at `startDir` — the one cargo resolves the crate
- * into — by walking up from `startDir`:
- *
- * - If an ancestor `Cargo.toml` declares a `[workspace]`, that's the workspace root and its
- *   `Cargo.lock` is authoritative. A workspace member's own (stray) lock is ignored by cargo, so we
- *   must not target it — only the root lock actually moves.
- * - Otherwise (a standalone crate, no workspace) the nearest committed `Cargo.lock` governs.
- *
- * Returns `undefined` when no committed lock governs the crate. That is deliberate: libraries
- * commonly don't commit a lock, and a version bump must never *create* one as a side effect — only
- * sync an existing committed lock so it doesn't drift.
+ * Cargo's `is_excluded`: an `exclude` entry is a path prefix of the manifest and no `members` entry is.
+ * Cargo matches both literally, without expanding globs.
  */
-export function findCargoLockfile(startDir: string): string | undefined {
-  let dir = path.resolve(startDir);
-  let nearestLock: string | undefined;
-  while (true) {
-    const lockPath = path.join(dir, 'Cargo.lock');
-    const hasLock = fs.existsSync(lockPath);
-    if (hasLock && !nearestLock) {
-      nearestLock = lockPath;
-    }
+function isExcluded(workspace: CargoWorkspace, rootDir: string, manifestPath: string): boolean {
+  const covers = (entries: unknown): boolean =>
+    Array.isArray(entries) &&
+    entries.some((entry) => {
+      const prefix = typeof entry === 'string' ? path.resolve(rootDir, entry) : undefined;
+      return prefix !== undefined && (manifestPath === prefix || manifestPath.startsWith(prefix + path.sep));
+    });
+  return covers(workspace.exclude) && !covers(workspace.members);
+}
 
-    const cargoToml = path.join(dir, 'Cargo.toml');
-    if (fs.existsSync(cargoToml) && isWorkspaceManifest(cargoToml)) {
-      // Workspace root: its lock is the one cargo updates (or none, if no lock is committed).
-      return hasLock ? lockPath : undefined;
+/**
+ * Find the `Cargo.lock` that governs the crate at `crateDir` — the one cargo resolves the crate into,
+ * at its workspace root. Cargo's rule: a crate whose own manifest has a `[workspace]` is its own root;
+ * otherwise the nearest ancestor `[workspace]` that doesn't exclude it is, and with none the crate is
+ * its own root. Cargo ignores every other lock: a member's stray one, or one in an ancestor directory
+ * that isn't the root.
+ *
+ * Returns `undefined` when the root has no lock. That is deliberate: libraries commonly don't commit a
+ * lock, and a version bump must never *create* one as a side effect — only sync an existing committed
+ * lock so it doesn't drift.
+ */
+export function findCargoLockfile(crateDir: string): string | undefined {
+  const manifestPath = path.join(path.resolve(crateDir), 'Cargo.toml');
+  let root = path.dirname(manifestPath);
+  if (!readWorkspace(manifestPath)) {
+    for (let dir = root; path.dirname(dir) !== dir; ) {
+      dir = path.dirname(dir);
+      const workspace = readWorkspace(path.join(dir, 'Cargo.toml'));
+      if (workspace && !isExcluded(workspace, dir, manifestPath)) {
+        root = dir;
+        break;
+      }
     }
-
-    const parent = path.dirname(dir);
-    if (parent === dir) {
-      break; // reached the filesystem root
-    }
-    dir = parent;
   }
-  return nearestLock;
+  const lockPath = path.join(root, 'Cargo.lock');
+  return fs.existsSync(lockPath) ? lockPath : undefined;
 }
 
 interface CargoLockEntry {
@@ -275,16 +285,16 @@ export interface CargoLockUpdate {
  * Work out the content of every Cargo.lock that records a bumped crate, by editing the lock text with
  * {@link setCargoLockVersion} — nothing runs cargo, so no Rust toolchain, registry index or network is
  * needed. The candidates are every lock git tracks (apps that use a crate through a path dependency
- * have their own) plus each crate's own locks — its governing lock ({@link findCargoLockfile}) and a
- * lock beside its manifest — which are synced even when untracked but not when git ignores them, since
- * they couldn't be staged.
+ * have their own) plus each crate's own lock ({@link findCargoLockfile}), which is synced even when
+ * untracked but not when git ignores it, since it couldn't be staged.
  *
  * Crates in different workspaces can share a name (every `tauri init` app is `app`). A crate's own lock
  * always takes its bump; in any other lock, an entry of that name follows the bump only when something
  * in that lock depends on it (one nothing depends on is that lock's own root or a member) at the
- * crate's old or new version. A different crate of the same name used by path at one of those
- * versions can't be told apart. A lock gets every bump it records, so a lock shared by several bumped
- * crates is rewritten once; locks that record none are left out.
+ * crate's old or new version (any version when neither its manifest nor its own lock records the old
+ * one). A different crate of the same name used by path at a matching version can't be told apart.
+ * A lock gets every bump it records, so a lock shared by several bumped crates is rewritten once;
+ * locks that record none are left out.
  *
  * Nothing is written: the caller writes the changed content. Throws, naming the lock, when a lock can't
  * be read or edited unambiguously, so no lock is written unless every lock can be.
@@ -304,22 +314,18 @@ export async function planCargoLockUpdates(
   const fromVersions = new Map<CargoLockBump, string | undefined>();
   for (const bump of bumps) {
     fromVersions.set(bump, bump.fromVersion);
-    const dir = path.dirname(bump.cargoTomlPath);
-    // findCargoLockfile can't see that an ancestor workspace excludes the crate; a lock beside its
-    // manifest can only be the crate's own (or an unused stray).
-    for (const ownLock of new Set([findCargoLockfile(dir), path.join(dir, 'Cargo.lock')])) {
-      if (ownLock && fs.existsSync(ownLock) && !(await git.isIgnored(ownLock, cwd))) {
-        owners.set(ownLock, [...(owners.get(ownLock) ?? []), bump]);
-        lockPaths.add(ownLock);
-        // A manifest that inherits its version, or has none, doesn't say what the crate was at.
-        fromVersions.set(
-          bump,
-          fromVersions.get(bump) ??
-            readCargoLockEntries(fs.readFileSync(ownLock, 'utf8').split('\n')).find(
-              (entry) => entry.name === bump.name && !entry.hasSource,
-            )?.version,
-        );
-      }
+    const ownLock = findCargoLockfile(path.dirname(bump.cargoTomlPath));
+    if (ownLock && !(await git.isIgnored(ownLock, cwd))) {
+      owners.set(ownLock, [...(owners.get(ownLock) ?? []), bump]);
+      lockPaths.add(ownLock);
+      // A manifest that inherits its version, or has none, doesn't say what the crate was at.
+      fromVersions.set(
+        bump,
+        fromVersions.get(bump) ??
+          readCargoLockEntries(fs.readFileSync(ownLock, 'utf8').split('\n')).find(
+            (entry) => entry.name === bump.name && !entry.hasSource,
+          )?.version,
+      );
     }
   }
 

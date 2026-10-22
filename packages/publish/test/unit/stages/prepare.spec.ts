@@ -341,6 +341,7 @@ describe('prepare stage', () => {
     const crateDir = path.join(dir, 'crates', 'foo');
     fs.mkdirSync(crateDir, { recursive: true });
     fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "foo"\nversion = "1.0.0"\n');
+    fs.writeFileSync(path.join(dir, 'Cargo.toml'), '[workspace]\nmembers = ["crates/foo"]\n');
     fs.writeFileSync(path.join(dir, 'Cargo.lock'), fooLock('1.0.0'));
 
     const config = getDefaultConfig();
