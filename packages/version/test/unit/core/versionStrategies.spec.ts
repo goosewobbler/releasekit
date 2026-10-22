@@ -17,6 +17,8 @@ import * as jsonOutput from '../../../src/utils/jsonOutput.js';
 import * as logging from '../../../src/utils/logging.js';
 
 // Mock dependencies
+// fs is mocked, so the Cargo.lock lookup finds a lock and the real sync would shell out to cargo.
+vi.mock('../../../src/cargo/cargoLock.js');
 vi.mock('../../../src/git/commands.js');
 vi.mock('../../../src/git/tagsAndBranches.js');
 vi.mock('../../../src/git/tagVerification.js');
