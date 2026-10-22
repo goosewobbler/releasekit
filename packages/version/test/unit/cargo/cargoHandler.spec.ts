@@ -3,11 +3,13 @@ import path from 'node:path';
 import * as TOML from 'smol-toml';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getCargoInfo, isCargoToml, updateCargoVersion } from '../../../src/cargo/cargoHandler.js';
+import { syncCargoLockfile } from '../../../src/cargo/cargoLock.js';
 import * as jsonOutput from '../../../src/utils/jsonOutput.js';
 import * as logging from '../../../src/utils/logging.js';
 
 // Mock dependencies
 vi.mock('node:fs');
+vi.mock('../../../src/cargo/cargoLock.js');
 vi.mock('../../../src/utils/jsonOutput.js');
 vi.mock('../../../src/utils/logging.js');
 vi.mock('smol-toml', () => ({
@@ -150,6 +152,7 @@ describe('Cargo Handler', () => {
       // Should still track the update and log
       expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', '2.0.0', mockCargoPath);
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('[DRY RUN] Would update'), 'success');
+      expect(syncCargoLockfile).toHaveBeenCalledWith(mockCargoPath, true);
     });
 
     it('should write to disk when dryRun is false', () => {
@@ -160,6 +163,7 @@ describe('Cargo Handler', () => {
       expect(TOML.stringify).toHaveBeenCalled();
       expect(fs.writeFileSync).toHaveBeenCalledWith(mockCargoPath, 'mocked stringified TOML');
       expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', '2.0.0', mockCargoPath);
+      expect(syncCargoLockfile).toHaveBeenCalledWith(mockCargoPath, false);
     });
 
     it('should handle errors when updating Cargo.toml', () => {
@@ -170,6 +174,7 @@ describe('Cargo Handler', () => {
       expect(() => updateCargoVersion(mockCargoPath, '2.0.0')).toThrow();
 
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('Failed to update Cargo.toml at'), 'error');
+      expect(syncCargoLockfile).not.toHaveBeenCalled();
     });
 
     it('should throw an error if package name is not found', () => {

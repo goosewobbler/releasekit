@@ -7,7 +7,6 @@ import * as path from 'node:path';
 import type { Package } from '@manypkg/get-packages';
 import type { VersionChangelogEntry } from '@releasekit/core';
 import { shouldMatchPackageTargets, shouldProcessPackage as shouldProcessPackageUtil } from '@releasekit/core';
-import { syncCargoLockfile } from '../cargo/cargoLock.js';
 import { extractChangelogEntriesFromCommits } from '../changelog/commitParser.js';
 import { BaseVersionError } from '../errors/baseError.js';
 import { StrictReachableError } from '../errors/strictReachableError.js';
@@ -88,29 +87,21 @@ function updateCargoFiles(
 
   const cargoPaths = cargoConfig?.paths;
 
-  // After rewriting a Cargo.toml version, sync its Cargo.lock self-entry so the committed lock
-  // doesn't drift. The returned lock path is staged alongside the manifest; deduped because
-  // crates in one workspace share a single workspace-root lock.
-  const stageCargo = (cargoTomlPath: string): void => {
-    updatePackageVersion(cargoTomlPath, version, dryRun);
-    updatedFiles.push(cargoTomlPath);
-    const lockPath = syncCargoLockfile(cargoTomlPath, dryRun);
-    if (lockPath && !updatedFiles.includes(lockPath)) updatedFiles.push(lockPath);
-  };
-
   if (cargoPaths && cargoPaths.length > 0) {
     // If paths are specified, only include those Cargo.toml files
     for (const cargoPath of cargoPaths) {
       const resolvedCargoPath = resolveConfinedManifestPath(repoRoot, packageDir, cargoPath, 'Cargo.toml');
       if (fs.existsSync(resolvedCargoPath)) {
-        stageCargo(resolvedCargoPath);
+        updatePackageVersion(resolvedCargoPath, version, dryRun);
+        updatedFiles.push(resolvedCargoPath);
       }
     }
   } else {
     // Default behaviour: check for Cargo.toml in the root package directory
     const cargoTomlPath = path.join(packageDir, 'Cargo.toml');
     if (fs.existsSync(cargoTomlPath)) {
-      stageCargo(cargoTomlPath);
+      updatePackageVersion(cargoTomlPath, version, dryRun);
+      updatedFiles.push(cargoTomlPath);
     }
   }
 

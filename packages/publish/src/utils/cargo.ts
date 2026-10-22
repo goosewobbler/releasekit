@@ -2,46 +2,35 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CargoManifest } from '@releasekit/config';
 import { parseCargoToml } from '@releasekit/config';
-import { findCargoLockfile, warn } from '@releasekit/core';
+import { syncCargoLockVersion, warn } from '@releasekit/core';
 import * as TOML from 'smol-toml';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
-import { execCommand } from './exec.js';
 
 export type { CargoManifest };
 export { parseCargoToml };
 
 /**
- * Refresh a crate's `Cargo.lock` self-version entry after its `Cargo.toml` was bumped, so the
- * committed lock doesn't drift. `cargo update --workspace --offline` moves only workspace
- * members' own lock entries to match their manifests — registry dependencies are never re-resolved.
+ * Sync a crate's own entry in its committed `Cargo.lock` to the version now in its `Cargo.toml`, after
+ * the manifest was bumped, so the committed lock doesn't drift. Uses the same direct lock edit as the
+ * version step (core's `syncCargoLockVersion`), so no Rust toolchain is needed.
  *
- * Returns the lock path (so the caller can stage it) or `undefined` when there's no committed lock,
- * or the refresh fails. A failure is logged, never thrown: a lockfile fix-up must not abort a publish
+ * Returns the lock path (so the caller can stage it) or `undefined` when no committed lock lists the
+ * crate, or the sync fails. A failure is logged, never thrown: a lockfile fix-up must not abort a publish
  * that would otherwise succeed. This mirrors the version step's sync (which covers the standing-PR
  * flow's `git add -A`); doing it here too keeps the direct-commit flow self-sufficient rather than
  * depending on the version step having run and succeeded first.
  */
-export async function syncCargoLockfile(crateDir: string): Promise<string | undefined> {
-  const lockPath = findCargoLockfile(crateDir);
-  if (!lockPath) return undefined;
-
+export function syncCargoLockfile(crateDir: string): string | undefined {
+  const cargoPath = path.join(crateDir, 'Cargo.toml');
   try {
-    await execCommand('cargo', ['update', '--workspace', '--offline'], {
-      cwd: crateDir,
-      label: `cargo update --workspace --offline (${path.basename(crateDir)})`,
-    });
-    return lockPath;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      warn(
-        `cargo not found on PATH — Cargo.lock at ${lockPath} may drift from the bumped version. ` +
-          'Install the Rust toolchain in the release environment, or disable cargo handling.',
-      );
-    } else {
-      const stderr = (error as { stderr?: string }).stderr;
-      const detail = stderr?.trim() || (error instanceof Error ? error.message : String(error));
-      warn(`Failed to refresh Cargo.lock at ${lockPath}: ${detail}. The committed lock may drift from the bump.`);
+    const { name, version } = parseCargoToml(cargoPath).package ?? {};
+    if (!name || typeof version !== 'string') {
+      return undefined;
     }
+    return syncCargoLockVersion(crateDir, name, version)?.lockPath;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    warn(`Failed to sync Cargo.lock for ${cargoPath}: ${detail}. The committed lock may drift from the bump.`);
     return undefined;
   }
 }

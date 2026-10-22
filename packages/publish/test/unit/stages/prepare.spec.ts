@@ -6,11 +6,8 @@ import { getDefaultConfig } from '../../../src/config.js';
 import { runPrepareStage } from '../../../src/stages/prepare.js';
 import type { PipelineContext } from '../../../src/types.js';
 
-// Don't shell out to a real cargo for the lockfile sync — assert the staging behaviour, not cargo.
-vi.mock('../../../src/utils/exec.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../src/utils/exec.js')>('../../../src/utils/exec.js');
-  return { ...actual, execCommand: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 }) };
-});
+/** A committed lock listing the path crate `foo` at `version`. */
+const fooLock = (version: string): string => `version = 4\n\n[[package]]\nname = "foo"\nversion = "${version}"\n`;
 
 function createContext(overrides?: Partial<PipelineContext>): PipelineContext {
   return {
@@ -144,13 +141,41 @@ describe('prepare stage', () => {
     expect(fs.existsSync(path.join(pkgDir, 'LICENSE'))).toBe(false);
   });
 
-  it('should stage the workspace Cargo.lock alongside a bumped crate', async () => {
+  it('should sync and stage the workspace Cargo.lock alongside a bumped crate', async () => {
     const dir = createTmpDir();
+    fs.writeFileSync(path.join(dir, 'Cargo.toml'), '[workspace]\nmembers = ["crates/foo"]\n');
     const crateDir = path.join(dir, 'crates', 'foo');
     fs.mkdirSync(crateDir, { recursive: true });
     fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "foo"\nversion = "1.0.0"\n');
     const lockPath = path.join(dir, 'Cargo.lock');
-    fs.writeFileSync(lockPath, '');
+    fs.writeFileSync(lockPath, fooLock('1.0.0'));
+
+    const config = getDefaultConfig();
+    config.cargo.enabled = true;
+    const ctx = createContext({
+      cwd: dir,
+      config,
+      input: {
+        dryRun: false,
+        updates: [{ packageName: 'foo', newVersion: '1.1.0', filePath: 'crates/foo/Cargo.toml' }],
+        changelogs: [],
+        tags: [],
+      },
+    });
+
+    await runPrepareStage(ctx);
+
+    expect(fs.readFileSync(lockPath, 'utf-8')).toBe(fooLock('1.1.0'));
+    expect(ctx.additionalFiles).toContain(lockPath);
+  });
+
+  it('should still stage a Cargo.lock the version step already synced', async () => {
+    const dir = createTmpDir();
+    const crateDir = path.join(dir, 'crates', 'foo');
+    fs.mkdirSync(crateDir, { recursive: true });
+    fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "foo"\nversion = "1.1.0"\n');
+    const lockPath = path.join(crateDir, 'Cargo.lock');
+    fs.writeFileSync(lockPath, fooLock('1.1.0'));
 
     const config = getDefaultConfig();
     config.cargo.enabled = true;
@@ -175,7 +200,7 @@ describe('prepare stage', () => {
     const crateDir = path.join(dir, 'crates', 'foo');
     fs.mkdirSync(crateDir, { recursive: true });
     fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "foo"\nversion = "1.0.0"\n');
-    fs.writeFileSync(path.join(dir, 'Cargo.lock'), '');
+    fs.writeFileSync(path.join(dir, 'Cargo.lock'), fooLock('1.0.0'));
 
     const config = getDefaultConfig();
     config.cargo.enabled = true;
@@ -203,6 +228,7 @@ describe('prepare stage', () => {
 
     await runPrepareStage(ctx);
 
+    expect(fs.readFileSync(path.join(dir, 'Cargo.lock'), 'utf-8')).toBe(fooLock('1.0.0'));
     expect(ctx.additionalFiles ?? []).not.toContain(path.join(dir, 'Cargo.lock'));
   });
 

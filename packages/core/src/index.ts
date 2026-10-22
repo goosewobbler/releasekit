@@ -1,4 +1,4 @@
-export { findCargoLockfile } from './cargo.js';
+export { findCargoLockfile, syncCargoLockVersion } from './cargo.js';
 export {
   type ChangelogRefsMode,
   escapeChangelogMentions,

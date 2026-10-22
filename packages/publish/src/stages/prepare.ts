@@ -79,7 +79,7 @@ export async function runPrepareStage(ctx: PipelineContext): Promise<void> {
       updateCargoVersion(cargoPath, update.newVersion);
       debug(`Updated ${cargoPath} to version ${update.newVersion}`);
 
-      const lockPath = await syncCargoLockfile(pkgDir);
+      const lockPath = syncCargoLockfile(pkgDir);
       if (lockPath) lockfiles.add(lockPath);
     }
 
