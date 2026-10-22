@@ -128,7 +128,7 @@
       }
     },
     {
-      // Use the logger, not console. The loggers and CLI command files are exempt.
+      // Disallow console except in the loggers and CLI command files.
       "includes": [
         "packages/*/src/**",
         "!packages/core/src/logger.ts",
