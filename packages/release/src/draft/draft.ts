@@ -53,7 +53,9 @@ function planFingerprint(v: VersionOutput): string {
  * reviewed.
  */
 function samePlan(a: VersionOutput | undefined, b: VersionOutput): boolean {
-  if (!a) return false;
+  if (!a) {
+    return false;
+  }
   return planFingerprint(a) === planFingerprint(b);
 }
 

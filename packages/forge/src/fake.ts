@@ -193,8 +193,12 @@ export class FakeForge implements Forge {
     this.updatedIssues.push({ issueNumber, changes });
     const existing = this.issues[issueNumber];
     if (existing) {
-      if (changes.body !== undefined) existing.body = changes.body;
-      if (changes.title !== undefined) existing.title = changes.title;
+      if (changes.body !== undefined) {
+        existing.body = changes.body;
+      }
+      if (changes.title !== undefined) {
+        existing.title = changes.title;
+      }
     }
     // Closing drops it from open-issue discovery.
     if (changes.state === 'closed') {
@@ -226,7 +230,9 @@ export class FakeForge implements Forge {
   async updateComment(commentId: number, body: string): Promise<void> {
     this.updatedComments.push({ commentId, body });
     const comment = this.comments.find((c) => c.id === commentId);
-    if (comment) comment.body = body;
+    if (comment) {
+      comment.body = body;
+    }
   }
 
   async upsertMarkerComment(prNumber: number, marker: string, body: string): Promise<void> {
@@ -246,7 +252,9 @@ export class FakeForge implements Forge {
 
   async createLabel(label: NewLabel): Promise<CreateLabelResult> {
     this.createdLabels.push(label);
-    if (this.labelNames.includes(label.name)) return 'exists';
+    if (this.labelNames.includes(label.name)) {
+      return 'exists';
+    }
     this.labelNames.push(label.name);
     return 'created';
   }

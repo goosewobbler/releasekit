@@ -17,16 +17,22 @@ export type ChangelogRefsMode = 'strip' | 'escape' | 'link';
  */
 export function parseGitHubOwnerRepo(repoUrl: string): { owner: string; repo: string } | null {
   const scpMatch = repoUrl.match(/^git@github\.com:([^/]+)\/(.+?)(?:\.git)?$/);
-  if (scpMatch) return { owner: scpMatch[1]!, repo: scpMatch[2]! };
+  if (scpMatch) {
+    return { owner: scpMatch[1]!, repo: scpMatch[2]! };
+  }
 
   try {
     const url = new URL(repoUrl);
-    if (url.hostname !== 'github.com') return null;
+    if (url.hostname !== 'github.com') {
+      return null;
+    }
     const parts = url.pathname
       .replace(/^\//, '')
       .replace(/\.git$/, '')
       .split('/');
-    if (parts.length >= 2 && parts[0] && parts[1]) return { owner: parts[0], repo: parts[1] };
+    if (parts.length >= 2 && parts[0] && parts[1]) {
+      return { owner: parts[0], repo: parts[1] };
+    }
   } catch {
     // not a parseable URL
   }
@@ -60,14 +66,18 @@ export function renderIssueRefs(
   repoUrl: string | null,
   prNumber?: string,
 ): string {
-  if (mode === 'strip') return '';
+  if (mode === 'strip') {
+    return '';
+  }
   const ids = issueIds ?? [];
   // prNumber is normally already in issueIds; fold it in defensively so no path can silently drop it.
   const allIds =
     prNumber && !ids.some((id) => Number(id.replace(/^#/, '')) === Number(prNumber.replace(/^#/, '')))
       ? [prNumber, ...ids]
       : ids;
-  if (allIds.length === 0) return '';
+  if (allIds.length === 0) {
+    return '';
+  }
 
   const ownerRepo = mode === 'link' && repoUrl ? parseGitHubOwnerRepo(repoUrl) : null;
 
@@ -76,7 +86,9 @@ export function renderIssueRefs(
     const pr = prNumber.replace(/^#/, '');
     const prPart = `PR [#${pr}](https://github.com/${owner}/${repo}/pull/${pr})`;
     const closes = allIds.map((raw) => raw.replace(/^#/, '')).filter((num) => Number(num) !== Number(pr));
-    if (closes.length === 0) return `(${prPart})`;
+    if (closes.length === 0) {
+      return `(${prPart})`;
+    }
     const closesPart = closes.map((num) => `[#${num}](https://github.com/${owner}/${repo}/issues/${num})`).join(', ');
     return `(${prPart} · closes ${closesPart})`;
   }
@@ -144,10 +156,14 @@ export function neutralizeDescriptionRefs(
     CODE_SPAN_OR_DESC_REF,
     (match, lead: string | undefined, parenNum?: string, bareNum?: string) => {
       const num = parenNum ?? bareNum;
-      if (num === undefined) return match; // inline-code span — leave untouched
+      if (num === undefined) {
+        return match; // inline-code span — leave untouched
+      }
       const ws = lead ?? '';
       // A ref already shown in the appended label is redundant here; `strip` drops every ref.
-      if (appended.has(Number(num)) || mode === 'strip') return '';
+      if (appended.has(Number(num)) || mode === 'strip') {
+        return '';
+      }
       const inner = ownerRepo
         ? `[#${num}](https://github.com/${ownerRepo.owner}/${ownerRepo.repo}/issues/${num})`
         : `\\#${num}`;

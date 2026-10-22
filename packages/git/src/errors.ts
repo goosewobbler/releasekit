@@ -46,7 +46,9 @@ export class GitError extends Error {
 export function gitExitCode(error: unknown): number | undefined {
   if (error && typeof error === 'object' && 'code' in error) {
     const { code } = error as { code?: unknown };
-    if (typeof code === 'number') return code;
+    if (typeof code === 'number') {
+      return code;
+    }
   }
   return undefined;
 }
@@ -57,7 +59,9 @@ export function gitExitCode(error: unknown): number | undefined {
  * that otherwise swallows a non-zero exit — because it is a configuration failure, not a "no" answer.
  */
 export function isCommandNotFound(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false;
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
   const { code } = error as { code?: unknown };
   return code === 'ENOENT';
 }
@@ -68,6 +72,8 @@ export function isCommandNotFound(error: unknown): boolean {
  * push from an ordinary non-zero exit and report it as a timeout.
  */
 export function isExecTimeout(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false;
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
   return (error as { killed?: unknown }).killed === true;
 }

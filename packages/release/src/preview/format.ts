@@ -107,7 +107,9 @@ function getIntroMessage(strategy: ReleaseStrategy, standingPrNumber?: number): 
 }
 
 function getLabelBanner(labelContext?: LabelContext): string[] {
-  if (!labelContext) return [];
+  if (!labelContext) {
+    return [];
+  }
 
   const lines: string[] = [];
 
@@ -129,7 +131,9 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
     ) {
       descriptor.push(labelContext.bumpLabel);
       const bumpLabelName = labelContext.labels?.[labelContext.bumpLabel];
-      if (bumpLabelName) sources.push(`\`${bumpLabelName}\``);
+      if (bumpLabelName) {
+        sources.push(`\`${bumpLabelName}\``);
+      }
     }
     if (labelContext.prerelease) {
       descriptor.push('prerelease');
@@ -159,10 +163,18 @@ function getLabelBanner(labelContext?: LabelContext): string[] {
   // Show what was seen, point at the override surface (the standing PR) and the bypass label.
   if (labelContext.advisoryInStandingPr) {
     const seen: string[] = [];
-    if (labelContext.bumpLabel) seen.push(`\`bump:${labelContext.bumpLabel}\``);
-    if (labelContext.scopeLabels?.length) seen.push(...labelContext.scopeLabels.map((s) => `\`${s}\``));
-    if (labelContext.stable) seen.push(`\`${labelContext.labels?.graduate ?? 'release:graduate'}\``);
-    if (labelContext.prerelease) seen.push(`\`${labelContext.labels?.prerelease ?? 'channel:prerelease'}\``);
+    if (labelContext.bumpLabel) {
+      seen.push(`\`bump:${labelContext.bumpLabel}\``);
+    }
+    if (labelContext.scopeLabels?.length) {
+      seen.push(...labelContext.scopeLabels.map((s) => `\`${s}\``));
+    }
+    if (labelContext.stable) {
+      seen.push(`\`${labelContext.labels?.graduate ?? 'release:graduate'}\``);
+    }
+    if (labelContext.prerelease) {
+      seen.push(`\`${labelContext.labels?.prerelease ?? 'channel:prerelease'}\``);
+    }
     const seenStr = seen.length ? ` (saw: ${seen.join(', ')})` : '';
     const immediateLabel = labelContext.labels?.immediate ?? 'release:immediate';
     lines.push(
@@ -373,14 +385,23 @@ export function formatPreviewComment(result: ReleaseOutput | null, options?: For
           const coversAll = syncListed.length === publishableUpdates(versionOutput).length;
           const heading = coversAll ? 'All packages' : 'Also bumped';
           bumped.push(`**${heading} → ${syncListed[0]?.newVersion}** (sync versioning)`, '');
-          for (const u of syncListed) bumped.push(`- \`${u.packageName}\``);
+          for (const u of syncListed) {
+            bumped.push(`- \`${u.packageName}\``);
+          }
         }
       } else {
-        if (hasPackageChangelogs || sharedEntries) bumped.push('**Also bumped** (sync versioning)', '');
-        else bumped.push('**Bumped** (sync versioning — no individual changes)', '');
-        for (const u of syncBumpedOnly) bumped.push(`- \`${u.packageName}\` → ${u.newVersion}`);
+        if (hasPackageChangelogs || sharedEntries) {
+          bumped.push('**Also bumped** (sync versioning)', '');
+        } else {
+          bumped.push('**Bumped** (sync versioning — no individual changes)', '');
+        }
+        for (const u of syncBumpedOnly) {
+          bumped.push(`- \`${u.packageName}\` → ${u.newVersion}`);
+        }
       }
-      if (bumped.length > 0) lines.push(...blockquote(bumped), '');
+      if (bumped.length > 0) {
+        lines.push(...blockquote(bumped), '');
+      }
     }
   }
 
@@ -423,7 +444,9 @@ function renderQueuedTable(snapshot: StandingPRSnapshot): string[] {
   const changelogs = snapshot.manifest.versionOutput.changelogs.filter(
     (cl) => cl.entries.length > 0 || cl.version !== cl.previousVersion,
   );
-  if (changelogs.length === 0) return [];
+  if (changelogs.length === 0) {
+    return [];
+  }
   const lines: string[] = [
     '',
     '### Currently queued for release',
@@ -482,8 +505,12 @@ function renderMergeTable(rows: MergedRow[]): string[] {
     const standing = row.standing ?? '—';
     const current = row.current ?? '—';
     let afterCell = row.afterMerge;
-    if (row.status === 'escalated' && row.standing) afterCell += ` ⚠ escalated from ${row.standing}`;
-    if (row.status === 'new-from-pr') afterCell += ' (new)';
+    if (row.status === 'escalated' && row.standing) {
+      afterCell += ` ⚠ escalated from ${row.standing}`;
+    }
+    if (row.status === 'new-from-pr') {
+      afterCell += ' (new)';
+    }
     lines.push(`| \`${row.packageName}\` | ${standing} | ${current} | ${afterCell} |`);
   }
   lines.push('');
@@ -494,7 +521,9 @@ function renderEntries(entries: VersionChangelogEntry[], refs: ChangelogRefsMode
   const lines: string[] = [];
   const grouped = new Map<string, VersionChangelogEntry[]>();
   for (const entry of entries) {
-    if (!grouped.has(entry.type)) grouped.set(entry.type, []);
+    if (!grouped.has(entry.type)) {
+      grouped.set(entry.type, []);
+    }
     grouped.get(entry.type)?.push(entry);
   }
   const renderedTypes = new Set<string>();
@@ -563,6 +592,8 @@ function capitalize(str: string): string {
  *  Markdown blockquote. Trailing blanks are dropped so the quote ends cleanly before the next block. */
 function blockquote(lines: string[]): string[] {
   const trimmed = [...lines];
-  while (trimmed.length > 0 && trimmed[trimmed.length - 1] === '') trimmed.pop();
+  while (trimmed.length > 0 && trimmed[trimmed.length - 1] === '') {
+    trimmed.pop();
+  }
   return trimmed.map((l) => (l.length > 0 ? `> ${l}` : '>'));
 }

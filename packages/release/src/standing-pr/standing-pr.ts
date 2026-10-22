@@ -196,9 +196,13 @@ async function getHeadSha(cwd: string): Promise<string> {
  * idempotent and the workflow guards out the bot's own edits, so an `edited` re-trigger is safe.
  */
 function isStandingPrEventRun(): boolean {
-  if (process.env.GITHUB_EVENT_NAME !== 'pull_request') return false;
+  if (process.env.GITHUB_EVENT_NAME !== 'pull_request') {
+    return false;
+  }
   const eventPath = process.env.GITHUB_EVENT_PATH;
-  if (!eventPath) return false;
+  if (!eventPath) {
+    return false;
+  }
   try {
     const event = JSON.parse(fs.readFileSync(eventPath, 'utf-8')) as { action?: string };
     return event.action === 'labeled' || event.action === 'unlabeled' || event.action === 'edited';
@@ -245,7 +249,9 @@ async function commitAndForcePush(branch: string, cwd: string): Promise<void> {
  * state can't pollute the notes commit.
  */
 async function commitNotesFiles(files: string[], versionOutput: VersionOutput, cwd: string): Promise<void> {
-  if (files.length === 0) return;
+  if (files.length === 0) {
+    return;
+  }
 
   const git = createGitCli();
 
@@ -307,7 +313,9 @@ async function commitNotesFiles(files: string[], versionOutput: VersionOutput, c
  * publish pipeline's `--tags` push will publish whatever tags we managed to create.
  */
 export async function createReleaseTags(tags: string[], cwd: string): Promise<void> {
-  if (tags.length === 0) return;
+  if (tags.length === 0) {
+    return;
+  }
 
   const git = createGitCli();
 
@@ -371,7 +379,9 @@ async function deleteReleaseBranch(releaseBranch: string, cwd: string): Promise<
 export const STANDING_PR_BODY_CAP = 64000;
 
 function truncateAtLineBoundary(text: string, maxChars: number): string {
-  if (text.length <= maxChars) return text;
+  if (text.length <= maxChars) {
+    return text;
+  }
   const slice = text.slice(0, maxChars);
   const lastNewline = slice.lastIndexOf('\n');
   return lastNewline > 0 ? slice.slice(0, lastNewline) : slice;
@@ -423,7 +433,9 @@ function renderPrBody(versionOutput: VersionOutput, options: RenderPrBodyOptions
 
     // One-line release headline under the heading — a neutral "what will publish" scan before
     // the (conditional) supersede alert and the package list. Absent for sync (its own display leads).
-    if (summaryLine) lines.push(summaryLine, '');
+    if (summaryLine) {
+      lines.push(summaryLine, '');
+    }
 
     // While a prior release remains partially published, lead with the supersede warning so the
     // maintainer sees the retry-vs-supersede choice before the package list.
@@ -434,7 +446,9 @@ function renderPrBody(versionOutput: VersionOutput, options: RenderPrBodyOptions
     // The scannable current → next table, opt-in via ci.standingPr.summaryTable, sits above the
     // selection region (and after any supersede warning) — it complements the checkbox list, which
     // GitHub renders interactively only as a list, never in a table cell.
-    if (summaryTable) lines.push(summaryTable, '');
+    if (summaryTable) {
+      lines.push(summaryTable, '');
+    }
 
     // The root lockstep bump (sync mode) is never published — keep it out of the package list.
     const updates = publishableUpdates(versionOutput);
@@ -463,11 +477,17 @@ function renderPrBody(versionOutput: VersionOutput, options: RenderPrBodyOptions
       }
     }
 
-    if (footerSection) lines.push('', footerSection, '');
-    if (extraNotice) lines.push('', extraNotice, '');
+    if (footerSection) {
+      lines.push('', footerSection, '');
+    }
+    if (extraNotice) {
+      lines.push('', extraNotice, '');
+    }
     // The editable release-notes region (opt-in via the preview-notes label) sits below the changelog
     // and above the merge instructions, so a reviewer reads/edits it in the natural place.
-    if (notesSection) lines.push('', notesSection, '');
+    if (notesSection) {
+      lines.push('', notesSection, '');
+    }
     lines.push('---', '> Merge this PR to publish. The release will be triggered automatically.');
     lines.push('', ATTRIBUTION_FOOTER);
     return lines.join('\n');
@@ -480,19 +500,25 @@ function renderPrBody(versionOutput: VersionOutput, options: RenderPrBodyOptions
     // Level 0 — the full body: per-row changelogs (non-sync) plus the combined deduped footer.
     const fullSelection = renderSelectionBlock?.(true);
     const full = build(fullSelection, footer, undefined, notesSection);
-    if (full.length <= STANDING_PR_BODY_CAP) return full;
+    if (full.length <= STANDING_PR_BODY_CAP) {
+      return full;
+    }
 
     if (renderSelectionBlock) {
       // Non-sync: always keep the rows (the PR must stay usable); shed changelog volume in stages.
       // Level 1 — keep the per-row changelogs, drop the redundant deduped footer.
       if (footer) {
         const body = build(fullSelection, '', undefined, notesSection);
-        if (body.length <= STANDING_PR_BODY_CAP) return body;
+        if (body.length <= STANDING_PR_BODY_CAP) {
+          return body;
+        }
       }
       // Level 2 — drop the per-row changelogs too (bare rows) and point reviewers at CHANGELOG.md.
       const bareSelection = renderSelectionBlock(false);
       const body = build(bareSelection, '', TRUNCATION_NOTICE, notesSection);
-      if (body.length <= STANDING_PR_BODY_CAP) return body;
+      if (body.length <= STANDING_PR_BODY_CAP) {
+        return body;
+      }
       // Level 3 — even the notice overflows (thousands of rows): bare rows only.
       return build(bareSelection, '', undefined, notesSection);
     }
@@ -502,7 +528,9 @@ function renderPrBody(versionOutput: VersionOutput, options: RenderPrBodyOptions
       // 8 = 4 (\n\n around the footer) + 2 (\n\n before the notice) + 2 safety margin.
       const room =
         STANDING_PR_BODY_CAP - build(undefined, '', undefined, notesSection).length - TRUNCATION_NOTICE.length - 8;
-      if (room <= 0) return build(undefined, '', undefined, notesSection);
+      if (room <= 0) {
+        return build(undefined, '', undefined, notesSection);
+      }
       return build(
         undefined,
         `${truncateAtLineBoundary(footer, room)}\n\n${TRUNCATION_NOTICE}`,
@@ -514,12 +542,16 @@ function renderPrBody(versionOutput: VersionOutput, options: RenderPrBodyOptions
   };
 
   const primary = shed(notesRegion);
-  if (primary.length <= STANDING_PR_BODY_CAP || !notesRegion) return primary;
+  if (primary.length <= STANDING_PR_BODY_CAP || !notesRegion) {
+    return primary;
+  }
   // The trimmed changelog still overflows with the notes present — the notes are (part of) the excess.
   // Collapse them to a short notice, then drop them outright, so an inflated notes region can never
   // wedge the PR at GitHub's 422.
   const collapsed = shed(NOTES_OMITTED_NOTICE);
-  if (collapsed.length <= STANDING_PR_BODY_CAP) return collapsed;
+  if (collapsed.length <= STANDING_PR_BODY_CAP) {
+    return collapsed;
+  }
   return shed(undefined);
 }
 
@@ -610,13 +642,19 @@ export async function fetchStandingPRSnapshot(
 ): Promise<StandingPRSnapshot | null> {
   const branch = ciConfig?.standingPr?.branch ?? 'release/next';
   const pr = await forge.findStandingPR(branch);
-  if (!pr) return null;
+  if (!pr) {
+    return null;
+  }
 
   const comment = await findManifestComment(forge, pr.number);
-  if (!comment) return null;
+  if (!comment) {
+    return null;
+  }
   // findManifestComment falls back to a human-authored comment when no bot one exists; refuse to
   // surface a forged manifest in the preview, matching the publish path's author check.
-  if (!isBotComment(comment)) return null;
+  if (!isBotComment(comment)) {
+    return null;
+  }
 
   let manifest: StandingPRManifest;
   try {
@@ -737,14 +775,18 @@ function graduatedPackageNames(versionOutput: VersionOutput): string[] {
   );
   const names = new Set<string>();
   for (const u of updates) {
-    if (u.action === 'graduated' || (u.group && graduatedGroups.has(u.group))) names.add(u.packageName);
+    if (u.action === 'graduated' || (u.group && graduatedGroups.has(u.group))) {
+      names.add(u.packageName);
+    }
   }
   return [...names].sort();
 }
 
 function resolveStandingPrLabelOverrides(prLabels: string[], ciConfig: CIConfig | undefined): StandingPrOverrides {
   // Return a fresh object rather than a shared constant — callers may mutate `conflicts`.
-  if (!prLabels || prLabels.length === 0) return { conflicts: [] };
+  if (!prLabels || prLabels.length === 0) {
+    return { conflicts: [] };
+  }
   const labels = ciConfig?.labels ?? DEFAULT_LABELS;
   const scopeLabels = ciConfig?.scopeLabels ?? {};
   const conflicts: string[] = [];
@@ -758,9 +800,13 @@ function resolveStandingPrLabelOverrides(prLabels: string[], ciConfig: CIConfig 
   ].filter(Boolean) as string[];
   if (bumpsPresent.length > 1) {
     conflicts.push(`Conflicting bump labels on standing PR (${bumpsPresent.join(', ')}) — remove all but one`);
-  } else if (prLabels.includes(labels.major)) bump = 'major';
-  else if (prLabels.includes(labels.minor)) bump = 'minor';
-  else if (prLabels.includes(labels.patch)) bump = 'patch';
+  } else if (prLabels.includes(labels.major)) {
+    bump = 'major';
+  } else if (prLabels.includes(labels.minor)) {
+    bump = 'minor';
+  } else if (prLabels.includes(labels.patch)) {
+    bump = 'patch';
+  }
 
   // Graduate / prerelease release-type
   const hasGraduate = prLabels.includes(labels.graduate);
@@ -770,8 +816,12 @@ function resolveStandingPrLabelOverrides(prLabels: string[], ciConfig: CIConfig 
   if (hasGraduate && hasPrerelease) {
     conflicts.push(`Conflicting release-type labels on standing PR (${labels.graduate} and ${labels.prerelease})`);
   } else {
-    if (hasGraduate) stable = true;
-    if (hasPrerelease) prerelease = true;
+    if (hasGraduate) {
+      stable = true;
+    }
+    if (hasPrerelease) {
+      prerelease = true;
+    }
   }
 
   // Per-package graduation: each `graduate:<package>` label graduates that one prerelease to
@@ -985,7 +1035,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   if (existingStandingPr && githubContext?.token) {
     try {
       existingManifestComment = await findManifestComment(forgeFor(githubContext), existingStandingPr.number);
-      if (existingManifestComment) existingManifest = parseManifest(existingManifestComment.body);
+      if (existingManifestComment) {
+        existingManifest = parseManifest(existingManifestComment.body);
+      }
     } catch {
       // An unreadable/malformed manifest is treated as absent — the gate falls back to an empty
       // authoritative selection and firstUpdatedAt defaults to the current time below.
@@ -1095,12 +1147,24 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   const overrides = resolveStandingPrLabelOverrides(effectiveLabels, ciConfig);
   const overrideLabelNames = ciConfig?.labels ?? DEFAULT_LABELS;
-  if (overrides.bump) info(`Standing PR label override: bump=${overrides.bump}`);
-  if (overrides.target) info(`Standing PR label override: target=${overrides.target}`);
-  if (overrides.stable) info(`Standing PR label override: ${overrideLabelNames.graduate}`);
-  if (overrides.graduate) info(`Standing PR label override: graduate [${overrides.graduate.join(', ')}]`);
-  if (overrides.prerelease) info(`Standing PR label override: ${overrideLabelNames.prerelease}`);
-  for (const conflict of overrides.conflicts) warn(conflict);
+  if (overrides.bump) {
+    info(`Standing PR label override: bump=${overrides.bump}`);
+  }
+  if (overrides.target) {
+    info(`Standing PR label override: target=${overrides.target}`);
+  }
+  if (overrides.stable) {
+    info(`Standing PR label override: ${overrideLabelNames.graduate}`);
+  }
+  if (overrides.graduate) {
+    info(`Standing PR label override: graduate [${overrides.graduate.join(', ')}]`);
+  }
+  if (overrides.prerelease) {
+    info(`Standing PR label override: ${overrideLabelNames.prerelease}`);
+  }
+  for (const conflict of overrides.conflicts) {
+    warn(conflict);
+  }
 
   // Use the version.sync setting from config; fall back to false (per-package versioning)
   // when not set so existing repos without an explicit value are unaffected.
@@ -1211,12 +1275,16 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
       // shared child keeps releasing while any owner does). This supersedes the per-package lockstep
       // guard below — the entire group is held together, never split — so no partial-group warning.
       const hierarchy = computeHierarchy(dryUpdates, primaryConfig);
-      for (const name of cascadeDeselection(hierarchy, new Set(priorDeselected))) effectiveDeselected.add(name);
+      for (const name of cascadeDeselection(hierarchy, new Set(priorDeselected))) {
+        effectiveDeselected.add(name);
+      }
     } else {
       // Flat / granular selection: honour a held-back row per package, but never for a lockstep
       // (fixed/linked) member — those release together, so its untick is ignored (re-renders ticked).
       for (const name of priorDeselected) {
-        if (!changedNames.has(name)) continue;
+        if (!changedNames.has(name)) {
+          continue;
+        }
         const update = dryUpdates.find((u) => u.packageName === name);
         const groupSync = update?.group ? groups[update.group]?.sync : undefined;
         if (groupSync === 'fixed' || groupSync === 'linked') {
@@ -1242,7 +1310,13 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     for (const name of names) {
       out.add(name);
       const grp = dryUpdates.find((u) => u.packageName === name)?.group;
-      if (grp) for (const u of dryUpdates) if (u.group === grp) out.add(u.packageName);
+      if (grp) {
+        for (const u of dryUpdates) {
+          if (u.group === grp) {
+            out.add(u.packageName);
+          }
+        }
+      }
     }
     return [...out];
   };
@@ -1416,7 +1490,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   let notesRegion: string | undefined;
   if (previewNotesEnabled) {
     const merged = mergeNotesRegions(notesResult.releaseNotes ?? {}, editedNotes);
-    if (Object.keys(merged).length > 0) notesRegion = renderNotesRegion(merged);
+    if (Object.keys(merged).length > 0) {
+      notesRegion = renderNotesRegion(merged);
+    }
   }
 
   // The interactive selection region — the package list for non-sync releases. Rendered from the
@@ -1428,7 +1504,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   let renderSelectionBlock: ((withChangelogs: boolean) => string) | undefined;
   if (versionOutputDry.strategy !== 'sync') {
     const warnings = selectionWarnings(dryUpdates, effectiveDeselected, groups);
-    for (const w of warnings) warn(`Selection: ${w.reason}`);
+    for (const w of warnings) {
+      warn(`Selection: ${w.reason}`);
+    }
     const warningSuffix = warnings.length > 0 ? `\n\n${warnings.map((w) => `> ⚠️ ${w.reason}`).join('\n')}` : '';
     // Per-row changelogs are sourced from the DRY changelogs (the full changed set) so a held-back
     // row still shows its greyed changelog — the write output omits held-back packages entirely.
@@ -1471,7 +1549,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   if (versionOutput.strategy !== 'sync') {
     const heldBackCount = Math.max(0, dryUpdates.length - publishableUpdates(versionOutput).length);
     summaryLine = renderReleaseSummaryLine(versionOutput, { heldBackCount });
-    if (standingPrConfig?.summaryTable) summaryTable = renderVersionSummaryTable(versionOutput);
+    if (standingPrConfig?.summaryTable) {
+      summaryTable = renderVersionSummaryTable(versionOutput);
+    }
   }
 
   const body = renderPrBody(versionOutput, {

@@ -45,7 +45,9 @@ describe('createCategorizeValidator()', () => {
     );
 
     expect(result.valid).toBe(true);
-    if (!result.valid) return;
+    if (!result.valid) {
+      return;
+    }
     expect(result.value).toHaveLength(2);
     expect(result.value.find((c) => c.category === 'New Features')?.entries).toHaveLength(1);
     expect(result.value.find((c) => c.category === 'Bug Fixes')?.entries).toHaveLength(2);
@@ -56,7 +58,9 @@ describe('createCategorizeValidator()', () => {
     const result = validate({ content: 'not json', structured: undefined });
 
     expect(result.valid).toBe(false);
-    if (result.valid) return;
+    if (result.valid) {
+      return;
+    }
     expect(result.error).toContain('Invalid JSON');
   });
 
@@ -65,7 +69,9 @@ describe('createCategorizeValidator()', () => {
     const result = validate(structured({ entries: [{ category: 'New', scope: null }] }));
 
     expect(result.valid).toBe(false);
-    if (result.valid) return;
+    if (result.valid) {
+      return;
+    }
     expect(result.error).toBe('Expected 3 entries, got 1');
   });
 
@@ -88,7 +94,9 @@ describe('createCategorizeValidator()', () => {
     );
 
     expect(result.valid).toBe(false);
-    if (result.valid) return;
+    if (result.valid) {
+      return;
+    }
     expect(result.error).toBe('Unknown categories: Mystery. Valid categories: New Features, Bug Fixes');
   });
 
@@ -113,7 +121,9 @@ describe('createCategorizeValidator()', () => {
     );
 
     expect(result.valid).toBe(true);
-    if (!result.valid) return;
+    if (!result.valid) {
+      return;
+    }
     const dev = result.value.find((c) => c.category === 'Developer');
     expect(dev?.entries[0]?.scope).toBe('Dependencies');
     expect(dev?.entries[1]?.scope).toBeUndefined();
@@ -148,7 +158,9 @@ describe('createEnhanceAndCategorizeValidator()', () => {
     );
 
     expect(result.valid).toBe(true);
-    if (!result.valid) return;
+    if (!result.valid) {
+      return;
+    }
     expect(result.value.enhancedEntries).toHaveLength(3);
     expect(result.value.enhancedEntries[0]?.description).toBe('Added real-time streaming to the API');
     expect(result.value.enhancedEntries[2]?.scope).toBe('Code Quality');
@@ -160,7 +172,9 @@ describe('createEnhanceAndCategorizeValidator()', () => {
     const result = validate({ content: 'not json', structured: undefined });
 
     expect(result.valid).toBe(false);
-    if (result.valid) return;
+    if (result.valid) {
+      return;
+    }
     expect(result.error).toContain('Invalid JSON');
   });
 
@@ -169,7 +183,9 @@ describe('createEnhanceAndCategorizeValidator()', () => {
     const result = validate(structured({ entries: [fullEntry('Only first', 'New')] }));
 
     expect(result.valid).toBe(false);
-    if (result.valid) return;
+    if (result.valid) {
+      return;
+    }
     expect(result.error).toBe('Expected 3 entries, got 1 (entries missing — cannot proceed)');
   });
 
@@ -188,7 +204,9 @@ describe('createEnhanceAndCategorizeValidator()', () => {
     );
 
     expect(result.valid).toBe(true);
-    if (!result.valid) return;
+    if (!result.valid) {
+      return;
+    }
     expect(result.value.enhancedEntries).toHaveLength(3);
     expect(result.value.enhancedEntries[2]?.description).toBe('Enhanced C');
   });
@@ -209,7 +227,9 @@ describe('createEnhanceAndCategorizeValidator()', () => {
     );
 
     expect(result.valid).toBe(false);
-    if (result.valid) return;
+    if (result.valid) {
+      return;
+    }
     expect(result.error).toBe('Unknown categories: Mystery. Valid categories: New, Fixed, Changed');
   });
 });

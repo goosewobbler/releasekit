@@ -18,8 +18,12 @@ export async function isPubPackagePublished(name: string, version: string): Prom
       signal: AbortSignal.timeout(PUB_DEV_API_TIMEOUT_MS),
       headers: { 'User-Agent': PUB_DEV_USER_AGENT },
     });
-    if (response.status === 200) return true;
-    if (response.status === 404) return false;
+    if (response.status === 200) {
+      return true;
+    }
+    if (response.status === 404) {
+      return false;
+    }
     debug(`pub.dev published-check returned ${response.status} for ${name}@${version}, will attempt publish`);
     return false;
   } catch (error) {

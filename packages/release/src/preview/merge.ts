@@ -29,7 +29,9 @@ export function mergeForPreview(
   const byName = new Map<string, MergedRow>();
 
   for (const cl of standingChangelogs) {
-    if (!cl.entries.length && cl.version === cl.previousVersion) continue;
+    if (!cl.entries.length && cl.version === cl.previousVersion) {
+      continue;
+    }
     byName.set(cl.packageName, {
       packageName: cl.packageName,
       baseline: cl.previousVersion,
@@ -40,7 +42,9 @@ export function mergeForPreview(
   }
 
   for (const cl of currentChangelogs) {
-    if (!cl.entries.length && cl.version === cl.previousVersion) continue;
+    if (!cl.entries.length && cl.version === cl.previousVersion) {
+      continue;
+    }
     const existing = byName.get(cl.packageName);
     if (!existing) {
       byName.set(cl.packageName, {
@@ -54,7 +58,9 @@ export function mergeForPreview(
     }
     // Only record a current version when it is parseable — an invalid string would surface
     // as a garbled value in the "This PR" column of the rendered table.
-    if (semver.valid(cl.version)) existing.current = cl.version;
+    if (semver.valid(cl.version)) {
+      existing.current = cl.version;
+    }
     // Guard semver comparison against malformed version strings (older manifests, unexpected
     // calculator output) — semver.gt throws on invalid input, which would otherwise abort the
     // entire preview. Treat unparseable versions as 'unchanged' to keep the preview non-fatal.

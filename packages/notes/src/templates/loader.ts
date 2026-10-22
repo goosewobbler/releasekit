@@ -154,9 +154,15 @@ export function renderComposable(
 }
 
 function detectEngineFromFiles(_dir: string, files: string[]): TemplateEngine | null {
-  if (files.some((f) => f.endsWith('.liquid'))) return 'liquid';
-  if (files.some((f) => f.endsWith('.hbs') || f.endsWith('.handlebars'))) return 'handlebars';
-  if (files.some((f) => f.endsWith('.ejs'))) return 'ejs';
+  if (files.some((f) => f.endsWith('.liquid'))) {
+    return 'liquid';
+  }
+  if (files.some((f) => f.endsWith('.hbs') || f.endsWith('.handlebars'))) {
+    return 'handlebars';
+  }
+  if (files.some((f) => f.endsWith('.ejs'))) {
+    return 'ejs';
+  }
   return null;
 }
 

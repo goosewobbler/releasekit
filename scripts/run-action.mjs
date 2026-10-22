@@ -7,7 +7,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 function normalizeBoolean(value, defaultValue = false) {
-  if (value === undefined || value === '') return defaultValue;
+  if (value === undefined || value === '') {
+    return defaultValue;
+  }
   return value === 'true';
 }
 
@@ -161,7 +163,9 @@ export function writeGateOutputs(stdout, verbose = false) {
 
 export function parseReleaseOutput(stdout, verbose = false) {
   const trimmed = stdout.trim();
-  if (!trimmed) return undefined;
+  if (!trimmed) {
+    return undefined;
+  }
   let parsed;
   try {
     parsed = JSON.parse(trimmed);
@@ -210,7 +214,9 @@ export function resolveReleaseTags({ parsedTags, gitTags, allowRecovery }) {
 
 function setOutput(name, value) {
   const outputPath = process.env.GITHUB_OUTPUT;
-  if (!outputPath) return;
+  if (!outputPath) {
+    return;
+  }
 
   const text = value === undefined ? '' : String(value);
   const delimiter = `releasekit_${randomBytes(8).toString('hex')}`;
@@ -520,7 +526,9 @@ export function writeStandingPROutputs(stdout, verbose = false) {
 
 export function writeSummary(markdown) {
   const summaryPath = process.env.GITHUB_STEP_SUMMARY;
-  if (!summaryPath) return;
+  if (!summaryPath) {
+    return;
+  }
   try {
     fs.appendFileSync(summaryPath, markdown);
   } catch (err) {
@@ -551,11 +559,21 @@ export function buildReleaseSummary(input, parsed, success) {
   }
 
   const settings = [];
-  if (input.bump) settings.push(`| Bump | \`${input.bump}\` |`);
-  if (input.target) settings.push(`| Target | \`${input.target}\` |`);
-  if (input.scope) settings.push(`| Scope | \`${input.scope}\` |`);
-  if (input.prerelease) settings.push(`| Prerelease | \`${input.prerelease}\` |`);
-  if (normalizeBoolean(input.stable)) settings.push(`| Stable | Yes |`);
+  if (input.bump) {
+    settings.push(`| Bump | \`${input.bump}\` |`);
+  }
+  if (input.target) {
+    settings.push(`| Target | \`${input.target}\` |`);
+  }
+  if (input.scope) {
+    settings.push(`| Scope | \`${input.scope}\` |`);
+  }
+  if (input.prerelease) {
+    settings.push(`| Prerelease | \`${input.prerelease}\` |`);
+  }
+  if (normalizeBoolean(input.stable)) {
+    settings.push(`| Stable | Yes |`);
+  }
 
   if (settings.length > 0) {
     lines.push('| Setting | Value |');
@@ -616,9 +634,15 @@ export function buildGateSummary(_input, parsed, success) {
   lines.push(`| Check | Result |`);
   lines.push(`|-------|--------|`);
   lines.push(`| Should release | ${icon} ${shouldRelease ? 'Yes' : 'No'} |`);
-  if (parsed?.bump) lines.push(`| Bump | \`${parsed.bump}\` |`);
-  if (parsed?.scope) lines.push(`| Scope | \`${parsed.scope}\` |`);
-  if (parsed?.target) lines.push(`| Target | \`${parsed.target}\` |`);
+  if (parsed?.bump) {
+    lines.push(`| Bump | \`${parsed.bump}\` |`);
+  }
+  if (parsed?.scope) {
+    lines.push(`| Scope | \`${parsed.scope}\` |`);
+  }
+  if (parsed?.target) {
+    lines.push(`| Target | \`${parsed.target}\` |`);
+  }
   lines.push('');
 
   if (parsed?.blocked) {

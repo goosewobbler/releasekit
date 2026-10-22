@@ -70,7 +70,9 @@ export async function resolveFailureReportIfPresent(
 ): Promise<void> {
   try {
     const existing = await findPreviewComment(forge, prNumber, FAILURE_MARKER);
-    if (existing === null) return;
+    if (existing === null) {
+      return;
+    }
     await postOrUpdateComment(forge, prNumber, renderResolvedReport(versionOutput), FAILURE_MARKER);
     info(`Marked publish-failure report on PR #${prNumber} as resolved`);
   } catch (err) {
@@ -116,8 +118,12 @@ export async function detectUnresolvedFailure(forge: Forge, prNumber: number): P
     return null;
   }
 
-  if (!body) return null;
-  if (parseFailureReportStatus(body) !== 'unresolved') return null;
+  if (!body) {
+    return null;
+  }
+  if (parseFailureReportStatus(body) !== 'unresolved') {
+    return null;
+  }
 
   return parseReportLedgerSummary(body, prNumber);
 }
@@ -129,7 +135,9 @@ export async function detectUnresolvedFailure(forge: Forge, prNumber: number): P
  */
 function parseReportLedgerSummary(body: string, prNumber: number): UnresolvedFailure | null {
   const data = parseFailureReportData(body);
-  if (!data) return null;
+  if (!data) {
+    return null;
+  }
   return {
     previousLabel: data.label,
     published: data.published,

@@ -47,9 +47,13 @@ function findCompoundTagSepPos(tag: string): number {
       // Digit after dash — confirm semver-like by requiring ≥2 dots in the remainder
       let dots = 0;
       for (let i = afterDash; i < tag.length; i++) {
-        if (tag[i] === '.') dots++;
+        if (tag[i] === '.') {
+          dots++;
+        }
       }
-      if (dots >= 2) return pos;
+      if (dots >= 2) {
+        return pos;
+      }
     }
     pos = tag.lastIndexOf('-', pos - 1);
   }
@@ -59,7 +63,9 @@ function findCompoundTagSepPos(tag: string): number {
 /** True when position `i` in `tag` begins a semver version: a digit, or a `v` immediately followed by a digit. */
 function isVersionStartAt(tag: string, i: number): boolean {
   const c = tag.charCodeAt(i);
-  if (c >= 48 && c <= 57) return true;
+  if (c >= 48 && c <= 57) {
+    return true;
+  }
   if (tag[i] === 'v') {
     const n = tag.charCodeAt(i + 1);
     return n >= 48 && n <= 57;
@@ -130,7 +136,9 @@ export function buildOrderedCategories(
 ): EnhancedCategory[] {
   const order = configCategories?.map((c) => c.name) ?? [];
   const mapped = rawCategories.map((c) => ({ name: c.category, entries: c.entries }));
-  if (order.length === 0) return mapped;
+  if (order.length === 0) {
+    return mapped;
+  }
   return mapped.sort((a, b) => {
     const ai = order.indexOf(a.name);
     const bi = order.indexOf(b.name);
@@ -506,7 +514,9 @@ export async function runPipeline(
         } else {
           writeMarkdown(fileName, contexts, config, dryRun, fmtOpts);
         }
-        if (!dryRun) files.push(fileName);
+        if (!dryRun) {
+          files.push(fileName);
+        }
       }
 
       if (mode === 'packages' || mode === 'both') {
@@ -545,7 +555,9 @@ export async function runPipeline(
           return renderTemplate(templatePath, docCtx, releaseNotesConfig.templates.engine as TemplateEngine | undefined)
             .content;
         }
-        if (ctx.enhanced?.releaseNotes) return ctx.enhanced.releaseNotes;
+        if (ctx.enhanced?.releaseNotes) {
+          return ctx.enhanced.releaseNotes;
+        }
         return formatVersion(ctx, fmtOpts);
       };
 
@@ -624,7 +636,9 @@ async function writeMonorepoFiles(
   const cwd = process.cwd();
   const detected = detectMonorepo(cwd);
 
-  if (!detected.isMonorepo) return [];
+  if (!detected.isMonorepo) {
+    return [];
+  }
 
   const monoFiles = writeMonorepoChangelogs(
     contexts,

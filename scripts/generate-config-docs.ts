@@ -39,20 +39,32 @@ const schema = JSON.parse(readFileSync(SCHEMA_PATH, 'utf8')) as Schema;
 // ---------------------------------------------------------------------------
 
 function ensurePeriod(str: string | undefined): string {
-  if (!str) return '';
+  if (!str) {
+    return '';
+  }
   const s = str.trim();
   return s.endsWith('.') ? s : `${s}.`;
 }
 
 function fmtDefault(val: unknown): string {
-  if (val === undefined || val === null) return '—';
-  if (typeof val === 'boolean') return `\`${val}\``;
-  if (typeof val === 'string') return `\`"${val}"\``;
+  if (val === undefined || val === null) {
+    return '—';
+  }
+  if (typeof val === 'boolean') {
+    return `\`${val}\``;
+  }
+  if (typeof val === 'string') {
+    return `\`"${val}"\``;
+  }
   if (Array.isArray(val)) {
-    if (val.length === 0) return '`[]`';
+    if (val.length === 0) {
+      return '`[]`';
+    }
     return `\`${JSON.stringify(val)}\``;
   }
-  if (typeof val === 'number') return `\`${val}\``;
+  if (typeof val === 'number') {
+    return `\`${val}\``;
+  }
   return `\`${JSON.stringify(val)}\``;
 }
 
@@ -63,9 +75,15 @@ function fmtType(prop: SchemaProperty): string {
   if (prop.oneOf) {
     return prop.oneOf
       .map((s) => {
-        if (s.type === 'boolean' && s.enum) return (s.enum as unknown[]).map((v) => `\`${v}\``).join(' | ');
-        if (s.type === 'boolean') return 'boolean';
-        if (s.type === 'string' && s.enum) return s.enum.map((v) => `\`"${v}"\``).join(' | ');
+        if (s.type === 'boolean' && s.enum) {
+          return (s.enum as unknown[]).map((v) => `\`${v}\``).join(' | ');
+        }
+        if (s.type === 'boolean') {
+          return 'boolean';
+        }
+        if (s.type === 'string' && s.enum) {
+          return s.enum.map((v) => `\`"${v}"\``).join(' | ');
+        }
         return s.type ?? 'any';
       })
       .join(' | ');
@@ -74,9 +92,15 @@ function fmtType(prop: SchemaProperty): string {
     const itemType = prop.items?.type ?? 'any';
     return `\`${itemType}[]\``;
   }
-  if (prop.type === 'object') return 'object';
-  if (prop.type === 'integer') return 'integer';
-  if (prop.type === 'number') return 'number';
+  if (prop.type === 'object') {
+    return 'object';
+  }
+  if (prop.type === 'integer') {
+    return 'integer';
+  }
+  if (prop.type === 'number') {
+    return 'number';
+  }
   return prop.type ?? '—';
 }
 
@@ -85,7 +109,9 @@ function escapePipes(str: string): string {
 }
 
 function propsTable(properties: Record<string, SchemaProperty>): string {
-  if (!properties || Object.keys(properties).length === 0) return '';
+  if (!properties || Object.keys(properties).length === 0) {
+    return '';
+  }
   const rows = Object.entries(properties).map(([key, prop]) => {
     const type = escapePipes(fmtType(prop));
     const def = fmtDefault(prop.default);
@@ -312,7 +338,9 @@ function renderPublish(prop: SchemaProperty): void {
 // ---------------------------------------------------------------------------
 function renderOneOfBooleanObject(key: string, schemaProp: SchemaProperty): void {
   const objSchema = schemaProp.oneOf?.find((s) => s.type === 'object');
-  if (!objSchema) return;
+  if (!objSchema) {
+    return;
+  }
 
   emit('Set to `false` to disable.', '');
 

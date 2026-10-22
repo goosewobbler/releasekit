@@ -225,9 +225,15 @@ async function computeGateResult(input: ComputeGateInput): Promise<GateOutput> {
  * - In `commit` mode, don't notify on `release:skip` — that's deliberate, not user error.
  */
 function shouldNotifyPR(e: PREvaluation, trigger: 'commit' | 'label'): boolean {
-  if (e.shouldRelease) return false;
-  if (e.blocked) return true;
-  if (!e.hasReleaseIntent) return false;
+  if (e.shouldRelease) {
+    return false;
+  }
+  if (e.blocked) {
+    return true;
+  }
+  if (!e.hasReleaseIntent) {
+    return false;
+  }
   return trigger === 'label';
 }
 
@@ -239,7 +245,9 @@ async function notifyInsufficientLabels(
 ): Promise<void> {
   await Promise.all(
     evaluations.map(async (e) => {
-      if (!shouldNotifyPR(e, trigger)) return;
+      if (!shouldNotifyPR(e, trigger)) {
+        return;
+      }
       try {
         const body = buildNotifyBody(e, labelConfig);
         await postOrUpdateComment(forge, e.prNumber, body, NOTIFY_MARKER);

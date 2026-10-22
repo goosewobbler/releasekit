@@ -30,7 +30,9 @@ function channelOf(update: Update): ReleaseChannel {
  *  first release, or an unreachable / all-history baseline). `previousVersion` is persisted in
  *  consumer-tag form, so strip the tag scheme back to bare semver before use. */
 function baselineOf(update: Update): string | undefined {
-  if (!update.previousVersion) return undefined;
+  if (!update.previousVersion) {
+    return undefined;
+  }
   const bare = toDisplayVersion(update.previousVersion);
   return semver.valid(bare) ? bare : undefined;
 }
@@ -39,7 +41,9 @@ function baselineOf(update: Update): string | undefined {
  *  computed (no reachable baseline, or an unparseable version). */
 function bumpDiff(update: Update): ReturnType<typeof semver.diff> {
   const prev = baselineOf(update);
-  if (!prev || !semver.valid(update.newVersion)) return null;
+  if (!prev || !semver.valid(update.newVersion)) {
+    return null;
+  }
   return semver.diff(prev, update.newVersion);
 }
 
@@ -54,9 +58,15 @@ function isMajorBump(update: Update): boolean {
  *  the resolved action/channel, else a dash. */
 function bumpLabel(update: Update): string {
   const diff = bumpDiff(update);
-  if (diff) return diff;
-  if (update.action === 'first-release') return 'first release';
-  if (channelOf(update) === 'prerelease') return 'prerelease';
+  if (diff) {
+    return diff;
+  }
+  if (update.action === 'first-release') {
+    return 'first release';
+  }
+  if (channelOf(update) === 'prerelease') {
+    return 'prerelease';
+  }
   return '—';
 }
 
@@ -83,11 +93,17 @@ export function renderReleaseSummaryLine(versionOutput: VersionOutput, input: Re
   const major = updates.filter(isMajorBump).length;
 
   const buckets: string[] = [];
-  if (stable > 0) buckets.push(plural(stable, 'stable', 'stable'));
-  if (prerelease > 0) buckets.push(plural(prerelease, 'prerelease', 'prerelease'));
+  if (stable > 0) {
+    buckets.push(plural(stable, 'stable', 'stable'));
+  }
+  if (prerelease > 0) {
+    buckets.push(plural(prerelease, 'prerelease', 'prerelease'));
+  }
 
   const segments: string[] = [];
-  if (buckets.length > 1) segments.push(...buckets);
+  if (buckets.length > 1) {
+    segments.push(...buckets);
+  }
   segments.push(plural(changes, 'change'));
 
   const majorClause = major > 0 ? `⚠️ ${plural(major, 'major bump')}.` : 'No major bumps.';
@@ -102,7 +118,9 @@ export function renderReleaseSummaryLine(versionOutput: VersionOutput, input: Re
  */
 export function renderVersionSummaryTable(versionOutput: VersionOutput): string {
   const updates = publishableUpdates(versionOutput);
-  if (updates.length === 0) return '';
+  if (updates.length === 0) {
+    return '';
+  }
 
   const lines: string[] = [
     `<details><summary>Version summary (${plural(updates.length, 'package')})</summary>`,

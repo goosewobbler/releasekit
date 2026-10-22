@@ -51,7 +51,9 @@ describe('mapWithConcurrency()', () => {
     await expect(
       mapWithConcurrency([0, 1, 2], 1, async (n) => {
         seen.push(n);
-        if (n === 1) throw new Error('boom');
+        if (n === 1) {
+          throw new Error('boom');
+        }
         return n;
       }),
     ).rejects.toThrow('boom');
