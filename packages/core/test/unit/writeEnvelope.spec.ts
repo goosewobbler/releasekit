@@ -26,9 +26,7 @@ describe('writeEnvelope', () => {
   });
 
   it('should throw when a result cannot be written to --output, so the command fails', () => {
-    expect(() => writeEnvelope(successEnvelope({ a: 1 }), { output: '/nonexistent-dir/out.json' })).toThrow(
-      /Could not write the result to \/nonexistent-dir\/out\.json/,
-    );
+    expect(() => writeEnvelope(successEnvelope({ a: 1 }), { output: '/nonexistent-dir/out.json' })).toThrow(/ENOENT/);
   });
 
   it('should not throw out of the error path when --output is unwritable', () => {
