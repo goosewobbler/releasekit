@@ -35,7 +35,7 @@ function isExcluded(workspace: CargoWorkspace, rootDir: string, manifestPath: st
  * at its workspace root. Cargo's rule: a crate whose own manifest has a `[workspace]` is its own root;
  * otherwise the nearest ancestor `[workspace]` that doesn't exclude it is, and with none the crate is
  * its own root. Cargo ignores every other lock: a member's stray one, or one in an ancestor directory
- * that isn't the root.
+ * that isn't the root. A `package.workspace = "<path>"` pointer isn't followed.
  *
  * Returns `undefined` when the root has no lock. That is deliberate: libraries commonly don't commit a
  * lock, and a version bump must never *create* one as a side effect — only sync an existing committed

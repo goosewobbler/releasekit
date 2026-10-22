@@ -54,6 +54,7 @@ describe('findCargoLockfile', () => {
     ['an ancestor workspace excludes a directory above it', '[workspace]\nexclude = ["./apps/"]\n', 'own'],
     ['a literal member entry overrides an exclude', '[workspace]\nmembers = ["apps/x"]\nexclude = ["apps"]\n', 'root'],
     ['an exclude is a glob, which cargo doesn’t expand', '[workspace]\nexclude = ["apps/*"]\n', 'root'],
+    ['an exclude only shares a prefix with its directory name', '[workspace]\nexclude = ["app"]\n', 'root'],
   ])('should follow cargo’s workspace-root rule when %s', (_label, rootManifest, expected) => {
     const root = tmp();
     fs.writeFileSync(path.join(root, 'Cargo.toml'), rootManifest);
