@@ -14,7 +14,6 @@ export function parseCargoToml(cargoPath: string): CargoManifest {
   return TOML.parse(content) as CargoManifest;
 }
 
-/** False for `publish = false` or `publish = []`, which keep a crate off every registry. */
 export function isCratePublishable(manifest: CargoManifest): boolean {
   const publish = manifest.package?.publish;
   return publish !== false && !(Array.isArray(publish) && publish.length === 0);
