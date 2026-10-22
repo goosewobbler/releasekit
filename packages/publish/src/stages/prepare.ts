@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { debug, info, isPathWithinRoot } from '@releasekit/core';
+import { type CargoLockBump, debug, info, isPathWithinRoot } from '@releasekit/core';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext } from '../types.js';
 import { syncCargoLockfiles, updateCargoVersion } from '../utils/cargo.js';
@@ -62,7 +62,7 @@ export async function runPrepareStage(ctx: PipelineContext): Promise<void> {
     // `git add -A` — commits every lock that records a bumped crate, fixture apps' locks included, and
     // is correct even run in isolation. The standing-PR flow stages the locks via its own `git add -A`,
     // with git-commit skipped, so this re-sync is a harmless no-op there.
-    const bumps: Array<{ cargoTomlPath: string; version: string }> = [];
+    const bumps: Array<Omit<CargoLockBump, 'name'>> = [];
     for (const update of input.updates) {
       const pkgDir = path.dirname(path.resolve(cwd, update.filePath));
       const cargoPath = path.join(pkgDir, 'Cargo.toml');
@@ -76,9 +76,9 @@ export async function runPrepareStage(ctx: PipelineContext): Promise<void> {
         continue;
       }
 
-      updateCargoVersion(cargoPath, update.newVersion);
+      const fromVersion = updateCargoVersion(cargoPath, update.newVersion);
       debug(`Updated ${cargoPath} to version ${update.newVersion}`);
-      bumps.push({ cargoTomlPath: cargoPath, version: update.newVersion });
+      bumps.push({ cargoTomlPath: cargoPath, version: update.newVersion, fromVersion });
     }
 
     const lockfiles = await syncCargoLockfiles(cwd, bumps);

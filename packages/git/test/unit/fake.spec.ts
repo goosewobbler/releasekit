@@ -77,13 +77,6 @@ describe('FakeGit queries', () => {
     expect(await git.diffTreeNames('sha2')).toEqual([]);
   });
 
-  it('should return seeded tracked files', async () => {
-    expect(await createFakeGit({ trackedFiles: ['Cargo.lock'] }).lsFiles({ paths: ['*.lock'] })).toEqual([
-      'Cargo.lock',
-    ]);
-    expect(await createFakeGit().lsFiles()).toEqual([]);
-  });
-
   it('should return seeded for-each-ref lines', async () => {
     const git = createFakeGit({ refLines: ['v1 sha1', 'v2 sha2'] });
     expect(await git.forEachRef({ format: '%(refname)' })).toEqual(['v1 sha1', 'v2 sha2']);

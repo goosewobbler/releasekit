@@ -246,6 +246,33 @@ describe('Cargo.lock sync on Cargo.toml bumps', () => {
     }
   });
 
+  it.each([
+    ['both apps', { one: '0.2.0', two: '0.1.1' }],
+    ['one app', { one: '0.2.0' }],
+  ])(
+    'should sync each Tauri app’s lock to its own crate when the crates share a name (%s bumped)',
+    async (_label, next: Record<string, string>) => {
+      // Two JS packages whose src-tauri crates have the `tauri init` name and version, `app` 0.1.0.
+      const tauriLock = (version: string): string =>
+        `version = 4\n\n[[package]]\nname = "app"\nversion = "${version}"\n`;
+      const apps = ['one', 'two'].map((name) => {
+        const dir = path.join(root, 'apps', name);
+        writeCrate(path.join(dir, 'src-tauri'), 'app', '0.1.0');
+        fs.writeFileSync(path.join(dir, 'src-tauri', 'Cargo.lock'), tauriLock('0.1.0'));
+        fs.writeFileSync(path.join(dir, 'package.json'), `{ "name": "${name}", "version": "0.1.0" }\n`);
+        return { dir, relativeDir: `apps/${name}`, packageJson: { name, version: '0.1.0' } } as unknown as Package;
+      });
+      git(root, 'add', '-A');
+      bump(next);
+
+      await runVersion('async', { cargo: { enabled: true, paths: ['src-tauri'] } }, workspace(root, apps));
+
+      for (const name of ['one', 'two']) {
+        expect(read(path.join(root, 'apps', name, 'src-tauri', 'Cargo.lock'))).toBe(tauriLock(next[name] ?? '0.1.0'));
+      }
+    },
+  );
+
   it('should sync the locks without a Rust toolchain or a crates.io index', async () => {
     // A fresh CI runner: git on PATH but no cargo, and an empty CARGO_HOME. Nothing may shell out to cargo.
     const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-no-cargo-'));
@@ -315,6 +342,18 @@ describe('Cargo.lock sync on Cargo.toml bumps', () => {
 
     expect(read(ownLock)).toBe(workspaceLock({ alpha: '1.1.0', beta: '1.0.0' }));
     expect(read(fixtureLock)).toBe(appLock({ alpha: '1.0.0', beta: '1.0.0' }));
+  });
+
+  it('should not sync a crate’s own lock that git ignores', async () => {
+    // A library that ignores its lock, left on disk by an earlier `cargo test`: it can't be staged.
+    git(root, 'rm', '-q', '--cached', 'crates/Cargo.lock');
+    fs.writeFileSync(path.join(root, '.gitignore'), 'Cargo.lock\n');
+    bump({ alpha: '1.1.0' });
+
+    await runVersion('async', {}, workspace(root, both()));
+
+    expect(read(ownLock)).toBe(workspaceLock({ alpha: '1.0.0', beta: '1.0.0' }));
+    expect(read(fixtureLock)).toBe(appLock({ alpha: '1.1.0', beta: '1.0.0' }));
   });
 
   it('should not create a lock when none is committed', async () => {

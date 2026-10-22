@@ -10,6 +10,10 @@ import type { PipelineContext } from '../../../src/types.js';
 /** A committed lock listing the path crate `foo` at `version`. */
 const fooLock = (version: string): string => `version = 4\n\n[[package]]\nname = "foo"\nversion = "${version}"\n`;
 
+/** A fixture app's committed lock: the app uses `foo` (at `version`) by path. */
+const appLockUsingFoo = (version: string): string =>
+  `${fooLock(version)}\n[[package]]\nname = "app"\nversion = "0.1.0"\ndependencies = [\n "foo",\n]\n`;
+
 function createContext(overrides?: Partial<PipelineContext>): PipelineContext {
   return {
     input: {
@@ -179,7 +183,7 @@ describe('prepare stage', () => {
     fs.writeFileSync(ownLock, fooLock('1.0.0'));
     const appLock = path.join(dir, 'fixtures', 'app', 'Cargo.lock');
     fs.mkdirSync(path.dirname(appLock), { recursive: true });
-    fs.writeFileSync(appLock, `${fooLock('1.0.0')}\n[[package]]\nname = "app"\nversion = "0.1.0"\n`);
+    fs.writeFileSync(appLock, appLockUsingFoo('1.0.0'));
     execFileSync('git', ['init', '-q'], { cwd: dir });
     execFileSync('git', ['add', '-A'], { cwd: dir });
 
@@ -199,9 +203,7 @@ describe('prepare stage', () => {
     await runPrepareStage(ctx);
 
     expect(fs.readFileSync(ownLock, 'utf-8')).toBe(fooLock('1.1.0'));
-    expect(fs.readFileSync(appLock, 'utf-8')).toBe(
-      `${fooLock('1.1.0')}\n[[package]]\nname = "app"\nversion = "0.1.0"\n`,
-    );
+    expect(fs.readFileSync(appLock, 'utf-8')).toBe(appLockUsingFoo('1.1.0'));
     expect(ctx.additionalFiles).toEqual(expect.arrayContaining([ownLock, appLock]));
   });
 
@@ -234,13 +236,18 @@ describe('prepare stage', () => {
     expect(ctx.additionalFiles ?? []).not.toContain(lockPath);
   });
 
-  it('should still stage a Cargo.lock the version step already synced', async () => {
+  it('should still stage the Cargo.lock files the version step already synced', async () => {
     const dir = createTmpDir();
     const crateDir = path.join(dir, 'crates', 'foo');
     fs.mkdirSync(crateDir, { recursive: true });
     fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "foo"\nversion = "1.1.0"\n');
     const lockPath = path.join(crateDir, 'Cargo.lock');
     fs.writeFileSync(lockPath, fooLock('1.1.0'));
+    const appLock = path.join(dir, 'fixtures', 'app', 'Cargo.lock');
+    fs.mkdirSync(path.dirname(appLock), { recursive: true });
+    fs.writeFileSync(appLock, appLockUsingFoo('1.1.0'));
+    execFileSync('git', ['init', '-q'], { cwd: dir });
+    execFileSync('git', ['add', '-A'], { cwd: dir });
 
     const config = getDefaultConfig();
     config.cargo.enabled = true;
@@ -257,7 +264,38 @@ describe('prepare stage', () => {
 
     await runPrepareStage(ctx);
 
-    expect(ctx.additionalFiles).toContain(lockPath);
+    expect(ctx.additionalFiles).toEqual(expect.arrayContaining([lockPath, appLock]));
+  });
+
+  it('should neither sync nor stage a crate’s own Cargo.lock that git ignores', async () => {
+    // `git add` refuses an ignored path, which would fail the direct-commit release.
+    const dir = createTmpDir();
+    const crateDir = path.join(dir, 'crates', 'foo');
+    fs.mkdirSync(crateDir, { recursive: true });
+    fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "foo"\nversion = "1.0.0"\n');
+    const lockPath = path.join(crateDir, 'Cargo.lock');
+    fs.writeFileSync(lockPath, fooLock('1.0.0'));
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'Cargo.lock\n');
+    execFileSync('git', ['init', '-q'], { cwd: dir });
+    execFileSync('git', ['add', '-A'], { cwd: dir });
+
+    const config = getDefaultConfig();
+    config.cargo.enabled = true;
+    const ctx = createContext({
+      cwd: dir,
+      config,
+      input: {
+        dryRun: false,
+        updates: [{ packageName: 'foo', newVersion: '1.1.0', filePath: 'crates/foo/Cargo.toml' }],
+        changelogs: [],
+        tags: [],
+      },
+    });
+
+    await runPrepareStage(ctx);
+
+    expect(fs.readFileSync(lockPath, 'utf-8')).toBe(fooLock('1.0.0'));
+    expect(ctx.additionalFiles ?? []).not.toContain(lockPath);
   });
 
   it('should not stage a Cargo.lock in dry-run mode', async () => {

@@ -140,6 +140,8 @@ export interface Git {
   diffTreeNames(commitSha: string, cwd?: string): Promise<string[]>;
   /** Tracked file paths matching `paths` (`ls-files -z`), relative to `cwd` as git prints them. */
   lsFiles(opts?: GitLsFilesOptions): Promise<string[]>;
+  /** Whether git ignores `file` (`check-ignore -q`); false for a tracked file, and on failure (e.g. outside a repository). */
+  isIgnored(file: string, cwd?: string): Promise<boolean>;
   /** One formatted line per matching ref (`for-each-ref`), empties dropped. */
   forEachRef(opts: GitForEachRefOptions): Promise<string[]>;
   /** Whether `branch` exists on `remote` (`ls-remote --exit-code --heads`). */

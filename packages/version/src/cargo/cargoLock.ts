@@ -1,6 +1,6 @@
 import fs from 'node:fs';
-import { type CargoLockBump, findCommittedCargoLockfiles, planCargoLockUpdates } from '@releasekit/core';
-import { createGitCli, type Git } from '@releasekit/git';
+import { type CargoLockBump, planCargoLockUpdates } from '@releasekit/core';
+import { createGitCli } from '@releasekit/git';
 import { CargoLockSyncError } from '../errors/cargoLockSyncError.js';
 import { recordPendingWrite } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
@@ -21,24 +21,23 @@ export function clearCargoBumps(): void {
  * Sync every Cargo.lock that records a crate bumped since the last sync, so no committed lock is left
  * at the old version (which breaks `cargo build --locked` and leaks a lock diff into later builds). The
  * candidates are every Cargo.lock tracked by git — apps that use a crate through a path dependency
- * have their own — plus each crate's own lock; see core's `planCargoLockUpdates`. We never create a lock.
+ * have their own — plus each crate's own lock unless git ignores it; see core's `planCargoLockUpdates`.
+ * We never create a lock.
  *
  * Under dry-run the edits are still worked out, so an unsyncable lock fails the dry run too, and are
  * recorded as pending writes (flushed with the manifests by `release`) instead of written.
  *
- * Returns every lock that lists a bumped crate, changed or not, so a caller can stage them. Throws a
- * {@link CargoLockSyncError} when a lock can't be read, edited or written; every edit is worked out
- * before the first write, so a lock that can't be edited leaves all of them untouched.
+ * Throws a {@link CargoLockSyncError} when a lock can't be read, edited or written; every edit is worked
+ * out before the first write, so a lock that can't be edited leaves all of them untouched.
  */
-export async function syncCargoLockfiles(cwd: string, dryRun: boolean, git: Git = createGitCli()): Promise<string[]> {
+export async function syncCargoLockfiles(cwd: string, dryRun: boolean): Promise<void> {
   const bumps = recordedBumps.splice(0);
   if (bumps.length === 0) {
-    return [];
+    return;
   }
 
   try {
-    const updates = planCargoLockUpdates(bumps, await findCommittedCargoLockfiles(git, cwd));
-    for (const { lockPath, content, changed } of updates) {
+    for (const { lockPath, content, changed } of await planCargoLockUpdates(createGitCli(), cwd, bumps)) {
       if (!changed) {
         continue;
       }
@@ -50,7 +49,6 @@ export async function syncCargoLockfiles(cwd: string, dryRun: boolean, git: Git 
         log(`Synced Cargo.lock at ${lockPath}`, 'success');
       }
     }
-    return updates.map(({ lockPath }) => lockPath);
   } catch (error) {
     throw new CargoLockSyncError(error instanceof Error ? error.message : String(error));
   }

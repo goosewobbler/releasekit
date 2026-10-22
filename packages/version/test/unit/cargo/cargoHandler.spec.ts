@@ -156,6 +156,7 @@ describe('Cargo Handler', () => {
         cargoTomlPath: mockCargoPath,
         name: 'test-package',
         version: '2.0.0',
+        fromVersion: '1.0.0',
       });
     });
 
@@ -171,6 +172,7 @@ describe('Cargo Handler', () => {
         cargoTomlPath: mockCargoPath,
         name: 'test-package',
         version: '2.0.0',
+        fromVersion: '1.0.0',
       });
     });
 

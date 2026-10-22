@@ -1,8 +1,8 @@
 import * as fs from 'node:fs';
 import type { CargoManifest } from '@releasekit/config';
 import { parseCargoToml } from '@releasekit/config';
-import { findCommittedCargoLockfiles, planCargoLockUpdates, warn } from '@releasekit/core';
-import { createGitCli, type Git } from '@releasekit/git';
+import { type CargoLockBump, planCargoLockUpdates, warn } from '@releasekit/core';
+import { createGitCli } from '@releasekit/git';
 import * as TOML from 'smol-toml';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 
@@ -20,20 +20,16 @@ export { parseCargoToml };
  * and a lock fix-up must not strand a release that is already on the base branch; an unsyncable lock
  * fails the version step instead, before anything is committed.
  */
-export async function syncCargoLockfiles(
-  cwd: string,
-  bumps: Array<{ cargoTomlPath: string; version: string }>,
-  git: Git = createGitCli(),
-): Promise<string[]> {
+export async function syncCargoLockfiles(cwd: string, bumps: Array<Omit<CargoLockBump, 'name'>>): Promise<string[]> {
   if (bumps.length === 0) {
     return [];
   }
   try {
-    const lockBumps = bumps.flatMap(({ cargoTomlPath, version }) => {
-      const name = parseCargoToml(cargoTomlPath).package?.name;
-      return name ? [{ cargoTomlPath, name, version }] : [];
+    const lockBumps = bumps.flatMap((bump) => {
+      const name = parseCargoToml(bump.cargoTomlPath).package?.name;
+      return name ? [{ ...bump, name }] : [];
     });
-    const updates = planCargoLockUpdates(lockBumps, await findCommittedCargoLockfiles(git, cwd));
+    const updates = await planCargoLockUpdates(createGitCli(), cwd, lockBumps);
     for (const { lockPath, content, changed } of updates) {
       if (changed) {
         fs.writeFileSync(lockPath, content);
@@ -50,13 +46,17 @@ export async function syncCargoLockfiles(
 export const CRATES_IO_USER_AGENT = 'releasekit/publish (https://github.com/goosewobbler/releasekit)';
 export const CRATES_IO_API_TIMEOUT_MS = 30_000;
 
-export function updateCargoVersion(cargoPath: string, newVersion: string): void {
+/** Set a crate's version, returning the version it replaced (undefined when inherited from the workspace). */
+export function updateCargoVersion(cargoPath: string, newVersion: string): string | undefined {
   try {
     const cargo = parseCargoToml(cargoPath);
-    if (cargo.package) {
-      cargo.package.version = newVersion;
-      fs.writeFileSync(cargoPath, TOML.stringify(cargo as Record<string, unknown>));
+    if (!cargo.package) {
+      return undefined;
     }
+    const previous = cargo.package.version;
+    cargo.package.version = newVersion;
+    fs.writeFileSync(cargoPath, TOML.stringify(cargo as Record<string, unknown>));
+    return typeof previous === 'string' ? previous : undefined;
   } catch (error) {
     throw createPublishError(
       PublishErrorCode.CARGO_TOML_ERROR,

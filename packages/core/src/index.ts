@@ -1,10 +1,9 @@
 export {
   type CargoLockBump,
+  type CargoLockGit,
   type CargoLockUpdate,
   findCargoLockfile,
-  findCommittedCargoLockfiles,
   planCargoLockUpdates,
-  type TrackedFileLister,
 } from './cargo.js';
 export {
   type ChangelogRefsMode,

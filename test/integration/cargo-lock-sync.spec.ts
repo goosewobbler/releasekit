@@ -170,6 +170,42 @@ describe.skipIf(!cargoAvailable())('Cargo.lock sync (real cargo)', () => {
     },
   );
 
+  it('should leave a same-named crate’s lock alone when another Tauri app is bumped', () => {
+    // Two Tauri apps whose src-tauri crates both have the `tauri init` name and version, `app` 0.1.0.
+    const repo = join(dir, 'repo');
+    const manifest = (app: string): string => join(repo, 'apps', app, 'src-tauri', 'Cargo.toml');
+    const lockOf = (app: string): string => join(repo, 'apps', app, 'src-tauri', 'Cargo.lock');
+    for (const app of ['one', 'two']) {
+      writeCrate(join(repo, 'apps', app, 'src-tauri'), 'app', '0.1.0');
+      writeFileSync(join(repo, 'apps', app, 'package.json'), `{ "name": "${app}", "version": "0.1.0" }\n`);
+      cargo(repo, emptyCargoHome, 'generate-lockfile', '--offline', '--manifest-path', manifest(app));
+    }
+    writeFileSync(join(repo, 'pnpm-workspace.yaml'), 'packages:\n  - "apps/*"\n');
+    commitWithChange(repo, ['one', 'two'], join(repo, 'apps', 'one', 'src-tauri'));
+    const untouched = readFileSync(lockOf('two'), 'utf-8');
+
+    releasekitVersion(repo, { cargo: { enabled: true, paths: ['src-tauri'] } });
+
+    expect(crateVersion(manifest('one'))).toBe('0.2.0');
+    expect(pathEntryVersions(readFileSync(lockOf('one'), 'utf-8'), 'app')).toEqual(['0.2.0']);
+    expect(readFileSync(lockOf('two'), 'utf-8')).toBe(untouched);
+    for (const app of ['one', 'two']) {
+      const lock = readFileSync(lockOf(app), 'utf-8');
+      cargo(
+        repo,
+        emptyCargoHome,
+        'metadata',
+        '--locked',
+        '--offline',
+        '--format-version',
+        '1',
+        '--manifest-path',
+        manifest(app),
+      );
+      expect(readFileSync(lockOf(app), 'utf-8')).toBe(lock);
+    }
+  });
+
   it('should write the same lock cargo writes, also when the bump passes other versions of the crate', () => {
     // Git crates named like a workspace member put several versions of `crate-b` in the lock, so cargo
     // spells out versions in references to it ("crate-b 0.1.0"). Bumping crate-b from 0.1.0 to 0.2.0

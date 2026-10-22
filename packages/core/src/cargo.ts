@@ -248,22 +248,11 @@ export function setCargoLockVersion(lockContent: string, crateName: string, vers
   return updated.join('\n');
 }
 
-/** The part of `@releasekit/git`'s `Git` seam that lists tracked files (core doesn't depend on it). */
-export interface TrackedFileLister {
+/** The part of `@releasekit/git`'s `Git` seam the Cargo.lock sync uses (core doesn't depend on it). */
+export interface CargoLockGit {
   isRepository(cwd?: string): Promise<boolean>;
   lsFiles(opts?: { paths?: string[]; cwd?: string }): Promise<string[]>;
-}
-
-/**
- * Every Cargo.lock tracked by git anywhere in the repository containing `cwd`, as absolute paths —
- * empty outside a git repository. Untracked and ignored locks are left out.
- */
-export async function findCommittedCargoLockfiles(git: TrackedFileLister, cwd: string): Promise<string[]> {
-  if (!(await git.isRepository(cwd))) {
-    return [];
-  }
-  const tracked = await git.lsFiles({ paths: [':(top,glob)**/Cargo.lock'], cwd });
-  return tracked.map((lockPath) => path.resolve(cwd, lockPath));
+  isIgnored(file: string, cwd?: string): Promise<boolean>;
 }
 
 /** A crate whose new version the Cargo.lock files that record it must follow. */
@@ -271,6 +260,8 @@ export interface CargoLockBump {
   cargoTomlPath: string;
   name: string;
   version: string;
+  /** The version the manifest had before the bump; absent when it inherits `version.workspace = true`. */
+  fromVersion?: string;
 }
 
 /** A Cargo.lock that lists at least one bumped crate as a path package, with the content it must have. */
@@ -283,19 +274,36 @@ export interface CargoLockUpdate {
 /**
  * Work out the content of every Cargo.lock that records a bumped crate, by editing the lock text with
  * {@link setCargoLockVersion} — nothing runs cargo, so no Rust toolchain, registry index or network is
- * needed. The candidates are `committedLocks` (every tracked lock, which covers apps that use a crate
- * through a path dependency) plus each crate's own governing lock ({@link findCargoLockfile}), which is
- * synced even when it isn't tracked. A lock gets every bump it lists, so a lock shared by several bumped
- * crates is rewritten once; locks that list none are left out.
+ * needed. The candidates are every lock git tracks (apps that use a crate through a path dependency
+ * have their own) plus each crate's own governing lock ({@link findCargoLockfile}), which is synced
+ * even when untracked but not when git ignores it, since it couldn't be staged.
+ *
+ * Crates in different workspaces can share a name (every `tauri init` app is `app`), so a lock's path
+ * entry follows a bump only when it is that crate: always in the crate's own lock; in any other lock,
+ * only when something in that lock depends on the entry (one nothing depends on is that lock's own
+ * root or workspace member) and it is at the crate's old or new version. A lock gets every bump it
+ * records, so a lock shared by several bumped crates is rewritten once; locks that record none are
+ * left out.
  *
  * Nothing is written: the caller writes the changed content. Throws, naming the lock, when a lock can't
  * be read or edited unambiguously, so no lock is written unless every lock can be.
  */
-export function planCargoLockUpdates(bumps: CargoLockBump[], committedLocks: string[]): CargoLockUpdate[] {
-  const lockPaths = new Set(committedLocks.map((lockPath) => path.resolve(lockPath)));
+export async function planCargoLockUpdates(
+  git: CargoLockGit,
+  cwd: string,
+  bumps: CargoLockBump[],
+): Promise<CargoLockUpdate[]> {
+  const lockPaths = new Set<string>();
+  if (await git.isRepository(cwd)) {
+    for (const lockPath of await git.lsFiles({ paths: [':(top,glob)**/Cargo.lock'], cwd })) {
+      lockPaths.add(path.resolve(cwd, lockPath));
+    }
+  }
+  const ownLocks = new Map<CargoLockBump, string>();
   for (const bump of bumps) {
     const ownLock = findCargoLockfile(path.dirname(bump.cargoTomlPath));
-    if (ownLock) {
+    if (ownLock && !(await git.isIgnored(ownLock, cwd))) {
+      ownLocks.set(bump, ownLock);
       lockPaths.add(ownLock);
     }
   }
@@ -307,15 +315,37 @@ export function planCargoLockUpdates(bumps: CargoLockBump[], committedLocks: str
       continue;
     }
     const original = fs.readFileSync(lockPath, 'utf8');
+    const lines = original.split('\n');
+    const pathEntries = readCargoLockEntries(lines).filter((entry) => !entry.hasSource);
+    const references = new Set(lines.map((line) => line.trim().replace(/,$/, '')));
+    const isPathDependency = (bump: CargoLockBump): boolean =>
+      pathEntries.some(
+        (entry) =>
+          entry.name === bump.name &&
+          (bump.fromVersion === undefined || [bump.fromVersion, bump.version].includes(entry.version)) &&
+          (references.has(`"${entry.name}"`) || references.has(`"${entry.name} ${entry.version}"`)),
+      );
+
     let content = original;
     let listed = false;
-    for (const bump of bumps) {
+    for (const name of new Set(bumps.map((bump) => bump.name))) {
+      const sameName = bumps.filter((bump) => bump.name === name);
+      const own = sameName.filter((bump) => ownLocks.get(bump) === lockPath);
+      const matching = own.length > 0 ? own : sameName.filter(isPathDependency);
+      if (matching.length === 0) {
+        continue;
+      }
+      if (new Set(matching.map((bump) => bump.version)).size > 1) {
+        const manifests = matching.map((bump) => bump.cargoTomlPath).join(', ');
+        throw new Error(`can't set ${name} in ${lockPath}: it could be the crate at any of ${manifests}`);
+      }
+      const [{ version }] = matching;
       let next: string | undefined;
       try {
-        next = setCargoLockVersion(content, bump.name, bump.version);
+        next = setCargoLockVersion(content, name, version);
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
-        throw new Error(`can't set ${bump.name} to ${bump.version} in ${lockPath}: ${detail}`);
+        throw new Error(`can't set ${name} to ${version} in ${lockPath}: ${detail}`);
       }
       if (next !== undefined) {
         listed = true;

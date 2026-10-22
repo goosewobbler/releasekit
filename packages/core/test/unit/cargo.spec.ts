@@ -2,12 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  findCargoLockfile,
-  findCommittedCargoLockfiles,
-  planCargoLockUpdates,
-  setCargoLockVersion,
-} from '../../src/cargo.js';
+import { type CargoLockBump, findCargoLockfile, planCargoLockUpdates, setCargoLockVersion } from '../../src/cargo.js';
 
 describe('findCargoLockfile', () => {
   const tmpDirs: string[] = [];
@@ -201,6 +196,44 @@ describe('setCargoLockVersion', () => {
     expect(setCargoLockVersion(before, 'dupe', '3.0.0')).toBe(after);
   });
 
+  it('should order pre-release identifiers numerically when the new version passes other entries', () => {
+    // Byte-for-byte what `cargo update --workspace` writes after bumping the path crate `dupe` from
+    // 1.0.0-beta.2 to 1.0.0-beta.11: beta.9 < beta.10 < beta.11 for entries, as strings for references.
+    const entry = (version: string, ...rest: string[]) => [
+      '',
+      '[[package]]',
+      'name = "dupe"',
+      `version = "${version}"`,
+      ...rest,
+    ];
+    const app = (...versions: string[]) => [
+      '[[package]]',
+      'name = "app"',
+      'version = "0.1.0"',
+      'dependencies = [',
+      ...versions.map((version) => ` "dupe 1.0.0-beta.${version}",`),
+      ']',
+    ];
+    const before = lock(
+      'version = 4',
+      '',
+      ...app('10', '2', '9'),
+      ...entry('1.0.0-beta.2'),
+      ...entry('1.0.0-beta.9', `source = "${GIT}"`),
+      ...entry('1.0.0-beta.10', `source = "${GIT}"`),
+    );
+    const after = lock(
+      'version = 4',
+      '',
+      ...app('10', '11', '9'),
+      ...entry('1.0.0-beta.9', `source = "${GIT}"`),
+      ...entry('1.0.0-beta.10', `source = "${GIT}"`),
+      ...entry('1.0.0-beta.11'),
+    );
+
+    expect(setCargoLockVersion(before, 'dupe', '1.0.0-beta.11')).toBe(after);
+  });
+
   it('should rewrite path references in a v1 lock without touching registry references or checksums', () => {
     // v1 locks always spell out the version, and add the source for registry packages.
     const before = lock(
@@ -274,39 +307,79 @@ describe('setCargoLockVersion', () => {
 
     expect(() => setCargoLockVersion(before, 'core', '2.0.0')).toThrow(/from another source/);
   });
+
+  it('should throw when the lock has several path entries of the name', () => {
+    const before = lock(
+      'version = 4',
+      '',
+      '[[package]]',
+      'name = "core"',
+      'version = "1.4.0"',
+      '',
+      '[[package]]',
+      'name = "core"',
+      'version = "3.0.0"',
+    );
+
+    expect(() => setCargoLockVersion(before, 'core', '2.0.0')).toThrow('it has 2 path entries named core');
+  });
 });
 
 describe('planCargoLockUpdates', () => {
   const tmpDirs: string[] = [];
 
+  /** The git seam as the planner sees it: `tracked` locks, and the files git ignores. */
+  function fakeGit(tracked: string[], ignored: string[] = []) {
+    return {
+      isRepository: vi.fn(async () => true),
+      lsFiles: vi.fn(async () => tracked),
+      isIgnored: vi.fn(async (file: string) => ignored.includes(file)),
+    };
+  }
+
+  function write(file: string, content: string): string {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, content);
+    return file;
+  }
+
+  /** A lock whose root package `root` depends on `dependency` by path. */
+  const lockWithDependency = (root: string, dependency: string, version: string): string =>
+    lock(
+      'version = 4',
+      '',
+      '[[package]]',
+      `name = "${dependency}"`,
+      `version = "${version}"`,
+      '',
+      '[[package]]',
+      `name = "${root}"`,
+      'version = "0.1.0"',
+      'dependencies = [',
+      ` "${dependency}",`,
+      ']',
+    );
+
   /** A workspace whose root lock lists `core`, plus a separate app whose own lock uses `core` by path. */
   function repoWithLocks(): { root: string; manifest: string; ownLock: string; appLock: string } {
     const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'rk-cargo-lock-plan-')));
     tmpDirs.push(root);
-    fs.writeFileSync(path.join(root, 'Cargo.toml'), '[workspace]\nmembers = ["crates/*"]\n');
-    const member = path.join(root, 'crates', 'core');
-    fs.mkdirSync(member, { recursive: true });
-    const manifest = path.join(member, 'Cargo.toml');
-    fs.writeFileSync(manifest, '[package]\nname = "core"\nversion = "1.5.0"\n');
-    const ownLock = path.join(root, 'Cargo.lock');
-    fs.writeFileSync(ownLock, lock('version = 4', '', '[[package]]', 'name = "core"', 'version = "1.4.0"'));
-    fs.mkdirSync(path.join(root, 'app'));
-    const appLock = path.join(root, 'app', 'Cargo.lock');
-    fs.writeFileSync(
-      appLock,
-      lock(
-        'version = 4',
-        '',
-        '[[package]]',
-        'name = "app"',
-        'version = "0.1.0"',
-        '',
-        '[[package]]',
-        'name = "core"',
-        'version = "1.4.0"',
-      ),
+    write(path.join(root, 'Cargo.toml'), '[workspace]\nmembers = ["crates/*"]\n');
+    const manifest = write(
+      path.join(root, 'crates', 'core', 'Cargo.toml'),
+      '[package]\nname = "core"\nversion = "1.5.0"\n',
     );
-    return { root, manifest, ownLock, appLock };
+    const ownLock = write(
+      path.join(root, 'Cargo.lock'),
+      lock('version = 4', '', '[[package]]', 'name = "core"', 'version = "1.4.0"'),
+    );
+    write(path.join(root, 'app', 'Cargo.toml'), '[package]\nname = "app"\nversion = "0.1.0"\n\n[workspace]\n');
+    return {
+      root,
+      manifest,
+      ownLock,
+      appLock: write(path.join(root, 'app', 'Cargo.lock'), lockWithDependency('app', 'core', '1.4.0')),
+    };
   }
 
   afterEach(() => {
@@ -316,85 +389,130 @@ describe('planCargoLockUpdates', () => {
     tmpDirs.length = 0;
   });
 
-  it('should plan the crate’s own lock and every committed lock that lists it, writing nothing', () => {
+  it('should plan the crate’s own lock and every tracked lock that uses it, writing nothing', async () => {
     const { root, manifest, ownLock, appLock } = repoWithLocks();
-    const unrelated = path.join(root, 'other.lock');
-    fs.writeFileSync(unrelated, lock('version = 4', '', '[[package]]', 'name = "other"', 'version = "1.0.0"'));
+    write(path.join(root, 'other', 'Cargo.lock'), lockWithDependency('other', 'serde', '1.0.0'));
+    const git = fakeGit(['../../app/Cargo.lock', '../../other/Cargo.lock']);
+    const bump = { cargoTomlPath: manifest, name: 'core', version: '1.5.0', fromVersion: '1.4.0' };
 
-    const updates = planCargoLockUpdates(
-      [{ cargoTomlPath: manifest, name: 'core', version: '1.5.0' }],
-      [appLock, unrelated],
-    );
+    const updates = await planCargoLockUpdates(git, path.dirname(manifest), [bump]);
 
     expect(updates).toEqual([
       { lockPath: appLock, content: fs.readFileSync(appLock, 'utf8').replace('1.4.0', '1.5.0'), changed: true },
       { lockPath: ownLock, content: fs.readFileSync(ownLock, 'utf8').replace('1.4.0', '1.5.0'), changed: true },
     ]);
+    expect(git.lsFiles).toHaveBeenCalledWith({ paths: [':(top,glob)**/Cargo.lock'], cwd: path.dirname(manifest) });
     expect(fs.readFileSync(ownLock, 'utf8')).toContain('version = "1.4.0"');
   });
 
-  it('should apply every bump a shared lock lists in one update', () => {
+  it('should plan only the crate’s own lock outside a git repository', async () => {
+    const { manifest, ownLock } = repoWithLocks();
+    const git = { ...fakeGit([]), isRepository: vi.fn(async () => false) };
+
+    const updates = await planCargoLockUpdates(git, path.dirname(manifest), [
+      { cargoTomlPath: manifest, name: 'core', version: '1.5.0', fromVersion: '1.4.0' },
+    ]);
+
+    expect(updates.map((update) => update.lockPath)).toEqual([ownLock]);
+    expect(git.lsFiles).not.toHaveBeenCalled();
+  });
+
+  it('should not plan an own lock git ignores', async () => {
+    const { root, manifest, ownLock } = repoWithLocks();
+
+    const updates = await planCargoLockUpdates(fakeGit([], [ownLock]), root, [
+      { cargoTomlPath: manifest, name: 'core', version: '1.5.0', fromVersion: '1.4.0' },
+    ]);
+
+    expect(updates).toEqual([]);
+  });
+
+  it('should apply every bump a shared lock lists in one update', async () => {
     const { root, manifest, appLock } = repoWithLocks();
 
-    const updates = planCargoLockUpdates(
-      [
-        { cargoTomlPath: path.join(root, 'app', 'Cargo.toml'), name: 'app', version: '0.2.0' },
-        { cargoTomlPath: manifest, name: 'core', version: '1.5.0' },
-      ],
-      [appLock],
-    );
+    const updates = await planCargoLockUpdates(fakeGit([appLock]), root, [
+      { cargoTomlPath: path.join(root, 'app', 'Cargo.toml'), name: 'app', version: '0.2.0', fromVersion: '0.1.0' },
+      { cargoTomlPath: manifest, name: 'core', version: '1.5.0', fromVersion: '1.4.0' },
+    ]);
 
     expect(updates.find((update) => update.lockPath === appLock)?.content).toBe(
-      lock(
-        'version = 4',
-        '',
-        '[[package]]',
-        'name = "app"',
-        'version = "0.2.0"',
-        '',
-        '[[package]]',
-        'name = "core"',
-        'version = "1.5.0"',
-      ),
+      fs.readFileSync(appLock, 'utf8').replace('"0.1.0"', '"0.2.0"').replace('"1.4.0"', '"1.5.0"'),
     );
   });
 
-  it('should report a lock already at the new version as unchanged, and skip a tracked lock missing from disk', () => {
+  it('should report a lock already at the new version as unchanged, and skip a tracked lock missing from disk', async () => {
     const { root, manifest, ownLock } = repoWithLocks();
     fs.writeFileSync(ownLock, lock('version = 4', '', '[[package]]', 'name = "core"', 'version = "1.5.0"'));
 
-    const updates = planCargoLockUpdates(
-      [{ cargoTomlPath: manifest, name: 'core', version: '1.5.0' }],
-      [path.join(root, 'deleted', 'Cargo.lock')],
-    );
+    const updates = await planCargoLockUpdates(fakeGit([path.join(root, 'deleted', 'Cargo.lock')]), root, [
+      { cargoTomlPath: manifest, name: 'core', version: '1.5.0', fromVersion: '1.5.0' },
+    ]);
 
     expect(updates).toEqual([{ lockPath: ownLock, content: fs.readFileSync(ownLock, 'utf8'), changed: false }]);
   });
 
-  it('should name the lock when an edit cannot be made unambiguously', () => {
-    const { manifest, appLock } = repoWithLocks();
+  it('should update another lock’s entry of the crate’s name only when it is a path dependency at the old or new version', async () => {
+    // Every `tauri init` app is a crate named `app`, so other locks can hold a different `app`.
+    const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'rk-cargo-lock-names-')));
+    tmpDirs.push(root);
+    const manifest = write(path.join(root, 'one', 'Cargo.toml'), '[package]\nname = "app"\nversion = "0.1.0"\n');
+    const ownLock = write(path.join(root, 'one', 'Cargo.lock'), lockWithDependency('app', 'dep', '1.0.0'));
+    const otherApp = write(path.join(root, 'two', 'Cargo.lock'), lockWithDependency('app', 'dep', '1.0.0'));
+    const atOld = write(path.join(root, 'at-old', 'Cargo.lock'), lockWithDependency('harness', 'app', '0.1.0'));
+    const atNew = write(path.join(root, 'at-new', 'Cargo.lock'), lockWithDependency('harness', 'app', '0.2.0'));
+    const atOther = write(path.join(root, 'at-other', 'Cargo.lock'), lockWithDependency('harness', 'app', '0.3.0'));
+
+    const updates = await planCargoLockUpdates(fakeGit([ownLock, otherApp, atOld, atNew, atOther]), root, [
+      { cargoTomlPath: manifest, name: 'app', version: '0.2.0', fromVersion: '0.1.0' },
+    ]);
+
+    expect(updates).toEqual([
+      {
+        lockPath: ownLock,
+        content: lockWithDependency('app', 'dep', '1.0.0').replace('"0.1.0"', '"0.2.0"'),
+        changed: true,
+      },
+      { lockPath: atOld, content: lockWithDependency('harness', 'app', '0.2.0'), changed: true },
+      { lockPath: atNew, content: lockWithDependency('harness', 'app', '0.2.0'), changed: false },
+    ]);
+  });
+
+  /** A lock that uses `app` 0.1.0 by path, and two same-named crates bumped from 0.1.0. */
+  function sameNameBumps(otherVersion: string): { root: string; harness: string; bumps: CargoLockBump[] } {
+    const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'rk-cargo-lock-names-')));
+    tmpDirs.push(root);
+    const harness = write(path.join(root, 'harness', 'Cargo.lock'), lockWithDependency('harness', 'app', '0.1.0'));
+    const bumps = [
+      { cargoTomlPath: path.join(root, 'one', 'Cargo.toml'), name: 'app', version: '0.2.0', fromVersion: '0.1.0' },
+      { cargoTomlPath: path.join(root, 'two', 'Cargo.toml'), name: 'app', version: otherVersion, fromVersion: '0.1.0' },
+    ];
+    return { root, harness, bumps };
+  }
+
+  it('should refuse a path dependency that same-named crates bump to different versions', async () => {
+    const { root, harness, bumps } = sameNameBumps('0.1.1');
+
+    await expect(planCargoLockUpdates(fakeGit([harness]), root, bumps)).rejects.toThrow(
+      `can't set app in ${harness}: it could be the crate at any of ${bumps[0].cargoTomlPath}, ${bumps[1].cargoTomlPath}`,
+    );
+  });
+
+  it('should sync a path dependency that same-named crates bump to the same version', async () => {
+    const { root, harness, bumps } = sameNameBumps('0.2.0');
+
+    const [update] = await planCargoLockUpdates(fakeGit([harness]), root, bumps);
+
+    expect(update.content).toBe(lockWithDependency('harness', 'app', '0.2.0'));
+  });
+
+  it('should name the lock when an edit cannot be made unambiguously', async () => {
+    const { root, manifest, appLock } = repoWithLocks();
     fs.appendFileSync(appLock, lock('', '[[package]]', 'name = "core"', 'version = "1.5.0"', `source = "${REGISTRY}"`));
 
-    expect(() =>
-      planCargoLockUpdates([{ cargoTomlPath: manifest, name: 'core', version: '1.5.0' }], [appLock]),
-    ).toThrow(`can't set core to 1.5.0 in ${appLock}: it also has core 1.5.0 from another source`);
-  });
-});
-
-describe('findCommittedCargoLockfiles', () => {
-  it('should list tracked locks across the whole repository as absolute paths', async () => {
-    const lsFiles = vi.fn(async () => ['../Cargo.lock', 'app/Cargo.lock']);
-
-    const locks = await findCommittedCargoLockfiles({ isRepository: async () => true, lsFiles }, '/repo/crates');
-
-    expect(locks).toEqual(['/repo/Cargo.lock', '/repo/crates/app/Cargo.lock']);
-    expect(lsFiles).toHaveBeenCalledWith({ paths: [':(top,glob)**/Cargo.lock'], cwd: '/repo/crates' });
-  });
-
-  it('should return no locks outside a git repository', async () => {
-    const lsFiles = vi.fn(async () => []);
-
-    expect(await findCommittedCargoLockfiles({ isRepository: async () => false, lsFiles }, '/tmp/x')).toEqual([]);
-    expect(lsFiles).not.toHaveBeenCalled();
+    await expect(
+      planCargoLockUpdates(fakeGit([appLock]), root, [
+        { cargoTomlPath: manifest, name: 'core', version: '1.5.0', fromVersion: '1.4.0' },
+      ]),
+    ).rejects.toThrow(`can't set core to 1.5.0 in ${appLock}: it also has core 1.5.0 from another source`);
   });
 });

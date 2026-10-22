@@ -639,8 +639,6 @@ export class VersionEngine {
       clearCargoBumps();
       // Execute the strategy function
       await this.currentStrategy(packages, targets);
-      // Every strategy records its Cargo.toml bumps (updateCargoVersion); syncing the locks that
-      // record those crates here, in one pass, covers all strategies and fails the run on an unsyncable lock.
       await syncCargoLockfiles(packages.root ?? cwd(), this.config.dryRun ?? false);
       // Once the strategy has produced the updates, tag each one's role: explicit (group-expanded)
       // targets keep the override; derived prerequisites carry their own bump and record the

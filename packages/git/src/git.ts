@@ -251,6 +251,10 @@ export class GitCli implements Git {
     return stdout.split('\0').filter((file) => file.length > 0);
   }
 
+  async isIgnored(file: string, cwd?: string): Promise<boolean> {
+    return this.execSoft(['check-ignore', '-q', '--', file], { cwd: this.cwd(cwd), ignoreOutput: true });
+  }
+
   async forEachRef(opts: GitForEachRefOptions): Promise<string[]> {
     // `format`/`sort` are flag values by design; `pattern` is a positional ref, so guard it like
     // every other user-controlled positional (a leading-`-` pattern would be read as an option).
