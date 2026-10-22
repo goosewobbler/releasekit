@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { deepMerge, mergeGitConfig } from '../../src/merge.js';
-import type { GitConfig, PublishGitConfig } from '../../src/schema.js';
+import { type GitConfig, GitConfigSchema, type PublishGitConfig } from '../../src/schema.js';
 
 describe('mergeGitConfig', () => {
   it('should return undefined when both inputs are undefined', () => {
@@ -23,8 +23,15 @@ describe('mergeGitConfig', () => {
   it('should return packageLevel with topLevel defaults when topLevel is undefined', () => {
     const result = mergeGitConfig(undefined, { remote: 'origin' } as PublishGitConfig);
     expect(result?.remote).toBe('origin');
-    expect(result?.branch).toBe('main');
     expect(result?.pushMethod).toBe('auto');
+  });
+
+  it.each([
+    ['top-level only', GitConfigSchema.parse({}), undefined],
+    ['publish-level only', undefined, { push: true }],
+    ['both', GitConfigSchema.parse({}), { push: true }],
+  ])('should leave branch unset when neither level sets it (%s)', (_label, topLevel, packageLevel) => {
+    expect(mergeGitConfig(topLevel, packageLevel)?.branch).toBeUndefined();
   });
 
   it('should merge packageLevel over topLevel', () => {

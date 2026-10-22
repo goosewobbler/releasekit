@@ -26,7 +26,6 @@ describe('GitConfigSchema', () => {
     const result = GitConfigSchema.parse({});
     expect(result).toEqual({
       remote: 'origin',
-      branch: 'main',
       pushMethod: 'auto',
     });
   });
