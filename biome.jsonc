@@ -109,6 +109,20 @@
           }
         }
       }
+    },
+    {
+      // A package's root index.ts is its public API, so it's the one place `export … from` belongs.
+      "includes": [
+        "packages/*/src/**",
+        "!packages/*/src/index.ts"
+      ],
+      "linter": {
+        "rules": {
+          "performance": {
+            "noBarrelFile": "error"
+          }
+        }
+      }
     }
   ],
   "assist": {
