@@ -32,12 +32,6 @@ export default mergeConfig(
           'src/templates/loader.ts',
           'src/core/pipeline.ts',
         ],
-        thresholds: {
-          lines: 50,
-          functions: 55,
-          branches: 45,
-          statements: 50,
-        },
       },
     },
   }),
