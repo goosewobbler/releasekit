@@ -46,15 +46,12 @@ describe('notes eval: release notes', () => {
 
       const { enhancedEntries, categories } = await enhanceAndCategorize(provider, golden.entries, golden.context);
 
-      // Structured-path checks the free-text case can't reach: the grouping has to discriminate, and
-      // nothing may be lost or duplicated on the way through categorization. The eval capabilities
-      // advertise no structured outputs, so this exercises the text → JSON parse path, not the
-      // schema/tool-call branch a provider with `structuredOutputs` takes.
+      // Eval capabilities advertise no structured outputs, so this covers the text → JSON parse path,
+      // not the schema/tool-call branch.
       expect(checkNoEntryLoss(categories, enhancedEntries, golden.entries.length)).toEqual([]);
       expect(checkCategoryDistribution(categories)).toEqual([]);
 
-      // The golden case restricts scopes, so what gets grouped must be the scope-validated entries: a
-      // disallowed scope surviving into any bucket means grouping read the unvalidated response.
+      // A disallowed scope in any category means grouping used the unvalidated response.
       const allowedScopes = golden.context.scopes?.rules?.allowed ?? [];
       const leakedScopes = categories
         .flatMap((c) => c.entries)
@@ -62,15 +59,14 @@ describe('notes eval: release notes', () => {
         .filter((scope) => scope !== undefined && !allowedScopes.includes(scope));
       expect(leakedScopes).toEqual([]);
 
-      // The content assertions hold here too — the descriptions are user-facing prose.
+      // Descriptions are user-facing prose, so the content checks apply too.
       const descriptions = enhancedEntries.map((e) => `- ${e.description}`).join('\n');
       expect(findMarkerLeaks(descriptions)).toEqual([]);
       expect(findDuplicateDependencyChurn(descriptions)).toEqual([]);
       expect(checkPastTenseLeaning(descriptions)).toEqual([]);
 
-      // The prompt carries type and scope as entry attributes; neither may leak back into the prose as a
-      // leading prefix — `added(api): …`, `feat(api): …`, or a bare `api: …`. Built from the golden case's
-      // own labels so a legitimate lead-in ("CLI: …") isn't mistaken for a leak.
+      // Type and scope mustn't leak into the prose as a prefix (`feat(api): …`, `api: …`). Matching only
+      // this case's labels keeps a real lead-in like "CLI: …" from counting.
       const labels = [...new Set(golden.entries.flatMap((e) => [e.type, e.originalType, e.scope]))].filter(
         (label): label is string => typeof label === 'string' && label.length > 0,
       );

@@ -57,19 +57,15 @@ export function checkPastTenseLeaning(text: string, minRatio = 0.6): string[] {
   return ratio >= minRatio ? [] : [`only ${pastCount}/${items.length} items lead past-tense (< ${minRatio})`];
 }
 
-/** Same shape as the pipeline's `CategorizedEntries`, kept structural so the assertions stay pure. */
+/** Structural stand-in for the pipeline's `CategorizedEntries`. */
 interface CategoryGroup {
   category: string;
   entries: unknown[];
 }
 
 /**
- * Grouping has to discriminate, not just be legal. The task validator already rejects category names
- * outside the configured set, so a model that drops every entry into one bucket passes validation and
- * still produces a useless grouping. Checks the three ways that degrades: too few distinct categories,
- * an emitted-but-empty category, and one category swallowing most of the entries.
- *
- * `maxShare` is only meaningful once there are enough entries to spread, so it is skipped below four.
+ * Flags a grouping that passes validation but is useless, e.g. everything in one category. Checks for
+ * too few populated categories, empty categories, and one category over `maxShare` (four entries or more).
  */
 export function checkCategoryDistribution(
   categories: CategoryGroup[],
@@ -107,12 +103,9 @@ export function checkCategoryDistribution(
 }
 
 /**
- * Every entry survived categorization exactly once — none dropped, none duplicated across buckets.
- *
- * Checked by identity, not by count: a dropped entry and a duplicated one cancel out in a total. The
- * task's `categories[].entries` are the same objects as its `enhancedEntries`, so each enhanced entry
- * must sit in exactly one bucket, once, and no bucket may hold anything else. `expectedCount` is the
- * golden input size, guarding the enhancement step against dropping entries before grouping sees them.
+ * Every enhanced entry is in exactly one category, and categories hold nothing else. Compared by
+ * identity (categories reuse the enhanced entry objects), since a drop and a duplicate cancel out in a
+ * count. `expectedCount` catches entries lost during enhancement.
  */
 export function checkNoEntryLoss(categories: CategoryGroup[], entries: unknown[], expectedCount: number): string[] {
   const violations: string[] = [];

@@ -48,10 +48,9 @@ export const isLiveMode = process.env.RELEASEKIT_EVAL === '1' || process.env.REL
 export const isRecordMode = process.env.RELEASEKIT_EVAL_RECORD === '1' || process.env.RELEASEKIT_EVAL_RECORD === 'true';
 
 /**
- * A corrective retry replays the rejected answer as an assistant turn: the recorded response itself
- * failed the task's validator. Neither offline mode may answer it — replay has no entry for it, and a
- * re-seed that answered with the same canned markdown would cache orphan entries that replay then
- * serves, failing later on a misleading assertion. Fail at the source instead, in both modes.
+ * An assistant turn means the task rejected the recorded response and asked for a correction. Offline
+ * modes can't answer that: replay has no entry, and re-seeding the same canned response would cache it
+ * and fail later on a misleading assertion.
  */
 function refuseCorrectiveRetry(messages: LLMMessage[]): void {
   if (messages.some((m) => m.role === 'assistant')) {
@@ -110,8 +109,7 @@ export interface GoldenCase<TContext = ReleaseNotesContext> {
 
 /**
  * Load a golden input fixture (a real-shaped commit set with a fixed date, so cache keys are stable).
- * The context type varies by task — release notes take a `ReleaseNotesContext`, enhance-and-categorize
- * an `EnhanceContext & CategorizeContext` — so the caller names what it expects.
+ * The context type varies by task, so the caller names it.
  */
 export function loadGoldenCase<TContext = ReleaseNotesContext>(name: string): GoldenCase<TContext> {
   const path = fileURLToPath(new URL(`./fixtures/${name}.json`, import.meta.url));

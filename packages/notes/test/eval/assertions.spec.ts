@@ -8,10 +8,7 @@ import {
   findMarkerLeaks,
 } from './assertions.js';
 
-/**
- * The eval assertions are the regression net, so each needs a case that actually trips it. A net that
- * only ever returns `[]` would pass every eval run while catching nothing.
- */
+// Each assertion needs a case that trips it; one that always returns [] would pass every eval silently.
 describe('eval assertions', () => {
   const group = (category: string, n: number) => ({ category, entries: Array.from({ length: n }, (_, i) => i) });
 
@@ -60,7 +57,7 @@ describe('eval assertions', () => {
 
   describe('checkCategoryDistribution', () => {
     it('should catch every entry dumped into one category', () => {
-      // The task validator accepts this — "Changed" is a legal name — so only this check sees it.
+      // The task validator accepts this, so only this check catches it.
       expect(checkCategoryDistribution([group('Changed', 6)])).not.toEqual([]);
     });
 
@@ -82,7 +79,7 @@ describe('eval assertions', () => {
     });
 
     it('should not apply the share bound to a set too small to spread', () => {
-      // 2 of 3 in one bucket exceeds maxShare, but with three entries that is not evidence of laziness.
+      // 2 of 3 exceeds maxShare, but three entries are too few to judge.
       expect(checkCategoryDistribution([group('New', 2), group('Fixed', 1)])).toEqual([]);
     });
   });
