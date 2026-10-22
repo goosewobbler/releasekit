@@ -1,3 +1,6 @@
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Partial mock: the envelope builders and writer must stay real, since these tests assert on the
@@ -11,7 +14,7 @@ vi.mock('../../src/config.js');
 vi.mock('../../src/pipeline/index.js');
 vi.mock('../../src/stages/input.js');
 
-import { EXIT_CODES, setJsonMode, setLogLevel } from '@releasekit/core';
+import { EXIT_CODES, errorEnvelope, setJsonMode, setLogLevel } from '@releasekit/core';
 import { createPublishCommand } from '../../src/cli.js';
 import { loadConfig } from '../../src/config.js';
 import { BasePublishError, PipelineError, PublishErrorCode } from '../../src/errors/index.js';
@@ -60,6 +63,13 @@ const mockOutput: PublishOutput = {
 
 describe('createPublishCommand', () => {
   let mockExit: ReturnType<typeof vi.spyOn>;
+  const tmpDirs: string[] = [];
+
+  function createTmpDir(): string {
+    const dir = mkdtempSync(join(tmpdir(), 'publish-cli-'));
+    tmpDirs.push(dir);
+    return dir;
+  }
 
   beforeEach(() => {
     vi.mocked(loadConfig).mockImplementation(() => ({ ...mockConfig, npm: { ...mockConfig.npm } }));
@@ -71,6 +81,10 @@ describe('createPublishCommand', () => {
   afterEach(() => {
     vi.clearAllMocks();
     mockExit.mockRestore();
+    for (const dir of tmpDirs) {
+      rmSync(dir, { recursive: true, force: true });
+    }
+    tmpDirs.length = 0;
   });
 
   it('should return a command named publish', () => {
@@ -121,7 +135,6 @@ describe('createPublishCommand', () => {
 
       const envelope = JSON.parse(consoleSpy.mock.calls[0]?.[0] as string);
       expect(envelope.status).toBe('success');
-      // The payload rides in `data` verbatim, so the pipe's contract is unchanged.
       expect(envelope.data).toEqual(mockOutput);
       consoleSpy.mockRestore();
     });
@@ -163,8 +176,6 @@ describe('createPublishCommand', () => {
 
       const envelope = JSON.parse(consoleSpy.mock.calls[0]?.[0] as string);
       expect(envelope.status).toBe('error');
-      // What landed before the failure survives — the retry needs it — and the stage that failed is
-      // named in the message, since the envelope has no field for it.
       expect(envelope.data).toEqual(partialOutput);
       expect(envelope.changed).toBe(true);
       expect(envelope.errors[0].message).toContain('npm');
@@ -173,15 +184,52 @@ describe('createPublishCommand', () => {
       consoleSpy.mockRestore();
     });
 
-    it('should call logError and exit with PUBLISH_ERROR for a registry failure', async () => {
-      const publishError = new BasePublishError('publish failed', PublishErrorCode.NPM_PUBLISH_ERROR);
-      const logErrorSpy = vi.spyOn(publishError, 'logError').mockImplementation(() => undefined);
-      vi.mocked(runPipeline).mockRejectedValue(publishError);
+    it('should write the PipelineError envelope with its partial output to --output', async () => {
+      const partialOutput: PublishOutput = {
+        ...mockOutput,
+        npm: [{ packageName: '@acme/a', version: '1.0.0', registry: 'npm', success: true, skipped: false }],
+      };
+      vi.mocked(runPipeline).mockRejectedValue(new PipelineError('registry rejected', 'npm', partialOutput));
+      const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      const outputFile = join(createTmpDir(), 'publish.json');
 
-      await createPublishCommand().parseAsync(['node', 'test']);
+      await createPublishCommand().parseAsync(['node', 'test', '--output', outputFile]);
 
-      expect(logErrorSpy).toHaveBeenCalled();
+      const envelope = JSON.parse(readFileSync(outputFile, 'utf-8'));
+      expect(envelope.status).toBe('error');
+      expect(envelope.data).toEqual(partialOutput);
+      expect(envelope.changed).toBe(true);
+      expect(consoleSpy).not.toHaveBeenCalled();
       expect(mockExit).toHaveBeenCalledWith(EXIT_CODES.PUBLISH_ERROR);
+      stderrSpy.mockRestore();
+      consoleSpy.mockRestore();
+    });
+
+    it('should exit with INPUT_ERROR when --input holds a failed upstream envelope', async () => {
+      const actualInput =
+        await vi.importActual<typeof import('../../src/stages/input.js')>('../../src/stages/input.js');
+      vi.mocked(parseInput).mockImplementation(actualInput.parseInput);
+      const inputFile = join(createTmpDir(), 'version.json');
+      writeFileSync(
+        inputFile,
+        JSON.stringify(
+          errorEnvelope([{ code: 'GIT_ERROR', category: 'git', retryable: false, message: 'no such ref' }]),
+        ),
+      );
+      const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+      await createPublishCommand().parseAsync(['node', 'test', '--json', '--input', inputFile]);
+
+      const envelope = JSON.parse(consoleSpy.mock.calls[0]?.[0] as string);
+      expect(envelope.errors).toMatchObject([
+        { code: 'INPUT_PARSE_ERROR', message: expect.stringContaining('GIT_ERROR') },
+      ]);
+      expect(mockExit).toHaveBeenCalledWith(EXIT_CODES.INPUT_ERROR);
+      expect(runPipeline).not.toHaveBeenCalled();
+      stderrSpy.mockRestore();
+      consoleSpy.mockRestore();
     });
 
     it('should exit with CONFIG_ERROR for a configuration failure', async () => {

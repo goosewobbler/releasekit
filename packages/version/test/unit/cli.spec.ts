@@ -1,8 +1,10 @@
 import * as path from 'node:path';
+import { EXIT_CODES } from '@releasekit/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createVersionCommand, createVersionProgram } from '../../src/cli.js';
 import * as configModule from '../../src/config.js';
 import { VersionEngine } from '../../src/core/versionEngine.js';
+import { createVersionError, VersionErrorCode } from '../../src/errors/versionError.js';
 import type { Config, VersionRunOptions } from '../../src/types.js';
 import * as jsonOutputModule from '../../src/utils/jsonOutput.js';
 
@@ -187,6 +189,38 @@ describe('createVersionCommand', () => {
         chdir.mockRestore();
         getCwd.mockRestore();
       }
+    });
+  });
+
+  describe('failures under --json', () => {
+    it('should print an error envelope carrying the engine error code and exit by its family', async () => {
+      mockRun.mockRejectedValue(createVersionError(VersionErrorCode.INVALID_CONFIG, 'groups overlap'));
+      const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const stdoutSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+      await createVersionCommand().parseAsync(['node', 'test', '--json']);
+
+      const envelope = JSON.parse(stdoutSpy.mock.calls[0]?.[0] as string);
+      expect(envelope).toMatchObject({ status: 'error', changed: false, data: null });
+      expect(envelope.errors).toMatchObject([
+        { code: 'INVALID_CONFIG', message: expect.stringContaining('groups overlap') },
+      ]);
+      expect(mockExit).toHaveBeenCalledWith(EXIT_CODES.CONFIG_ERROR);
+      stderrSpy.mockRestore();
+      stdoutSpy.mockRestore();
+    });
+
+    it('should print an INPUT_ERROR envelope and exit with INPUT_ERROR for --stable with --prerelease', async () => {
+      const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const stdoutSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+      await createVersionCommand().parseAsync(['node', 'test', '--json', '--stable', '--prerelease']);
+
+      const envelope = JSON.parse(stdoutSpy.mock.calls[0]?.[0] as string);
+      expect(envelope.errors).toMatchObject([{ code: 'INPUT_ERROR' }]);
+      expect(mockExit).toHaveBeenCalledWith(EXIT_CODES.INPUT_ERROR);
+      stderrSpy.mockRestore();
+      stdoutSpy.mockRestore();
     });
   });
 

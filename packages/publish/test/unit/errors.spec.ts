@@ -1,4 +1,4 @@
-import { ReleaseKitError } from '@releasekit/core';
+import { EXIT_CODES, exitCodeForError, ReleaseKitError } from '@releasekit/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BasePublishError, createPublishError, PublishError, PublishErrorCode } from '../../src/errors/index.js';
 
@@ -73,6 +73,13 @@ describe('PublishError', () => {
         expect(error.code).toBe(code);
         expect(error.message).toBeTruthy();
       }
+    });
+
+    it('should give every error code its exit-code family rather than the generic exit 1', () => {
+      const unmapped = Object.values(PublishErrorCode).filter(
+        (code) => exitCodeForError(createPublishError(code)) === EXIT_CODES.GENERAL_ERROR,
+      );
+      expect(unmapped).toEqual([]);
     });
 
     it('should append details to message', () => {
