@@ -4,8 +4,8 @@ Thank you for your interest in contributing! This guide covers everything you ne
 
 ## Prerequisites
 
-- **Node.js** ≥18 (LTS recommended)
-- **pnpm** ≥10 (`npm install -g pnpm`)
+- **Node.js** 22 or later (`.nvmrc` has 24)
+- **pnpm** 10 ([installation](https://pnpm.io/installation)); `package.json` pins the exact version
 - **Git**
 - **Rust + Cargo** — only needed if working on Cargo.toml support in `@releasekit/version` or
   `@releasekit/publish`
@@ -40,8 +40,8 @@ Examples: `feature/cargo-workspace-support`, `fix/version-tag-not-found`, `docs/
 ### Working on a specific package
 
 ```bash
-# Build only one package (and its dependencies)
-pnpm --filter @releasekit/version build
+# Build one package and its dependencies
+pnpm turbo run build --filter=@releasekit/version
 
 # Run tests for one package
 pnpm --filter @releasekit/version test
@@ -66,7 +66,7 @@ Optional footer(s)
 **Types:** `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`,
 `revert`
 
-**Scopes:** `version`, `notes`, `publish`, `config`, `core`, `ci`, `deps`, `root`
+**Scopes:** `version`, `notes`, `publish`, `release`, `config`, `core`, `ci`, `deps`, `root`
 
 **Examples:**
 ```
@@ -90,24 +90,8 @@ PR titles are validated by the `pr-title.yml` CI workflow. Since PRs are squash-
 
 ### Style
 
-- Formatting and linting are handled by [Biome](https://biomejs.dev/) — no Prettier or ESLint
-- 2-space indentation, single quotes, trailing commas
+- [Biome](https://biomejs.dev/) formats and lints the repo, and ESLint adds a few rules for `packages/**/*.ts`; the commit hook runs both on staged files
 - Run `pnpm lint` before pushing; CI will reject formatting errors
-
-### Project structure
-
-Each package follows the same layout:
-
-```
-packages/<name>/
-├── src/           # TypeScript source
-├── test/
-│   └── unit/      # Vitest unit tests
-├── dist/          # Built output (gitignored)
-├── package.json
-├── tsconfig.json
-└── README.md
-```
 
 ## Testing
 
@@ -137,8 +121,6 @@ Releases are fully automated via GitHub Actions:
 1. `@releasekit/version` calculates the next version from commit history and updates package files
 2. `@releasekit/notes` generates changelogs
 3. `@releasekit/publish` publishes to npm (with OIDC provenance) and creates GitHub releases
-
-For first-time setup of the release pipeline in a fork, see [BOOTSTRAP.md](./BOOTSTRAP.md).
 
 ## Code of Conduct
 
