@@ -20,6 +20,7 @@ export {
   type ChangelogConfig,
   type CIConfig,
   type CILabelsConfig,
+  DEFAULT_DEMOTE_SCOPES,
   type GitConfig,
   type GitHubReleaseConfig,
   type LLMCategory,

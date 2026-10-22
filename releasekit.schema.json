@@ -640,12 +640,13 @@
                 "demoteScopes": {
                   "type": "array",
                   "default": [
-                    "deps"
+                    "deps",
+                    "deps-dev"
                   ],
                   "items": {
                     "type": "string"
                   },
-                  "description": "Conventional-commit scopes whose changelog entries are demoted into a trailing \"Dependencies & version bumps\" subsection instead of interleaving with Added / Fixed / Changed. Applies to the standing-PR changelogs — each releasable row and the \"Show all changes\" footer. Nothing is hidden or dropped: low-signal dependency bumps just stop crowding the user-facing changes at the top, and a reader who wants the exact per-package deps expands the subsection. The de-duplicated change count is unchanged. Default: [\"deps\"]. Set to [] to render every scope inline."
+                  "description": "Conventional-commit scopes whose changelog entries are demoted into a trailing \"Dependencies & version bumps\" subsection instead of interleaving with Added / Fixed / Changed. Applies to the standing-PR changelogs — each releasable row and the \"Show all changes\" footer. Nothing is hidden or dropped: low-signal dependency bumps just stop crowding the user-facing changes at the top, and a reader who wants the exact per-package deps expands the subsection. The de-duplicated change count is unchanged. Default: [\"deps\", \"deps-dev\"] (the scopes Dependabot uses for production and development bumps). Set to [] to render every scope inline."
                 }
               },
               "description": "Changelog file configuration"
