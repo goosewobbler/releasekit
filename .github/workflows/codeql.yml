@@ -16,7 +16,7 @@ jobs:
   analyze:
     name: Analyze
     # Skip the standing release PR (ci.standingPr.branch), which only bumps versions and changelogs.
-    # The repo check stops a fork from skipping the scan by naming its branch release/next.
+    # The repo check stops a fork from skipping the scan with a branch of the same name.
     if: ${{ github.head_ref != 'release/next' || github.event.pull_request.head.repo.full_name != github.repository }}
     runs-on: ubuntu-latest
     permissions:
