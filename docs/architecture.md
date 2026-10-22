@@ -149,8 +149,7 @@ Supported providers: OpenAI, Anthropic, Ollama (local), and any OpenAI-compatibl
 npm and Rust packages can coexist in a single repo under a single config. The version, notes, and publish stages are all package-manager aware:
 
 - `version.cargo.paths` lists directories containing `Cargo.toml` files (auto-detected by default).
-- `publish.cargo.enabled` must be set to `true` — it defaults to `false` to avoid accidental crates.io publishes.
-- `publish.npm.enabled` defaults to `true`.
+- `publish.npm.enabled` and `publish.cargo.enabled` both default to `true`; set either to `false` to version and tag without publishing ([ADR-0004](./adr/0004-ecosystem-enablement-detection-enables-config-opts-out.md)).
 
 Each Rust crate appears as a named entry in `VersionOutput.updates` alongside npm packages; the publish pipeline runs `cargo publish` per-crate after npm.
 

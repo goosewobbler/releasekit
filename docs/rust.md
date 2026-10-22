@@ -47,9 +47,7 @@ Minimum `releasekit.config.json`:
 }
 ```
 
-`version.cargo.enabled` defaults to `true`, so that key is optional but makes intent explicit.
-
-**Important**: `publish.cargo.enabled` defaults to `false`. You must set it to `true` explicitly — nothing is published to crates.io unless you opt in.
+`version.cargo.enabled` and `publish.cargo.enabled` both default to `true`, so those keys are optional but make intent explicit. Set `publish.cargo.enabled` to `false` to version and tag without publishing to crates.io.
 
 Set `CARGO_REGISTRY_TOKEN` in your CI secrets. See [Auth](#auth) below.
 
@@ -97,7 +95,7 @@ When `version.cargo.paths` is omitted, releasekit looks for `Cargo.toml` files a
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `enabled` | boolean | `false` | Enable publishing to crates.io. Must be set to `true` explicitly. |
+| `enabled` | boolean | `true` | Publish detected crates to crates.io. Set `false` to version and tag only. |
 | `noVerify` | boolean | `false` | Pass `--no-verify` to `cargo publish`, skipping pre-publish tarball verification. Use only as a workaround — see [Edge cases](#edge-cases-and-troubleshooting). |
 | `publishOrder` | string[] | `[]` | Explicit crate publish order by crate name. When set, this overrides the automatic topological sort. Crates not listed are appended at the end. |
 | `clean` | boolean | `false` | Run `cargo clean` in the crate directory before publishing. |

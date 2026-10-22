@@ -9,6 +9,7 @@ import {
   loadPublishConfig,
   loadVersionConfig,
 } from '../../src/load.js';
+import { PublishConfigSchema } from '../../src/schema.js';
 
 vi.mock('node:fs', () => ({
   existsSync: vi.fn(),
@@ -225,12 +226,23 @@ describe('loadPublishConfig', () => {
     expect(result?.npm.access).toBe('public');
   });
 
-  it('should return undefined when no publish config', () => {
+  it.each([
+    ['no publish block', {}],
+    ['an empty publish block', { publish: {} }],
+  ])('should apply the schema defaults with %s', (_label, config) => {
     mockedFs.existsSync.mockReturnValue(true);
-    mockedFs.readFileSync.mockReturnValue('{}');
+    mockedFs.readFileSync.mockReturnValue(JSON.stringify(config));
+
+    expect(loadPublishConfig()).toEqual({ ...PublishConfigSchema.parse({}), git: undefined });
+  });
+
+  it('should inherit the top-level git config without a publish block', () => {
+    mockedFs.existsSync.mockReturnValue(true);
+    mockedFs.readFileSync.mockReturnValue(JSON.stringify({ git: { push: false, remote: 'upstream' } }));
 
     const result = loadPublishConfig();
-    expect(result).toBeUndefined();
+    expect(result.git?.push).toBe(false);
+    expect(result.git?.remote).toBe('upstream');
   });
 
   it('should merge top-level git config with publish git config', () => {

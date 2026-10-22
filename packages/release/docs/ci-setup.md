@@ -888,7 +888,7 @@ ReleaseKit detects OIDC availability automatically (`npm-auth: auto`). To force 
 
 ## pub.dev Publishing (Dart / Flutter)
 
-ReleaseKit publishes Dart and Flutter packages to pub.dev. Set `publish.pub.enabled: true` in your config and, if the repo contains Flutter packages, ReleaseKit detects them automatically from the `environment.flutter` key in `pubspec.yaml`.
+ReleaseKit publishes detected Dart and Flutter packages to pub.dev by default; set `publish.pub.enabled: false` to opt out. Flutter packages are detected automatically from the `environment.flutter` key in `pubspec.yaml`.
 
 ### OIDC automated publishing (recommended)
 

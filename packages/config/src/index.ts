@@ -33,6 +33,7 @@ export {
   type NotesConfig,
   type NpmConfig,
   type PublishConfig,
+  PublishConfigSchema,
   type PublishGitConfig,
   type PubPublishConfig,
   type ReleaseCIConfig,
