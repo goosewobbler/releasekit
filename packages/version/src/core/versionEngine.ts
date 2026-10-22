@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import { cwd } from 'node:process';
 import { inspect } from 'node:util';
 import { getPackagesSync, type Package, type Packages } from '@manypkg/get-packages';
-import { filterPackagesByConfig, parseCargoToml, parsePubspec } from '@releasekit/config';
+import { filterPackagesByConfig, isCratePublishable, parseCargoToml, parsePubspec } from '@releasekit/config';
 import { isPrivatePackageJson, shouldMatchPackageTargets } from '@releasekit/core';
 import { minimatch } from 'minimatch';
 import * as yaml from 'yaml';
@@ -187,9 +187,7 @@ export class VersionEngine {
         // Parse Cargo.toml
         const cargoData = parseCargoToml(fullCargoPath);
 
-        // Skip crates that explicitly opt out of publishing (`publish = false` or `publish = []`).
-        const publishField = cargoData.package?.publish;
-        if (publishField === false || (Array.isArray(publishField) && publishField.length === 0)) {
+        if (!isCratePublishable(cargoData)) {
           log(`Skipping Rust package at ${packageDir}: publish = false`, 'debug');
           continue;
         }

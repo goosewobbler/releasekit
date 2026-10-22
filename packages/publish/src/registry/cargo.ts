@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { isCratePublishable } from '@releasekit/config';
 import { buildDependencyGraph, debug, type GraphPackage } from '@releasekit/core';
 import { createGitCli } from '@releasekit/git';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
@@ -127,6 +128,10 @@ function findCrates(updates: Array<{ newVersion: string; filePath: string; dir: 
       const cargo = parseCargoToml(cargoPath);
 
       if (!cargo.package?.name) {
+        continue;
+      }
+      if (!isCratePublishable(cargo)) {
+        debug(`Skipping crate ${cargo.package.name}: publish = false`);
         continue;
       }
 

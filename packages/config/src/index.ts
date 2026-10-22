@@ -1,4 +1,4 @@
-export { type CargoManifest, isCargoToml, parseCargoToml } from './cargo.js';
+export { type CargoManifest, isCargoToml, isCratePublishable, parseCargoToml } from './cargo.js';
 export { ConfigError } from './errors.js';
 export {
   type LoadOptions,
@@ -20,6 +20,7 @@ export {
   type ChangelogConfig,
   type CIConfig,
   type CILabelsConfig,
+  DEFAULT_DEMOTE_SCOPES,
   type GitConfig,
   type GitHubReleaseConfig,
   type LLMCategory,

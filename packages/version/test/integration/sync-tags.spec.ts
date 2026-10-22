@@ -11,6 +11,7 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { VersionOutput } from '@releasekit/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { executeCliCommand, readVersionOutput } from '../utils/cli.js';
 import { createConventionalCommit, initGitRepo } from '../utils/git.js';
@@ -36,6 +37,12 @@ function createMonorepoFixture(dir: string) {
   mkdirSync(join(dir, 'packages/pkg-b'), { recursive: true });
   createPackageJson(join(dir, 'packages/pkg-a'), '@test/pkg-a');
   createPackageJson(join(dir, 'packages/pkg-b'), '@test/pkg-b');
+}
+
+const SYNCED_RELEASE = { 'test-monorepo': '0.2.0', '@test/pkg-a': '0.2.0', '@test/pkg-b': '0.2.0' };
+
+function releasedVersions(output: VersionOutput) {
+  return Object.fromEntries(output.updates.map((u) => [u.packageName, u.newVersion]));
 }
 
 describe('sync strategy — JSON tag output', () => {
@@ -67,11 +74,9 @@ describe('sync strategy — JSON tag output', () => {
     expect(result.status).toBe(0);
     const output = readVersionOutput(result.stdout);
 
+    expect(releasedVersions(output)).toEqual(SYNCED_RELEASE);
     // @test/pkg-a is sanitized to test-pkg-a (@ stripped, / replaced with -)
-    expect(output.tags).toContain('test-pkg-a-v0.2.0');
-    expect(output.tags).toContain('test-pkg-b-v0.2.0');
-    expect(output.tags).not.toContain('v0.2.0'); // no root tag in per-package mode
-    expect(output.tags).toHaveLength(2);
+    expect(output.tags).toEqual(['test-pkg-a-v0.2.0', 'test-pkg-b-v0.2.0']);
   });
 
   it('should produce a single root tag when packageSpecificTags is false', () => {
@@ -90,7 +95,7 @@ describe('sync strategy — JSON tag output', () => {
     expect(result.status).toBe(0);
     const output = readVersionOutput(result.stdout);
 
-    expect(output.tags).toContain('v0.2.0');
-    expect(output.tags).toHaveLength(1);
+    expect(releasedVersions(output)).toEqual(SYNCED_RELEASE);
+    expect(output.tags).toEqual(['v0.2.0']);
   });
 });
