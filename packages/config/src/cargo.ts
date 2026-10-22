@@ -16,7 +16,8 @@ export function parseCargoToml(cargoPath: string): CargoManifest {
 
 export function isCratePublishable(manifest: CargoManifest): boolean {
   const publish = manifest.package?.publish;
-  return publish !== false && !(Array.isArray(publish) && publish.length === 0);
+  const noRegistries = Array.isArray(publish) && publish.length === 0;
+  return publish !== false && !noRegistries;
 }
 
 export function isCargoToml(filePath: string): boolean {
