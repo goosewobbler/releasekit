@@ -14,10 +14,10 @@ Status legend: 🚧 in flight · ⏭️ near-term · 📋 planned · 🔭 later.
 
 The clearest differentiator — no competitor ships LLM-enhanced notes — so the bar is "novel *and* defensible".
 
-- [ ] Security hardening: neutralize `<!-- releasekit-* -->` marker sequences in LLM and edited-region output; delimit attacker-writable commit text in prompts — [#540](https://github.com/goosewobbler/releasekit/issues/540)
-- [ ] Kill model-ID rot: optional `llm.model` with curated per-provider tiers refreshed each release; enum-validate `provider` — [#541](https://github.com/goosewobbler/releasekit/issues/541)
+- [x] Security hardening: neutralize `<!-- releasekit-* -->` marker sequences in LLM and edited-region output; delimit attacker-writable commit text in prompts — [#540](https://github.com/goosewobbler/releasekit/issues/540)
+- [x] Kill model-ID rot: `llm.model` is required and validated at config load — no shipped model defaults to rot ([ADR-0005](./docs/adr/0005-llm-enhanced-notes-require-an-explicit-model-no-defaults.md)); enum-validate `provider` — [#541](https://github.com/goosewobbler/releasekit/issues/541)
 - [ ] Quality guardrail: eval harness (golden fixtures + cached-response replay + prompt snapshots) so the differentiator can't silently regress — [#542](https://github.com/goosewobbler/releasekit/issues/542)
-- [ ] Reliability batch: per-task soft-fail, thinking-model text path, retry classification, large-release chunking, concurrency bound — [#543](https://github.com/goosewobbler/releasekit/issues/543)
+- [x] Reliability batch: per-task soft-fail, thinking-model text path, retry classification, large-release chunking, concurrency bound — [#543](https://github.com/goosewobbler/releasekit/issues/543)
 - 🔭 Surface the computed release summary in the standing-PR body (reuse the existing `summarize` output).
 - 🔭 Per-package style profiles — distinct voice for user-facing vs internal packages.
 - 🔭 Streaming provider output for CLI / backfill UX.
@@ -70,7 +70,7 @@ ReleaseKit's pipeline is registry-agnostic; this section tracks which ecosystems
 | **crates.io** (Rust) | Push API (OIDC queued — [#546](https://github.com/goosewobbler/releasekit/issues/546)) |
 | **pub.dev** (Dart/Flutter) | Push API, OIDC (tag-triggered) |
 
-Publishing defaults are currently asymmetric (npm on, crates.io/pub.dev opt-in), and npm alone has no version-handling opt-out. [#554](https://github.com/goosewobbler/releasekit/issues/554) unifies both layers to "detection enables, config opts out" — every detected ecosystem versioned and published by default, symmetric opt-outs at each layer.
+Enablement is symmetric across ecosystems: detection enables, config opts out ([ADR-0004](./docs/adr/0004-ecosystem-enablement-detection-enables-config-opts-out.md), [#554](https://github.com/goosewobbler/releasekit/issues/554)). Every detected ecosystem is versioned and published by default, with `version.<eco>.enabled` and `publish.<eco>.enabled` as independent opt-outs. Known gap: version-groups mode doesn't yet bump `pubspec.yaml` or honour `version.pub.enabled` ([#649](https://github.com/goosewobbler/releasekit/issues/649)).
 
 ### Deepening the supported three ⏭️
 
