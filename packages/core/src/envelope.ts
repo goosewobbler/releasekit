@@ -53,9 +53,8 @@ export function successEnvelope<T>(
 }
 
 /**
- * `data` and `changed` exist for commands that fail partway with real progress to report: a publish
- * that failed after landing some packages knows what landed, and did change state. Hardcoding
- * `null`/`false` here would drop that, and the retry is what needs it.
+ * `data` and `changed` are for commands that fail partway with progress to report: a publish that
+ * failed after landing some packages knows what landed, and the retry needs it.
  */
 export function errorEnvelope<T = null>(
   errors: EnvelopeError[],
@@ -81,12 +80,8 @@ const KNOWN_STATUSES = new Set<EnvelopeStatus>(['success', 'error']);
 
 /**
  * Unwrap a piped envelope to its payload; a bare payload passes through unchanged, so a
- * hand-assembled input or an older releasekit still works.
- *
- * Throws rather than returning something unusable, so the failure is reported where the cause is still
- * known: on an error envelope (with the upstream message), on a `schemaVersion` this build is too old
- * to read, on an unrecognised status, and on a success envelope carrying no payload. Each of those
- * would otherwise surface further away as a shape error about the payload.
+ * hand-assembled input or an older releasekit still works. Throws on anything unusable, so the error
+ * names the cause instead of surfacing later as a shape error about the payload.
  */
 export function unwrapEnvelope(value: unknown): unknown {
   if (!isEnvelope(value)) {
@@ -121,10 +116,8 @@ export function unwrapEnvelope(value: unknown): unknown {
 }
 
 /**
- * The documented code → exit-code table (docs/cli.md). Packages throw more specific codes than the
- * nine families, so each is mapped to its family here rather than falling through to the generic
- * exit 1 — an automation that branches on "this was a git problem" needs the family, and only a
- * complete table gives it one. Core owns the map because the exit codes are a cross-package contract.
+ * The documented code → exit-code table (docs/cli.md): every specific code maps to one of the nine
+ * families, so automation can branch on the exit code instead of getting the generic 1.
  */
 const CODE_TO_EXIT: Record<string, number> = {
   CONFIG_ERROR: EXIT_CODES.CONFIG_ERROR,
