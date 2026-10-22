@@ -41,10 +41,10 @@ const context = { packageName: 'my-lib', version: '2.0.0', previousVersion: '1.0
 const CHUNK_SIZE = LLM_DEFAULTS.enhanceCategorizeChunkSize;
 const ENTRY_COUNT = CHUNK_SIZE + 5;
 
-// A host that hangs mid-run costs one call's whole retry budget before the breaker below trips:
-// 3 attempts × 45s + backoff (1s + 2s, ±20%) ≈ 140s. The 330s test timeout covers that plus a chunk that
-// needed its two corrective calls first (~135s); beyond it the test fails red on timeout. A host too slow
-// for 45s a call times out and skips — loudly.
+// A host that hangs costs each call its whole retry budget: 3 attempts × 45s + backoff (1s + 2s, ±20%)
+// ≈ 140s. The large-release test makes one call per chunk, so a hang from the start takes ≈ 280s, inside
+// the 330s test timeout; beyond it the test fails red on timeout. A host too slow for 45s a call times out
+// and skips — loudly.
 const CALL_TIMEOUT_MS = 45_000;
 const TEST_TIMEOUT_MS = 330_000;
 
@@ -96,11 +96,8 @@ describe.skipIf(!E2E_ENABLED)('notes LLM e2e (real Ollama)', () => {
 
   // Per test. Errors that outlived the retry budget, kept for the test to classify: enhanceAndCategorize
   // falls back per chunk instead of throwing, so they're the only record of *why* a chunk came back
-  // untouched. And a breaker: once a call has failed with a retryable error even after its retries, every
-  // later call rethrows it at once, so a host that hangs costs the test one retry budget rather than one per
-  // call. (Retryable includes errors the provider couldn't classify; those still go red — see below.)
+  // untouched.
   let failures: unknown[] = [];
-  let tripped: unknown;
 
   // Wrapped as the pipeline wraps it (src/core/pipeline.ts): a single 503, 429, reset or timeout is
   // retried and absorbed exactly as in a real release, rather than surfacing as a fallback.
@@ -109,13 +106,11 @@ describe.skipIf(!E2E_ENABLED)('notes LLM e2e (real Ollama)', () => {
     capabilities: ollama.capabilities,
     async complete(messages, options) {
       try {
-        if (tripped !== undefined) throw tripped;
         return await withRetry(() => ollama.complete(messages, { ...options, timeout: CALL_TIMEOUT_MS }), {
           ...LLM_DEFAULTS.retry,
           shouldRetry: isRetryableLLMError,
         });
       } catch (error) {
-        if (isRetryableLLMError(error)) tripped = error;
         failures.push(error);
         throw error;
       }
@@ -124,7 +119,6 @@ describe.skipIf(!E2E_ENABLED)('notes LLM e2e (real Ollama)', () => {
 
   beforeEach(() => {
     failures = [];
-    tripped = undefined;
   });
 
   it(
@@ -153,13 +147,12 @@ describe.skipIf(!E2E_ENABLED)('notes LLM e2e (real Ollama)', () => {
       // outlived the retries can tell which, and it's an outage only if every one of them proves it. The
       // call is per test, not per chunk: a chunk that fell back for a real reason in a run where the other
       // chunk hit an outage skips too — the next clean run goes red.
-      const errors = [...new Set(failures)];
-      if ((firstChunk === 0 || lastChunk === 0) && errors.length > 0 && errors.every(isProviderUnreachable)) {
-        skipUnreachable(ctx, errors);
+      if ((firstChunk === 0 || lastChunk === 0) && failures.length > 0 && failures.every(isProviderUnreachable)) {
+        skipUnreachable(ctx, failures);
       }
       const why =
-        errors.length > 0
-          ? `provider errors: ${errors.map(describeError).join('; ')}`
+        failures.length > 0
+          ? `provider errors: ${failures.map(describeError).join('; ')}`
           : 'no provider error, so its output failed validation or came back verbatim (see the warnings above)';
       expect(firstChunk, `chunk 1 (entries 1-${CHUNK_SIZE}) came back unrewritten; ${why}`).toBeGreaterThan(0);
       expect(

@@ -2,7 +2,7 @@ import { LLMError } from '../../src/errors/index.js';
 
 /**
  * Socket-level failure codes: production's `NETWORK_ERROR_CODES` (`src/llm/retryable.ts`, copied rather
- * than exported for a test) plus the host-unreachable codes and undici's socket and connect-timeout codes.
+ * than exported for a test) plus undici's socket and connect-timeout codes.
  * If the two drift, this side only gets stricter — a red, never a silent skip.
  */
 const TRANSPORT_ERROR_CODES = new Set([
@@ -15,8 +15,6 @@ const TRANSPORT_ERROR_CODES = new Set([
   'EPIPE',
   'ENETUNREACH',
   'ENETDOWN',
-  'EHOSTUNREACH',
-  'EHOSTDOWN',
   'UND_ERR_SOCKET',
   'UND_ERR_CONNECT_TIMEOUT',
 ]);
