@@ -24,7 +24,7 @@ See [configuration.md](./configuration.md) for the full config reference.
 - OIDC / trusted publishing for crates.io — token-based auth only via `CARGO_REGISTRY_TOKEN`
 - Automatic workspace root discovery — crate directories must be listed in `version.cargo.paths` or inferred from `version.packages`
 - Comment and formatting preservation in `Cargo.toml` — the file is rewritten on version bump using `smol-toml`'s serialiser; whitespace, comments, and key order may change
-- Same-named path crates at the same version in different workspaces (say, two `utils` members): bumping one can also rewrite the other in a lock that depends on it. Give such crates distinct names
+- Same-named path crates at the same version in different workspaces (say, two `utils` members), or at any version when the bumped crate inherits its version and has no committed lock of its own: bumping one can also rewrite the other in a lock that depends on it. Give such crates distinct names
 
 ---
 
