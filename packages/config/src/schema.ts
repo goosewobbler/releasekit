@@ -21,7 +21,7 @@ export const GitConfigSchema = z.object({
     .string()
     .optional()
     .describe(
-      "Branch to push the release commit to (default: the current branch) and the standing release PR's base (default: main).",
+      'Branch that releases land on: a direct release pushes its commit here, and the standing release PR targets it. When unset, a direct release pushes the current branch and the standing PR targets main.',
     ),
   pushMethod: z.enum(['auto', 'ssh', 'https']).default('auto').describe('Method for pushing to remote'),
   push: z.boolean().optional().describe('Whether to push changes to remote'),
