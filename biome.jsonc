@@ -109,6 +109,25 @@
           }
         }
       }
+    },
+    {
+      // Package code logs through the logger (core's, or version's utils/logging.ts). Exempt are the
+      // loggers themselves and the CLI command layer, which owns the terminal: the JSON result on
+      // stdout, the final error message on stderr.
+      "includes": [
+        "packages/*/src/**",
+        "!packages/core/src/logger.ts",
+        "!packages/version/src/utils/logging.ts",
+        "!packages/*/src/command.ts",
+        "!packages/*/src/commands/**"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "error"
+          }
+        }
+      }
     }
   ],
   "assist": {

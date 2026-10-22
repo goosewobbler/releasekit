@@ -291,6 +291,7 @@ export function getJsonData(): VersionOutput {
  */
 export function printJsonOutput(): void {
   if (_jsonOutputMode) {
+    // biome-ignore lint/suspicious/noConsole: the JSON result is the command's stdout output, not a diagnostic.
     console.log(JSON.stringify(_jsonData, null, 2));
   }
 }

@@ -3,6 +3,7 @@
  */
 
 import { cwd } from 'node:process';
+import { inspect } from 'node:util';
 import { sanitizePackageName, shouldMatchPackageTargets } from '@releasekit/core';
 import { Bumper } from 'conventional-recommended-bump';
 import type { ReleaseType } from 'semver';
@@ -487,7 +488,7 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
       log(`Error in conventional commits calculation`, 'debug');
       // Handle errors during conventional bump calculation
       log(`Failed to calculate version for ${name || 'project'}`, 'error');
-      console.error(error);
+      log(inspect(error), 'error');
       // Check if the error is specifically due to no tags found by underlying git commands
       if (error instanceof Error && error.message.includes('No names found')) {
         log('No tags found, proceeding with initial version calculation (if applicable).', 'info');
@@ -502,7 +503,7 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
     log(`Error in version calculation`, 'debug');
     // Handle errors during conventional bump calculation
     log(`Failed to calculate version for ${name || 'project'}`, 'error');
-    console.error(error);
+    log(inspect(error), 'error');
     // Check if the error is specifically due to no tags found by underlying git commands
     if (error instanceof Error && error.message.includes('No names found')) {
       log('No tags found, proceeding with initial version calculation (if applicable).', 'info');
