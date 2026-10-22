@@ -76,8 +76,12 @@ function extractSetupSteps(scenario: Scenario): Step[] {
   }
   const setup: Step[] = [];
   for (const step of job.steps) {
-    if (isReleasekitRun(step)) break; // setup is everything before the release call
-    if (isCheckout(step) || isOutOfScopeApiStep(step)) continue;
+    if (isReleasekitRun(step)) {
+      break; // setup is everything before the release call
+    }
+    if (isCheckout(step) || isOutOfScopeApiStep(step)) {
+      continue;
+    }
     // Strip only envs that would fail or do harm in a dry run: references to
     // `secrets.*`. Keep diagnostic toggles (LOG_LEVEL, RUST_BACKTRACE, ...) and
     // plain literals — the smoke job's value is the missing-tool signal, not
@@ -86,7 +90,9 @@ function extractSetupSteps(scenario: Scenario): Step[] {
     if (cleaned.env && typeof cleaned.env === 'object') {
       const filtered: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(cleaned.env as Record<string, unknown>)) {
-        if (!isSecretReferencingEnvValue(v)) filtered[k] = v;
+        if (!isSecretReferencingEnvValue(v)) {
+          filtered[k] = v;
+        }
       }
       if (Object.keys(filtered).length > 0) {
         cleaned.env = filtered;
@@ -114,7 +120,9 @@ function runtimeProbe(scenario: Scenario): Step | undefined {
     publish?: { cargo?: { enabled?: boolean } };
   };
   const cargoEnabled = cfg.version?.cargo?.enabled === true || cfg.publish?.cargo?.enabled === true;
-  if (!cargoEnabled) return undefined;
+  if (!cargoEnabled) {
+    return undefined;
+  }
   return {
     name: 'Probe: cargo is on PATH (config enables cargo)',
     // The example's rust-toolchain step must have put cargo here; if it was
@@ -149,7 +157,9 @@ function smokeJob(scenario: Scenario): Record<string, unknown> {
   }
 
   const probe = runtimeProbe(scenario);
-  if (probe) steps.push(probe);
+  if (probe) {
+    steps.push(probe);
+  }
 
   steps.push({
     name: `Dry-run release (${scenario.proves})`,

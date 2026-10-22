@@ -28,8 +28,12 @@ async function isCratePublished(name: string, version: string): Promise<boolean>
       signal: AbortSignal.timeout(CRATES_IO_API_TIMEOUT_MS),
       headers: { 'User-Agent': CRATES_IO_USER_AGENT },
     });
-    if (response.status === 200) return true;
-    if (response.status === 404) return false;
+    if (response.status === 200) {
+      return true;
+    }
+    if (response.status === 404) {
+      return false;
+    }
     debug(`crates.io published-check returned ${response.status} for ${name}@${version}, will attempt publish`);
     return false;
   } catch (error) {
@@ -94,8 +98,12 @@ export const cargoRegistry: Registry<CargoTarget, CargoSession> = {
 
   async publish(target: CargoTarget, ctx: PipelineContext, session: CargoSession): Promise<void> {
     const publishArgs = ['publish', '--manifest-path', target.manifestPath];
-    if (ctx.config.cargo.noVerify) publishArgs.push('--no-verify');
-    if (session.isDirty) publishArgs.push('--allow-dirty');
+    if (ctx.config.cargo.noVerify) {
+      publishArgs.push('--no-verify');
+    }
+    if (session.isDirty) {
+      publishArgs.push('--allow-dirty');
+    }
 
     await execCommand('cargo', publishArgs, {
       cwd: ctx.cwd,

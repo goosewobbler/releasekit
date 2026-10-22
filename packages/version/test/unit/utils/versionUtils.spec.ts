@@ -171,16 +171,36 @@ describe('Version Utils', () => {
     beforeEach(() => {
       // Setup semver mocks
       vi.mocked(semver.prerelease, { partial: true }).mockImplementation((version) => {
-        if (version === '1.0.0-beta.1') return ['beta', 1];
-        if (version === '1.0.0-beta.2') return ['beta', 2];
-        if (version === '1.0.0-alpha.3') return ['alpha', 3];
-        if (version === '1.0.0-next.0') return ['next', 0];
-        if (version === '2.0.0-alpha.3') return ['alpha', 3];
-        if (version === '2.0.0-next.0') return ['next', 0];
-        if (version === '3.0.0-rc.1') return ['rc', 1];
-        if (version === '2.1.0-next.4') return ['next', 4];
-        if (version === '3.5.0-beta.12') return ['beta', 12];
-        if (version === '4.0.1-rc.2') return ['rc', 2];
+        if (version === '1.0.0-beta.1') {
+          return ['beta', 1];
+        }
+        if (version === '1.0.0-beta.2') {
+          return ['beta', 2];
+        }
+        if (version === '1.0.0-alpha.3') {
+          return ['alpha', 3];
+        }
+        if (version === '1.0.0-next.0') {
+          return ['next', 0];
+        }
+        if (version === '2.0.0-alpha.3') {
+          return ['alpha', 3];
+        }
+        if (version === '2.0.0-next.0') {
+          return ['next', 0];
+        }
+        if (version === '3.0.0-rc.1') {
+          return ['rc', 1];
+        }
+        if (version === '2.1.0-next.4') {
+          return ['next', 4];
+        }
+        if (version === '3.5.0-beta.12') {
+          return ['beta', 12];
+        }
+        if (version === '4.0.1-rc.2') {
+          return ['rc', 2];
+        }
         return null;
       });
 
@@ -270,15 +290,33 @@ describe('Version Utils', () => {
 
       vi.mocked(semver.inc, { partial: true }).mockImplementation((version, releaseType, identifier) => {
         // Stable base versions (after stripping prerelease)
-        if (version === '1.0.0' && releaseType === 'major') return '2.0.0';
-        if (version === '1.0.0' && releaseType === 'minor') return '1.1.0';
-        if (version === '1.0.0' && releaseType === 'patch') return '1.0.1';
-        if (version === '2.0.0' && releaseType === 'major') return '3.0.0';
-        if (version === '3.0.0' && releaseType === 'major') return '4.0.0';
-        if (version === '2.1.0' && releaseType === 'minor') return '2.2.0';
-        if (version === '3.5.0' && releaseType === 'minor') return '3.6.0';
-        if (version === '4.0.1' && releaseType === 'patch') return '4.0.2';
-        if (version === '4.0.1' && releaseType === 'minor') return '4.1.0';
+        if (version === '1.0.0' && releaseType === 'major') {
+          return '2.0.0';
+        }
+        if (version === '1.0.0' && releaseType === 'minor') {
+          return '1.1.0';
+        }
+        if (version === '1.0.0' && releaseType === 'patch') {
+          return '1.0.1';
+        }
+        if (version === '2.0.0' && releaseType === 'major') {
+          return '3.0.0';
+        }
+        if (version === '3.0.0' && releaseType === 'major') {
+          return '4.0.0';
+        }
+        if (version === '2.1.0' && releaseType === 'minor') {
+          return '2.2.0';
+        }
+        if (version === '3.5.0' && releaseType === 'minor') {
+          return '3.6.0';
+        }
+        if (version === '4.0.1' && releaseType === 'patch') {
+          return '4.0.2';
+        }
+        if (version === '4.0.1' && releaseType === 'minor') {
+          return '4.1.0';
+        }
 
         if (version === '1.0.0' && releaseType === 'premajor' && identifier === 'alpha') {
           return '2.0.0-alpha.0';
@@ -298,24 +336,44 @@ describe('Version Utils', () => {
         // Cases for prerelease increment on existing prerelease versions
         // Using 'prerelease' release type increments the prerelease counter only
         if (releaseType === 'prerelease' && identifier === 'next') {
-          if (version === '1.0.0-next.0') return '1.0.0-next.1';
-          if (version === '1.0.0-next.4') return '1.0.0-next.5';
-          if (version === '2.0.0-next.0') return '2.0.0-next.1';
+          if (version === '1.0.0-next.0') {
+            return '1.0.0-next.1';
+          }
+          if (version === '1.0.0-next.4') {
+            return '1.0.0-next.5';
+          }
+          if (version === '2.0.0-next.0') {
+            return '2.0.0-next.1';
+          }
         }
         if (releaseType === 'prerelease' && identifier === 'beta') {
-          if (version === '1.0.0-beta.1') return '1.0.0-beta.2';
-          if (version === '1.0.0-beta.2') return '1.0.0-beta.3';
+          if (version === '1.0.0-beta.1') {
+            return '1.0.0-beta.2';
+          }
+          if (version === '1.0.0-beta.2') {
+            return '1.0.0-beta.3';
+          }
         }
         if (releaseType === 'prerelease' && identifier === 'alpha') {
-          if (version === '1.0.0-alpha.3') return '1.0.0-alpha.4';
-          if (version === '2.0.0-alpha.3') return '2.0.0-alpha.4';
+          if (version === '1.0.0-alpha.3') {
+            return '1.0.0-alpha.4';
+          }
+          if (version === '2.0.0-alpha.3') {
+            return '2.0.0-alpha.4';
+          }
         }
 
         // Handle prepatch/preminor/premajor calls that fall through (for stable versions with identifiers)
         if (identifier === 'next' || identifier === 'alpha' || identifier === 'beta') {
-          if (version === '2.0.0' && releaseType === 'premajor') return '3.0.0-next.0';
-          if (version === '1.0.0' && releaseType === 'preminor') return '1.1.0-next.0';
-          if (version === '1.0.0' && releaseType === 'prepatch') return '1.0.1-next.0';
+          if (version === '2.0.0' && releaseType === 'premajor') {
+            return '3.0.0-next.0';
+          }
+          if (version === '1.0.0' && releaseType === 'preminor') {
+            return '1.1.0-next.0';
+          }
+          if (version === '1.0.0' && releaseType === 'prepatch') {
+            return '1.0.1-next.0';
+          }
         }
 
         return `${version}.incremented`;

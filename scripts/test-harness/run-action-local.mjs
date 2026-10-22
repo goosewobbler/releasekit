@@ -4,7 +4,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 function normalizeBoolean(value, defaultValue = false) {
-  if (value === undefined || value === '') return defaultValue;
+  if (value === undefined || value === '') {
+    return defaultValue;
+  }
   return value === 'true';
 }
 
@@ -78,7 +80,9 @@ function buildPreviewArgs(input) {
 
 export function parseReleaseOutput(stdout) {
   const trimmed = stdout.trim();
-  if (!trimmed) return undefined;
+  if (!trimmed) {
+    return undefined;
+  }
   try {
     return JSON.parse(trimmed);
   } catch {

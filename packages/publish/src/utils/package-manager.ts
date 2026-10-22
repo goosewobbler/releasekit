@@ -4,8 +4,12 @@ import * as path from 'node:path';
 export type PackageManager = 'pnpm' | 'npm' | 'yarn';
 
 export function detectPackageManager(cwd: string): PackageManager {
-  if (fs.existsSync(path.join(cwd, 'pnpm-lock.yaml'))) return 'pnpm';
-  if (fs.existsSync(path.join(cwd, 'yarn.lock'))) return 'yarn';
+  if (fs.existsSync(path.join(cwd, 'pnpm-lock.yaml'))) {
+    return 'pnpm';
+  }
+  if (fs.existsSync(path.join(cwd, 'yarn.lock'))) {
+    return 'yarn';
+  }
   return 'npm';
 }
 
@@ -21,7 +25,9 @@ export function buildPublishCommand(
   if (pm === 'pnpm') {
     file = 'pnpm';
     args = ['publish', '--access', options.access, '--tag', options.tag];
-    if (options.noGitChecks) args.push('--no-git-checks');
+    if (options.noGitChecks) {
+      args.push('--no-git-checks');
+    }
   } else {
     file = 'npm';
     args = ['publish', '--access', options.access, '--tag', options.tag];

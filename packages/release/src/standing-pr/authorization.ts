@@ -37,7 +37,9 @@ export interface EventActor {
 /** Read the triggering actor (and the merger, for publish) from the GitHub Actions event payload. */
 export function getEventActor(): EventActor {
   const eventPath = process.env.GITHUB_EVENT_PATH;
-  if (!eventPath) return {};
+  if (!eventPath) {
+    return {};
+  }
   try {
     const event = JSON.parse(fs.readFileSync(eventPath, 'utf-8')) as {
       action?: string;
@@ -63,7 +65,9 @@ function isBot(login: string | undefined, type: string | undefined): boolean {
 
 /** An `allowedActors` entry naming a GitHub team, e.g. `@acme/releasers` → `{ org, team }`. */
 function parseTeamRef(entry: string): { org: string; team: string } | undefined {
-  if (!entry.startsWith('@') || !entry.includes('/')) return undefined;
+  if (!entry.startsWith('@') || !entry.includes('/')) {
+    return undefined;
+  }
   const [org, team] = entry.slice(1).split('/');
   return org && team ? { org, team } : undefined;
 }
@@ -83,25 +87,35 @@ export async function isAuthorizedActor(
   type: string | undefined,
   authz: StandingPrAuthorization,
 ): Promise<boolean> {
-  if (isBot(login, type)) return true;
-  if (!login) return false;
+  if (isBot(login, type)) {
+    return true;
+  }
+  if (!login) {
+    return false;
+  }
   const entries = authz.allowedActors ?? [];
 
   // 1. Username allow-list. GitHub usernames are case-insensitive, so compare case-folded — an
   //    `allowedActors: ['Alice']` entry must still match an event delivering `login: 'alice'`.
   const lc = login.toLowerCase();
-  if (entries.some((e) => !parseTeamRef(e) && e.toLowerCase() === lc)) return true;
+  if (entries.some((e) => !parseTeamRef(e) && e.toLowerCase() === lc)) {
+    return true;
+  }
 
   // 2. Repository permission threshold.
   const permission = await forge.getActorPermission(login);
-  if (PERMISSION_RANK[permission] >= PERMISSION_RANK[authz.requiredPermission]) return true;
+  if (PERMISSION_RANK[permission] >= PERMISSION_RANK[authz.requiredPermission]) {
+    return true;
+  }
 
   // 3. Team membership — last, since it costs an API call per team and a 403 (no org-read scope)
   //    propagates to the caller's gate wrapper. An `@org/team` member is authorized regardless of
   //    repo permission.
   for (const entry of entries) {
     const ref = parseTeamRef(entry);
-    if (ref && (await forge.isTeamMember(ref.org, ref.team, login))) return true;
+    if (ref && (await forge.isTeamMember(ref.org, ref.team, login))) {
+      return true;
+    }
   }
   return false;
 }

@@ -24,7 +24,9 @@ describe('withRetry()', () => {
     const result = await withRetry(
       async () => {
         calls++;
-        if (calls < 2) throw new Error('temporary error');
+        if (calls < 2) {
+          throw new Error('temporary error');
+        }
         return 'ok';
       },
       { maxAttempts: 3, initialDelay: 0 },
@@ -106,7 +108,9 @@ describe('withRetry()', () => {
     const result = await withRetry(
       async () => {
         calls++;
-        if (calls < 3) throw new Error('not yet');
+        if (calls < 3) {
+          throw new Error('not yet');
+        }
         return 'done';
       },
       { maxAttempts: 3, initialDelay: 0 },

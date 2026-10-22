@@ -34,8 +34,12 @@ export function createPublishCommand(): Command {
     .action(async (options) => {
       const io = { json: options.json, output: options.output };
 
-      if (options.verbose) setLogLevel('debug');
-      if (options.json) setJsonMode(true);
+      if (options.verbose) {
+        setLogLevel('debug');
+      }
+      if (options.json) {
+        setJsonMode(true);
+      }
 
       try {
         const config = loadConfig({ configPath: options.config });

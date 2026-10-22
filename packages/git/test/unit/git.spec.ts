@@ -23,7 +23,9 @@ function makeRunner(responses: { stdout?: string; stderr?: string; reject?: unkn
   const calls: Call[] = [];
   const run: GitRunner = vi.fn(async (args, options) => {
     calls.push({ args, options });
-    if (responses.reject !== undefined) throw responses.reject;
+    if (responses.reject !== undefined) {
+      throw responses.reject;
+    }
     return { stdout: responses.stdout ?? '', stderr: responses.stderr ?? '' };
   });
   return { run, calls };

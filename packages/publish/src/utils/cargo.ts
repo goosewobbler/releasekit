@@ -23,7 +23,9 @@ export { parseCargoToml };
  */
 export async function syncCargoLockfile(crateDir: string): Promise<string | undefined> {
   const lockPath = findCargoLockfile(crateDir);
-  if (!lockPath) return undefined;
+  if (!lockPath) {
+    return undefined;
+  }
 
   try {
     await execCommand('cargo', ['update', '--workspace', '--offline'], {

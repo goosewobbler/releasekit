@@ -140,13 +140,19 @@ try {
         encoding: 'utf-8',
         env: process.env,
       });
-      if (result.stdout) console.log(result.stdout);
-      if (result.stderr) console.log(result.stderr);
+      if (result.stdout) {
+        console.log(result.stdout);
+      }
+      if (result.stderr) {
+        console.log(result.stderr);
+      }
       return result;
     };
 
     const assert = (cond, msg) => {
-      if (!cond) throw new Error(`Backfill assertion failed: ${msg}`);
+      if (!cond) {
+        throw new Error(`Backfill assertion failed: ${msg}`);
+      }
     };
 
     // 1. --all --apply: reconstruct every workspace package from the global tag series, write files.
@@ -166,8 +172,12 @@ try {
       assert(body.includes(exp.date), `${exp.file} should be dated ${exp.date}`);
       assert(!body.includes(today), `${exp.file} should not be stamped with today's date (${today})`);
       // Entries are scoped to the package's own directory.
-      for (const s of exp.has) assert(body.includes(s), `${exp.file} should mention "${s}"`);
-      for (const s of exp.hasNot) assert(!body.includes(s), `${exp.file} should NOT mention "${s}" (path scoping)`);
+      for (const s of exp.has) {
+        assert(body.includes(s), `${exp.file} should mention "${s}"`);
+      }
+      for (const s of exp.hasNot) {
+        assert(!body.includes(s), `${exp.file} should NOT mention "${s}" (path scoping)`);
+      }
       console.log(`✓ ${exp.file}: dated ${exp.date}, scoped correctly`);
     }
 

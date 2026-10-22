@@ -163,7 +163,9 @@ export class GitCli implements Git {
 
   async listTags(opts: GitListTagsOptions = {}): Promise<string[]> {
     const args = ['tag'];
-    if (opts.sort) args.push(`--sort=${opts.sort}`);
+    if (opts.sort) {
+      args.push(`--sort=${opts.sort}`);
+    }
     const { stdout } = await this.exec(args, { cwd: this.cwd(opts.cwd) });
     return splitLines(stdout);
   }
@@ -203,18 +205,30 @@ export class GitCli implements Git {
   async countCommits(range: string, opts: GitCountCommitsOptions = {}): Promise<number> {
     assertNotOption(range, 'range');
     const args = ['rev-list', '--count', range];
-    if (opts.path) args.push('--', opts.path);
+    if (opts.path) {
+      args.push('--', opts.path);
+    }
     const { stdout } = await this.exec(args, { cwd: this.cwd(opts.cwd) });
     return Number.parseInt(stdout.trim(), 10) || 0;
   }
 
   async log(opts: GitLogOptions): Promise<string> {
-    if (opts.range !== undefined) assertNotOption(opts.range, 'range');
+    if (opts.range !== undefined) {
+      assertNotOption(opts.range, 'range');
+    }
     const args = ['log'];
-    if (opts.format !== undefined) args.push(`--format=${opts.format}`);
-    if (opts.extraArgs) args.push(...opts.extraArgs);
-    if (opts.range !== undefined) args.push(opts.range);
-    if (opts.paths && opts.paths.length > 0) args.push('--', ...opts.paths);
+    if (opts.format !== undefined) {
+      args.push(`--format=${opts.format}`);
+    }
+    if (opts.extraArgs) {
+      args.push(...opts.extraArgs);
+    }
+    if (opts.range !== undefined) {
+      args.push(opts.range);
+    }
+    if (opts.paths && opts.paths.length > 0) {
+      args.push('--', ...opts.paths);
+    }
     const { stdout } = await this.exec(args, { cwd: this.cwd(opts.cwd) });
     return stdout;
   }
@@ -230,10 +244,16 @@ export class GitCli implements Git {
   async forEachRef(opts: GitForEachRefOptions): Promise<string[]> {
     // `format`/`sort` are flag values by design; `pattern` is a positional ref, so guard it like
     // every other user-controlled positional (a leading-`-` pattern would be read as an option).
-    if (opts.pattern !== undefined) assertNotOption(opts.pattern, 'pattern');
+    if (opts.pattern !== undefined) {
+      assertNotOption(opts.pattern, 'pattern');
+    }
     const args = ['for-each-ref', `--format=${opts.format}`];
-    if (opts.sort) args.push(`--sort=${opts.sort}`);
-    if (opts.pattern) args.push(opts.pattern);
+    if (opts.sort) {
+      args.push(`--sort=${opts.sort}`);
+    }
+    if (opts.pattern) {
+      args.push(opts.pattern);
+    }
     const { stdout } = await this.exec(args, { cwd: this.cwd(opts.cwd) });
     return splitLines(stdout);
   }
@@ -262,8 +282,12 @@ export class GitCli implements Git {
 
   async commit(message: string, opts: GitCommitOptions = {}): Promise<void> {
     const args = ['commit', '-m', message];
-    if (opts.skipHooks) args.push('--no-verify');
-    if (opts.paths && opts.paths.length > 0) args.push('--', ...opts.paths);
+    if (opts.skipHooks) {
+      args.push('--no-verify');
+    }
+    if (opts.paths && opts.paths.length > 0) {
+      args.push('--', ...opts.paths);
+    }
     await this.exec(args, { cwd: this.cwd(opts.cwd) });
   }
 
@@ -292,22 +316,35 @@ export class GitCli implements Git {
 
   async status(opts: GitStatusOptions = {}): Promise<string> {
     const args = ['status'];
-    if (opts.porcelain) args.push('--porcelain');
-    if (opts.paths && opts.paths.length > 0) args.push('--', ...opts.paths);
+    if (opts.porcelain) {
+      args.push('--porcelain');
+    }
+    if (opts.paths && opts.paths.length > 0) {
+      args.push('--', ...opts.paths);
+    }
     const { stdout } = await this.exec(args, { cwd: this.cwd(opts.cwd) });
     return stdout;
   }
 
   async push(opts: GitPushOptions): Promise<void> {
     assertNotOption(opts.remote, 'remote');
-    if (opts.ref !== undefined) assertNotOption(opts.ref, 'ref');
+    if (opts.ref !== undefined) {
+      assertNotOption(opts.ref, 'ref');
+    }
     const args = ['push'];
-    if (opts.forceWithLease) args.push('--force-with-lease');
-    else if (opts.force) args.push('--force');
-    if (opts.tags) args.push('--tags');
+    if (opts.forceWithLease) {
+      args.push('--force-with-lease');
+    } else if (opts.force) {
+      args.push('--force');
+    }
+    if (opts.tags) {
+      args.push('--tags');
+    }
     // `--end-of-options`: remote/ref can never be parsed as git options (`--receive-pack=…` → RCE).
     args.push('--end-of-options', opts.remote);
-    if (opts.ref !== undefined) args.push(opts.ref);
+    if (opts.ref !== undefined) {
+      args.push(opts.ref);
+    }
     // A push can hang on a stalled network forever; a hard timeout preserves the safety the publish
     // package previously got from its async exec wrapper. execFile kills the child on expiry.
     await this.exec(args, { cwd: this.cwd(opts.cwd), timeout: opts.timeoutMs ?? DEFAULT_PUSH_TIMEOUT_MS });

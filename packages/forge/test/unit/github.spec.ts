@@ -72,7 +72,9 @@ function makeOctokit() {
 function pages<T>(...batches: T[][]) {
   return {
     async *[Symbol.asyncIterator]() {
-      for (const data of batches) yield { data };
+      for (const data of batches) {
+        yield { data };
+      }
     },
   };
 }

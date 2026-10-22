@@ -57,7 +57,9 @@ export function enableJsonOutput(dryRun = false): void {
  * Called during dryRun passes in place of writing directly to disk.
  */
 export function recordPendingWrite(path: string, content: string): void {
-  if (!_jsonOutputMode) return;
+  if (!_jsonOutputMode) {
+    return;
+  }
   _pendingWrites.push({ path, content });
 }
 
@@ -93,7 +95,9 @@ export function isJsonOutputMode(): boolean {
  * (preview, standing PR) can render sync releases as a single versioned unit.
  */
 export function setVersioningStrategy(strategy: 'sync' | 'single' | 'async' | 'group'): void {
-  if (!_jsonOutputMode) return;
+  if (!_jsonOutputMode) {
+    return;
+  }
   _jsonData.strategy = strategy;
 }
 
@@ -111,7 +115,9 @@ export function setVersioningStrategy(strategy: 'sync' | 'single' | 'async' | 'g
  * for the same directory exists.
  */
 export function addPackageUpdate(packageName: string, newVersion: string, filePath: string, isRoot?: boolean): void {
-  if (!_jsonOutputMode) return;
+  if (!_jsonOutputMode) {
+    return;
+  }
 
   // Channel is derived per-package from the resolved version so every consumer (preview,
   // standing PR) reads a single authoritative value rather than re-deriving it.
@@ -145,9 +151,13 @@ export function addPackageUpdate(packageName: string, newVersion: string, filePa
  * Called after the tag name is computed, to link it back to the update record.
  */
 export function setPackageUpdateTag(packageName: string, tag: string): void {
-  if (!_jsonOutputMode) return;
+  if (!_jsonOutputMode) {
+    return;
+  }
   const update = _jsonData.updates.find((u) => u.packageName === packageName);
-  if (update) update.tag = tag;
+  if (update) {
+    update.tag = tag;
+  }
 }
 
 /**
@@ -156,9 +166,13 @@ export function setPackageUpdateTag(packageName: string, tag: string): void {
  * package.json update has been recorded.
  */
 export function setPackageUpdateGroup(packageName: string, group: string): void {
-  if (!_jsonOutputMode) return;
+  if (!_jsonOutputMode) {
+    return;
+  }
   const update = _jsonData.updates.find((u) => u.packageName === packageName);
-  if (update) update.group = group;
+  if (update) {
+    update.group = group;
+  }
 }
 
 /**
@@ -168,7 +182,9 @@ export function setPackageUpdateGroup(packageName: string, group: string): void 
  * isn't found (mirrors the other setPackageUpdate* helpers).
  */
 export function setPackageUpdateAction(packageName: string, action: VersionAction, reason: string): void {
-  if (!_jsonOutputMode) return;
+  if (!_jsonOutputMode) {
+    return;
+  }
   const update = _jsonData.updates.find((u) => u.packageName === packageName);
   if (update) {
     update.action = action;
@@ -184,9 +200,13 @@ export function setPackageUpdateAction(packageName: string, action: VersionActio
  * setPackageUpdate* helpers).
  */
 export function setPackageUpdatePreviousVersion(packageName: string, previousVersion: string | null): void {
-  if (!_jsonOutputMode || previousVersion === null) return;
+  if (!_jsonOutputMode || previousVersion === null) {
+    return;
+  }
   const update = _jsonData.updates.find((u) => u.packageName === packageName);
-  if (update) update.previousVersion = previousVersion;
+  if (update) {
+    update.previousVersion = previousVersion;
+  }
 }
 
 /**
@@ -196,7 +216,9 @@ export function setPackageUpdatePreviousVersion(packageName: string, previousVer
  * (otherwise-private) update list.
  */
 export function setAllPackageUpdateActions(action: VersionAction, reason: string): void {
-  if (!_jsonOutputMode) return;
+  if (!_jsonOutputMode) {
+    return;
+  }
   for (const update of _jsonData.updates) {
     update.action = action;
     update.actionReason = reason;
@@ -209,7 +231,9 @@ export function setAllPackageUpdateActions(action: VersionAction, reason: string
  * the field absent everywhere. Owns the iteration internally, mirroring {@link setAllPackageUpdateActions}.
  */
 export function setAllPackageUpdatePreviousVersions(previousVersion: string | null): void {
-  if (!_jsonOutputMode || previousVersion === null) return;
+  if (!_jsonOutputMode || previousVersion === null) {
+    return;
+  }
   for (const update of _jsonData.updates) {
     update.previousVersion = previousVersion;
   }
@@ -222,7 +246,9 @@ export function setAllPackageUpdatePreviousVersions(previousVersion: string | nu
  * the engine after the strategy has produced the updates.
  */
 export function tagPrerequisiteRoles(overrideScope: string[], prerequisiteOf: Record<string, string[]>): void {
-  if (!_jsonOutputMode) return;
+  if (!_jsonOutputMode) {
+    return;
+  }
   const targets = new Set(overrideScope);
   for (const update of _jsonData.updates) {
     if (targets.has(update.packageName)) {
@@ -238,7 +264,9 @@ export function tagPrerequisiteRoles(overrideScope: string[], prerequisiteOf: Re
  * Add changelog data for a package to the JSON output
  */
 export function addChangelogData(data: VersionPackageChangelog): void {
-  if (!_jsonOutputMode) return;
+  if (!_jsonOutputMode) {
+    return;
+  }
 
   _jsonData.changelogs.push(data);
 }
@@ -248,7 +276,9 @@ export function addChangelogData(data: VersionPackageChangelog): void {
  * that don't belong to any specific package.
  */
 export function setSharedEntries(entries: VersionChangelogEntry[]): void {
-  if (!_jsonOutputMode) return;
+  if (!_jsonOutputMode) {
+    return;
+  }
   _jsonData.sharedEntries = entries.length > 0 ? entries : undefined;
 }
 
@@ -256,7 +286,9 @@ export function setSharedEntries(entries: VersionChangelogEntry[]): void {
  * Add a tag to the JSON output
  */
 export function addTag(tag: string): void {
-  if (!_jsonOutputMode) return;
+  if (!_jsonOutputMode) {
+    return;
+  }
 
   _jsonData.tags.push(tag);
 }
@@ -266,9 +298,13 @@ export function addTag(tag: string): void {
  * consumer tags but excluded from GitHub Release creation.
  */
 export function addBaselineTag(tag: string): void {
-  if (!_jsonOutputMode) return;
+  if (!_jsonOutputMode) {
+    return;
+  }
 
-  if (!_jsonData.baselineTags) _jsonData.baselineTags = [];
+  if (!_jsonData.baselineTags) {
+    _jsonData.baselineTags = [];
+  }
   _jsonData.baselineTags.push(tag);
 }
 
@@ -276,7 +312,9 @@ export function addBaselineTag(tag: string): void {
  * Set the commit message in the JSON output
  */
 export function setCommitMessage(message: string): void {
-  if (!_jsonOutputMode) return;
+  if (!_jsonOutputMode) {
+    return;
+  }
 
   _jsonData.commitMessage = message;
 }
