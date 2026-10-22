@@ -17,11 +17,10 @@ Design decisions are recorded in `docs/adr/` — check there before reworking a 
 
 ## Commands
 
-- **Before you push:** `pnpm lint`, `pnpm typecheck` and `pnpm test`. The commit hook only runs Biome and ESLint on staged files, and nothing runs on push. `pnpm test` runs each package's `test` script and the cross-package suite in `test/integration/`. It skips `@releasekit/version`'s own `test/integration/`; run `pnpm --filter @releasekit/version test:integration` when you change the version CLI (it has one known failure, [#654](https://github.com/goosewobbler/releasekit/issues/654)).
-- **One package:** `pnpm --filter <package> test` or `typecheck`. These skip Turborepo, so they run against the workspace dependencies' built `dist/`, which may be stale. Build those first with `pnpm turbo run build --filter=<package>^...`.
-- **Lint:** `pnpm lint` runs Biome over the repo and ESLint over `packages/**/*.ts`. A package's own `lint` script is Biome only. To check just what you changed, run `pnpm exec biome check <files>` and `pnpm exec eslint <files>`.
-- **Cache:** Turborepo caches `build`, `test` and `typecheck`; add `--force` to rerun a cached pass.
-- **Packed CLIs and the action:** CI also runs the action harness (`pnpm test:action:preview`, `pnpm test:action:release` and the `pnpm test:harness:*` scripts), the shell E2E suite (`pnpm exec tsx scripts/test-e2e.ts`) and an isolated install of each published package (`pnpm exec tsx scripts/test-packages.ts`). `pnpm test` runs none of them, so run them when you change a CLI, `action.yml` or what a package ships.
+- **Before you push:** run `pnpm lint`, `pnpm typecheck` and `pnpm test`. The commit hook only checks staged files, and nothing runs on push. `pnpm test` skips `@releasekit/version`'s own `test/integration/`; run `pnpm --filter @releasekit/version test:integration` when you change the version CLI.
+- **One package:** `pnpm --filter <package> test` or `typecheck` skips Turborepo, so it runs against the dependencies' built `dist/`, which may be stale. Build them first with `pnpm turbo run build --filter=<package>^...`.
+- **Lint:** a package's own `lint` script is Biome only; `pnpm lint` also runs ESLint.
+- **CI-only suites:** `pnpm test` doesn't run the action harness (`test:action:*`, `test:harness:*`), `scripts/test-e2e.ts` or `scripts/test-packages.ts`. Run them when you change a CLI, `action.yml` or what a package ships.
 
 ## Gotchas
 
@@ -31,6 +30,5 @@ Design decisions are recorded in `docs/adr/` — check there before reworking a 
 
 ## Code conventions the linters don't check
 
-- Avoid `any`. Biome only warns about it in source, and allows it in specs.
 - Test new behaviour through the path a user hits, such as a CLI command or a package's exported API, not only the helper underneath.
 - Default to no comment. Write one only when the *why* isn't clear from the code: a hidden constraint, a workaround, behaviour that would surprise a reader. Don't repeat the code, a JSDoc or a nearby comment, and don't narrate.
