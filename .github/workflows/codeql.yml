@@ -8,9 +8,16 @@ on:
   schedule:
     - cron: '0 6 * * 1' # Weekly on Monday at 06:00 UTC
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   analyze:
     name: Analyze
+    # Not on the standing release PR (ci.standingPr.branch), which only bumps versions and changelogs.
+    # The repo check keeps a fork's branch of the same name scanned.
+    if: ${{ github.head_ref != 'release/next' || github.event.pull_request.head.repo.full_name != github.repository }}
     runs-on: ubuntu-latest
     permissions:
       security-events: write
