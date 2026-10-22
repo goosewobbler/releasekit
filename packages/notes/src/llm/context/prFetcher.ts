@@ -29,10 +29,14 @@ function stripDetailsTags(input: string): string {
       const tagEnd = lower.indexOf('>', i);
       i = tagEnd === -1 ? input.length : tagEnd + 1;
     } else if (lower.startsWith('</details>', i)) {
-      if (depth > 0) depth--;
+      if (depth > 0) {
+        depth--;
+      }
       i += 10;
     } else {
-      if (depth === 0) result += input[i];
+      if (depth === 0) {
+        result += input[i];
+      }
       i++;
     }
   }
@@ -47,7 +51,9 @@ function sanitiseBody(raw: string): string {
 }
 
 function truncateBody(body: string): string {
-  if (body.length <= BODY_CAP) return body;
+  if (body.length <= BODY_CAP) {
+    return body;
+  }
 
   // Prefer truncating at a heading boundary
   const headingPos = body.lastIndexOf('\n#', BODY_CAP);

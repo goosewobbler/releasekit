@@ -62,7 +62,7 @@
     "chalk": "catalog:",
     "commander": "catalog:",
     "ejs": "^4.0.1",
-    "handlebars": "^4.7.9",
+    "handlebars": "^4.7.10",
     "jsonc-parser": "catalog:",
     "liquidjs": "^10.27.2",
     "minimatch": "catalog:",

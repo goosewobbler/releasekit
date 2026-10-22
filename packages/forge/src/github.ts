@@ -42,8 +42,12 @@ function labelNames(labels: LabelLike[] | undefined): string[] {
 
 /** Whether a createLabel error is GitHub's idempotent "label already exists" 422. */
 function isAlreadyExistsError(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) return false;
-  if ((error as { status?: number }).status !== 422) return false;
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+  if ((error as { status?: number }).status !== 422) {
+    return false;
+  }
   // A 422 for "already exists" carries an errors[].code === 'already_exists'. Other 422s (name too
   // long, disallowed characters, …) are real validation failures and must surface to the caller.
   const errors = (error as { response?: { data?: { errors?: Array<{ code?: string }> } } }).response?.data?.errors;
@@ -111,7 +115,9 @@ export class GitHubForge implements Forge {
       for (const pr of data) {
         prs.push({ number: pr.number, headRef: pr.head.ref, draft: pr.draft ?? false, baseSha: pr.base.sha });
       }
-      if (data.length < 100) break;
+      if (data.length < 100) {
+        break;
+      }
     }
     return prs;
   }
@@ -166,7 +172,9 @@ export class GitHubForge implements Forge {
     });
     for await (const response of iterator) {
       for (const issue of response.data) {
-        if (!issue.pull_request) return { number: issue.number, url: issue.html_url };
+        if (!issue.pull_request) {
+          return { number: issue.number, url: issue.html_url };
+        }
       }
     }
     return null;
@@ -178,14 +186,18 @@ export class GitHubForge implements Forge {
       // Prefer `role_name` — it distinguishes maintain/triage, which the coarse `permission`
       // ('admin'|'write'|'read'|'none') collapses. Fall back to `permission` for older API shapes.
       const role = data.role_name as RepoPermission | undefined;
-      if (role && REPO_PERMISSIONS.includes(role)) return role;
+      if (role && REPO_PERMISSIONS.includes(role)) {
+        return role;
+      }
       return (data.permission as RepoPermission) ?? 'none';
     } catch (error) {
       // 404 = not a collaborator / unknown user → genuinely no permission. Any other error (403 from a
       // mis-scoped token, 429 rate limit, 5xx, network) means we CAN'T determine permission — surface
       // it rather than silently reporting 'none', which would fail the gate closed for every real
       // actor (even admins) with no diagnostic.
-      if (forgeErrorStatus(error) === 404) return 'none';
+      if (forgeErrorStatus(error) === 404) {
+        return 'none';
+      }
       throw error;
     }
   }
@@ -199,7 +211,9 @@ export class GitHubForge implements Forge {
       // 404 = not a member. Any other error (403 = the token lacks org-read scope, network, …) can't
       // be answered — surface it (the caller's gate wrapper warns and fails closed) rather than
       // silently reporting "not a member", which is indistinguishable from a real non-member.
-      if (forgeErrorStatus(error) === 404) return false;
+      if (forgeErrorStatus(error) === 404) {
+        return false;
+      }
       throw error;
     }
   }
@@ -216,13 +230,17 @@ export class GitHubForge implements Forge {
     let humanMatch: ForgeComment | null = null;
     for await (const response of iterator) {
       for (const comment of response.data) {
-        if (!comment.body?.startsWith(marker)) continue;
+        if (!comment.body?.startsWith(marker)) {
+          continue;
+        }
         const found: ForgeComment = {
           id: comment.id,
           body: comment.body,
           user: comment.user ? { login: comment.user.login, type: comment.user.type } : undefined,
         };
-        if (isBotComment(found)) return found;
+        if (isBotComment(found)) {
+          return found;
+        }
         humanMatch ??= found;
       }
     }
@@ -256,7 +274,9 @@ export class GitHubForge implements Forge {
       per_page: 100,
     });
     for await (const response of iterator) {
-      for (const label of response.data) names.push(label.name);
+      for (const label of response.data) {
+        names.push(label.name);
+      }
     }
     return names;
   }
@@ -266,7 +286,9 @@ export class GitHubForge implements Forge {
       await this.octokit.rest.issues.createLabel({ ...this.base, ...label });
       return 'created';
     } catch (error) {
-      if (isAlreadyExistsError(error)) return 'exists';
+      if (isAlreadyExistsError(error)) {
+        return 'exists';
+      }
       throw error;
     }
   }
@@ -286,7 +308,9 @@ export class GitHubForge implements Forge {
       for (const r of data) {
         releases.push({ tagName: r.tag_name, draft: r.draft, prerelease: r.prerelease, body: r.body ?? '' });
       }
-      if (data.length < 100) break;
+      if (data.length < 100) {
+        break;
+      }
     }
     return releases;
   }

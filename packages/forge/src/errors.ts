@@ -7,7 +7,9 @@
 export function forgeErrorStatus(error: unknown): number | undefined {
   if (error && typeof error === 'object' && 'status' in error) {
     const { status } = error as { status?: unknown };
-    if (typeof status === 'number') return status;
+    if (typeof status === 'number') {
+      return status;
+    }
   }
   return undefined;
 }

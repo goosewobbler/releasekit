@@ -86,7 +86,9 @@ function dedupe(attributed: AttributedEntry[]): DedupedEntry[] {
   const byKey = new Map<string, DedupedEntry>();
   const order: DedupedEntry[] = [];
   for (const { entry, pkg } of attributed) {
-    if (entry.synthetic) continue;
+    if (entry.synthetic) {
+      continue;
+    }
     const key = dedupeKey(entry);
     let agg = byKey.get(key);
     if (!agg) {
@@ -94,7 +96,9 @@ function dedupe(attributed: AttributedEntry[]): DedupedEntry[] {
       byKey.set(key, agg);
       order.push(agg);
     }
-    if (pkg) agg.pkgs.add(pkg);
+    if (pkg) {
+      agg.pkgs.add(pkg);
+    }
   }
   return order;
 }
@@ -138,7 +142,11 @@ const DEMOTED_HEADING = 'Dependencies & version bumps';
  *  removed, so the caller's de-duplicated change count is unchanged. */
 function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions, demoteScopes: readonly string[]): string[] {
   const distinct = new Set<string>();
-  for (const d of deduped) for (const p of d.pkgs) distinct.add(p);
+  for (const d of deduped) {
+    for (const p of d.pkgs) {
+      distinct.add(p);
+    }
+  }
   // Attribution only earns its place when the list spans more than one package.
   const attribution = distinct.size > 1;
 
@@ -146,8 +154,11 @@ function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions, demot
   const promoted: DedupedEntry[] = [];
   const demoted: DedupedEntry[] = [];
   for (const d of deduped) {
-    if (demote && d.entry.scope !== undefined && demoteScopes.includes(d.entry.scope)) demoted.push(d);
-    else promoted.push(d);
+    if (demote && d.entry.scope !== undefined && demoteScopes.includes(d.entry.scope)) {
+      demoted.push(d);
+    } else {
+      promoted.push(d);
+    }
   }
 
   const byLabel = new Map<string, DedupedEntry[]>();
@@ -164,12 +175,16 @@ function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions, demot
   const lines: string[] = [];
   const emit = (label: string): void => {
     const list = byLabel.get(label);
-    if (!list?.length) return;
+    if (!list?.length) {
+      return;
+    }
     // `#### `, not bold `**…**`: inside the blockquote GitHub gives a heading paragraph-level
     // top margin, so consecutive sections stay visually separated — bold text collapses to near-zero
     // spacing there. Matches the preview surface, which already uses `#### ` headings.
     lines.push(`#### ${label}`, '');
-    for (const d of list) lines.push(entryLine(d, attribution, refOpts));
+    for (const d of list) {
+      lines.push(entryLine(d, attribution, refOpts));
+    }
     lines.push('');
   };
   const rendered = new Set<string>();
@@ -177,15 +192,23 @@ function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions, demot
     emit(label);
     rendered.add(label);
   }
-  for (const label of byLabel.keys()) if (!rendered.has(label)) emit(label);
+  for (const label of byLabel.keys()) {
+    if (!rendered.has(label)) {
+      emit(label);
+    }
+  }
   // The demoted subsection trails every type bucket, so low-signal dependency churn never crowds the
   // user-facing changes at the top. First-seen order is preserved (deduped iteration order).
   if (demoted.length > 0) {
     lines.push(`#### ${DEMOTED_HEADING}`, '');
-    for (const d of demoted) lines.push(entryLine(d, attribution, refOpts));
+    for (const d of demoted) {
+      lines.push(entryLine(d, attribution, refOpts));
+    }
     lines.push('');
   }
-  if (lines[lines.length - 1] === '') lines.pop();
+  if (lines[lines.length - 1] === '') {
+    lines.pop();
+  }
   return lines;
 }
 
@@ -238,11 +261,17 @@ export function makeRowChangelogRenderer(
     const attributed: AttributedEntry[] = [];
     for (const name of packageNames) {
       const cl = byPkg.get(name);
-      if (!cl) continue;
-      for (const entry of cl.entries) attributed.push({ entry, pkg: name });
+      if (!cl) {
+        continue;
+      }
+      for (const entry of cl.entries) {
+        attributed.push({ entry, pkg: name });
+      }
     }
     const deduped = dedupe(attributed);
-    if (deduped.length === 0) return '';
+    if (deduped.length === 0) {
+      return '';
+    }
     const summary = heldBack
       ? `<s>Changelog (${pluralEntries(deduped.length)})</s> — held back, won’t publish`
       : `Changelog (${pluralEntries(deduped.length)})`;
@@ -257,10 +286,14 @@ function collectAttributed(versionOutput: VersionOutput, sharedOnly: boolean): A
   const attributed: AttributedEntry[] = [];
   if (!sharedOnly) {
     for (const cl of versionOutput.changelogs) {
-      for (const entry of cl.entries) attributed.push({ entry, pkg: cl.packageName });
+      for (const entry of cl.entries) {
+        attributed.push({ entry, pkg: cl.packageName });
+      }
     }
   }
-  for (const entry of versionOutput.sharedEntries ?? []) attributed.push({ entry });
+  for (const entry of versionOutput.sharedEntries ?? []) {
+    attributed.push({ entry });
+  }
   return attributed;
 }
 
@@ -286,7 +319,9 @@ export function renderCombinedFooter(
   opts: { sharedOnly?: boolean; refs?: ChangelogRefsMode; demoteScopes?: readonly string[] } = {},
 ): string {
   const deduped = dedupe(collectAttributed(versionOutput, !!opts.sharedOnly));
-  if (deduped.length === 0) return '';
+  if (deduped.length === 0) {
+    return '';
+  }
   const n = deduped.length;
   const summary = opts.sharedOnly
     ? `Show project-wide changes (${n} ${n === 1 ? 'change' : 'changes'})`

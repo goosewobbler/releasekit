@@ -28,7 +28,9 @@ export async function withRetry<T>(fn: () => Promise<T>, options: RetryOptions =
       return await fn();
     } catch (error) {
       lastError = error;
-      if (options.shouldRetry && !options.shouldRetry(error)) break;
+      if (options.shouldRetry && !options.shouldRetry(error)) {
+        break;
+      }
       if (attempt < maxAttempts - 1) {
         const base = Math.min(initialDelay * backoffFactor ** attempt, maxDelay);
         const jitter = base * 0.2 * (Math.random() * 2 - 1);

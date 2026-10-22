@@ -27,7 +27,9 @@ export async function withCorrectiveRetry<T>(
     const result = await call(messages, attempt === 0);
     const validation = validate(result);
 
-    if (validation.valid) return validation.value;
+    if (validation.valid) {
+      return validation.value;
+    }
 
     lastError = validation.error;
 

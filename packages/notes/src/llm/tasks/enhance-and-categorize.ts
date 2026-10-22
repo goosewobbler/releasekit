@@ -74,7 +74,9 @@ export function createEnhanceAndCategorizeValidator(
   return (result) => {
     // Parse JSON (structured output or text fallback)
     const parsed = parseLLMResult(result);
-    if (!parsed.ok) return { valid: false, error: parsed.error };
+    if (!parsed.ok) {
+      return { valid: false, error: parsed.error };
+    }
 
     // Validate structure
     const zodResult = EnhanceAndCategorizeOutputSchema.safeParse(parsed.data);
@@ -99,12 +101,16 @@ export function createEnhanceAndCategorizeValidator(
       zodResult.data.entries,
       context.categories?.map((c) => c.name),
     );
-    if (categoryError) return { valid: false, error: categoryError };
+    if (categoryError) {
+      return { valid: false, error: categoryError };
+    }
 
     // Build enhanced entries
     const enhancedEntries: ChangelogEntry[] = entries.map((original, i) => {
       const llmEntry = zodResult.data.entries[i];
-      if (!llmEntry) return original;
+      if (!llmEntry) {
+        return original;
+      }
       return {
         ...original,
         description: llmEntry.description,
@@ -143,8 +149,11 @@ export function createEnhanceAndCategorizeValidator(
 function mergeCategories(target: CategorizedEntries[], incoming: CategorizedEntries[]): void {
   for (const cat of incoming) {
     const existing = target.find((c) => c.category === cat.category);
-    if (existing) existing.entries.push(...cat.entries);
-    else target.push({ category: cat.category, entries: [...cat.entries] });
+    if (existing) {
+      existing.entries.push(...cat.entries);
+    } else {
+      target.push({ category: cat.category, entries: [...cat.entries] });
+    }
   }
 }
 

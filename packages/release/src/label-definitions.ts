@@ -107,7 +107,9 @@ export function deriveLabelDefinitions(
   // first (more specific) definition so each label is created exactly once.
   const seen = new Set<string>();
   return definitions.filter((def) => {
-    if (!def.name || seen.has(def.name)) return false;
+    if (!def.name || seen.has(def.name)) {
+      return false;
+    }
     seen.add(def.name);
     return true;
   });

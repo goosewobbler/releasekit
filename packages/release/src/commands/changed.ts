@@ -15,6 +15,8 @@ import type { ReleaseOutput } from '../types.js';
  */
 export function publishDidChange(result: ReleaseOutput | null | undefined): boolean {
   const output = result?.publishOutput;
-  if (!output || output.dryRun) return false;
+  if (!output || output.dryRun) {
+    return false;
+  }
   return [...output.npm, ...output.cargo, ...output.pub].some((r) => r.success && !r.skipped && !r.alreadyPublished);
 }

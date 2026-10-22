@@ -1,7 +1,9 @@
 import type { GitConfig, PublishGitConfig } from './schema.js';
 
 export function mergeGitConfig(topLevel?: GitConfig, packageLevel?: PublishGitConfig): GitConfig | undefined {
-  if (!topLevel && !packageLevel) return undefined;
+  if (!topLevel && !packageLevel) {
+    return undefined;
+  }
 
   const base: GitConfig = topLevel ?? {
     remote: 'origin',
@@ -9,7 +11,9 @@ export function mergeGitConfig(topLevel?: GitConfig, packageLevel?: PublishGitCo
     pushMethod: 'auto',
   };
 
-  if (!packageLevel) return base;
+  if (!packageLevel) {
+    return base;
+  }
 
   return {
     remote: packageLevel.remote ?? base.remote,
@@ -27,9 +31,15 @@ export function deepMerge<T extends Record<string, unknown>>(
   target: T | undefined,
   source: Partial<T> | undefined,
 ): T | undefined {
-  if (!target && !source) return undefined;
-  if (!target) return source as T;
-  if (!source) return target;
+  if (!target && !source) {
+    return undefined;
+  }
+  if (!target) {
+    return source as T;
+  }
+  if (!source) {
+    return target;
+  }
 
   const result = { ...target };
 
