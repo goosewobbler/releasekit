@@ -40,3 +40,6 @@ jobs:
 
       - name: Run integration tests
         run: pnpm --filter @releasekit/integration-tests test
+
+      - name: Run version integration tests
+        run: pnpm --filter @releasekit/version test:integration
