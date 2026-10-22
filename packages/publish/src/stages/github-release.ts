@@ -41,7 +41,9 @@ function resolveNotes(
     }
     if (pipelineNotes) {
       const body = findNotesForTag(tag, pipelineNotes);
-      if (body) return { body, useGithubNotes: false };
+      if (body) {
+        return { body, useGithubNotes: false };
+      }
     }
     warn('No release notes found in pipeline output, falling back to GitHub auto-notes');
     return { useGithubNotes: true };
@@ -59,7 +61,9 @@ function resolveNotes(
   // 'auto' mode — try release notes, fall back to GitHub auto-generated notes
   if (releaseNotesEnabled && pipelineNotes) {
     const body = findNotesForTag(tag, pipelineNotes);
-    if (body) return { body, useGithubNotes: false };
+    if (body) {
+      return { body, useGithubNotes: false };
+    }
     warn(`Release notes configured but no content found for tag ${tag}, falling back to GitHub auto-generated notes`);
   }
 
@@ -129,11 +133,15 @@ function getTitleFromTag(tag: string, packageNames: string[], titleTemplate: str
 
   if (packageNames.length > 0) {
     const resolved = resolveTagPackage(tag, packageNames);
-    if (resolved) return applyTemplate(resolved.packageName, resolved.version);
+    if (resolved) {
+      return applyTemplate(resolved.packageName, resolved.version);
+    }
   }
   // Fallback: try splitting on last @ for unsanitized "pkg@version" tags
   const atIndex = tag.lastIndexOf('@');
-  if (atIndex === -1) return tag;
+  if (atIndex === -1) {
+    return tag;
+  }
   return applyTemplate(tag.slice(0, atIndex), tag.slice(atIndex + 1));
 }
 
@@ -142,11 +150,15 @@ function findNotesForTag(tag: string, notes: Record<string, string>): string | u
   const resolved = resolveTagPackage(tag, Object.keys(notes));
   if (resolved) {
     const body = notes[resolved.packageName];
-    if (body?.trim()) return body;
+    if (body?.trim()) {
+      return body;
+    }
   }
   // Single-package fallback for version-only tags (e.g., "v1.0.0")
   const entries = Object.values(notes).filter((b) => b.trim());
-  if (entries.length === 1 && isVersionOnlyTag(tag)) return entries[0];
+  if (entries.length === 1 && isVersionOnlyTag(tag)) {
+    return entries[0];
+  }
   return undefined;
 }
 
@@ -154,7 +166,9 @@ function findNotesForTag(tag: string, notes: Record<string, string>): string | u
  * Find the changelog for a given tag and format its entries as markdown.
  */
 function formatChangelogForTag(tag: string, changelogs: VersionPackageChangelog[]): string | undefined {
-  if (changelogs.length === 0) return undefined;
+  if (changelogs.length === 0) {
+    return undefined;
+  }
 
   const resolved = resolveTagPackage(
     tag,
@@ -168,7 +182,9 @@ function formatChangelogForTag(tag: string, changelogs: VersionPackageChangelog[
     target = changelogs[0];
   }
 
-  if (!target || target.entries.length === 0) return undefined;
+  if (!target || target.entries.length === 0) {
+    return undefined;
+  }
 
   const lines: string[] = [];
   for (const entry of target.entries) {
@@ -202,7 +218,9 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
   }
 
   const firstTag = tags[0];
-  if (!firstTag) return;
+  if (!firstTag) {
+    return;
+  }
   const tagsToRelease = config.githubRelease.perPackage ? tags : [firstTag];
 
   const skipPackages = config.githubRelease.skipPackages ?? [];

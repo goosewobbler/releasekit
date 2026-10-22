@@ -10,6 +10,8 @@ import { join } from 'node:path';
 export function executeCliCommand(command: string, cwd: string, dryRun = true) {
   const cliPath = join(process.cwd(), 'dist/cli.js');
   const args = command.split(' ');
-  if (dryRun) args.push('--dry-run');
+  if (dryRun) {
+    args.push('--dry-run');
+  }
   return spawnSync('node', [cliPath, ...args], { cwd, encoding: 'utf-8' });
 }

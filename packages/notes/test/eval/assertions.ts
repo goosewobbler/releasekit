@@ -18,8 +18,12 @@ export function findDuplicateDependencyChurn(text: string): string[] {
 /** Guard against a truncated (empty/near-empty) or runaway generation. */
 export function checkLengthBounds(text: string, min: number, max: number): string[] {
   const n = text.trim().length;
-  if (n < min) return [`output too short: ${n} < ${min} chars`];
-  if (n > max) return [`output too long: ${n} > ${max} chars`];
+  if (n < min) {
+    return [`output too short: ${n} < ${min} chars`];
+  }
+  if (n > max) {
+    return [`output too long: ${n} > ${max} chars`];
+  }
   return [];
 }
 
@@ -44,7 +48,9 @@ export function listItemLines(text: string): string[] {
  */
 export function checkPastTenseLeaning(text: string, minRatio = 0.6): string[] {
   const items = listItemLines(text);
-  if (items.length === 0) return [];
+  if (items.length === 0) {
+    return [];
+  }
   const firstWords = items.map((line) => line.replace(/^\s*(?:[-*]|\d+\.)\s+/, '').split(/\s+/)[0] ?? '');
   const pastCount = firstWords.filter(looksPastTense).length;
   const ratio = pastCount / items.length;

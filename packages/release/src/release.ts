@@ -25,7 +25,9 @@ async function resolveReleaseReportTarget(): Promise<{
   mode: 'direct' | 'manual';
 } | null> {
   const githubContext = getGitHubContext();
-  if (!githubContext?.token) return null;
+  if (!githubContext?.token) {
+    return null;
+  }
   const forge = forgeFor({ token: githubContext.token, owner: githubContext.owner, repo: githubContext.repo });
   const { sha } = githubContext;
 
@@ -68,8 +70,12 @@ async function reportReleaseFailure(versionOutput: VersionOutput, err: PipelineE
 
 export function resolveScopeToTarget(scopeName: string, scopeLabels: Record<string, string>): string {
   const prefixed = `scope:${scopeName}`;
-  if (scopeLabels[prefixed]) return scopeLabels[prefixed];
-  if (scopeLabels[scopeName]) return scopeLabels[scopeName];
+  if (scopeLabels[prefixed]) {
+    return scopeLabels[prefixed];
+  }
+  if (scopeLabels[scopeName]) {
+    return scopeLabels[scopeName];
+  }
   const available = Object.keys(scopeLabels).join(', ');
   throw new Error(`Scope "${scopeName}" not found in ci.scopeLabels. Available: ${available}`);
 }
@@ -182,22 +188,36 @@ async function applyScopeLabelsFromPR(
 function applyStepOverrides(options: ReleaseOptions, releaseConfig: ReleaseConfig | undefined): void {
   // Steps array: a step absent from the list is skipped unless CLI already set the flag.
   if (releaseConfig?.steps) {
-    if (!releaseConfig.steps.includes('notes') && !options.skipNotes) options.skipNotes = true;
-    if (!releaseConfig.steps.includes('publish') && !options.skipPublish) options.skipPublish = true;
+    if (!releaseConfig.steps.includes('notes') && !options.skipNotes) {
+      options.skipNotes = true;
+    }
+    if (!releaseConfig.steps.includes('publish') && !options.skipPublish) {
+      options.skipPublish = true;
+    }
   }
 
   // ci overrides: can suppress a step even when it appears in 'steps'.
-  if (releaseConfig?.ci?.notes === false && !options.skipNotes) options.skipNotes = true;
-  if (releaseConfig?.ci?.githubRelease === false && !options.skipGithubRelease) options.skipGithubRelease = true;
+  if (releaseConfig?.ci?.notes === false && !options.skipNotes) {
+    options.skipNotes = true;
+  }
+  if (releaseConfig?.ci?.githubRelease === false && !options.skipGithubRelease) {
+    options.skipGithubRelease = true;
+  }
 }
 
 export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseOutput | null> {
   // Work on a copy so config-driven overrides never mutate the caller's object
   const options = { ...inputOptions };
 
-  if (options.verbose) setLogLevel('debug');
-  if (options.quiet) setQuietMode(true);
-  if (options.json) setJsonMode(true);
+  if (options.verbose) {
+    setLogLevel('debug');
+  }
+  if (options.quiet) {
+    setQuietMode(true);
+  }
+  if (options.json) {
+    setJsonMode(true);
+  }
 
   // Load release config for automation behavior
   let releaseKitConfig: ReturnType<typeof loadReleaseKitConfig>;

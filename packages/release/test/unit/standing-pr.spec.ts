@@ -42,7 +42,9 @@ class ControllableGit extends FakeGit {
     }
     if (opts.format === '%H') {
       // createReleaseTags resolves an existing tag's commit — default to HEAD ("tag at HEAD").
-      if (this.tagResolveThrows) throw new Error('cannot resolve tag');
+      if (this.tagResolveThrows) {
+        throw new Error('cannot resolve tag');
+      }
       return `${this.tagCommitSha ?? (await this.headSha(opts.cwd))}\n`;
     }
     return super.log(opts);
@@ -1096,10 +1098,16 @@ describe('runStandingPRUpdate', () => {
       // Did NOT noop on the first guard — the label-triggered run proceeded to update the PR.
       expect(result.action).not.toBe('noop');
     } finally {
-      if (prevName === undefined) delete process.env.GITHUB_EVENT_NAME;
-      else process.env.GITHUB_EVENT_NAME = prevName;
-      if (prevPath === undefined) delete process.env.GITHUB_EVENT_PATH;
-      else process.env.GITHUB_EVENT_PATH = prevPath;
+      if (prevName === undefined) {
+        delete process.env.GITHUB_EVENT_NAME;
+      } else {
+        process.env.GITHUB_EVENT_NAME = prevName;
+      }
+      if (prevPath === undefined) {
+        delete process.env.GITHUB_EVENT_PATH;
+      } else {
+        process.env.GITHUB_EVENT_PATH = prevPath;
+      }
     }
   });
 
@@ -2360,7 +2368,9 @@ describe('runStandingPRUpdate', () => {
       const bodies = forge.updatedPullRequests
         .map((u) => u.changes.body)
         .filter((b): b is string => typeof b === 'string');
-      for (const b of bodies) expect(b.length).toBeLessThanOrEqual(STANDING_PR_BODY_CAP);
+      for (const b of bodies) {
+        expect(b.length).toBeLessThanOrEqual(STANDING_PR_BODY_CAP);
+      }
     });
   });
 });

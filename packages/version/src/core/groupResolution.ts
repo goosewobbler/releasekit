@@ -107,7 +107,9 @@ export function resolveGroups(config: Config, packages: Package[]): GroupResolut
       const name = pkg.packageJson.name;
       // The implicit sync group is "every package" by definition — don't route it through glob
       // matching, where a bare `*` would fail to cross the `/` in scoped names.
-      if (!matchesAll && !shouldMatchPackageTargets(name, def.packages)) continue;
+      if (!matchesAll && !shouldMatchPackageTargets(name, def.packages)) {
+        continue;
+      }
 
       const existing = memberOf.get(name);
       if (existing) {
@@ -182,13 +184,17 @@ export function expandTargetsForAtomicGroups(
   resolution: GroupResolution,
   targets: string[],
 ): { targets: string[]; expandedGroups: string[] } {
-  if (targets.length === 0) return { targets, expandedGroups: [] };
+  if (targets.length === 0) {
+    return { targets, expandedGroups: [] };
+  }
 
   const expanded = new Set(targets);
   const expandedGroups: string[] = [];
 
   for (const group of resolution.groups) {
-    if (group.sync === 'linked') continue;
+    if (group.sync === 'linked') {
+      continue;
+    }
 
     const someTargeted = group.members.some((m) => shouldMatchPackageTargets(m.packageJson.name, targets));
     const allTargeted = group.members.every((m) => shouldMatchPackageTargets(m.packageJson.name, targets));

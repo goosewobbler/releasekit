@@ -68,8 +68,11 @@ describe('getEventActor', () => {
     tmpFile = `${process.env.TMPDIR ?? '/tmp'}/rk-event-${process.pid}.json`;
   });
   afterEach(() => {
-    if (ORIG === undefined) delete process.env.GITHUB_EVENT_PATH;
-    else process.env.GITHUB_EVENT_PATH = ORIG;
+    if (ORIG === undefined) {
+      delete process.env.GITHUB_EVENT_PATH;
+    } else {
+      process.env.GITHUB_EVENT_PATH = ORIG;
+    }
     try {
       fs.unlinkSync(tmpFile);
     } catch {}

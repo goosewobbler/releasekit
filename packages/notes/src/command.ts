@@ -37,7 +37,9 @@ export function createNotesCommand(): Command {
     .option('-q, --quiet', 'Suppress non-error output')
     .action(async (options) => {
       setVerbosity(options.verbose);
-      if (options.quiet) setQuietMode(true);
+      if (options.quiet) {
+        setQuietMode(true);
+      }
 
       try {
         const loadedConfig = loadConfig({ cwd: process.cwd(), configPath: options.config });
@@ -113,9 +115,15 @@ export function createNotesCommand(): Command {
               model: existingLlm?.model,
               ...(existingLlm ?? {}),
             };
-            if (options.llmProvider) llm.provider = options.llmProvider;
-            if (options.llmModel) llm.model = options.llmModel;
-            if (options.llmBaseUrl) llm.baseURL = options.llmBaseUrl;
+            if (options.llmProvider) {
+              llm.provider = options.llmProvider;
+            }
+            if (options.llmModel) {
+              llm.model = options.llmModel;
+            }
+            if (options.llmBaseUrl) {
+              llm.baseURL = options.llmBaseUrl;
+            }
             if (options.llmTasks) {
               const taskNames = (options.llmTasks as string).split(',').map((t: string) => t.trim());
               llm.tasks = {

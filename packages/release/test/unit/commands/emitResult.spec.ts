@@ -9,7 +9,9 @@ describe('emitResult', () => {
   const dirs: string[] = [];
 
   afterEach(() => {
-    for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+    for (const dir of dirs) {
+      rmSync(dir, { recursive: true, force: true });
+    }
     dirs.length = 0;
     vi.restoreAllMocks();
   });

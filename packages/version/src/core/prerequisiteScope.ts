@@ -41,14 +41,20 @@ export function resolvePrerequisiteTargets(
   const overrideSet = new Set(explicitNames);
   for (const name of explicitNames) {
     const group = resolution.groupOf(name);
-    if (group) for (const member of group.members) overrideSet.add(member.packageJson.name);
+    if (group) {
+      for (const member of group.members) {
+        overrideSet.add(member.packageJson.name);
+      }
+    }
   }
 
   // Detect which transitive dependencies of the expanded targets actually changed — only those
   // become prerequisites (an unchanged dependency needs no release).
   const candidateDeps = new Set<string>();
   for (const name of overrideSet) {
-    for (const dep of graph.transitiveDependencies(name)) candidateDeps.add(dep);
+    for (const dep of graph.transitiveDependencies(name)) {
+      candidateDeps.add(dep);
+    }
   }
   const changed = [...candidateDeps].filter((name) => isChanged(name));
 

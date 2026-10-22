@@ -71,7 +71,9 @@ export const pubRegistry: Registry<PubTarget, void> = {
 
   async isPublished(target: PubTarget): Promise<boolean> {
     // The pub.dev REST API only makes sense for pub.dev targets; skip it for custom registries.
-    if (!targetsPubDev(target.publishTo)) return false;
+    if (!targetsPubDev(target.publishTo)) {
+      return false;
+    }
     return isPubPackagePublished(target.packageName, target.version);
   },
 

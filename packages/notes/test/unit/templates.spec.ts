@@ -69,7 +69,9 @@ describe('Handlebars Engine', () => {
     registerHandlebarsHelpers();
     const template = '{{capitalize type}}';
     const entry = sampleContext.entries[0];
-    if (!entry) throw new Error('No entry found');
+    if (!entry) {
+      throw new Error('No entry found');
+    }
     const result = renderHandlebars(template, { ...sampleContext, ...entry } as unknown as TemplateContext);
     expect(result).toBe('Added');
   });

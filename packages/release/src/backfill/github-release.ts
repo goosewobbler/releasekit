@@ -26,8 +26,12 @@ export function decideReleaseUpdate(
   onlyMissing: boolean,
   force: boolean = false,
 ): UpdateDecision {
-  if (existingBody === null) return { action: 'skip', reason: 'no-release' };
-  if (onlyMissing && existingBody.includes(NOTES_MARKER)) return { action: 'skip', reason: 'already-backfilled' };
+  if (existingBody === null) {
+    return { action: 'skip', reason: 'no-release' };
+  }
+  if (onlyMissing && existingBody.includes(NOTES_MARKER)) {
+    return { action: 'skip', reason: 'already-backfilled' };
+  }
   if (!force && !onlyMissing && existingBody.trim() && !existingBody.includes(NOTES_MARKER)) {
     return { action: 'skip', reason: 'hand-edited' };
   }
@@ -57,7 +61,9 @@ export function getReleaseBody(tag: string): string | null {
       throw new Error('GitHub CLI (`gh`) not found — install it and run `gh auth login` to update release bodies.');
     }
     const stderr = (typeof e.stderr === 'string' ? e.stderr : e.stderr?.toString()) || e.message || '';
-    if (/release not found/i.test(stderr)) return null;
+    if (/release not found/i.test(stderr)) {
+      return null;
+    }
     throw new Error(`\`gh release view ${tag}\` failed: ${stderr.trim() || 'unknown error'}`);
   }
 }
@@ -84,7 +90,9 @@ export function getReleaseInfo(tag: string): { isDraft: boolean; body: string | 
       throw new Error('GitHub CLI (`gh`) not found — install it and run `gh auth login` to update release bodies.');
     }
     const stderr = (typeof e.stderr === 'string' ? e.stderr : e.stderr?.toString()) || e.message || '';
-    if (/release not found/i.test(stderr)) return null;
+    if (/release not found/i.test(stderr)) {
+      return null;
+    }
     throw new Error(`\`gh release view ${tag}\` failed: ${stderr.trim() || 'unknown error'}`);
   }
 }

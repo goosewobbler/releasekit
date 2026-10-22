@@ -75,10 +75,16 @@ export async function reconstructChangelogs(opts: ReconstructOptions): Promise<R
   const reconstructed: ReconstructedVersion[] = [];
   for (let i = 0; i < versioned.length; i++) {
     const current = versioned[i];
-    if (!current) continue;
+    if (!current) {
+      continue;
+    }
     const { tag, version } = current;
-    if (opts.from && semver.lt(version, opts.from)) continue;
-    if (opts.to && semver.gt(version, opts.to)) continue;
+    if (opts.from && semver.lt(version, opts.from)) {
+      continue;
+    }
+    if (opts.to && semver.gt(version, opts.to)) {
+      continue;
+    }
 
     const prev = versioned[i - 1];
     const revisionRange = prev ? `${prev.tag}..${tag}` : tag;
