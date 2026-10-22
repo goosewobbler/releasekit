@@ -58,7 +58,7 @@ first-class monorepo model without installing additional packages.
    - npm provenance is on by default.
    - OIDC is the default npm auth method in CI; no `NPM_TOKEN` secret is required when you
      use trusted publishing. See [CI setup](../packages/release/docs/ci-setup.md) for details.
-   - The commit preset defaults to `conventional`. If you were using `angular` in
+   - The commit preset defaults to `conventionalcommits`. If you were using `angular` in
      `@semantic-release/commit-analyzer`, set `"version": { "preset": "angular" }` to
      preserve your existing changelog groupings.
 

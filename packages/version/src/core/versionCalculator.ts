@@ -4,8 +4,11 @@
 
 import { cwd } from 'node:process';
 import { inspect } from 'node:util';
+import type { Preset } from '@releasekit/config';
 import { sanitizePackageName, shouldMatchPackageTargets } from '@releasekit/core';
-import { Bumper } from 'conventional-recommended-bump';
+import createAngularPreset from 'conventional-changelog-angular';
+import createConventionalCommitsPreset from 'conventional-changelog-conventionalcommits';
+import { Bumper, type Preset as BumperPreset } from 'conventional-recommended-bump';
 import type { ReleaseType } from 'semver';
 import semver from 'semver';
 import { getCommitsLength, refExists } from '../git/tagsAndBranches.js';
@@ -20,6 +23,12 @@ import {
   STANDARD_BUMP_TYPES,
   type VersionSourceResult,
 } from '../utils/versionUtils.js';
+
+// Static imports, not the bumper's import(name): that resolves from wherever it's bundled (release's dist).
+const PRESETS: Record<Preset, () => BumperPreset> = {
+  angular: createAngularPreset as () => BumperPreset,
+  conventionalcommits: createConventionalCommitsPreset as () => BumperPreset,
+};
 
 /**
  * Map a standard bump magnitude to the prerelease form that ESCALATES an existing prerelease's base
@@ -148,7 +157,7 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
 
   const {
     type: configType,
-    preset = 'angular',
+    preset,
     versionPrefix,
     prereleaseIdentifier: configPrereleaseIdentifier,
     mismatchStrategy,
@@ -389,8 +398,10 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
     log(`Falling back to conventional commits`, 'debug');
     try {
       log(`Creating bumper with preset: ${preset}`, 'debug');
+      // Eager, not bumper.loadPreset(): its lazy promise can reject unobserved across the await below and crash Node.
+      const presetConfig = PRESETS[preset]();
       const bumper = new Bumper();
-      bumper.loadPreset(preset);
+      bumper.config(presetConfig);
       // Bound the commit scan to the same baseline the changelog uses (`config.baseRef ?? latestTag`).
       // Without the latestTag fallback an absent baseRef lets conventional-recommended-bump scan the
       // ENTIRE history — the repo's baseline tags (e.g. `release/v0.29.0`) aren't in a format its
@@ -402,7 +413,7 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
       if (bumpFrom) {
         bumper.commits({ from: bumpFrom });
       }
-      const recommendedBump = await bumper.bump();
+      const recommendedBump = await bumper.bump(presetConfig.whatBump);
       const releaseTypeFromCommits =
         recommendedBump && 'releaseType' in recommendedBump ? (recommendedBump.releaseType as ReleaseType) : undefined;
       log(`Conventional commits release type: ${releaseTypeFromCommits}`, 'debug');

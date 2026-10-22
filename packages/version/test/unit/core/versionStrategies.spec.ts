@@ -89,7 +89,7 @@ describe('Version Strategies', () => {
 
   // Default config for tests
   const defaultConfig: Partial<Config> = {
-    preset: 'conventional-commits',
+    preset: 'conventionalcommits',
     versionPrefix: 'v',
     tagTemplate: '${' + 'prefix}${' + 'version}',
   };

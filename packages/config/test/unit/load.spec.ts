@@ -37,13 +37,13 @@ describe('loadConfig', () => {
     mockedFs.readFileSync.mockReturnValue(
       JSON.stringify({
         git: { remote: 'origin', branch: 'main' },
-        version: { preset: 'conventional' },
+        version: { preset: 'angular' },
       }),
     );
 
     const result = loadConfig();
     expect(result.git?.remote).toBe('origin');
-    expect(result.version?.preset).toBe('conventional');
+    expect(result.version?.preset).toBe('angular');
   });
 
   it('should accept a custom cwd', () => {
@@ -75,6 +75,17 @@ describe('loadConfig', () => {
 
     expect(() => loadConfig()).toThrow(ConfigError);
   });
+
+  it.each(['nonsense', 'conventional', 'conventional-commits'])(
+    'should throw a ConfigError listing the supported presets for preset "%s"',
+    (preset) => {
+      mockedFs.existsSync.mockReturnValue(true);
+      mockedFs.readFileSync.mockReturnValue(JSON.stringify({ version: { preset } }));
+
+      expect(() => loadConfig()).toThrow(ConfigError);
+      expect(() => loadConfig()).toThrow(/version\.preset:.*"angular".*"conventionalcommits"/);
+    },
+  );
 
   it('should throw a migration error for the removed notes.releaseNotes.mode', () => {
     mockedFs.existsSync.mockReturnValue(true);
@@ -186,12 +197,12 @@ describe('loadVersionConfig', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(
       JSON.stringify({
-        version: { preset: 'conventional', sync: false },
+        version: { preset: 'angular', sync: false },
       }),
     );
 
     const result = loadVersionConfig();
-    expect(result?.preset).toBe('conventional');
+    expect(result?.preset).toBe('angular');
     expect(result?.sync).toBe(false);
   });
 

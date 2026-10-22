@@ -77,6 +77,9 @@ export const VersionGroupSchema = z.object({
     ),
 });
 
+export const PresetSchema = z.enum(['angular', 'conventionalcommits']);
+export const DEFAULT_PRESET: Preset = 'conventionalcommits';
+
 export const VersionConfigSchema = z.object({
   // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional template-placeholder syntax
   tagTemplate: z.string().default('${prefix}${version}').describe(
@@ -97,7 +100,7 @@ export const VersionConfigSchema = z.object({
       'Optional secondary tag template for an internal \'baseline\' marker that records the release commit on the source branch. Use this when tagTemplate resolves to a tag that gets force-moved off the source branch by a downstream step (e.g. a GitHub Action distributing built artifacts at the version tag) — the baseline tag stays on the release commit so future version-bump and changelog calculations can still find the previous release. Must contain a ${version} placeholder so the baseline prefix can be derived. Supports the same variables as tagTemplate. Example: "release/${prefix}${version}" produces "release/v1.2.3".',
     ),
   packageSpecificTags: z.boolean().default(false).describe('Enable package-specific tagging'),
-  preset: z.string().default('conventional').describe('Commit convention preset'),
+  preset: PresetSchema.default(DEFAULT_PRESET).describe('Commit convention preset'),
   sync: z
     .boolean()
     .default(true)
@@ -816,6 +819,7 @@ export type StandingPrConfig = z.infer<typeof StandingPrConfigSchema>;
 export type GitConfig = z.infer<typeof GitConfigSchema>;
 export type MonorepoConfig = z.infer<typeof MonorepoConfigSchema>;
 export type VersionConfig = z.infer<typeof VersionConfigSchema>;
+export type Preset = z.infer<typeof PresetSchema>;
 export type VersionGroup = z.infer<typeof VersionGroupSchema>;
 export type NpmConfig = z.infer<typeof NpmConfigSchema>;
 export type CargoPublishConfig = z.infer<typeof CargoPublishConfigSchema>;

@@ -110,11 +110,7 @@ function writeRootManifests(
     type: 'module',
     ...(packageManager ? { packageManager } : {}),
     ...extra,
-    dependencies: {
-      ...deps,
-      'conventional-changelog-angular': '^8.1.0',
-      'conventional-changelog-conventionalcommits': '^9.0.0',
-    },
+    dependencies: deps,
   });
   writeFileSync(
     join(out, 'pnpm-workspace.yaml'),

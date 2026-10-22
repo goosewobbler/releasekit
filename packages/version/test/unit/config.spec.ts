@@ -28,7 +28,7 @@ describe('Config', () => {
       expect(config.tagTemplate).toBe('v{version}');
       expect(config.sync).toBe(true);
       expect(config.packages).toEqual([]);
-      expect(config.preset).toBe('conventional');
+      expect(config.preset).toBe('conventionalcommits');
     });
 
     it('should load config from releasekit.config.json', () => {

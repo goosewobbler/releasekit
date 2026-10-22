@@ -107,12 +107,6 @@ export class VersionEngine {
       }
     }
 
-    // Default values for required properties
-    if (!effective.preset) {
-      effective.preset = 'conventional-commits';
-      log('No preset specified, using default: conventional-commits', 'warning');
-    }
-
     this.config = effective;
 
     // Create all strategy functions

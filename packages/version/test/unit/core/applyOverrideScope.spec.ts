@@ -6,7 +6,7 @@ import type { Config, VersionOptions } from '../../../src/types.js';
 const cfg = (overrideScope?: string[]): Config =>
   ({
     tagTemplate: '${prefix}${version}',
-    preset: 'conventional',
+    preset: 'conventionalcommits',
     sync: false,
     packages: [],
     versionPrefix: 'v',
@@ -72,7 +72,7 @@ describe('applyOverrideScope', () => {
 const gradCfg = (graduateScope?: string[]): Config =>
   ({
     tagTemplate: '${prefix}${version}',
-    preset: 'conventional',
+    preset: 'conventionalcommits',
     sync: false,
     packages: [],
     versionPrefix: 'v',
@@ -119,7 +119,7 @@ describe('applyOverrideScope — graduateScope (#486)', () => {
 const comboCfg = (): Config =>
   ({
     tagTemplate: '${prefix}${version}',
-    preset: 'conventional',
+    preset: 'conventionalcommits',
     sync: false,
     packages: [],
     versionPrefix: 'v',
@@ -158,7 +158,7 @@ describe('applyOverrideScope — graduateScope + overrideScope combo (#486)', ()
 const preCfg = (prereleaseScope?: string[]): Config =>
   ({
     tagTemplate: '${prefix}${version}',
-    preset: 'conventional',
+    preset: 'conventionalcommits',
     sync: false,
     packages: [],
     versionPrefix: 'v',

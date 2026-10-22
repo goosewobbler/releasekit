@@ -23,7 +23,7 @@ function pkg(name: string, version = '1.0.0'): Package {
 const base = (overrides: Partial<Config>): Config =>
   ({
     sync: false,
-    preset: 'conventional',
+    preset: 'conventionalcommits',
     packages: [],
     tagTemplate: '${prefix}${version}',
     versionPrefix: '',

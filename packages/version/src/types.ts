@@ -1,4 +1,4 @@
-import type { VersionConfig, VersionGroup } from '@releasekit/config';
+import { DEFAULT_PRESET, type Preset, type VersionConfig, type VersionGroup } from '@releasekit/config';
 import type { ReleaseType } from 'semver';
 
 /**
@@ -102,7 +102,7 @@ export interface Config extends VersionConfigBase {
    *  Supports the same `${packageName}` / `${prefix}` / `${version}` substitutions. */
   baselineTagTemplate?: string;
   packageSpecificTags?: boolean;
-  preset: string;
+  preset: Preset;
   sync: boolean;
   /**
    * Named version groups, each with package patterns and a `fixed` | `linked` sync mode.
@@ -217,7 +217,7 @@ export function toVersionConfig(config: VersionConfig | undefined): Config {
     return {
       tagTemplate: 'v{version}',
       packageSpecificTags: false,
-      preset: 'conventional',
+      preset: DEFAULT_PRESET,
       sync: true,
       packages: [],
       versionPrefix: '',
@@ -228,7 +228,7 @@ export function toVersionConfig(config: VersionConfig | undefined): Config {
     tagTemplate: config.tagTemplate ?? 'v{version}',
     baselineTagTemplate: config.baselineTagTemplate,
     packageSpecificTags: config.packageSpecificTags,
-    preset: config.preset ?? 'conventional',
+    preset: config.preset ?? DEFAULT_PRESET,
     sync: config.sync ?? true,
     groups: config.groups,
     packages: config.packages ?? [],

@@ -66,7 +66,7 @@ describe('VersionConfigSchema', () => {
     const result = VersionConfigSchema.parse({});
     expect(result.tagTemplate).toBe('${prefix}${version}');
     expect(result.packageSpecificTags).toBe(false);
-    expect(result.preset).toBe('conventional');
+    expect(result.preset).toBe('conventionalcommits');
     expect(result.sync).toBe(true);
     expect(result.packages).toEqual([]);
     expect(result.mismatchStrategy).toBe('warn');
@@ -689,14 +689,14 @@ describe('ReleaseKitConfigSchema', () => {
     const result = ReleaseKitConfigSchema.parse({
       git: { remote: 'origin' },
       monorepo: { rootPath: 'CHANGELOG.md' },
-      version: { preset: 'conventional' },
+      version: { preset: 'angular' },
       publish: { npm: { enabled: true } },
       notes: { changelog: { mode: 'packages' } },
       ci: { prPreview: true },
     });
     expect(result.git?.remote).toBe('origin');
     expect(result.monorepo?.rootPath).toBe('CHANGELOG.md');
-    expect(result.version?.preset).toBe('conventional');
+    expect(result.version?.preset).toBe('angular');
     expect(result.publish?.npm.enabled).toBe(true);
     expect(result.notes?.changelog).toMatchObject({ mode: 'packages' });
     expect(result.ci?.prPreview).toEqual({ enabled: true, refreshAfterRelease: false });
