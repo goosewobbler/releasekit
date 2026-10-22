@@ -18,7 +18,7 @@ Every input in the body is delimited by an HTML comment marker. **The markers ar
 | `<!-- rk-grad:<pkg> -->` | Channel toggle on a prerelease row | Ticking asks the bot to graduate that package to stable |
 | `<!-- releasekit-manifest -->` | The release manifest, in a bot comment | **Bot-owned.** Drives the entire publish |
 
-The checklist rows live inside `<!-- releasekit-selection -->` … `<!-- releasekit-selection-end -->`, and the manifest lives in its own comment rather than the body. The bot also keys its own state and comments with markers — the manifest's `<!-- base64 … -->` payload line, the `releasekit-selection-denied` / `-label-denied` / `-channel-denied` notices, the `releasekit-publish-failure` report with its `-status` and `-data` lines, and the template workflow's `releasekit-processing` banner. Those are bot-owned too.
+The checklist rows live inside `<!-- releasekit-selection -->` … `<!-- releasekit-selection-end -->`, and the manifest lives in its own comment rather than the body.
 
 ### The checklist and channel toggles
 
