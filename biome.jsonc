@@ -102,7 +102,7 @@
             "useAsConstAssertion": "error"
           },
           "suspicious": {
-            "noExplicitAny": "warn",
+            "noExplicitAny": "error",
             "noExtraNonNullAssertion": "error",
             "noRedeclare": "off"
           }
