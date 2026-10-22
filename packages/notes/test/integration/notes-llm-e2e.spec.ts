@@ -22,33 +22,27 @@ import { isProviderUnreachable } from './infra-tolerance.js';
  *     pnpm --filter @releasekit/notes test
  * Under CI, OLLAMA_BASE_URL is required.
  *
- * Assertions check structure, not wording — LLM output is non-deterministic. Entry counts hold whatever
- * the model does, because the per-chunk fallback preserves every entry. The rewrite check does not:
- * each chunk must come back with at least one rewritten description, so a model that can't produce
- * valid structured output for a chunk (and falls back) fails this test. That is deliberate — the
- * fallback is indistinguishable from "no model at all" — and it means the configured model has to be
- * one that handles the schema.
+ * Assertions check structure, not wording. Each chunk must also have at least one rewritten entry:
+ * the fallback keeps entries verbatim, so counts alone would pass with no model at all. The model
+ * must therefore handle the structured-output schema.
  *
- * Infra-tolerant so this can be a blocking check without making a hosted model's uptime a merge gate:
- * a proven outage skips (with a `::warning::` annotation), everything else fails. See
- * {@link isProviderUnreachable}.
+ * A proven provider outage skips with a `::warning::` annotation, so a hosted model's uptime doesn't
+ * gate merges; anything else fails. See {@link isProviderUnreachable}.
  */
 const E2E_ENABLED = process.env.RELEASEKIT_NOTES_E2E === '1' || process.env.RELEASEKIT_NOTES_E2E === 'true';
 const MODEL = process.env.RELEASEKIT_NOTES_E2E_MODEL ?? 'llama3.2';
 const context = { packageName: 'my-lib', version: '2.0.0', previousVersion: '1.0.0' };
 
-// Read from the source of truth so the case keeps straddling the boundary if the chunk size moves.
+// One full chunk plus part of a second, tracking the production chunk size.
 const CHUNK_SIZE = LLM_DEFAULTS.enhanceCategorizeChunkSize;
 const ENTRY_COUNT = CHUNK_SIZE + 5;
 
-// A host that hangs costs each call its whole retry budget: 3 attempts × 45s + backoff (1s + 2s, ±20%)
-// ≈ 140s. The large-release test makes one call per chunk, so a hang from the start takes ≈ 280s, inside
-// the 330s test timeout; beyond it the test fails red on timeout. A host too slow for 45s a call times out
-// and skips — loudly.
+// A hung host costs each call ~140s (3 attempts × 45s + backoff), so ~280s for the two sequential
+// chunks. The test timeout leaves room to classify that as an outage and skip.
 const CALL_TIMEOUT_MS = 45_000;
 const TEST_TIMEOUT_MS = 330_000;
 
-/** An error with its cause chain — `fetch failed` alone doesn't say what failed. */
+/** Formats an error with its cause chain; `fetch failed` alone doesn't say what failed. */
 function describeError(error: unknown): string {
   const chain: string[] = [];
   let e: unknown = error;
@@ -61,18 +55,15 @@ function describeError(error: unknown): string {
 
 function skipUnreachable(ctx: TestContext, errors: unknown[]): never {
   const reason = `provider unreachable — ${errors.map(describeError).join('; ')}`;
-  // A GitHub Actions annotation, so a blocking check that skipped shows on the run summary instead of
-  // passing as quietly as a real green. The leading newline matters: under CI vitest colours the
-  // `stdout | <test>` header, and its closing escape codes would otherwise sit in front of `::`, which
-  // the runner then doesn't parse as a command.
+  // Annotate the run so a skip doesn't look like a pass. The leading newline keeps vitest's colour
+  // codes off the start of the line, where they'd stop Actions parsing the command.
   console.log(`\n::warning title=notes LLM e2e skipped::${reason}`);
   return ctx.skip(reason);
 }
 
 /**
- * Run a text-path task, skipping on a proven outage. Unlike enhanceAndCategorize these tasks have no
- * fallback — a provider failure propagates — so the thrown error is classified directly. Only the call is
- * wrapped: assertions run on its result in the caller, so wrong output is never mistaken for infra.
+ * Runs a free-text task, skipping on a proven outage. These tasks have no fallback, so provider errors
+ * throw. Assertions stay with the caller, so bad output is never mistaken for an outage.
  */
 async function callProvider<T>(ctx: TestContext, run: () => Promise<T>): Promise<T> {
   try {
@@ -87,8 +78,7 @@ async function callProvider<T>(ctx: TestContext, run: () => Promise<T>): Promise
 
 describe.skipIf(!E2E_ENABLED)('notes LLM e2e (real Ollama)', () => {
   beforeAll(() => {
-    // Unset, the provider dials localhost — always refused on a CI runner, which classifies as an outage.
-    // A misconfigured check would then skip green on every run and never check anything.
+    // Without it the provider dials localhost, which CI refuses, so every run would skip as an outage.
     if (process.env.CI && !process.env.OLLAMA_BASE_URL) {
       throw new Error('OLLAMA_BASE_URL must be set when RELEASEKIT_NOTES_E2E runs under CI');
     }
@@ -96,13 +86,11 @@ describe.skipIf(!E2E_ENABLED)('notes LLM e2e (real Ollama)', () => {
 
   const ollama = new OllamaProvider({ model: MODEL });
 
-  // Per test. Errors that outlived the retry budget, kept for the test to classify: enhanceAndCategorize
-  // falls back per chunk instead of throwing, so they're the only record of *why* a chunk came back
-  // untouched.
+  // Errors that survived retries, reset per test. enhanceAndCategorize falls back instead of throwing,
+  // so this is the only record of why a chunk came back unchanged.
   let failures: unknown[] = [];
 
-  // Wrapped as the pipeline wraps it (src/core/pipeline.ts): a single 503, 429, reset or timeout is
-  // retried and absorbed exactly as in a real release, rather than surfacing as a fallback.
+  // Retry as the pipeline does (src/core/pipeline.ts), so one transient error doesn't cause a fallback.
   const provider: LLMProvider = {
     name: ollama.name,
     capabilities: ollama.capabilities,
@@ -126,7 +114,7 @@ describe.skipIf(!E2E_ENABLED)('notes LLM e2e (real Ollama)', () => {
   it(
     'should enhance and categorize a large release across chunk boundaries',
     async (ctx) => {
-      // Crosses the chunk boundary → two real structured calls, then a category merge.
+      // Two structured calls, then a category merge.
       const entries: ChangelogEntry[] = Array.from({ length: ENTRY_COUNT }, (_, i) => ({
         type: i % 2 === 0 ? 'fixed' : 'added',
         description: `${i % 2 === 0 ? 'Fix' : 'Add'} behaviour ${i} in the widget subsystem`,
@@ -134,21 +122,15 @@ describe.skipIf(!E2E_ENABLED)('notes LLM e2e (real Ollama)', () => {
 
       const result = await enhanceAndCategorize(provider, entries, context);
 
-      // The model has to have actually rewritten something — the fallback returns descriptions verbatim,
-      // so entry counts alone hold just as well with no provider at all. Counted per chunk rather than
-      // over the whole set: chunks fall back independently, so a healthy first chunk would otherwise mask
-      // a second that got nothing, which is exactly what a mid-run outage looks like at the boundary this
-      // test exists to cover.
+      // Counted per chunk: chunks fall back independently, so a good first chunk could hide a failed second.
       const rewrittenIn = (from: number, to: number) =>
         result.enhancedEntries.slice(from, to).filter((e, i) => e.description !== entries[from + i]?.description)
           .length;
       const firstChunk = rewrittenIn(0, CHUNK_SIZE);
       const lastChunk = rewrittenIn(CHUNK_SIZE, entries.length);
 
-      // An untouched chunk is either the host going away or releasekit breaking. Only the errors that
-      // outlived the retries can tell which, and it's an outage only if every one of them proves it. The
-      // call is per test, not per chunk: a chunk that fell back for a real reason in a run where the other
-      // chunk hit an outage skips too — the next clean run goes red.
+      // An unchanged chunk is an outage only if every recorded error proves it. The skip covers the whole
+      // test, so a real failure in one chunk can hide behind an outage in the other until the next run.
       if ((firstChunk === 0 || lastChunk === 0) && failures.length > 0 && failures.every(isProviderUnreachable)) {
         skipUnreachable(ctx, failures);
       }
@@ -161,8 +143,7 @@ describe.skipIf(!E2E_ENABLED)('notes LLM e2e (real Ollama)', () => {
         lastChunk,
         `chunk 2 (entries ${CHUNK_SIZE + 1}-${ENTRY_COUNT}) came back unrewritten; ${why}`,
       ).toBeGreaterThan(0);
-      // Every input entry is accounted for exactly once (enhanced or fallback-preserved), with non-empty
-      // descriptions, and lands in some non-empty category.
+      // Every entry comes back once, non-empty, and categorized.
       expect(result.enhancedEntries).toHaveLength(ENTRY_COUNT);
       expect(result.enhancedEntries.every((e) => typeof e.description === 'string' && e.description.length > 0)).toBe(
         true,
