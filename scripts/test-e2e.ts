@@ -12,10 +12,11 @@
  */
 
 import { execFileSync, execSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stringify as stringifyYaml } from 'yaml';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -125,12 +126,17 @@ function createIsolatedEnvironment(tarballs: TarballPaths): string {
   cpSync(e2eSourceDir, e2eTargetDir, { recursive: true });
   log('✅ Copied E2E test files');
 
-  // Create package.json for the isolated test environment
+  // Create package.json for the isolated test environment. Pin the repo's pnpm so a local run
+  // installs with the same pnpm as CI, not whatever is on PATH.
+  const { packageManager } = JSON.parse(readFileSync(join(rootDir, 'package.json'), 'utf-8')) as {
+    packageManager?: string;
+  };
   const testPackageJson = {
     name: '@releasekit/e2e-tests-isolated',
     version: '0.0.0',
     private: true,
     type: 'module',
+    ...(packageManager ? { packageManager: packageManager.split('+')[0] } : {}),
     dependencies: {
       '@releasekit/core': `file:${tarballs.core}`,
       '@releasekit/config': `file:${tarballs.config}`,
@@ -141,21 +147,22 @@ function createIsolatedEnvironment(tarballs: TarballPaths): string {
       'conventional-changelog-angular': '^8.1.0',
       'conventional-changelog-conventionalcommits': '^9.0.0',
     },
-    pnpm: {
-      overrides: {
-        '@releasekit/core': `file:${tarballs.core}`,
-        '@releasekit/config': `file:${tarballs.config}`,
-        '@releasekit/notes': `file:${tarballs.notes}`,
-        '@releasekit/publish': `file:${tarballs.publish}`,
-        '@releasekit/version': `file:${tarballs.version}`,
-        '@releasekit/release': `file:${tarballs.release}`,
-      },
-    },
   };
 
   const packageJsonPath = join(e2eTargetDir, 'package.json');
   writeFileSync(packageJsonPath, JSON.stringify(testPackageJson, null, 2));
   log('✅ Created package.json');
+
+  // pnpm 11+ ignores package.json's `pnpm` field, so the tarball overrides go in pnpm-workspace.yaml.
+  const overrides = {
+    '@releasekit/core': `file:${tarballs.core}`,
+    '@releasekit/config': `file:${tarballs.config}`,
+    '@releasekit/notes': `file:${tarballs.notes}`,
+    '@releasekit/publish': `file:${tarballs.publish}`,
+    '@releasekit/version': `file:${tarballs.version}`,
+    '@releasekit/release': `file:${tarballs.release}`,
+  };
+  writeFileSync(join(e2eTargetDir, 'pnpm-workspace.yaml'), stringifyYaml({ overrides }));
 
   return tempDir;
 }
