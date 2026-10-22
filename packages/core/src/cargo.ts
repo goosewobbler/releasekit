@@ -7,7 +7,6 @@ interface CargoWorkspace {
   exclude?: unknown;
 }
 
-/** The `[workspace]` table of the manifest at `cargoTomlPath`, if it exists and declares one. */
 function readWorkspace(cargoTomlPath: string): CargoWorkspace | undefined {
   try {
     return (TOML.parse(fs.readFileSync(cargoTomlPath, 'utf8')) as { workspace?: CargoWorkspace }).workspace;
@@ -16,10 +15,7 @@ function readWorkspace(cargoTomlPath: string): CargoWorkspace | undefined {
   }
 }
 
-/**
- * Cargo's `is_excluded`: an `exclude` entry is a path prefix of the manifest and no `members` entry is.
- * Cargo matches both literally, without expanding globs.
- */
+// Mirrors cargo's `is_excluded`, which matches `exclude` and `members` as literal path prefixes (no globs).
 function isExcluded(workspace: CargoWorkspace, rootDir: string, manifestPath: string): boolean {
   const covers = (entries: unknown): boolean =>
     Array.isArray(entries) &&
@@ -31,15 +27,10 @@ function isExcluded(workspace: CargoWorkspace, rootDir: string, manifestPath: st
 }
 
 /**
- * Find the `Cargo.lock` that governs the crate at `crateDir` — the one cargo resolves the crate into,
- * at its workspace root. Cargo's rule: a crate whose own manifest has a `[workspace]` is its own root;
- * otherwise the nearest ancestor `[workspace]` that doesn't exclude it is, and with none the crate is
- * its own root. Cargo ignores every other lock: a member's stray one, or one in an ancestor directory
- * that isn't the root. A `package.workspace = "<path>"` pointer isn't followed.
- *
- * Returns `undefined` when the root has no lock. That is deliberate: libraries commonly don't commit a
- * lock, and a version bump must never *create* one as a side effect — only sync an existing committed
- * lock so it doesn't drift.
+ * The Cargo.lock at the crate's workspace root, by cargo's rule: the crate itself if its manifest has a
+ * `[workspace]`, else the nearest ancestor `[workspace]` that doesn't exclude it, else the crate.
+ * `package.workspace` pointers aren't followed. Undefined when the root has no lock: a bump syncs a
+ * committed lock but never creates one.
  */
 export function findCargoLockfile(crateDir: string): string | undefined {
   const manifestPath = path.join(path.resolve(crateDir), 'Cargo.toml');
@@ -61,17 +52,14 @@ export function findCargoLockfile(crateDir: string): string | undefined {
 interface CargoLockEntry {
   name: string;
   version: string;
-  /** Index of the entry's `[[package]]` line. */
   start: number;
-  /** Index of the entry's last non-blank line. */
+  /** Last non-blank line. */
   end: number;
-  /** Index of the entry's `version = "…"` line. */
   versionLine: number;
   /** Registry and git packages carry a `source`; path and workspace packages don't. */
   hasSource: boolean;
 }
 
-/** Read the `[[package]]` entries of a Cargo.lock split into lines, keeping each line's position. */
 function readCargoLockEntries(lines: string[]): CargoLockEntry[] {
   const entries: CargoLockEntry[] = [];
   let current: (Partial<CargoLockEntry> & { start: number; end: number; hasSource: boolean }) | undefined;
@@ -114,7 +102,6 @@ function readCargoLockEntries(lines: string[]): CargoLockEntry[] {
   return entries;
 }
 
-/** Split a version into its numeric core, pre-release identifiers and build metadata. */
 function parseVersion(version: string): { core: number[]; pre: string[]; build: string } {
   const plus = version.indexOf('+');
   const withoutBuild = plus === -1 ? version : version.slice(0, plus);
@@ -128,11 +115,7 @@ function parseVersion(version: string): { core: number[]; pre: string[]; build: 
 
 const compareStrings = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
-/**
- * Semver precedence, which is how cargo orders same-name `[[package]]` entries: numeric core, then a
- * pre-release sorts before the release, identifier by identifier (numeric ones numerically and before
- * alphanumeric ones). Build metadata only breaks ties.
- */
+/** Semver precedence: the order cargo keeps same-name `[[package]]` entries in. */
 function compareVersions(a: string, b: string): number {
   const left = parseVersion(a);
   const right = parseVersion(b);
@@ -160,11 +143,7 @@ function compareVersions(a: string, b: string): number {
   return left.pre.length - right.pre.length || compareStrings(left.build, right.build);
 }
 
-/**
- * Put same-name `[[package]]` entries back in cargo's order (by version) after one of them changed
- * version. They sit next to each other, so the entries are permuted while the blank lines between
- * them stay put. A lock not laid out that way is left as it is.
- */
+/** Re-sort adjacent same-name entries by version, keeping blank lines in place; non-adjacent ones are left. */
 function sortSameNameEntries(lines: string[], group: Array<{ entry: CargoLockEntry; version: string }>): void {
   const gaps = group.slice(1).map(({ entry }, i) => lines.slice(group[i].entry.end + 1, entry.start));
   if (gaps.some((gap) => gap.some((line) => line.trim() !== ''))) {
@@ -177,11 +156,7 @@ function sortSameNameEntries(lines: string[], group: Array<{ entry: CargoLockEnt
   lines.splice(first, group[group.length - 1].entry.end + 1 - first, ...region);
 }
 
-/**
- * Put the run of `name` references around each `"<name> <version>"` dependency line back in cargo's
- * order. Cargo sorts a package's dependencies by name and then by the version as a string, so
- * `"foo 10.0.0"` sorts before `"foo 2.0.0"`.
- */
+/** Re-sort each run of `name` references; cargo orders them by version as a string (`10.0.0` before `2.0.0`). */
 function sortReferenceRuns(lines: string[], name: string, version: string): void {
   const referenceVersion = (line: string): string | undefined => {
     const reference = /^\s*"([^" ]+) ([^" ]+)[^"]*",?\s*$/.exec(line);
@@ -207,19 +182,12 @@ function sortReferenceRuns(lines: string[], name: string, version: string): void
 }
 
 /**
- * Point a path or workspace crate's own `[[package]]` entry in Cargo.lock content at `version`, making
- * the edit cargo itself makes for a version change: the entry's `version` line, plus every
- * `"<name> <old version>"` dependency reference. Cargo only writes the version into a reference when
- * the lock holds more than one version of that name — otherwise dependents list the bare name, which
- * needs no edit. That encoding is the same in every lockfile format, and cargo never adds a source to
- * a reference to a path package. Registry and git entries of the same name are never touched, but
- * when the new version passes one of theirs, the entries and references are put back in cargo's order.
+ * Set a path crate's version in Cargo.lock content the way cargo would: its `version` line and any
+ * `"<name> <old version>"` references (cargo writes the version into a reference only when the lock
+ * holds several versions of the name), re-sorting same-name entries if their order changes.
  *
- * Returns the updated content (identical when the entry is already at `version`), or `undefined` when
- * the lock has no path entry for `crateName`. Throws rather than guess when the lock holds the name
- * more than once in a way this edit would change cargo's encoding of: several path entries, or another
- * entry at the old or new version (those references carry a source that would have to be added or
- * dropped).
+ * Undefined when the lock has no path entry for the crate. Throws when the name is ambiguous: several
+ * path entries, or another source's entry at the old or new version.
  */
 export function setCargoLockVersion(lockContent: string, crateName: string, version: string): string | undefined {
   const lines = lockContent.split('\n');
@@ -258,23 +226,21 @@ export function setCargoLockVersion(lockContent: string, crateName: string, vers
   return updated.join('\n');
 }
 
-/** The part of `@releasekit/git`'s `Git` seam the Cargo.lock sync uses (core doesn't depend on it). */
+/** The slice of `@releasekit/git`'s `Git` this needs; core doesn't depend on that package. */
 export interface CargoLockGit {
   isRepository(cwd?: string): Promise<boolean>;
   lsFiles(opts?: { paths?: string[]; cwd?: string }): Promise<string[]>;
   isIgnored(file: string, cwd?: string): Promise<boolean>;
 }
 
-/** A crate whose new version the Cargo.lock files that record it must follow. */
 export interface CargoLockBump {
   cargoTomlPath: string;
   name: string;
   version: string;
-  /** The version the manifest had before the bump; absent when it records none (`version.workspace = true`). */
+  /** Absent when the manifest inherits its version (`version.workspace = true`). */
   fromVersion?: string;
 }
 
-/** A Cargo.lock that lists at least one bumped crate as a path package, with the content it must have. */
 export interface CargoLockUpdate {
   lockPath: string;
   content: string;
@@ -282,22 +248,15 @@ export interface CargoLockUpdate {
 }
 
 /**
- * Work out the content of every Cargo.lock that records a bumped crate, by editing the lock text with
- * {@link setCargoLockVersion} — nothing runs cargo, so no Rust toolchain, registry index or network is
- * needed. The candidates are every lock git tracks (apps that use a crate through a path dependency
- * have their own) plus each crate's own lock ({@link findCargoLockfile}), which is synced even when
- * untracked but not when git ignores it, since it couldn't be staged.
+ * Plan the content of every Cargo.lock that records a bumped crate, by text edit (no cargo, toolchain or
+ * network). Candidates are every tracked lock plus each crate's own lock unless git ignores it.
  *
- * Crates in different workspaces can share a name (every `tauri init` app is `app`). A crate's own lock
- * always takes its bump; in any other lock, an entry of that name follows the bump only when something
- * in that lock depends on it (one nothing depends on is that lock's own root or a member) at the
- * crate's old or new version (any version when neither its manifest nor its own lock records the old
- * one). A different crate of the same name used by path at a matching version can't be told apart.
- * A lock gets every bump it records, so a lock shared by several bumped crates is rewritten once;
- * locks that record none are left out.
+ * Names repeat across workspaces (every `tauri init` app is `app`), so outside a crate's own lock an
+ * entry follows the bump only if something there depends on it at the crate's old or new version (any
+ * version when the old one is unknown). A different same-named path crate at a matching version can't
+ * be told apart.
  *
- * Nothing is written: the caller writes the changed content. Throws, naming the lock, when a lock can't
- * be read or edited unambiguously, so no lock is written unless every lock can be.
+ * Writes nothing; throws, naming the lock, when any lock can't be edited unambiguously.
  */
 export async function planCargoLockUpdates(
   git: CargoLockGit,
@@ -318,7 +277,7 @@ export async function planCargoLockUpdates(
     if (ownLock && !(await git.isIgnored(ownLock, cwd))) {
       owners.set(ownLock, [...(owners.get(ownLock) ?? []), bump]);
       lockPaths.add(ownLock);
-      // A manifest that inherits its version, or has none, doesn't say what the crate was at.
+      // An inherited version isn't in the manifest; take it from the crate's own lock.
       fromVersions.set(
         bump,
         fromVersions.get(bump) ??

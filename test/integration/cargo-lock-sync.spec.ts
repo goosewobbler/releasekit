@@ -1,11 +1,7 @@
 /**
- * Integration test: Cargo.lock sync (#496, #650) checked against REAL cargo.
- *
- * Each test runs `releasekit version` (the built CLI) with no cargo on PATH and an empty CARGO_HOME,
- * as on a fresh CI runner, and then asks real cargo whether the locks it left are right: cargo must
- * accept every lock that records a bumped crate under `--locked` without changing it, and the edit
- * must be byte-for-byte the one `cargo update --workspace` makes. Skipped automatically where cargo
- * isn't on PATH (CI installs a Rust toolchain for this job).
+ * Cargo.lock sync checked against real cargo: after the built `releasekit version` runs without cargo,
+ * cargo must accept every synced lock under `--locked` unchanged, and the edit must match
+ * `cargo update --workspace` byte for byte. Skipped where cargo isn't installed.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -207,10 +203,8 @@ describe.skipIf(!cargoAvailable())('Cargo.lock sync (real cargo)', () => {
   });
 
   it('should write the same lock cargo writes, also when the bump passes other versions of the crate', () => {
-    // Git crates named like a workspace member put several versions of `crate-b` in the lock, so cargo
-    // spells out versions in references to it ("crate-b 0.1.0"). Bumping crate-b from 0.1.0 to 0.2.0
-    // passes 0.1.5 in entry order (semver) and 0.10.0 in reference order (plain string), so the edit
-    // also has to put both back in cargo's order.
+    // Git crates also named `crate-b` make cargo spell out versions in its references. Bumping 0.1.0 to
+    // 0.2.0 passes 0.1.5 in entry order (semver) and 0.10.0 in reference order (string), so both re-sort.
     const gitDeps = ['0.0.9', '0.1.5', '0.10.0'].map((version) => {
       const gitCrate = join(dir, `git-crate-b-${version}`);
       writeCrate(gitCrate, 'crate-b', version);

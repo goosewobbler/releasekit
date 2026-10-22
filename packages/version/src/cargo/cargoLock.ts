@@ -7,7 +7,6 @@ import { log } from '../utils/logging.js';
 
 const recordedBumps: CargoLockBump[] = [];
 
-/** Note a `Cargo.toml` version bump for the Cargo.lock sync at the end of the run. */
 export function recordCargoBump(bump: CargoLockBump): void {
   recordedBumps.push(bump);
 }
@@ -18,17 +17,12 @@ export function clearCargoBumps(): void {
 }
 
 /**
- * Sync every Cargo.lock that records a crate bumped since the last sync, so no committed lock is left
- * at the old version (which breaks `cargo build --locked` and leaks a lock diff into later builds). The
- * candidates are every Cargo.lock tracked by git — apps that use a crate through a path dependency
- * have their own — plus each crate's own lock unless git ignores it; see core's `planCargoLockUpdates`.
- * We never create a lock.
+ * Sync every Cargo.lock that records a crate bumped since the last sync (core's `planCargoLockUpdates`).
+ * Under dry-run the edits are still planned, so an unsyncable lock fails the dry run too, and they're
+ * recorded as pending writes instead of written.
  *
- * Under dry-run the edits are still worked out, so an unsyncable lock fails the dry run too, and are
- * recorded as pending writes (flushed with the manifests by `release`) instead of written.
- *
- * Throws a {@link CargoLockSyncError} when a lock can't be read, edited or written; every edit is worked
- * out before the first write, so a lock that can't be edited leaves all of them untouched.
+ * Throws {@link CargoLockSyncError} on a lock it can't read, edit or write; every edit is planned before
+ * the first write, so a failure leaves all locks untouched.
  */
 export async function syncCargoLockfiles(cwd: string, dryRun: boolean): Promise<void> {
   const bumps = recordedBumps.splice(0);

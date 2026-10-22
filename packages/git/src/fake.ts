@@ -191,12 +191,10 @@ export class FakeGit implements Git {
     return [...(this.diffNames[commitSha] ?? [])];
   }
 
-  /** The fake tracks no files. */
   async lsFiles(_opts: GitLsFilesOptions = {}): Promise<string[]> {
     return [];
   }
 
-  /** The fake ignores no files. */
   async isIgnored(_file: string, _cwd?: string): Promise<boolean> {
     return false;
   }

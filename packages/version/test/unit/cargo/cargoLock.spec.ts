@@ -1,8 +1,7 @@
 /**
- * Cargo.lock sync across every path that bumps a Cargo.toml (#496, #650). Each test runs a real
- * strategy through `VersionEngine.run` over a real git work tree on disk — only tag lookups, commit
- * parsing and the version calculation are mocked — and checks the locks the standing-PR flow stages
- * with `git add -A`: the crates' own workspace lock and a fixture app's lock that uses them by path.
+ * Cargo.lock sync on every path that bumps a Cargo.toml. Each test runs a real strategy through
+ * `VersionEngine.run` over a git work tree on disk (only tag lookups, commit parsing and the version
+ * calculation are mocked) and checks the crates' own lock and a fixture app's lock.
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -137,7 +136,6 @@ function bump(next: Record<string, string>): void {
   vi.mocked(calculator.calculateVersion).mockImplementation(async (_config, options) => next[options.name ?? ''] ?? '');
 }
 
-/** Run one strategy the way the version CLI and the release flows do: through `VersionEngine.run`. */
 async function runVersion(strategy: StrategyType, config: Partial<Config>, packages: PackagesWithRoot): Promise<void> {
   const engine = new VersionEngine(baseConfig(config));
   engine.setStrategy(strategy);

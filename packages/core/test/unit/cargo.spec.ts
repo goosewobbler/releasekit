@@ -38,7 +38,6 @@ describe('findCargoLockfile', () => {
   });
 
   it('should ignore a lock in an ancestor directory that is not a workspace root', () => {
-    // cargo only uses its workspace root's lock; with no `[workspace]` above, the crate is its own root.
     const root = tmp();
     fs.writeFileSync(path.join(root, 'Cargo.toml'), '[package]\nname = "outer"\nversion = "1.0.0"\n');
     fs.writeFileSync(path.join(root, 'Cargo.lock'), '');
@@ -197,8 +196,7 @@ describe('setCargoLockVersion', () => {
   });
 
   it('should keep cargo’s order when the new version passes same-named entries from other sources', () => {
-    // Byte-for-byte what `cargo update --workspace` writes after bumping the path crate `dupe` from
-    // 1.0.0 to 3.0.0: entries are ordered by semver, references by the version as a string.
+    // Byte-for-byte what `cargo update --workspace` writes after bumping `dupe` from 1.0.0 to 3.0.0.
     const source = (repo: string) =>
       `source = "git+https://example.com/${repo}#9a1327a6d3f8bc80a0f02fe01325c7828d587668"`;
     const entry = (version: string, ...rest: string[]) => [
@@ -239,8 +237,7 @@ describe('setCargoLockVersion', () => {
   });
 
   it('should order pre-release identifiers numerically when the new version passes other entries', () => {
-    // Byte-for-byte what `cargo update --workspace` writes after bumping the path crate `dupe` from
-    // 1.0.0-beta.2 to 1.0.0-beta.11: beta.9 < beta.10 < beta.11 for entries, as strings for references.
+    // Byte-for-byte what `cargo update --workspace` writes after bumping `dupe` from 1.0.0-beta.2 to 1.0.0-beta.11.
     const entry = (version: string, ...rest: string[]) => [
       '',
       '[[package]]',
@@ -370,7 +367,6 @@ describe('setCargoLockVersion', () => {
 describe('planCargoLockUpdates', () => {
   const tmpDirs: string[] = [];
 
-  /** The git seam as the planner sees it: `tracked` locks, and the files git ignores. */
   function fakeGit(tracked: string[], ignored: string[] = []) {
     return {
       isRepository: vi.fn(async () => true),

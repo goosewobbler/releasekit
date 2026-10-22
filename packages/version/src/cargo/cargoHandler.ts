@@ -60,9 +60,8 @@ export function getCargoInfo(cargoPath: string): CargoInfo {
  * Update a Cargo.toml file with a new version
  * Preserves comments and formatting as much as possible
  *
- * Also records the bump for the Cargo.lock sync that `VersionEngine.run` makes once the strategy is
- * done. Every version-step Cargo.toml bump goes through here, so no strategy can bump a crate and
- * leave the locks that record it behind.
+ * Also records the bump for the end-of-run Cargo.lock sync. Every version-step bump goes through here,
+ * so no strategy can skip the sync.
  */
 export function updateCargoVersion(cargoPath: string, version: string, dryRun = false): void {
   try {

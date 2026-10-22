@@ -57,11 +57,8 @@ export async function runPrepareStage(ctx: PipelineContext): Promise<void> {
 
   // Update Cargo.toml versions for cargo packages
   if (config.cargo.enabled) {
-    // Cargo.lock files to stage alongside the manifests. We re-sync the locks here (rather than trust
-    // the version step) so the direct-commit flow — git-commit stages an explicit file list, not
-    // `git add -A` — commits every lock that records a bumped crate, fixture apps' locks included, and
-    // is correct even run in isolation. The standing-PR flow stages the locks via its own `git add -A`,
-    // with git-commit skipped, so this re-sync is a harmless no-op there.
+    // Re-synced here so the direct-commit flow, which stages an explicit file list, commits every lock
+    // that records a bump. A no-op in the standing-PR flow, which stages with `git add -A`.
     const bumps: Array<Omit<CargoLockBump, 'name'>> = [];
     for (const update of input.updates) {
       const pkgDir = path.dirname(path.resolve(cwd, update.filePath));

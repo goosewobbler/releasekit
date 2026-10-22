@@ -10,15 +10,11 @@ export type { CargoManifest };
 export { parseCargoToml };
 
 /**
- * Sync every Cargo.lock that records a crate this publish bumped — its own lock and the tracked locks
- * of apps that use it through a path dependency — with the same direct lock edit as the version step
- * (core's `planCargoLockUpdates`), so no Rust toolchain is needed.
+ * Sync every Cargo.lock that records a crate this publish bumped (core's `planCargoLockUpdates`). Returns
+ * every such lock, changed or not, so the caller stages them all.
  *
- * Returns every lock that lists a bumped crate, changed or not, so the caller stages all of them: the
- * version step has usually written them already, and they still belong in the release commit. A
- * failure is logged, never thrown. In the standing-PR flow this runs after the release PR has merged,
- * and a lock fix-up must not strand a release that is already on the base branch; an unsyncable lock
- * fails the version step instead, before anything is committed.
+ * Logs rather than throws: in the standing-PR flow this runs after the merge, and a lock fix-up mustn't
+ * strand a release already on the base branch. The version step fails on an unsyncable lock instead.
  */
 export async function syncCargoLockfiles(cwd: string, bumps: Array<Omit<CargoLockBump, 'name'>>): Promise<string[]> {
   if (bumps.length === 0) {
@@ -46,7 +42,7 @@ export async function syncCargoLockfiles(cwd: string, bumps: Array<Omit<CargoLoc
 export const CRATES_IO_USER_AGENT = 'releasekit/publish (https://github.com/goosewobbler/releasekit)';
 export const CRATES_IO_API_TIMEOUT_MS = 30_000;
 
-/** Set a crate's version, returning the version it replaced (undefined when inherited from the workspace). */
+/** Returns the replaced version, or undefined when it was inherited from the workspace. */
 export function updateCargoVersion(cargoPath: string, newVersion: string): string | undefined {
   try {
     const cargo = parseCargoToml(cargoPath);
