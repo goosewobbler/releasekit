@@ -20,7 +20,7 @@ export abstract class ReleaseKitError extends Error {
   constructor(message: string) {
     super(message);
     this.name = this.constructor.name;
-    // Non-enumerable, so it never shows up in a spread, JSON output, or a test's toEqual.
+    // Non-enumerable, so the brand never shows up in a spread, JSON output, or a test's toEqual.
     Object.defineProperty(this, RELEASEKIT_ERROR_BRAND, { value: true });
   }
 
@@ -37,7 +37,9 @@ export abstract class ReleaseKitError extends Error {
 
   /** True for an error from any copy of core (see {@link RELEASEKIT_ERROR_BRAND}), not just this one. */
   static isReleaseKitError(error: unknown): error is ReleaseKitError {
-    if (error instanceof ReleaseKitError) return true;
+    if (error instanceof ReleaseKitError) {
+      return true;
+    }
     return (
       typeof error === 'object' &&
       error !== null &&

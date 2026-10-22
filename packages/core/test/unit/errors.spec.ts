@@ -95,8 +95,6 @@ describe('ReleaseKitError', () => {
     });
 
     it('should recognise an error from another copy of this module', async () => {
-      // A bundle that inlines core more than once holds several ReleaseKitError classes; a fresh
-      // module instance stands in for one of the other copies.
       vi.resetModules();
       const other = await import('../../src/errors.js');
       class OtherCopyError extends other.ReleaseKitError {

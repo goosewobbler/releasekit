@@ -1,28 +1,61 @@
-import { EXIT_CODES, exitCodeForError, ReleaseKitError, toEnvelopeError } from '@releasekit/core';
-import { BasePublishError, PipelineError, PublishErrorCode } from '@releasekit/publish';
-import { describe, expect, it } from 'vitest';
+import { EXIT_CODES, ReleaseKitError } from '@releasekit/core';
+import { LLMError } from '@releasekit/notes';
+import { BasePublishError, PublishErrorCode } from '@releasekit/publish';
+import { BaseVersionError } from '@releasekit/version';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// @releasekit/publish's build inlines its own copy of core, so its errors extend a different
-// ReleaseKitError class than the one this package's error handling imports — the situation the
-// release bundle is in for every version/notes/publish error it reports.
-describe('errors raised through another copy of core', () => {
-  it('should come from a distinct ReleaseKitError class (the premise of these tests)', () => {
-    expect(new PipelineError('boom', 'npm', undefined as never) instanceof ReleaseKitError).toBe(false);
+vi.mock('../../../src/release.js');
+
+import { createReleaseCommand } from '../../../src/commands/release-command.js';
+import { runRelease } from '../../../src/release.js';
+
+describe('release --json when a stage fails', () => {
+  let exitSpy: ReturnType<typeof vi.spyOn>;
+  let logSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
   });
 
-  it('should still be recognised as releasekit errors', () => {
-    expect(ReleaseKitError.isReleaseKitError(new PipelineError('boom', 'npm', undefined as never))).toBe(true);
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
-  it('should keep their specific code in the envelope instead of degrading to GENERAL_ERROR', () => {
-    const error = toEnvelopeError(new PipelineError('registry rejected', 'npm', undefined as never));
-    expect(error.code).toBe(PublishErrorCode.PIPELINE_STAGE_ERROR);
-    expect(error.message).toBe('registry rejected');
-  });
+  it.each([
+    {
+      stage: 'version',
+      error: new BaseVersionError('git tag failed', 'GIT_ERROR'),
+      code: 'GIT_ERROR',
+      retryable: false,
+      exit: EXIT_CODES.GIT_ERROR,
+    },
+    {
+      stage: 'notes',
+      error: new LLMError('provider timed out', { retryable: true }),
+      code: 'LLM_ERROR',
+      retryable: true,
+      exit: EXIT_CODES.LLM_ERROR,
+    },
+    {
+      stage: 'publish',
+      error: new BasePublishError('npm auth is not configured', PublishErrorCode.CONFIG_ERROR),
+      code: 'CONFIG_ERROR',
+      retryable: false,
+      exit: EXIT_CODES.CONFIG_ERROR,
+    },
+  ])('should report $code from the $stage stage and exit $exit', async ({ stage, error, code, retryable, exit }) => {
+    expect(
+      error,
+      `the ${stage} build shares release's ReleaseKitError, so this case no longer tests a separate copy of core`,
+    ).not.toBeInstanceOf(ReleaseKitError);
+    vi.mocked(runRelease).mockRejectedValue(error);
 
-  it("should exit with their code's family instead of the generic exit code", () => {
-    expect(exitCodeForError(new BasePublishError('bad config', PublishErrorCode.CONFIG_ERROR))).toBe(
-      EXIT_CODES.CONFIG_ERROR,
-    );
+    await createReleaseCommand().parseAsync(['node', 'release', '--json']);
+
+    const envelope = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
+    expect(envelope.errors).toMatchObject([{ code, retryable, message: error.message }]);
+    expect(exitSpy).toHaveBeenCalledWith(exit);
   });
 });
