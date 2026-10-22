@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { LLMError } from '../../src/errors/index.js';
 import { isProviderUnreachable } from './infra-tolerance.js';
 
-// Always runs, unlike the opt-in e2e: if this returns `true` too readily, e2e regressions skip silently.
 describe('isProviderUnreachable', () => {
   it('should treat a provider-classified transient failure as infra', () => {
     expect(isProviderUnreachable(new LLMError('Ollama request timed out after 120000ms', { retryable: true }))).toBe(
@@ -15,8 +14,7 @@ describe('isProviderUnreachable', () => {
   });
 
   it('should treat an unclassified LLMError as our bug', () => {
-    // e.g. Ollama's "Empty response", thrown without a retryable flag.
-    expect(isProviderUnreachable(new LLMError('something odd'))).toBe(false);
+    expect(isProviderUnreachable(new LLMError('Empty response from Ollama'))).toBe(false);
   });
 
   it("should treat a connection refused under undici's fetch failure as infra", () => {
@@ -35,7 +33,6 @@ describe('isProviderUnreachable', () => {
   });
 
   it('should not trust the retryable flag when the cause is an unparseable response', () => {
-    // e.g. an HTML page from a wrong base URL: a server answered, just not the provider.
     const parse = new SyntaxError('Unexpected token \'<\', "<html><bod"... is not valid JSON');
     expect(
       isProviderUnreachable(new LLMError(`Ollama error: ${parse.message}`, { cause: parse, retryable: true })),

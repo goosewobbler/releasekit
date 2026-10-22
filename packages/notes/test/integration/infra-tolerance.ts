@@ -1,7 +1,6 @@
 import { LLMError } from '../../src/errors/index.js';
 
-// Production's NETWORK_ERROR_CODES (src/llm/retryable.ts) plus undici's. A code missing here makes an
-// outage fail rather than skip, so drift is safe.
+// NETWORK_ERROR_CODES from src/llm/retryable.ts, plus undici's.
 const TRANSPORT_ERROR_CODES = new Set([
   'ECONNRESET',
   'ECONNREFUSED',
@@ -22,15 +21,11 @@ function isTransportFailure(error: object): boolean {
 }
 
 /**
- * True only when the failure proves the provider was unreachable, so the e2e skips instead of failing.
- * Misreading a regression as an outage would skip silently, so anything unproven counts as our bug.
+ * Whether a failure proves the provider was unreachable, so the e2e skips instead of failing. Proof is
+ * a `retryable: true` LLMError with either no cause (the provider classified it) or a socket error code
+ * in its cause chain. `retryable` alone isn't enough: providers flag any unknown error retryable.
  *
- * Requires an LLMError with `retryable: true` and either:
- *  - no cause: the provider classified it (retryable HTTP status or its own timeout), or
- *  - a socket error code somewhere in the cause chain (undici nests it under `fetch failed`).
- * `retryable` alone isn't enough: providers flag any unknown error retryable, our own TypeErrors included.
- *
- * Blind spot: a bad request Ollama answers with a 5xx, or a prompt slow enough to time out, skips.
+ * Known gap: a 5xx that Ollama returns for a bad request, or a prompt that times out, skips.
  */
 export function isProviderUnreachable(error: unknown): boolean {
   if (!(error instanceof LLMError) || error.retryable !== true) {
