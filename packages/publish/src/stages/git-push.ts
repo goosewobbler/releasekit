@@ -198,7 +198,6 @@ export async function runGitPushStage(ctx: PipelineContext): Promise<void> {
       await runGit(dryRun, `git push ${remote} ${branch}`, () => git.push({ remote: pushRemote, ref: branch, cwd }));
     }
 
-    // Only this release's tags: `--tags` would also publish any unrelated local tag.
     for (const tag of new Set(output.git.tags)) {
       await runGit(dryRun, `git push ${remote} refs/tags/${tag}`, () =>
         git.push({ remote: pushRemote, ref: `refs/tags/${tag}`, cwd }),
