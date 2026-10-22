@@ -139,6 +139,23 @@
           }
         }
       }
+    },
+    {
+      // Disallow console except in the loggers and CLI command files.
+      "includes": [
+        "packages/*/src/**",
+        "!packages/core/src/logger.ts",
+        "!packages/version/src/utils/logging.ts",
+        "!packages/*/src/command.ts",
+        "!packages/*/src/commands/**"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "error"
+          }
+        }
+      }
     }
   ],
   "assist": {
