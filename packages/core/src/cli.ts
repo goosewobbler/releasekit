@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { type Envelope, errorEnvelope, toEnvelopeError } from './envelope.js';
+import { log } from './logger.js';
 
 /**
  * Write an envelope to the JSON channel: `--output` when given, otherwise stdout under `--json`, and
@@ -14,6 +15,7 @@ export function writeEnvelope(envelope: Envelope, opts: { json?: boolean; output
   }
   const text = JSON.stringify(envelope, null, 2);
   if (!opts.output) {
+    // biome-ignore lint/suspicious/noConsole: prints the --json result
     console.log(text);
     return;
   }
@@ -26,8 +28,9 @@ export function writeEnvelope(envelope: Envelope, opts: { json?: boolean; output
     if (envelope.status !== 'error') {
       throw err;
     }
-    console.error(
+    log(
       `Could not write the error envelope to ${opts.output}: ${err instanceof Error ? err.message : String(err)}`,
+      'error',
     );
   }
 }

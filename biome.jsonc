@@ -145,7 +145,6 @@
       "includes": [
         "packages/*/src/**",
         "!packages/core/src/logger.ts",
-        "!packages/core/src/cli.ts",
         "!packages/version/src/utils/logging.ts",
         "!packages/*/src/command.ts",
         "!packages/*/src/commands/**"

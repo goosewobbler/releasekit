@@ -1,8 +1,8 @@
 import { exitCodeForError } from '@releasekit/core';
+import { publishDidChange } from '@releasekit/publish';
 import { Command } from 'commander';
 import type { StandingPROptions } from '../standing-pr/standing-pr.js';
 import { runStandingPRMerge, runStandingPRPublish, runStandingPRUpdate } from '../standing-pr/standing-pr.js';
-import { releaseDidPublish } from './changed.js';
 import { emitError, emitResult, failInput } from './emitResult.js';
 
 export function createStandingPRCommand(): Command {
@@ -89,8 +89,8 @@ export function createStandingPRCommand(): Command {
 
     try {
       const result = await runStandingPRPublish(options, prNumber);
-      // Read the publish effects, not the manifest's versions — see releaseDidPublish.
-      emitResult(result, { json: opts.json, output: opts.output, changed: releaseDidPublish(result) });
+      // The manifest's versions are already on main even when nothing published, so ask the publish output.
+      emitResult(result, { json: opts.json, output: opts.output, changed: publishDidChange(result?.publishOutput) });
     } catch (err) {
       emitError(err, { json: opts.json, output: opts.output });
       console.error(err instanceof Error ? err.message : String(err));

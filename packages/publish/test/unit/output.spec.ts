@@ -57,8 +57,6 @@ describe('publishDidChange', () => {
   });
 
   it('should be true when the release commit was created, even with no registry publish', () => {
-    // A GitHub-release-only or --skip-publish run still commits and tags the release. `committed` is
-    // only set for a commit this run created, so it can't fire on an idempotent re-run.
     const out = output({ git: { committed: true, tags: ['v2.0.0'], pushed: true } });
     expect(publishDidChange(out)).toBe(true);
   });

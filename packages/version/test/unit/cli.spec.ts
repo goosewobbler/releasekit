@@ -163,6 +163,12 @@ describe('createVersionCommand', () => {
   });
 
   describe('--output', () => {
+    it('should collect the JSON result for --output without --json', async () => {
+      await createVersionCommand().parseAsync(['node', 'test', '--output', 'version.json']);
+
+      expect(jsonOutputModule.enableJsonOutput).toHaveBeenCalled();
+    });
+
     it('should resolve a relative --output against the invocation directory, before --project-dir changes it', async () => {
       // `version --project-dir app --output v.json && publish --input v.json` must find the file where the
       // caller put it. Model the chdir so a path resolved after it would land inside --project-dir.

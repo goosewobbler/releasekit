@@ -87,8 +87,6 @@ const KNOWN_STATUSES = new Set<EnvelopeStatus>(['success', 'error']);
  * known: on an error envelope (with the upstream message), on a `schemaVersion` this build is too old
  * to read, on an unrecognised status, and on a success envelope carrying no payload. Each of those
  * would otherwise surface further away as a shape error about the payload.
- *
- * A caller that wants a nullable payload should read `.data` directly instead.
  */
 export function unwrapEnvelope(value: unknown): unknown {
   if (!isEnvelope(value)) {

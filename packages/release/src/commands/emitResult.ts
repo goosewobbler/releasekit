@@ -15,9 +15,6 @@ export function emitResult(
   data: unknown,
   opts: { json?: boolean; output?: string; changed?: boolean; warnings?: EnvelopeWarning[] },
 ): void {
-  if (!opts.json && !opts.output) {
-    return;
-  }
   writeEnvelope(successEnvelope(data ?? null, { changed: opts.changed, warnings: opts.warnings }), opts);
 }
 
