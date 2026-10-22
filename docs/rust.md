@@ -9,7 +9,7 @@ See [configuration.md](./configuration.md) for the full config reference.
 ## What's supported
 
 - `Cargo.toml` version bumping driven by conventional commits
-- `Cargo.lock` sync on every bump: each committed lock that lists a bumped crate as a path package (the crate's own lock, and those of apps that use it by path) is updated in the same release commit, without running cargo. Gitignored locks are left alone, and so are same-named crates in other workspaces (every `tauri init` app is `app`)
+- `Cargo.lock` sync on every bump: each committed lock that lists a bumped crate as a path package (the crate's own lock, and those of apps that use it by path) is updated in the same release commit, without running cargo. Gitignored locks are left alone, and so are other apps' own crates of the same name (every `tauri init` app is `app`)
 - Per-crate git tags (via `version.packageSpecificTags`)
 - Publishing to crates.io with `cargo publish`
 - Workspace dependency ordering via topological sort (Kahn's algorithm) so path-dependent crates are published in the correct sequence
@@ -24,6 +24,7 @@ See [configuration.md](./configuration.md) for the full config reference.
 - OIDC / trusted publishing for crates.io — token-based auth only via `CARGO_REGISTRY_TOKEN`
 - Automatic workspace root discovery — crate directories must be listed in `version.cargo.paths` or inferred from `version.packages`
 - Comment and formatting preservation in `Cargo.toml` — the file is rewritten on version bump using `smol-toml`'s serialiser; whitespace, comments, and key order may change
+- Telling apart path crates of the same name that something depends on — bumping one also rewrites another lock's entry for a different crate of that name when a package in that lock depends on it at the bumped crate's old or new version (say, two workspaces that each have a `utils` member). Give such crates distinct names
 
 ---
 
@@ -210,7 +211,7 @@ jobs:
 
 **`Failed to sync Cargo.lock: …`**
 
-releasekit edits each lock's text the way cargo would, and fails the version step (`CARGO_LOCK_SYNC_ERROR`, exit code 8) rather than leave a lock behind. The message names the lock and the reason:
+releasekit edits each lock's text the way cargo would, and fails the version step (`CARGO_LOCK_SYNC_ERROR`: exit code 8 from `release` and `standing-pr`, 1 from `releasekit version`) rather than leave a lock behind. The message names the lock and the reason:
 
 - `it also has <crate> <version> from another source`: the lock also lists the crate from a registry or git source at the old or the new version, so cargo would have to change how it tells the two apart. Sync that lock with cargo yourself (`cargo update` with the new version in `Cargo.toml`) and commit it, or drop the second source of the crate.
 - `it has <n> path entries named <crate>`: the lock holds several local crates of that name, so releasekit can't tell which one is the bumped crate. Sync that lock with cargo yourself.
