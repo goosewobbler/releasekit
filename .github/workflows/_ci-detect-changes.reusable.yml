@@ -84,6 +84,7 @@ jobs:
               - '.github/workflows/**'
               - '.github/actions/**'
               - 'package.json'
+              - 'releasekit.config.json'
               - 'pnpm-workspace.yaml'
               - 'pnpm-lock.yaml'
               - 'turbo.json'

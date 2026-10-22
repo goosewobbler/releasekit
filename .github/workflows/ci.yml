@@ -118,6 +118,9 @@ jobs:
       - name: Check generated config docs are up to date
         run: pnpm docs:check
 
+      - name: Check workflow guards match ci.standingPr.branch
+        run: pnpm workflows:check
+
   typecheck:
     name: Typecheck
     needs: [detect-changes, build]
