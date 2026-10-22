@@ -31,7 +31,6 @@ Design decisions are recorded in `docs/adr/` — check there before reworking a 
 
 ## Code conventions the linters don't check
 
-- Brace every `if`, `else` and loop body, even a one-line one. Biome's `useBlockStatements` is off until [#666](https://github.com/goosewobbler/releasekit/issues/666) lands, and older code often skips the braces; don't copy it.
 - Avoid `any`. Biome only warns about it in source, and allows it in specs.
 - Test new behaviour through the path a user hits, such as a CLI command or a package's exported API, not only the helper underneath.
 - Default to no comment. Write one only when the *why* isn't clear from the code: a hidden constraint, a workaround, behaviour that would surprise a reader. Don't repeat the code, a JSDoc or a nearby comment, and don't narrate.
