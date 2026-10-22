@@ -37,7 +37,9 @@ describe('generate-schema', () => {
       let objectsChecked = 0;
       while (stack.length > 0) {
         const node = stack.pop();
-        if (!node || typeof node !== 'object') continue;
+        if (!node || typeof node !== 'object') {
+          continue;
+        }
         const obj = node as Record<string, unknown>;
         if (obj.type === 'object') {
           objectsChecked++;
@@ -52,7 +54,9 @@ describe('generate-schema', () => {
             violations.push('object node has additionalProperties: true (silent leniency)');
           }
         }
-        for (const value of Object.values(obj)) stack.push(value);
+        for (const value of Object.values(obj)) {
+          stack.push(value);
+        }
       }
       expect(violations).toEqual([]);
       expect(objectsChecked).toBeGreaterThan(10);

@@ -172,8 +172,11 @@ describe('detectUnresolvedFailure env hygiene', () => {
     savedSummary = process.env.GITHUB_STEP_SUMMARY;
   });
   afterEach(() => {
-    if (savedSummary === undefined) delete process.env.GITHUB_STEP_SUMMARY;
-    else process.env.GITHUB_STEP_SUMMARY = savedSummary;
+    if (savedSummary === undefined) {
+      delete process.env.GITHUB_STEP_SUMMARY;
+    } else {
+      process.env.GITHUB_STEP_SUMMARY = savedSummary;
+    }
   });
   it('should act as a placeholder to anchor the env reset hooks', () => {
     expect(true).toBe(true);

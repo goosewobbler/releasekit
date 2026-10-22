@@ -67,7 +67,9 @@ describe('examples smoke-test generator', () => {
 
   it('should not add a cargo probe to npm-only scenarios', () => {
     for (const scenario of SCENARIOS) {
-      if (scenario.fixture === 'npm-cargo-monorepo') continue;
+      if (scenario.fixture === 'npm-cargo-monorepo') {
+        continue;
+      }
       const hasCargoProbe = stepsOf(`smoke-${scenario.id}`).some((s) => s.run === 'cargo --version');
       expect(hasCargoProbe).toBe(false);
     }

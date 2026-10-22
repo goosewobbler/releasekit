@@ -24,7 +24,9 @@ const DEFAULT_FIRST_RELEASE_TEXT = '_First release of ${packageName}._';
  * The default text is a true statement so it reads fine even when published unedited (automated modes).
  */
 export function firstReleaseLine(context: TemplateContext, config?: FirstReleaseConfig | false): string | undefined {
-  if (!context.isFirstRelease || config === false) return undefined;
+  if (!context.isFirstRelease || config === false) {
+    return undefined;
+  }
   const template = config?.text ?? DEFAULT_FIRST_RELEASE_TEXT;
   return template.replaceAll('${packageName}', context.packageName).replaceAll('${version}', context.version);
 }
@@ -109,11 +111,15 @@ function formatCategorySection(name: string, entries: ChangelogEntry[], refOpts:
   // Identify scopes that appear on 2+ entries → group them
   const scopeCounts = new Map<string, number>();
   for (const entry of entries) {
-    if (entry.scope) scopeCounts.set(entry.scope, (scopeCounts.get(entry.scope) ?? 0) + 1);
+    if (entry.scope) {
+      scopeCounts.set(entry.scope, (scopeCounts.get(entry.scope) ?? 0) + 1);
+    }
   }
   const groupedScopes = new Set<string>();
   for (const [scope, count] of scopeCounts) {
-    if (count > 1) groupedScopes.add(scope);
+    if (count > 1) {
+      groupedScopes.add(scope);
+    }
   }
 
   if (groupedScopes.size === 0) {
@@ -157,7 +163,9 @@ function formatCategorySection(name: string, entries: ChangelogEntry[], refOpts:
 
 function rerouteBreakingEntries(categories: EnhancedCategory[]): EnhancedCategory[] {
   const hasBreaking = categories.some((c) => c.entries.some((e) => e.breaking));
-  if (!hasBreaking) return categories;
+  if (!hasBreaking) {
+    return categories;
+  }
 
   const breakingEntries: ChangelogEntry[] = [];
   const stripped = categories.map((c) => ({
@@ -180,7 +188,9 @@ function rerouteBreakingEntries(categories: EnhancedCategory[]): EnhancedCategor
 }
 
 function applyOrder(categories: EnhancedCategory[], order: string[]): EnhancedCategory[] {
-  if (order.length === 0) return categories;
+  if (order.length === 0) {
+    return categories;
+  }
   return [...categories].sort((a, b) => {
     const ai = order.indexOf(a.name);
     const bi = order.indexOf(b.name);
@@ -199,18 +209,26 @@ function parseMdLink(text: string): { label: string; url: string } | null {
   let search = 0;
   while (search < text.length) {
     const bracketOpen = text.indexOf('[', search);
-    if (bracketOpen === -1) return null;
+    if (bracketOpen === -1) {
+      return null;
+    }
     const bracketClose = text.indexOf(']', bracketOpen + 1);
-    if (bracketClose === -1) return null;
+    if (bracketClose === -1) {
+      return null;
+    }
     if (text[bracketClose + 1] !== '(') {
       search = bracketClose + 1;
       continue;
     }
     const parenClose = text.indexOf(')', bracketClose + 2);
-    if (parenClose === -1) return null;
+    if (parenClose === -1) {
+      return null;
+    }
     const label = text.slice(bracketOpen + 1, bracketClose);
     const url = text.slice(bracketClose + 2, parenClose);
-    if (/^https?:\/\//.test(url)) return { label, url };
+    if (/^https?:\/\//.test(url)) {
+      return { label, url };
+    }
     search = parenClose + 1;
   }
   return null;
@@ -223,7 +241,9 @@ function extractLinksFromPRBodies(entries: ChangelogEntry[], marker: string): Li
     for (const pr of entry.context?.prs ?? []) {
       for (const line of pr.body.split('\n')) {
         const trimmed = line.trim();
-        if (!trimmed.startsWith(marker)) continue;
+        if (!trimmed.startsWith(marker)) {
+          continue;
+        }
         const rest = trimmed.slice(marker.length).trim();
         const mdLink = parseMdLink(rest);
         if (mdLink) {
@@ -245,7 +265,9 @@ function extractLinksFromPRBodies(entries: ChangelogEntry[], marker: string): Li
 }
 
 function resolveLinks(entries: ChangelogEntry[], linksConfig: LinksConfig | undefined): LinkItem[] {
-  if (!linksConfig) return [];
+  if (!linksConfig) {
+    return [];
+  }
   const items = linksConfig.items ?? [];
   const discovered = linksConfig.fromPRBodyMarker
     ? extractLinksFromPRBodies(entries, linksConfig.fromPRBodyMarker)
@@ -308,7 +330,9 @@ export function formatVersion(context: TemplateContext, options?: FormatVersionO
     categories = applyOrder(categories, options?.categoryOrder ?? []);
 
     for (const category of categories) {
-      if (category.entries.length === 0) continue;
+      if (category.entries.length === 0) {
+        continue;
+      }
       lines.push(...formatCategorySection(category.name, category.entries, refOpts));
     }
 
@@ -325,7 +349,9 @@ export function formatVersion(context: TemplateContext, options?: FormatVersionO
     const grouped = groupEntriesByType(context.entries);
 
     for (const [type, entries] of grouped) {
-      if (entries.length === 0) continue;
+      if (entries.length === 0) {
+        continue;
+      }
 
       lines.push(`### ${TYPE_LABELS[type]}`);
       for (const entry of entries) {

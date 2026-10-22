@@ -36,7 +36,9 @@ vi.mock('../../../src/utils/formatting.js', () => ({
   escapeRegExp: vi.fn().mockImplementation((str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
   deriveBaselineTagPrefix: vi.fn().mockReturnValue(undefined),
   displayTag: vi.fn().mockImplementation((tag, baselineTagPrefix, formattedPrefix) => {
-    if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) return tag;
+    if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) {
+      return tag;
+    }
     return `${formattedPrefix}${tag.slice(baselineTagPrefix.length)}`;
   }),
 }));
@@ -380,7 +382,9 @@ describe('Package Processor', () => {
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('release/v1.0.0');
       vi.spyOn(formatting, 'deriveBaselineTagPrefix').mockReturnValue('release/v');
       vi.spyOn(formatting, 'displayTag').mockImplementation((tag, baselineTagPrefix, formattedPrefix) => {
-        if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) return tag;
+        if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) {
+          return tag;
+        }
         return `${formattedPrefix}${tag.slice(baselineTagPrefix.length)}`;
       });
 
@@ -404,7 +408,9 @@ describe('Package Processor', () => {
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('release/v1.0.0');
       vi.spyOn(formatting, 'deriveBaselineTagPrefix').mockReturnValue('release/v');
       vi.spyOn(formatting, 'displayTag').mockImplementation((tag, baselineTagPrefix, formattedPrefix) => {
-        if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) return tag;
+        if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) {
+          return tag;
+        }
         return `${formattedPrefix}${tag.slice(baselineTagPrefix.length)}`;
       });
 
@@ -427,7 +433,9 @@ describe('Package Processor', () => {
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('release/v1.0.0');
       vi.spyOn(formatting, 'deriveBaselineTagPrefix').mockReturnValue('release/v');
       vi.spyOn(formatting, 'displayTag').mockImplementation((tag, baselineTagPrefix, formattedPrefix) => {
-        if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) return tag;
+        if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) {
+          return tag;
+        }
         return `${formattedPrefix}${tag.slice(baselineTagPrefix.length)}`;
       });
       // Baseline resolves as a ref but can't be verified from HEAD (shallow clone / unpushed tag).
@@ -700,7 +708,9 @@ describe('Package Processor', () => {
       const pkgAEntry = { type: 'added', description: 'New feature in pkg-a' };
 
       vi.spyOn(commitParser, 'extractChangelogEntriesFromCommits').mockImplementation((_dir) => {
-        if (_dir.includes('package-a')) return [pkgAEntry];
+        if (_dir.includes('package-a')) {
+          return [pkgAEntry];
+        }
         return [];
       });
       vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockResolvedValue([repoLevelEntry]);

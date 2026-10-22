@@ -45,13 +45,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * keys — which would otherwise turn off a user's file output without a word.
  */
 function assertNoRemovedReleaseNotesFields(config: unknown): void {
-  if (!isRecord(config) || !isRecord(config.notes) || !isRecord(config.notes.releaseNotes)) return;
+  if (!isRecord(config) || !isRecord(config.notes) || !isRecord(config.notes.releaseNotes)) {
+    return;
+  }
   const rn = config.notes.releaseNotes;
   const removed: string[] = [];
-  if ('mode' in rn) removed.push('mode');
-  if ('directory' in rn) removed.push('directory');
-  if (typeof rn.file === 'string') removed.push('file (string)');
-  if (removed.length === 0) return;
+  if ('mode' in rn) {
+    removed.push('mode');
+  }
+  if ('directory' in rn) {
+    removed.push('directory');
+  }
+  if (typeof rn.file === 'string') {
+    removed.push('file (string)');
+  }
+  if (removed.length === 0) {
+    return;
+  }
   throw new ConfigError(
     `notes.releaseNotes no longer supports ${removed.join(', ')}. Release notes go to the GitHub ` +
       'release body by default; for in-repo per-version files set notes.releaseNotes.file to ' +
@@ -66,12 +76,16 @@ function assertNoRemovedReleaseNotesFields(config: unknown): void {
  * generated JSON schema, where editors/CI reject the same unknown keys).
  */
 function assertNoRemovedVersionFields(config: unknown): void {
-  if (!isRecord(config) || !isRecord(config.version)) return;
+  if (!isRecord(config) || !isRecord(config.version)) {
+    return;
+  }
   const v = config.version;
   const removed = ['versionStrategy', 'branchPatterns', 'defaultReleaseType', 'updateInternalDependencies'].filter(
     (k) => k in v,
   );
-  if (removed.length === 0) return;
+  if (removed.length === 0) {
+    return;
+  }
   throw new ConfigError(
     `version no longer supports ${removed.join(', ')}. Branch-pattern versioning was never functional — ` +
       'use Conventional Commits or --bump for version bumps. For coupled packages use version.groups; to ' +
@@ -86,7 +100,9 @@ function assertNoRemovedVersionFields(config: unknown): void {
  * silently stripping these (which also diverges from the JSON schema's unknown-key rejection).
  */
 function assertNoRemovedTopLevelFields(config: unknown): void {
-  if (!isRecord(config)) return;
+  if (!isRecord(config)) {
+    return;
+  }
   if (isRecord(config.ci)) {
     const removed = ['autoRelease', 'skipPatterns', 'minChanges'].filter((k) => k in (config.ci as object));
     if (removed.length > 0) {
@@ -154,7 +170,9 @@ export function loadVersionConfig(options?: LoadOptions): VersionConfig | undefi
 export function loadPublishConfig(options?: LoadOptions): PublishConfig | undefined {
   const config = loadConfig(options);
 
-  if (!config.publish) return undefined;
+  if (!config.publish) {
+    return undefined;
+  }
 
   const mergedGit = mergeGitConfig(config.git, config.publish.git);
 

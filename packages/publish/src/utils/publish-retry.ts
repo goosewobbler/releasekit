@@ -44,11 +44,15 @@ export function classifyPublishError(error: unknown): PublishErrorClass {
   const output = getExecErrorOutput(error);
 
   for (const pattern of PERMANENT_PATTERNS) {
-    if (pattern.test(output)) return 'permanent';
+    if (pattern.test(output)) {
+      return 'permanent';
+    }
   }
 
   for (const pattern of TRANSIENT_PATTERNS) {
-    if (pattern.test(output)) return 'transient';
+    if (pattern.test(output)) {
+      return 'transient';
+    }
   }
 
   return 'permanent';

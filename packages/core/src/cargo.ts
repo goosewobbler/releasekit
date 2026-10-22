@@ -29,7 +29,9 @@ export function findCargoLockfile(startDir: string): string | undefined {
   while (true) {
     const lockPath = path.join(dir, 'Cargo.lock');
     const hasLock = fs.existsSync(lockPath);
-    if (hasLock && !nearestLock) nearestLock = lockPath;
+    if (hasLock && !nearestLock) {
+      nearestLock = lockPath;
+    }
 
     const cargoToml = path.join(dir, 'Cargo.toml');
     if (fs.existsSync(cargoToml) && isWorkspaceManifest(cargoToml)) {
@@ -38,7 +40,9 @@ export function findCargoLockfile(startDir: string): string | undefined {
     }
 
     const parent = path.dirname(dir);
-    if (parent === dir) break; // reached the filesystem root
+    if (parent === dir) {
+      break; // reached the filesystem root
+    }
     dir = parent;
   }
   return nearestLock;

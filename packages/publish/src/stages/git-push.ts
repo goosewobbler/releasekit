@@ -10,8 +10,12 @@ function toGithubAuthedUrl(remoteUrl: string, token: string): string | undefined
   // Avoid logging token by never returning it via logs.
   try {
     const url = new URL(remoteUrl);
-    if (url.protocol !== 'https:') return undefined;
-    if (url.host !== 'github.com') return undefined;
+    if (url.protocol !== 'https:') {
+      return undefined;
+    }
+    if (url.host !== 'github.com') {
+      return undefined;
+    }
 
     // Use the recommended username for GitHub token auth in HTTPS URLs.
     url.username = 'x-access-token';
@@ -35,7 +39,9 @@ export interface PushSetup {
 export async function preparePushSetup(ctx: PipelineContext): Promise<PushSetup | null> {
   const { config, cwd, output } = ctx;
 
-  if (!config.git.push) return null;
+  if (!config.git.push) {
+    return null;
+  }
 
   const { remote } = config.git;
   const git = createGitCli();
@@ -55,7 +61,9 @@ export async function preparePushSetup(ctx: PipelineContext): Promise<PushSetup 
   if (pushMethod === 'https' && httpsToken) {
     const remoteUrl = (await git.remoteUrl(remote, cwd)) ?? '';
     const authed = toGithubAuthedUrl(remoteUrl, httpsToken);
-    if (authed) pushRemote = authed;
+    if (authed) {
+      pushRemote = authed;
+    }
   }
 
   let branch: string | undefined;
@@ -85,7 +93,9 @@ export async function pushPackageTag(tag: string, ctx: PipelineContext, setup?: 
   const { config, cliOptions, cwd, output } = ctx;
   const dryRun = cliOptions.dryRun;
 
-  if (!config.git.push) return;
+  if (!config.git.push) {
+    return;
+  }
 
   const git = createGitCli();
 
@@ -115,7 +125,9 @@ export async function pushPackageTag(tag: string, ctx: PipelineContext, setup?: 
 
     output.git.pushed = true;
   } catch (error) {
-    if (error instanceof PublishError) throw error;
+    if (error instanceof PublishError) {
+      throw error;
+    }
     throw createPublishError(PublishErrorCode.GIT_PUSH_ERROR, error instanceof Error ? error.message : String(error));
   }
 }

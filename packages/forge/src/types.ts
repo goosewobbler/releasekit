@@ -99,7 +99,9 @@ export interface ForgeComment {
  */
 export function isBotComment(comment: Pick<ForgeComment, 'user'>): boolean {
   const user = comment.user;
-  if (!user) return true;
+  if (!user) {
+    return true;
+  }
   return user.type === 'Bot' || (user.login !== undefined && user.login.endsWith('[bot]'));
 }
 

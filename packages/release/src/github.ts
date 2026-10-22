@@ -9,7 +9,9 @@ export const MARKER = '<!-- releasekit-preview -->';
  * token before reaching the forge-backed paths; the assertion is a safety net for that invariant.
  */
 export function forgeFor(context: { token: string | null | undefined; owner: string; repo: string }): Forge {
-  if (!context.token) throw new Error('A GitHub token is required to access the forge.');
+  if (!context.token) {
+    throw new Error('A GitHub token is required to access the forge.');
+  }
   return createGitHubForge({ token: context.token, owner: context.owner, repo: context.repo });
 }
 
@@ -53,7 +55,9 @@ export async function findMergedPRsSinceLastRelease(forge: Forge, projectDir: st
   const prGroups = await Promise.all(mergeShas.map((sha) => findMergedPRsForCommit(forge, sha)));
   const seen = new Set<number>();
   for (const prs of prGroups) {
-    for (const n of prs) seen.add(n);
+    for (const n of prs) {
+      seen.add(n);
+    }
   }
   return [...seen];
 }
