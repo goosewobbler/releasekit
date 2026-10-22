@@ -415,17 +415,23 @@ describe('changelog-region', () => {
       expect(footer).toContain('_(a, b)_');
     });
 
-    it('should demote Dependabot deps-dev entries by default', () => {
-      const render = makeRowChangelogRenderer([
+    // The row renderer and the footer each fall back to the default separately, so cover both.
+    it('should demote Dependabot deps-dev entries by default in rows and the combined footer', () => {
+      const changelogs = [
         cl('@scope/app', [
           { type: 'feat', description: 'App feature' },
           { type: 'changed', description: 'bump the development-dependencies group', scope: 'deps-dev' },
         ]),
-      ]);
-      const block = render(['@scope/app'], false, '');
+      ];
+      const block = makeRowChangelogRenderer(changelogs)(['@scope/app'], false, '');
       expect(block).not.toContain('#### Changed');
       expect(block).toContain('#### Dependencies & version bumps');
       expect(block).toContain('- bump the development-dependencies group (`deps-dev`)');
+
+      const footer = renderCombinedFooter(output({ changelogs }));
+      expect(footer).not.toContain('#### Changed');
+      expect(footer).toContain('#### Dependencies & version bumps');
+      expect(footer).toContain('- bump the development-dependencies group');
     });
 
     it('should render every scope inline when demoteScopes is empty', () => {
