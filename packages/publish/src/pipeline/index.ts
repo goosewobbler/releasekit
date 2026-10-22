@@ -170,8 +170,9 @@ export async function runPipeline(
       await runVerifyStage(ctx);
     }
 
-    // Stage 7: Git push (batch mode only — per-package mode pushed inline above)
-    if (!options.skipGit && !perPackageMode && (options.skipPublish || ctx.output.publishSucceeded)) {
+    // Stage 7: Git push. Per-package mode already pushed each package tag; this pushes what's left
+    // (baseline tags), or everything when registry publishing was skipped.
+    if (!options.skipGit && (options.skipPublish || ctx.output.publishSucceeded)) {
       await runGitPushStage(ctx);
     }
 
