@@ -17,7 +17,12 @@ export const DEFAULT_DEMOTE_SCOPES: readonly string[] = ['deps', 'deps-dev'];
 
 export const GitConfigSchema = z.object({
   remote: z.string().default('origin').describe('Git remote name'),
-  branch: z.string().default('main').describe('Default branch name'),
+  branch: z
+    .string()
+    .optional()
+    .describe(
+      "Branch to push the release commit to (default: the current branch) and the standing release PR's base (default: main).",
+    ),
   pushMethod: z.enum(['auto', 'ssh', 'https']).default('auto').describe('Method for pushing to remote'),
   push: z.boolean().optional().describe('Whether to push changes to remote'),
   httpsTokenEnv: z.string().optional().describe('Environment variable name containing a GitHub token for HTTPS pushes'),

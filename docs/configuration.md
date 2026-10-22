@@ -32,7 +32,7 @@ Git configuration.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `remote` | string | `"origin"` | Git remote name |
-| `branch` | string | `"main"` | Default branch name |
+| `branch` | string | — | Branch to push the release commit to (default: the current branch) and the standing release PR's base (default: main). |
 | `pushMethod` | `"auto"` \| `"ssh"` \| `"https"` | `"auto"` | Method for pushing to remote |
 | `push` | boolean | — | Whether to push changes to remote |
 | `httpsTokenEnv` | string | — | Environment variable name containing a GitHub token for HTTPS pushes |

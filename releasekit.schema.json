@@ -21,8 +21,7 @@
         },
         "branch": {
           "type": "string",
-          "default": "main",
-          "description": "Default branch name"
+          "description": "Branch to push the release commit to (default: the current branch) and the standing release PR's base (default: main)."
         },
         "pushMethod": {
           "type": "string",

@@ -1,6 +1,9 @@
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { createFakeGit, type FakeGit, type FakeGitSeed } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getDefaultConfig } from '../../../src/config.js';
+import { getDefaultConfig, loadConfig } from '../../../src/config.js';
 import { PublishError } from '../../../src/errors/index.js';
 import { pushPackageTag, runGitPushStage } from '../../../src/stages/git-push.js';
 import type { PipelineContext } from '../../../src/types.js';
@@ -137,6 +140,25 @@ describe('git-push stage', () => {
     await runGitPushStage(ctx);
 
     expect(fakeGit.pushed[0]).toEqual(expect.objectContaining({ remote: 'origin', ref: 'feature/my-branch' }));
+  });
+
+  it.each([
+    ['a top-level git block', { git: { remote: 'origin' } }],
+    ['top-level git and publish blocks', { git: { remote: 'origin' }, publish: {} }],
+    ['a publish.git block', { publish: { git: { push: true } } }],
+  ])('should push the current branch for a loaded config with %s but no branch', async (_label, fileConfig) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-git-push-test-'));
+    try {
+      fs.writeFileSync(path.join(dir, 'releasekit.config.json'), JSON.stringify(fileConfig));
+      seedGit({ currentBranch: 'feature/my-branch' });
+      const ctx = createContext({ config: loadConfig({ cwd: dir }) });
+
+      await runGitPushStage(ctx);
+
+      expect(fakeGit.pushed[0]).toEqual(expect.objectContaining({ remote: 'origin', ref: 'feature/my-branch' }));
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('should throw a clear error when in detached HEAD state', async () => {
