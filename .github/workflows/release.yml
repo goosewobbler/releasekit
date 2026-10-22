@@ -105,7 +105,7 @@ jobs:
           # Extract the release label and derive the bump type from it.
           # Only bump:* labels are supported (release:* labels are deprecated).
           LABELS=$(echo "$PRS_OUTPUT" | jq -r '.[].labels[].name' 2>/dev/null)
-          
+
           # Check for channel:stable first (takes precedence over bump:* per ci-setup.md)
           if echo "$LABELS" | grep -qE "^channel:stable$"; then
             echo "should_release=true" >> "$GITHUB_OUTPUT"
@@ -113,7 +113,7 @@ jobs:
             echo "channel:stable label found — promoting prerelease to stable"
             exit 0
           fi
-          
+
           # Check for channel:prerelease + bump:* (creates prerelease)
           if echo "$LABELS" | grep -qE "^channel:prerelease$"; then
             # Map bump label to prerelease bump type
@@ -136,7 +136,7 @@ jobs:
               exit 0
             fi
           fi
-          
+
           # Check for bump:* labels
           BUMP_LABEL=$(echo "$LABELS" | grep -E "^bump:(patch|minor|major)$" | head -1)
           if [ -n "$BUMP_LABEL" ]; then
@@ -146,7 +146,7 @@ jobs:
             echo "Bump label '${BUMP_LABEL}' found — bump: ${BUMP_TYPE}"
             exit 0
           fi
-          
+
           echo "should_release=false" >> "$GITHUB_OUTPUT"
           echo "No release label found on merged PRs, skipping release"
 

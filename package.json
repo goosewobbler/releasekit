@@ -62,7 +62,7 @@
       "biome check --write --no-errors-on-unmatched --files-ignore-unknown=true",
       "eslint --fix --cache"
     ],
-    "**/*.{md,json,jsonc}": [
+    "**/*.{md,json,jsonc,yml,yaml}": [
       "biome format --write --no-errors-on-unmatched --files-ignore-unknown=true"
     ]
   }

@@ -24,12 +24,12 @@
   },
   "formatter": {
     "enabled": true,
-    // Skip md/yaml: CHANGELOGs, pnpm-lock.yaml and examples-smoke.yml are generated and would fight the formatter.
+    // Skip generated YAML, and all Markdown: Biome's formatter drops the blank line before lists and mangles inline HTML.
     "includes": [
       "**",
       "!**/*.md",
-      "!**/*.yml",
-      "!**/*.yaml"
+      "!pnpm-lock.yaml",
+      "!.github/workflows/examples-smoke.yml"
     ],
     "formatWithErrors": false,
     "indentStyle": "space",
@@ -73,6 +73,12 @@
   "json": {
     "formatter": {
       "expand": "always"
+    }
+  },
+  "yaml": {
+    "formatter": {
+      "quoteStyle": "single",
+      "bracketSpacing": false
     }
   },
   "overrides": [
