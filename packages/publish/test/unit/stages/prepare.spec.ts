@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -167,6 +168,70 @@ describe('prepare stage', () => {
 
     expect(fs.readFileSync(lockPath, 'utf-8')).toBe(fooLock('1.1.0'));
     expect(ctx.additionalFiles).toContain(lockPath);
+  });
+
+  it('should sync and stage a committed fixture-app lock that uses the crate by path', async () => {
+    const dir = createTmpDir();
+    const crateDir = path.join(dir, 'crates', 'foo');
+    fs.mkdirSync(crateDir, { recursive: true });
+    fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "foo"\nversion = "1.0.0"\n');
+    const ownLock = path.join(crateDir, 'Cargo.lock');
+    fs.writeFileSync(ownLock, fooLock('1.0.0'));
+    const appLock = path.join(dir, 'fixtures', 'app', 'Cargo.lock');
+    fs.mkdirSync(path.dirname(appLock), { recursive: true });
+    fs.writeFileSync(appLock, `${fooLock('1.0.0')}\n[[package]]\nname = "app"\nversion = "0.1.0"\n`);
+    execFileSync('git', ['init', '-q'], { cwd: dir });
+    execFileSync('git', ['add', '-A'], { cwd: dir });
+
+    const config = getDefaultConfig();
+    config.cargo.enabled = true;
+    const ctx = createContext({
+      cwd: dir,
+      config,
+      input: {
+        dryRun: false,
+        updates: [{ packageName: 'foo', newVersion: '1.1.0', filePath: 'crates/foo/Cargo.toml' }],
+        changelogs: [],
+        tags: [],
+      },
+    });
+
+    await runPrepareStage(ctx);
+
+    expect(fs.readFileSync(ownLock, 'utf-8')).toBe(fooLock('1.1.0'));
+    expect(fs.readFileSync(appLock, 'utf-8')).toBe(
+      `${fooLock('1.1.0')}\n[[package]]\nname = "app"\nversion = "0.1.0"\n`,
+    );
+    expect(ctx.additionalFiles).toEqual(expect.arrayContaining([ownLock, appLock]));
+  });
+
+  it('should not fail the publish when a lock cannot be synced', async () => {
+    const dir = createTmpDir();
+    const crateDir = path.join(dir, 'crates', 'foo');
+    fs.mkdirSync(crateDir, { recursive: true });
+    fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "foo"\nversion = "1.0.0"\n');
+    const lockPath = path.join(crateDir, 'Cargo.lock');
+    const ambiguous = `${fooLock('1.0.0')}\n[[package]]\nname = "foo"\nversion = "1.1.0"\nsource = "registry+https://github.com/rust-lang/crates.io-index"\n`;
+    fs.writeFileSync(lockPath, ambiguous);
+
+    const config = getDefaultConfig();
+    config.cargo.enabled = true;
+    const ctx = createContext({
+      cwd: dir,
+      config,
+      input: {
+        dryRun: false,
+        updates: [{ packageName: 'foo', newVersion: '1.1.0', filePath: 'crates/foo/Cargo.toml' }],
+        changelogs: [],
+        tags: [],
+      },
+    });
+
+    await runPrepareStage(ctx);
+
+    expect(fs.readFileSync(path.join(crateDir, 'Cargo.toml'), 'utf-8')).toContain('version = "1.1.0"');
+    expect(fs.readFileSync(lockPath, 'utf-8')).toBe(ambiguous);
+    expect(ctx.additionalFiles ?? []).not.toContain(lockPath);
   });
 
   it('should still stage a Cargo.lock the version step already synced', async () => {

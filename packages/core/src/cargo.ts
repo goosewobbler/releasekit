@@ -113,7 +113,7 @@ export function setCargoLockVersion(lockContent: string, crateName: string, vers
     return undefined;
   }
   if (own.length > 1) {
-    throw new Error(`Cargo.lock has ${own.length} path entries named ${crateName}`);
+    throw new Error(`it has ${own.length} path entries named ${crateName}`);
   }
 
   const [entry] = own;
@@ -122,43 +122,90 @@ export function setCargoLockVersion(lockContent: string, crateName: string, vers
   }
   const clash = sameName.find((other) => other !== entry && [entry.version, version].includes(other.version));
   if (clash) {
-    throw new Error(
-      `Cargo.lock also has ${crateName} ${clash.version} from another source; run \`cargo update --workspace\` to sync it`,
-    );
+    throw new Error(`it also has ${crateName} ${clash.version} from another source`);
   }
 
   lines[entry.versionLine] = lines[entry.versionLine].replace(`"${entry.version}"`, `"${version}"`);
   return lines.join('\n').replaceAll(`"${crateName} ${entry.version}"`, `"${crateName} ${version}"`);
 }
 
+/** The part of `@releasekit/git`'s `Git` seam that lists tracked files (core doesn't depend on it). */
+export interface TrackedFileLister {
+  isRepository(cwd?: string): Promise<boolean>;
+  lsFiles(opts?: { paths?: string[]; cwd?: string }): Promise<string[]>;
+}
+
 /**
- * Sync the crate's own entry in the committed Cargo.lock that governs `crateDir` (see
- * {@link findCargoLockfile}) to `version`, by editing the lock text directly with
- * {@link setCargoLockVersion}. Nothing runs cargo, so this needs no Rust toolchain, registry index or
- * network. Writes nothing under `dryRun`.
- *
- * Returns the lock path and whether its content changed, or `undefined` when no committed lock lists
- * the crate as a path package. Throws when the lock can't be read or written, or can't be edited
- * unambiguously.
+ * Every Cargo.lock tracked by git anywhere in the repository containing `cwd`, as absolute paths —
+ * empty outside a git repository. Untracked and ignored locks are left out.
  */
-export function syncCargoLockVersion(
-  crateDir: string,
-  crateName: string,
-  version: string,
-  dryRun = false,
-): { lockPath: string; changed: boolean } | undefined {
-  const lockPath = findCargoLockfile(crateDir);
-  if (!lockPath) {
-    return undefined;
+export async function findCommittedCargoLockfiles(git: TrackedFileLister, cwd: string): Promise<string[]> {
+  if (!(await git.isRepository(cwd))) {
+    return [];
   }
-  const content = fs.readFileSync(lockPath, 'utf8');
-  const updated = setCargoLockVersion(content, crateName, version);
-  if (updated === undefined) {
-    return undefined;
+  const tracked = await git.lsFiles({ paths: [':(top,glob)**/Cargo.lock'], cwd });
+  return tracked.map((lockPath) => path.resolve(cwd, lockPath));
+}
+
+/** A crate whose new version the Cargo.lock files that record it must follow. */
+export interface CargoLockBump {
+  cargoTomlPath: string;
+  name: string;
+  version: string;
+}
+
+/** A Cargo.lock that lists at least one bumped crate as a path package, with the content it must have. */
+export interface CargoLockUpdate {
+  lockPath: string;
+  content: string;
+  changed: boolean;
+}
+
+/**
+ * Work out the content of every Cargo.lock that records a bumped crate, by editing the lock text with
+ * {@link setCargoLockVersion} — nothing runs cargo, so no Rust toolchain, registry index or network is
+ * needed. The candidates are `committedLocks` (every tracked lock, which covers apps that use a crate
+ * through a path dependency) plus each crate's own governing lock ({@link findCargoLockfile}), which is
+ * synced even when it isn't tracked. A lock gets every bump it lists, so a lock shared by several bumped
+ * crates is rewritten once; locks that list none are left out.
+ *
+ * Nothing is written: the caller writes the changed content. Throws, naming the lock, when a lock can't
+ * be read or edited unambiguously, so no lock is written unless every lock can be.
+ */
+export function planCargoLockUpdates(bumps: CargoLockBump[], committedLocks: string[]): CargoLockUpdate[] {
+  const lockPaths = new Set(committedLocks.map((lockPath) => path.resolve(lockPath)));
+  for (const bump of bumps) {
+    const ownLock = findCargoLockfile(path.dirname(bump.cargoTomlPath));
+    if (ownLock) {
+      lockPaths.add(ownLock);
+    }
   }
-  const changed = updated !== content;
-  if (changed && !dryRun) {
-    fs.writeFileSync(lockPath, updated);
+
+  const updates: CargoLockUpdate[] = [];
+  for (const lockPath of lockPaths) {
+    // Tracked but deleted in the work tree: nothing to sync.
+    if (!fs.existsSync(lockPath)) {
+      continue;
+    }
+    const original = fs.readFileSync(lockPath, 'utf8');
+    let content = original;
+    let listed = false;
+    for (const bump of bumps) {
+      let next: string | undefined;
+      try {
+        next = setCargoLockVersion(content, bump.name, bump.version);
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        throw new Error(`can't set ${bump.name} to ${bump.version} in ${lockPath}: ${detail}`);
+      }
+      if (next !== undefined) {
+        listed = true;
+        content = next;
+      }
+    }
+    if (listed) {
+      updates.push({ lockPath, content, changed: content !== original });
+    }
   }
-  return { lockPath, changed };
+  return updates;
 }

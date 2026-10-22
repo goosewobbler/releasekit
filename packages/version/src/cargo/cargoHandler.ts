@@ -9,7 +9,7 @@ import { isCargoToml, parseCargoToml } from '@releasekit/config';
 import * as TOML from 'smol-toml';
 import { addPackageUpdate, recordPendingWrite } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
-import { syncCargoLockfile } from './cargoLock.js';
+import { recordCargoBump } from './cargoLock.js';
 
 export { isCargoToml };
 
@@ -60,8 +60,9 @@ export function getCargoInfo(cargoPath: string): CargoInfo {
  * Update a Cargo.toml file with a new version
  * Preserves comments and formatting as much as possible
  *
- * Then syncs the crate's own entry in its committed Cargo.lock. Every version-step Cargo.toml bump
- * goes through here, so no strategy can bump a crate and leave its lock behind.
+ * Also records the bump for the Cargo.lock sync that `VersionEngine.run` makes once the strategy is
+ * done. Every version-step Cargo.toml bump goes through here, so no strategy can bump a crate and
+ * leave the locks that record it behind.
  */
 export function updateCargoVersion(cargoPath: string, version: string, dryRun = false): void {
   try {
@@ -90,6 +91,7 @@ export function updateCargoVersion(cargoPath: string, version: string, dryRun = 
 
     // Track update for JSON output
     addPackageUpdate(packageName, version, cargoPath);
+    recordCargoBump({ cargoTomlPath: cargoPath, name: packageName, version });
 
     log(`${dryRun ? '[DRY RUN] Would update' : 'Updated'} Cargo.toml at ${cargoPath} to version ${version}`, 'success');
   } catch (error) {
@@ -99,6 +101,4 @@ export function updateCargoVersion(cargoPath: string, version: string, dryRun = 
     }
     throw error;
   }
-
-  syncCargoLockfile(cargoPath, dryRun);
 }

@@ -18,6 +18,7 @@ export type {
   GitForEachRefOptions,
   GitListTagsOptions,
   GitLogOptions,
+  GitLsFilesOptions,
   GitPushOptions,
   GitStatusOptions,
   GitTagOptions,

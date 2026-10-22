@@ -7,6 +7,7 @@ import type {
   GitForEachRefOptions,
   GitListTagsOptions,
   GitLogOptions,
+  GitLsFilesOptions,
   GitPushOptions,
   GitStatusOptions,
   GitTagOptions,
@@ -73,6 +74,8 @@ export interface FakeGitSeed {
   commitCounts?: Record<string, number>;
   /** Working-tree status text returned by `status`. Defaults to empty (clean). */
   status?: string;
+  /** Paths returned by `lsFiles` (the seam doesn't match pathspecs, so callers seed final paths). */
+  trackedFiles?: string[];
 }
 
 function ancestryHas(ancestors: FakeGitSeed['ancestors'], ancestor: string, ref: string): boolean {
@@ -102,6 +105,7 @@ export class FakeGit implements Git {
   private readonly refLines: string[];
   private readonly commitCounts: Record<string, number>;
   private statusText: string;
+  private readonly trackedFiles: string[];
 
   // Recorded mutations, for assertions.
   readonly added: string[][] = [];
@@ -131,6 +135,7 @@ export class FakeGit implements Git {
     this.refLines = [...(seed.refLines ?? [])];
     this.commitCounts = seed.commitCounts ?? {};
     this.statusText = seed.status ?? '';
+    this.trackedFiles = [...(seed.trackedFiles ?? [])];
   }
 
   // — Queries —
@@ -184,6 +189,10 @@ export class FakeGit implements Git {
 
   async diffTreeNames(commitSha: string, _cwd?: string): Promise<string[]> {
     return [...(this.diffNames[commitSha] ?? [])];
+  }
+
+  async lsFiles(_opts: GitLsFilesOptions = {}): Promise<string[]> {
+    return [...this.trackedFiles];
   }
 
   async forEachRef(_opts: GitForEachRefOptions): Promise<string[]> {

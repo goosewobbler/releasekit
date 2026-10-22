@@ -98,6 +98,13 @@ export interface GitForEachRefOptions {
   cwd?: string;
 }
 
+/** Options for {@link Git.lsFiles}. */
+export interface GitLsFilesOptions {
+  /** Pathspecs to match (passed after `--`); magic such as `:(top,glob)` is allowed. */
+  paths?: string[];
+  cwd?: string;
+}
+
 /** Options for {@link Git.status}. */
 export interface GitStatusOptions {
   /** Use `--porcelain` machine-readable output. */
@@ -131,6 +138,8 @@ export interface Git {
   log(opts: GitLogOptions): Promise<string>;
   /** File paths changed by `commitSha` (`diff-tree --no-commit-id --name-only -r`). */
   diffTreeNames(commitSha: string, cwd?: string): Promise<string[]>;
+  /** Tracked file paths matching `paths` (`ls-files -z`), relative to `cwd` as git prints them. */
+  lsFiles(opts?: GitLsFilesOptions): Promise<string[]>;
   /** One formatted line per matching ref (`for-each-ref`), empties dropped. */
   forEachRef(opts: GitForEachRefOptions): Promise<string[]>;
   /** Whether `branch` exists on `remote` (`ls-remote --exit-code --heads`). */

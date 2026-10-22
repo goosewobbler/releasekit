@@ -6,6 +6,7 @@ import { filterPackagesByConfig, parseCargoToml, parsePubspec } from '@releaseki
 import { isPrivatePackageJson, shouldMatchPackageTargets } from '@releasekit/core';
 import { minimatch } from 'minimatch';
 import * as yaml from 'yaml';
+import { clearCargoBumps, syncCargoLockfiles } from '../cargo/cargoLock.js';
 import { GitError } from '../errors/gitError.js';
 import { createVersionError, VersionError, VersionErrorCode } from '../errors/versionError.js';
 import { getCommitsLength, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
@@ -603,8 +604,12 @@ export class VersionEngine {
    */
   public async run(packages: PackagesWithRoot, targets: string[] = []): Promise<void> {
     try {
+      clearCargoBumps();
       // Execute the strategy function
       await this.currentStrategy(packages, targets);
+      // Every strategy records its Cargo.toml bumps (updateCargoVersion); syncing the locks that
+      // record those crates here, in one pass, covers all strategies and fails the run on an unsyncable lock.
+      await syncCargoLockfiles(packages.root ?? cwd(), this.config.dryRun ?? false);
       // Once the strategy has produced the updates, tag each one's role: explicit (group-expanded)
       // targets keep the override; derived prerequisites carry their own bump and record the
       // target(s) they were pulled in for. Only when prerequisites were actually derived.

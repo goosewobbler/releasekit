@@ -73,6 +73,7 @@ const CODE_TO_EXIT: Record<string, number> = {
   GIT_ERROR: EXIT_CODES.GIT_ERROR,
   VERSION_ERROR: EXIT_CODES.VERSION_ERROR,
   PUBLISH_ERROR: EXIT_CODES.PUBLISH_ERROR,
+  CARGO_LOCK_SYNC_ERROR: EXIT_CODES.VERSION_ERROR,
 };
 
 /** Map any thrown value to its process exit code, defaulting to GENERAL_ERROR. */

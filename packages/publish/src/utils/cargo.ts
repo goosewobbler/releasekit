@@ -1,8 +1,8 @@
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 import type { CargoManifest } from '@releasekit/config';
 import { parseCargoToml } from '@releasekit/config';
-import { syncCargoLockVersion, warn } from '@releasekit/core';
+import { findCommittedCargoLockfiles, planCargoLockUpdates, warn } from '@releasekit/core';
+import { createGitCli, type Git } from '@releasekit/git';
 import * as TOML from 'smol-toml';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 
@@ -10,28 +10,40 @@ export type { CargoManifest };
 export { parseCargoToml };
 
 /**
- * Sync a crate's own entry in its committed `Cargo.lock` to the version now in its `Cargo.toml`, after
- * the manifest was bumped, so the committed lock doesn't drift. Uses the same direct lock edit as the
- * version step (core's `syncCargoLockVersion`), so no Rust toolchain is needed.
+ * Sync every Cargo.lock that records a crate this publish bumped — its own lock and the tracked locks
+ * of apps that use it through a path dependency — with the same direct lock edit as the version step
+ * (core's `planCargoLockUpdates`), so no Rust toolchain is needed.
  *
- * Returns the lock path (so the caller can stage it) or `undefined` when no committed lock lists the
- * crate, or the sync fails. A failure is logged, never thrown: a lockfile fix-up must not abort a publish
- * that would otherwise succeed. This mirrors the version step's sync (which covers the standing-PR
- * flow's `git add -A`); doing it here too keeps the direct-commit flow self-sufficient rather than
- * depending on the version step having run and succeeded first.
+ * Returns every lock that lists a bumped crate, changed or not, so the caller stages all of them: the
+ * version step has usually written them already, and they still belong in the release commit. A
+ * failure is logged, never thrown. In the standing-PR flow this runs after the release PR has merged,
+ * and a lock fix-up must not strand a release that is already on the base branch; an unsyncable lock
+ * fails the version step instead, before anything is committed.
  */
-export function syncCargoLockfile(crateDir: string): string | undefined {
-  const cargoPath = path.join(crateDir, 'Cargo.toml');
+export async function syncCargoLockfiles(
+  cwd: string,
+  bumps: Array<{ cargoTomlPath: string; version: string }>,
+  git: Git = createGitCli(),
+): Promise<string[]> {
+  if (bumps.length === 0) {
+    return [];
+  }
   try {
-    const { name, version } = parseCargoToml(cargoPath).package ?? {};
-    if (!name || typeof version !== 'string') {
-      return undefined;
+    const lockBumps = bumps.flatMap(({ cargoTomlPath, version }) => {
+      const name = parseCargoToml(cargoTomlPath).package?.name;
+      return name ? [{ cargoTomlPath, name, version }] : [];
+    });
+    const updates = planCargoLockUpdates(lockBumps, await findCommittedCargoLockfiles(git, cwd));
+    for (const { lockPath, content, changed } of updates) {
+      if (changed) {
+        fs.writeFileSync(lockPath, content);
+      }
     }
-    return syncCargoLockVersion(crateDir, name, version)?.lockPath;
+    return updates.map(({ lockPath }) => lockPath);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    warn(`Failed to sync Cargo.lock for ${cargoPath}: ${detail}. The committed lock may drift from the bump.`);
-    return undefined;
+    warn(`Failed to sync Cargo.lock files: ${detail}. Committed locks may drift from the bump.`);
+    return [];
   }
 }
 

@@ -163,6 +163,16 @@ describe('GitCli queries', () => {
     expect(calls[0].args).toEqual(['diff-tree', '--no-commit-id', '--name-only', '-r', 'sha1']);
   });
 
+  it('should list tracked files NUL-separated, passing pathspecs after --', async () => {
+    const { run, calls } = makeRunner({ stdout: '../Cargo.lock\0app/Cargo.lock\0' });
+    expect(await new GitCli(run).lsFiles({ paths: [':(top,glob)**/Cargo.lock'], cwd: '/r/crates' })).toEqual([
+      '../Cargo.lock',
+      'app/Cargo.lock',
+    ]);
+    expect(calls[0].args).toEqual(['ls-files', '-z', '--', ':(top,glob)**/Cargo.lock']);
+    expect(calls[0].options.cwd).toBe('/r/crates');
+  });
+
   it('should run for-each-ref with format, and append sort/pattern when given', async () => {
     const { run, calls } = makeRunner({ stdout: 'v1 sha1\nv2 sha2\n' });
     expect(

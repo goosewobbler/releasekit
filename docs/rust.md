@@ -9,6 +9,7 @@ See [configuration.md](./configuration.md) for the full config reference.
 ## What's supported
 
 - `Cargo.toml` version bumping driven by conventional commits
+- `Cargo.lock` sync on every bump: each committed lock that lists a bumped crate as a path package (the crate's own lock, and those of apps that use it by path) is updated in the same release commit, without running cargo
 - Per-crate git tags (via `version.packageSpecificTags`)
 - Publishing to crates.io with `cargo publish`
 - Workspace dependency ordering via topological sort (Kahn's algorithm) so path-dependent crates are published in the correct sequence
@@ -206,6 +207,10 @@ jobs:
 ---
 
 ## Edge cases and troubleshooting
+
+**`Failed to sync Cargo.lock: can't set <crate> to <version> in <lock>`**
+
+releasekit edits each lock's text the way cargo would, and fails the run rather than leave a lock behind. The edit is refused when that lock also lists the crate from a registry or git source at the old or the new version, because cargo would then have to change how it tells the two apart. Sync that lock with cargo yourself (`cargo update` with the new version in `Cargo.toml`) and commit it, or drop the second source of the crate.
 
 **`error: failed to verify package tarball`**
 

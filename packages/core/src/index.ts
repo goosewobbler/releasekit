@@ -1,4 +1,11 @@
-export { findCargoLockfile, syncCargoLockVersion } from './cargo.js';
+export {
+  type CargoLockBump,
+  type CargoLockUpdate,
+  findCargoLockfile,
+  findCommittedCargoLockfiles,
+  planCargoLockUpdates,
+  type TrackedFileLister,
+} from './cargo.js';
 export {
   type ChangelogRefsMode,
   escapeChangelogMentions,
