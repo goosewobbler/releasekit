@@ -35,7 +35,6 @@ function createMonorepoFixture(dir: string) {
   writeFileSync(join(dir, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/*"\n');
   mkdirSync(join(dir, 'packages/pkg-a'), { recursive: true });
   mkdirSync(join(dir, 'packages/pkg-b'), { recursive: true });
-  // Publishable on purpose: private packages listed by path are skipped (#482), leaving a root-only bump.
   createPackageJson(join(dir, 'packages/pkg-a'), '@test/pkg-a');
   createPackageJson(join(dir, 'packages/pkg-b'), '@test/pkg-b');
 }
