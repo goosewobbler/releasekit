@@ -1,0 +1,5 @@
+# Mechanical sweeps that git blame should skip. GitHub reads this file; locally run:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# chore(biome): enforce block statements (#679)
+87bc3215ad68bd789e85558ff8ef6e10290f45b2

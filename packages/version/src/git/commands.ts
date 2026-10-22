@@ -1,4 +1,5 @@
 import { cwd } from 'node:process';
+import { inspect } from 'node:util';
 import { createGitCli, type Git } from '@releasekit/git';
 import { createGitError, GitError, GitErrorCode } from '../errors/gitError.js';
 import { addTag, setCommitMessage } from '../utils/jsonOutput.js';
@@ -152,8 +153,8 @@ export async function gitProcess(options: GitProcessOptions, git: Git = createGi
     log(`Git process error: ${errorMessage}`, 'error');
 
     if (err instanceof Error && err.stack) {
-      console.error('Git process stack trace:');
-      console.error(err.stack);
+      log('Git process stack trace:', 'error');
+      log(err.stack, 'error');
     }
 
     throw createGitError(GitErrorCode.GIT_PROCESS_ERROR, errorMessage);
@@ -218,18 +219,18 @@ export async function createGitCommitAndTag(
     // Enhanced error logging
     if (error instanceof Error) {
       // Log the full stack trace for debugging
-      console.error('Git operation error details:');
-      console.error(error.stack || error.message);
+      log('Git operation error details:', 'error');
+      log(error.stack || error.message, 'error');
 
       // Extract and log command output if available
       if (errorMessage.includes('Command failed:')) {
         const cmdOutput = errorMessage.split('Command failed:')[1];
         if (cmdOutput) {
-          console.error('Git command output:', cmdOutput.trim());
+          log(`Git command output: ${cmdOutput.trim()}`, 'error');
         }
       }
     } else {
-      console.error('Unknown git error:', error);
+      log(`Unknown git error: ${inspect(error)}`, 'error');
     }
 
     throw new GitError(`Git operation failed: ${errorMessage}`, GitErrorCode.GIT_ERROR);

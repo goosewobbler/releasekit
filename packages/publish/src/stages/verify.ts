@@ -99,7 +99,7 @@ export async function runVerifyStage(ctx: PipelineContext): Promise<void> {
             debug(`Verified ${crate.packageName}@${crate.version} on crates.io`);
           },
           config.verify.cargo,
-          (error) => !(error instanceof Error && (error as any).fatal),
+          (error) => !(error instanceof Error && 'fatal' in error && error.fatal),
         );
         result.verified = true;
         success(`Verified ${crate.packageName}@${crate.version} on crates.io`);
@@ -159,7 +159,7 @@ export async function runVerifyStage(ctx: PipelineContext): Promise<void> {
             debug(`Verified ${pkg.packageName}@${pkg.version} on pub.dev`);
           },
           config.verify.pub,
-          (error) => !(error instanceof Error && (error as any).fatal),
+          (error) => !(error instanceof Error && 'fatal' in error && error.fatal),
         );
         result.verified = true;
         success(`Verified ${pkg.packageName}@${pkg.version} on pub.dev`);
