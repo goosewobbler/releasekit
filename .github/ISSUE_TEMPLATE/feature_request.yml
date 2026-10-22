@@ -1,6 +1,6 @@
 name: Feature request
 description: Suggest a new feature or improvement
-labels: ["enhancement"]
+labels: ['enhancement']
 body:
   - type: markdown
     attributes:
@@ -13,15 +13,15 @@ body:
       label: Scope / package
       description: Which area does this affect?
       options:
-        - "@releasekit/release"
-        - "@releasekit/version"
-        - "@releasekit/notes"
-        - "@releasekit/publish"
-        - "@releasekit/config"
-        - "@releasekit/core"
-        - "CI / workflows"
-        - "Documentation"
-        - "Other"
+        - '@releasekit/release'
+        - '@releasekit/version'
+        - '@releasekit/notes'
+        - '@releasekit/publish'
+        - '@releasekit/config'
+        - '@releasekit/core'
+        - 'CI / workflows'
+        - 'Documentation'
+        - 'Other'
     validations:
       required: true
 

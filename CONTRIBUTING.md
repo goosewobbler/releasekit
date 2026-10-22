@@ -4,7 +4,7 @@ Thank you for your interest in contributing! This guide covers everything you ne
 
 ## Prerequisites
 
-- **Node.js** 22 or later
+- **Node.js** 22.12 or later
 - **pnpm** 12 ([installation](https://pnpm.io/installation))
 - **Git**
 - **Rust + Cargo** — only needed if working on Cargo.toml support in `@releasekit/version` or

@@ -53,7 +53,9 @@ export function resolvePrerequisites(
       }
     }
   }
-  for (const name of prereqSet) targetSet.add(name);
+  for (const name of prereqSet) {
+    targetSet.add(name);
+  }
 
   // Order by the FULL release set's dependency order, then filter to the derived subset — so a
   // prerequisite that depends on an explicit target sorts after it. Ordering the prerequisite slice

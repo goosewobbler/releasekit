@@ -100,43 +100,85 @@ describe('Version Calculator', () => {
 
     // Mock normalizePrereleaseIdentifier
     vi.spyOn(versionUtils, 'normalizePrereleaseIdentifier').mockImplementation((val) => {
-      if (val === true) return 'next';
+      if (val === true) {
+        return 'next';
+      }
       return val as string;
     });
 
     // Mock bumpVersion
     vi.spyOn(versionUtils, 'bumpVersion').mockImplementation((version, releaseType, identifier) => {
       // Special cases for test expectations
-      if (version === '1.0.0' && releaseType === 'minor' && !identifier) return '1.1.0';
-      if (version === '1.0.0-next.0' && releaseType === 'major' && !identifier) return '2.0.0';
-      if (version === '1.0.0-beta.1' && releaseType === 'minor' && !identifier) return '1.1.0';
-      if (version === '1.0.0-alpha.2' && releaseType === 'patch' && !identifier) return '1.0.1';
-      if (version === '1.0.0' && releaseType === 'prerelease' && identifier === 'alpha') return '1.0.0-alpha.1';
-      if (version === '1.3.0' && releaseType === 'major' && identifier === 'next') return '2.0.0-next.0';
-      if (version === '1.3.0' && releaseType === 'minor' && identifier === 'next') return '1.4.0-next.0';
-      if (version === '1.3.1' && releaseType === 'patch' && identifier === 'next') return '1.3.2-next.0';
-      if (version === '1.0.0-beta.1' && releaseType === 'major' && !identifier) return '2.0.0';
-      if (version === '1.0.0-test' && releaseType === 'minor' && !identifier) return '1.1.0';
-      if (version === '1.0.0' && releaseType === 'patch' && !identifier) return '1.0.1';
+      if (version === '1.0.0' && releaseType === 'minor' && !identifier) {
+        return '1.1.0';
+      }
+      if (version === '1.0.0-next.0' && releaseType === 'major' && !identifier) {
+        return '2.0.0';
+      }
+      if (version === '1.0.0-beta.1' && releaseType === 'minor' && !identifier) {
+        return '1.1.0';
+      }
+      if (version === '1.0.0-alpha.2' && releaseType === 'patch' && !identifier) {
+        return '1.0.1';
+      }
+      if (version === '1.0.0' && releaseType === 'prerelease' && identifier === 'alpha') {
+        return '1.0.0-alpha.1';
+      }
+      if (version === '1.3.0' && releaseType === 'major' && identifier === 'next') {
+        return '2.0.0-next.0';
+      }
+      if (version === '1.3.0' && releaseType === 'minor' && identifier === 'next') {
+        return '1.4.0-next.0';
+      }
+      if (version === '1.3.1' && releaseType === 'patch' && identifier === 'next') {
+        return '1.3.2-next.0';
+      }
+      if (version === '1.0.0-beta.1' && releaseType === 'major' && !identifier) {
+        return '2.0.0';
+      }
+      if (version === '1.0.0-test' && releaseType === 'minor' && !identifier) {
+        return '1.1.0';
+      }
+      if (version === '1.0.0' && releaseType === 'patch' && !identifier) {
+        return '1.0.1';
+      }
 
       // For branch pattern tests
-      if (version === '1.0.0' && releaseType === 'minor' && identifier === undefined) return '1.1.0';
-      if (version === '1.0.0' && releaseType === 'patch' && identifier === undefined) return '1.0.1';
+      if (version === '1.0.0' && releaseType === 'minor' && identifier === undefined) {
+        return '1.1.0';
+      }
+      if (version === '1.0.0' && releaseType === 'patch' && identifier === undefined) {
+        return '1.0.1';
+      }
 
       // For Package.json fallback tests
-      if (version === '0.0.0' && releaseType === 'minor') return '0.1.0';
-      if (version === '2.0.0' && releaseType === 'minor' && !identifier) return '2.1.0';
+      if (version === '0.0.0' && releaseType === 'minor') {
+        return '0.1.0';
+      }
+      if (version === '2.0.0' && releaseType === 'minor' && !identifier) {
+        return '2.1.0';
+      }
 
       // For conventional commits
-      if (version === '1.0.0' && releaseType === 'patch' && identifier === undefined) return '1.0.1';
-      if (version === '0.0.0' && releaseType === 'patch') return '0.0.1';
+      if (version === '1.0.0' && releaseType === 'patch' && identifier === undefined) {
+        return '1.0.1';
+      }
+      if (version === '0.0.0' && releaseType === 'patch') {
+        return '0.0.1';
+      }
 
       // Handle specific prerelease cases
-      if (version === '1.3.0' && releaseType === 'premajor' && identifier === 'next') return '2.0.0-next.0';
+      if (version === '1.3.0' && releaseType === 'premajor' && identifier === 'next') {
+        return '2.0.0-next.0';
+      }
 
       // Handle smart fallback cases where git tag version is used directly
-      if (version === '1.1.0' && releaseType === 'patch' && !identifier) return '1.1.1';
-      if (version === '1.2.0' && releaseType === 'patch' && !identifier) return '1.2.1';
+      if (version === '1.1.0' && releaseType === 'patch' && !identifier) {
+        return '1.1.1';
+      }
+      if (version === '1.2.0' && releaseType === 'patch' && !identifier) {
+        return '1.2.1';
+      }
 
       // Fallback - for unexpected cases, increment patch
       const semverResult = semver.inc(version, 'patch');
@@ -145,7 +187,9 @@ describe('Version Calculator', () => {
 
     // Create a mock for semver.inc
     vi.spyOn(semver, 'inc').mockImplementation((version, releaseType, identifier) => {
-      if (!version) return null;
+      if (!version) {
+        return null;
+      }
 
       // Convert version to string safely
       const versionStr = typeof version === 'string' ? version : (version as { version?: string })?.version || '0.0.0';
@@ -153,8 +197,12 @@ describe('Version Calculator', () => {
       const parts = versionStr.split('.');
 
       // Handle different release types
-      if (releaseType === 'major') return `${Number(parts[0]) + 1}.0.0`;
-      if (releaseType === 'minor') return `${parts[0]}.${Number(parts[1]) + 1}.0`;
+      if (releaseType === 'major') {
+        return `${Number(parts[0]) + 1}.0.0`;
+      }
+      if (releaseType === 'minor') {
+        return `${parts[0]}.${Number(parts[1]) + 1}.0`;
+      }
       if (releaseType === 'patch') {
         // Handle prerelease versions
         if (versionStr.includes('-')) {
@@ -641,7 +689,9 @@ describe('Version Calculator', () => {
       // Mock semver.clean to behave like the real library: only pure semver strings
       // (optionally v-prefixed) are accepted; compound tags like "scope-pkg-v1.2.3" return null.
       vi.spyOn(semver, 'clean').mockImplementation((version) => {
-        if (typeof version !== 'string') return null;
+        if (typeof version !== 'string') {
+          return null;
+        }
         const match = version.match(/^v?(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?)$/);
         return match ? match[1] : null;
       });
@@ -682,7 +732,9 @@ describe('Version Calculator', () => {
 
       // Mock semver.clean to behave like the real library
       vi.spyOn(semver, 'clean').mockImplementation((version) => {
-        if (typeof version !== 'string') return null;
+        if (typeof version !== 'string') {
+          return null;
+        }
         const match = version.match(/^v?(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?)$/);
         return match ? match[1] : null;
       });
@@ -729,7 +781,9 @@ describe('Version Calculator', () => {
 
       // Mock semver.clean to behave like the real library
       vi.spyOn(semver, 'clean').mockImplementation((version) => {
-        if (typeof version !== 'string') return null;
+        if (typeof version !== 'string') {
+          return null;
+        }
         const match = version.match(/^v?(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?)$/);
         return match ? match[1] : null;
       });
@@ -777,7 +831,9 @@ describe('Version Calculator', () => {
       // instead of 0.22.0.
       vi.resetAllMocks();
       vi.spyOn(semver, 'clean').mockImplementation((version) => {
-        if (typeof version !== 'string') return null;
+        if (typeof version !== 'string') {
+          return null;
+        }
         const match = version.match(/^v?(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?)$/);
         return match ? match[1] : null;
       });
@@ -1144,7 +1200,9 @@ describe('Version Calculator', () => {
 
       // Implement semver.inc with a more complex behaviour for different scenarios
       vi.spyOn(semver, 'inc').mockImplementation((version, releaseType, identifier) => {
-        if (!version) return '1.0.0';
+        if (!version) {
+          return '1.0.0';
+        }
 
         // For test: should use package.json version when no latestTag exists with explicit bump
         if (version === '1.0.0-beta.1' && releaseType === 'patch') {
@@ -1643,7 +1701,9 @@ describe('Version Calculator', () => {
         // Mock existing prerelease version
         vi.spyOn(semver, 'prerelease').mockReturnValue(['next', 0]);
         vi.spyOn(semver, 'clean').mockImplementation((version) => {
-          if (version === 'v1.0.0-next.0') return '1.0.0-next.0';
+          if (version === 'v1.0.0-next.0') {
+            return '1.0.0-next.0';
+          }
           return version?.replace(/^[^\d]*/, '') || null;
         });
         vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('1.0.0'); // Clean to stable

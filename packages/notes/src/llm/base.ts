@@ -20,7 +20,9 @@ export abstract class BaseLLMProvider implements LLMProvider {
     //   - above the timer ceiling (2^31-1 ms ≈ 24.8 days) → clamp, not throw/overflow. A huge value
     //     means "effectively no timeout", so clamping preserves intent rather than dropping to 60s.
     const MAX_TIMEOUT_MS = 2_147_483_647;
-    if (!Number.isFinite(timeout) || timeout < 1) return LLM_DEFAULTS.timeout;
+    if (!Number.isFinite(timeout) || timeout < 1) {
+      return LLM_DEFAULTS.timeout;
+    }
     return Math.min(Math.trunc(timeout), MAX_TIMEOUT_MS);
   }
 

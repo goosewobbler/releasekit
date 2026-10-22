@@ -26,7 +26,9 @@ describe('orderNpmUpdates', () => {
   beforeEach(() => {
     vi.mocked(fs.readFileSync).mockImplementation((p: fs.PathOrFileDescriptor) => {
       const manifest = manifests[String(p)];
-      if (!manifest) throw new Error(`no manifest for ${String(p)}`);
+      if (!manifest) {
+        throw new Error(`no manifest for ${String(p)}`);
+      }
       return JSON.stringify(manifest);
     });
   });

@@ -107,17 +107,31 @@ export function detectLabelConflicts(prLabels: string[], labels: LabelConfig = D
  * `release:graduate` wins over everything and returns undefined (graduation is bump-less).
  */
 export function composeBumpFromLabels(prLabels: string[], labels: LabelConfig = DEFAULT_LABELS): string | undefined {
-  if (prLabels.includes(labels.graduate)) return undefined;
+  if (prLabels.includes(labels.graduate)) {
+    return undefined;
+  }
 
   if (prLabels.includes(labels.prerelease)) {
-    if (prLabels.includes(labels.major)) return 'premajor';
-    if (prLabels.includes(labels.minor)) return 'preminor';
-    if (prLabels.includes(labels.patch)) return 'prepatch';
+    if (prLabels.includes(labels.major)) {
+      return 'premajor';
+    }
+    if (prLabels.includes(labels.minor)) {
+      return 'preminor';
+    }
+    if (prLabels.includes(labels.patch)) {
+      return 'prepatch';
+    }
     return 'prerelease';
   }
 
-  if (prLabels.includes(labels.major)) return 'major';
-  if (prLabels.includes(labels.minor)) return 'minor';
-  if (prLabels.includes(labels.patch)) return 'patch';
+  if (prLabels.includes(labels.major)) {
+    return 'major';
+  }
+  if (prLabels.includes(labels.minor)) {
+    return 'minor';
+  }
+  if (prLabels.includes(labels.patch)) {
+    return 'patch';
+  }
   return undefined;
 }

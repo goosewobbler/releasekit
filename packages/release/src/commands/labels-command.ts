@@ -45,7 +45,9 @@ async function detectRepoFromGit(projectDir?: string): Promise<string | undefine
   try {
     // remoteUrl returns null (not throws) when the origin remote is absent.
     const url = await createGitCli().remoteUrl('origin', projectDir ?? process.cwd());
-    if (!url) return undefined;
+    if (!url) {
+      return undefined;
+    }
     // Handle both SSH (git@github.com:owner/repo.git) and HTTPS (https://github.com/owner/repo.git).
     const match = url.match(/github\.com[:/]([^/]+)\/(.+?)(?:\.git)?$/);
     if (match?.[1] && match[2]) {

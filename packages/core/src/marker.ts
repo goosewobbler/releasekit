@@ -14,10 +14,14 @@
 /** Linear extract of the trimmed text between `open` and `close`. */
 function sliceBetween(body: string, open: string, close: string, restIfNoClose: boolean): string | undefined {
   const start = body.indexOf(open);
-  if (start === -1) return undefined;
+  if (start === -1) {
+    return undefined;
+  }
   const from = start + open.length;
   const end = body.indexOf(close, from);
-  if (end === -1) return restIfNoClose ? body.slice(from).trim() : undefined;
+  if (end === -1) {
+    return restIfNoClose ? body.slice(from).trim() : undefined;
+  }
   return body.slice(from, end).trim();
 }
 

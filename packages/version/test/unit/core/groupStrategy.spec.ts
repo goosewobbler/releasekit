@@ -87,7 +87,9 @@ describe('createGroupStrategy', () => {
 
       // Only native-utils has a releasable change (patch).
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
-        if (opts.name === '@wdio/native-utils') return '2.3.1';
+        if (opts.name === '@wdio/native-utils') {
+          return '2.3.1';
+        }
         return '';
       });
 
@@ -161,8 +163,12 @@ describe('createGroupStrategy', () => {
 
       // core gets a minor, utils gets a patch — group should bump minor.
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
-        if (opts.name === '@wdio/native-core') return '2.4.0';
-        if (opts.name === '@wdio/native-utils') return '2.3.1';
+        if (opts.name === '@wdio/native-core') {
+          return '2.4.0';
+        }
+        if (opts.name === '@wdio/native-utils') {
+          return '2.3.1';
+        }
         return '';
       });
 
@@ -206,7 +212,9 @@ describe('createGroupStrategy', () => {
 
       // Only utils changed.
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
-        if (opts.name === '@wdio/native-utils') return '2.3.1';
+        if (opts.name === '@wdio/native-utils') {
+          return '2.3.1';
+        }
         return '';
       });
 
@@ -237,8 +245,12 @@ describe('createGroupStrategy', () => {
 
       // core minor, utils patch, spy unchanged → both changed members align to 2.4.0.
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
-        if (opts.name === '@wdio/native-core') return '2.4.0';
-        if (opts.name === '@wdio/native-utils') return '2.3.1';
+        if (opts.name === '@wdio/native-core') {
+          return '2.4.0';
+        }
+        if (opts.name === '@wdio/native-utils') {
+          return '2.3.1';
+        }
         return '';
       });
 
@@ -269,7 +281,9 @@ describe('createGroupStrategy', () => {
 
       // Only the service earned a change — a premajor prerelease.
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
-        if (opts.name === '@wdio/flutter-service') return '1.0.0-next.0';
+        if (opts.name === '@wdio/flutter-service') {
+          return '1.0.0-next.0';
+        }
         return '';
       });
 
@@ -297,7 +311,9 @@ describe('createGroupStrategy', () => {
       const contract = mkPackage('wdio_flutter', '0.0.1');
 
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
-        if (opts.name === '@wdio/flutter-service') return '1.0.0-next.0';
+        if (opts.name === '@wdio/flutter-service') {
+          return '1.0.0-next.0';
+        }
         return '';
       });
 
@@ -528,7 +544,9 @@ describe('createGroupStrategy', () => {
 
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
         // core earns a patch from its own 2.3.0 baseline.
-        if (opts.name === '@wdio/native-core') return '2.3.1';
+        if (opts.name === '@wdio/native-core') {
+          return '2.3.1';
+        }
         return '';
       });
 
@@ -558,9 +576,13 @@ describe('createGroupStrategy', () => {
       const newcomer = mkPackage('@wdio/native-fresh', '1.0.0');
 
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
-        if (opts.name === '@wdio/native-core') return '2.3.1';
+        if (opts.name === '@wdio/native-core') {
+          return '2.3.1';
+        }
         // newcomer also has a change, but its own bump is irrelevant under fixed.
-        if (opts.name === '@wdio/native-fresh') return '1.0.1';
+        if (opts.name === '@wdio/native-fresh') {
+          return '1.0.1';
+        }
         return '';
       });
 
@@ -586,8 +608,12 @@ describe('createGroupStrategy', () => {
       const utils = mkPackage('@wdio/native-utils', '2.3.0');
 
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
-        if (opts.name === '@wdio/native-core') return '2.3.1';
-        if (opts.name === '@wdio/native-utils') return '2.3.1';
+        if (opts.name === '@wdio/native-core') {
+          return '2.3.1';
+        }
+        if (opts.name === '@wdio/native-utils') {
+          return '2.3.1';
+        }
         return '';
       });
 
@@ -616,7 +642,9 @@ describe('createGroupStrategy', () => {
       const b = mkPackage('@app/b', '1.0.0');
 
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
-        if (opts.name === '@app/a') return '1.1.0';
+        if (opts.name === '@app/a') {
+          return '1.1.0';
+        }
         return '';
       });
 
@@ -645,7 +673,9 @@ describe('createGroupStrategy', () => {
       // Only native-core is in graduateScope → its calculator returns the stable base; native-utils
       // is out of scope so (per applyOverrideScope, simulated here) it advances its prerelease line.
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
-        if (opts.name === '@wdio/native-core') return '1.0.0';
+        if (opts.name === '@wdio/native-core') {
+          return '1.0.0';
+        }
         return '1.0.0-next.6';
       });
 
@@ -678,7 +708,9 @@ describe('createGroupStrategy', () => {
       // Both members changed; native-core is the graduate target. Linked releases only changed members,
       // all at the shared graduated version.
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
-        if (opts.name === '@wdio/native-core') return '2.0.0';
+        if (opts.name === '@wdio/native-core') {
+          return '2.0.0';
+        }
         return '2.0.0-next.3';
       });
 
@@ -869,8 +901,12 @@ describe('createGroupStrategy', () => {
       const standalone = mkPackage('@app/standalone', '5.0.0');
 
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
-        if (opts.name === '@wdio/native-core') return '2.3.1';
-        if (opts.name === '@app/standalone') return '5.1.0';
+        if (opts.name === '@wdio/native-core') {
+          return '2.3.1';
+        }
+        if (opts.name === '@app/standalone') {
+          return '5.1.0';
+        }
         return '';
       });
 
@@ -913,8 +949,12 @@ describe('createGroupStrategy', () => {
       // core earns a minor, utils a patch — independent means each keeps its own commit-driven bump
       // (a fixed/linked group would write the shared 2.4.0 to both).
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
-        if (opts.name === '@wdio/native-core') return '2.4.0';
-        if (opts.name === '@wdio/native-utils') return '2.3.1';
+        if (opts.name === '@wdio/native-core') {
+          return '2.4.0';
+        }
+        if (opts.name === '@wdio/native-utils') {
+          return '2.3.1';
+        }
         return '';
       });
 

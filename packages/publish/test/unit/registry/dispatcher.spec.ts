@@ -111,8 +111,11 @@ describe('runPublishStage dispatcher', () => {
       await expect(runPublishStage(cargoRegistry, ctx)).resolves.toBeUndefined();
       expect(ctx.output.cargo).toHaveLength(0);
     } finally {
-      if (savedToken === undefined) delete process.env.CARGO_REGISTRY_TOKEN;
-      else process.env.CARGO_REGISTRY_TOKEN = savedToken;
+      if (savedToken === undefined) {
+        delete process.env.CARGO_REGISTRY_TOKEN;
+      } else {
+        process.env.CARGO_REGISTRY_TOKEN = savedToken;
+      }
     }
   });
 
@@ -183,7 +186,9 @@ describe('runPublishStage dispatcher', () => {
     let calls = 0;
     const publish = vi.fn(async () => {
       calls += 1;
-      if (calls === 1) throw execError('503 Service Unavailable');
+      if (calls === 1) {
+        throw execError('503 Service Unavailable');
+      }
     });
     const ctx = createContext();
 

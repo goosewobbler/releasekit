@@ -17,12 +17,16 @@ export function detectPrerelease(packagePaths: string[], projectDir: string): Pr
       : [path.join(projectDir, 'package.json')];
 
   for (const pkgPath of paths) {
-    if (!fs.existsSync(pkgPath)) continue;
+    if (!fs.existsSync(pkgPath)) {
+      continue;
+    }
 
     try {
       const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
       const result = parsePrerelease(pkg.version);
-      if (result.isPrerelease) return result;
+      if (result.isPrerelease) {
+        return result;
+      }
     } catch {
       // Skip unreadable package.json files
     }
@@ -36,7 +40,9 @@ export function detectPrerelease(packagePaths: string[], projectDir: string): Pr
  * E.g. "0.3.0-next.4" → { isPrerelease: true, identifier: "next" }
  */
 export function parsePrerelease(version: string | undefined): PrereleaseDetection {
-  if (!version) return { isPrerelease: false };
+  if (!version) {
+    return { isPrerelease: false };
+  }
 
   const match = version.match(/-([a-zA-Z0-9][a-zA-Z0-9-]*)(?:\.\d+)*(?:\+[^\s]+)?$/);
   if (match) {

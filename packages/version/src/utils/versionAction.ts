@@ -40,7 +40,9 @@ function versionFromTag(tag: string): string | null {
   // Bounded quantifiers (not `\d+`) guard against polynomial backtracking on uncontrolled tag input
   // (CodeQL js/polynomial-redos) — real semver components never approach these lengths.
   const match = tag.match(/\d{1,16}\.\d{1,16}\.\d{1,16}(?:-[0-9A-Za-z.-]{1,256})?/);
-  if (!match) return null;
+  if (!match) {
+    return null;
+  }
   return semver.valid(match[0]);
 }
 

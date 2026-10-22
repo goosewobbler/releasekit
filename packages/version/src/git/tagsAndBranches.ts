@@ -52,7 +52,9 @@ export async function getCommitsLength(pkgRoot: string, sinceTag?: string, git: 
  * @returns true if the ref resolves, false otherwise
  */
 export function refExists(ref: string, cwd?: string, git: Git = createGitCli()): Promise<boolean> {
-  if (!ref || ref.trim() === '') return Promise.resolve(false);
+  if (!ref || ref.trim() === '') {
+    return Promise.resolve(false);
+  }
   // The seam's refExists is the same `rev-parse --verify --quiet <ref>^{commit}` soft lookup.
   return git.refExists(ref, cwd);
 }
@@ -304,7 +306,9 @@ export async function getLatestStableTag(versionPrefix?: string): Promise<string
       return cleaned ? semver.prerelease(cleaned) === null : false;
     });
 
-    if (stableTags.length === 0) return '';
+    if (stableTags.length === 0) {
+      return '';
+    }
 
     // Highest stable version first (mirrors getLatestTag's semantic sort).
     const sorted = [...stableTags].sort((a, b) => {
