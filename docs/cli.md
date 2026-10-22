@@ -52,6 +52,7 @@ The orchestration commands — `release`, `gate`, and `standing-pr` — emit the
 | `GITHUB_ERROR` | `github` | 6 |
 | `GIT_ERROR` | `git` | 7 |
 | `VERSION_ERROR` | `version` | 8 |
+| `CARGO_LOCK_SYNC_ERROR` | `cargo-lock-sync` | 8 |
 | `PUBLISH_ERROR` | `publish` | 9 |
 
 `schemaVersion` bumps only on a breaking change to the envelope shape and is stable across minor releases, so agents and CI can pin against it.
