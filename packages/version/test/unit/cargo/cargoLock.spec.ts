@@ -273,6 +273,26 @@ describe('Cargo.lock sync on Cargo.toml bumps', () => {
     },
   );
 
+  it('should sync the lock of a crate that an ancestor Cargo workspace excludes', async () => {
+    fs.writeFileSync(path.join(root, 'Cargo.toml'), '[workspace]\nexclude = ["apps/desk/src-tauri"]\n');
+    const appDir = path.join(root, 'apps', 'desk');
+    const appLock = path.join(appDir, 'src-tauri', 'Cargo.lock');
+    writeCrate(path.join(appDir, 'src-tauri'), 'desk', '0.1.0');
+    fs.writeFileSync(appLock, 'version = 4\n\n[[package]]\nname = "desk"\nversion = "0.1.0"\n');
+    fs.writeFileSync(path.join(appDir, 'package.json'), '{ "name": "desk", "version": "0.1.0" }\n');
+    git(root, 'add', '-A');
+    bump({ desk: '0.2.0' });
+    const app = { dir: appDir, relativeDir: 'apps/desk', packageJson: { name: 'desk', version: '0.1.0' } };
+
+    await runVersion(
+      'async',
+      { cargo: { enabled: true, paths: ['src-tauri'] } },
+      workspace(root, [app as unknown as Package]),
+    );
+
+    expect(read(appLock)).toBe('version = 4\n\n[[package]]\nname = "desk"\nversion = "0.2.0"\n');
+  });
+
   it('should sync the locks without a Rust toolchain or a crates.io index', async () => {
     // A fresh CI runner: git on PATH but no cargo, and an empty CARGO_HOME. Nothing may shell out to cargo.
     const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-no-cargo-'));

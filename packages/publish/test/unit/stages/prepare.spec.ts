@@ -207,6 +207,44 @@ describe('prepare stage', () => {
     expect(ctx.additionalFiles).toEqual(expect.arrayContaining([ownLock, appLock]));
   });
 
+  it('should leave a lock alone that uses a different crate of the same name at another version', async () => {
+    // No own lock records foo's old version, so only the manifest's says which `foo` the bump is.
+    const dir = createTmpDir();
+    const crateDir = path.join(dir, 'crates', 'foo');
+    fs.mkdirSync(crateDir, { recursive: true });
+    fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "foo"\nversion = "1.0.0"\n');
+    const appLock = path.join(dir, 'fixtures', 'app', 'Cargo.lock');
+    const otherLock = path.join(dir, 'fixtures', 'other', 'Cargo.lock');
+    for (const [lockPath, version] of [
+      [appLock, '1.0.0'],
+      [otherLock, '0.9.0'],
+    ]) {
+      fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+      fs.writeFileSync(lockPath, appLockUsingFoo(version));
+    }
+    execFileSync('git', ['init', '-q'], { cwd: dir });
+    execFileSync('git', ['add', '-A'], { cwd: dir });
+
+    const config = getDefaultConfig();
+    config.cargo.enabled = true;
+    const ctx = createContext({
+      cwd: dir,
+      config,
+      input: {
+        dryRun: false,
+        updates: [{ packageName: 'foo', newVersion: '1.1.0', filePath: 'crates/foo/Cargo.toml' }],
+        changelogs: [],
+        tags: [],
+      },
+    });
+
+    await runPrepareStage(ctx);
+
+    expect(fs.readFileSync(appLock, 'utf-8')).toBe(appLockUsingFoo('1.1.0'));
+    expect(fs.readFileSync(otherLock, 'utf-8')).toBe(appLockUsingFoo('0.9.0'));
+    expect(ctx.additionalFiles).toEqual([appLock]);
+  });
+
   it('should not fail the publish when a lock cannot be synced', async () => {
     const dir = createTmpDir();
     const crateDir = path.join(dir, 'crates', 'foo');

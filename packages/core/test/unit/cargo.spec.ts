@@ -461,10 +461,35 @@ describe('planCargoLockUpdates', () => {
     const atOld = write(path.join(root, 'at-old', 'Cargo.lock'), lockWithDependency('harness', 'app', '0.1.0'));
     const atNew = write(path.join(root, 'at-new', 'Cargo.lock'), lockWithDependency('harness', 'app', '0.2.0'));
     const atOther = write(path.join(root, 'at-other', 'Cargo.lock'), lockWithDependency('harness', 'app', '0.3.0'));
+    // With a registry `app` beside it, cargo spells out the path entry's version in references.
+    const versioned = (version: string): string =>
+      lock(
+        'version = 4',
+        '',
+        '[[package]]',
+        'name = "app"',
+        `version = "${version}"`,
+        '',
+        '[[package]]',
+        'name = "app"',
+        'version = "0.9.0"',
+        `source = "${REGISTRY}"`,
+        '',
+        '[[package]]',
+        'name = "harness"',
+        'version = "0.1.0"',
+        'dependencies = [',
+        ` "app ${version}",`,
+        ' "app 0.9.0",',
+        ']',
+      );
+    const atOldVersioned = write(path.join(root, 'at-old-versioned', 'Cargo.lock'), versioned('0.1.0'));
 
-    const updates = await planCargoLockUpdates(fakeGit([ownLock, otherApp, atOld, atNew, atOther]), root, [
-      { cargoTomlPath: manifest, name: 'app', version: '0.2.0', fromVersion: '0.1.0' },
-    ]);
+    const updates = await planCargoLockUpdates(
+      fakeGit([ownLock, otherApp, atOld, atNew, atOther, atOldVersioned]),
+      root,
+      [{ cargoTomlPath: manifest, name: 'app', version: '0.2.0', fromVersion: '0.1.0' }],
+    );
 
     expect(updates).toEqual([
       {
@@ -474,7 +499,41 @@ describe('planCargoLockUpdates', () => {
       },
       { lockPath: atOld, content: lockWithDependency('harness', 'app', '0.2.0'), changed: true },
       { lockPath: atNew, content: lockWithDependency('harness', 'app', '0.2.0'), changed: false },
+      { lockPath: atOldVersioned, content: versioned('0.2.0'), changed: true },
     ]);
+  });
+
+  /** A crate whose manifest doesn't record its version, and locks that use an `app` 0.1.0 and 0.5.0 by path. */
+  function versionlessBump(ownLockVersion?: string): { root: string; locks: string[]; bump: CargoLockBump } {
+    const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'rk-cargo-lock-from-')));
+    tmpDirs.push(root);
+    const manifest = write(path.join(root, 'app', 'Cargo.toml'), '[package]\nname = "app"\nversion.workspace = true\n');
+    if (ownLockVersion) {
+      write(
+        path.join(root, 'app', 'Cargo.lock'),
+        lock('version = 4', '', '[[package]]', 'name = "app"', `version = "${ownLockVersion}"`),
+      );
+    }
+    const locks = ['0.1.0', '0.5.0'].map((version) =>
+      write(path.join(root, `at-${version}`, 'Cargo.lock'), lockWithDependency('harness', 'app', version)),
+    );
+    return { root, locks, bump: { cargoTomlPath: manifest, name: 'app', version: '0.2.0' } };
+  }
+
+  it('should take the old version from the crate’s own lock when its manifest doesn’t record one', async () => {
+    const { root, locks, bump } = versionlessBump('0.1.0');
+
+    const updates = await planCargoLockUpdates(fakeGit(locks), root, [bump]);
+
+    expect(updates.map((update) => update.lockPath)).toEqual([locks[0], path.join(root, 'app', 'Cargo.lock')]);
+  });
+
+  it('should update a path dependency at any version when nothing records the crate’s old version', async () => {
+    const { root, locks, bump } = versionlessBump();
+
+    const updates = await planCargoLockUpdates(fakeGit(locks), root, [bump]);
+
+    expect(updates.map((update) => update.lockPath)).toEqual(locks);
   });
 
   /** A lock that uses `app` 0.1.0 by path, and two same-named crates bumped from 0.1.0. */

@@ -260,7 +260,7 @@ export interface CargoLockBump {
   cargoTomlPath: string;
   name: string;
   version: string;
-  /** The version the manifest had before the bump; absent when it inherits `version.workspace = true`. */
+  /** The version the manifest had before the bump; absent when it records none (`version.workspace = true`). */
   fromVersion?: string;
 }
 
@@ -275,15 +275,16 @@ export interface CargoLockUpdate {
  * Work out the content of every Cargo.lock that records a bumped crate, by editing the lock text with
  * {@link setCargoLockVersion} — nothing runs cargo, so no Rust toolchain, registry index or network is
  * needed. The candidates are every lock git tracks (apps that use a crate through a path dependency
- * have their own) plus each crate's own governing lock ({@link findCargoLockfile}), which is synced
- * even when untracked but not when git ignores it, since it couldn't be staged.
+ * have their own) plus each crate's own locks — its governing lock ({@link findCargoLockfile}) and a
+ * lock beside its manifest — which are synced even when untracked but not when git ignores them, since
+ * they couldn't be staged.
  *
- * Crates in different workspaces can share a name (every `tauri init` app is `app`), so a lock's path
- * entry follows a bump only when it is that crate: always in the crate's own lock; in any other lock,
- * only when something in that lock depends on the entry (one nothing depends on is that lock's own
- * root or workspace member) and it is at the crate's old or new version. A lock gets every bump it
- * records, so a lock shared by several bumped crates is rewritten once; locks that record none are
- * left out.
+ * Crates in different workspaces can share a name (every `tauri init` app is `app`). A crate's own lock
+ * always takes its bump; in any other lock, an entry of that name follows the bump only when something
+ * in that lock depends on it (one nothing depends on is that lock's own root or a member) at the
+ * crate's old or new version. A different crate of the same name used by path at one of those
+ * versions can't be told apart. A lock gets every bump it records, so a lock shared by several bumped
+ * crates is rewritten once; locks that record none are left out.
  *
  * Nothing is written: the caller writes the changed content. Throws, naming the lock, when a lock can't
  * be read or edited unambiguously, so no lock is written unless every lock can be.
@@ -299,12 +300,26 @@ export async function planCargoLockUpdates(
       lockPaths.add(path.resolve(cwd, lockPath));
     }
   }
-  const ownLocks = new Map<CargoLockBump, string>();
+  const owners = new Map<string, CargoLockBump[]>();
+  const fromVersions = new Map<CargoLockBump, string | undefined>();
   for (const bump of bumps) {
-    const ownLock = findCargoLockfile(path.dirname(bump.cargoTomlPath));
-    if (ownLock && !(await git.isIgnored(ownLock, cwd))) {
-      ownLocks.set(bump, ownLock);
-      lockPaths.add(ownLock);
+    fromVersions.set(bump, bump.fromVersion);
+    const dir = path.dirname(bump.cargoTomlPath);
+    // findCargoLockfile can't see that an ancestor workspace excludes the crate; a lock beside its
+    // manifest can only be the crate's own (or an unused stray).
+    for (const ownLock of new Set([findCargoLockfile(dir), path.join(dir, 'Cargo.lock')])) {
+      if (ownLock && fs.existsSync(ownLock) && !(await git.isIgnored(ownLock, cwd))) {
+        owners.set(ownLock, [...(owners.get(ownLock) ?? []), bump]);
+        lockPaths.add(ownLock);
+        // A manifest that inherits its version, or has none, doesn't say what the crate was at.
+        fromVersions.set(
+          bump,
+          fromVersions.get(bump) ??
+            readCargoLockEntries(fs.readFileSync(ownLock, 'utf8').split('\n')).find(
+              (entry) => entry.name === bump.name && !entry.hasSource,
+            )?.version,
+        );
+      }
     }
   }
 
@@ -318,19 +333,21 @@ export async function planCargoLockUpdates(
     const lines = original.split('\n');
     const pathEntries = readCargoLockEntries(lines).filter((entry) => !entry.hasSource);
     const references = new Set(lines.map((line) => line.trim().replace(/,$/, '')));
-    const isPathDependency = (bump: CargoLockBump): boolean =>
-      pathEntries.some(
+    const isPathDependency = (bump: CargoLockBump): boolean => {
+      const fromVersion = fromVersions.get(bump);
+      return pathEntries.some(
         (entry) =>
           entry.name === bump.name &&
-          (bump.fromVersion === undefined || [bump.fromVersion, bump.version].includes(entry.version)) &&
+          (fromVersion === undefined || [fromVersion, bump.version].includes(entry.version)) &&
           (references.has(`"${entry.name}"`) || references.has(`"${entry.name} ${entry.version}"`)),
       );
+    };
 
     let content = original;
     let listed = false;
     for (const name of new Set(bumps.map((bump) => bump.name))) {
       const sameName = bumps.filter((bump) => bump.name === name);
-      const own = sameName.filter((bump) => ownLocks.get(bump) === lockPath);
+      const own = sameName.filter((bump) => owners.get(lockPath)?.includes(bump));
       const matching = own.length > 0 ? own : sameName.filter(isPathDependency);
       if (matching.length === 0) {
         continue;
