@@ -4,8 +4,8 @@ Thank you for your interest in contributing! This guide covers everything you ne
 
 ## Prerequisites
 
-- **Node.js** 22 or later (`.nvmrc` has 24)
-- **pnpm** 10 ([installation](https://pnpm.io/installation)); `package.json` pins the exact version
+- **Node.js** 22 or later
+- **pnpm** 12 ([installation](https://pnpm.io/installation))
 - **Git**
 - **Rust + Cargo** — only needed if working on Cargo.toml support in `@releasekit/version` or
   `@releasekit/publish`
