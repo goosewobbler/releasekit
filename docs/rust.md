@@ -9,7 +9,7 @@ See [configuration.md](./configuration.md) for the full config reference.
 ## What's supported
 
 - `Cargo.toml` version bumping driven by conventional commits
-- `Cargo.lock` sync on every bump: each committed lock that lists a bumped crate as a path package (the crate's own lock, and those of apps that use it by path) is updated in the same release commit, without running cargo. The crate's own lock is synced even when untracked, but never when git ignores it. In any other lock, an entry with the crate's name only counts as the crate when something in that lock depends on it at the crate's old or new version, so same-named crates in different workspaces (every `tauri init` app is `app`) leave each other's locks alone
+- `Cargo.lock` sync on every bump: each committed lock that lists a bumped crate as a path package (the crate's own lock, and those of apps that use it by path) is updated in the same release commit, without running cargo. Gitignored locks are left alone, and so are same-named crates in other workspaces (every `tauri init` app is `app`)
 - Per-crate git tags (via `version.packageSpecificTags`)
 - Publishing to crates.io with `cargo publish`
 - Workspace dependency ordering via topological sort (Kahn's algorithm) so path-dependent crates are published in the correct sequence
