@@ -327,7 +327,7 @@ describe('pipeline', () => {
       tags: ['pkg-a@v1.1.0', 'pkg-b@v2.0.0'],
     };
 
-    it('should call pushPackageTag once per update instead of runGitPushStage', async () => {
+    it('should push each package tag as it publishes, then the remaining tags once all succeed', async () => {
       const { runGitPushStage, pushPackageTag } = await import('../../src/stages/git-push.js');
       const { runNpmPublishStage } = await import('../../src/stages/npm-publish.js');
 
@@ -349,7 +349,24 @@ describe('pipeline', () => {
       const calls = vi.mocked(pushPackageTag).mock.calls;
       expect(calls[0]?.[0]).toBe('pkg-a@v1.1.0');
       expect(calls[1]?.[0]).toBe('pkg-b@v2.0.0');
-      expect(runGitPushStage).not.toHaveBeenCalled();
+      expect(runGitPushStage).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(runGitPushStage).mock.invocationCallOrder[0]).toBeGreaterThan(
+        vi.mocked(pushPackageTag).mock.invocationCallOrder[1] ?? Number.POSITIVE_INFINITY,
+      );
+    });
+
+    it('should still push and create GitHub releases when registry publishing is skipped', async () => {
+      const { runGitPushStage, pushPackageTag } = await import('../../src/stages/git-push.js');
+      const { runGithubReleaseStage } = await import('../../src/stages/github-release.js');
+      vi.mocked(runGitPushStage).mockImplementation(async (ctx) => {
+        ctx.output.git.pushed = true;
+      });
+
+      await runPipeline(perPackageInput, getDefaultConfig(), { ...defaultOptions, skipPublish: true });
+
+      expect(pushPackageTag).not.toHaveBeenCalled();
+      expect(runGitPushStage).toHaveBeenCalledTimes(1);
+      expect(runGithubReleaseStage).toHaveBeenCalledTimes(1);
     });
 
     it('should call npm-publish once per update with only that update in ctx.input', async () => {
@@ -406,7 +423,7 @@ describe('pipeline', () => {
     });
 
     it('should stop at the failing package and leave subsequent tags unpushed', async () => {
-      const { pushPackageTag } = await import('../../src/stages/git-push.js');
+      const { pushPackageTag, runGitPushStage } = await import('../../src/stages/git-push.js');
       const { runNpmPublishStage } = await import('../../src/stages/npm-publish.js');
 
       let callCount = 0;
@@ -432,6 +449,7 @@ describe('pipeline', () => {
       expect(pushPackageTag).toHaveBeenCalledTimes(1);
       const callsB = vi.mocked(pushPackageTag).mock.calls;
       expect(callsB[0]?.[0]).toBe('pkg-a@v1.1.0');
+      expect(runGitPushStage).not.toHaveBeenCalled();
     });
 
     it('should use batch mode when no updates have a tag (sync mode with shared tag)', async () => {

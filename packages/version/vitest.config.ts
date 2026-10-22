@@ -14,7 +14,6 @@ export default mergeConfig(
         ],
       },
       setupFiles: [],
-      globalSetup: './test/setup.ts',
     },
   }),
 );

@@ -3,7 +3,7 @@ import { info, type VersionOutput } from '@releasekit/core';
 import { z } from 'zod';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 
-const VersionChangelogEntrySchema = z.object({
+const VersionChangelogEntrySchema = z.looseObject({
   type: z.string(),
   description: z.string(),
   issueIds: z.array(z.string()).optional(),
@@ -11,7 +11,7 @@ const VersionChangelogEntrySchema = z.object({
   originalType: z.string().optional(),
 });
 
-const VersionPackageChangelogSchema = z.object({
+const VersionPackageChangelogSchema = z.looseObject({
   packageName: z.string(),
   version: z.string(),
   previousVersion: z.string().nullable(),
@@ -20,18 +20,20 @@ const VersionPackageChangelogSchema = z.object({
   entries: z.array(VersionChangelogEntrySchema),
 });
 
-const VersionPackageUpdateSchema = z.object({
+const VersionPackageUpdateSchema = z.looseObject({
   packageName: z.string(),
   newVersion: z.string(),
   filePath: z.string(),
+  tag: z.string().optional(),
 });
 
-const VersionOutputSchema = z.object({
+const VersionOutputSchema = z.looseObject({
   dryRun: z.boolean(),
   updates: z.array(VersionPackageUpdateSchema),
   changelogs: z.array(VersionPackageChangelogSchema),
   commitMessage: z.string().optional(),
   tags: z.array(z.string()),
+  baselineTags: z.array(z.string()).optional(),
 });
 
 export async function parseInput(inputPath?: string): Promise<VersionOutput> {

@@ -62,7 +62,7 @@ export class OpenAIProvider extends BaseLLMProvider {
             type: 'json_schema' as const,
             json_schema: {
               name: options.toolName ?? 'release_notes',
-              schema: options.schema as any,
+              schema: options.schema,
               strict: true,
             },
           },

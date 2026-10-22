@@ -399,6 +399,28 @@ describe('cargo-publish stage', () => {
     expect((init?.headers as Record<string, string>)?.['User-Agent']).toMatch(/releasekit/);
   });
 
+  it.each(['publish = false', 'publish = []'])('should skip a crate with %s', async (publishLine) => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    const dir = createTmpDir();
+    const pkgDir = path.join(dir, 'packages', 'napi');
+    fs.mkdirSync(pkgDir, { recursive: true });
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), '{"name":"napi","version":"1.0.0"}');
+    fs.writeFileSync(path.join(pkgDir, 'Cargo.toml'), `[package]\nname = "napi"\nversion = "1.0.0"\n${publishLine}\n`);
+
+    const ctx = createContext(dir, {
+      input: {
+        dryRun: false,
+        updates: [{ packageName: 'napi', newVersion: '1.1.0', filePath: 'packages/napi/package.json' }],
+        changelogs: [],
+        tags: [],
+      },
+    });
+    await runCargoPublishStage(ctx);
+
+    expect(vi.mocked(execCommand).mock.calls.filter((c) => c[0] === 'cargo')).toHaveLength(0);
+    expect(ctx.output.cargo).toHaveLength(0);
+  });
+
   it('should skip packages without Cargo.toml', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const dir = createTmpDir();
