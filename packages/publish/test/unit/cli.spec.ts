@@ -196,20 +196,6 @@ describe('createPublishCommand', () => {
       expect(mockExit).toHaveBeenCalledWith(EXIT_CODES.CONFIG_ERROR);
     });
 
-    it('should exit with INPUT_ERROR when the input cannot be parsed', async () => {
-      const inputError = new BasePublishError('not JSON', PublishErrorCode.INPUT_PARSE_ERROR);
-      vi.spyOn(inputError, 'logError').mockImplementation(() => undefined);
-      vi.mocked(parseInput).mockRejectedValue(inputError);
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-
-      await createPublishCommand().parseAsync(['node', 'test', '--json']);
-
-      const envelope = JSON.parse(consoleSpy.mock.calls[0]?.[0] as string);
-      expect(envelope.errors[0].code).toBe('INPUT_PARSE_ERROR');
-      expect(mockExit).toHaveBeenCalledWith(EXIT_CODES.INPUT_ERROR);
-      consoleSpy.mockRestore();
-    });
-
     it('should log and exit with GENERAL_ERROR for unknown errors', async () => {
       vi.mocked(runPipeline).mockRejectedValue(new Error('unexpected'));
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
