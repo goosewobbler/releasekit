@@ -109,6 +109,20 @@
           }
         }
       }
+    },
+    {
+      // Only a package's root index.ts (its public API) may re-export.
+      "includes": [
+        "packages/*/src/**",
+        "!packages/*/src/index.ts"
+      ],
+      "linter": {
+        "rules": {
+          "performance": {
+            "noBarrelFile": "error"
+          }
+        }
+      }
     }
   ],
   "assist": {

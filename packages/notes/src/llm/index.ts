@@ -8,18 +8,8 @@ import { OpenAIProvider } from './openai.js';
 import { OpenAICompatibleProvider } from './openai-compatible.js';
 import type { LLMProvider } from './provider.js';
 
-export { AnthropicProvider } from './anthropic.js';
-export { BaseLLMProvider } from './base.js';
 export type { CompleteResult, LLMMessage } from './messages.js';
-export { OllamaProvider } from './ollama.js';
-export { OpenAIProvider } from './openai.js';
-export { OpenAICompatibleProvider } from './openai-compatible.js';
 export type { LLMProvider, ProviderCapabilities } from './provider.js';
-export { categorizeEntries } from './tasks/categorize.js';
-export { enhanceEntries, enhanceEntry } from './tasks/enhance.js';
-export { enhanceAndCategorize } from './tasks/enhance-and-categorize.js';
-export { generateReleaseNotes } from './tasks/release-notes.js';
-export { summarizeEntries } from './tasks/summarize.js';
 
 export interface LLMContext {
   packageName?: string;

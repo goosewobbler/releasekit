@@ -52,8 +52,6 @@ export function aggregateToRoot(contexts: TemplateContext[]): TemplateContext {
   return aggregated;
 }
 
-export { splitByPackage } from './splitter.js';
-
 export function writeMonorepoChangelogs(
   contexts: TemplateContext[],
   options: MonorepoOptions,
