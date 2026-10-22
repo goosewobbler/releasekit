@@ -221,12 +221,8 @@ function repoUrlOf(changelogs: VersionOutput['changelogs']): string | null {
  * the indent that nests the block under its row. It returns the collapsed `<details>` block, or `''`
  * when those packages have no real changelog entries.
  *
- * The channel-section grouping regroups *where* rows are placed; it reuses this renderer unchanged
- * to keep *how* changelogs attach to a row identical. `refs` (`changelog.refs`, default `'link'`)
- * controls how bare `#NNN`
- * refs render. `demoteScopes` (`changelog.demoteScopes`, default `['deps', 'deps-dev']`) routes matching-
- * scope entries into a trailing "Dependencies & version bumps" subsection instead of interleaving
- * them; the `(N entries)` count still counts every entry, demoted included.
+ * Channel-section grouping reuses this renderer, so changelogs attach to rows the same way everywhere.
+ * `refs` and `demoteScopes` come from `changelog.*`; demoted entries still count toward `(N entries)`.
  */
 export function makeRowChangelogRenderer(
   changelogs: VersionOutput['changelogs'],
