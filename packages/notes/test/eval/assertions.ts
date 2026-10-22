@@ -115,50 +115,14 @@ export function checkNoEntryLoss(categories: CategoryGroup[], entries: unknown[]
     for (const entry of group.entries) occurrences.set(entry, (occurrences.get(entry) ?? 0) + 1);
   }
 
-  const known = new Set(entries);
-  const strays = [...occurrences.keys()].filter((entry) => !known.has(entry));
-  const missing = entries.filter((entry) => !occurrences.has(entry));
-
-  // Grouping that copies entries (same content, new objects) breaks this check's identity assumption
-  // without losing anything. Say so — but only when that is exactly what happened, so a real loss or
-  // substitution (say, bucketing the un-enhanced input) still reads as one.
-  const copiesOnly = strays.length > 0 && isOneToOneCopy(strays, missing, occurrences);
-
   entries.forEach((entry, i) => {
     const n = occurrences.get(entry) ?? 0;
-    if (n === 0 && !copiesOnly) violations.push(`entry ${i} was dropped from categorization`);
+    if (n === 0) violations.push(`entry ${i} was dropped from categorization`);
     else if (n > 1) violations.push(`entry ${i} was categorized ${n} times`);
   });
 
-  if (copiesOnly) {
-    violations.push(
-      `categories hold copies of ${strays.length} enhanced entr(ies), not the same objects — ` +
-        'this check compares by identity, so compare by content instead',
-    );
-  } else if (strays.length > 0) {
-    violations.push(`${strays.length} categorized entr(ies) are not among the enhanced entries`);
-  }
+  const known = new Set(entries);
+  const strays = [...occurrences.keys()].filter((entry) => !known.has(entry)).length;
+  if (strays > 0) violations.push(`${strays} categorized entr(ies) are not among the enhanced entries`);
   return violations;
-}
-
-/** Each stray is bucketed once and matches a distinct missing entry by content, covering all of them. */
-function isOneToOneCopy(strays: unknown[], missing: unknown[], occurrences: Map<unknown, number>): boolean {
-  if (strays.length !== missing.length) return false;
-  if (strays.some((stray) => occurrences.get(stray) !== 1)) return false;
-  const unmatched = missing.map(canonicalJson);
-  for (const stray of strays) {
-    const i = unmatched.indexOf(canonicalJson(stray));
-    if (i === -1) return false;
-    unmatched.splice(i, 1);
-  }
-  return true;
-}
-
-/** JSON with object keys sorted, so a copy that rebuilt an entry with its keys in another order still matches. */
-function canonicalJson(value: unknown): string {
-  return JSON.stringify(value, (_key, v: unknown) =>
-    v !== null && typeof v === 'object' && !Array.isArray(v)
-      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
-      : v,
-  );
 }
