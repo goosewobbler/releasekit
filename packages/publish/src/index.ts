@@ -3,9 +3,9 @@ export { createPublishCommand } from './command.js';
 export { getDefaultConfig, loadConfig } from './config.js';
 // Errors
 export { BasePublishError, createPublishError, PipelineError, PublishError, PublishErrorCode } from './errors/index.js';
-// Pipeline
+// Output
 export { publishDidChange } from './output.js';
-
+// Pipeline
 export { runPipeline } from './pipeline/index.js';
 // Input parsing
 export { parseInput } from './stages/input.js';

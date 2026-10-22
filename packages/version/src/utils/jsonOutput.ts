@@ -289,13 +289,15 @@ export function getJsonData(): VersionOutput {
 }
 
 /**
- * Emit the collected `VersionOutput` inside the uniform CLI envelope. The payload rides in `data`
- * verbatim — `notes` and `publish` unwrap it on the way in, so the pipe's contract is unchanged.
+ * Emit the collected `VersionOutput` as the `data` of the uniform CLI envelope, which `notes` and
+ * `publish` unwrap on the way in.
  *
  * A dry run writes nothing, so it is never `changed`.
  */
 export function printJsonOutput(outputPath?: string): void {
-  if (!_jsonOutputMode) return;
+  if (!_jsonOutputMode) {
+    return;
+  }
   writeEnvelope(successEnvelope(_jsonData, { changed: !_jsonData.dryRun && _jsonData.updates.length > 0 }), {
     json: true,
     output: outputPath,

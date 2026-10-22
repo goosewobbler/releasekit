@@ -41,8 +41,6 @@ describe('publishDidChange', () => {
   });
 
   it('should be false for a push of pre-existing tags and releases with nothing published', () => {
-    // git.pushed is set for any push attempt and the GitHub-release stage reports success for an
-    // already-existing release, so neither can stand in for "something happened".
     const out = output({
       npm: [result({ skipped: true, alreadyPublished: true })],
       git: { committed: false, tags: ['v2.0.0'], pushed: true },

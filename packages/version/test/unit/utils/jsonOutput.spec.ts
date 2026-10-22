@@ -527,7 +527,6 @@ describe('JSON Output Utilities', () => {
 
       const envelope = JSON.parse(consoleSpy.mock.calls[0][0]);
       expect(envelope.status).toBe('success');
-      // The VersionOutput rides in `data` verbatim — notes and publish unwrap it back on the way in.
       expect(envelope.data.changelogs).toHaveLength(1);
       expect(envelope.data.changelogs[0].entries[0].description).toBe('New feature');
     });

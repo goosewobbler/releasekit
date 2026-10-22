@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
-import { type Envelope, isEnvelope, type VersionOutput } from '@releasekit/core';
+import { unwrapEnvelope, type VersionOutput } from '@releasekit/core';
 
 /**
  * Execute the CLI command in the given working directory (tempDir)
@@ -15,15 +15,7 @@ export function executeCliCommand(command: string, cwd: string, dryRun = true) {
   return spawnSync('node', [cliPath, ...args], { cwd, encoding: 'utf-8' });
 }
 
-/**
- * Parse a `--json` run's stdout and return the `VersionOutput` it carries, asserting the envelope on
- * the way through. Exercises the boundary the pipe actually crosses — a process wrote this text and
- * `notes`/`publish` read it back — which a unit test on the emitter can't cover.
- */
-export function parseCliEnvelope(stdout: string): { envelope: Envelope; data: VersionOutput } {
-  const envelope = JSON.parse(stdout) as Envelope;
-  if (!isEnvelope(envelope)) {
-    throw new Error(`Expected an envelope on stdout, got: ${stdout.slice(0, 200)}`);
-  }
-  return { envelope, data: envelope.data as VersionOutput };
+/** Read a `--json` run's stdout the way `notes` and `publish` do: unwrapped to its `VersionOutput`. */
+export function readVersionOutput(stdout: string): VersionOutput {
+  return unwrapEnvelope(JSON.parse(stdout)) as VersionOutput;
 }

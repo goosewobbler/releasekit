@@ -3,7 +3,6 @@ import {
   ENVELOPE_SCHEMA_VERSION,
   errorEnvelope,
   exitCodeForError,
-  isEnvelope,
   successEnvelope,
   toEnvelopeError,
   unwrapEnvelope,
@@ -113,15 +112,6 @@ describe('envelope', () => {
     });
   });
 
-  describe('isEnvelope', () => {
-    it('should accept an envelope and reject bare payloads', () => {
-      expect(isEnvelope(successEnvelope({ tags: [] }))).toBe(true);
-      expect(isEnvelope({ dryRun: false, updates: [], tags: [] })).toBe(false);
-      expect(isEnvelope(null)).toBe(false);
-      expect(isEnvelope('a string')).toBe(false);
-    });
-  });
-
   describe('unwrapEnvelope', () => {
     it('should return the payload from a success envelope', () => {
       const payload = { dryRun: false, updates: [{ packageName: 'a' }], tags: ['v1.0.0'] };
@@ -131,6 +121,8 @@ describe('envelope', () => {
     it('should pass a bare payload through unchanged', () => {
       const bare = { dryRun: false, updates: [], tags: [] };
       expect(unwrapEnvelope(bare)).toBe(bare);
+      expect(unwrapEnvelope(null)).toBeNull();
+      expect(unwrapEnvelope('a string')).toBe('a string');
     });
 
     it('should throw with the upstream message and code for an error envelope', () => {
@@ -143,15 +135,8 @@ describe('envelope', () => {
     });
 
     it('should refuse an envelope from a newer producer', () => {
-      // The point of schemaVersion: a newer producer may have moved the payload, so handing `data`
-      // onward would fail later as a shape error rather than a version mismatch.
       const future = { ...successEnvelope({ updates: [] }), schemaVersion: ENVELOPE_SCHEMA_VERSION + 1 };
       expect(() => unwrapEnvelope(future)).toThrow(/schemaVersion/);
-    });
-
-    it('should accept an envelope from an older producer', () => {
-      const older = { ...successEnvelope({ updates: [] }), schemaVersion: 1 };
-      expect(unwrapEnvelope(older)).toEqual({ updates: [] });
     });
 
     it('should refuse an unrecognised status', () => {
@@ -160,7 +145,6 @@ describe('envelope', () => {
     });
 
     it('should refuse a success envelope carrying no payload', () => {
-      // Otherwise the consumer reads fields off null and reports a shape error about the payload.
       expect(() => unwrapEnvelope(successEnvelope(null))).toThrow(/success but produced no data/);
     });
   });

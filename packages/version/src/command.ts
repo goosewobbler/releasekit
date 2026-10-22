@@ -1,23 +1,11 @@
 import * as path from 'node:path';
-import {
-  EXIT_CODES,
-  errorEnvelope,
-  exitCodeForError,
-  InputError,
-  toEnvelopeError,
-  writeEnvelope,
-} from '@releasekit/core';
+import { EXIT_CODES, exitCodeForError, InputError, writeErrorEnvelope } from '@releasekit/core';
 import { Command } from 'commander';
 import { loadConfig } from './config.js';
 import { VersionEngine } from './core/versionEngine.js';
 import type { Config } from './types.js';
 import { enableJsonOutput, printJsonOutput } from './utils/jsonOutput.js';
 import { log } from './utils/logging.js';
-
-/** Report a failure on the JSON channel, so a `--json` caller gets the same shape as on success. */
-function emitErrorEnvelope(error: unknown, opts: { json?: boolean; output?: string }): void {
-  writeEnvelope(errorEnvelope([toEnvelopeError(error)]), opts);
-}
 
 export function createVersionCommand(): Command {
   return new Command('version')
@@ -50,7 +38,7 @@ export function createVersionCommand(): Command {
 
       if (options.stable && options.prerelease) {
         const message = 'Cannot use both --stable and --prerelease at the same time';
-        emitErrorEnvelope(new InputError(message), io);
+        writeErrorEnvelope(new InputError(message), io);
         console.error(`Error: ${message}`);
         process.exit(EXIT_CODES.INPUT_ERROR);
       }
@@ -135,7 +123,7 @@ export function createVersionCommand(): Command {
       } catch (error) {
         const { BaseVersionError } = await import('./errors/baseError.js');
 
-        emitErrorEnvelope(error, io);
+        writeErrorEnvelope(error, io);
         if (BaseVersionError.isVersionError(error)) {
           error.logError();
         } else {

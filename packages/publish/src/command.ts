@@ -6,6 +6,7 @@ import {
   successEnvelope,
   toEnvelopeError,
   writeEnvelope,
+  writeErrorEnvelope,
 } from '@releasekit/core';
 import { Command } from 'commander';
 import { loadConfig } from './config.js';
@@ -75,15 +76,13 @@ export function createPublishCommand(): Command {
           );
           err.logError();
         } else {
-          writeEnvelope(errorEnvelope([toEnvelopeError(err)]), io);
+          writeErrorEnvelope(err, io);
           if (BasePublishError.isPublishError(err)) {
             err.logError();
           } else {
             console.error(err instanceof Error ? err.message : String(err));
           }
         }
-        // Exit by the code's family (docs/cli.md), the same table every other command uses, so a config
-        // or input failure isn't reported as a publish failure.
         process.exit(exitCodeForError(err));
       }
     });

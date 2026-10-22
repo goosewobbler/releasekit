@@ -1,11 +1,10 @@
 import {
   type EnvelopeWarning,
   EXIT_CODES,
-  errorEnvelope,
   InputError,
   successEnvelope,
-  toEnvelopeError,
   writeEnvelope,
+  writeErrorEnvelope,
 } from '@releasekit/core';
 
 /**
@@ -22,8 +21,7 @@ export function emitResult(
 
 /** Emit a structured error envelope for a thrown value on the JSON channel. */
 export function emitError(error: unknown, opts: { json?: boolean; output?: string }): void {
-  if (!opts.json && !opts.output) return;
-  writeEnvelope(errorEnvelope([toEnvelopeError(error)]), opts);
+  writeErrorEnvelope(error, opts);
 }
 
 /**

@@ -71,8 +71,7 @@ export function errorEnvelope<T = null>(
   };
 }
 
-/** Structural test for the envelope. */
-export function isEnvelope(value: unknown): value is Envelope {
+function isEnvelope(value: unknown): value is Envelope {
   return (
     typeof value === 'object' && value !== null && 'schemaVersion' in value && 'status' in value && 'data' in value
   );
@@ -92,11 +91,10 @@ const KNOWN_STATUSES = new Set<EnvelopeStatus>(['success', 'error']);
  * A caller that wants a nullable payload should read `.data` directly instead.
  */
 export function unwrapEnvelope(value: unknown): unknown {
-  if (!isEnvelope(value)) return value;
+  if (!isEnvelope(value)) {
+    return value;
+  }
 
-  // What `schemaVersion` is for. A newer producer may have moved the payload or changed its meaning,
-  // so handing `data` to a consumer that predates the change would fail later and further away, as a
-  // shape error about the payload rather than a version mismatch.
   if (typeof value.schemaVersion !== 'number' || value.schemaVersion > ENVELOPE_SCHEMA_VERSION) {
     throw new Error(
       `Unsupported releasekit envelope schemaVersion ${String(value.schemaVersion)} (this build understands ` +
@@ -117,8 +115,6 @@ export function unwrapEnvelope(value: unknown): unknown {
     );
   }
 
-  // A success envelope with no payload can't be what the caller asked for, and reporting it here beats
-  // the null-property error the consumer would raise once it started reading fields off it.
   if (value.data === null || value.data === undefined) {
     throw new Error('Upstream releasekit stage reported success but produced no data.');
   }

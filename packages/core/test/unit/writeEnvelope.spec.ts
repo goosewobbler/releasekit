@@ -9,7 +9,9 @@ describe('writeEnvelope', () => {
   const dirs: string[] = [];
 
   afterEach(() => {
-    for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+    for (const dir of dirs) {
+      rmSync(dir, { recursive: true, force: true });
+    }
     dirs.length = 0;
     vi.restoreAllMocks();
   });
@@ -30,8 +32,6 @@ describe('writeEnvelope', () => {
   });
 
   it('should not throw out of the error path when --output is unwritable', () => {
-    // The error path writes to the same file the result write just failed on; a second throw there
-    // would crash the command with a stack instead of reporting the original failure.
     const stderr = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     expect(() =>
