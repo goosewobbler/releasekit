@@ -334,6 +334,14 @@ describe('JSON Output Utilities', () => {
       expect(getPendingWriteCount()).toBe(0);
     });
 
+    it('should return each flushed path once', () => {
+      recordPendingWrite('/a/package.json', 'a');
+      recordPendingWrite('/a/Cargo.toml', 'b');
+      recordPendingWrite('/a/Cargo.toml', 'c');
+
+      expect(flushPendingWrites()).toEqual(['/a/package.json', '/a/Cargo.toml']);
+    });
+
     it('should clear pending writes when enableJsonOutput is called', () => {
       recordPendingWrite('/some/path.json', 'data');
       expect(getPendingWriteCount()).toBe(1);

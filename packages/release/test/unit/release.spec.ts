@@ -192,6 +192,7 @@ describe('runRelease', () => {
     });
     mockVersionEngineRun.mockResolvedValue(undefined);
     mockGetJsonData.mockReturnValue(versionOutputWithChanges);
+    mockFlushPendingWrites.mockReturnValue([]);
     mockNotesLoadConfig.mockReturnValue(mockNotesConfig);
     mockVersionOutputToChangelogInput.mockReturnValue({ source: 'version', packages: [] });
     mockNotesRunPipeline.mockResolvedValue({
@@ -245,6 +246,20 @@ describe('runRelease', () => {
       await runRelease(defaultOptions);
 
       expect(mockFlushPendingWrites).toHaveBeenCalledOnce();
+    });
+
+    it('should stage every flushed file in the release commit, with the notes files', async () => {
+      mockFlushPendingWrites.mockReturnValue(['/test/project/package.json', '/test/project/Cargo.toml']);
+      mockNotesRunPipeline.mockResolvedValue({ packageNotes: {}, files: ['/test/project/CHANGELOG.md'] });
+
+      await runRelease(defaultOptions);
+
+      const publishOptions = vi.mocked(mockPublishRunPipeline).mock.calls[0]?.[2] as { additionalFiles?: string[] };
+      expect(publishOptions.additionalFiles).toEqual([
+        '/test/project/package.json',
+        '/test/project/Cargo.toml',
+        '/test/project/CHANGELOG.md',
+      ]);
     });
 
     it('should not flush when dryRun is true', async () => {

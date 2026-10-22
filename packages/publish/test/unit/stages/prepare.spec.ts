@@ -302,6 +302,34 @@ describe('prepare stage', () => {
     expect(ctx.additionalFiles ?? []).not.toContain(lockPath);
   });
 
+  it("should stage a hybrid package's Cargo.toml, which its package.json update doesn't cover", async () => {
+    const dir = createTmpDir();
+    const pkgDir = path.join(dir, 'packages', 'foo');
+    fs.mkdirSync(pkgDir, { recursive: true });
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), '{ "name": "foo", "version": "1.1.0" }\n');
+    const cargoPath = path.join(pkgDir, 'Cargo.toml');
+    fs.writeFileSync(cargoPath, '[package]\nname = "foo"\nversion = "1.0.0"\n');
+
+    const config = getDefaultConfig();
+    config.cargo.enabled = true;
+    const ctx = createContext({
+      cwd: dir,
+      config,
+      additionalFiles: ['CHANGELOG.md'],
+      input: {
+        dryRun: false,
+        updates: [{ packageName: 'foo', newVersion: '1.1.0', filePath: 'packages/foo/package.json' }],
+        changelogs: [],
+        tags: [],
+      },
+    });
+
+    await runPrepareStage(ctx);
+
+    expect(fs.readFileSync(cargoPath, 'utf-8')).toContain('version = "1.1.0"');
+    expect(ctx.additionalFiles).toEqual(['CHANGELOG.md', cargoPath]);
+  });
+
   it('should not stage a Cargo.lock in dry-run mode', async () => {
     const dir = createTmpDir();
     const crateDir = path.join(dir, 'crates', 'foo');
