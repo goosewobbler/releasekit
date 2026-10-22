@@ -54,9 +54,15 @@ export function resolveAllowedScopes(
   categories?: LLMCategory[],
   packageNames?: string[],
 ): string[] | null {
-  if (!scopeConfig || scopeConfig.mode === 'unrestricted') return null;
-  if (scopeConfig.mode === 'none') return [];
-  if (scopeConfig.mode === 'packages') return expandPackageScopes(packageNames ?? []);
+  if (!scopeConfig || scopeConfig.mode === 'unrestricted') {
+    return null;
+  }
+  if (scopeConfig.mode === 'none') {
+    return [];
+  }
+  if (scopeConfig.mode === 'packages') {
+    return expandPackageScopes(packageNames ?? []);
+  }
 
   if (scopeConfig.mode === 'restricted') {
     const explicit = scopeConfig.rules?.allowed ?? [];
@@ -65,7 +71,9 @@ export function resolveAllowedScopes(
     if (categories) {
       const fromCategories = getAllowedScopesFromCategories(categories);
       for (const scopes of fromCategories.values()) {
-        for (const s of scopes) all.add(s);
+        for (const s of scopes) {
+          all.add(s);
+        }
       }
     }
 
@@ -84,8 +92,12 @@ export function validateScope(
   allowedScopes: string[] | null,
   caseSensitive = false,
 ): string | undefined {
-  if (!scope || allowedScopes === null) return scope;
-  if (allowedScopes.length === 0) return undefined;
+  if (!scope || allowedScopes === null) {
+    return scope;
+  }
+  if (allowedScopes.length === 0) {
+    return undefined;
+  }
 
   const normalise = (s: string) => (caseSensitive ? s : s.toLowerCase());
   const isAllowed = allowedScopes.some((a) => normalise(a) === normalise(scope));
@@ -107,7 +119,9 @@ export function validateEntryScopes(
   packageNames?: string[],
 ): ScopeValidationResult {
   const allowedScopes = resolveAllowedScopes(scopeConfig, categories, packageNames);
-  if (allowedScopes === null) return { valid: true, entries, errors: [] };
+  if (allowedScopes === null) {
+    return { valid: true, entries, errors: [] };
+  }
 
   const caseSensitive = scopeConfig?.rules?.caseSensitive ?? false;
   const action = scopeConfig?.rules?.invalidScopeAction ?? 'remove';

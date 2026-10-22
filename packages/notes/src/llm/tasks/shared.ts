@@ -15,7 +15,9 @@ export function escBody(s: string): string {
 }
 
 export function renderPRBlocks(entry: ChangelogEntry): string {
-  if (!entry.context?.prs.length) return '';
+  if (!entry.context?.prs.length) {
+    return '';
+  }
   return entry.context.prs
     .map(
       (pr) => `<pr number="${pr.number}" title="${escAttr(pr.title)}">${pr.body ? `\n${escBody(pr.body)}\n` : ''}</pr>`,
@@ -39,8 +41,12 @@ export const INSTRUCTION_HIERARCHY =
  */
 export function renderEntry(entry: ChangelogEntry, index: number): string {
   const attrs = [`index="${index}"`, `type="${escAttr(entry.type)}"`];
-  if (entry.scope) attrs.push(`scope="${escAttr(entry.scope)}"`);
-  if (entry.breaking) attrs.push('breaking="true"');
+  if (entry.scope) {
+    attrs.push(`scope="${escAttr(entry.scope)}"`);
+  }
+  if (entry.breaking) {
+    attrs.push('breaking="true"');
+  }
   const prBlocks = renderPRBlocks(entry);
   const body = `${escBody(entry.description)}${prBlocks ? `\n${prBlocks}` : ''}`;
   return `<entry ${attrs.join(' ')}>\n${body}\n</entry>`;
@@ -63,8 +69,12 @@ export function groupByCategory(
   for (let i = 0; i < llmEntries.length; i++) {
     const category = llmEntries[i]?.category ?? 'Unknown';
     const entry = entries[i];
-    if (!entry) continue;
-    if (!categoryMap.has(category)) categoryMap.set(category, []);
+    if (!entry) {
+      continue;
+    }
+    if (!categoryMap.has(category)) {
+      categoryMap.set(category, []);
+    }
     categoryMap.get(category)!.push(entry);
   }
   const result: CategorizedEntries[] = [];
@@ -80,7 +90,9 @@ export function groupByCategory(
  * it returns the task-specific free-form `fallback` instruction.
  */
 export function buildCategorySection(categories: LLMCategory[] | undefined, fallback: string): string {
-  if (!categories || categories.length === 0) return fallback;
+  if (!categories || categories.length === 0) {
+    return fallback;
+  }
   const lines = categories.map((c) => {
     const scopeInfo = c.scopes?.length ? ` Allowed scopes: ${c.scopes.join(', ')}.` : '';
     return `- "${c.name}": ${c.description}${scopeInfo}`;
@@ -94,7 +106,9 @@ export function buildCategorySection(categories: LLMCategory[] | undefined, fall
  * The scope-source resolution stays in each task — only the final rendering is shared.
  */
 export function renderScopeInstruction(pairs: Array<{ name: string; scopes: string[] }>, entrySuffix: string): string {
-  if (pairs.length === 0) return '';
+  if (pairs.length === 0) {
+    return '';
+  }
   const parts = pairs.map((p) => `For "${p.name}"${entrySuffix}, use a scope from: ${p.scopes.join(', ')}.`);
   return `\n${parts.join('\n')}\nOnly use scopes from these predefined lists. Set scope to null if no scope applies.`;
 }
@@ -136,9 +150,13 @@ export function checkCategoryNames(
   llmEntries: Array<{ category: string }>,
   categoryNames: string[] | undefined,
 ): string | null {
-  if (!categoryNames?.length) return null;
+  if (!categoryNames?.length) {
+    return null;
+  }
   const invalid = llmEntries.filter((e) => !categoryNames.includes(e.category)).map((e) => e.category);
-  if (invalid.length === 0) return null;
+  if (invalid.length === 0) {
+    return null;
+  }
   const unique = [...new Set(invalid)];
   return `Unknown categories: ${unique.join(', ')}. Valid categories: ${categoryNames.join(', ')}`;
 }

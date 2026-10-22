@@ -53,7 +53,9 @@ function channelOf(update: Update): ReleaseChannel {
 /** A release unit's channel is its primary's; an unchanged primary (no `primaryUpdate`) inherits it
  *  from its members, which are single-channel by construction for `linked`/`fixed` groups. */
 function unitChannel(unit: ReleaseUnit): ReleaseChannel {
-  if (unit.primaryUpdate) return channelOf(unit.primaryUpdate);
+  if (unit.primaryUpdate) {
+    return channelOf(unit.primaryUpdate);
+  }
   const child = unit.children[0];
   return child ? channelOf(child) : 'stable';
 }
@@ -64,15 +66,20 @@ function byChannel<T>(items: readonly T[], key: (item: T) => ReleaseChannel): Ma
   for (const item of items) {
     const k = key(item);
     const list = map.get(k);
-    if (list) list.push(item);
-    else map.set(k, [item]);
+    if (list) {
+      list.push(item);
+    } else {
+      map.set(k, [item]);
+    }
   }
   return map;
 }
 
 /** Push a section heading, ensuring a blank line separates it from the rows above. */
 function pushSectionHeading(lines: string[], channel: ReleaseChannel): void {
-  if (lines[lines.length - 1] !== '') lines.push('');
+  if (lines[lines.length - 1] !== '') {
+    lines.push('');
+  }
   lines.push(SECTION_HEADING[channel], '');
 }
 
@@ -80,7 +87,9 @@ function pushSectionHeading(lines: string[], channel: ReleaseChannel): void {
  *  on (npm publishes a prerelease under its preid, e.g. `1.0.0-next.1` → `next`), so a mixed PR shows
  *  per-package maturity at a glance. */
 function versionDisplay(update: Update): string {
-  if (channelOf(update) !== 'prerelease') return update.newVersion;
+  if (channelOf(update) !== 'prerelease') {
+    return update.newVersion;
+  }
   // SEAM: the per-package "graduate to stable" affordance — gated on a `graduate:<package>`
   // label — attaches to prerelease rows here once that mechanism merges. This renders the channel
   // grouping + dist-tag only; it deliberately renders no affordance yet.
@@ -149,9 +158,13 @@ export function computeHierarchy(updates: Update[], cfg: PrimaryConfig): Selecti
   // A changed primary carries its group on its update; an unchanged one is resolved from config.
   const groupOfPrimary = (p: string): string | undefined => {
     const own = updateByName.get(p)?.group;
-    if (own) return own;
+    if (own) {
+      return own;
+    }
     for (const [name, gc] of Object.entries(groups)) {
-      if (shouldMatchPackageTargets(p, gc.packages ?? [])) return name;
+      if (shouldMatchPackageTargets(p, gc.packages ?? [])) {
+        return name;
+      }
     }
     return undefined;
   };
@@ -161,12 +174,24 @@ export function computeHierarchy(updates: Update[], cfg: PrimaryConfig): Selecti
     const seen = new Set<string>();
     const result: Update[] = [];
     const add = (u: Update) => {
-      if (u.packageName === p || declaredPrimaryNames.has(u.packageName) || seen.has(u.packageName)) return;
+      if (u.packageName === p || declaredPrimaryNames.has(u.packageName) || seen.has(u.packageName)) {
+        return;
+      }
       seen.add(u.packageName);
       result.push(u);
     };
-    if (group) for (const u of updates) if (u.group === group) add(u);
-    for (const u of updates) if (u.role === 'prerequisite' && u.prerequisiteOf?.includes(p)) add(u);
+    if (group) {
+      for (const u of updates) {
+        if (u.group === group) {
+          add(u);
+        }
+      }
+    }
+    for (const u of updates) {
+      if (u.role === 'prerequisite' && u.prerequisiteOf?.includes(p)) {
+        add(u);
+      }
+    }
     return result.sort((a, b) => a.packageName.localeCompare(b.packageName));
   };
 
@@ -176,7 +201,9 @@ export function computeHierarchy(updates: Update[], cfg: PrimaryConfig): Selecti
   for (const primaryName of [...declaredPrimaryNames].sort((a, b) => a.localeCompare(b))) {
     const children = childrenOf(primaryName);
     const primaryUpdate = updateByName.get(primaryName);
-    if (!primaryUpdate && children.length === 0) continue; // declared but nothing in its unit changed
+    if (!primaryUpdate && children.length === 0) {
+      continue; // declared but nothing in its unit changed
+    }
     const group = groupOfPrimary(primaryName);
     const groupSync = group ? groups[group]?.sync : undefined;
     units.push({ primaryName, primaryUpdate, children, groupSync });
@@ -208,12 +235,24 @@ export function cascadeDeselection(hierarchy: SelectionHierarchy, deselected: Re
   // one). Escalate it to holding its whole unit: a package a maintainer held back must never silently
   // ship, and holding the unit keeps the render coherent (the primary shows unticked).
   for (const [child, owners] of hierarchy.childOwners) {
-    if (deselected.has(child)) for (const owner of owners) deselectedPrimaries.add(owner);
+    if (deselected.has(child)) {
+      for (const owner of owners) {
+        deselectedPrimaries.add(owner);
+      }
+    }
   }
-  for (const p of deselectedPrimaries) effective.add(p);
-  for (const orphan of hierarchy.orphans) if (deselected.has(orphan.packageName)) effective.add(orphan.packageName);
+  for (const p of deselectedPrimaries) {
+    effective.add(p);
+  }
+  for (const orphan of hierarchy.orphans) {
+    if (deselected.has(orphan.packageName)) {
+      effective.add(orphan.packageName);
+    }
+  }
   for (const [child, owners] of hierarchy.childOwners) {
-    if (owners.every((o) => deselectedPrimaries.has(o))) effective.add(child);
+    if (owners.every((o) => deselectedPrimaries.has(o))) {
+      effective.add(child);
+    }
   }
   return effective;
 }
@@ -295,9 +334,13 @@ function attachChangelog(
   heldBack: boolean,
   indent: string,
 ): void {
-  if (!rowChangelog) return;
+  if (!rowChangelog) {
+    return;
+  }
   const block = rowChangelog(packageNames, heldBack, indent);
-  if (block) lines.push(block);
+  if (block) {
+    lines.push(block);
+  }
 }
 
 /**
@@ -333,7 +376,9 @@ function attachChannelToggle(
   indent: string,
   channel: ChannelToggleConfig | undefined,
 ): void {
-  if (!channel || !selected) return;
+  if (!channel || !selected) {
+    return;
+  }
   const name = update.packageName;
   if (channelOf(update) === 'stable') {
     const preid = channel.prereleaseIdentifier ?? 'next';
@@ -401,7 +446,9 @@ function renderFlat(
   const channels = CHANNEL_ORDER.filter((c) => (updatesByChannel.get(c)?.length ?? 0) > 0);
   const showHeadings = channels.length > 1;
   for (const channel of channels) {
-    if (showHeadings) pushSectionHeading(lines, channel);
+    if (showHeadings) {
+      pushSectionHeading(lines, channel);
+    }
     renderFlatSection(lines, updatesByChannel.get(channel) ?? [], selected, rowChangelog, channelToggle);
   }
 }
@@ -419,13 +466,17 @@ function renderUnit(
   const heldBack = !selected(unit.primaryName);
   // The primary's channel toggle shifts the whole unit (the wiring expands the scope to its group);
   // an unchanged primary anchoring the unit has no version to shift, so it gets none.
-  if (unit.primaryUpdate) attachChannelToggle(lines, unit.primaryUpdate, !heldBack, '  ', channel);
+  if (unit.primaryUpdate) {
+    attachChannelToggle(lines, unit.primaryUpdate, !heldBack, '  ', channel);
+  }
   if (streamlined) {
     if (unit.children.length > 0) {
       // Children inside a collapsed pane as plain bullets — a blank line after <summary> lets GitHub
       // render the nested markdown list.
       lines.push(`  <details><summary>ships ${unit.children.length} ${unitWord(unit)}</summary>`, '');
-      for (const child of unit.children) lines.push(childBullet(child, unit.groupSync));
+      for (const child of unit.children) {
+        lines.push(childBullet(child, unit.groupSync));
+      }
       lines.push('  </details>');
     }
     // The streamlined unit ships primary + its members together (coupled or bundled), so its changelog
@@ -479,12 +530,16 @@ function renderHierarchical(
   );
   const showHeadings = channels.length > 1;
   for (const channel of channels) {
-    if (showHeadings) pushSectionHeading(lines, channel);
-    for (const unit of unitsByChannel.get(channel) ?? [])
+    if (showHeadings) {
+      pushSectionHeading(lines, channel);
+    }
+    for (const unit of unitsByChannel.get(channel) ?? []) {
       renderUnit(lines, unit, selected, streamlined, rowChangelog, channelToggle);
+    }
     // Orphans stay flat top-level checkboxes (fail-safe), grouped under their own channel.
-    for (const orphan of orphansByChannel.get(channel) ?? [])
+    for (const orphan of orphansByChannel.get(channel) ?? []) {
       renderOrphan(lines, orphan, selected, rowChangelog, channelToggle);
+    }
   }
 }
 
@@ -532,19 +587,27 @@ export function renderSelectionRegion(
  */
 export function extractSelection(body: string): { deselected: string[] } | undefined {
   const region = extractSelectionRegion(body);
-  if (region === undefined) return undefined;
+  if (region === undefined) {
+    return undefined;
+  }
 
   const deselected: string[] = [];
   for (const line of region.split('\n')) {
     const markerStart = line.indexOf('<!-- rk-sel:');
-    if (markerStart === -1) continue;
+    if (markerStart === -1) {
+      continue;
+    }
     const nameStart = markerStart + '<!-- rk-sel:'.length;
     const nameEnd = line.indexOf(' -->', nameStart);
-    if (nameEnd === -1) continue;
+    if (nameEnd === -1) {
+      continue;
+    }
     const name = line.slice(nameStart, nameEnd);
     // A row is selected unless its checkbox glyph is explicitly empty. `includes('[ ]')` is a fixed
     // substring check on the row text before the marker — no prose parsing, no backtracking regex.
-    if (line.slice(0, markerStart).includes('[ ]')) deselected.push(name);
+    if (line.slice(0, markerStart).includes('[ ]')) {
+      deselected.push(name);
+    }
   }
   return { deselected };
 }
@@ -556,10 +619,14 @@ function markerHits(region: string, marker: string): Array<{ name: string; ticke
   const hits: Array<{ name: string; ticked: boolean; unticked: boolean }> = [];
   for (const line of region.split('\n')) {
     const markerStart = line.indexOf(open);
-    if (markerStart === -1) continue;
+    if (markerStart === -1) {
+      continue;
+    }
     const nameStart = markerStart + open.length;
     const nameEnd = line.indexOf(' -->', nameStart);
-    if (nameEnd === -1) continue;
+    if (nameEnd === -1) {
+      continue;
+    }
     const before = line.slice(0, markerStart);
     hits.push({
       name: line.slice(nameStart, nameEnd),
@@ -578,7 +645,9 @@ function markerHits(region: string, marker: string): Array<{ name: string; ticke
  */
 export function extractChannelSelection(body: string): { prereleased: string[]; graduated: string[] } {
   const region = extractSelectionRegion(body);
-  if (region === undefined) return { prereleased: [], graduated: [] };
+  if (region === undefined) {
+    return { prereleased: [], graduated: [] };
+  }
   const heldBack = new Set(
     markerHits(region, 'rk-sel')
       .filter((h) => h.unticked)
@@ -634,7 +703,9 @@ export function selectionWarnings(
 ): SelectionWarning[] {
   const warnings: SelectionWarning[] = [];
   for (const update of updates) {
-    if (!deselected.has(update.packageName)) continue;
+    if (!deselected.has(update.packageName)) {
+      continue;
+    }
     if (update.group && groups[update.group]?.sync === 'independent') {
       // Only a *partial* hold-back splits the group. When a primary toggle cascades the whole
       // independent group out together, every member is deselected — coherent, so don't warn.

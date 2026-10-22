@@ -163,9 +163,15 @@ function orderedKeywordKeys(keys: string[]): string[] {
   return [...keys].sort((a, b) => {
     const ia = KEY_ORDER.indexOf(a);
     const ib = KEY_ORDER.indexOf(b);
-    if (ia === -1 && ib === -1) return a.localeCompare(b);
-    if (ia === -1) return 1;
-    if (ib === -1) return -1;
+    if (ia === -1 && ib === -1) {
+      return a.localeCompare(b);
+    }
+    if (ia === -1) {
+      return 1;
+    }
+    if (ib === -1) {
+      return -1;
+    }
     return ia - ib;
   });
 }
@@ -249,8 +255,12 @@ function printUnifiedDiff(before: string, after: string, label: string): void {
       ['-u', `--label=${label} (committed)`, `--label=${label} (generated)`, beforePath, afterPath],
       { encoding: 'utf8' },
     );
-    if (result.stdout) process.stderr.write(result.stdout);
-    if (result.stderr) process.stderr.write(result.stderr);
+    if (result.stdout) {
+      process.stderr.write(result.stdout);
+    }
+    if (result.stderr) {
+      process.stderr.write(result.stderr);
+    }
     if (result.status === 127 || result.error) {
       // `diff` not on PATH — fall back to a line-by-line diff. Good enough
       // for diagnostic output on a (typically small) schema file.
@@ -267,8 +277,12 @@ function printLineDiffFallback(before: string, after: string, label: string): vo
   const afterLines = after.split('\n');
   for (let i = 0; i < Math.max(beforeLines.length, afterLines.length); i++) {
     if (beforeLines[i] !== afterLines[i]) {
-      if (beforeLines[i] !== undefined) process.stderr.write(`- ${beforeLines[i]}\n`);
-      if (afterLines[i] !== undefined) process.stderr.write(`+ ${afterLines[i]}\n`);
+      if (beforeLines[i] !== undefined) {
+        process.stderr.write(`- ${beforeLines[i]}\n`);
+      }
+      if (afterLines[i] !== undefined) {
+        process.stderr.write(`+ ${afterLines[i]}\n`);
+      }
     }
   }
 }

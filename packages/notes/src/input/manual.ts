@@ -20,7 +20,9 @@ export function parseManualInput(json: string): ChangelogInput {
 
   if (Array.isArray(input.packages)) {
     for (const pkg of input.packages) {
-      if (typeof pkg !== 'object' || pkg === null) continue;
+      if (typeof pkg !== 'object' || pkg === null) {
+        continue;
+      }
 
       const p = pkg as Record<string, unknown>;
 
@@ -97,7 +99,9 @@ function normalizeType(type: unknown): import('../core/types.js').ChangelogType 
 
   if (typeof type === 'string') {
     const mapped = typeMap[type.toLowerCase()];
-    if (mapped) return mapped;
+    if (mapped) {
+      return mapped;
+    }
   }
 
   return 'changed';

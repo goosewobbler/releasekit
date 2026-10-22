@@ -55,7 +55,9 @@ export function createCategorizeValidator(
 
   return (result) => {
     const parsed = parseLLMResult(result);
-    if (!parsed.ok) return { valid: false, error: parsed.error };
+    if (!parsed.ok) {
+      return { valid: false, error: parsed.error };
+    }
 
     const zodResult = CategorizeOutputSchema.safeParse(parsed.data);
     if (!zodResult.success) {
@@ -74,7 +76,9 @@ export function createCategorizeValidator(
       zodResult.data.entries,
       context.categories?.map((c) => c.name),
     );
-    if (categoryError) return { valid: false, error: categoryError };
+    if (categoryError) {
+      return { valid: false, error: categoryError };
+    }
 
     // Apply scopes from LLM response
     const withScopes: ChangelogEntry[] = cleanEntries.map((entry, i) => {

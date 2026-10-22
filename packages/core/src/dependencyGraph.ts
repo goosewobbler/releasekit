@@ -45,13 +45,19 @@ export function buildDependencyGraph(packages: GraphPackage[]): WorkspaceDepende
   const deps = new Map<string, Set<string>>();
   const dependents = new Map<string, Set<string>>();
   for (const p of packages) {
-    if (!deps.has(p.name)) deps.set(p.name, new Set());
-    if (!dependents.has(p.name)) dependents.set(p.name, new Set());
+    if (!deps.has(p.name)) {
+      deps.set(p.name, new Set());
+    }
+    if (!dependents.has(p.name)) {
+      dependents.set(p.name, new Set());
+    }
   }
   for (const p of packages) {
     for (const d of p.deps) {
       // Ignore self-edges and dependencies outside the workspace (the ∩-workspace filter).
-      if (d === p.name || !known.has(d)) continue;
+      if (d === p.name || !known.has(d)) {
+        continue;
+      }
       deps.get(p.name)?.add(d);
       dependents.get(d)?.add(p.name);
     }
@@ -65,9 +71,13 @@ export function buildDependencyGraph(packages: GraphPackage[]): WorkspaceDepende
     const stack = [...(deps.get(name) ?? [])];
     while (stack.length > 0) {
       const cur = stack.pop();
-      if (cur === undefined || cur === name || out.has(cur)) continue;
+      if (cur === undefined || cur === name || out.has(cur)) {
+        continue;
+      }
       out.add(cur);
-      for (const d of deps.get(cur) ?? []) stack.push(d);
+      for (const d of deps.get(cur) ?? []) {
+        stack.push(d);
+      }
     }
     return out;
   };
@@ -78,7 +88,11 @@ export function buildDependencyGraph(packages: GraphPackage[]): WorkspaceDepende
     const indegree = new Map<string, number>();
     for (const n of subset) {
       let degree = 0;
-      for (const dep of deps.get(n) ?? []) if (inSubset.has(dep)) degree++;
+      for (const dep of deps.get(n) ?? []) {
+        if (inSubset.has(dep)) {
+          degree++;
+        }
+      }
       indegree.set(n, degree);
     }
     // Seed with nodes that have no in-subset dependencies, preserving input order for stability.
@@ -87,18 +101,28 @@ export function buildDependencyGraph(packages: GraphPackage[]): WorkspaceDepende
     const emitted = new Set<string>();
     while (ready.length > 0) {
       const n = ready.shift();
-      if (n === undefined || emitted.has(n)) continue;
+      if (n === undefined || emitted.has(n)) {
+        continue;
+      }
       result.push(n);
       emitted.add(n);
       for (const dependent of dependents.get(n) ?? []) {
-        if (!inSubset.has(dependent) || emitted.has(dependent)) continue;
+        if (!inSubset.has(dependent) || emitted.has(dependent)) {
+          continue;
+        }
         const next = (indegree.get(dependent) ?? 1) - 1;
         indegree.set(dependent, next);
-        if (next === 0) ready.push(dependent);
+        if (next === 0) {
+          ready.push(dependent);
+        }
       }
     }
     // Cycle members never reach indegree 0 — append them in input order rather than dropping them.
-    for (const n of subset) if (!emitted.has(n)) result.push(n);
+    for (const n of subset) {
+      if (!emitted.has(n)) {
+        result.push(n);
+      }
+    }
     return result;
   };
 
@@ -107,17 +131,23 @@ export function buildDependencyGraph(packages: GraphPackage[]): WorkspaceDepende
     if (cycle === undefined) {
       // A full toposort that can't emit every node has a cycle.
       const indegree = new Map<string, number>();
-      for (const p of packages) indegree.set(p.name, deps.get(p.name)?.size ?? 0);
+      for (const p of packages) {
+        indegree.set(p.name, deps.get(p.name)?.size ?? 0);
+      }
       const ready = packages.filter((p) => indegree.get(p.name) === 0).map((p) => p.name);
       let emittedCount = 0;
       while (ready.length > 0) {
         const n = ready.shift();
-        if (n === undefined) break;
+        if (n === undefined) {
+          break;
+        }
         emittedCount++;
         for (const dependent of dependents.get(n) ?? []) {
           const next = (indegree.get(dependent) ?? 1) - 1;
           indegree.set(dependent, next);
-          if (next === 0) ready.push(dependent);
+          if (next === 0) {
+            ready.push(dependent);
+          }
         }
       }
       cycle = emittedCount !== known.size;

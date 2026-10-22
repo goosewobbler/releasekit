@@ -240,8 +240,12 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  if (originalPath !== undefined) process.env.PATH = originalPath;
-  for (const dir of tempDirs) fs.rmSync(dir, { recursive: true, force: true });
+  if (originalPath !== undefined) {
+    process.env.PATH = originalPath;
+  }
+  for (const dir of tempDirs) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 beforeEach(() => {
@@ -255,7 +259,9 @@ afterEach(async () => {
   }
   process.chdir(ORIGINAL_CWD);
   for (const key of Object.keys(process.env)) {
-    if (!(key in savedEnv)) delete process.env[key];
+    if (!(key in savedEnv)) {
+      delete process.env[key];
+    }
   }
   Object.assign(process.env, savedEnv);
 });
@@ -363,7 +369,9 @@ describe.skipIf(!E2E_ENABLED)('Publish pipeline e2e (real npm registry)', () => 
     // registry + token) wins, and pin globalconfig / cache / HOME to throwaway paths so no ambient
     // `~/.npmrc` leaks in either. The full-env restore in afterEach undoes all of this.
     for (const key of Object.keys(process.env)) {
-      if (/^npm_config_/i.test(key)) delete process.env[key];
+      if (/^npm_config_/i.test(key)) {
+        delete process.env[key];
+      }
     }
     const home = mkTemp('npm-home');
     const emptyGlobalNpmrc = path.join(home, 'global-npmrc');

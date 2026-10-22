@@ -17,10 +17,14 @@ export function extractJsonFromResponse(response: string): string {
   // which in practice means: first delimiter to last matching delimiter, ignoring any
   // preamble or postamble text the model may have added.
   const objectMatch = stripped.match(/\{[\s\S]*\}/);
-  if (objectMatch) return objectMatch[0];
+  if (objectMatch) {
+    return objectMatch[0];
+  }
 
   const arrayMatch = stripped.match(/\[[\s\S]*\]/);
-  if (arrayMatch) return arrayMatch[0];
+  if (arrayMatch) {
+    return arrayMatch[0];
+  }
 
   // No JSON delimiters found — return stripped response so JSON.parse produces a clear error
   return stripped;

@@ -117,7 +117,9 @@ export function applyOverrideScope(
  * no-tag axis, so they warn like the default.)
  */
 function guardFirstReleaseBump(config: Config, name: string | undefined, currentVer: string, type: ReleaseType): void {
-  if (config.allowFirstBump) return;
+  if (config.allowFirstBump) {
+    return;
+  }
   const pkg = name || 'package';
   const bumped = bumpVersion(currentVer, type);
   const message =
@@ -127,7 +129,9 @@ function guardFirstReleaseBump(config: Config, name: string | undefined, current
   if ((config.mismatchStrategy ?? 'warn') === 'error') {
     throw new Error(`First-release version overshoot: ${message}`);
   }
-  if (config.mismatchStrategy === 'ignore') return;
+  if (config.mismatchStrategy === 'ignore') {
+    return;
+  }
   log(message, 'warning');
 }
 
@@ -190,7 +194,9 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
       }
 
       // Fallback to hardcoded patterns for backward compatibility
-      if (!packageName) return escapeRegExp(prefix);
+      if (!packageName) {
+        return escapeRegExp(prefix);
+      }
       const sanitized = sanitizePackageName(packageName);
       const escapedRaw = escapeRegExp(`${packageName}@${prefix}`);
       const escapedDash = escapeRegExp(`${sanitized}-${prefix}`);

@@ -42,7 +42,9 @@ function readCache(key: string, latestTag: string, count: number): Example[] | n
     const entry: CacheEntry = JSON.parse(raw);
     // Invalidate if the tag changed or the cached count is smaller than requested
     // (the user may have increased `examples` config since the last run).
-    if (entry.latestTag !== latestTag || entry.count < count) return null;
+    if (entry.latestTag !== latestTag || entry.count < count) {
+      return null;
+    }
     return entry.examples;
   } catch {
     return null;
@@ -70,7 +72,9 @@ function matchesBareVersion(tagName: string): boolean {
 export async function fetchExamples(options: FetchExamplesOptions): Promise<Example[]> {
   const { owner, repo, packageName, count, githubToken, isMonorepo } = options;
 
-  if (count === 0) return [];
+  if (count === 0) {
+    return [];
+  }
 
   const token = githubToken ?? process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN;
   if (!token) {
@@ -104,13 +108,19 @@ export async function fetchExamples(options: FetchExamplesOptions): Promise<Exam
 
     const examples: Example[] = [];
     for (const release of matching) {
-      if (!release.body) continue;
+      if (!release.body) {
+        continue;
+      }
       const version = release.tagName.replace(/^.*@/, '').replace(/^v/, '');
       const example = parseReleaseBodyToExample(release.body, version);
-      if (example) examples.push(example);
+      if (example) {
+        examples.push(example);
+      }
     }
 
-    if (examples.length > 0) writeCache(key, latestTag, count, examples);
+    if (examples.length > 0) {
+      writeCache(key, latestTag, count, examples);
+    }
     debug(`Fetched ${examples.length} examples for ${packageName}`);
     return examples;
   } catch (error) {

@@ -46,7 +46,9 @@ export function orderNpmUpdates<T extends { packageName: string; filePath: strin
   cwd: string,
 ): T[] {
   const npm = updates.filter((u) => u.filePath.endsWith('package.json'));
-  if (npm.length <= 1) return updates;
+  if (npm.length <= 1) {
+    return updates;
+  }
   const other = updates.filter((u) => !u.filePath.endsWith('package.json'));
   const byName = new Map(npm.map((u) => [u.packageName, u]));
 
@@ -54,8 +56,14 @@ export function orderNpmUpdates<T extends { packageName: string; filePath: strin
   if (explicitOrder.length > 0) {
     const remaining = new Set(npm.map((u) => u.packageName));
     orderedNames = explicitOrder.filter((n) => remaining.has(n));
-    for (const n of orderedNames) remaining.delete(n);
-    for (const u of npm) if (remaining.has(u.packageName)) orderedNames.push(u.packageName);
+    for (const n of orderedNames) {
+      remaining.delete(n);
+    }
+    for (const u of npm) {
+      if (remaining.has(u.packageName)) {
+        orderedNames.push(u.packageName);
+      }
+    }
   } else {
     const graphPackages: GraphPackage[] = npm.map((u) => {
       const pkgJsonPath = path.resolve(cwd, u.filePath);
@@ -190,8 +198,12 @@ export const npmRegistry: Registry<NpmTarget, NpmSession> = {
     });
 
     debug('Publish command completed successfully');
-    if (publishResult.stdout) debug(`Publish stdout: ${publishResult.stdout}`);
-    if (publishResult.stderr) debug(`Publish stderr: ${publishResult.stderr}`);
+    if (publishResult.stdout) {
+      debug(`Publish stdout: ${publishResult.stdout}`);
+    }
+    if (publishResult.stderr) {
+      debug(`Publish stderr: ${publishResult.stderr}`);
+    }
   },
 
   dispose(session: NpmSession): void {

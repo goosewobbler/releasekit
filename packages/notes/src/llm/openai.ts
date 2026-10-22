@@ -91,7 +91,9 @@ export class OpenAIProvider extends BaseLLMProvider {
 
       return { content };
     } catch (error) {
-      if (error instanceof LLMError) throw error;
+      if (error instanceof LLMError) {
+        throw error;
+      }
       if (signal.aborted) {
         throw new LLMError(`OpenAI request timed out after ${this.getTimeout(options)}ms`, { retryable: true });
       }

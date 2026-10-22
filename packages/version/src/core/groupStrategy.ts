@@ -84,7 +84,9 @@ interface MemberPlan {
 }
 
 function cleanBaseline(version: string | undefined): string {
-  if (!version) return '0.0.0';
+  if (!version) {
+    return '0.0.0';
+  }
   // semver.coerce() strips the prerelease (1.0.0-next.0 -> 1.0.0), which would graduate a linked or
   // fixed group off its prerelease line on every increment. Parse prerelease-preserving first:
   // clean() for a bare semver, then coerce({ includePrerelease }) only to pull it from a tag prefix.
@@ -115,7 +117,9 @@ async function planMember(
     });
     usedPackageSpecificTag = !!latestTag;
   }
-  if (!latestTag) latestTag = globalTag;
+  if (!latestTag) {
+    latestTag = globalTag;
+  }
 
   const ownNext = await calculateVersion(config, {
     latestTag,
@@ -138,7 +142,9 @@ async function planMember(
 
 /** Derive the bump magnitude a member earned by comparing its computed next version to baseline. */
 function memberBumpRank(plan: MemberPlan): number {
-  if (!plan.changed) return -1;
+  if (!plan.changed) {
+    return -1;
+  }
   const diff = semver.diff(plan.baseline, plan.ownNext);
   if (!diff) {
     // Same version family (e.g. prerelease increment) — treat as a patch-level change so the
@@ -165,9 +171,13 @@ interface GroupComputation {
  * `release:graduate` path → every group graduates) or some member falls inside that scope.
  */
 function isGroupGraduating(group: ResolvedGroup, config: Config): boolean {
-  if (!config.stableOnly) return false;
+  if (!config.stableOnly) {
+    return false;
+  }
   const scope = config.graduateScope;
-  if (!scope || scope.length === 0) return true;
+  if (!scope || scope.length === 0) {
+    return true;
+  }
   return group.members.some((m) => shouldMatchPackageTargets(m.packageJson.name, scope));
 }
 
@@ -181,9 +191,13 @@ function isGroupGraduating(group: ResolvedGroup, config: Config): boolean {
  * happens to land on a prerelease line yet.
  */
 function isGroupPrereleasing(group: ResolvedGroup, config: Config): boolean {
-  if (!config.isPrerelease) return false;
+  if (!config.isPrerelease) {
+    return false;
+  }
   const scope = config.prereleaseScope;
-  if (!scope || scope.length === 0) return true;
+  if (!scope || scope.length === 0) {
+    return true;
+  }
   return group.members.some((m) => shouldMatchPackageTargets(m.packageJson.name, scope));
 }
 
@@ -298,12 +312,20 @@ function shouldProcess(pkg: Package, config: Config): boolean {
 function readRepoUrl(pkgDir: string): string | null {
   try {
     const pkgJsonPath = path.join(pkgDir, 'package.json');
-    if (!fs.existsSync(pkgJsonPath)) return null;
+    if (!fs.existsSync(pkgJsonPath)) {
+      return null;
+    }
     const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'));
     let url: string | undefined = typeof pkgJson.repository === 'string' ? pkgJson.repository : pkgJson.repository?.url;
-    if (!url) return null;
-    if (url.startsWith('git+')) url = url.slice(4);
-    if (url.endsWith('.git')) url = url.slice(0, -4);
+    if (!url) {
+      return null;
+    }
+    if (url.startsWith('git+')) {
+      url = url.slice(4);
+    }
+    if (url.endsWith('.git')) {
+      url = url.slice(0, -4);
+    }
     return url;
   } catch {
     return null;
@@ -344,7 +366,9 @@ async function extractEntries(
     entries = await extractChangelogEntriesFromCommits(input.pkgDir, revisionRange);
   } catch (error) {
     // A strictReachable violation must abort the run, not degrade to a minimal entry.
-    if (error instanceof StrictReachableError) throw error;
+    if (error instanceof StrictReachableError) {
+      throw error;
+    }
     log(`Error extracting changelog entries: ${error instanceof Error ? error.message : String(error)}`, 'warning');
   }
   if (entries.length === 0) {
@@ -356,7 +380,9 @@ async function extractEntries(
     // swallows git failures and returns [] — so leave it unflagged and let the bump render a
     // visible block instead of vanishing as a no-change carry.
     const fallback: ChangelogEntry = { type: 'changed', description: `Update version to ${input.nextVersion}` };
-    if (input.isCarry) fallback.synthetic = true;
+    if (input.isCarry) {
+      fallback.synthetic = true;
+    }
     entries = [fallback];
   }
   return { entries, revisionRange, previousVersion };
@@ -380,7 +406,9 @@ async function releaseGroup(
   for (const plan of releasing) {
     const pkg = plan.pkg;
     const name = pkg.packageJson.name;
-    if (!shouldProcess(pkg, config)) continue;
+    if (!shouldProcess(pkg, config)) {
+      continue;
+    }
 
     // Independent members release on their own commit-driven line; fixed/linked members adopt the
     // shared group version.
@@ -512,7 +540,9 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
 
       for (const group of resolution.groups) {
         const members = group.members.filter(targetFilter).filter((p) => shouldProcess(p, config));
-        if (members.length === 0) continue;
+        if (members.length === 0) {
+          continue;
+        }
 
         const plans = await Promise.all(members.map((pkg) => planMember(config, pkg, formattedPrefix, globalTag)));
         const computation = computeGroup(group, plans, config);
@@ -564,9 +594,13 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
 
       // Ungrouped packages version independently — same per-member machinery, no shared version.
       for (const pkg of resolution.ungrouped) {
-        if (!targetFilter(pkg) || !shouldProcess(pkg, config)) continue;
+        if (!targetFilter(pkg) || !shouldProcess(pkg, config)) {
+          continue;
+        }
         const plan = await planMember(config, pkg, formattedPrefix, globalTag);
-        if (!plan.changed) continue;
+        if (!plan.changed) {
+          continue;
+        }
 
         const name = pkg.packageJson.name;
         const packageJsonPath = path.join(pkg.dir, 'package.json');

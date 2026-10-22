@@ -43,7 +43,9 @@ function makeFailingProvider(after = 0): LLMProvider {
     capabilities: { systemRole: true, structuredOutputs: false, toolUse: false },
     async complete(): Promise<CompleteResult> {
       calls++;
-      if (calls > after) throw new Error('provider error');
+      if (calls > after) {
+        throw new Error('provider error');
+      }
       return { content: 'ok' };
     },
   };
@@ -65,7 +67,9 @@ describe('enhanceEntry()', () => {
   it('should return the provider response as the new description', async () => {
     const provider = makeMockProvider('Add real-time streaming to the API');
     const entry = sampleEntries[0];
-    if (!entry) throw new Error('No sample entry');
+    if (!entry) {
+      throw new Error('No sample entry');
+    }
     const result = await enhanceEntry(provider, entry, llmContext);
     expect(result).toBe('Add real-time streaming to the API');
   });
@@ -73,7 +77,9 @@ describe('enhanceEntry()', () => {
   it('should trim whitespace from the response', async () => {
     const provider = makeMockProvider('  trimmed  ');
     const entry = sampleEntries[0];
-    if (!entry) throw new Error('No sample entry');
+    if (!entry) {
+      throw new Error('No sample entry');
+    }
     const result = await enhanceEntry(provider, entry, llmContext);
     expect(result).toBe('trimmed');
   });
@@ -81,7 +87,9 @@ describe('enhanceEntry()', () => {
   it('should call the provider exactly once', async () => {
     const provider = makeMockProvider('response');
     const entry = sampleEntries[0];
-    if (!entry) throw new Error('No sample entry');
+    if (!entry) {
+      throw new Error('No sample entry');
+    }
     await enhanceEntry(provider, entry, llmContext);
     expect(provider.callCount).toBe(1);
   });
@@ -136,7 +144,9 @@ describe('enhanceEntries()', () => {
       capabilities: { systemRole: true, structuredOutputs: false, toolUse: false },
       async complete(): Promise<CompleteResult> {
         calls++;
-        if (calls === 2) throw new Error('second entry fails');
+        if (calls === 2) {
+          throw new Error('second entry fails');
+        }
         return { content: 'ok' };
       },
     };

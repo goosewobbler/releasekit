@@ -24,7 +24,9 @@ const NOTES_TRUNCATION_MARKER = '\n\n…(truncated)';
 
 /** Trim one package's notes to {@link MAX_NOTES_CHARS_PER_PACKAGE}, on a line boundary where possible. */
 export function truncatePackageNotes(notes: string): string {
-  if (notes.length <= MAX_NOTES_CHARS_PER_PACKAGE) return notes;
+  if (notes.length <= MAX_NOTES_CHARS_PER_PACKAGE) {
+    return notes;
+  }
   const budget = MAX_NOTES_CHARS_PER_PACKAGE - NOTES_TRUNCATION_MARKER.length;
   const slice = notes.slice(0, budget);
   const lastNewline = slice.lastIndexOf('\n');
@@ -35,7 +37,9 @@ export function truncatePackageNotes(notes: string): string {
 /** Render the editable region for the given per-package notes, with keyed markers per package. */
 export function renderNotesRegion(notesByPackage: Record<string, string>): string {
   const packages = Object.keys(notesByPackage).sort();
-  if (packages.length === 0) return '';
+  if (packages.length === 0) {
+    return '';
+  }
 
   const lines: string[] = [REGION_HEADING, '', REGION_HINT, ''];
   for (const pkg of packages) {
@@ -49,7 +53,9 @@ export function extractNotesRegions(body: string, packageNames: string[]): Recor
   const result: Record<string, string> = {};
   for (const pkg of packageNames) {
     const region = extractNotesRegion(body, pkg);
-    if (region !== undefined && region.length > 0) result[pkg] = region;
+    if (region !== undefined && region.length > 0) {
+      result[pkg] = region;
+    }
   }
   return result;
 }

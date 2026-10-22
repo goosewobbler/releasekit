@@ -18,7 +18,9 @@ export async function mapWithConcurrency<T, R>(
     // fresh work after the first failure (in-flight calls still settle; Promise.all surfaces the error).
     while (!failed) {
       const i = next++;
-      if (i >= items.length) return;
+      if (i >= items.length) {
+        return;
+      }
       try {
         results[i] = await fn(items[i] as T, i);
       } catch (err) {

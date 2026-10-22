@@ -38,10 +38,15 @@ function parseArgs(argv: string[]): Args {
   const args: Partial<Args> = { seedLockfile: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--scenario') args.scenario = argv[++i];
-    else if (a === '--out') args.out = argv[++i];
-    else if (a === '--tarball-dir') args.tarballDir = argv[++i];
-    else if (a === '--seed-lockfile') args.seedLockfile = true;
+    if (a === '--scenario') {
+      args.scenario = argv[++i];
+    } else if (a === '--out') {
+      args.out = argv[++i];
+    } else if (a === '--tarball-dir') {
+      args.tarballDir = argv[++i];
+    } else if (a === '--seed-lockfile') {
+      args.seedLockfile = true;
+    }
   }
   if (!args.scenario || !args.out || !args.tarballDir) {
     throw new Error('Usage: build-fixture --scenario <id> --out <dir> --tarball-dir <dir> [--seed-lockfile]');
@@ -51,7 +56,9 @@ function parseArgs(argv: string[]): Args {
 
 function findTarball(dir: string, prefix: string): string {
   const file = readdirSync(dir).find((f) => f.startsWith(prefix) && f.endsWith('.tgz'));
-  if (!file) throw new Error(`Could not find ${prefix}*.tgz in ${dir}`);
+  if (!file) {
+    throw new Error(`Could not find ${prefix}*.tgz in ${dir}`);
+  }
   return file;
 }
 
@@ -158,7 +165,9 @@ function buildNpmCargoMonorepo(out: string, tarballNames: Record<string, string>
 function main(): void {
   const { scenario: scenarioId, out, tarballDir, seedLockfile } = parseArgs(process.argv.slice(2));
   const scenario = SCENARIOS.find((s) => s.id === scenarioId);
-  if (!scenario) throw new Error(`Unknown scenario: ${scenarioId}`);
+  if (!scenario) {
+    throw new Error(`Unknown scenario: ${scenarioId}`);
+  }
 
   const outDir = resolve(out);
   rmSync(outDir, { recursive: true, force: true });

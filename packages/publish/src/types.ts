@@ -218,7 +218,9 @@ export function getDefaultConfig(): PublishConfig {
 export function toPublishConfig(config: BasePublishConfig | undefined): PublishConfig {
   const defaults = getDefaultConfig();
 
-  if (!config) return defaults;
+  if (!config) {
+    return defaults;
+  }
 
   return {
     npm: {

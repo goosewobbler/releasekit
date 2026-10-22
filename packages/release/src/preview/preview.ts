@@ -52,7 +52,9 @@ interface PullRequestEvent {
 /** Read and parse the GitHub Actions event payload once, or undefined on any error. */
 function readEventPayload(): PullRequestEvent | undefined {
   const eventPath = process.env.GITHUB_EVENT_PATH;
-  if (!eventPath || !fs.existsSync(eventPath)) return undefined;
+  if (!eventPath || !fs.existsSync(eventPath)) {
+    return undefined;
+  }
   try {
     return JSON.parse(fs.readFileSync(eventPath, 'utf-8')) as PullRequestEvent;
   } catch {
@@ -375,11 +377,19 @@ async function applyLabelOverrides(
   // do not propagate to `result`. Version analysis still runs (commit-driven) so the
   // preview can show this PR's contribution to the standing PR via the merge table.
   if (advisoryInStandingPr) {
-    if (prLabels.includes(labels.major)) labelContext.bumpLabel = 'major';
-    else if (prLabels.includes(labels.minor)) labelContext.bumpLabel = 'minor';
-    else if (prLabels.includes(labels.patch)) labelContext.bumpLabel = 'patch';
-    if (prLabels.includes(labels.graduate)) labelContext.stable = true;
-    if (prLabels.includes(labels.prerelease)) labelContext.prerelease = true;
+    if (prLabels.includes(labels.major)) {
+      labelContext.bumpLabel = 'major';
+    } else if (prLabels.includes(labels.minor)) {
+      labelContext.bumpLabel = 'minor';
+    } else if (prLabels.includes(labels.patch)) {
+      labelContext.bumpLabel = 'patch';
+    }
+    if (prLabels.includes(labels.graduate)) {
+      labelContext.stable = true;
+    }
+    if (prLabels.includes(labels.prerelease)) {
+      labelContext.prerelease = true;
+    }
     return { options: result, labelContext };
   }
 
@@ -508,10 +518,20 @@ async function applyLabelOverrides(
  * `preminor`, `prepatch`, `premajor`, or `prerelease` — only the first three carry a magnitude.
  */
 function magnitudeFromBump(bump: string | undefined): string | undefined {
-  if (!bump) return undefined;
-  if (bump === 'major' || bump === 'minor' || bump === 'patch') return bump;
-  if (bump === 'premajor') return 'major';
-  if (bump === 'preminor') return 'minor';
-  if (bump === 'prepatch') return 'patch';
+  if (!bump) {
+    return undefined;
+  }
+  if (bump === 'major' || bump === 'minor' || bump === 'patch') {
+    return bump;
+  }
+  if (bump === 'premajor') {
+    return 'major';
+  }
+  if (bump === 'preminor') {
+    return 'minor';
+  }
+  if (bump === 'prepatch') {
+    return 'patch';
+  }
   return undefined;
 }

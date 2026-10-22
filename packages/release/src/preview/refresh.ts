@@ -80,15 +80,23 @@ export async function refreshFeederPreviews(options: RefreshAfterReleaseOptions)
 
     const eligible: OpenPullRequest[] = [];
     for (const pr of open) {
-      if (pr.draft) continue; // drafts don't carry previews
-      if (pr.headRef === branch) continue; // the standing PR's manifest is authoritative, never previewed
+      if (pr.draft) {
+        continue; // drafts don't carry previews
+      }
+      if (pr.headRef === branch) {
+        continue; // the standing PR's manifest is authoritative, never previewed
+      }
       // Only refresh PRs that already have a preview — never manufacture one on a PR that opted out.
-      if (!(await forge.findComment(pr.number, MARKER))) continue;
+      if (!(await forge.findComment(pr.number, MARKER))) {
+        continue;
+      }
       eligible.push(pr);
       // Open PRs come back most-recently-updated first, so the first MAX_FEEDER_PR_REFRESH are exactly
       // the set we refresh. Stop probing once one past the cap is in hand — bounds the per-PR
       // findComment calls instead of fetching comments for every open PR on a busy repo.
-      if (eligible.length > MAX_FEEDER_PR_REFRESH) break;
+      if (eligible.length > MAX_FEEDER_PR_REFRESH) {
+        break;
+      }
     }
 
     let toRefresh = eligible;

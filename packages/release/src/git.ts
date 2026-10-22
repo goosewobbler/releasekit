@@ -17,10 +17,14 @@ export interface GitHubContext {
 
 export function getGitHubContext(): GitHubContext | null {
   const repo = process.env.GITHUB_REPOSITORY;
-  if (!repo) return null;
+  if (!repo) {
+    return null;
+  }
 
   const [owner, repoName] = repo.split('/');
-  if (!owner || !repoName) return null;
+  if (!owner || !repoName) {
+    return null;
+  }
 
   return {
     owner,

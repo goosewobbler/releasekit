@@ -50,15 +50,23 @@ export class VersionEngine {
     const effective: Config = { ...config };
 
     if (runOptions) {
-      if (runOptions.dryRun) effective.dryRun = true;
-      if (runOptions.sync) effective.sync = true;
-      if (runOptions.bump) effective.type = runOptions.bump;
+      if (runOptions.dryRun) {
+        effective.dryRun = true;
+      }
+      if (runOptions.sync) {
+        effective.sync = true;
+      }
+      if (runOptions.bump) {
+        effective.type = runOptions.bump;
+      }
       if (runOptions.prerelease) {
         effective.prereleaseIdentifier =
           typeof runOptions.prerelease === 'string' ? runOptions.prerelease : effective.prereleaseIdentifier || 'next';
         effective.isPrerelease = true;
       }
-      if (runOptions.stable) effective.stableOnly = true;
+      if (runOptions.stable) {
+        effective.stableOnly = true;
+      }
       // Per-package graduation: graduate only the named packages, leaving other prereleases on
       // their line. Sets stableOnly + graduateScope; applyOverrideScope clears stableOnly for any
       // package outside the scope. The global `stable` flag wins — when it's set we graduate ALL
@@ -78,12 +86,24 @@ export class VersionEngine {
         effective.prereleaseIdentifier = effective.prereleaseIdentifier || 'next';
         effective.prereleaseScope = runOptions.prereleaseScope;
       }
-      if (runOptions.allowFirstBump) effective.allowFirstBump = true;
-      if (runOptions.targets?.length) this.runtimeTargets = runOptions.targets;
-      if (runOptions.baseRef) effective.baseRef = runOptions.baseRef;
-      if (runOptions.overrideScope) effective.overrideScope = runOptions.overrideScope;
-      if (runOptions.includePrerequisites) this.includePrerequisites = true;
-      if (runOptions.exclude?.length) this.excludePackages = runOptions.exclude;
+      if (runOptions.allowFirstBump) {
+        effective.allowFirstBump = true;
+      }
+      if (runOptions.targets?.length) {
+        this.runtimeTargets = runOptions.targets;
+      }
+      if (runOptions.baseRef) {
+        effective.baseRef = runOptions.baseRef;
+      }
+      if (runOptions.overrideScope) {
+        effective.overrideScope = runOptions.overrideScope;
+      }
+      if (runOptions.includePrerequisites) {
+        this.includePrerequisites = true;
+      }
+      if (runOptions.exclude?.length) {
+        this.excludePackages = runOptions.exclude;
+      }
     }
 
     // Default values for required properties
@@ -388,7 +408,9 @@ export class VersionEngine {
             tagTemplate: this.config.tagTemplate,
             packageSpecificTags: this.config.packageSpecificTags,
           });
-          if (!tag) tag = await getLatestTag(formattedPrefix);
+          if (!tag) {
+            tag = await getLatestTag(formattedPrefix);
+          }
         } catch {
           // No tag resolvable — getCommitsLength falls back to git describe / full history.
         }
@@ -411,7 +433,9 @@ export class VersionEngine {
       try {
         const pkg = parseCargoToml(cargoPath).package;
         const publish = pkg?.publish;
-        if (pkg?.name && publish !== false && !(Array.isArray(publish) && publish.length === 0)) return true;
+        if (pkg?.name && publish !== false && !(Array.isArray(publish) && publish.length === 0)) {
+          return true;
+        }
       } catch {
         // Unparseable Cargo.toml — fall through; don't claim publishable on a parse failure.
       }
@@ -419,7 +443,9 @@ export class VersionEngine {
     const pubspecPath = path.join(packageDir, 'pubspec.yaml');
     if (fs.existsSync(pubspecPath)) {
       try {
-        if (parsePubspec(pubspecPath).publish_to !== 'none') return true;
+        if (parsePubspec(pubspecPath).publish_to !== 'none') {
+          return true;
+        }
       } catch {
         // Unparseable pubspec — fall through.
       }
@@ -487,9 +513,15 @@ export class VersionEngine {
         const namedExactly = new Set(this.config.packages ?? []);
         const beforeCount = mergedPackages.packages.length;
         mergedPackages.packages = mergedPackages.packages.filter((pkg) => {
-          if (!isPrivatePackageJson(pkg.packageJson, path.join(pkg.dir, 'package.json'))) return true;
-          if (namedExactly.has(pkg.packageJson.name)) return true;
-          if (this.isNativelyPublishable(pkg.dir)) return true;
+          if (!isPrivatePackageJson(pkg.packageJson, path.join(pkg.dir, 'package.json'))) {
+            return true;
+          }
+          if (namedExactly.has(pkg.packageJson.name)) {
+            return true;
+          }
+          if (this.isNativelyPublishable(pkg.dir)) {
+            return true;
+          }
           log(`Skipping private npm package ${pkg.packageJson.name}: package.json "private": true`, 'debug');
           return false;
         });

@@ -21,8 +21,12 @@ export function createPublishCommand(): Command {
     .option('--json', 'Output results as JSON', false)
     .option('--verbose', 'Verbose logging', false)
     .action(async (options) => {
-      if (options.verbose) setLogLevel('debug');
-      if (options.json) setJsonMode(true);
+      if (options.verbose) {
+        setLogLevel('debug');
+      }
+      if (options.json) {
+        setJsonMode(true);
+      }
 
       try {
         const config = loadConfig({ configPath: options.config });
