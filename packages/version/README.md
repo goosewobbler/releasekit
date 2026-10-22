@@ -63,7 +63,7 @@ releasekit-version --prerelease beta
 | `--allow-first-bump` | Acknowledge applying a bump on a first release with an already-stable manifest | `false` |
 | `-s, --sync` | Use synchronized versioning across all packages | config |
 | `-t, --target <packages>` | Target specific packages (comma-separated) | all |
-| `--include-prerequisites` | Also release the changed internal dependencies of `--target` packages | `false` |
+| `--include-prerequisites` | Also release the changed internal dependencies of `--target` packages (and the rest of their groups) | `false` |
 | `--project-dir <path>` | Project directory | cwd |
 | `-d, --dry-run` | Preview without file changes or git operations | `false` |
 | `-j, --json` | Output results as JSON | `false` |
