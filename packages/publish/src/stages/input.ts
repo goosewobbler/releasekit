@@ -3,7 +3,6 @@ import { info, type VersionOutput } from '@releasekit/core';
 import { z } from 'zod';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 
-// Loose objects: z.object would strip VersionOutput fields not declared here before the pipeline sees them.
 const VersionChangelogEntrySchema = z.looseObject({
   type: z.string(),
   description: z.string(),
