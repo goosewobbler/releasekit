@@ -44,7 +44,9 @@ export function createNpmSubprocessIsolation(options: {
   // Default: no isolation. Still allow targeted env unsets.
   const baseEnv: Record<string, string | undefined> = {};
 
-  if (!authMethod) return { env: baseEnv, cleanup: () => {} };
+  if (!authMethod) {
+    return { env: baseEnv, cleanup: () => {} };
+  }
 
   const token = process.env.NPM_TOKEN ?? process.env.NODE_AUTH_TOKEN;
   const registryHost = (() => {

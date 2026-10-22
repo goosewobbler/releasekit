@@ -34,8 +34,12 @@ vi.mock('../../src/github.js', () => ({
 vi.mock('../../src/release.js', () => ({
   resolveScopeToTarget: (scopeName: string, scopeLabels: Record<string, string>) => {
     const prefixed = `scope:${scopeName}`;
-    if (scopeLabels[prefixed]) return scopeLabels[prefixed];
-    if (scopeLabels[scopeName]) return scopeLabels[scopeName];
+    if (scopeLabels[prefixed]) {
+      return scopeLabels[prefixed];
+    }
+    if (scopeLabels[scopeName]) {
+      return scopeLabels[scopeName];
+    }
     throw new Error(`Scope "${scopeName}" not found`);
   },
   runRelease: vi.fn(),
@@ -47,7 +51,9 @@ vi.mock('../../src/git.js', () => ({
     const repo = process.env.GITHUB_REPOSITORY;
     const sha = process.env.GITHUB_SHA;
     const token = process.env.GITHUB_TOKEN;
-    if (!repo) return null;
+    if (!repo) {
+      return null;
+    }
     const [owner, repoName] = repo.split('/');
     return { owner, repo: repoName ?? '', sha: sha ?? null, token: token ?? null };
   },

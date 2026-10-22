@@ -52,8 +52,6 @@ export function aggregateToRoot(contexts: TemplateContext[]): TemplateContext {
   return aggregated;
 }
 
-export { splitByPackage } from './splitter.js';
-
 export function writeMonorepoChangelogs(
   contexts: TemplateContext[],
   options: MonorepoOptions,
@@ -125,7 +123,9 @@ function buildPackageDirMap(rootPath: string, packagesPath: string): Map<string,
   }
 
   for (const entry of fs.readdirSync(packagesDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
+    if (!entry.isDirectory()) {
+      continue;
+    }
     const dirPath = path.join(packagesDir, entry.name);
 
     // Register by directory name as fallback (lower priority)

@@ -170,7 +170,9 @@ export function deriveBaselineTagPrefix(
   formattedPrefix: string,
   packageName?: string,
 ): string | undefined {
-  if (!template) return undefined;
+  if (!template) {
+    return undefined;
+  }
   return template
     .split('${' + 'version}')[0]
     .replace(/\$\{prefix\}/g, formattedPrefix)
@@ -187,6 +189,8 @@ export function deriveBaselineTagPrefix(
  * alone — only the display surfaces are cleaned up.
  */
 export function displayTag(tag: string, baselineTagPrefix: string | undefined, formattedPrefix: string): string {
-  if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) return tag;
+  if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) {
+    return tag;
+  }
   return `${formattedPrefix}${tag.slice(baselineTagPrefix.length)}`;
 }

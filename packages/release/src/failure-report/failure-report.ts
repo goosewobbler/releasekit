@@ -137,7 +137,9 @@ export function buildLedger(versionOutput: VersionOutput, publishOutput: Publish
 
   return updates.map((u) => {
     const entry = byPackage.get(u.packageName);
-    if (entry) return entry;
+    if (entry) {
+      return entry;
+    }
     return {
       packageName: u.packageName,
       version: u.newVersion,
@@ -301,7 +303,9 @@ export function renderResolvedReport(versionOutput: VersionOutput): string {
  * treated as `unresolved` (the conservative default — surface the warning rather than hide it).
  */
 export function parseFailureReportStatus(body: string): FailureReportStatus | null {
-  if (!body.startsWith(FAILURE_MARKER)) return null;
+  if (!body.startsWith(FAILURE_MARKER)) {
+    return null;
+  }
   return STATUS_FIELD.decode(body) ?? 'unresolved';
 }
 
@@ -310,7 +314,9 @@ export function parseFailureReportStatus(body: string): FailureReportStatus | nu
  * is not a failure report or the data comment is missing/malformed.
  */
 export function parseFailureReportData(body: string): FailureReportData | null {
-  if (!body.startsWith(FAILURE_MARKER)) return null;
+  if (!body.startsWith(FAILURE_MARKER)) {
+    return null;
+  }
   return DATA_FIELD.decode(body);
 }
 

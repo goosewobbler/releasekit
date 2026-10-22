@@ -21,7 +21,7 @@
     "lint": "biome check .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:unit": "vitest run --dir test/unit",
+    "test:unit": "vitest run --coverage",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
@@ -38,6 +38,6 @@
     "vitest": "catalog:"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12"
   }
 }

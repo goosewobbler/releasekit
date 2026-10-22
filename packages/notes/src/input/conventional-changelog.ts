@@ -65,7 +65,9 @@ function extractIssueIds(text: string): { description: string; issueIds: string[
 
 function parseEntry(line: string, sectionType: ChangelogEntry['type']): ChangelogEntry | null {
   const bulletMatch = line.match(BULLET);
-  if (!bulletMatch) return null;
+  if (!bulletMatch) {
+    return null;
+  }
 
   let rawText = bulletMatch[1] ?? '';
   let scope: string | undefined;
@@ -126,7 +128,9 @@ function parseVersionBlocks(content: string): VersionBlock[] {
       continue;
     }
 
-    if (!currentBlock) continue;
+    if (!currentBlock) {
+      continue;
+    }
 
     const sectionMatch = line.match(SECTION_HEADER);
     if (sectionMatch) {

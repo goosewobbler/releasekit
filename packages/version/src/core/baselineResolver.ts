@@ -211,9 +211,15 @@ export class BaselineResolver {
    * the nearest reachable tag rather than flooding with full history.
    */
   async sharedFloor(perPackageRange: string): Promise<string> {
-    if (this.opts.baseRef) return perPackageRange;
-    if (this.opts.sharedChangelogFloor === 'sinceLastRelease') return this.nearestReachableRange();
-    if (perPackageRange !== 'HEAD') return perPackageRange;
+    if (this.opts.baseRef) {
+      return perPackageRange;
+    }
+    if (this.opts.sharedChangelogFloor === 'sinceLastRelease') {
+      return this.nearestReachableRange();
+    }
+    if (perPackageRange !== 'HEAD') {
+      return perPackageRange;
+    }
     return this.nearestReachableRange();
   }
 

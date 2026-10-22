@@ -189,7 +189,9 @@ export function createBackfillCommand(): Command {
         for (let i = 0; i < input.packages.length; i++) {
           const date = reconstructed[i]?.date;
           const pkg = input.packages[i];
-          if (date && pkg) pkg.date = date;
+          if (date && pkg) {
+            pkg.date = date;
+          }
         }
 
         // Override LLM config if --no-llm is set
@@ -251,7 +253,9 @@ export function createBackfillCommand(): Command {
             for (let i = 0; i < reconstructed.length; i++) {
               const tag = reconstructed[i]?.tag;
               const body = renderedBodies[i];
-              if (!tag) continue;
+              if (!tag) {
+                continue;
+              }
               if (!body) {
                 warn(`  ${tag}: no notes rendered, skipping release update`);
                 continue;
@@ -316,7 +320,9 @@ function countEnabledLlmTasks(tasks?: {
   categorize?: boolean;
   releaseNotes?: boolean;
 }): number {
-  if (!tasks) return 4; // All tasks enabled by default
+  if (!tasks) {
+    return 4; // All tasks enabled by default
+  }
   const allTaskKeys = ['summarize', 'enhance', 'categorize', 'releaseNotes'] as const;
   return allTaskKeys.filter((k) => tasks[k] !== false).length;
 }

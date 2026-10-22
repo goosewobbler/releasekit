@@ -297,7 +297,9 @@ export class PackageProcessor {
         }
       } catch (error) {
         // A strictReachable violation must abort the run, not degrade to a minimal entry.
-        if (error instanceof StrictReachableError) throw error;
+        if (error instanceof StrictReachableError) {
+          throw error;
+        }
         log(`Error extracting changelog entries: ${error instanceof Error ? error.message : String(error)}`, 'warning');
         // Fall back to minimal entry
         changelogEntries = [

@@ -14,9 +14,15 @@ export function createGateCommand(): Command {
     .option('-q, --quiet', 'Suppress non-error output', false)
     .option('--project-dir <path>', 'Project directory', process.cwd())
     .action(async (opts) => {
-      if (opts.json) setJsonMode(true);
-      if (opts.verbose) setLogLevel('debug');
-      if (opts.quiet) setQuietMode(true);
+      if (opts.json) {
+        setJsonMode(true);
+      }
+      if (opts.verbose) {
+        setLogLevel('debug');
+      }
+      if (opts.quiet) {
+        setQuietMode(true);
+      }
 
       try {
         const result = await runGate({

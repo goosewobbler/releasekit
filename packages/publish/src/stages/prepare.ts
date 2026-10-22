@@ -80,12 +80,16 @@ export async function runPrepareStage(ctx: PipelineContext): Promise<void> {
       debug(`Updated ${cargoPath} to version ${update.newVersion}`);
 
       const lockPath = await syncCargoLockfile(pkgDir);
-      if (lockPath) lockfiles.add(lockPath);
+      if (lockPath) {
+        lockfiles.add(lockPath);
+      }
     }
 
     if (lockfiles.size > 0) {
       const existing = new Set(ctx.additionalFiles ?? []);
-      for (const lock of lockfiles) existing.add(lock);
+      for (const lock of lockfiles) {
+        existing.add(lock);
+      }
       ctx.additionalFiles = [...existing];
     }
   }

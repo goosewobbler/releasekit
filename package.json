@@ -11,10 +11,10 @@
   "license": "MIT",
   "author": "Sam Maister <goosewobbler@protonmail.com>",
   "engines": {
-    "node": ">=22",
+    "node": ">=22.12",
     "pnpm": ">=10.12.0"
   },
-  "packageManager": "pnpm@10.27.0+sha512.72d699da16b1179c14ba9e64dc71c9a40988cbdc65c264cb0e489db7de917f20dcf4d64d8723625f2969ba52d4b7e2a1170682d9ac2a5dcaeaab732b7e16f04a",
+  "packageManager": "pnpm@12.15.0+sha512.b3951d6d6ff4a9f13dc7cf56cd28d2b8eb37dbcc9c68e52e1e1191873ea9f82a017287ab50baadc5ccc494f036c67c0e47eb13608c2fa36f47711b61ea128e61",
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
@@ -45,14 +45,14 @@
   "devDependencies": {
     "@biomejs/biome": "catalog:",
     "@types/node": "catalog:",
-    "@typescript-eslint/parser": "^8.67.0",
+    "@typescript-eslint/parser": "^8.72.0",
     "@vitest/eslint-plugin": "^1.6.27",
-    "eslint": "^10.8.1",
+    "eslint": "^10.13.0",
     "husky": "^9.1.7",
-    "lint-staged": "^16.4.0",
+    "lint-staged": "^17.6.0",
     "tsup": "catalog:",
     "tsx": "catalog:",
-    "turbo": "2.10.9",
+    "turbo": "2.11.10",
     "typescript": "catalog:",
     "yaml": "catalog:",
     "zod": "catalog:"
@@ -62,7 +62,7 @@
       "biome check --write --no-errors-on-unmatched --files-ignore-unknown=true",
       "eslint --fix --cache"
     ],
-    "**/*.{md,json,jsonc}": [
+    "**/*.{md,json,jsonc,yml,yaml}": [
       "biome format --write --no-errors-on-unmatched --files-ignore-unknown=true"
     ]
   }

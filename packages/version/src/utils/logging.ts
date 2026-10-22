@@ -10,7 +10,9 @@ import { isJsonOutputMode } from './jsonOutput.js';
  * Print a figlet banner
  */
 export function printFiglet(text: string): void {
-  if (isJsonOutputMode()) return;
+  if (isJsonOutputMode()) {
+    return;
+  }
 
   console.log(
     chalk.yellow(
