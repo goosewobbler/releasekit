@@ -111,7 +111,7 @@
       }
     },
     {
-      // A package's root index.ts is its public API, so it's the one place `export … from` belongs.
+      // Only a package's root index.ts (its public API) may re-export.
       "includes": [
         "packages/*/src/**",
         "!packages/*/src/index.ts"
