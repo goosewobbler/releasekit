@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { createDocumentContext, createTemplateContext } from '../../src/core/pipeline.js';
 import { parseConventionalChangelog, parseConventionalChangelogFile } from '../../src/input/conventional-changelog.js';
 import { parseVersionOutput } from '../../src/input/version-output.js';
-import { aggregateToRoot, splitByPackage } from '../../src/monorepo/index.js';
+import { aggregateToRoot } from '../../src/monorepo/aggregator.js';
+import { splitByPackage } from '../../src/monorepo/splitter.js';
 import { formatVersion, renderMarkdown } from '../../src/output/markdown.js';
 
 // ---------------------------------------------------------------------------

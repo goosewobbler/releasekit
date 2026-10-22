@@ -7,18 +7,16 @@ import { fetchPullRequestContext, parseIssueNumbers, resolveGitHubToken } from '
 import { LLM_DEFAULTS } from '../llm/defaults.js';
 import { fetchExamples } from '../llm/examples/fetcher.js';
 import type { Example, LLMProvider } from '../llm/index.js';
-import {
-  categorizeEntries,
-  createProvider,
-  enhanceAndCategorize,
-  enhanceEntries,
-  generateReleaseNotes,
-  summarizeEntries,
-} from '../llm/index.js';
+import { createProvider } from '../llm/index.js';
 import { isRetryableLLMError } from '../llm/retryable.js';
+import { categorizeEntries } from '../llm/tasks/categorize.js';
+import { enhanceEntries } from '../llm/tasks/enhance.js';
+import { enhanceAndCategorize } from '../llm/tasks/enhance-and-categorize.js';
+import { generateReleaseNotes } from '../llm/tasks/release-notes.js';
+import { summarizeEntries } from '../llm/tasks/summarize.js';
 import { type FormatVersionOptions, formatVersion, writeMarkdown } from '../output/markdown.js';
 import { writeVersionedNotes } from '../output/versioned.js';
-import { renderTemplate } from '../templates/index.js';
+import { renderTemplate } from '../templates/loader.js';
 import { mapWithConcurrency } from '../utils/concurrency.js';
 import { withRetry } from '../utils/retry.js';
 import type {

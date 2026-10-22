@@ -17,6 +17,7 @@ import * as jsonOutput from '../../../src/utils/jsonOutput.js';
 import * as logging from '../../../src/utils/logging.js';
 
 // Mock dependencies
+vi.mock('../../../src/cargo/cargoLock.js');
 vi.mock('../../../src/git/commands.js');
 vi.mock('../../../src/git/tagsAndBranches.js');
 vi.mock('../../../src/git/tagVerification.js');
