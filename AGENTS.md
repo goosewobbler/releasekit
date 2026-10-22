@@ -17,7 +17,7 @@ Design decisions are recorded in `docs/adr/` — check there before reworking a 
 
 ## Commands
 
-- **Before you push:** `pnpm lint`, `pnpm typecheck` and `pnpm test`. The commit hook only runs Biome and ESLint on staged files, and nothing runs on push. `pnpm test` covers every package's tests and the cross-package suite in `test/integration/`.
+- **Before you push:** `pnpm lint`, `pnpm typecheck` and `pnpm test`. The commit hook only runs Biome and ESLint on staged files, and nothing runs on push. `pnpm test` runs each package's `test` script and the cross-package suite in `test/integration/`. It skips `@releasekit/version`'s own `test/integration/`; run `pnpm --filter @releasekit/version test:integration` when you change the version CLI (it has one known failure, [#654](https://github.com/goosewobbler/releasekit/issues/654)).
 - **One package:** `pnpm --filter <package> test` or `typecheck`. These skip Turborepo, so they run against the workspace dependencies' built `dist/`, which may be stale. Build those first with `pnpm turbo run build --filter=<package>^...`.
 - **Lint:** `pnpm lint` runs Biome over the repo and ESLint over `packages/**/*.ts`. A package's own `lint` script is Biome only. To check just what you changed, run `pnpm exec biome check <files>` and `pnpm exec eslint <files>`.
 - **Cache:** Turborepo caches `build`, `test` and `typecheck`; add `--force` to rerun a cached pass.
