@@ -32,7 +32,9 @@ export async function getWorkspacePackageVersions(
   for (const p of packages) {
     const name = p.packageJson.name;
     const version = p.packageJson.version;
-    if (name && version) versions[name] = version;
+    if (name && version) {
+      versions[name] = version;
+    }
   }
   return versions;
 }

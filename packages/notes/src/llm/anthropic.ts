@@ -101,7 +101,9 @@ export class AnthropicProvider extends BaseLLMProvider {
 
       return { content: textBlock.text };
     } catch (error) {
-      if (error instanceof LLMError) throw error;
+      if (error instanceof LLMError) {
+        throw error;
+      }
       if (signal.aborted) {
         throw new LLMError(`Anthropic request timed out after ${this.getTimeout(options)}ms`, { retryable: true });
       }

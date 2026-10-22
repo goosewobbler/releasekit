@@ -57,7 +57,9 @@ export async function runPublishStage<T extends RegistryTarget, S>(
         result.skipped = true;
         result.success = true;
         result.reason = skip.reason;
-        if (skip.alreadyPublished) result.alreadyPublished = true;
+        if (skip.alreadyPublished) {
+          result.alreadyPublished = true;
+        }
         results.push(result);
         continue;
       }
@@ -87,7 +89,9 @@ export async function runPublishStage<T extends RegistryTarget, S>(
         });
 
         result.success = true;
-        if (!dryRun) success(`Published ${target.packageName}@${target.version} to ${registry.displayName}`);
+        if (!dryRun) {
+          success(`Published ${target.packageName}@${target.version} to ${registry.displayName}`);
+        }
         results.push(result);
       } catch (error) {
         // A surfaced already-published conflict (a publish that landed but whose response was lost,

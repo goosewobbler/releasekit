@@ -39,7 +39,9 @@ export class LLMError extends NotesError {
   constructor(message: string, options?: { retryable?: boolean; cause?: unknown }) {
     super(message);
     // Chain the original provider/SDK error so its stack survives (the message only carries its text).
-    if (options?.cause !== undefined) this.cause = options.cause;
+    if (options?.cause !== undefined) {
+      this.cause = options.cause;
+    }
     this.retryable = options?.retryable;
   }
 }

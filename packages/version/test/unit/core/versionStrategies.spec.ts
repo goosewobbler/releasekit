@@ -36,14 +36,18 @@ vi.mock('../../../src/utils/formatting.js', () => ({
     return template.replace(/\$\{version\}/g, version).replace(/\$\{packageName\}/g, packageName || '');
   }),
   deriveBaselineTagPrefix: vi.fn().mockImplementation((template, formattedPrefix, packageName) => {
-    if (!template) return undefined;
+    if (!template) {
+      return undefined;
+    }
     return template
       .split('${' + 'version}')[0]
       .replace(/\$\{prefix\}/g, formattedPrefix)
       .replace(/\$\{packageName\}/g, packageName ?? '');
   }),
   displayTag: vi.fn().mockImplementation((tag, baselineTagPrefix, formattedPrefix) => {
-    if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) return tag;
+    if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) {
+      return tag;
+    }
     return `${formattedPrefix}${tag.slice(baselineTagPrefix.length)}`;
   }),
 }));
@@ -104,7 +108,9 @@ describe('Version Strategies', () => {
     vi.mocked(formatting.formatCommitMessage, { partial: true }).mockReturnValue('chore: release package-a v1.1.0');
     vi.mocked(formatting.deriveBaselineTagPrefix, { partial: true }).mockImplementation(
       (template, formattedPrefix, packageName) => {
-        if (!template) return undefined;
+        if (!template) {
+          return undefined;
+        }
         return template
           .split('${' + 'version}')[0]
           .replace(/\$\{prefix\}/g, formattedPrefix)
@@ -113,7 +119,9 @@ describe('Version Strategies', () => {
     );
     vi.mocked(formatting.displayTag, { partial: true }).mockImplementation(
       (tag, baselineTagPrefix, formattedPrefix) => {
-        if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) return tag;
+        if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) {
+          return tag;
+        }
         return `${formattedPrefix}${tag.slice(baselineTagPrefix.length)}`;
       },
     );

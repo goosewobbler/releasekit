@@ -26,7 +26,9 @@ function cargoDeps(cargoTomlPath: string, pkgDir: string, nameByDir: Map<string,
     for (const dep of Object.values(cargo.dependencies ?? {})) {
       if (dep && typeof dep === 'object' && 'path' in dep) {
         const resolved = nameByDir.get(path.resolve(pkgDir, (dep as { path: string }).path));
-        if (resolved) deps.push(resolved);
+        if (resolved) {
+          deps.push(resolved);
+        }
       }
     }
     return deps;

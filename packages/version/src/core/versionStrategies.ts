@@ -339,7 +339,9 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         }
       } catch (error) {
         // A strictReachable violation must abort the run, not degrade to a minimal entry.
-        if (error instanceof StrictReachableError) throw error;
+        if (error instanceof StrictReachableError) {
+          throw error;
+        }
         log(`Error extracting changelog entries: ${error instanceof Error ? error.message : String(error)}`, 'warning');
         changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];
       }
@@ -457,7 +459,9 @@ export function createSyncStrategy(config: Config): StrategyFunction {
       const baselineTag = config.baselineTagTemplate
         ? formatTag(nextVersion, formattedPrefix, mainPkgName, config.baselineTagTemplate, false)
         : undefined;
-      if (baselineTag) addBaselineTag(baselineTag);
+      if (baselineTag) {
+        addBaselineTag(baselineTag);
+      }
       const allTags = baselineTag ? [...nextTags, baselineTag] : nextTags;
       // Link per-package tags back to their update records so the publish pipeline
       // can push each tag immediately after that package publishes.
@@ -465,7 +469,9 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         for (let i = 0; i < workspaceNames.length; i++) {
           const pkgName = workspaceNames[i];
           const pkgTag = nextTags[i];
-          if (pkgName && pkgTag) setPackageUpdateTag(pkgName, pkgTag);
+          if (pkgName && pkgTag) {
+            setPackageUpdateTag(pkgName, pkgTag);
+          }
         }
       }
       // Resolved version action. Every package moves in lockstep to the same nextVersion
@@ -609,7 +615,9 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         }
       } catch (error) {
         // A strictReachable violation must abort the run, not degrade to a minimal entry.
-        if (error instanceof StrictReachableError) throw error;
+        if (error instanceof StrictReachableError) {
+          throw error;
+        }
         log(`Error extracting changelog entries: ${error instanceof Error ? error.message : String(error)}`, 'warning');
         // Fall back to minimal entry
         changelogEntries = [{ type: 'changed', description: `Update version to ${nextVersion}` }];

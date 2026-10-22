@@ -29,7 +29,9 @@ describe('withContentHashCache', () => {
   };
 
   afterEach(() => {
-    for (const d of dirs) fs.rmSync(d, { recursive: true, force: true });
+    for (const d of dirs) {
+      fs.rmSync(d, { recursive: true, force: true });
+    }
     dirs.length = 0;
   });
 

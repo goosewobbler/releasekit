@@ -79,8 +79,12 @@ export interface FakeGitSeed {
 }
 
 function ancestryHas(ancestors: FakeGitSeed['ancestors'], ancestor: string, ref: string): boolean {
-  if (!ancestors) return false;
-  if (typeof ancestors === 'function') return ancestors(ancestor, ref);
+  if (!ancestors) {
+    return false;
+  }
+  if (typeof ancestors === 'function') {
+    return ancestors(ancestor, ref);
+  }
   return (ancestors[ref] ?? []).includes(ancestor);
 }
 
@@ -219,7 +223,9 @@ export class FakeGit implements Git {
 
   async tag(name: string, opts: GitTagOptions = {}): Promise<void> {
     this.tagged.push({ name, message: opts.message });
-    if (!this.tagsList.includes(name)) this.tagsList.push(name);
+    if (!this.tagsList.includes(name)) {
+      this.tagsList.push(name);
+    }
   }
 
   async fetch(remote: string, _opts: GitFetchOptions = {}): Promise<void> {

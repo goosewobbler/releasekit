@@ -19,7 +19,9 @@ describe('findCargoLockfile', () => {
   }
 
   afterEach(() => {
-    for (const dir of tmpDirs) fs.rmSync(dir, { recursive: true, force: true });
+    for (const dir of tmpDirs) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
     tmpDirs.length = 0;
   });
 
@@ -308,7 +310,9 @@ describe('planCargoLockUpdates', () => {
   }
 
   afterEach(() => {
-    for (const dir of tmpDirs) fs.rmSync(dir, { recursive: true, force: true });
+    for (const dir of tmpDirs) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
     tmpDirs.length = 0;
   });
 

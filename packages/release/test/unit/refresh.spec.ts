@@ -136,7 +136,9 @@ describe('runRefreshAfterRelease', () => {
     it('should continue refreshing remaining PRs when one runPreview throws', async () => {
       mockForgeFor.mockReturnValue(fakeForge([pr(10), pr(11), pr(12)]));
       mockRunPreview.mockImplementation(async (opts: { pr: string }) => {
-        if (opts.pr === '11') throw new Error('boom');
+        if (opts.pr === '11') {
+          throw new Error('boom');
+        }
       });
 
       await runRefreshAfterRelease({ projectDir: '/p' });
