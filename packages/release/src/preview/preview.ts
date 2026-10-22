@@ -211,8 +211,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   });
 
   if (!context || !forge) {
-    // Dry-run mode or GitHub context unavailable — print to stdout
-    // biome-ignore lint/suspicious/noConsole: the comment body is the command's output here, not a diagnostic.
+    // biome-ignore lint/suspicious/noConsole: no PR to post to (dry run or no GitHub context), so print it
     console.log(commentBody);
     return;
   }

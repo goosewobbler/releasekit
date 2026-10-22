@@ -19,6 +19,6 @@ export function debugLogMessages(providerName: string, messages: LLMMessage[]): 
     const preview = msg.content.length > 300 ? `${msg.content.slice(0, 300)}…` : msg.content;
     lines.push(`  [${msg.role}]: ${preview}`);
   }
-  // biome-ignore lint/suspicious/noConsole: RELEASEKIT_DEBUG is its own opt-in, so the dump prints whatever the log level or --quiet.
+  // biome-ignore lint/suspicious/noConsole: the debug dump bypasses the logger so --quiet can't hide it
   console.error(lines.join('\n'));
 }

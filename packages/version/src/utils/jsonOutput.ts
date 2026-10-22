@@ -329,7 +329,7 @@ export function getJsonData(): VersionOutput {
  */
 export function printJsonOutput(): void {
   if (_jsonOutputMode) {
-    // biome-ignore lint/suspicious/noConsole: the JSON result is the command's stdout output, not a diagnostic.
+    // biome-ignore lint/suspicious/noConsole: prints the --json result
     console.log(JSON.stringify(_jsonData, null, 2));
   }
 }

@@ -128,9 +128,7 @@
       }
     },
     {
-      // Package code logs through the logger (core's, or version's utils/logging.ts). Exempt are the
-      // loggers themselves and the CLI command layer, which owns the terminal: the JSON result on
-      // stdout, the final error message on stderr.
+      // Use the logger, not console. The loggers and CLI command files are exempt.
       "includes": [
         "packages/*/src/**",
         "!packages/core/src/logger.ts",
