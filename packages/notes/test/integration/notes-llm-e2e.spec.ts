@@ -153,8 +153,7 @@ describe.skipIf(!E2E_ENABLED)('notes LLM e2e (real Ollama)', () => {
       // outlived the retries can tell which, and it's an outage only if every one of them proves it. The
       // call is per test, not per chunk: a chunk that fell back for a real reason in a run where the other
       // chunk hit an outage skips too — the next clean run goes red.
-      // De-duplicated by description: a 401 or 404 recurs as a fresh error object on every call.
-      const errors = [...new Map(failures.map((e) => [describeError(e), e])).values()];
+      const errors = [...new Set(failures)];
       if ((firstChunk === 0 || lastChunk === 0) && errors.length > 0 && errors.every(isProviderUnreachable)) {
         skipUnreachable(ctx, errors);
       }

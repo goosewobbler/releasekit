@@ -55,9 +55,8 @@ function isTransportFailure(error: object): boolean {
 export function isProviderUnreachable(error: unknown): boolean {
   if (!(error instanceof LLMError) || error.retryable !== true) return false;
   if (error.cause === undefined) return true;
-  // Bounded walk: a cause chain is short, and a cyclic one must not hang the check.
   let cause: unknown = error.cause;
-  for (let depth = 0; depth < 10 && cause !== null && typeof cause === 'object'; depth++) {
+  while (cause !== null && typeof cause === 'object') {
     if (isTransportFailure(cause)) return true;
     cause = (cause as { cause?: unknown }).cause;
   }
