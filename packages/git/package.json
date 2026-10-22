@@ -21,7 +21,7 @@
     "lint": "biome check .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:unit": "vitest run --dir test/unit",
+    "test:unit": "vitest run --coverage",
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
