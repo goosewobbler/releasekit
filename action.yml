@@ -21,23 +21,23 @@ inputs:
   dry-run:
     description: Dry-run mode
     required: false
-    default: "false"
+    default: 'false'
   json:
     description: Enable JSON output (release mode)
     required: false
-    default: "false"
+    default: 'false'
   verbose:
     description: Enable verbose logging
     required: false
-    default: "false"
+    default: 'false'
   quiet:
     description: Suppress non-error output
     required: false
-    default: "false"
+    default: 'false'
   skip-checkout:
-    description: "Skip repository checkout (assume repo is already checked out). WARNING: Ensure repository has full git history (fetch-depth: 0) for proper version-bumping logic. Shallow clones may cause incorrect version bumps or silent failures."
+    description: 'Skip repository checkout (assume repo is already checked out). WARNING: Ensure repository has full git history (fetch-depth: 0) for proper version-bumping logic. Shallow clones may cause incorrect version bumps or silent failures.'
     required: false
-    default: "false"
+    default: 'false'
 
   bump:
     description: Force bump type (patch|minor|major|prerelease)
@@ -48,11 +48,11 @@ inputs:
   stable:
     description: Graduate prerelease packages to stable without bumping
     required: false
-    default: "false"
+    default: 'false'
   sync:
     description: Use synchronized versioning
     required: false
-    default: "false"
+    default: 'false'
   target:
     description: Target packages (comma-separated)
     required: false
@@ -65,7 +65,7 @@ inputs:
   node-version:
     description: Node.js version
     required: false
-    default: "20"
+    default: '20'
   npm-auth:
     description: NPM auth method (auto|oidc|token)
     required: false
@@ -76,31 +76,31 @@ inputs:
   skip-notes:
     description: Skip changelog generation
     required: false
-    default: "false"
+    default: 'false'
   skip-publish:
     description: Skip registry publishing and git operations
     required: false
-    default: "false"
+    default: 'false'
   skip-git:
     description: Skip git commit/tag/push
     required: false
-    default: "false"
+    default: 'false'
   skip-github-release:
     description: Skip GitHub release creation
     required: false
-    default: "false"
+    default: 'false'
   skip-verification:
     description: Skip post-publish verification
     required: false
-    default: "false"
+    default: 'false'
   ssh-key:
     description: SSH deploy key for git push (enables SSH checkout when not dry-run)
     required: false
 
   reconcile:
-    description: "Bypass the skip-pattern guard in standing-pr-update mode (for post-release reconcile runs, where HEAD is a release commit)"
+    description: 'Bypass the skip-pattern guard in standing-pr-update mode (for post-release reconcile runs, where HEAD is a release commit)'
     required: false
-    default: "false"
+    default: 'false'
 
   pr:
     description: Pull request number (preview mode; standing-pr-publish mode when not triggered by a pull_request event)
@@ -114,18 +114,18 @@ inputs:
   preview-stable:
     description: Force stable preview
     required: false
-    default: "false"
+    default: 'false'
   preview-dry-run:
     description: Print preview markdown without posting
     required: false
-    default: "false"
+    default: 'false'
   preview-target:
     description: Target packages in preview mode (comma-separated)
     required: false
   summary:
     description: Write GITHUB_STEP_SUMMARY markdown
     required: false
-    default: "true"
+    default: 'true'
 
   package:
     description: Package to backfill (backfill mode; defaults to the package.json name at `path`)
@@ -136,7 +136,7 @@ inputs:
   all:
     description: Backfill every package in the workspace (backfill mode)
     required: false
-    default: "false"
+    default: 'false'
   from:
     description: Earliest version to backfill, inclusive (backfill mode)
     required: false
@@ -146,15 +146,15 @@ inputs:
   update-releases:
     description: Update matching GitHub release bodies via `gh release edit` (backfill mode)
     required: false
-    default: "false"
+    default: 'false'
   only-missing:
     description: With update-releases, skip releases already carrying releasekit notes (backfill mode)
     required: false
-    default: "false"
+    default: 'false'
   apply:
     description: Apply changes instead of a dry-run preview (backfill mode)
     required: false
-    default: "false"
+    default: 'false'
 
 outputs:
   success:
@@ -188,7 +188,7 @@ outputs:
     description: Whether the release should be a stable graduation (gate mode, release:graduate label)
     value: ${{ steps.run.outputs.gate-stable }}
   has-changes:
-    description: "Whether a release has changes (release mode, requires json: true)"
+    description: 'Whether a release has changes (release mode, requires json: true)'
     value: ${{ steps.run.outputs.has-changes }}
   version-output:
     description: Version output JSON (release mode)

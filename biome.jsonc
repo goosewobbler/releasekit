@@ -24,6 +24,13 @@
   },
   "formatter": {
     "enabled": true,
+    // Skip generated YAML and all Markdown.
+    "includes": [
+      "**",
+      "!**/*.md",
+      "!pnpm-lock.yaml",
+      "!.github/workflows/examples-smoke.yml"
+    ],
     "formatWithErrors": false,
     "indentStyle": "space",
     "indentWidth": 2,
@@ -41,7 +48,7 @@
       "**"
     ],
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "style": {
         "useBlockStatements": {
           "level": "error",
@@ -66,6 +73,12 @@
   "json": {
     "formatter": {
       "expand": "always"
+    }
+  },
+  "yaml": {
+    "formatter": {
+      "quoteStyle": "single",
+      "bracketSpacing": false
     }
   },
   "overrides": [
