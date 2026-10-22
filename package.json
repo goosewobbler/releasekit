@@ -52,7 +52,7 @@
     "lint-staged": "^16.4.0",
     "tsup": "catalog:",
     "tsx": "catalog:",
-    "turbo": "2.10.9",
+    "turbo": "2.11.7",
     "typescript": "catalog:",
     "yaml": "catalog:",
     "zod": "catalog:"
