@@ -27,7 +27,7 @@ A tick or untick takes effect only when the next `standing-pr update` run rebuil
 - Sync releases have no checklist — they ship as one unit.
 - In the flat and granular lists, a member of a `fixed` or `linked` group can't be held back on its own; its untick is ignored and the row re-ticks.
 - With [`ci.standingPr.primaryPackages`](./configuration.md#cistandingpr) in the default `streamlined` mode, only primaries (and packages outside every unit) have checkboxes; unticking a primary holds back its unit, except members it shares with another selected primary. Streamlined mode can currently split a `fixed` or `linked` group — for example, by unticking one member of a group with no declared primary ([#657](https://github.com/goosewobbler/releasekit/issues/657)).
-- The `rk-pre` / `rk-grad` toggles appear only with `ci.standingPr.channelToggle: true`, and only a lowercase `[x]` counts as ticked. A toggle moves the package's whole group, a held-back row's toggle is ignored, and a package set to both prerelease and graduate (say, `rk-pre` plus a `graduate:` label) goes prerelease.
+- The `rk-pre` / `rk-grad` toggles appear only with `ci.standingPr.channelToggle: true`. A toggle moves the package's whole group, a held-back row's toggle is ignored, and a package set to both prerelease and graduate (say, `rk-pre` plus a `graduate:` label) goes prerelease.
 
 ### Editable release notes
 
@@ -38,10 +38,8 @@ Write inside the markers. Content outside them is regenerated.
 Edits can still be lost or bypassed:
 
 - An emptied region falls back to generated notes.
-- The bot trims a package's notes past 8,000 characters, and drops the whole region if the body would exceed GitHub's size limit.
 - Removing the label removes the region.
 - An edit saved while an update is rewriting the body can be overwritten.
-- At publish, the region is read from the body as it is at that moment — an edit made after the merge still ships if it lands before the publish job reads it.
 - Only the GitHub Release gets your edits; a file written by `notes.releaseNotes.file` gets generated notes.
 - In a `sync` release (the default) whose region is keyed `monorepo`, edits are currently discarded ([#656](https://github.com/goosewobbler/releasekit/issues/656)).
 
