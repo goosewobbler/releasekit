@@ -49,12 +49,14 @@ jobs:
 
       - name: Validate lockfile
         run: |
-          doc_count=$(grep -c "^lockfileVersion" pnpm-lock.yaml || echo "0")
-          if [ "$doc_count" != "1" ]; then
-            echo "ERROR: Lockfile has $doc_count documents (expected 1)"
+          # pnpm 11+ prepends an env document (pnpm's own version); only the main document has `settings:`.
+          main_docs=$(grep -c "^settings:" pnpm-lock.yaml || true)
+          all_docs=$(grep -c "^lockfileVersion" pnpm-lock.yaml || true)
+          if [ "$main_docs" != "1" ] || [ "$all_docs" -gt 2 ]; then
+            echo "ERROR: Lockfile has $all_docs documents, $main_docs main (expected 1 main + optional pnpm env document)"
             exit 1
           fi
-          echo "Lockfile validated: $doc_count document(s)"
+          echo "Lockfile validated: $all_docs document(s)"
 
   action-test-harness:
     name: Action Test Harness

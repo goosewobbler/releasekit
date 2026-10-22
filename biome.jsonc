@@ -24,6 +24,13 @@
   },
   "formatter": {
     "enabled": true,
+    // Skip md/yaml: CHANGELOGs, pnpm-lock.yaml and examples-smoke.yml are generated and would fight the formatter.
+    "includes": [
+      "**",
+      "!**/*.md",
+      "!**/*.yml",
+      "!**/*.yaml"
+    ],
     "formatWithErrors": false,
     "indentStyle": "space",
     "indentWidth": 2,
@@ -41,7 +48,7 @@
       "**"
     ],
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "style": {
         "useBlockStatements": {
           "level": "error",

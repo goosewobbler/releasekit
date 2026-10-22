@@ -20,6 +20,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stringify as stringifyYaml } from 'yaml';
 import { SCENARIOS } from './scenarios.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -85,11 +86,13 @@ function tarballDeps(tarballNames: Record<string, string>): {
   return { deps, overrides };
 }
 
-function writeRootPackageJson(
+/** pnpm 11+ ignores package.json's `pnpm` field, so the tarball overrides go in pnpm-workspace.yaml. */
+function writeRootManifests(
   out: string,
   name: string,
   extra: Record<string, unknown>,
   tarballNames: Record<string, string>,
+  workspacePackages?: string[],
 ): void {
   const { deps, overrides } = tarballDeps(tarballNames);
   // Read the repo's pinned pnpm so the fixture's `packageManager` field matches
@@ -112,20 +115,22 @@ function writeRootPackageJson(
       'conventional-changelog-angular': '^8.1.0',
       'conventional-changelog-conventionalcommits': '^9.0.0',
     },
-    pnpm: { overrides },
   });
+  writeFileSync(
+    join(out, 'pnpm-workspace.yaml'),
+    stringifyYaml({ ...(workspacePackages ? { packages: workspacePackages } : {}), overrides }),
+  );
 }
 
 function buildNpmSingle(out: string, tarballNames: Record<string, string>): void {
   // A single-package consumer's one package IS the publishable one, so it must not be `private`.
-  // writeRootPackageJson defaults `private: true` for the monorepo roots (where only members ship),
+  // writeRootManifests defaults `private: true` for the monorepo roots (where only members ship),
   // but a private single package is skipped at discovery — leaving nothing to release.
-  writeRootPackageJson(out, 'smoke-consumer', { private: false }, tarballNames);
+  writeRootManifests(out, 'smoke-consumer', { private: false }, tarballNames);
 }
 
 function buildNpmMonorepo(out: string, tarballNames: Record<string, string>): void {
-  writeRootPackageJson(out, 'smoke-consumer-root', {}, tarballNames);
-  writeFileSync(join(out, 'pnpm-workspace.yaml'), "packages:\n  - 'packages/*'\n");
+  writeRootManifests(out, 'smoke-consumer-root', {}, tarballNames, ['packages/*']);
 
   // A single member package so releasekit has a workspace to walk. Names/paths
   // follow the smoke consumer's monorepo shape; the example's releasekit.config
@@ -137,8 +142,7 @@ function buildNpmMonorepo(out: string, tarballNames: Record<string, string>): vo
 }
 
 function buildNpmCargoMonorepo(out: string, tarballNames: Record<string, string>): void {
-  writeRootPackageJson(out, 'smoke-consumer-root', {}, tarballNames);
-  writeFileSync(join(out, 'pnpm-workspace.yaml'), "packages:\n  - 'packages/*'\n");
+  writeRootManifests(out, 'smoke-consumer-root', {}, tarballNames, ['packages/*']);
 
   // Layout mirrors the monorepo-rust example config: packages/{js-lib,cli},
   // crates/{core,ffi}. Names/paths follow the shipped releasekit.config.json.
@@ -219,12 +223,10 @@ function main(): void {
 
   if (seedLockfile) {
     // Generate pnpm-lock.yaml so the example's verbatim `pnpm install
-    // --frozen-lockfile` has a lockfile to honour in the smoke job. The fixture
-    // lives under .smoke-fixtures/, inside the monorepo; without
-    // --ignore-workspace, pnpm walks up to pnpm-workspace.yaml, treats the
-    // fixture as a workspace project, and writes its lockfile against the
-    // monorepo root (no fixture-local pnpm-lock.yaml ever appears).
-    execFileSync('pnpm', ['install', '--lockfile-only', '--ignore-scripts', '--ignore-workspace'], {
+    // --frozen-lockfile` has a lockfile to honour in the smoke job. The fixture's
+    // own pnpm-workspace.yaml keeps pnpm from walking up to the monorepo root;
+    // --ignore-workspace would also drop the overrides it carries.
+    execFileSync('pnpm', ['install', '--lockfile-only', '--ignore-scripts'], {
       cwd: outDir,
       stdio: 'inherit',
     });
