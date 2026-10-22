@@ -1,3 +1,5 @@
+import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { EXIT_CODES } from '@releasekit/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -163,10 +165,25 @@ describe('createVersionCommand', () => {
   });
 
   describe('--output', () => {
-    it('should collect the JSON result for --output without --json', async () => {
-      await createVersionCommand().parseAsync(['node', 'test', '--output', 'version.json']);
+    it('should write the result envelope to the --output file without --json', async () => {
+      const actual = await vi.importActual<typeof jsonOutputModule>('../../src/utils/jsonOutput.js');
+      vi.mocked(jsonOutputModule.enableJsonOutput).mockImplementation(actual.enableJsonOutput);
+      vi.mocked(jsonOutputModule.printJsonOutput).mockImplementation(actual.printJsonOutput);
+      const stdoutSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-version-output-'));
+      const file = path.join(dir, 'version.json');
 
-      expect(jsonOutputModule.enableJsonOutput).toHaveBeenCalled();
+      try {
+        await createVersionCommand().parseAsync(['node', 'test', '--output', file]);
+
+        expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toMatchObject({ status: 'success', data: { updates: [] } });
+        expect(stdoutSpy).not.toHaveBeenCalled();
+      } finally {
+        vi.mocked(jsonOutputModule.enableJsonOutput).mockReset();
+        vi.mocked(jsonOutputModule.printJsonOutput).mockReset();
+        stdoutSpy.mockRestore();
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
     });
 
     it('should resolve a relative --output against the invocation directory, before --project-dir changes it', async () => {
