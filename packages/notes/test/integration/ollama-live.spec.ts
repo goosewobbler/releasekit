@@ -1,5 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, type TestContext } from 'vitest';
 import type { ChangelogEntry } from '../../src/core/types.js';
+import { LLMError } from '../../src/errors/index.js';
 import { LLM_DEFAULTS } from '../../src/llm/defaults.js';
 import { OllamaProvider } from '../../src/llm/ollama.js';
 import type { LLMProvider } from '../../src/llm/provider.js';
@@ -8,19 +9,18 @@ import { enhanceAndCategorize } from '../../src/llm/tasks/enhance-and-categorize
 import { generateReleaseNotes } from '../../src/llm/tasks/release-notes.js';
 import { summarizeEntries } from '../../src/llm/tasks/summarize.js';
 import { withRetry } from '../../src/utils/retry.js';
-import { isProviderUnreachable } from './infra-tolerance.js';
 
 /**
- * Opt-in e2e for the LLM notes pipeline against a real Ollama server: chunking (two structured calls
+ * Opt-in test of the LLM notes pipeline against a live Ollama server: chunking (two structured calls
  * and a merge) and the free-text tasks. Skipped unless enabled:
- *   RELEASEKIT_NOTES_E2E=1 [RELEASEKIT_NOTES_E2E_MODEL=llama3.2] [OLLAMA_BASE_URL=http://localhost:11434] \
+ *   RELEASEKIT_NOTES_LIVE=1 [RELEASEKIT_NOTES_LIVE_MODEL=llama3.2] [OLLAMA_BASE_URL=http://localhost:11434] \
  *     pnpm --filter @releasekit/notes test
  *
  * Assertions check structure, not wording, and the model must handle the structured-output schema.
- * A provider outage skips with a warning annotation instead of failing; see {@link isProviderUnreachable}.
+ * An Ollama outage skips with a warning annotation instead of failing; see {@link isOllamaUnreachable}.
  */
-const E2E_ENABLED = process.env.RELEASEKIT_NOTES_E2E === '1' || process.env.RELEASEKIT_NOTES_E2E === 'true';
-const MODEL = process.env.RELEASEKIT_NOTES_E2E_MODEL ?? 'llama3.2';
+const LIVE_ENABLED = process.env.RELEASEKIT_NOTES_LIVE === '1' || process.env.RELEASEKIT_NOTES_LIVE === 'true';
+const MODEL = process.env.RELEASEKIT_NOTES_LIVE_MODEL ?? 'llama3.2';
 const context = { packageName: 'my-lib', version: '2.0.0', previousVersion: '1.0.0' };
 
 const CHUNK_SIZE = LLM_DEFAULTS.enhanceCategorizeChunkSize;
@@ -29,6 +29,50 @@ const ENTRY_COUNT = CHUNK_SIZE + 5;
 // Room for both chunks to exhaust their retries on a hung host (~140s each) and still skip.
 const CALL_TIMEOUT_MS = 45_000;
 const TEST_TIMEOUT_MS = 330_000;
+
+// NETWORK_ERROR_CODES from src/llm/retryable.ts, plus undici's.
+const TRANSPORT_ERROR_CODES = new Set([
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ECONNABORTED',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'EPIPE',
+  'ENETUNREACH',
+  'ENETDOWN',
+  'UND_ERR_SOCKET',
+  'UND_ERR_CONNECT_TIMEOUT',
+]);
+
+function isTransportFailure(error: object): boolean {
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' && TRANSPORT_ERROR_CODES.has(code);
+}
+
+/**
+ * Whether a failure proves Ollama was unreachable, so the live test skips instead of failing. Proof is a
+ * `retryable: true` LLMError with either no cause (the Ollama provider classified it) or a socket error
+ * code in its cause chain. `retryable` alone isn't enough: the provider flags any unknown error retryable.
+ *
+ * Known gap: a 5xx that Ollama returns for a bad request, or a prompt that times out, skips.
+ */
+function isOllamaUnreachable(error: unknown): boolean {
+  if (!(error instanceof LLMError) || error.retryable !== true) {
+    return false;
+  }
+  if (error.cause === undefined) {
+    return true;
+  }
+  let cause: unknown = error.cause;
+  while (cause !== null && typeof cause === 'object') {
+    if (isTransportFailure(cause)) {
+      return true;
+    }
+    cause = (cause as { cause?: unknown }).cause;
+  }
+  return false;
+}
 
 function describeError(error: unknown): string {
   const chain: string[] = [];
@@ -43,7 +87,7 @@ function describeError(error: unknown): string {
 function skipUnreachable(ctx: TestContext, errors: unknown[]): never {
   const reason = `provider unreachable — ${errors.map(describeError).join('; ')}`;
   // The leading newline keeps vitest's colour codes off the line, or Actions won't parse the annotation.
-  console.log(`\n::warning title=notes LLM e2e skipped::${reason}`);
+  console.log(`\n::warning title=notes LLM live test skipped::${reason}`);
   return ctx.skip(reason);
 }
 
@@ -51,18 +95,64 @@ async function callProvider<T>(ctx: TestContext, run: () => Promise<T>): Promise
   try {
     return await run();
   } catch (error) {
-    if (isProviderUnreachable(error)) {
+    if (isOllamaUnreachable(error)) {
       skipUnreachable(ctx, [error]);
     }
     throw error;
   }
 }
 
-describe.skipIf(!E2E_ENABLED)('notes LLM e2e (real Ollama)', () => {
+// Outside the opt-in suite on purpose: this decides whether the live test can fail at all.
+describe('isOllamaUnreachable', () => {
+  it('should treat a provider-classified transient failure as infra', () => {
+    expect(isOllamaUnreachable(new LLMError('Ollama request timed out after 120000ms', { retryable: true }))).toBe(
+      true,
+    );
+  });
+
+  it('should treat a non-retryable request failure as our bug', () => {
+    expect(isOllamaUnreachable(new LLMError('Ollama request failed: 400', { retryable: false }))).toBe(false);
+  });
+
+  it('should treat an unclassified LLMError as our bug', () => {
+    expect(isOllamaUnreachable(new LLMError('Empty response from Ollama'))).toBe(false);
+  });
+
+  it("should treat a connection refused under undici's fetch failure as infra", () => {
+    const socket = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:11434'), { code: 'ECONNREFUSED' });
+    const fetchFailed = new TypeError('fetch failed', { cause: socket });
+    expect(
+      isOllamaUnreachable(new LLMError('Ollama error: fetch failed', { cause: fetchFailed, retryable: true })),
+    ).toBe(true);
+  });
+
+  it('should not trust the retryable flag when the cause is a bug in our code', () => {
+    const bug = new TypeError("Cannot read properties of null (reading 'message')");
+    expect(isOllamaUnreachable(new LLMError(`Ollama error: ${bug.message}`, { cause: bug, retryable: true }))).toBe(
+      false,
+    );
+  });
+
+  it('should not trust the retryable flag when the cause is an unparseable response', () => {
+    const parse = new SyntaxError('Unexpected token \'<\', "<html><bod"... is not valid JSON');
+    expect(isOllamaUnreachable(new LLMError(`Ollama error: ${parse.message}`, { cause: parse, retryable: true }))).toBe(
+      false,
+    );
+  });
+
+  it('should never classify a non-LLM failure as infra', () => {
+    expect(isOllamaUnreachable(new Error('expected 35 entries, got 34'))).toBe(false);
+    expect(isOllamaUnreachable(new TypeError('x.map is not a function'))).toBe(false);
+    expect(isOllamaUnreachable('a string')).toBe(false);
+    expect(isOllamaUnreachable(undefined)).toBe(false);
+  });
+});
+
+describe.skipIf(!LIVE_ENABLED)('notes LLM against live Ollama', () => {
   beforeAll(() => {
     // Otherwise CI dials localhost and every run skips as an outage.
     if (process.env.CI && !process.env.OLLAMA_BASE_URL) {
-      throw new Error('OLLAMA_BASE_URL must be set when RELEASEKIT_NOTES_E2E runs under CI');
+      throw new Error('OLLAMA_BASE_URL must be set when RELEASEKIT_NOTES_LIVE runs under CI');
     }
   });
 
@@ -110,7 +200,7 @@ describe.skipIf(!E2E_ENABLED)('notes LLM e2e (real Ollama)', () => {
       const lastChunk = rewrittenIn(CHUNK_SIZE, entries.length);
 
       // Known gap: an outage in one chunk also skips a real failure in the other.
-      if ((firstChunk === 0 || lastChunk === 0) && failures.length > 0 && failures.every(isProviderUnreachable)) {
+      if ((firstChunk === 0 || lastChunk === 0) && failures.length > 0 && failures.every(isOllamaUnreachable)) {
         skipUnreachable(ctx, failures);
       }
       const why =
