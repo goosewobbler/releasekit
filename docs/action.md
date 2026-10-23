@@ -8,7 +8,7 @@ Consumers should pin the major tag:
 uses: goosewobbler/releasekit@v0
 ```
 
-> **Note:** ReleaseKit is pre-1.0. The floating `v0` tag tracks the latest `0.x` release; a `v1` tag will follow the 1.0 release. For stricter supply-chain hygiene, pin to a specific SHA (`@<commit-sha>`) — see GitHub's [security hardening guide](https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions#using-third-party-actions).
+> **Note:** ReleaseKit is pre-1.0. The floating `v0` tag tracks the latest `0.x` release; a `v1` tag will follow the 1.0 release. `vX.Y.Z` tags aren't immutable: each is moved onto a commit that adds the built action. For stricter supply-chain hygiene, pin the commit a `vX.Y.Z` tag points to (`@<commit-sha> # vX.Y.Z`) — see GitHub's [security hardening guide](https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions#using-third-party-actions).
 
 ## Modes
 
@@ -22,27 +22,35 @@ uses: goosewobbler/releasekit@v0
 
 ## Requirements
 
-- Node.js **22.12+** (matches ReleaseKit's `engines`). The action always runs its own `actions/setup-node` (default `node-version` `22`) and `pnpm/action-setup` unless you manage Node/pnpm entirely outside the action.
+- The action checks out the repo (unless `skip-checkout`), then runs its own `pnpm/action-setup` and `actions/setup-node` (`node-version`, default `22`; ReleaseKit needs Node 22.12+). That replaces any Node version an earlier step set up.
 - For npm publishing, run `actions/setup-node` with `registry-url: https://registry.npmjs.org` before this action so that `NODE_AUTH_TOKEN` is wired up correctly.
 
 ## Required permissions and env
+
+The action passes `github-token` (default: the workflow token) to ReleaseKit as `GITHUB_TOKEN`, so a `GITHUB_TOKEN` in the step's `env` is ignored. Pass a PAT or App token as `github-token`.
 
 ### Release mode
 
 - Recommended job permissions:
   - `id-token: write` (OIDC trusted publishing)
   - `contents: read` (checkout)
-  - `contents: write` (git push + GitHub Releases)
-- Required env:
-  - `GITHUB_TOKEN`
+  - `contents: write` (git push & GitHub Releases)
 
 ### Preview mode
 
 - Recommended job permissions:
   - `contents: read` (checkout)
   - `pull-requests: write` (posting/updating PR comments)
-- Required env:
-  - `GITHUB_TOKEN`
+
+### Gate mode
+
+- Recommended job permissions:
+  - `contents: read`
+  - `pull-requests: read` (reading the merged PR's labels)
+
+### Standing-PR modes
+
+`standing-pr-update` and `standing-pr-publish` need the permissions and repo setting in [CI setup](../packages/release/docs/ci-setup.md#setup-requirements).
 
 ## Inputs
 
@@ -53,13 +61,13 @@ uses: goosewobbler/releasekit@v0
 | `mode` | `preview` | `release`, `preview`, `gate`, `standing-pr-update`, `standing-pr-publish`, `backfill`, or `refresh-after-release` |
 | `config` | - | Path to `releasekit.config.json` |
 | `project-dir` | `.` | Project directory |
-| `dry-run` | `false` | Dry-run for `release`, `preview`, and `backfill` only; other modes fail fast if set |
+| `dry-run` | `false` | Dry-run for `release`, `preview` and `backfill`. `gate` is read-only; other modes fail if it's set |
 | `github-token` | workflow token | Token for GitHub API calls (override with a PAT/App token when rulesets require it) |
 | `node-version` | `22` | Node.js version for the action's setup-node step |
 | `npm-token` | - | NPM token when not using OIDC; when unset, the job's `NPM_TOKEN` env is preserved |
 | `summary` | `true` | Write a job summary for `release` and `gate` |
 | `skip-checkout` | `false` | Skip the action's checkout steps only; setup-node, pnpm, and install still run. The repo must already be on disk (e.g. a prior checkout step). |
-| `json` | `false` | JSON output (release mode) |
+| `json` | `false` | JSON output (release mode). The release outputs stay empty without it |
 | `verbose` | `false` | Verbose logs |
 | `quiet` | `false` | Suppress non-error logs |
 
@@ -67,8 +75,11 @@ uses: goosewobbler/releasekit@v0
 
 | Input | Default | Description |
 |---|---|---|
-| `bump` | - | Force bump (`patch|minor|major`) |
+| `bump` | - | Force bump (`patch|minor|major|prerelease`) |
 | `prerelease` | - | Prerelease identifier (e.g. `alpha`, `beta`) |
+| `stable` | `false` | Graduate prerelease packages to stable without bumping |
+| `scope` | - | Scope name resolved to target packages from `ci.scopeLabels` (also `gate`) |
+| `ssh-key` | - | SSH deploy key; the action checks out over SSH so the push uses it (not on dry runs or in `gate`) |
 | `sync` | `false` | Synchronized versioning |
 | `target` | - | Comma-separated package targets |
 | `branch` | - | Override push branch |
@@ -83,7 +94,7 @@ uses: goosewobbler/releasekit@v0
 
 | Input | Default | Description |
 |---|---|---|
-| `pr` | - | PR number override (also used by `standing-pr-publish`) |
+| `pr` | - | PR number override |
 | `repo` | - | `owner/repo` override |
 | `preview-prerelease` | - | Force prerelease preview identifier |
 | `preview-stable` | `false` | Force stable preview |
@@ -110,7 +121,7 @@ uses: goosewobbler/releasekit@v0
 | `only-missing` | `false` | With `update-releases`, skip releases already carrying releasekit notes |
 | `apply` | `false` | Apply changes (default: dry-run preview) |
 
-`update-releases` needs `contents: write` permission and `GITHUB_TOKEN` (for `gh release edit`). Writing per-version files needs `notes.releaseNotes.file.dir` set in your config and, to commit them, a follow-up step.
+`update-releases` needs `contents: write` permission (for `gh release edit`). Writing per-version files needs `notes.releaseNotes.file.dir` set in your config and, to commit them, a follow-up step.
 
 ## Outputs
 
@@ -118,12 +129,20 @@ uses: goosewobbler/releasekit@v0
 |---|---|
 | `success` | Whether action completed successfully |
 | `mode` | Executed mode |
-| `has-changes` | Whether release detected updates (release mode) |
-| `version-output` | `versionOutput` JSON string (release mode) |
-| `tags` | Comma-separated tags (release mode) |
-| `release-output` | Full release JSON output (release mode) |
+| `has-changes` | Whether release detected updates (release mode, needs `json: "true"`) |
+| `version-output` | `versionOutput` JSON string (release mode, needs `json: "true"`) |
+| `tags` | Comma-separated tags (release mode, needs `json: "true"`) |
+| `release-output` | Full release JSON output (release mode, needs `json: "true"`) |
 | `preview-markdown` | Preview markdown (preview mode + dry-run) |
 | `preview-posted` | `true` when preview mode posted comment |
+| `should-release` | Whether a release should proceed (gate mode) |
+| `bump` | Resolved bump type (gate mode) |
+| `gate-scope` | Resolved scope name (gate mode) |
+| `gate-target` | Resolved target packages (gate mode) |
+| `gate-stable` | Whether the release is a stable graduation (gate mode) |
+| `standing-pr-action` | `created`, `updated`, `closed` or `noop` (standing-pr-update mode) |
+| `standing-pr-number` | Standing PR number (standing-pr-update mode) |
+| `standing-pr-url` | Standing PR URL (standing-pr-update mode) |
 
 ## Examples
 
@@ -145,17 +164,15 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      # Only for registry-url: the action sets up its own Node version.
       - uses: actions/setup-node@v6
         with:
-          node-version: "24"
           registry-url: https://registry.npmjs.org
       - id: rk
         uses: goosewobbler/releasekit@v0
         with:
           mode: release
           json: "true"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Print tags
         run: echo "Tags: ${{ steps.rk.outputs.tags }}"
 ```
@@ -167,6 +184,7 @@ name: Release Preview
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 jobs:
   preview:
@@ -181,8 +199,6 @@ jobs:
       - uses: goosewobbler/releasekit@v0
         with:
           mode: preview
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ### Preview mode dry run (markdown only)
@@ -200,11 +216,11 @@ jobs:
         with:
           mode: preview
           preview-dry-run: "true"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - run: |
-          echo "${{ steps.rk.outputs.preview-markdown }}"
+      # Through env, not inline: the markdown carries PR text, which inline would run as shell.
+      - env:
+          PREVIEW_MARKDOWN: ${{ steps.rk.outputs.preview-markdown }}
+        run: echo "$PREVIEW_MARKDOWN"
 ```
 
 ### Backfill mode (update GitHub release bodies)
@@ -238,14 +254,4 @@ jobs:
           update-releases: "true"
           only-missing: "true"
           apply: ${{ inputs.apply }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
-
-## Versioning and distribution policy
-
-- Action is distributed through Git tags:
-  - immutable tags like `v1.0.0`
-  - moving major alias like `v1`
-- Consumers should reference `@v1`.
-- Breaking changes publish under a new major alias (`v2`).

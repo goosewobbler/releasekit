@@ -3,7 +3,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
-  assertDryRunSupported,
   buildBackfillArgs,
   buildGateArgs,
   buildGateSummary,
@@ -29,8 +28,27 @@ describe('action runner', () => {
     tempDirs.length = 0;
   });
 
-  it('should reject dry-run for standing-pr-publish', () => {
-    expect(() => assertDryRunSupported('standing-pr-publish', 'true')).toThrow(/dry-run is not supported/);
+  it.each(['standing-pr-update', 'standing-pr-publish', 'refresh-after-release'])(
+    'should reject dry-run for %s, which would otherwise run for real',
+    (mode) => {
+      expect(() => parseInputs({ INPUT_MODE: mode, INPUT_DRY_RUN: 'true' })).toThrow(
+        `dry-run is not supported for mode "${mode}"`,
+      );
+    },
+  );
+
+  it('should accept dry-run for read-only gate mode', () => {
+    expect(parseInputs({ INPUT_MODE: 'gate', INPUT_DRY_RUN: 'true' }).mode).toBe('gate');
+  });
+
+  it('should drop --apply from backfill args on a dry run', () => {
+    const input = parseInputs({
+      INPUT_MODE: 'backfill',
+      INPUT_DRY_RUN: 'true',
+      INPUT_APPLY: 'true',
+      INPUT_ALL: 'true',
+    });
+    expect(buildBackfillArgs(input)).not.toContain('--apply');
   });
 
   it('should build release args from inputs', () => {

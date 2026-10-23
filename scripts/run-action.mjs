@@ -226,11 +226,11 @@ function setFailure(errorMessage) {
   process.exit(1);
 }
 
-export function assertDryRunSupported(mode, dryRun) {
+function assertDryRunSupported(mode, dryRun) {
   if (!normalizeBoolean(dryRun)) {
     return;
   }
-  const unsupported = new Set(['standing-pr-update', 'standing-pr-publish', 'gate', 'refresh-after-release']);
+  const unsupported = new Set(['standing-pr-update', 'standing-pr-publish', 'refresh-after-release']);
   if (unsupported.has(mode)) {
     throw new Error(`dry-run is not supported for mode "${mode}"`);
   }
