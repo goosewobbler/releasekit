@@ -266,5 +266,6 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      statuses: write
     secrets:
       OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
