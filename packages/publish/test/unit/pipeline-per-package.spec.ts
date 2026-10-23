@@ -141,6 +141,39 @@ describe('per-package publish pipeline', () => {
     ]);
   });
 
+  it('should publish a hybrid crate after its path dependency when the npm sides are unrelated', async () => {
+    write('packages/a/package.json', packageJson('a'));
+    write('packages/a/Cargo.toml', cargoToml('a-crate', 'b-crate = { path = "../b", version = "0.1.0" }\n'));
+    write('packages/b/package.json', packageJson('b'));
+    write('packages/b/Cargo.toml', cargoToml('b-crate'));
+
+    await runPipeline(
+      perPackageInput([update('a', 'packages/a/package.json'), update('b', 'packages/b/package.json')]),
+      getDefaultConfig(),
+      options,
+    );
+
+    expect(publishedLabels().filter((l) => l.startsWith('cargo'))).toEqual([
+      'cargo publish b-crate@0.2.0',
+      'cargo publish a-crate@0.2.0',
+    ]);
+  });
+
+  it('should follow a configured cargo publishOrder over input order', async () => {
+    write('crates/a/Cargo.toml', cargoToml('a-crate'));
+    write('crates/b/Cargo.toml', cargoToml('b-crate'));
+    const config = getDefaultConfig();
+    config.cargo.publishOrder = ['b-crate', 'a-crate'];
+
+    await runPipeline(
+      perPackageInput([update('a-crate', 'crates/a/Cargo.toml'), update('b-crate', 'crates/b/Cargo.toml')]),
+      config,
+      options,
+    );
+
+    expect(publishedLabels()).toEqual(['cargo publish b-crate@0.2.0', 'cargo publish a-crate@0.2.0']);
+  });
+
   it("should push the branch before a package's tag, so a rejected branch push leaves no tag on the remote", async () => {
     write('packages/lib/package.json', packageJson('lib'));
     const push = vi.spyOn(fakeGit, 'push').mockImplementation(async ({ ref }) => {

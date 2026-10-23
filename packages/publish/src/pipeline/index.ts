@@ -1,8 +1,8 @@
 import * as path from 'node:path';
 import { buildDependencyGraph, type VersionOutput, type VersionPackageUpdate } from '@releasekit/core';
 import { BasePublishError, PipelineError } from '../errors/index.js';
-import { cargoRegistry } from '../registry/cargo.js';
-import { npmRegistry } from '../registry/npm.js';
+import { cargoRegistry, cratePathDeps } from '../registry/cargo.js';
+import { npmRegistry, readNpmWorkspaceDeps } from '../registry/npm.js';
 import { pubRegistry } from '../registry/pub.js';
 import type { RegistryId, RegistryTarget } from '../registry/types.js';
 import { runCargoPublishStage } from '../stages/cargo-publish.js';
@@ -39,36 +39,80 @@ function inferStageName(error: unknown): string {
   return 'unknown';
 }
 
+type OrderEdge = [before: string, after: string];
+
+/** A configured `publishOrder`, as batch mode applies it: listed targets in order, then the rest. */
+function configuredOrderEdges(
+  targets: Pick<RegistryTarget, 'packageName' | 'updatePackageName'>[],
+  explicitOrder: string[],
+): OrderEdge[] {
+  const listed = explicitOrder.flatMap((name) => targets.filter((t) => t.packageName === name));
+  const edges: OrderEdge[] = [];
+  let previous: string | undefined;
+  for (const target of listed) {
+    if (previous !== undefined) {
+      edges.push([previous, target.updatePackageName]);
+    }
+    previous = target.updatePackageName;
+  }
+  const last = previous;
+  if (last !== undefined) {
+    for (const target of targets.filter((t) => !listed.includes(t))) {
+      edges.push([last, target.updatePackageName]);
+    }
+  }
+  return edges;
+}
+
 /**
- * Per-package mode hands each stage one update, so no registry can order its targets. Merge each selected registry's
- * own order (dependency sort or `publishOrder`) into one sequence that keeps all of them, since a hybrid update
- * publishes to several registries in one step.
+ * Per-package mode hands each stage one update, so no registry can order its targets. Order the updates by every
+ * selected registry's constraints at once, since a hybrid update publishes to several registries in one step. Only
+ * real dependencies and configured `publishOrder`s constrain: an arbitrary order would contradict another registry's.
  */
 async function orderPerPackageUpdates(ctx: PipelineContext): Promise<VersionPackageUpdate[]> {
-  const { config, cliOptions, input } = ctx;
+  const { config, cliOptions, input, cwd } = ctx;
   const selected = (id: RegistryId): boolean => cliOptions.registry === 'all' || cliOptions.registry === id;
+  const edges: OrderEdge[] = [];
 
-  const orders: RegistryTarget[][] = [];
   if (selected('npm') && npmRegistry.isEnabled(config)) {
-    orders.push((await npmRegistry.discover(ctx)).filter((t) => t.filePath.endsWith('package.json')));
+    const npmUpdates = input.updates.filter((u) => u.filePath.endsWith('package.json'));
+    if (config.npm.publishOrder.length > 0) {
+      const targets = npmUpdates.map((u) => ({ packageName: u.packageName, updatePackageName: u.packageName }));
+      edges.push(...configuredOrderEdges(targets, config.npm.publishOrder));
+    } else {
+      for (const u of npmUpdates) {
+        for (const dep of readNpmWorkspaceDeps(path.resolve(cwd, u.filePath))) {
+          edges.push([dep, u.packageName]);
+        }
+      }
+    }
   }
+
   if (selected('cargo') && cargoRegistry.isEnabled(config)) {
-    orders.push(await cargoRegistry.discover(ctx));
+    const crates = await cargoRegistry.discover(ctx);
+    if (config.cargo.publishOrder.length > 0) {
+      edges.push(...configuredOrderEdges(crates, config.cargo.publishOrder));
+    } else {
+      const updateOf = new Map(crates.map((c) => [c.packageName, c.updatePackageName]));
+      for (const [crate, deps] of cratePathDeps(crates)) {
+        for (const dep of deps) {
+          edges.push([updateOf.get(dep) ?? dep, updateOf.get(crate) ?? crate]);
+        }
+      }
+    }
   }
-  if (selected('pub') && pubRegistry.isEnabled(config)) {
-    orders.push(await pubRegistry.discover(ctx));
+
+  if (selected('pub') && pubRegistry.isEnabled(config) && config.pub.publishOrder.length > 0) {
+    edges.push(...configuredOrderEdges(await pubRegistry.discover(ctx), config.pub.publishOrder));
   }
 
   const graph = buildDependencyGraph(
     input.updates.map((u) => ({
       name: u.packageName,
-      dir: path.dirname(path.resolve(ctx.cwd, u.filePath)),
+      dir: path.dirname(path.resolve(cwd, u.filePath)),
       // topologicalOrder reads only deps.
       ecosystem: 'npm',
-      deps: orders.flatMap((order) => {
-        const index = order.findIndex((t) => t.updatePackageName === u.packageName);
-        return order.slice(0, Math.max(index, 0)).map((t) => t.updatePackageName);
-      }),
+      deps: edges.filter(([, after]) => after === u.packageName).map(([before]) => before),
     })),
   );
   const rank = new Map(graph.topologicalOrder(input.updates.map((u) => u.packageName)).map((name, i) => [name, i]));
