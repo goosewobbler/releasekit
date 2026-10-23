@@ -1184,9 +1184,8 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     .replace(/\$\{version\}/g, firstUpdate?.newVersion ?? '')
     .replace(/\$\{tag\}/g, syncVersionDisplay(versionOutput));
 
-  // The title doubles as the commit subject, because GitHub squashes a single-commit PR under the commit's subject.
-  // The merge on main inherits it, so it must match a skip pattern, or the merge triggers another update, and carry
-  // no CI-skip marker, or the merge skips the publish.
+  // The squash merge on main takes this title, from the PR or the commit depending on the repo's settings.
+  // Without a skip pattern the merge triggers another standing-PR update; with a CI-skip marker it skips the publish.
   const titleIsSafe = matchesSkipPattern(renderedTitle, skipPatterns) && !CI_SKIP_MARKER.test(renderedTitle);
   const title = titleIsSafe ? renderedTitle : 'chore: release preparation';
   if (!titleIsSafe) {
