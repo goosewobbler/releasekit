@@ -48,20 +48,20 @@ vi.mock('@releasekit/git', async (importOriginal) => {
 function setupGit(
   seed: {
     headSha?: string;
+    existingRefs?: string[];
+    refShas?: Record<string, string>;
     subject?: string;
     remoteBranches?: Record<string, string[]>;
     ancestors?: FakeGitSeed['ancestors'];
-    existingRefs?: string[];
-    refShas?: Record<string, string>;
   } = {},
 ) {
   fakeGit = new ControllableGit({
     headSha: seed.headSha ?? 'abc123',
     remoteBranches: seed.remoteBranches,
-    existingRefs: seed.existingRefs,
-    refShas: seed.refShas,
     // Default to "is an ancestor" so the manifest baseSha ancestry guard passes on the common publish path.
     ancestors: seed.ancestors ?? (() => true),
+    existingRefs: seed.existingRefs,
+    refShas: seed.refShas,
   });
   fakeGit.subjects = [seed.subject ?? 'feat: some feature'];
   return fakeGit;
