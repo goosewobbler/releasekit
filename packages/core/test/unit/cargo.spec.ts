@@ -559,7 +559,6 @@ describe('planCargoLockUpdates', () => {
       '[workspace.dependencies]\ncore = { path = "../plugins/core" }\n\n[dependencies]\ncore = { workspace = true }',
       '',
     ],
-    ['patches it in', '[patch.crates-io]\ncore = { path = "../plugins/core" }', ''],
     [
       'depends on a crate that inherits it from another workspace',
       '[dependencies]\napi = { path = "../plugins/api" }',
@@ -584,11 +583,7 @@ describe('planCargoLockUpdates', () => {
       '[dependencies]\ncore = { path = "core" }\napi = { path = "../plugins/api" }',
       '[dev-dependencies]\ncore = { path = "../core" }',
     ],
-    [
-      'depends on a crate whose patch, which cargo ignores outside the root, points at the bumped crate',
-      '[dependencies]\ncore = { path = "core" }\napi = { path = "../plugins/api" }',
-      '[patch.crates-io]\ncore = { path = "../core" }',
-    ],
+    ['patches it in', '[patch.crates-io]\ncore = { path = "../plugins/core" }', ''],
   ])('should leave an app’s lock alone when the app %s', async (_label, appDependencies, apiDependencies) => {
     const { root, pluginsLock, git, bump } = pluginsAndApp(appDependencies, apiDependencies);
 

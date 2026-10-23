@@ -89,9 +89,7 @@ function findPathCrates(lockRoot: string, manifestDirs: string[], read: ReadMani
     const tables = [manifest, ...Object.values(asTable(manifest.target)).map(asTable)].flatMap((scope) =>
       kinds.map((kind) => asTable(scope[kind])),
     );
-    // Cargo honours `[patch]` only in the workspace root's manifest.
-    const patches = dir === lockRoot ? Object.values(asTable(manifest.patch)).map(asTable) : [];
-    for (const table of [...tables, ...patches]) {
+    for (const table of tables) {
       for (const [key, value] of Object.entries(table)) {
         const dependency = asTable(value);
         const [base, source] = dependency.workspace === true ? [root, asTable(inherited[key])] : [dir, dependency];

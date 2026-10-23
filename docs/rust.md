@@ -9,7 +9,7 @@ See [configuration.md](./configuration.md) for the full config reference.
 ## What's supported
 
 - `Cargo.toml` version bumping driven by conventional commits
-- `Cargo.lock` sync on every bump: the crate's own lock, and every other committed lock whose workspace reaches the crate's directory through path dependencies (`workspace = true` and `[patch]` included), is updated in the same release commit, without running cargo. Gitignored locks are left alone, and so are other crates of the same name (every `tauri init` app is `app`)
+- `Cargo.lock` sync on every bump: the crate's own lock, and every other committed lock whose workspace reaches the crate's directory through path dependencies (`workspace = true` included), is updated in the same release commit, without running cargo. Gitignored locks are left alone, and so are other crates of the same name (every `tauri init` app is `app`)
 - Per-crate git tags (via `version.packageSpecificTags`)
 - Publishing to crates.io with `cargo publish`
 - Workspace dependency ordering via topological sort (Kahn's algorithm) so path-dependent crates are published in the correct sequence
@@ -23,7 +23,7 @@ See [configuration.md](./configuration.md) for the full config reference.
 
 - OIDC / trusted publishing for crates.io — token-based auth only via `CARGO_REGISTRY_TOKEN`
 - Automatic workspace root discovery — crate directories must be listed in `version.cargo.paths` or inferred from `version.packages`
-- `[patch]` in `.cargo/config.toml` — a lock whose workspace reaches a bumped crate only through it isn't synced
+- `[patch]`, in `Cargo.toml` or `.cargo/config.toml`, when syncing `Cargo.lock` — a lock whose workspace reaches a bumped crate only through a patch keeps the old version, without an error, and `cargo build --locked` there fails until you run `cargo update --workspace` in that workspace and commit the lock
 - Comment and formatting preservation in `Cargo.toml` — the file is rewritten on version bump using `smol-toml`'s serialiser; whitespace, comments, and key order may change
 
 ---
