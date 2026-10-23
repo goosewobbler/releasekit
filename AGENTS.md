@@ -21,7 +21,7 @@ Design decisions are recorded in `docs/adr/` — check there before reworking a 
 - **One package:** `pnpm --filter <package> test` or `typecheck` skips Turborepo, so it runs against the dependencies' built `dist/`, which may be stale. Build them first with `pnpm turbo run build --filter=<package>^...`.
 - **Lint:** a package's own `lint` script is Biome only; `pnpm lint` also runs ESLint.
 - **CI-only suites:** `pnpm test` doesn't run the action harness (`test:action:*`, `test:harness:*`), `scripts/test-e2e.ts` or `scripts/test-packages.ts`. Run them when you change a CLI, `action.yml` or what a package ships.
-- **Live tests:** integration tests that call a real service, such as `packages/notes/test/integration/ollama-live.spec.ts`, skip unless their opt-in variable is set; CI runs them in the Live Tests job. A new one needs a step in `_ci-live.reusable.yml` and its package's paths in Detect Changes' `live` filter.
+- **Live tests:** integration tests that call a real service, such as `packages/notes/test/integration/ollama-live.spec.ts`, skip unless their opt-in variable is set; CI runs them in the Live Tests job. A new one needs a step in `_ci-live.reusable.yml`, any new secret declared there and passed from `ci.yml`, and its package's paths in Detect Changes' `live` filter.
 
 ## Gotchas
 

@@ -85,7 +85,9 @@ jobs:
               - 'scripts/test-e2e.ts'
               - '.github/workflows/_ci-e2e.reusable.yml'
             live:
-              - 'packages/notes/**'
+              - 'packages/notes/src/**'
+              - 'packages/notes/package.json'
+              - 'packages/notes/test/integration/ollama-live.spec.ts'
               - '.github/workflows/_ci-live.reusable.yml'
             infra:
               - '.github/workflows/**'
@@ -160,7 +162,7 @@ jobs:
           fi
 
           HAS_CHANGES="false"
-          if [ "$RUN_VERSION" = "true" ] || [ "$RUN_PUBLISH" = "true" ] || [ "$RUN_NOTES" = "true" ] || [ "$RUN_RELEASE" = "true" ] || [ "$RUN_CONFIG" = "true" ] || [ "$RUN_INTEGRATION" = "true" ] || [ "$RUN_E2E" = "true" ]; then
+          if [ "$RUN_VERSION" = "true" ] || [ "$RUN_PUBLISH" = "true" ] || [ "$RUN_NOTES" = "true" ] || [ "$RUN_RELEASE" = "true" ] || [ "$RUN_CONFIG" = "true" ] || [ "$RUN_INTEGRATION" = "true" ] || [ "$RUN_E2E" = "true" ] || [ "$LIVE" = "true" ]; then
             HAS_CHANGES="true"
           fi
 
