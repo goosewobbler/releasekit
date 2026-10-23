@@ -378,6 +378,14 @@ describe('setCargoLockVersion', () => {
 
     expect(() => setCargoLockVersion(before, 'core', '2.0.0')).toThrow('it has 2 path entries named core');
   });
+
+  it('should throw on a lock format newer than v4', () => {
+    const before = lock('version = 5', '', '[[package]]', 'name = "core"', 'version = "1.4.0"');
+
+    expect(() => setCargoLockVersion(before, 'core', '1.5.0')).toThrow(
+      'its format (version = 5) is newer than releasekit can edit',
+    );
+  });
 });
 
 describe('planCargoLockUpdates', () => {

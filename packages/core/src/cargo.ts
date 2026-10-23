@@ -157,6 +157,20 @@ function readCargoLockEntries(lines: string[]): CargoLockEntry[] {
   return entries;
 }
 
+/** The top-level `version = N` header; v1 and v2 locks have none. */
+function readCargoLockFormat(lines: string[]): number | undefined {
+  for (const line of lines) {
+    if (line.startsWith('[')) {
+      return undefined;
+    }
+    const header = /^version = (\d+)\s*$/.exec(line);
+    if (header) {
+      return Number(header[1]);
+    }
+  }
+  return undefined;
+}
+
 function parseVersion(version: string): { core: number[]; pre: string[]; build: string } {
   const plus = version.indexOf('+');
   const withoutBuild = plus === -1 ? version : version.slice(0, plus);
@@ -241,11 +255,15 @@ function sortReferenceRuns(lines: string[], name: string, version: string): void
  * `"<name> <old version>"` references (cargo writes the version into a reference only when the lock
  * holds several versions of the name), re-sorting same-name entries if their order changes.
  *
- * Undefined when the lock has no path entry for the crate. Throws when the name is ambiguous: several
- * path entries, or another source's entry at the old or new version.
+ * Undefined when the lock has no path entry for the crate. Throws when the name is ambiguous (several
+ * path entries, or another source's entry at the old or new version) or the lock format is newer than v4.
  */
 export function setCargoLockVersion(lockContent: string, crateName: string, version: string): string | undefined {
   const lines = lockContent.split('\n');
+  const format = readCargoLockFormat(lines);
+  if (format !== undefined && format > 4) {
+    throw new Error(`its format (version = ${format}) is newer than releasekit can edit`);
+  }
   const sameName = readCargoLockEntries(lines).filter((entry) => entry.name === crateName);
   const own = sameName.filter((entry) => !entry.hasSource);
   if (own.length === 0) {
