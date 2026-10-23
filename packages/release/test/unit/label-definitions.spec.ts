@@ -155,6 +155,19 @@ describe('syncLabels', () => {
     expect(forge.createdLabels).toHaveLength(0);
   });
 
+  it('should create a missing label once when definitions differ only in case', async () => {
+    const forge = createFakeForge();
+    const defs: LabelDefinition[] = [
+      { name: 'bump:minor', color: '0e8a16', description: 'x' },
+      { name: 'Bump:Minor', color: '0e8a16', description: 'x' },
+    ];
+
+    const result = await syncLabels(forge, defs);
+
+    expect(forge.createdLabels.map((l) => l.name)).toEqual(['bump:minor']);
+    expect(result).toEqual({ created: ['bump:minor'], existing: ['Bump:Minor'] });
+  });
+
   it('should list the repo labels once however many definitions there are', async () => {
     const forge = createFakeForge();
     const listSpy = vi.spyOn(forge, 'listLabelNames');

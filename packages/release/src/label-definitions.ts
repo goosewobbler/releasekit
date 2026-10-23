@@ -145,6 +145,7 @@ export async function syncLabels(forge: Forge, definitions: LabelDefinition[]): 
       continue;
     }
     const result = await forge.createLabel({ name: def.name, color: def.color, description: def.description });
+    repoLabels.add(def.name.toLowerCase());
     (result === 'created' ? created : existing).push(def.name);
   }
 
