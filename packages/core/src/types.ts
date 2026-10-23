@@ -82,8 +82,8 @@ export function deriveReleaseChannel(version: string): ReleaseChannel {
 }
 
 /**
- * What @releasekit/version produces: the `data` of its `--json` envelope, and the interchange format
- * between version, notes and publish.
+ * The `data` of @releasekit/version's `--json` envelope.
+ * This is the primary interchange format between version and notes.
  */
 export interface VersionOutput {
   dryRun: boolean;

@@ -27,13 +27,13 @@ Every command that produces a JSON result — `release`, `gate`, `standing-pr`, 
   "schemaVersion": 1,   // envelope contract version; stable across minor releases
   "status": "success",  // "success" | "error"
   "changed": true,      // did the command change state, or was everything already as desired?
-  "data": { /* … */ },  // command-specific payload (VersionOutput, gate result, …); null on error, except a partial publish
+  "data": { /* … */ },  // command-specific payload (VersionOutput, gate result, …); null on error, unless publish failed partway
   "warnings": [{ "code": "…", "message": "…" }],
   "errors": [{ "code": "…", "category": "…", "retryable": false, "message": "…" }]
 }
 ```
 
-- **`data`** carries the command's payload verbatim — the envelope wraps it, never replaces it. `releasekit release --json` exposes its `VersionOutput` at `data.versionOutput`, and `releasekit version --json` at `data`. It is `null` on error, except after a partial `publish` (see below).
+- **`data`** carries the command's payload verbatim — the envelope wraps it, never replaces it. `releasekit release --json` exposes its `VersionOutput` at `data.versionOutput`, and `releasekit version --json` at `data`. It is `null` on error, unless `publish` failed partway (see below).
 - **`changed`** separates real work from a no-op:
   - A dry run is never `changed`.
   - `publish`: a registry publish or a new release commit.

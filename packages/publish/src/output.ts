@@ -1,9 +1,8 @@
 import type { PublishOutput } from './types.js';
 
 /**
- * Whether this run changed anything: a registry publish, or a release commit it created (never on a
- * re-run or under `standing-pr publish`). Tags, `git.pushed` and GitHub releases report success for a
- * no-op, so they don't count.
+ * True if this run published to a registry or created the release commit. Tags, pushes and GitHub
+ * releases don't count: they report success even when nothing changed.
  */
 export function publishDidChange(output: PublishOutput | null | undefined): boolean {
   if (!output || output.dryRun) {

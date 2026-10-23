@@ -399,6 +399,6 @@ releasekit ships three flags useful for diagnosing issues:
 
 **`--verbose`** — emits internal decision logs: which commits were found and classified, which packages were discovered, what version strategy was selected, and what LLM requests/responses look like. Use this when the tool exits cleanly but produces an unexpected result.
 
-**`--json`** — emits structured JSON on stdout. Useful for piping between stages or for scripted inspection. The result is wrapped in an envelope whose `schemaVersion` changes only on a breaking change to its shape (see the [JSON output contract](./cli.md#json-output-contract)); text log output has no such guarantee.
+**`--json`** — emits structured JSON on stdout. Useful for piping between stages or for scripted inspection. The result is wrapped in an envelope whose `schemaVersion` changes only on a breaking change to its shape (see the [JSON output contract](./cli.md#json-output-contract)).
 
 **In CI logs:** expand the failing step to see the full output. Look for the `[dry-run]` prefix to confirm dry-run mode is active, and check for `[warn]` lines that may indicate soft failures (such as the LLM key warning) that did not abort the run but produced degraded output.

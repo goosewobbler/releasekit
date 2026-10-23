@@ -18,8 +18,7 @@ export function writeEnvelope(envelope: Envelope, opts: { json?: boolean; output
   try {
     fs.writeFileSync(opts.output, text);
   } catch (err) {
-    // A failed result write rethrows so the command fails; a failed error-envelope write only logs, so the
-    // original error isn't buried.
+    // A failed result write rethrows so the command fails; a failed error-envelope write is only logged.
     if (envelope.status !== 'error') {
       throw err;
     }

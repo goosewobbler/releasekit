@@ -52,7 +52,6 @@ export function successEnvelope<T>(
   };
 }
 
-/** `data` and `changed` report progress made before the failure, e.g. what a partial publish landed. */
 export function errorEnvelope<T = null>(
   errors: EnvelopeError[],
   opts: { warnings?: EnvelopeWarning[]; data?: T; changed?: boolean } = {},
@@ -60,6 +59,7 @@ export function errorEnvelope<T = null>(
   return {
     schemaVersion: ENVELOPE_SCHEMA_VERSION,
     status: 'error',
+    // Progress made before the failure, e.g. what a partial publish landed.
     changed: opts.changed ?? false,
     data: opts.data ?? null,
     warnings: opts.warnings ?? [],
@@ -75,10 +75,7 @@ function isEnvelope(value: unknown): value is Envelope {
 
 const KNOWN_STATUSES = new Set<EnvelopeStatus>(['success', 'error']);
 
-/**
- * Returns an envelope's `data`, or a bare payload unchanged. Throws on an envelope it can't use (newer
- * schema, error status, no data), so the failure names its cause.
- */
+/** Returns an envelope's `data`, or a bare payload as is; throws on a newer, failed or empty envelope. */
 export function unwrapEnvelope(value: unknown): unknown {
   if (!isEnvelope(value)) {
     return value;
