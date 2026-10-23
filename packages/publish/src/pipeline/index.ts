@@ -1,5 +1,10 @@
-import type { VersionOutput } from '@releasekit/core';
+import * as path from 'node:path';
+import { buildDependencyGraph, type VersionOutput, type VersionPackageUpdate } from '@releasekit/core';
 import { BasePublishError, PipelineError } from '../errors/index.js';
+import { cargoRegistry } from '../registry/cargo.js';
+import { npmRegistry } from '../registry/npm.js';
+import { pubRegistry } from '../registry/pub.js';
+import type { RegistryId, RegistryTarget } from '../registry/types.js';
 import { runCargoPublishStage } from '../stages/cargo-publish.js';
 import { runGitCommitStage } from '../stages/git-commit.js';
 import { preparePushSetup, pushPackageTag, runGitPushStage } from '../stages/git-push.js';
@@ -32,6 +37,42 @@ function inferStageName(error: unknown): string {
     return codeToStage[error.code] ?? 'unknown';
   }
   return 'unknown';
+}
+
+/**
+ * Per-package mode hands each stage one update, so no registry can order its targets. Merge each selected registry's
+ * own order (dependency sort or `publishOrder`) into one sequence that keeps all of them, since a hybrid update
+ * publishes to several registries in one step.
+ */
+async function orderPerPackageUpdates(ctx: PipelineContext): Promise<VersionPackageUpdate[]> {
+  const { config, cliOptions, input } = ctx;
+  const selected = (id: RegistryId): boolean => cliOptions.registry === 'all' || cliOptions.registry === id;
+
+  const orders: RegistryTarget[][] = [];
+  if (selected('npm') && npmRegistry.isEnabled(config)) {
+    orders.push((await npmRegistry.discover(ctx)).filter((t) => t.filePath.endsWith('package.json')));
+  }
+  if (selected('cargo') && cargoRegistry.isEnabled(config)) {
+    orders.push(await cargoRegistry.discover(ctx));
+  }
+  if (selected('pub') && pubRegistry.isEnabled(config)) {
+    orders.push(await pubRegistry.discover(ctx));
+  }
+
+  const graph = buildDependencyGraph(
+    input.updates.map((u) => ({
+      name: u.packageName,
+      dir: path.dirname(path.resolve(ctx.cwd, u.filePath)),
+      // topologicalOrder reads only deps.
+      ecosystem: 'npm',
+      deps: orders.flatMap((order) => {
+        const index = order.findIndex((t) => t.updatePackageName === u.packageName);
+        return order.slice(0, Math.max(index, 0)).map((t) => t.updatePackageName);
+      }),
+    })),
+  );
+  const rank = new Map(graph.topologicalOrder(input.updates.map((u) => u.packageName)).map((name, i) => [name, i]));
+  return [...input.updates].sort((a, b) => (rank.get(a.packageName) ?? 0) - (rank.get(b.packageName) ?? 0));
 }
 
 export async function runPipeline(
@@ -92,7 +133,7 @@ export async function runPipeline(
       } else if (!options.skipPublish) {
         const pushSetup = !options.skipGit ? await preparePushSetup(ctx) : null;
 
-        for (const update of input.updates) {
+        for (const update of await orderPerPackageUpdates(ctx)) {
           const singleCtx: PipelineContext = {
             ...ctx,
             input: { ...ctx.input, updates: [update] },

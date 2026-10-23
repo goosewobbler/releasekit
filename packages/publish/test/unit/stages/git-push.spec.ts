@@ -334,22 +334,22 @@ describe('pushPackageTag', () => {
     vi.mocked(detectGitPushMethod).mockResolvedValue('https');
   });
 
-  it('should push the specific tag ref and then the branch', async () => {
+  it('should push the branch and then the specific tag ref', async () => {
     const ctx = createContext();
 
     await pushPackageTag('pkg-a@v1.0.0', ctx);
 
     expect(fakeGit.pushed).toEqual([
-      expect.objectContaining({ remote: 'origin', ref: 'refs/tags/pkg-a@v1.0.0' }),
       expect.objectContaining({ remote: 'origin', ref: 'main' }),
+      expect.objectContaining({ remote: 'origin', ref: 'refs/tags/pkg-a@v1.0.0' }),
     ]);
     expect(ctx.output.git.tags).toContain('pkg-a@v1.0.0');
     expect(ctx.output.git.pushed).toBe(true);
   });
 
-  it('should wrap a branch-push failure as GIT_PUSH_ERROR, not unknown', async () => {
+  it('should wrap a branch-push failure as GIT_PUSH_ERROR without pushing the tag', async () => {
     // The branch push is rejected by a branch ruleset - a raw seam failure.
-    vi.spyOn(fakeGit, 'push').mockImplementation(async (opts) => {
+    const push = vi.spyOn(fakeGit, 'push').mockImplementation(async (opts) => {
       if (opts.ref === 'main') {
         throw new Error('Command failed: git push origin main\nremote: error: GH013: rule violations');
       }
@@ -365,6 +365,7 @@ describe('pushPackageTag', () => {
     expect(thrown).toBeInstanceOf(PublishError);
     expect((thrown as PublishError).code).toBe('GIT_PUSH_ERROR');
     expect((thrown as PublishError).message).toContain('git push origin main');
+    expect(push.mock.calls.map(([opts]) => opts.ref)).toEqual(['main']);
   });
 
   it('should skip branch push when not committed', async () => {
@@ -385,7 +386,7 @@ describe('pushPackageTag', () => {
     expect(ctx.output.git.pushed).toBe(true);
   });
 
-  it('should push the branch after the tag for a reused release commit', async () => {
+  it('should push the branch before the tag for a reused release commit', async () => {
     const ctx = createContext({
       releaseCommitReused: true,
       output: {
@@ -404,8 +405,8 @@ describe('pushPackageTag', () => {
     await pushPackageTag('pkg-a@v1.0.0', ctx, setup ?? undefined);
 
     expect(fakeGit.pushed).toEqual([
-      expect.objectContaining({ remote: 'origin', ref: 'refs/tags/pkg-a@v1.0.0' }),
       expect.objectContaining({ remote: 'origin', ref: 'main' }),
+      expect.objectContaining({ remote: 'origin', ref: 'refs/tags/pkg-a@v1.0.0' }),
     ]);
   });
 
