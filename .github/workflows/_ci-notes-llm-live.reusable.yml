@@ -36,6 +36,6 @@ jobs:
         run: pnpm --filter @releasekit/notes test ollama-live
         env:
           RELEASEKIT_NOTES_LIVE: '1'
-          RELEASEKIT_NOTES_LIVE_MODEL: 'minimax-m2.7:cloud'
-          OLLAMA_BASE_URL: 'https://ollama.com'
+          RELEASEKIT_NOTES_LIVE_MODEL: ${{ vars.OLLAMA_MODEL }}
+          OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL }}
           OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
