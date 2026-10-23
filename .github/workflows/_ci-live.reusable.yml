@@ -1,4 +1,4 @@
-name: Notes LLM (live Ollama)
+name: Live Tests
 
 on:
   workflow_call:
@@ -14,8 +14,8 @@ permissions:
   contents: read
 
 jobs:
-  notes-llm-live:
-    name: Notes LLM (live Ollama)
+  live-tests:
+    name: Live Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -32,7 +32,7 @@ jobs:
           cache_key: ${{ inputs.cache_key }}
 
       # Not turbo: its strict env mode strips RELEASEKIT_NOTES_LIVE and the suite silently skips.
-      - name: Run notes LLM live test
+      - name: Notes against live Ollama
         run: pnpm --filter @releasekit/notes test ollama-live
         env:
           RELEASEKIT_NOTES_LIVE: '1'
