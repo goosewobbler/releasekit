@@ -1223,8 +1223,6 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // Branch management: reset release branch to base
   info(`Resetting release branch '${branch}' to origin/${base}...`);
   await resetReleaseBranch(branch, base, cwd);
-  // After the reset: a pull_request run's checkout is GitHub's temporary merge commit, which a publish
-  // can never find in the merged history.
   const baseSha = await getHeadSha(cwd);
 
   // A release merge can land on `base` after this run started — e.g. another PR is merged moments

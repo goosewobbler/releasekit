@@ -530,7 +530,6 @@ jobs:
 
       - uses: actions/checkout@v6
         with:
-          # A pull_request run would otherwise check out GitHub's temporary merge commit, not the base branch.
           ref: ${{ github.event.pull_request.base.ref }}
           fetch-depth: 0
           token: ${{ github.token }}
