@@ -5,7 +5,7 @@ import { createFakeGit, type FakeGit, type FakeGitSeed } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDefaultConfig, loadConfig } from '../../../src/config.js';
 import { PublishError } from '../../../src/errors/index.js';
-import { pushPackageTag, runGitPushStage } from '../../../src/stages/git-push.js';
+import { preparePushSetup, pushPackageTag, runGitPushStage } from '../../../src/stages/git-push.js';
 import type { PipelineContext } from '../../../src/types.js';
 
 // Drive the stage through a seeded FakeGit. `createGitCli()` resolves to the fake we seed per test,
@@ -269,6 +269,28 @@ describe('git-push stage', () => {
     expect(currentBranchSpy).not.toHaveBeenCalled();
   });
 
+  it('should push the branch and tags for a reused release commit', async () => {
+    const ctx = createContext({
+      releaseCommitReused: true,
+      output: {
+        dryRun: false,
+        git: { committed: false, tags: ['v1.0.0'], pushed: false },
+        npm: [],
+        cargo: [],
+        verification: [],
+        githubReleases: [],
+      },
+    });
+
+    await runGitPushStage(ctx);
+
+    expect(fakeGit.pushed).toEqual([
+      expect.objectContaining({ remote: 'origin', ref: 'main' }),
+      expect.objectContaining({ remote: 'origin', ref: 'refs/tags/v1.0.0' }),
+    ]);
+    expect(ctx.output.git.pushed).toBe(true);
+  });
+
   it('should not throw when in detached HEAD state and there are only tags to push', async () => {
     seedGit({ currentBranch: 'HEAD' });
     const ctx = createContext({
@@ -370,6 +392,30 @@ describe('pushPackageTag', () => {
 
     expect(fakeGit.pushed).toEqual([expect.objectContaining({ remote: 'origin', ref: 'refs/tags/pkg-a@v1.0.0' })]);
     expect(ctx.output.git.pushed).toBe(true);
+  });
+
+  it('should push the branch after the tag for a reused release commit', async () => {
+    const ctx = createContext({
+      releaseCommitReused: true,
+      output: {
+        dryRun: false,
+        git: { committed: false, tags: [], pushed: false },
+        npm: [],
+        cargo: [],
+        verification: [],
+        githubReleases: [],
+      },
+    });
+
+    const setup = await preparePushSetup(ctx);
+    expect(setup?.branch).toBe('main');
+
+    await pushPackageTag('pkg-a@v1.0.0', ctx, setup ?? undefined);
+
+    expect(fakeGit.pushed).toEqual([
+      expect.objectContaining({ remote: 'origin', ref: 'refs/tags/pkg-a@v1.0.0' }),
+      expect.objectContaining({ remote: 'origin', ref: 'main' }),
+    ]);
   });
 
   it('should accumulate pushed tags on ctx.output.git.tags', async () => {

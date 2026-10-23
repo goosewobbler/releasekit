@@ -26,6 +26,10 @@ function toGithubAuthedUrl(remoteUrl: string, token: string): string | undefined
   }
 }
 
+function pushesBranch(ctx: PipelineContext): boolean {
+  return ctx.output.git.committed || ctx.releaseCommitReused === true;
+}
+
 export interface PushSetup {
   remote: string;
   pushRemote: string;
@@ -37,7 +41,7 @@ export interface PushSetup {
  * Reuse this for all per-package pushes.
  */
 export async function preparePushSetup(ctx: PipelineContext): Promise<PushSetup | null> {
-  const { config, cwd, output } = ctx;
+  const { config, cwd } = ctx;
 
   if (!config.git.push) {
     return null;
@@ -67,7 +71,7 @@ export async function preparePushSetup(ctx: PipelineContext): Promise<PushSetup 
   }
 
   let branch: string | undefined;
-  if (output.git.committed) {
+  if (pushesBranch(ctx)) {
     branch = config.git.branch;
     if (!branch) {
       branch = await git.currentBranch(cwd);
@@ -119,7 +123,7 @@ export async function pushPackageTag(tag: string, ctx: PipelineContext, setup?: 
     output.git.tags.push(tag);
 
     // Push the branch (idempotent — no-op if remote is already up-to-date)
-    if (output.git.committed && branch) {
+    if (pushesBranch(ctx) && branch) {
       await runGit(dryRun, `git push ${remote} ${branch}`, () => git.push({ remote: pushRemote, ref: branch, cwd }));
     }
 
@@ -142,7 +146,7 @@ export async function runGitPushStage(ctx: PipelineContext): Promise<void> {
     return;
   }
 
-  if (!output.git.committed && output.git.tags.length === 0) {
+  if (!pushesBranch(ctx) && output.git.tags.length === 0) {
     info('Nothing to push (no commits or tags created)');
     return;
   }
@@ -176,7 +180,7 @@ export async function runGitPushStage(ctx: PipelineContext): Promise<void> {
       }
     }
 
-    // Push the branch first, then tags. When this runner created the release commit (direct mode),
+    // Push the branch first, then tags. When this runner created or reused the release commit (direct mode),
     // the branch must land before the tags so a tag never points at a commit absent from the branch
     // — and a branch rejected by a concurrent push / ruleset aborts before any tag is pushed, rather
     // than leaving orphan tags on the remote with `git.pushed` false (no GitHub release). Standing-PR
@@ -184,7 +188,7 @@ export async function runGitPushStage(ctx: PipelineContext): Promise<void> {
     // only. Branch resolution is deferred to here so a tags-only push never triggers the detached-HEAD
     // guard unnecessarily.
     let branch: string | undefined;
-    if (output.git.committed) {
+    if (pushesBranch(ctx)) {
       branch = config.git.branch;
       if (!branch) {
         branch = await git.currentBranch(cwd);

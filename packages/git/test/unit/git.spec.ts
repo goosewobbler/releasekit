@@ -216,6 +216,24 @@ describe('GitCli queries', () => {
     const no = makeRunner({ reject: exitError(2) });
     expect(await new GitCli(no.run).remoteBranchExists('origin', 'absent')).toBe(false);
   });
+
+  it('should answer hasStagedChanges via diff --cached --quiet exit code', async () => {
+    const clean = makeRunner();
+    expect(await new GitCli(clean.run).hasStagedChanges('/r')).toBe(false);
+    expect(clean.calls[0].args).toEqual(['diff', '--cached', '--quiet']);
+    expect(clean.calls[0].options).toEqual({ cwd: '/r', ignoreOutput: true });
+
+    const staged = makeRunner({ reject: exitError(1) });
+    expect(await new GitCli(staged.run).hasStagedChanges()).toBe(true);
+  });
+
+  it('should throw from hasStagedChanges when git fails rather than report staged changes', async () => {
+    const failed = makeRunner({ reject: exitError(128, 'not a git repository') });
+    await expect(new GitCli(failed.run).hasStagedChanges()).rejects.toBeInstanceOf(GitError);
+
+    const missing = makeRunner({ reject: enoent() });
+    await expect(new GitCli(missing.run).hasStagedChanges()).rejects.toBeInstanceOf(GitError);
+  });
 });
 
 describe('GitCli mutations', () => {

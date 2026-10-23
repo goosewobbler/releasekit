@@ -1,6 +1,7 @@
 import { createFakeGit, type FakeGit, type FakeGitSeed } from '@releasekit/git';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDefaultConfig } from '../../../src/config.js';
+import { publishDidChange } from '../../../src/output.js';
 import { runGitCommitStage } from '../../../src/stages/git-commit.js';
 import type { PipelineContext } from '../../../src/types.js';
 
@@ -49,8 +50,10 @@ function createContext(overrides?: Partial<PipelineContext>): PipelineContext {
       git: { committed: false, tags: [], pushed: false },
       npm: [],
       cargo: [],
+      pub: [],
       verification: [],
       githubReleases: [],
+      publishSucceeded: false,
     },
     ...overrides,
   };
@@ -207,6 +210,74 @@ describe('git-commit stage', () => {
 
       expect(fakeGit.tagged).toHaveLength(1);
       expect(ctx.output.git.tags).toContain('foo@v1.0.0');
+    });
+  });
+
+  describe('release commit already at HEAD', () => {
+    it('should reuse the release commit and its tag on a re-run', async () => {
+      seedGit({
+        stagedChanges: false,
+        existingRefs: ['refs/tags/foo@v1.0.0'],
+        headSha: 'abc123',
+        commits: { HEAD: 'chore: release foo@1.0.0\n', 'foo@v1.0.0': 'abc123\n' },
+      });
+      const ctx = createContext();
+
+      await runGitCommitStage(ctx);
+
+      expect(fakeGit.committed).toHaveLength(0);
+      expect(fakeGit.tagged).toHaveLength(0);
+      expect(ctx.releaseCommitReused).toBe(true);
+      expect(ctx.output.git.tags).toEqual(['foo@v1.0.0']);
+      expect(ctx.output.git.committed).toBe(false);
+      expect(publishDidChange(ctx.output)).toBe(false);
+    });
+
+    it('should create the tag on the reused commit when the tag is missing', async () => {
+      seedGit({ stagedChanges: false, commits: { HEAD: 'chore: release foo@1.0.0\n' } });
+      const ctx = createContext();
+
+      await runGitCommitStage(ctx);
+
+      expect(fakeGit.committed).toHaveLength(0);
+      expect(fakeGit.tagged).toEqual([{ name: 'foo@v1.0.0', message: 'Release foo@v1.0.0' }]);
+      expect(ctx.releaseCommitReused).toBe(true);
+    });
+
+    it.each([
+      ['a body after a blank line', 'chore: release foo@1.0.0\n\n[skip ci]', 'chore: release foo@1.0.0'],
+      ['a second subject line', 'chore: release foo@1.0.0\n[skip ci]', 'chore: release foo@1.0.0 [skip ci]'],
+    ])("should match a message with %s on git's subject", async (_label, message, subject) => {
+      seedGit({ stagedChanges: false, commits: { HEAD: `${subject}\n` } });
+      const ctx = createContext();
+      ctx.input.commitMessage = message;
+
+      await runGitCommitStage(ctx);
+
+      expect(ctx.releaseCommitReused).toBe(true);
+    });
+
+    it('should throw GIT_COMMIT_ERROR when nothing is staged and HEAD is not the release commit', async () => {
+      seedGit({ stagedChanges: false, commits: { HEAD: 'feat: unrelated\n' } });
+      const ctx = createContext();
+
+      await expect(runGitCommitStage(ctx)).rejects.toMatchObject({
+        code: 'GIT_COMMIT_ERROR',
+        message: expect.stringContaining('HEAD ("feat: unrelated") is not the release commit'),
+      });
+      expect(fakeGit.committed).toHaveLength(0);
+      expect(fakeGit.tagged).toHaveLength(0);
+      expect(ctx.releaseCommitReused).toBeUndefined();
+    });
+
+    it('should report a would-be commit in a dry run without consulting the index', async () => {
+      seedGit({ stagedChanges: false });
+      const ctx = createContext({ cliOptions: { ...createContext().cliOptions, dryRun: true } });
+
+      await runGitCommitStage(ctx);
+
+      expect(ctx.output.git.committed).toBe(true);
+      expect(ctx.releaseCommitReused).toBeUndefined();
     });
   });
 

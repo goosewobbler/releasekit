@@ -57,7 +57,7 @@ releasekit publish --input version.json
 
 A bare `VersionOutput` is still accepted. Feeding a failed stage's envelope forward fails as an input error (exit 3) whose message names that stage's code, rather than a schema error about missing fields.
 
-When `publish` fails partway, its error envelope carries what already landed in `data`, reports `changed: true` if anything did, and names the failing stage in the error `message`. A re-run skips versions already on the registry, but not the release commit: the git-commit stage runs before the registry publishes and finds nothing to commit, so re-running `publish` on the same tree fails there. Resuming a partial `publish` isn't supported yet.
+When `publish` fails partway, its error envelope carries what already landed in `data`, reports `changed: true` if anything did, and names the failing stage in the error `message`. Re-running `publish` on the same tree resumes it: it reuses the release commit and tags already at HEAD, skips versions already on the registry, and retries the rest.
 
 ### Error codes and exit codes
 
