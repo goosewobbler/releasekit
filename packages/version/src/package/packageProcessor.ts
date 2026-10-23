@@ -201,25 +201,24 @@ export class PackageProcessor {
         revisionRange = baseline.revisionRange;
         previousVersion = baseline.previousVersion;
 
+        // An untagged package's changelog can push the standing-PR body past GitHub's 65,536-char limit (an
+        // opaque 422). baseRef-scoped runs are bounded to the PR.
         if (!hasRealTag && !this.fullConfig.baseRef) {
           const currentVersion = pkg.packageJson.version;
           const suggestedTag = currentVersion
             ? formatTag(currentVersion, formattedPrefix, name, this.tagTemplate, this.fullConfig.packageSpecificTags)
             : undefined;
-          const baselineHint = suggestedTag
-            ? ` Create a baseline tag to scope it: git tag ${suggestedTag} <release-sha> && git push origin ${suggestedTag}`
-            : '';
-          if (revisionRange === 'HEAD') {
-            log(
-              `No prior tag found for ${name} — its changelog will include the full git history.${baselineHint}`,
-              'warning',
-            );
-          } else {
-            const fromRef = revisionRange.endsWith('..HEAD')
-              ? revisionRange.slice(0, revisionRange.length - '..HEAD'.length)
-              : revisionRange;
-            log(`No prior tag found for ${name} — its changelog will start from ${fromRef}.${baselineHint}`, 'warning');
-          }
+          const scope =
+            revisionRange === 'HEAD'
+              ? 'include the full git history'
+              : `start from ${revisionRange.replace(/\.\.HEAD$/, '')}`;
+          log(
+            `No prior tag found for ${name} — its changelog will ${scope}.` +
+              (suggestedTag
+                ? ` Create a baseline tag to scope it: git tag ${suggestedTag} <release-sha> && git push origin ${suggestedTag}`
+                : ''),
+            'warning',
+          );
         }
 
         changelogEntries = await extractChangelogEntriesFromCommits(pkgPath, revisionRange);
