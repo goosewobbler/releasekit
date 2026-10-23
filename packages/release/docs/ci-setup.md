@@ -343,8 +343,8 @@ permissions:
 
 | Secret | Used by | When required |
 |---|---|---|
-| `GITHUB_TOKEN` | both jobs | Always (auto-provided). |
-| `NPM_TOKEN` | `publish-release`, `immediate-release` | Only if not using OIDC. With OIDC, omit it entirely. |
+| `GITHUB_TOKEN` | all jobs | Always (auto-provided). |
+| `NPM_TOKEN` | `publish-release`, `immediate-release`, and `retry-publish` | Only if not using OIDC. With OIDC, omit it entirely. |
 | `OLLAMA_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | `publish-release`, `immediate-release`, and `retry-publish` | Required for LLM-enhanced notes at publish time. Also pass to `update-release-pr` only if you use the `release:preview-notes` label. Without a key, enhancement falls back to ungrouped output (warning, not a failure). |
 
 **Branch protection:** if `release/next` is protected, the bot's force-push will fail. Either leave the release branch unprotected or grant the bot bypass permissions.
