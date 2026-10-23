@@ -94,6 +94,19 @@ describe('changelog-region', () => {
       expect(footer).toContain('- **BREAKING** Reject the old preset');
     });
 
+    it('should keep a breaking change apart from a non-breaking one with the same subject', () => {
+      const footer = renderCombinedFooter(
+        output({
+          changelogs: [
+            cl('@scope/a', [{ type: 'fix', description: 'Reject the old preset' }]),
+            cl('@scope/b', [{ type: 'fix', description: 'Reject the old preset', breaking: true }]),
+          ],
+        }),
+      );
+      expect(footer).toContain('- **BREAKING** Reject the old preset');
+      expect(footer).toContain('Show all changes (2 changes, de-duplicated)');
+    });
+
     it('should keep same-description changes with different scopes as distinct lines', () => {
       const footer = renderCombinedFooter(
         output({

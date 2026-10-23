@@ -272,6 +272,44 @@ describe('github-release stage', () => {
     expect(args).not.toContain('--notes');
   });
 
+  it('should mark a breaking change in a changelog body', async () => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    const config = getDefaultConfig();
+    config.githubRelease.body = 'changelog';
+
+    const ctx = createContext({
+      config,
+      input: {
+        dryRun: false,
+        updates: [],
+        changelogs: [
+          {
+            packageName: 'pkg-a',
+            version: '1.0.0',
+            previousVersion: '0.9.0',
+            revisionRange: 'v0.9.0..HEAD',
+            repoUrl: null,
+            entries: [{ type: 'fixed', description: 'Reject the old preset', scope: 'config', breaking: true }],
+          },
+        ],
+        tags: ['pkg-a@v1.0.0'],
+      },
+      output: {
+        dryRun: false,
+        git: { committed: true, tags: ['pkg-a@v1.0.0'], pushed: true },
+        npm: [],
+        cargo: [],
+        verification: [],
+        githubReleases: [],
+      },
+    });
+
+    await runGithubReleaseStage(ctx);
+
+    const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
+    expect(args[args.indexOf('--notes') + 1]).toBe('- **BREAKING** **config:** Reject the old preset');
+  });
+
   it('should match sanitized tag format (scope-pkg-vX.Y.Z) to scoped package name', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
 

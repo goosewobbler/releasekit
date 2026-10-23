@@ -728,6 +728,18 @@ describe('Package Processor', () => {
       }
     });
 
+    it('should keep a breaking repo-level entry apart from a non-breaking one with the same subject', async () => {
+      const plain = { type: 'fixed', description: 'Reject the old preset' };
+      const breaking = { ...plain, breaking: true };
+      vi.spyOn(commitParser, 'extractChangelogEntriesFromCommits').mockImplementation(() => []);
+      vi.spyOn(commitParser, 'extractRepoLevelChangelogEntries').mockResolvedValue([plain, breaking]);
+
+      const processor = new PackageProcessor({ ...defaultOptions });
+      await processor.processPackages(mockPackages);
+
+      expect(jsonOutput.setSharedEntries).toHaveBeenCalledWith([plain, breaking]);
+    });
+
     it('should track tags via JSON output without creating git tags', async () => {
       const processor = new PackageProcessor(defaultOptions);
 

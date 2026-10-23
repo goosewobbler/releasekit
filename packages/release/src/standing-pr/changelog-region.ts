@@ -74,10 +74,11 @@ interface DedupedEntry {
 
 /** Identity of the underlying change: the same commit/PR yields an identical type + description +
  *  scope (+ issue refs) across every package it touched, so this key collapses those N copies into
- *  one. Scope is part of the identity — two commits sharing a description but differing in scope
- *  (`fix(cli)` vs `fix(router)`) are distinct changes and must not merge into a mis-attributed line. */
+ *  one. Scope and the breaking flag are part of the identity — two commits sharing a description but
+ *  differing in scope (`fix(cli)` vs `fix(router)`) are distinct changes and must not merge into a
+ *  mis-attributed line. */
 function dedupeKey(e: VersionChangelogEntry): string {
-  return JSON.stringify([e.type, e.description, e.scope ?? null, e.issueIds ?? []]);
+  return JSON.stringify([e.type, e.description, e.scope ?? null, e.issueIds ?? [], e.breaking === true]);
 }
 
 /** De-duplicate by underlying change, preserving first-seen order and collecting contributing

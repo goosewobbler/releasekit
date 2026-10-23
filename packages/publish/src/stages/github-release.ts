@@ -189,7 +189,7 @@ function formatChangelogForTag(tag: string, changelogs: VersionPackageChangelog[
   const lines: string[] = [];
   for (const entry of target.entries) {
     const scope = entry.scope ? `**${entry.scope}:** ` : '';
-    lines.push(`- ${scope}${entry.description}`);
+    lines.push(`- ${entry.breaking ? '**BREAKING** ' : ''}${scope}${entry.description}`);
   }
   return lines.join('\n');
 }
