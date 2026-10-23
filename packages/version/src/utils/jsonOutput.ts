@@ -27,6 +27,10 @@ const _jsonData: VersionOutput = {
   baselineTags: undefined,
 };
 
+export function disableJsonOutput(): void {
+  _jsonOutputMode = false;
+}
+
 export function enableJsonOutput(dryRun = false): void {
   _jsonOutputMode = true;
   _jsonData.dryRun = dryRun;

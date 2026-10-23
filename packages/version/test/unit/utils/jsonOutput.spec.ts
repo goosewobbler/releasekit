@@ -4,6 +4,7 @@ import {
   addChangelogData,
   addPackageUpdate,
   addTag,
+  disableJsonOutput,
   enableJsonOutput,
   flushPendingWrites,
   getJsonData,
@@ -23,8 +24,7 @@ vi.mock('node:fs');
 
 describe('JSON Output Utilities', () => {
   beforeEach(() => {
-    // enableJsonOutput resets all state.
-    enableJsonOutput(false);
+    disableJsonOutput();
     vi.clearAllMocks();
   });
 
@@ -261,9 +261,11 @@ describe('JSON Output Utilities', () => {
       expect(getJsonData().changelogs).toEqual([]);
     });
 
-    it('should not add data when JSON output is not enabled', () => {
-      // beforeEach's enableJsonOutput(false) still turns JSON mode on, so data accumulates.
-      addChangelogData({
+    it('should not add data when JSON output is not enabled', async () => {
+      vi.resetModules();
+      const fresh = await import('../../../src/utils/jsonOutput.js');
+
+      fresh.addChangelogData({
         packageName: 'my-package',
         version: '1.0.0',
         previousVersion: null,
@@ -272,7 +274,7 @@ describe('JSON Output Utilities', () => {
         entries: [],
       });
 
-      expect(getJsonData().changelogs).toHaveLength(1);
+      expect(fresh.getJsonData().changelogs).toEqual([]);
     });
   });
 
