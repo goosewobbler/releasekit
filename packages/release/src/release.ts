@@ -347,7 +347,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   if (!options.skipPublish) {
     info('Publishing...');
     try {
-      // Stage everything the version step wrote: `updates` names one manifest per package, not a hybrid's Cargo.toml.
+      // Stage what `updates` misses, e.g. a hybrid's Cargo.toml.
       publishOutput = await runPublishStep(versionOutput, options, releaseNotes, [...versionFiles, ...notesFiles]);
     } catch (err) {
       // On a partial-publish failure the pipeline throws a PipelineError carrying the per-package

@@ -302,7 +302,7 @@ describe('prepare stage', () => {
     expect(ctx.additionalFiles ?? []).not.toContain(lockPath);
   });
 
-  it("should stage a hybrid package's Cargo.toml, which its package.json update doesn't cover", async () => {
+  it("should stage a hybrid package's Cargo.toml", async () => {
     const dir = createTmpDir();
     const pkgDir = path.join(dir, 'packages', 'foo');
     fs.mkdirSync(pkgDir, { recursive: true });
