@@ -65,7 +65,7 @@ When `publish` fails partway, its error envelope carries what already landed in 
 |---|---|---|
 | `GENERAL_ERROR` | `general` | 1 |
 | `CONFIG_ERROR` | `config` | 2 |
-| `INPUT_ERROR` / `INPUT_PARSE_ERROR` | `input` | 3 |
+| `INPUT_ERROR` | `input` | 3 |
 | `TEMPLATE_ERROR` | `template` | 4 |
 | `LLM_ERROR` | `llm` | 5 |
 | `GITHUB_ERROR` | `github` | 6 |
