@@ -104,6 +104,16 @@ describe('buildLedger', () => {
     const ledger = buildLedger(versionOutput, publishOutput);
     expect(ledger[0]?.status).toBe('failed');
   });
+
+  it('should include pub.dev results', () => {
+    const versionOutput = versionOutputFor([{ name: 'my_package', version: '1.0.0' }]);
+    const publishOutput = publishOutputFor([]);
+    publishOutput.pub = [
+      { packageName: 'my_package', version: '1.0.0', registry: 'pub', success: false, skipped: false, reason: 'boom' },
+    ];
+
+    expect(buildLedger(versionOutput, publishOutput)[0]).toMatchObject({ status: 'failed', registry: 'pub' });
+  });
 });
 
 describe('renderFailureReport', () => {

@@ -89,9 +89,9 @@ export function createBackfillCommand(): Command {
       const updateReleases: boolean = options.updateReleases === true;
       const onlyMissing: boolean = options.onlyMissing === true;
       const notesConfig = loadNotesConfig(cwd, options.config);
-      const publishConfig = loadPublishConfig(cwd, options.config);
-      const releaseNotesEnabled = notesConfig.releaseNotes !== false && notesConfig.releaseNotes !== undefined;
-      const dir = releaseNotesEnabled ? notesConfig.releaseNotes?.file?.dir : undefined;
+      const publishConfig = loadPublishConfig({ cwd, configPath: options.config });
+      const releaseNotes = notesConfig.releaseNotes === false ? undefined : notesConfig.releaseNotes;
+      const dir = releaseNotes?.file?.dir;
       if (!dir && !updateReleases) {
         error(
           'Backfill needs an output: pass --update-releases to update GitHub release bodies, or set ' +
@@ -99,7 +99,7 @@ export function createBackfillCommand(): Command {
         );
         process.exit(EXIT_CODES.GENERAL_ERROR);
       }
-      if (updateReleases && !releaseNotesEnabled) {
+      if (updateReleases && !releaseNotes) {
         error('--update-releases needs notes.releaseNotes enabled in your config to render the bodies.');
         process.exit(EXIT_CODES.GENERAL_ERROR);
       }
@@ -147,9 +147,9 @@ export function createBackfillCommand(): Command {
       }
 
       // Estimate and warn about LLM cost if not in --no-llm mode and LLM is enabled
-      const llmEnabled = !noLlm && notesConfig.releaseNotes?.llm;
+      const llmEnabled = !noLlm && releaseNotes?.llm;
       if (llmEnabled && totalReleaseCount > 0) {
-        const llmConfig = notesConfig.releaseNotes?.llm;
+        const llmConfig = releaseNotes?.llm;
         const enabledTasks = countEnabledLlmTasks(llmConfig?.tasks);
         warn(
           `Estimated cost: ~${totalReleaseCount} release(s) × ${enabledTasks} LLM task(s). ` +
@@ -196,7 +196,7 @@ export function createBackfillCommand(): Command {
 
         // Override LLM config if --no-llm is set
         const adjustedNotesConfig = noLlm
-          ? { ...notesConfig, releaseNotes: { ...notesConfig.releaseNotes, llm: undefined } }
+          ? { ...notesConfig, releaseNotes: { ...releaseNotes, llm: undefined } }
           : notesConfig;
 
         // Render one version per pipeline call (single context each). The pipeline's nesting decision

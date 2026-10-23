@@ -7,5 +7,6 @@ export default defineConfig({
   bundle: true,
   dts: { resolve: ['@releasekit/core', '@releasekit/config', '@releasekit/git'] },
   noExternal: ['@releasekit/core', '@releasekit/config', '@releasekit/git'],
-  external: [/^[^.]/],
+  // Bare package names only: the declaration build also checks resolved absolute paths, and @releasekit/* is bundled.
+  external: [/^(?![./]|[A-Za-z]:[\\/]|@releasekit\/)/],
 } as Options);

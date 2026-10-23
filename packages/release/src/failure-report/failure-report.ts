@@ -1,5 +1,5 @@
 import { markerData, type VersionOutput } from '@releasekit/core';
-import type { PublishOutput } from '@releasekit/publish';
+import type { PublishOutput, PublishResult } from '@releasekit/publish';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
 
@@ -71,8 +71,8 @@ export interface LedgerEntry {
   packageName: string;
   version: string;
   status: LedgerStatus;
-  /** Registry the result came from (npm/cargo), when known. */
-  registry?: 'npm' | 'cargo';
+  /** Registry the result came from, when known. */
+  registry?: PublishResult['registry'];
   /** Human-readable detail — the skip reason or failure reason. */
   detail?: string;
 }
@@ -101,7 +101,7 @@ const STATUS_LABEL: Record<LedgerStatus, string> = {
  */
 export function buildLedger(versionOutput: VersionOutput, publishOutput: PublishOutput | undefined): LedgerEntry[] {
   const updates = publishableUpdates(versionOutput);
-  const results = [...(publishOutput?.npm ?? []), ...(publishOutput?.cargo ?? [])];
+  const results = [...(publishOutput?.npm ?? []), ...(publishOutput?.cargo ?? []), ...(publishOutput?.pub ?? [])];
 
   // Index results by package name. A package may appear once (single registry) — when it appears
   // on multiple registries, prefer a failed/published entry over a skipped one so the headline
