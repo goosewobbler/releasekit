@@ -191,16 +191,21 @@ describe('createVersionCommand', () => {
       const relProject = 'app';
       const absProject = path.join(invocationDir, relProject);
       let cwd = invocationDir;
-      vi.spyOn(process, 'chdir').mockImplementation((dir) => {
+      const chdir = vi.spyOn(process, 'chdir').mockImplementation((dir) => {
         cwd = path.resolve(cwd, String(dir));
       });
-      vi.spyOn(process, 'cwd').mockImplementation(() => cwd);
+      const getCwd = vi.spyOn(process, 'cwd').mockImplementation(() => cwd);
 
-      await createVersionCommand().parseAsync(['node', 'test', '--project-dir', relProject]);
+      try {
+        await createVersionCommand().parseAsync(['node', 'test', '--project-dir', relProject]);
 
-      expect(configModule.loadConfig).toHaveBeenCalledWith(
-        expect.objectContaining({ cwd: absProject, configPath: undefined }),
-      );
+        expect(configModule.loadConfig).toHaveBeenCalledWith(
+          expect.objectContaining({ cwd: absProject, configPath: undefined }),
+        );
+      } finally {
+        chdir.mockRestore();
+        getCwd.mockRestore();
+      }
     });
 
     it('should resolve a relative --output against the invocation directory, before --project-dir changes it', async () => {
