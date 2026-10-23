@@ -23,24 +23,6 @@ vi.mock('node:fs');
 vi.mock('node:path');
 vi.mock('semver');
 
-const { getPackageVersionFallback } = vi.hoisted(() => ({
-  getPackageVersionFallback: vi.fn().mockImplementation((pkgPath) => {
-    if (!fs.existsSync(pkgPath || '')) {
-      throw new Error('Neither package.json nor Cargo.toml found');
-    }
-
-    try {
-      const packageJson = JSON.parse(fs.readFileSync(pkgPath || '', 'utf-8'));
-      if (!packageJson.version) {
-        return '0.1.0';
-      }
-      return packageJson.version;
-    } catch (_) {
-      throw new Error('Neither package.json nor Cargo.toml found');
-    }
-  }),
-}));
-
 describe('Version Calculator', () => {
   const defaultConfig: Partial<Config> = {
     preset: 'angular',
@@ -76,10 +58,6 @@ describe('Version Calculator', () => {
         version: latestTag,
         reason: 'Git tag exists',
       };
-    });
-
-    getPackageVersionFallback.mockImplementation((_packageDir, _name, _releaseType, _config, _initialVersion) => {
-      return '1.0.0';
     });
 
     vi.spyOn(semver, 'clean').mockImplementation((version) =>
@@ -1223,48 +1201,6 @@ describe('Version Calculator', () => {
       const version = await calculateVersion(config as Config, options);
       expect(versionUtils.bumpVersion).toHaveBeenCalledWith('1.0.0', 'patch', undefined);
       expect(version).toBe('1.0.1');
-    });
-
-    it('should throw error if package.json does not exist', async () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(false);
-
-      getPackageVersionFallback.mockImplementationOnce(() => {
-        throw new Error(
-          'Neither package.json nor Cargo.toml found. Checked paths: undefined/package.json, undefined/Cargo.toml',
-        );
-      });
-
-      expect(() => {
-        getPackageVersionFallback(undefined, 'test-package', 'minor', undefined, '0.1.0');
-      }).toThrow('Neither package.json nor Cargo.toml found');
-    });
-
-    it('should use initialVersion if package.json has no version property', async () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
-      vi.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify({}));
-
-      getPackageVersionFallback.mockReturnValueOnce('0.1.0');
-
-      const version = getPackageVersionFallback(undefined, 'test-package', 'minor', undefined, '0.1.0');
-
-      expect(version).toBe('0.1.0');
-    });
-
-    it('should throw error if package.json read fails', async () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
-      vi.spyOn(fs, 'readFileSync').mockImplementation(() => {
-        throw new Error('Failed to read file');
-      });
-
-      getPackageVersionFallback.mockImplementationOnce(() => {
-        throw new Error(
-          'Neither package.json nor Cargo.toml found. Checked paths: undefined/package.json, undefined/Cargo.toml',
-        );
-      });
-
-      expect(() => {
-        getPackageVersionFallback(undefined, 'test-package', 'minor', undefined, '0.1.0');
-      }).toThrow('Neither package.json nor Cargo.toml found');
     });
   });
 
