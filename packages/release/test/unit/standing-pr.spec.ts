@@ -2076,6 +2076,23 @@ describe('runStandingPRUpdate', () => {
     expect(result.prNumber).toBe(42);
   });
 
+  it('should create only the ReleaseKit labels missing from the repo', async () => {
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+    vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const forge = await mockForge({ standingPR: openStandingPR(99), labelNames: ['release', 'Bump:Minor'] });
+
+    const result = await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(result.action).toBe('updated');
+    const created = forge.createdLabels.map((l) => l.name);
+    expect(created).toContain('bump:patch');
+    expect(created).not.toContain('release');
+    expect(created).not.toContain('bump:minor');
+  });
+
   describe('standing-PR labels as overrides', () => {
     async function setupWithStandingPRLabels(labelNames: string[]) {
       const { runVersionStep, runNotesStep } = await import('../../src/steps.js');

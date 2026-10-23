@@ -388,6 +388,17 @@ describe('GitHubForge', () => {
       expect(await forge.listLabelNames()).toEqual(['a', 'b']);
     });
 
+    it('should list label names from every page', async () => {
+      const { octokit, fns } = makeOctokit();
+      fns.iterator.mockReturnValue(pages([{ name: 'a' }, { name: 'b' }], [{ name: 'c' }]));
+
+      expect(await new GitHubForge(octokit, 'o', 'r').listLabelNames()).toEqual(['a', 'b', 'c']);
+      expect(fns.iterator).toHaveBeenCalledWith(
+        { __ref: 'listLabelsForRepo' },
+        { owner: 'o', repo: 'r', per_page: 100 },
+      );
+    });
+
     it('should set a commit status', async () => {
       const { octokit, fns } = makeOctokit();
       await new GitHubForge(octokit, 'o', 'r').setCommitStatus({

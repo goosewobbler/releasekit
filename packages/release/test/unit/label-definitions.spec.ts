@@ -128,9 +128,7 @@ describe('syncLabels', () => {
     expect(forge.createdLabels).toHaveLength(2);
   });
 
-  it('should treat a 422 with already_exists error code as idempotent', async () => {
-    // The forge resolves an already-existing label to 'exists' (the raw-422 'already_exists'
-    // detection now lives in the GitHubForge adapter). Seed the existing label to reproduce it.
+  it('should not request a create for labels the repo already has', async () => {
     const forge = createFakeForge({ labelNames: ['bump:minor'] });
     const defs: LabelDefinition[] = [
       { name: 'bump:minor', color: '0e8a16', description: 'x' },
@@ -141,6 +139,43 @@ describe('syncLabels', () => {
 
     expect(result.existing).toEqual(['bump:minor']);
     expect(result.created).toEqual(['release:skip']);
+    expect(forge.createdLabels.map((l) => l.name)).toEqual(['release:skip']);
+  });
+
+  it('should match existing labels case-insensitively', async () => {
+    const forge = createFakeForge({ labelNames: ['Bump:Minor', 'RELEASE:SKIP'] });
+    const defs: LabelDefinition[] = [
+      { name: 'bump:minor', color: '0e8a16', description: 'x' },
+      { name: 'release:skip', color: 'd93f0b', description: 'y' },
+    ];
+
+    const result = await syncLabels(forge, defs);
+
+    expect(result.existing).toEqual(['bump:minor', 'release:skip']);
+    expect(forge.createdLabels).toHaveLength(0);
+  });
+
+  it('should list the repo labels once however many definitions there are', async () => {
+    const forge = createFakeForge();
+    const listSpy = vi.spyOn(forge, 'listLabelNames');
+    const defs: LabelDefinition[] = [
+      { name: 'bump:minor', color: '0e8a16', description: 'x' },
+      { name: 'release:skip', color: 'd93f0b', description: 'y' },
+    ];
+
+    await syncLabels(forge, defs);
+
+    expect(listSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should count a label created by another run after the listing as existing', async () => {
+    const forge = createFakeForge({ labelNames: ['bump:minor'] });
+    vi.spyOn(forge, 'listLabelNames').mockResolvedValueOnce([]);
+    const defs: LabelDefinition[] = [{ name: 'bump:minor', color: '0e8a16', description: 'x' }];
+
+    const result = await syncLabels(forge, defs);
+
+    expect(result).toEqual({ created: [], existing: ['bump:minor'] });
   });
 
   it('should rethrow 422 validation errors (e.g. label name too long) so the caller sees the real failure', async () => {

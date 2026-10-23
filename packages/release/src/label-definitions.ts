@@ -131,17 +131,19 @@ export interface LabelSyncResult {
 }
 
 /**
- * Idempotently create every config-implied label that is missing from the repo. Already-existing
- * labels are left untouched (createLabel throws 422; ignored). Returns which labels were created
- * vs already present.
+ * Create every config-implied label that is missing from the repo. Labels already present are never
+ * requested: each rejected create is logged by Octokit as a 422 and reads like a failure in CI.
  */
 export async function syncLabels(forge: Forge, definitions: LabelDefinition[]): Promise<LabelSyncResult> {
+  const repoLabels = await listRepoLabelNames(forge);
   const created: string[] = [];
   const existing: string[] = [];
 
   for (const def of definitions) {
-    // The forge treats GitHub's "already exists" 422 as idempotent (returns 'exists') and surfaces
-    // any other failure (auth, rate limit, validation) by throwing.
+    if (repoLabels.has(def.name.toLowerCase())) {
+      existing.push(def.name);
+      continue;
+    }
     const result = await forge.createLabel({ name: def.name, color: def.color, description: def.description });
     (result === 'created' ? created : existing).push(def.name);
   }
