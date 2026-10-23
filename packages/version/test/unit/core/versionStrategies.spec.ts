@@ -220,6 +220,17 @@ describe('Version Strategies', () => {
       expect(jsonOutput.setPackageUpdateTag).not.toHaveBeenCalled();
     });
 
+    it('should update pubspec.yaml in sync mode when npm is disabled', async () => {
+      const config: Partial<Config> = { ...defaultConfig, sync: true, npm: { enabled: false } };
+      await strategies.createSyncStrategy(config as Config)(mockPackages);
+
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/test/workspace/packages/a/pubspec.yaml',
+        '1.1.0',
+        false,
+      );
+    });
+
     it('should still version Cargo.toml and not abandon it when npm handling is disabled on a hybrid repo', async () => {
       // The existsSync mock makes every package a hybrid (package.json & Cargo.toml).
       const config: Partial<Config> = { ...defaultConfig, sync: true, npm: { enabled: false } };
@@ -760,6 +771,17 @@ describe('Version Strategies', () => {
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
       expect(jsonOutput.setPackageUpdateTag).toHaveBeenCalledWith('package-a', 'v1.1.0');
       expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a v1.1.0');
+    });
+
+    it('should update pubspec.yaml in single mode', async () => {
+      const config: Partial<Config> = { ...defaultConfig, mainPackage: 'package-a' };
+      await strategies.createSingleStrategy(config as Config)(mockPackages);
+
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/test/workspace/packages/a/pubspec.yaml',
+        '1.1.0',
+        false,
+      );
     });
 
     it('should warn and omit previousVersion when the baseline tag is unverifiable', async () => {
