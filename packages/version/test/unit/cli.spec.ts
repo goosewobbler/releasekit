@@ -187,8 +187,7 @@ describe('createVersionCommand', () => {
     });
 
     it('should resolve a relative --output against the invocation directory, before --project-dir changes it', async () => {
-      // `version --project-dir app --output v.json && publish --input v.json` must find the file where the
-      // caller put it. Model the chdir so a path resolved after it would land inside --project-dir.
+      // Model the chdir, so a path resolved after it would land inside --project-dir.
       const invocationDir = process.cwd();
       let cwd = invocationDir;
       const chdir = vi.spyOn(process, 'chdir').mockImplementation((dir) => {

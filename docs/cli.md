@@ -27,20 +27,24 @@ Every command that produces a JSON result — `release`, `gate`, `standing-pr`, 
   "schemaVersion": 1,   // envelope contract version; stable across minor releases
   "status": "success",  // "success" | "error"
   "changed": true,      // did the command change state, or was everything already as desired?
-  "data": { /* … */ },  // command-specific payload (VersionOutput, gate result, …); null on error, except partial progress
+  "data": { /* … */ },  // command-specific payload (VersionOutput, gate result, …); null on error, except a partial publish
   "warnings": [{ "code": "…", "message": "…" }],
   "errors": [{ "code": "…", "category": "…", "retryable": false, "message": "…" }]
 }
 ```
 
-- **`data`** carries the command's payload verbatim — the envelope wraps it, never replaces it. `releasekit release --json` still exposes its `VersionOutput` at `data.versionOutput`, and `releasekit version --json` exposes it at `data`. It is `null` on error, except for a `publish` pipeline failure, which carries the partial output in `data` — check `changed` for whether anything actually landed (see the chaining section below).
-- **`changed`** separates real work from a no-op: a dry run is never `changed`; `publish` is `changed` when it published to a registry or created the release commit; `standing-pr publish` reads its registry results (the merge already made the commit), so a re-run where every version was already published reports `changed: false`; `gate` is read-only and always `changed: false`.
+- **`data`** carries the command's payload verbatim — the envelope wraps it, never replaces it. `releasekit release --json` exposes its `VersionOutput` at `data.versionOutput`, and `releasekit version --json` at `data`. It is `null` on error, except after a partial `publish` (see below).
+- **`changed`** separates real work from a no-op:
+  - A dry run is never `changed`.
+  - `publish`: a registry publish or a new release commit.
+  - `standing-pr publish`: registry publishes only, since the merge already made the commit. A re-run where every version was already published reports `false`.
+  - `gate` is read-only, so always `false`.
 - **`errors[]`** replaces prose-only failures in JSON mode. Each carries a stable machine `code`, a coarse `category`, a `retryable` flag (only `true` for known-transient failures — a timeout, 429, or 5xx from a provider — so an agent never retries an unknown failure), and a human `message`.
 - **Stream discipline:** the envelope is the only thing on stdout; all diagnostics (progress, warnings, error text) go to stderr. Parsing stdout as JSON is always safe, and no command prompts interactively on a CI path.
 
 ### Chaining `version`, `notes`, and `publish`
 
-`notes` and `publish` unwrap the envelope on the way in and read the `VersionOutput` from `data`. `notes` consumes the `VersionOutput` and writes changelogs and release notes; it never passes the `VersionOutput` on, so it can't sit in the middle of a pipe. Hand the same file to each stage instead, and stage what `notes` wrote — `publish` commits the files `version` changed plus whatever is already staged:
+`notes` and `publish` read the `VersionOutput` from the envelope's `data`. `notes` doesn't print it back out, so it can't sit mid-pipe: give each stage the same file. `publish` commits the files `version` changed plus whatever is staged, so stage the changelogs `notes` wrote first:
 
 ```sh
 releasekit version --output version.json
@@ -51,9 +55,9 @@ releasekit publish --input version.json
 
 `publish` also reads stdin, so `releasekit version --json | releasekit publish` works when no notes step is needed.
 
-A bare `VersionOutput` is still accepted on input, so a hand-assembled file or output from an older releasekit keeps working. Piping a *failed* stage forward fails with that stage's error rather than a schema complaint about missing fields — the message names the upstream code, so the report points at the stage that actually broke.
+A bare `VersionOutput` is still accepted. Feeding a failed stage's envelope forward fails as an input error (exit 3) whose message names that stage's code, rather than a schema error about missing fields.
 
-When `publish` fails partway, its error envelope carries what already landed in `data`, and reports `changed: true` if anything did (a registry publish or the release commit); the failing stage is named in the error `message`. Registry publishes are idempotent — versions already on the registry are skipped on a later run — but the standalone `publish` also makes the release commit, so re-running it in the same working tree stops at the git-commit stage: there is nothing left to commit.
+When `publish` fails partway, its error envelope carries what already landed in `data`, reports `changed: true` if anything did, and names the failing stage in the error `message`. A re-run skips versions already on the registry, but not the release commit: the git-commit stage runs before the registry publishes and finds nothing to commit, so re-running `publish` on the same tree fails there. Resuming a partial `publish` isn't supported yet.
 
 ### Error codes and exit codes
 
@@ -69,7 +73,7 @@ When `publish` fails partway, its error envelope carries what already landed in 
 | `VERSION_ERROR` | `version` | 8 |
 | `PUBLISH_ERROR` | `publish` | 9 |
 
-Commands throw more specific codes than these nine families — `INPUT_VALIDATION_ERROR`, `PIPELINE_STAGE_ERROR`, and so on. The `code` in `errors[]` is that specific code; the **exit code** is its family's, so a script can branch on the family without enumerating every code — `publish` exits `3` for any input problem (`INPUT_PARSE_ERROR`, `INPUT_VALIDATION_ERROR`, or a failed upstream envelope) and `2` for an invalid config. `publish` reports any failure inside its pipeline as `PIPELINE_STAGE_ERROR` (exit `9`), naming the failing stage in the message. This holds for `version` and `publish`, and for `release` and `standing-pr`, which report an error from their version, notes, or publish stage with that stage's own code.
+Commands report more specific codes than these nine (`INPUT_VALIDATION_ERROR`, `PIPELINE_STAGE_ERROR`, …). `errors[].code` is the specific code and the exit code is its family's, so scripts can branch on the family. For example, `publish` exits 3 for any input problem, 2 for an invalid config, and 9 for any pipeline failure (`PIPELINE_STAGE_ERROR`, with the failing stage in the message). `release` and `standing-pr` report a failing stage's own code.
 
 `schemaVersion` bumps only on a breaking change to the envelope shape and is stable across minor releases, so agents and CI can pin against it. A consumer reading an envelope from a **newer** producer fails with a version-mismatch error rather than acting on a payload whose shape it may not understand.
 

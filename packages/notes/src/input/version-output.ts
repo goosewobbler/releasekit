@@ -65,7 +65,6 @@ export function parseVersionOutput(json: string): ChangelogInput {
     throw new InputParseError(`Invalid JSON input: ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  // Unwrap here rather than at each call site — this covers the string, file, and stdin entries at once.
   try {
     data = unwrapEnvelope(data);
   } catch (error) {

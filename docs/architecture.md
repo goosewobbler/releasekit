@@ -58,7 +58,7 @@ A conceptual overview for contributors and users evaluating ReleaseKit.
 
 ## Why three separate CLIs
 
-Each package — `@releasekit/version`, `@releasekit/notes`, `@releasekit/publish` — is a standalone CLI that reads from stdin or a file and writes to stdout or disk. They chain through the `VersionOutput` file (`notes` consumes it without passing it on, so it can't sit mid-pipe), with the changelog staged so `publish` includes it in the release commit:
+Each package — `@releasekit/version`, `@releasekit/notes`, `@releasekit/publish` — is a standalone CLI that reads from stdin or a file and writes to stdout or disk. They chain through a file rather than a pipe, because `notes` doesn't pass the `VersionOutput` on. Stage the changelog so `publish` commits it:
 
 ```
 releasekit-version --output version.json

@@ -4,11 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { type Envelope, errorEnvelope, toEnvelopeError } from './envelope.js';
 import { log } from './logger.js';
 
-/**
- * Write an envelope to the JSON channel: `--output` when given, otherwise stdout under `--json`, and
- * nothing at all when neither is set. `--output` is the reliable channel — stdout can be polluted by
- * subprocess or log noise, and a single stray byte breaks JSON parsing.
- */
+/** Writes to `--output` if given, else to stdout under `--json`, else nothing. */
 export function writeEnvelope(envelope: Envelope, opts: { json?: boolean; output?: string }): void {
   if (!opts.json && !opts.output) {
     return;
@@ -22,9 +18,8 @@ export function writeEnvelope(envelope: Envelope, opts: { json?: boolean; output
   try {
     fs.writeFileSync(opts.output, text);
   } catch (err) {
-    // An unwritable --output fails the command: rethrow a result write so the caller's error path runs.
-    // That path writes its error envelope to the same file and fails again — note it on stderr instead of
-    // throwing out of the error handler, which would crash with a stack and bury the original failure.
+    // A failed result write rethrows so the command fails; a failed error-envelope write only logs, so the
+    // original error isn't buried.
     if (envelope.status !== 'error') {
       throw err;
     }
@@ -35,7 +30,6 @@ export function writeEnvelope(envelope: Envelope, opts: { json?: boolean; output
   }
 }
 
-/** Write a thrown value to the JSON channel as a single-error envelope. */
 export function writeErrorEnvelope(error: unknown, opts: { json?: boolean; output?: string }): void {
   writeEnvelope(errorEnvelope([toEnvelopeError(error)]), opts);
 }

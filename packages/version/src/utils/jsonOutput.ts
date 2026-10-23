@@ -326,12 +326,7 @@ export function getJsonData(): VersionOutput {
   return { ..._jsonData };
 }
 
-/**
- * Emit the collected `VersionOutput` as the `data` of the uniform CLI envelope, which `notes` and
- * `publish` unwrap on the way in.
- *
- * A dry run writes nothing, so it is never `changed`.
- */
+/** Print the collected `VersionOutput` as an envelope's `data`. */
 export function printJsonOutput(outputPath?: string): void {
   if (!_jsonOutputMode) {
     return;

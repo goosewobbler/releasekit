@@ -56,7 +56,7 @@ export async function parseInput(inputPath?: string): Promise<VersionOutput> {
     throw createPublishError(PublishErrorCode.INPUT_PARSE_ERROR, 'Input is not valid JSON');
   }
 
-  // Re-raise an upstream failure as an input error, so it reaches the caller as this stage's own code.
+  // An unusable or failed upstream envelope is an input error (exit 3).
   try {
     parsed = unwrapEnvelope(parsed);
   } catch (err) {

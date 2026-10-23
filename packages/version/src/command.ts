@@ -31,8 +31,7 @@ export function createVersionCommand(): Command {
     )
     .option('--project-dir <path>', 'Project directory to run commands in', process.cwd())
     .action(async (options) => {
-      // Resolve --output against the invocation directory before --project-dir changes it, so the file
-      // lands where the caller asked (as `release --output` does) on every path, success or error.
+      // Resolve before --project-dir chdirs, so the file lands where the caller asked (as `release --output` does).
       const output: string | undefined = options.output ? path.resolve(options.output) : undefined;
       const io = { json: options.json, output };
 

@@ -67,7 +67,7 @@ releasekit-version --prerelease beta
 | `--project-dir <path>` | Project directory | cwd |
 | `-d, --dry-run` | Preview without file changes or git operations | `false` |
 | `-j, --json` | Output results as a JSON envelope (see below) | `false` |
-| `--output <path>` | Write the JSON envelope to a file instead of stdout (resolved against the directory you run from) | — |
+| `--output <path>` | Write the JSON envelope to a file instead of stdout (relative to where you run it, not `--project-dir`) | stdout |
 
 ## JSON Output
 

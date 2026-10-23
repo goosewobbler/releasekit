@@ -83,7 +83,7 @@ Before failing the stage, the npm and cargo publish steps automatically retry **
 | `--skip-github-release` | Skip GitHub Release creation | `false` |
 | `--skip-verification` | Skip post-publish verification | `false` |
 | `--json` | Output results as a JSON [envelope](../../docs/cli.md#json-output-contract) | `false` |
-| `--output <path>` | Write the JSON envelope to a file instead of stdout | — |
+| `--output <path>` | Write the JSON envelope to a file instead of stdout | stdout |
 | `--verbose` | Verbose logging | `false` |
 
 ## Integration with @releasekit/version

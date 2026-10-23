@@ -89,7 +89,7 @@ export function createStandingPRCommand(): Command {
 
     try {
       const result = await runStandingPRPublish(options, prNumber);
-      // The manifest's versions are already on main even when nothing published, so ask the publish output.
+      // The manifest is on main whether or not anything published, so `changed` comes from the publish output.
       emitResult(result, { json: opts.json, output: opts.output, changed: publishDidChange(result?.publishOutput) });
     } catch (err) {
       emitError(err, { json: opts.json, output: opts.output });

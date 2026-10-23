@@ -52,10 +52,7 @@ export function successEnvelope<T>(
   };
 }
 
-/**
- * `data` and `changed` are for commands that fail partway with progress to report: a publish that
- * failed after landing some packages knows what landed, and the retry needs it.
- */
+/** `data` and `changed` report progress made before the failure, e.g. what a partial publish landed. */
 export function errorEnvelope<T = null>(
   errors: EnvelopeError[],
   opts: { warnings?: EnvelopeWarning[]; data?: T; changed?: boolean } = {},
@@ -79,9 +76,8 @@ function isEnvelope(value: unknown): value is Envelope {
 const KNOWN_STATUSES = new Set<EnvelopeStatus>(['success', 'error']);
 
 /**
- * Unwrap a piped envelope to its payload; a bare payload passes through unchanged, so a
- * hand-assembled input or an older releasekit still works. Throws on anything unusable, so the error
- * names the cause instead of surfacing later as a shape error about the payload.
+ * Returns an envelope's `data`, or a bare payload unchanged. Throws on an envelope it can't use (newer
+ * schema, error status, no data), so the failure names its cause.
  */
 export function unwrapEnvelope(value: unknown): unknown {
   if (!isEnvelope(value)) {
@@ -115,10 +111,7 @@ export function unwrapEnvelope(value: unknown): unknown {
   return value.data;
 }
 
-/**
- * The documented code → exit-code table (docs/cli.md): every specific code maps to one of the nine
- * families, so automation can branch on the exit code instead of getting the generic 1.
- */
+/** Maps each code to its family's exit code (docs/cli.md); unknown codes exit 1. */
 const CODE_TO_EXIT: Record<string, number> = {
   CONFIG_ERROR: EXIT_CODES.CONFIG_ERROR,
   INPUT_ERROR: EXIT_CODES.INPUT_ERROR,
@@ -131,8 +124,7 @@ const CODE_TO_EXIT: Record<string, number> = {
   VERSION_ERROR: EXIT_CODES.VERSION_ERROR,
   PUBLISH_ERROR: EXIT_CODES.PUBLISH_ERROR,
 
-  // @releasekit/version. Config and workspace discovery are configuration problems (the `packages`
-  // globs matched nothing, or the config is unreadable); the rest are git or versioning failures.
+  // @releasekit/version: discovery failures mean bad `packages` globs, so they're config errors.
   CONFIG_REQUIRED: EXIT_CODES.CONFIG_ERROR,
   INVALID_CONFIG: EXIT_CODES.CONFIG_ERROR,
   UNSAFE_CONFIG_PATH: EXIT_CODES.CONFIG_ERROR,
@@ -148,8 +140,7 @@ const CODE_TO_EXIT: Record<string, number> = {
   NO_FILES: EXIT_CODES.VERSION_ERROR,
   CARGO_LOCK_SYNC_ERROR: EXIT_CODES.VERSION_ERROR,
 
-  // @releasekit/publish. Registry auth and publish failures are publish errors; a malformed package
-  // manifest is a configuration problem; the git and GitHub stages map to their own families.
+  // @releasekit/publish: a malformed manifest is a config error.
   PIPELINE_STAGE_ERROR: EXIT_CODES.PUBLISH_ERROR,
   NPM_AUTH_ERROR: EXIT_CODES.PUBLISH_ERROR,
   NPM_PUBLISH_ERROR: EXIT_CODES.PUBLISH_ERROR,

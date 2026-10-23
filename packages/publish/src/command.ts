@@ -68,8 +68,7 @@ export function createPublishCommand(): Command {
         writeEnvelope(successEnvelope(output, { changed: publishDidChange(output) }), io);
       } catch (err) {
         if (err instanceof PipelineError) {
-          // Carry what landed before the failure, so the caller can see what is already out. `failedStage`
-          // has no envelope field of its own, so it goes in the message rather than being dropped.
+          // The envelope has no stage field, so name the failed stage in the message; `data` keeps what landed.
           const error = toEnvelopeError(err);
           writeEnvelope(
             errorEnvelope([{ ...error, message: `publish failed in the ${err.failedStage} stage: ${error.message}` }], {

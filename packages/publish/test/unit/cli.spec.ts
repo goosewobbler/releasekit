@@ -3,8 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Partial mock: the envelope builders and writer must stay real, since these tests assert on the
-// envelope the command actually emits. Only the logging setters are stubbed, to assert they're wired.
+// Keep the real envelope helpers, since the tests assert on what's emitted; stub only the logging setters.
 vi.mock('@releasekit/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@releasekit/core')>()),
   setJsonMode: vi.fn(),
