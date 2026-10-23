@@ -185,7 +185,7 @@ describe('runRelease', () => {
     mockFetchPRLabels.mockResolvedValue([]);
     mockLoadReleaseKitConfig.mockReturnValue({});
     mockLoadCIConfig.mockReturnValue(undefined);
-    mockVersionLoadConfig.mockReturnValue({ preset: 'conventional-commits' });
+    mockVersionLoadConfig.mockReturnValue({ preset: 'conventionalcommits' });
     mockVersionEngineGetWorkspacePackages.mockResolvedValue({
       packages: [{ packageJson: { name: 'test-pkg' }, dir: '/test/project' }],
       root: '/test/project',
@@ -698,7 +698,7 @@ describe('runRelease', () => {
       vi.clearAllMocks();
 
       mockLoadReleaseKitConfig.mockReturnValue({});
-      mockVersionLoadConfig.mockReturnValue({ preset: 'conventional-commits' });
+      mockVersionLoadConfig.mockReturnValue({ preset: 'conventionalcommits' });
       mockVersionEngineGetWorkspacePackages.mockResolvedValue({
         packages: [{ packageJson: { name: 'test-pkg' }, dir: '/test/project' }],
         root: '/test/project',

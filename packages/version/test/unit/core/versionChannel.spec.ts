@@ -36,7 +36,7 @@ function baselineAt(version: string): void {
 
 /** Stub the conventional-commit recommendation so the inferred magnitude is deterministic. */
 function inferredBump(releaseType: ReleaseType): void {
-  vi.spyOn(Bumper.prototype, 'loadPreset').mockReturnValue({} as Bumper);
+  vi.spyOn(Bumper.prototype, 'config').mockReturnThis();
   vi.spyOn(Bumper.prototype, 'commits').mockReturnThis();
   vi.spyOn(Bumper.prototype, 'bump').mockResolvedValue({ releaseType } as unknown as BumperRecommendationResult);
 }

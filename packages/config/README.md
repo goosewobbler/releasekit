@@ -97,7 +97,7 @@ ReleaseKit uses a single `releasekit.config.json` file:
   },
   "version": {
     "tagTemplate": "v{version}",
-    "preset": "conventional"
+    "preset": "conventionalcommits"
   },
   "publish": {
     "npm": {

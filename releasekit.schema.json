@@ -84,7 +84,11 @@
         },
         "preset": {
           "type": "string",
-          "default": "conventional",
+          "enum": [
+            "angular",
+            "conventionalcommits"
+          ],
+          "default": "conventionalcommits",
           "description": "Commit convention preset"
         },
         "sync": {

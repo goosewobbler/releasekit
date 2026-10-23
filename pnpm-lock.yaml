@@ -622,9 +622,6 @@ importers:
       conventional-changelog-angular:
         specifier: ^9.4.0
         version: 9.4.0
-      conventional-changelog-conventional-commits:
-        specifier: npm:conventional-changelog-conventionalcommits@^10.4.1
-        version: conventional-changelog-conventionalcommits@10.4.1
       conventional-changelog-conventionalcommits:
         specifier: ^10.4.1
         version: 10.4.1

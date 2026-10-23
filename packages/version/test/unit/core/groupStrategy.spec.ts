@@ -45,7 +45,7 @@ function workspace(packages: Package[]): PackagesWithRoot {
 const baseConfig = (overrides: Partial<Config>): Config =>
   ({
     sync: false,
-    preset: 'conventional',
+    preset: 'conventionalcommits',
     packages: [],
     tagTemplate: '${prefix}${version}',
     versionPrefix: '',

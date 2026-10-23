@@ -20,7 +20,7 @@ const mockConfig: Partial<Config> = {
   packages: ['package-a'],
   dryRun: false,
   tagTemplate: 'v{version}',
-  preset: 'conventional',
+  preset: 'conventionalcommits',
 };
 
 const TWO_PACKAGES = {

@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import createAngularPreset from 'conventional-changelog-angular';
 import { Bumper, type BumperRecommendationResult } from 'conventional-recommended-bump';
 import type { ReleaseType } from 'semver';
 import semver from 'semver';
@@ -270,12 +271,6 @@ describe('Version Calculator', () => {
         minor: Number.parseInt(parts[1], 10),
         patch: Number.parseInt(parts[2], 10),
       } as unknown as semver.SemVer;
-    });
-
-    // Mock bumper with properly typed return values
-    vi.spyOn(Bumper.prototype, 'loadPreset').mockImplementation(() => {
-      // Return the Bumper instance (this)
-      return {} as Bumper;
     });
 
     vi.spyOn(Bumper.prototype, 'bump').mockResolvedValue({
@@ -933,10 +928,6 @@ describe('Version Calculator', () => {
 
     it('should use conventional commits when no type or branch pattern matches', async () => {
       // Setup specific mocks
-      vi.spyOn(Bumper.prototype, 'loadPreset').mockImplementation(() => {
-        // Return the Bumper instance (this)
-        return {} as Bumper;
-      });
       vi.spyOn(Bumper.prototype, 'bump').mockResolvedValue({
         releaseType: 'patch',
       } as unknown as BumperRecommendationResult);
@@ -951,8 +942,7 @@ describe('Version Calculator', () => {
       const version = await calculateVersion(defaultConfig as Config, options);
 
       // Verify
-      expect(Bumper.prototype.loadPreset).toHaveBeenCalledWith('angular');
-      expect(Bumper.prototype.bump).toHaveBeenCalled();
+      expect(Bumper.prototype.bump).toHaveBeenCalledWith(createAngularPreset().whatBump);
       expect(versionUtils.bumpVersion).toHaveBeenCalledWith('1.0.0', 'patch', undefined);
       expect(version).toBe('1.0.1');
     });

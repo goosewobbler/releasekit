@@ -14,7 +14,7 @@ This is the default strategy. `releasekit-version` analyzes Git commit messages 
 -   **Minor Bump (e.g., 1.2.3 -> 1.3.0):** Triggered by `feat:` commit types.
 -   **Major Bump (e.g., 1.2.3 -> 2.0.0):** Triggered by commits with `BREAKING CHANGE:` in the footer or `feat!:`, `fix!:` etc. in the header.
 
-The specific preset used for analysis (e.g., "angular", "conventional") can be set using the `preset` option in `releasekit.config.json`.
+The preset used for analysis is set with `version.preset` in `releasekit.config.json`: `conventionalcommits` (the default) or `angular`.
 
 **Format:** `<type>(<scope>): <subject>`
 

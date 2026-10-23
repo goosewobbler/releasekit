@@ -144,8 +144,6 @@ function createIsolatedEnvironment(tarballs: TarballPaths): string {
       '@releasekit/publish': `file:${tarballs.publish}`,
       '@releasekit/version': `file:${tarballs.version}`,
       '@releasekit/release': `file:${tarballs.release}`,
-      'conventional-changelog-angular': '^8.1.0',
-      'conventional-changelog-conventionalcommits': '^9.0.0',
     },
   };
 

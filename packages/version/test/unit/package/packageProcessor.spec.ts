@@ -118,7 +118,7 @@ describe('Package Processor', () => {
   // Mock config
   const mockConfig: Config = {
     sync: false,
-    preset: 'conventional',
+    preset: 'conventionalcommits',
     versionPrefix: 'v',
     tagTemplate: '${prefix}${version}',
     packages: [],
@@ -217,7 +217,7 @@ describe('Package Processor', () => {
       const minimalOptions = {
         getLatestTag: mockGetLatestTag,
         config: {},
-        fullConfig: { preset: 'conventional-commits' } as unknown as Config,
+        fullConfig: { preset: 'conventionalcommits' } as unknown as Config,
       };
 
       const processor = new PackageProcessor(minimalOptions);

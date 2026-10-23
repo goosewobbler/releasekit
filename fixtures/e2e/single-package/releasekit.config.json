@@ -4,7 +4,7 @@
     "branch": "main"
   },
   "version": {
-    "preset": "conventional-commits"
+    "preset": "conventionalcommits"
   },
   "notes": {
     "updateStrategy": "prepend"

@@ -139,7 +139,7 @@ Configure via `releasekit.config.json`:
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `preset` | Conventional commits preset | `"conventionalcommits"` |
+| `preset` | Commit convention preset: `"conventionalcommits"` or `"angular"` | `"conventionalcommits"` |
 | `versionPrefix` | Tag version prefix | `"v"` |
 | `tagTemplate` | Git tag template | `"${prefix}${version}"` |
 | `commitMessage` | Commit message template | `"chore: release ${packageName} v${version}"` |

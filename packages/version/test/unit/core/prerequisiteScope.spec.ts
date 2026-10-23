@@ -13,7 +13,7 @@ function gpkg(name: string, deps: string[]): GraphPackage {
 const baseConfig = (overrides: Partial<Config> = {}): Config =>
   ({
     sync: false,
-    preset: 'conventional',
+    preset: 'conventionalcommits',
     packages: [],
     tagTemplate: '',
     versionPrefix: '',

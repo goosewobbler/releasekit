@@ -167,17 +167,8 @@ function createPackageJson(dir: string, pkg: string, tarballs: Record<PackageNam
   writeFileSync(join(dir, 'package.json'), JSON.stringify(packageJson, null, 2));
 
   // pnpm 11+ reads these only from pnpm-workspace.yaml (not package.json's `pnpm` field or .npmrc).
-  // Disable hoisting so missing dependencies are not masked by sibling installs. We use
-  // publicHoistPattern to allow conventional-changelog presets to be found by the preset loader
-  // (which dynamically imports them across packages).
-  writeFileSync(
-    join(dir, 'pnpm-workspace.yaml'),
-    stringifyYaml({
-      overrides,
-      hoist: false,
-      publicHoistPattern: ['conventional-changelog-*', 'conventional-commits-*'],
-    }),
-  );
+  // Disable hoisting so missing dependencies are not masked by sibling installs.
+  writeFileSync(join(dir, 'pnpm-workspace.yaml'), stringifyYaml({ overrides, hoist: false }));
 }
 
 function testImport(dir: string, pkg: string): void {
@@ -206,7 +197,7 @@ function testReleaseDryRun(dir: string): void {
   writeFileSync(
     join(repoDir, 'releasekit.config.json'),
     JSON.stringify({
-      version: { preset: 'angular', packages: ['./'] },
+      version: { packages: ['./'] },
     }),
   );
 

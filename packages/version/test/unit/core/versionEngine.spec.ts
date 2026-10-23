@@ -47,7 +47,7 @@ describe('Version Engine', () => {
 
   // Default config for tests
   const defaultConfig: Partial<Config> = {
-    preset: 'conventional-commits',
+    preset: 'conventionalcommits',
     sync: true,
     versionPrefix: 'v',
     tagTemplate: '${' + 'packageName}@${' + 'prefix}${' + 'version}',
@@ -83,20 +83,6 @@ describe('Version Engine', () => {
   describe('Constructor', () => {
     it('should throw if no config is provided', () => {
       expect(() => new VersionEngine(undefined as unknown as Config)).toThrow('Configuration is required');
-    });
-
-    it('should set default preset if not provided', () => {
-      const config: Partial<Config> = {
-        sync: true,
-        versionPrefix: 'v',
-        tagTemplate: '${' + 'packageName}@${' + 'prefix}${' + 'version}',
-        packages: [],
-      };
-
-      // Create engine and ignore it to avoid the unused variable warning
-      void new VersionEngine(config as Config);
-
-      expect(log).toHaveBeenCalledWith('No preset specified, using default: conventional-commits', 'warning');
     });
 
     it('should initialize strategies based on config', () => {
