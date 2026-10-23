@@ -12,7 +12,7 @@ function snapshotFor(
   return {
     number: 42,
     url: 'https://github.com/owner/repo/pull/42',
-    openedAt: new Date(Date.now() - 2 * 3_600_000).toISOString(), // 2h ago
+    openedAt: new Date(Date.now() - 2 * 3_600_000).toISOString(),
     gateState: 'success',
     manifest: {
       schemaVersion: 2,
@@ -189,7 +189,6 @@ describe('formatPreviewComment', () => {
       notesGenerated: false,
     };
     const result = formatPreviewComment(noAction);
-    // No empty parenthetical, no "undefined" leaking from the absent field.
     expect(result).toContain('<summary><b>Release Preview</b> — my-lib 1.0.0</summary>');
     expect(result).not.toContain('my-lib 1.0.0 ()');
     expect(result).not.toContain('undefined');
@@ -206,8 +205,7 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('#### Added');
     expect(result).toContain('- New dry-run flag (`cli`)');
     expect(result).toContain('#### Fixed');
-    // Bare #NNN renders as a canonical link by default (refs: 'link'); the ref group carries
-    // its own parens (an entry with no identified PR falls back to the plain list).
+    // Bare #NNN renders as a canonical link by default; the ref group carries its own parens.
     expect(result).toContain(
       '- Fix prerelease sorting (`semver`) ([#42](https://github.com/goosewobbler/releasekit/issues/42))',
     );
@@ -259,8 +257,7 @@ describe('formatPreviewComment', () => {
 
   it('should blockquote the changelog entry content but leave the disclosure tags un-quoted', () => {
     const result = formatPreviewComment(releaseOutput);
-    // The `### Changelog` heading and the <details>/<summary> tags stay un-quoted (raw HTML renders
-    // unreliably under `> `); only the entry content inside carries the blockquote bar.
+    // Raw HTML renders unreliably under `> `.
     expect(result).toContain('### Changelog');
     expect(result).toContain('<details>');
     expect(result).not.toContain('> <details>');
@@ -304,7 +301,6 @@ describe('formatPreviewComment', () => {
           {
             packageName: '@wdio/electron-service',
             version: '10.2.0',
-            // Stored as the consumer tag; the header must strip it to the bare semver.
             previousVersion: 'wdio-electron-service@v10.1.0',
             revisionRange: 'wdio-electron-service@v10.1.0..HEAD',
             repoUrl: null,
@@ -392,7 +388,7 @@ describe('formatPreviewComment', () => {
               previousVersion: '1.0.0',
               revisionRange: 'v1.0.0..HEAD',
               repoUrl: null,
-              entries: [], // no package-specific changes
+              entries: [],
             },
             {
               packageName: 'pkg-b',
@@ -434,8 +430,6 @@ describe('formatPreviewComment', () => {
     expect(result).not.toContain('### Packages');
   });
 
-  // --- Strategy-specific messaging ---
-
   describe('release strategy messaging', () => {
     it('should use direct intro by default', () => {
       const result = formatPreviewComment(releaseOutput);
@@ -462,8 +456,6 @@ describe('formatPreviewComment', () => {
       expect(result).toContain('These changes will be added to the release PR (#99) when merged:');
     });
 
-    // No-changes messages per strategy
-
     it('should show direct no-changes message by default', () => {
       const result = formatPreviewComment(null);
       expect(result).toContain('Merging this PR will not trigger a release');
@@ -485,8 +477,6 @@ describe('formatPreviewComment', () => {
     });
   });
 
-  // --- Standing PR snapshot + merge table ---
-
   describe('standing PR snapshot', () => {
     it('should render the snapshot block in the no-release branch when strategy is standing-pr', () => {
       const snapshot = snapshotFor([{ name: '@a/notes', version: '0.5.0' }]);
@@ -505,7 +495,6 @@ describe('formatPreviewComment', () => {
       const result = formatPreviewComment(releaseOutput, { strategy: 'standing-pr', standingPrSnapshot: snapshot });
       expect(result).toContain('**Standing release PR:**');
       expect(result).toContain('2 packages queued');
-      // The snapshot must precede the <details> open tag (rendered outside, always visible).
       const detailsIdx = result.indexOf('<details>');
       const snapshotIdx = result.indexOf('**Standing release PR:**');
       expect(snapshotIdx).toBeGreaterThan(-1);
@@ -628,7 +617,6 @@ describe('formatPreviewComment', () => {
         mergedRows: standingOnlyRows,
       });
       expect(result).toContain('### After merge — predicted release');
-      // packages outside standing scope — different message from allUnchanged
       expect(result).toContain("outside the standing PR's current scope");
       expect(result).not.toContain('No version escalation');
       expect(result).toContain('| `@a/notes` | 0.5.0 | — | 0.5.0 |');
@@ -851,7 +839,6 @@ describe('formatPreviewComment', () => {
     });
 
     it('should suppress the regular trigger-mode banners', () => {
-      // With advisoryInStandingPr, the "no bump label detected" banner should NOT render.
       const result = formatPreviewComment(null, {
         strategy: 'standing-pr',
         labelContext: {
@@ -873,8 +860,6 @@ describe('formatPreviewComment', () => {
       expect(result).not.toContain('No bump label detected');
     });
   });
-
-  // --- Sync mode rendering ---
 
   describe('sync mode rendering', () => {
     const syncVersionOutput: VersionOutput = {
@@ -930,9 +915,7 @@ describe('formatPreviewComment', () => {
       expect(result).toContain('**All packages → 0.24.0** (sync versioning)');
       expect(result).toContain('- `@scope/version`');
       expect(result).toContain('- `@scope/release`');
-      // Root lockstep bump is not a publishable package
       expect(result).not.toContain('my-monorepo');
-      // Version appears once in the heading, not per item
       expect(result).not.toContain('`@scope/version` → 0.24.0');
     });
 
@@ -955,7 +938,6 @@ describe('formatPreviewComment', () => {
         notesGenerated: false,
       };
       const result = formatPreviewComment(withPackageChangelog);
-      // @scope/version renders its own changelog above, so the list below is not "all" packages
       expect(result).toContain('**Also bumped → 0.24.0** (sync versioning)');
       expect(result).not.toContain('**All packages');
       expect(result).toContain('- `@scope/notes`');
@@ -984,12 +966,9 @@ describe('formatPreviewComment', () => {
     });
   });
 
-  // --- Synthetic version-bump entries ---
-
   describe('synthetic version-bump entries', () => {
     // A sync/lockstep carry: a bumped package with no commits of its own gets a fabricated
-    // `Update version to X` placeholder from the version engine. The preview must collapse these
-    // into the "Also bumped" list, not render full changelog blocks of placeholder noise.
+    // `Update version to X` placeholder from the version engine.
     const syntheticEntry = (v: string) => ({
       type: 'changed',
       description: `Update version to ${v}`,
@@ -1036,18 +1015,14 @@ describe('formatPreviewComment', () => {
 
     it('should collapse synthetic-only packages into "Also bumped" instead of full blocks', () => {
       const result = formatPreviewComment({ versionOutput: mixedOutput, notesGenerated: false });
-      // The package with real changes renders a full block...
       expect(result).toContain('<summary><b>embedded-driver</b> 1.0.0 → 1.1.0</summary>');
       expect(result).toContain('implement W3C Actions API');
-      // ...the synthetic-only carries do not — no placeholder noise leaks into the changelog.
       expect(result).not.toContain('Update version to');
       expect(result).not.toContain('<summary><b>bridge</b>');
       expect(result).not.toContain('<summary><b>service</b>');
-      // ...they appear instead as a compact "Also bumped" list.
       expect(result).toContain('**Also bumped** (sync versioning)');
       expect(result).toContain('- `bridge` → 1.1.0');
       expect(result).toContain('- `service` → 1.1.0');
-      // The root lockstep bump is never listed.
       expect(result).not.toContain('- `root`');
     });
 
@@ -1063,8 +1038,7 @@ describe('formatPreviewComment', () => {
     });
 
     it('should keep rendering legacy placeholder entries that lack the synthetic flag (back-compat)', () => {
-      // Manifests written before the flag existed carry the same placeholder text with no flag —
-      // absence must mean "real entry", so they still render as before (no silent disappearance).
+      // Old manifests carry the same placeholder text with no flag; absence must mean "real entry".
       const legacy: VersionOutput = {
         ...mixedOutput,
         changelogs: [
@@ -1079,8 +1053,6 @@ describe('formatPreviewComment', () => {
       expect(result).toContain('Update version to 1.1.0');
     });
   });
-
-  // --- Label context banners ---
 
   describe('label context banners', () => {
     it('should show no banner when no labelContext', () => {
@@ -1249,8 +1221,6 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('N/A → 1.0.0');
   });
 
-  // --- Scope label context ---
-
   describe('scope labels in label context', () => {
     it('should show scope banner when scope labels present', () => {
       const result = formatPreviewComment(releaseOutput, {
@@ -1314,7 +1284,6 @@ describe('formatPreviewComment', () => {
           scopeLabels: ['@wdio/native-*'],
         },
       });
-      // Scope should still show even when there's no bump label
       expect(result).toContain('**Scope:**');
       expect(result).toContain('@wdio/native-*');
       expect(result).toContain('No bump label detected');
@@ -1337,7 +1306,6 @@ describe('formatPreviewComment', () => {
       });
       expect(result).toContain('Previous release v0.24.0 is partially published');
       expect(result).toContain('2/4 packages');
-      // Warning must sit before the snapshot block.
       expect(result.indexOf('partially published')).toBeLessThan(result.indexOf('**Standing release PR:**'));
     });
 

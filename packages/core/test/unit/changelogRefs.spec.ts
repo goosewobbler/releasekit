@@ -102,7 +102,6 @@ describe('renderIssueRefs', () => {
   });
 
   it('should still render a prNumber that is absent from issueIds (never silently dropped)', () => {
-    // Defensive: the invariant is prNumber ∈ issueIds, but if a caller omits it the PR must not vanish.
     expect(renderIssueRefs([], 'escape', repo, '#503')).toBe('(\\#503)');
     expect(renderIssueRefs(['#500'], 'escape', repo, '#503')).toBe('(\\#503, \\#500)');
   });
@@ -145,7 +144,6 @@ describe('escapeChangelogMentions', () => {
 
   it('should handle adversarial backtick input in linear time (no catastrophic backtracking)', () => {
     // A long run of unmatched backticks would hang a backreference-based code-span regex (ReDoS).
-    // The single-backtick pattern is linear, so this returns effectively instantly.
     const start = Date.now();
     const out = escapeChangelogMentions('`'.repeat(100_000));
     expect(out).toContain('`');
@@ -157,7 +155,6 @@ describe('neutralizeDescriptionRefs', () => {
   const repo = 'https://github.com/octocat/hello';
 
   it('should remove a parenthesised ref that is duplicated in the appended label', () => {
-    // `(#467)` in the subject-derived description also appears as `closes #467` in the label.
     expect(neutralizeDescriptionRefs('failed queued batch (#467)', ['#475', '#467'], 'link', repo)).toBe(
       'failed queued batch',
     );

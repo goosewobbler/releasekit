@@ -1,61 +1,44 @@
 import { DEFAULT_PRESET, type Preset, type VersionConfig, type VersionGroup } from '@releasekit/config';
 import type { ReleaseType } from 'semver';
 
-/**
- * A version group as carried through the version engine.
- * `name` is the config key; `packages` are the raw patterns; `sync` is the group's mode.
- */
+/** `name` is the group's config key. */
 export interface VersionGroupConfig extends VersionGroup {
   name: string;
 }
 
-/**
- * Runtime overrides passed by an orchestrator (e.g. @releasekit/release).
- * These are separate from file-loaded Config so the engine never mutates the
- * caller's config object.
- */
+/** Runtime overrides from an orchestrator (e.g. @releasekit/release), kept apart from file-loaded Config. */
 export interface VersionRunOptions {
-  /** Force a specific bump type (equivalent to --bump). */
+  /** Equivalent to --bump. */
   bump?: ReleaseType;
-  /** Create a prerelease version. Pass a string to override the identifier (e.g. 'beta'),
-   *  or true to use the configured identifier (with 'next' as fallback if none is configured). */
+  /** A string overrides the identifier (e.g. 'beta'); true uses the configured one, falling back to 'next'. */
   prerelease?: string | boolean;
   /** Graduate prerelease packages to stable; skip already-stable packages
    *  unless bump is also set, in which case bump applies to stable packages. */
   stable?: boolean;
   /**
-   * Per-package graduation: package name patterns to graduate to stable on this run, leaving
-   * every other prerelease package on its own line. Drives `stableOnly` scoped to just these packages
-   * (see {@link Config.graduateScope}). Distinct from the global `stable` flag, which graduates ALL
-   * prereleases. When both are set, `stable` wins (graduate everything). Empty/undefined → no
-   * per-package graduation.
+   * Package name patterns to graduate to stable, leaving other prereleases on their line. `stable`
+   * wins when both are set.
    */
   graduate?: string[];
   /**
-   * Per-package prerelease: the symmetric twin of {@link graduate}. Package name patterns to
-   * shift onto a prerelease line on this run, leaving every other package on its projected line. Drives
-   * `isPrerelease` scoped to just these packages (see {@link Config.prereleaseScope}) WITHOUT narrowing
-   * the release — out-of-scope packages keep their commit-driven versions. Distinct from the global
-   * `prerelease` flag, which shifts EVERY package. When both are set, `prerelease` wins (shift
-   * everything). Empty/undefined → no per-package prerelease.
+   * Twin of {@link graduate}: package name patterns to shift onto a prerelease line WITHOUT narrowing
+   * the release. `prerelease` wins when both are set.
    */
   prereleaseScope?: string[];
   /** Acknowledge a first-release bump on a stable manifest, silencing the overshoot guard. */
   allowFirstBump?: boolean;
   dryRun?: boolean;
   sync?: boolean;
-  /** Limit release to these package name patterns (comma-split targets from CLI). */
+  /** Limit release to these package name patterns. */
   targets?: string[];
   /**
-   * When set, use this commit SHA as the start of the revision range instead of the last release
-   * tag. Scopes both the bump-type calculation and the changelog to commits after this ref.
-   * Useful for preview mode where only a PR's own commits should be analysed.
+   * Commit SHA to start the revision range from instead of the last release tag, for both the bump and
+   * the changelog - e.g. to analyse only a PR's own commits.
    */
   baseRef?: string;
   /**
-   * Package name patterns the `bump` / `prerelease` / `stable` override applies to. When set, only
-   * matching packages receive the override; the rest fall through to commit-driven calculation.
-   * `undefined` (the default) applies the override to every package.
+   * Package name patterns the `bump` / `prerelease` / `stable` override applies to; the rest fall
+   * through to commit-driven calculation.
    */
   overrideScope?: string[];
   /**
@@ -66,11 +49,9 @@ export interface VersionRunOptions {
    */
   includePrerequisites?: boolean;
   /**
-   * Package names to drop from the release set, applied as the final discovery filter — after
-   * `targets`, `packages`, and prerequisite expansion. An excluded package is never bumped, so its
-   * `package.json` is untouched and it produces no update. Used by standing-PR ad-hoc selection: a
-   * maintainer unchecks a package and it falls out of the release entirely (no orphan bump landing
-   * on the base branch with no tag). Exact name match, not a pattern.
+   * Package names dropped from the release set as the final discovery filter, after `targets`,
+   * `packages` and prerequisite expansion. Used by standing-PR ad-hoc selection, so an unchecked
+   * package leaves no orphan bump. Exact names, not patterns.
    */
   exclude?: string[];
 }
@@ -85,9 +66,7 @@ export interface VersionConfigBase {
   type?: ReleaseType;
   prereleaseIdentifier?: string;
   path?: string;
-  /** Override the directory used for commit-count checks. When set, commit counting
-   *  uses this path instead of `path`. Useful in sync mode where the version is read
-   *  from a workspace package but commits should be counted against the repo root. */
+  /** Directory for commit-count checks, overriding `path`. */
   commitCheckPath?: string;
   name?: string;
   strictReachable?: boolean;
@@ -95,69 +74,45 @@ export interface VersionConfigBase {
 
 export interface Config extends VersionConfigBase {
   tagTemplate: string;
-  /** Optional secondary tag template for an internal "baseline" marker that records the
-   *  release commit on the source branch. Lives alongside the tag from `tagTemplate`. Used
-   *  when the primary tag gets force-moved off the source branch by a downstream step (e.g.
-   *  an action-dist build) — version-bump and changelog logic reads the baseline tag instead.
-   *  Supports the same `${packageName}` / `${prefix}` / `${version}` substitutions. */
+  /** Secondary tag for an internal "baseline" marker on the release commit that stays on the source
+   *  branch when a downstream step (e.g. an action-dist build) force-moves the `tagTemplate` tag off
+   *  it; version-bump and changelog logic read it instead. Same substitutions as `tagTemplate`. */
   baselineTagTemplate?: string;
   packageSpecificTags?: boolean;
   preset: Preset;
   sync: boolean;
-  /**
-   * Named version groups, each with package patterns and a `fixed` | `linked` sync mode.
-   * `sync: true` is normalized into one implicit `fixed` group of every package at runtime, so
-   * groups are the single mechanism for lockstep/linked versioning. See groupResolution.ts.
-   */
   groups?: Record<string, VersionGroup>;
   packages: string[];
   /** Foundational packages whose changes route to repo-level ("Project-wide changes") in every
-   *  package's changelog (exact name or glob). See VersionConfig.sharedPackages. Default: none. */
+   *  package's changelog (exact name or glob). */
   sharedPackages?: string[];
-  /** How the repo-level ("Project-wide changes") block is floored in package-specific-tag mode.
-   *  'union' (default): the union of releasing packages' ranges, floored by the oldest baseline.
-   *  'sinceLastRelease': the single global nearest-reachable tag, so global commits don't recur.
-   *  See VersionConfig.sharedChangelogFloor. */
+  /** See VersionConfig.sharedChangelogFloor. */
   sharedChangelogFloor?: 'union' | 'sinceLastRelease';
   mainPackage?: string;
   skip?: string[];
-  /** Include npm packages marked `"private": true` in package.json in the release flow. Default
-   *  false: private packages are skipped at discovery (they can't be published), mirroring the
-   *  Cargo `publish = false` / pub `publish_to: none` skips. See VersionConfig.includePrivate. */
+  /** Include npm packages marked `"private": true` in the release flow. */
   includePrivate?: boolean;
   commitMessage?: string;
   dryRun?: boolean;
   latestTag?: string;
   isPrerelease?: boolean;
   stableOnly?: boolean;
-  /** Runtime override: when set, use this commit SHA as the start of the revision range
-   *  for both bump calculation and changelog extraction. See VersionRunOptions.baseRef. */
+  /** Runtime override - see VersionRunOptions.baseRef. */
   baseRef?: string;
-  /** Runtime override: package patterns the forced bump/prerelease/stable applies to. When set,
-   *  non-matching packages ignore the override and compute commit-driven. See VersionRunOptions.overrideScope. */
+  /** Runtime override - see VersionRunOptions.overrideScope. */
   overrideScope?: string[];
-  /** Runtime override: package patterns to graduate to stable. Set together with `stableOnly`
-   *  by per-package graduation; a package outside this scope keeps `stableOnly` cleared and advances
-   *  along its own line. `undefined`/empty with `stableOnly` set means "graduate every prerelease"
-   *  (the global `release:graduate` path). See VersionRunOptions.graduate. */
+  /** Runtime override (see VersionRunOptions.graduate), always set together with `stableOnly`. Empty
+   *  with `stableOnly` set graduates every prerelease. */
   graduateScope?: string[];
-  /** Runtime override: package patterns to shift onto a prerelease line. Set together with
-   *  `isPrerelease` by per-package prerelease; a package outside this scope keeps `isPrerelease`
-   *  cleared and advances along its projected line. `undefined`/empty with `isPrerelease` set means
-   *  "prerelease every package" (the global `channel:prerelease` path). The symmetric twin of
-   *  `graduateScope`. See VersionRunOptions.prereleaseScope. */
+  /** Runtime override (see VersionRunOptions.prereleaseScope), always set together with `isPrerelease`.
+   *  Empty with `isPrerelease` set shifts every package. */
   prereleaseScope?: string[];
-  /** Runtime (engine-populated): the FULL discovered workspace — every package's name+dir, before
-   *  the release-set filters (targets/exclude/config.packages). The repo-level changelog classifier
-   *  uses this so a commit touching a non-releasing package's dir is attributed to that package, not
-   *  leaked into "Project-wide changes". Not user config. */
+  /** Engine-populated: every discovered package, before release-set filtering. Not user config. */
   allWorkspacePackages?: Array<{ name: string; dir: string }>;
   mismatchStrategy?: 'error' | 'warn' | 'ignore' | 'prefer-package' | 'prefer-git';
-  /** Acknowledge a first-release bump on an already-stable manifest, silencing the overshoot
-   *  guard (which otherwise warns, or aborts under mismatchStrategy 'error'). See VersionConfig.allowFirstBump. */
   allowFirstBump?: boolean;
   strictReachable?: boolean;
-  /** Pre-1.0 inferred-breaking bump policy ('spec' | 'strict'). See docs/configuration.md#versionzeromajor. */
+  /** Pre-1.0 inferred-breaking bump policy. See docs/configuration.md#versionzeromajor. */
   zeroMajor?: 'spec' | 'strict';
   npm?: {
     enabled?: boolean;

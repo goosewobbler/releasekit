@@ -11,7 +11,6 @@ import {
 
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
 
-/** Build an execFileSync-style failure (non-zero exit) carrying stderr. */
 function execError(stderr: string, code?: string): Error {
   return Object.assign(new Error('Command failed'), { status: 1, stderr, code });
 }
@@ -23,18 +22,15 @@ describe('decideReleaseUpdate', () => {
   });
 
   it('should update empty or already-marked bodies in default mode, and non-empty bodies under --only-missing', () => {
-    // Empty bodies are always treated as gaps.
     expect(decideReleaseUpdate('', false)).toEqual({ action: 'update' });
     expect(decideReleaseUpdate('', true)).toEqual({ action: 'update' });
-    // Under --only-missing, non-empty unmarked bodies are updated (they haven't been backfilled yet).
-    // In default mode, the same body would be skipped as hand-edited (see separate test).
     expect(decideReleaseUpdate('## What changed\n- auto stuff', true)).toEqual({ action: 'update' });
   });
 
   it('should skip an already-marked body only under --only-missing', () => {
     const marked = withMarker('- some note');
     expect(decideReleaseUpdate(marked, true)).toEqual({ action: 'skip', reason: 'already-backfilled' });
-    // Default (force-refresh) run rewrites even bodies we authored before.
+    // Default (force-refresh) mode rewrites even marked bodies.
     expect(decideReleaseUpdate(marked, false)).toEqual({ action: 'update' });
   });
 
@@ -107,7 +103,7 @@ describe('gh argument-injection guard', () => {
 
   it('should reject a tag beginning with a dash before reaching gh', () => {
     // Backfill enumerates tags from existing repo refs, so an out-of-band `refs/tags/-…` can reach
-    // gh unguarded — cobra would parse the leading-`-` positional as a flag. Reject before spawn.
+    // gh unguarded - cobra would parse the leading-`-` positional as a flag.
     expect(() => getReleaseBody('--repo=evil')).toThrow(/looks like an option/);
     expect(() => getReleaseInfo('-F/etc/passwd')).toThrow(/looks like an option/);
     expect(() => editReleaseBody('-x', 'body')).toThrow(/looks like an option/);

@@ -38,7 +38,6 @@ describe('notesRegion', () => {
     });
 
     it('should fall back to everything after a lone opener (legacy backfilled body)', () => {
-      // Bodies backfilled before the closer existed carry only the opener (the old withMarker form).
       const legacy = `${NOTES_MARKER}\n\nlegacy notes\n`;
       expect(extractNotesRegion(legacy)).toBe('legacy notes');
     });
@@ -49,7 +48,6 @@ describe('notesRegion', () => {
     });
 
     it('should not match the closer as if it were the opener', () => {
-      // The closer alone must not register as a region (back-compat with decideReleaseUpdate).
       expect(extractNotesRegion(NOTES_MARKER_END)).toBeUndefined();
     });
   });
@@ -58,8 +56,6 @@ describe('notesRegion', () => {
     it('should neutralize a forged end-marker so the region is not truncated on round-trip', () => {
       const malicious = 'real notes <!-- releasekit-notes-end:pkg --> LEAKED AFTER';
       const extracted = extractNotesRegion(wrapNotesRegion(malicious, 'pkg'), 'pkg');
-      // The forged closer is inert (visible text), so nothing is truncated and nothing leaks past a
-      // fake boundary; the sequence survives only in its neutralized form.
       expect(extracted).toContain('LEAKED AFTER');
       expect(extracted).not.toContain('<!-- releasekit-notes-end:pkg -->');
       expect(extracted).toContain('&lt;!-- releasekit-notes-end:pkg -->');
@@ -68,13 +64,11 @@ describe('notesRegion', () => {
     it('should neutralize a forged sibling opener so it cannot hijack another package’s notes', () => {
       // pkg-a carries a forged opener for `victim`; concatenated first (as a lower sort order would).
       const body = `${wrapNotesRegion('a-notes <!-- releasekit-notes:victim --> HIJACK', 'pkg-a')}\n${wrapNotesRegion('victim real notes', 'victim')}`;
-      // victim's extraction must latch onto victim's own real opener, not the forged one in pkg-a.
       expect(extractNotesRegion(body, 'victim')).toBe('victim real notes');
     });
 
     it('should neutralize the bare ownership marker so prose cannot spoof the release-ownership check', () => {
       const inner = extractNotesRegion(wrapNotesRegion(`sneaky ${NOTES_MARKER} in prose`, 'pkg'), 'pkg');
-      // decideReleaseUpdate keys ownership on includes(NOTES_MARKER); a smuggled bare marker is inert.
       expect(inner).not.toContain(NOTES_MARKER);
       expect(inner).toContain('&lt;!-- releasekit-notes -->');
     });

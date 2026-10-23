@@ -1,15 +1,8 @@
-/**
- * Simplified package filtering utilities
- */
-
 import path from 'node:path';
 import type { Package } from '@manypkg/get-packages';
 import { isPrivatePackageJson, log, matchesPackageTarget as matchTarget } from '@releasekit/core';
 import { minimatch } from 'minimatch';
 
-/**
- * Main entry point for filtering packages based on configuration targets
- */
 export function filterPackagesByConfig(packages: Package[], configTargets: string[], workspaceRoot: string): Package[] {
   if (configTargets.length === 0) {
     log('No config targets specified, returning all non-private packages', 'debug');

@@ -6,7 +6,7 @@ export interface ExecOptions {
   env?: Record<string, string | undefined>;
   dryRun?: boolean;
   label?: string;
-  timeout?: number; // timeout in milliseconds
+  timeout?: number; // ms
 }
 
 export interface ExecResult {
@@ -70,7 +70,6 @@ export async function execCommand(file: string, args: string[], options: ExecOpt
       },
     );
 
-    // Handle timeout
     if (options.timeout !== undefined) {
       const timer = setTimeout(() => {
         child.kill('SIGTERM');
@@ -89,9 +88,6 @@ export async function execCommand(file: string, args: string[], options: ExecOpt
   });
 }
 
-/**
- * Combine an exec error's message, stdout, and stderr into a single string for pattern matching.
- */
 export function getExecErrorOutput(error: unknown): string {
   if (!error || typeof error !== 'object') {
     return String(error);
@@ -100,10 +96,6 @@ export function getExecErrorOutput(error: unknown): string {
   return [e.message, e.stdout, e.stderr].filter(Boolean).join('\n');
 }
 
-/**
- * Execute a command and return the result without throwing on non-zero exit.
- * Useful for commands where non-zero exit is an expected outcome (e.g., npm view for unpublished packages).
- */
 export async function execCommandSafe(file: string, args: string[], options: ExecOptions = {}): Promise<ExecResult> {
   try {
     return await execCommand(file, args, options);

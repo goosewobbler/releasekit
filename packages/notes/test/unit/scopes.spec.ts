@@ -7,10 +7,6 @@ import {
   validateScope,
 } from '../../src/llm/scopes.js';
 
-// ---------------------------------------------------------------------------
-// getAllowedScopesFromCategories
-// ---------------------------------------------------------------------------
-
 describe('getAllowedScopesFromCategories()', () => {
   it('should return scopes from explicit scopes arrays', () => {
     const categories: LLMCategory[] = [
@@ -49,10 +45,6 @@ describe('getAllowedScopesFromCategories()', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// resolveAllowedScopes
-// ---------------------------------------------------------------------------
-
 describe('resolveAllowedScopes()', () => {
   it('should return null for undefined scopeConfig (unrestricted)', () => {
     expect(resolveAllowedScopes(undefined)).toBeNull();
@@ -68,7 +60,6 @@ describe('resolveAllowedScopes()', () => {
 
   it('should return package names and their short forms for packages mode', () => {
     const result = resolveAllowedScopes({ mode: 'packages' }, undefined, ['@acme/core', 'standalone']);
-    // Full name, unscoped form, and bare short name — so a commit scoped `core` matches `@acme/core`.
     expect(result).toEqual(expect.arrayContaining(['@acme/core', 'acme/core', 'core', 'standalone']));
   });
 
@@ -114,10 +105,6 @@ describe('resolveAllowedScopes()', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// validateScope
-// ---------------------------------------------------------------------------
-
 describe('validateScope()', () => {
   it('should return scope unchanged when allowedScopes is null (unrestricted)', () => {
     expect(validateScope('anything', null)).toBe('anything');
@@ -148,10 +135,6 @@ describe('validateScope()', () => {
     expect(validateScope('Invalid', ['CI', 'Dependencies'])).toBeUndefined();
   });
 });
-
-// ---------------------------------------------------------------------------
-// validateEntryScopes
-// ---------------------------------------------------------------------------
 
 describe('validateEntryScopes()', () => {
   const entries: ChangelogEntry[] = [
@@ -195,17 +178,16 @@ describe('validateEntryScopes()', () => {
     expect(result.entries[0]?.scope).toBeUndefined();
     expect(result.entries[1]?.scope).toBeUndefined();
     expect(result.entries[2]?.scope).toBeUndefined();
-    // Errors still surface for logging — both entries with original scopes triggered them
+    // Errors still surface for logging - both entries with original scopes triggered them
     expect(result.errors).toHaveLength(2);
   });
 
   it('should remove invalid scopes and report errors for logging (default action)', () => {
     const categories: LLMCategory[] = [{ name: 'Developer', description: 'Internal', scopes: ['CI', 'Dependencies'] }];
     const result = validateEntryScopes(entries, { mode: 'restricted' }, categories);
-    // Validation passes — `invalidScopeAction` (default `remove`) defines resolution; no retry.
     expect(result.valid).toBe(true);
-    expect(result.entries[0]?.scope).toBe('CI'); // valid, kept
-    expect(result.entries[1]?.scope).toBeUndefined(); // invalid, removed
+    expect(result.entries[0]?.scope).toBe('CI');
+    expect(result.entries[1]?.scope).toBeUndefined();
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0]?.providedScope).toBe('InvalidScope');
     expect(result.errors[0]?.entryIndex).toBe(1);
@@ -220,7 +202,7 @@ describe('validateEntryScopes()', () => {
     );
     expect(result.valid).toBe(true);
     expect(result.entries[0]?.scope).toBe('CI');
-    expect(result.entries[1]?.scope).toBe('InvalidScope'); // kept as-is
+    expect(result.entries[1]?.scope).toBe('InvalidScope');
     expect(result.errors).toHaveLength(1);
   });
 
@@ -233,7 +215,7 @@ describe('validateEntryScopes()', () => {
     );
     expect(result.valid).toBe(true);
     expect(result.entries[0]?.scope).toBe('CI');
-    expect(result.entries[1]?.scope).toBe('Other'); // replaced with fallback
+    expect(result.entries[1]?.scope).toBe('Other');
     expect(result.errors).toHaveLength(1);
   });
 
@@ -249,7 +231,7 @@ describe('validateEntryScopes()', () => {
   });
 
   it('should warn when fallbackScope is set but not in the allow list', async () => {
-    // @releasekit/core's `warn` writes to console.error (all log lines go via stderr)
+    // @releasekit/core's `warn` writes to console.error
     const messages: string[] = [];
     const originalError = console.error;
     console.error = (...args: unknown[]) => {
@@ -283,7 +265,7 @@ describe('validateEntryScopes()', () => {
 
   it('should not mutate original entries', () => {
     const result = validateEntryScopes(entries, { mode: 'none' });
-    expect(entries[0]?.scope).toBe('CI'); // original unchanged
-    expect(result.entries[0]?.scope).toBeUndefined(); // new copy changed
+    expect(entries[0]?.scope).toBe('CI');
+    expect(result.entries[0]?.scope).toBeUndefined();
   });
 });

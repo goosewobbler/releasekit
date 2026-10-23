@@ -1,12 +1,7 @@
 # Copy to: .github/workflows/release.yml
 #
-# Label-driven release: a merged PR only releases when it carries a `bump:*`
-# label. Conventional commits still determine the changelog; the label is the
-# gate that decides whether (and at what magnitude) to release.
-#
-# The gate below is a workflow-level guard, so the label names are hardcoded to
-# releasekit's defaults. `releasekit release` re-reads ci.labels from config and
-# is the authoritative check — keep the two in sync if you customise the names.
+# A merged PR releases only when it carries a `bump:*` label, which decides the
+# magnitude; conventional commits still determine the changelog.
 name: Release
 
 on:
@@ -22,7 +17,9 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    # Gate: only run for a merged PR that carries a bump:* label.
+    # Workflow `if` can't read config, so the label names are hardcoded to
+    # releasekit's defaults. `releasekit release` re-reads ci.labels and is the
+    # authoritative check - keep the two in sync if you customise the names.
     if: >
       github.event.pull_request.merged == true &&
       (contains(github.event.pull_request.labels.*.name, 'bump:patch') ||
@@ -45,7 +42,7 @@ jobs:
 
       # setup-node's registry-url writes a .npmrc with `_authToken=${NODE_AUTH_TOKEN}`.
       # With OIDC that var is empty, so npm fails ENEEDAUTH instead of the OIDC exchange.
-      # Remove it before publishing. (Drop this step if you publish with NODE_AUTH_TOKEN.)
+      # (Drop this step if you publish with NODE_AUTH_TOKEN.)
       - name: Remove token-based .npmrc so OIDC can take over
         run: rm -f .npmrc
 

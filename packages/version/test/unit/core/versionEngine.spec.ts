@@ -10,23 +10,19 @@ import { VersionError } from '../../../src/errors/versionError.js';
 import type { Config } from '../../../src/types.js';
 import { log } from '../../../src/utils/logging.js';
 
-// Mock dependencies
 vi.mock('@manypkg/get-packages');
 vi.mock('../../../src/core/versionStrategies.js');
 vi.mock('../../../src/utils/logging.js');
 
-// Mock the process module
 vi.mock('node:process', () => ({
   cwd: vi.fn().mockReturnValue('/test/workspace'),
 }));
 
 describe('Version Engine', () => {
-  // Mock strategies
   const syncStrategyMock = vi.fn().mockResolvedValue(undefined);
   const singleStrategyMock = vi.fn().mockResolvedValue(undefined);
   const asyncStrategyMock = vi.fn().mockResolvedValue(undefined);
 
-  // Mock packages
   const mockPackages = {
     root: '/test/workspace',
     rootDir: '/test/workspace',
@@ -45,7 +41,6 @@ describe('Version Engine', () => {
     ],
   };
 
-  // Default config for tests
   const defaultConfig: Partial<Config> = {
     preset: 'conventionalcommits',
     sync: true,
@@ -55,13 +50,10 @@ describe('Version Engine', () => {
   };
 
   beforeEach(() => {
-    // Reset all mocks
     vi.resetAllMocks();
 
-    // Re-setup cwd mock after reset
     vi.mocked(mockCwd, { partial: true }).mockReturnValue('/test/workspace');
 
-    // Setup strategy mocks
     vi.mocked(strategyModule.createSyncStrategy, { partial: true }).mockReturnValue(syncStrategyMock);
     vi.mocked(strategyModule.createSingleStrategy, { partial: true }).mockReturnValue(singleStrategyMock);
     vi.mocked(strategyModule.createAsyncStrategy, { partial: true }).mockReturnValue(asyncStrategyMock);
@@ -72,7 +64,6 @@ describe('Version Engine', () => {
       async: asyncStrategyMock,
     });
 
-    // Setup getPackagesSync mock
     vi.mocked(getPackagesSync, { partial: true }).mockReturnValue(mockPackages);
   });
 
@@ -86,10 +77,8 @@ describe('Version Engine', () => {
     });
 
     it('should initialize strategies based on config', () => {
-      // Create engine and use it to ensure it's not an unused variable
       const engine = new VersionEngine(defaultConfig as Config);
 
-      // Access a property to make the linter happy that we're using engine
       expect(engine).toBeInstanceOf(VersionEngine);
       expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(defaultConfig as Config);
       expect(strategyModule.createStrategy).toHaveBeenCalledWith(defaultConfig as Config);
@@ -99,7 +88,6 @@ describe('Version Engine', () => {
       const config: Config = { ...defaultConfig } as Config;
       new VersionEngine(config, { bump: 'major', dryRun: true, targets: ['pkg-a'] });
 
-      // Original config must be unchanged
       expect(config.type).toBeUndefined();
       expect(config.dryRun).toBeUndefined();
       expect(config.packages).toEqual([]);
@@ -108,8 +96,6 @@ describe('Version Engine', () => {
     it('should apply bump, dryRun and targets from runOptions (targets stored separately, not in config)', () => {
       new VersionEngine(defaultConfig as Config, { bump: 'minor', dryRun: true, targets: ['pkg-a', 'pkg-b'] });
 
-      // Targets are stored separately in runtimeTargets, not in config.packages
-      // so createStrategyMap receives the original config.packages (empty array)
       expect(strategyModule.createStrategyMap).toHaveBeenCalledWith(
         expect.objectContaining({ type: 'minor', dryRun: true, packages: [] }),
       );
@@ -180,8 +166,7 @@ describe('Version Engine', () => {
     it('should drop prereleaseScope when the global prerelease flag is also set — global wins', () => {
       new VersionEngine(defaultConfig as Config, { prerelease: true, prereleaseScope: ['@scope/a'] });
 
-      // The scope is left unset (key absent) rather than set to undefined, so assert on the passed
-      // config directly — `objectContaining({ prereleaseScope: undefined })` would require the key.
+      // The key is absent, not undefined, and `objectContaining({ prereleaseScope: undefined })` would require it.
       const effective = vi.mocked(strategyModule.createStrategyMap).mock.calls[0]?.[0];
       expect(effective?.isPrerelease).toBe(true);
       expect(effective?.prereleaseScope).toBeUndefined();
@@ -198,9 +183,8 @@ describe('Version Engine', () => {
     });
 
     it('should discover from an explicit workspaceRoot instead of process cwd', async () => {
-      // The standing-PR primary-package resolver loads config and discovers packages from the same
-      // caller-provided root; without honouring the argument, discovery would silently fall back to
-      // process.cwd() and could match a different workspace.
+      // The standing-PR primary-package resolver passes its own root; falling back to process.cwd() could
+      // match a different workspace.
       const engine = new VersionEngine(defaultConfig as Config);
       await engine.getWorkspacePackages('/custom/root');
 
@@ -282,7 +266,6 @@ describe('Version Engine', () => {
       await engine.getWorkspacePackages();
       await engine.getWorkspacePackages();
 
-      // getPackagesSync should only be called once due to caching
       expect(getPackagesSync).toHaveBeenCalledTimes(1);
     });
 
@@ -302,7 +285,6 @@ describe('Version Engine', () => {
     });
 
     it('should handle missing root property by setting it to cwd', async () => {
-      // Mock packages WITHOUT root - the merge function will use npmPackages.root as fallback
       const mockPackagesWithoutRoot = {
         packages: [
           {
@@ -321,7 +303,6 @@ describe('Version Engine', () => {
       const result = await engine.getWorkspacePackages();
 
       expect(result.root).toBe('/test/workspace');
-      // The new implementation logs discovery info, not the missing root warning
       expect(log).toHaveBeenCalledWith('Discovered 1 NPM, 0 Rust, and 0 Dart packages (1 total)', 'info');
     });
 
@@ -382,7 +363,6 @@ describe('Version Engine', () => {
       const configWithPackages = { ...defaultConfig, packages: ['package-a', 'package-b'] } as Config;
       const engine = new VersionEngine(configWithPackages, { targets: ['package-b'] });
 
-      // Mock getPackagesSync to return multiple packages
       const mockPkgA = {
         packageJson: { name: 'package-a', version: '1.0.0' },
         dir: '/workspace/a',
@@ -403,7 +383,6 @@ describe('Version Engine', () => {
 
       const result = await engine.getWorkspacePackages();
 
-      // Should only return package-b (intersection of config.packages AND runtimeTargets)
       expect(result.packages).toHaveLength(1);
       expect(result.packages[0].packageJson.name).toBe('package-b');
       expect(log).toHaveBeenCalledWith('Runtime targets filter: 2 → 1 packages', 'info');
@@ -431,7 +410,6 @@ describe('Version Engine', () => {
 
       const result = await engine.getWorkspacePackages();
 
-      // Both members survive discovery despite only one being targeted.
       expect(result.packages.map((p) => p.packageJson.name).sort()).toEqual([
         '@wdio/native-core',
         '@wdio/native-utils',
@@ -439,8 +417,7 @@ describe('Version Engine', () => {
     });
 
     it('should exclude private npm packages from the release set by default', async () => {
-      // A private package can't be published to any registry, so it never belongs in the release
-      // set — discovery drops it without a version.skip entry.
+      // A private package can't be published to any registry, so it never belongs in the release set.
       vi.mocked(getPackagesSync, { partial: true }).mockReturnValue({
         root: '/test/workspace',
         tool: 'pnpm' as any,
@@ -521,7 +498,6 @@ describe('Version Engine', () => {
       await engine.getWorkspacePackages();
       await engine.getWorkspacePackages();
 
-      // getPackagesSync should only be called once due to caching
       expect(getPackagesSync).toHaveBeenCalledTimes(1);
     });
 
@@ -548,22 +524,18 @@ describe('Version Engine', () => {
     it('should change the current strategy', async () => {
       const engine = new VersionEngine(defaultConfig as Config);
 
-      // Initially sync strategy should be used
       await engine.run(mockPackages);
       expect(syncStrategyMock).toHaveBeenCalled();
 
-      // Change to async strategy
       engine.setStrategy('async');
       syncStrategyMock.mockClear();
 
-      // Now async strategy should be used
       await engine.run(mockPackages);
       expect(syncStrategyMock).not.toHaveBeenCalled();
       expect(asyncStrategyMock).toHaveBeenCalled();
     });
 
     it('should discover pure Rust packages with Cargo.toml only', async () => {
-      // Mock the discoverCargoTomlPackages method
       const discoverSpy = vi.spyOn(VersionEngine.prototype as any, 'discoverCargoTomlPackages');
       discoverSpy.mockReturnValue({
         root: '/test/workspace',
@@ -578,7 +550,6 @@ describe('Version Engine', () => {
         ],
       });
 
-      // Mock getPackagesSync to return no packages (no package.json files)
       vi.mocked(getPackagesSync).mockReturnValue({
         root: '/test/workspace',
         packages: [],
@@ -589,18 +560,15 @@ describe('Version Engine', () => {
 
       const result = await engine.getWorkspacePackages();
 
-      // Should have discovered the Rust package
       expect(result.packages).toHaveLength(1);
       expect(result.packages[0].packageJson.name).toBe('test-rust-package');
       expect(result.packages[0].packageJson.version).toBe('0.1.0');
       expect(result.packages[0].dir).toBe('/test/workspace/packages/test-rust-package');
 
-      // Restore mocks
       discoverSpy.mockRestore();
     });
 
     it('should merge NPM and Rust packages without duplicates', async () => {
-      // Mock the discoverCargoTomlPackages method
       const discoverSpy = vi.spyOn(VersionEngine.prototype as any, 'discoverCargoTomlPackages');
       discoverSpy.mockReturnValue({
         root: '/test/workspace',
@@ -615,7 +583,6 @@ describe('Version Engine', () => {
         ],
       });
 
-      // Mock NPM packages (including a hybrid package)
       vi.mocked(getPackagesSync).mockReturnValue({
         root: '/test/workspace',
         packages: [
@@ -631,7 +598,6 @@ describe('Version Engine', () => {
 
       const result = await engine.getWorkspacePackages();
 
-      // Should have both packages: hybrid (NPM) and pure Rust
       expect(result.packages).toHaveLength(2);
 
       const hybridPkg = result.packages.find((p) => p.packageJson.name === 'hybrid-package');
@@ -641,20 +607,16 @@ describe('Version Engine', () => {
       expect(rustPkg).toBeDefined();
       expect(rustPkg?.packageJson.version).toBe('0.1.0');
 
-      // Restore mocks
       discoverSpy.mockRestore();
     });
 
     it('should skip Rust packages in build directories', async () => {
-      // Mock the discoverCargoTomlPackages method to return no packages
-      // (our implementation already skips target directories)
       const discoverSpy = vi.spyOn(VersionEngine.prototype as any, 'discoverCargoTomlPackages');
       discoverSpy.mockReturnValue({
         root: '/test/workspace',
-        packages: [], // No packages returned (target dir skipped)
+        packages: [], // target dir skipped
       });
 
-      // Mock getPackagesSync to return no packages
       vi.mocked(getPackagesSync).mockReturnValue({
         root: '/test/workspace',
         packages: [],
@@ -665,10 +627,8 @@ describe('Version Engine', () => {
 
       const result = await engine.getWorkspacePackages();
 
-      // Should have no packages
       expect(result.packages).toHaveLength(0);
 
-      // Restore mocks
       discoverSpy.mockRestore();
     });
 
@@ -704,7 +664,6 @@ describe('Version Engine', () => {
         fs.mkdirSync(pkgDir, { recursive: true });
         fs.writeFileSync(path.join(pkgDir, 'pubspec.yaml'), 'name: flutter_pkg\nversion: 2.5.0\n');
         vi.mocked(mockCwd, { partial: true }).mockReturnValue(tmp);
-        // No npm packages — only the pubspec-only package should be discovered.
         vi.mocked(getPackagesSync).mockReturnValue({ root: tmp, packages: [] });
 
         const engine = new VersionEngine({ ...defaultConfig, sync: false } as Config);
@@ -724,7 +683,6 @@ describe('Version Engine', () => {
       try {
         const pkgDir = path.join(tmp, 'packages', 'no_version');
         fs.mkdirSync(pkgDir, { recursive: true });
-        // name but no version — like a Dart workspace root or Flutter app.
         fs.writeFileSync(path.join(pkgDir, 'pubspec.yaml'), 'name: no_version\n');
         vi.mocked(mockCwd, { partial: true }).mockReturnValue(tmp);
         vi.mocked(getPackagesSync).mockReturnValue({ root: tmp, packages: [] });
@@ -824,7 +782,6 @@ describe('Version Engine', () => {
     it('should include a workspace root crate that also carries [package] even when workspace members are declared', async () => {
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-cargo-root-pkg-'));
       try {
-        // Root Cargo.toml declares both [workspace] and [package] — a "virtual workspace root crate"
         fs.writeFileSync(
           path.join(tmp, 'Cargo.toml'),
           '[workspace]\nmembers = ["crates/member"]\n\n[package]\nname = "root_crate"\nversion = "2.0.0"\n',
@@ -929,7 +886,7 @@ describe('Version Engine', () => {
         ],
       });
 
-      // A broad glob must NOT exempt a private package — only an exact name is the escape hatch.
+      // Only an exact name exempts a private package.
       const engine = new VersionEngine({ ...defaultConfig, packages: ['@test/*'] } as Config);
       const result = await engine.getWorkspacePackages();
 
@@ -954,7 +911,7 @@ describe('Version Engine', () => {
           ],
         });
 
-        // npm `private` only suppresses the npm publish — the publishable crate must still ship.
+        // npm `private` only suppresses the npm publish.
         const engine = new VersionEngine(defaultConfig as Config);
         const result = await engine.getWorkspacePackages();
 
@@ -982,7 +939,6 @@ describe('Version Engine', () => {
           ],
         });
 
-        // Private npm + unpublishable crate = unpublishable everywhere → still dropped.
         const engine = new VersionEngine(defaultConfig as Config);
         const result = await engine.getWorkspacePackages();
 

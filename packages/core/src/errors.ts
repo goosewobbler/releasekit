@@ -1,18 +1,12 @@
 import { log } from './logger.js';
 
 /**
- * Brand recognised across copies of this module. `@releasekit/release` bundles version, notes and
- * publish from their own builds, and each of those inlines its own copy of core — so one process can
- * hold several distinct `ReleaseKitError` classes, and `instanceof` against any one of them misses an
- * error thrown through another (its code then degrades to GENERAL_ERROR). `Symbol.for` keys a
- * process-wide registry, so every copy stamps and recognises the same brand.
+ * `@releasekit/release` bundles version, notes and publish, each inlining its own copy of core, so one process can
+ * hold several `ReleaseKitError` classes and `instanceof` misses an error from another copy. `Symbol.for` is shared
+ * across copies.
  */
 const RELEASEKIT_ERROR_BRAND = Symbol.for('@releasekit/core:ReleaseKitError');
 
-/**
- * Base error class that all releasekit errors should extend.
- * Provides consistent error handling with codes and suggestions.
- */
 export abstract class ReleaseKitError extends Error {
   abstract readonly code: string;
   abstract readonly suggestions: string[];
@@ -48,7 +42,6 @@ export abstract class ReleaseKitError extends Error {
   }
 }
 
-/** A CLI input-validation failure — a bad flag combination or a malformed argument. */
 export class InputError extends ReleaseKitError {
   readonly code = 'INPUT_ERROR';
   readonly suggestions: string[] = [];

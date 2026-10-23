@@ -8,14 +8,12 @@ import {
   extractRepoLevelChangelogEntries,
 } from '../../../src/changelog/commitParser.js';
 
-// Mock logging only; git log / diff-tree are driven through an injected FakeGit.
 vi.mock('../../../src/utils/logging.js', () => ({
   log: vi.fn(),
 }));
 
 const RANGE = 'v1.0.0..v1.1.0';
 
-/** A FakeGit returning `output` for any `git log` (catch-all range), optionally with diff-tree names. */
 const gitWithLog = (output: string, diffNames?: Record<string, string[]>): Git =>
   createFakeGit({ commits: { '*': output }, diffNames });
 
@@ -41,7 +39,7 @@ describe('Commit Parser', () => {
 
     const entries = await extractChangelogEntriesFromCommits('/test', RANGE, gitWithLog(mockGitOutput));
 
-    expect(entries).toHaveLength(11); // every conventional type is surfaced, including 'test'
+    expect(entries).toHaveLength(11);
 
     expect(entries.find((e) => e.description === 'add new feature')).toEqual(
       expect.objectContaining({ type: 'added', scope: 'core' }),
@@ -52,7 +50,7 @@ describe('Commit Parser', () => {
     expect(entries.find((e) => e.description === 'update README')).toEqual(
       expect.objectContaining({ type: 'changed', scope: undefined }),
     );
-    // `test:` is categorized as Changed, not dropped.
+    // `test:` maps to Changed rather than being dropped.
     expect(entries.find((e) => e.description === 'add new tests')).toEqual(
       expect.objectContaining({ type: 'changed', scope: undefined }),
     );
@@ -98,7 +96,6 @@ describe('Commit Parser', () => {
     expect(entries).toHaveLength(1);
     expect(entries[0].description).toBe('hierarchical selection');
     expect(entries[0].prNumber).toBe('#471');
-    // The PR number is also kept in the full flat issueIds list.
     expect(entries[0].issueIds).toEqual(['#471']);
   });
 
@@ -112,7 +109,7 @@ describe('Commit Parser', () => {
     expect(entries).toHaveLength(1);
     expect(entries[0].description).toBe('patch serializer');
     expect(entries[0].prNumber).toBe('#503');
-    // PR first, then the closed issues in body order — the full flat list.
+    // PR first, then closed issues in body order.
     expect(entries[0].issueIds).toEqual(['#503', '#500', '#499']);
   });
 
@@ -183,7 +180,7 @@ describe('Commit Parser', () => {
     });
 
     it('should filter commits to the package path', async () => {
-      // The seam's log() appends `-- <paths>` when paths are given; assert the seam received `['.']`.
+      // The seam's log() turns paths into `-- <paths>`, so assert on the paths it received.
       const git = createFakeGit({ commits: { '*': 'abc123|||feat(core): add new feature' } });
       const logSpy = vi.spyOn(git, 'log');
 
@@ -214,7 +211,6 @@ describe('Commit Parser', () => {
 
       await extractAllChangelogEntriesWithHash('/test', RANGE, git);
 
-      // No `paths` → no `-- .` path filter on the underlying git log.
       const opts = logSpy.mock.calls[0]?.[0];
       expect(opts?.paths).toBeUndefined();
       expect(opts?.extraArgs).toEqual(['--no-merges']);
@@ -281,13 +277,12 @@ describe('Commit Parser', () => {
 
   describe('extractRepoLevelChangelogEntries', () => {
     it('should extract only commits that do not touch any package directory', async () => {
-      // log returns two commits; diff-tree names per commit decide repo-level membership.
       const git = createFakeGit({
         commits: {
           '*': 'aaa123|||feat(version): add feature\n---COMMIT_DELIMITER---\nbbb456|||chore(ci): update workflow',
         },
         diffNames: {
-          aaa123: ['packages/version/src/feature.ts'], // touches the version package
+          aaa123: ['packages/version/src/feature.ts'],
           bbb456: ['.github/workflows/ci.yml'], // CI only → repo-level
         },
       });
@@ -323,7 +318,7 @@ describe('Commit Parser', () => {
     it('should include a commit when it touches shared directories', async () => {
       const git = createFakeGit({
         commits: { '*': 'shared123|||chore: update shared config' },
-        diffNames: { shared123: ['shared/config.js'] }, // touches a shared dir, not a package
+        diffNames: { shared123: ['shared/config.js'] },
       });
 
       const entries = await extractRepoLevelChangelogEntries('/test', RANGE, ['packages/version'], [], git);

@@ -1,7 +1,6 @@
 /**
  * Cargo.lock sync on every path that bumps a Cargo.toml. Each test runs a real strategy through
- * `VersionEngine.run` over a git work tree on disk (only tag lookups, commit parsing and the version
- * calculation are mocked) and checks the crates' own lock and a fixture app's lock.
+ * `VersionEngine.run` over a git work tree on disk and checks the crates' own lock and a fixture app's lock.
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -223,7 +222,6 @@ describe('Cargo.lock sync on Cargo.toml bumps', () => {
   );
 
   it('should sync the lock for a Cargo.toml found through cargo.paths (Tauri layout)', async () => {
-    // A JS package whose crate lives in src-tauri/ with its own committed lock.
     const appDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'rk-cargo-lock-tauri-')));
     const crateLock = path.join(appDir, 'src-tauri', 'Cargo.lock');
     fs.writeFileSync(path.join(appDir, 'package.json'), '{ "name": "desktop", "version": "0.4.0" }\n');

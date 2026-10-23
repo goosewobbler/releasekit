@@ -12,7 +12,6 @@ export interface MonorepoOptions {
   fileName?: string;
 }
 
-/** Write a file and return true if written (not dry-run). */
 function writeFile(outputPath: string, content: string, dryRun: boolean): boolean {
   if (dryRun) {
     info(`Would write to ${outputPath}`);
@@ -63,13 +62,11 @@ export function writeMonorepoChangelogs(
 
   if (options.mode === 'root' || options.mode === 'both') {
     const rootPath = path.join(options.rootPath, options.fileName ?? 'CHANGELOG.md');
-    // Root changelog includes package names since it aggregates multiple packages
     const fmtOpts = { includePackageName: true, refs };
 
     info(`Writing root changelog to ${rootPath}`);
     let rootContent: string;
     if (config.updateStrategy !== 'regenerate' && fs.existsSync(rootPath)) {
-      // Build new sections and prepend to existing file
       const newSections = contexts.map((ctx) => formatVersion(ctx, fmtOpts)).join('\n');
       const existing = fs.readFileSync(rootPath, 'utf-8');
       const headerEnd = existing.indexOf('\n## ');
@@ -128,10 +125,8 @@ function buildPackageDirMap(rootPath: string, packagesPath: string): Map<string,
     }
     const dirPath = path.join(packagesDir, entry.name);
 
-    // Register by directory name as fallback (lower priority)
     map.set(entry.name, dirPath);
 
-    // Register by package.json name as primary key (overrides directory name if same)
     const packageJsonPath = path.join(dirPath, 'package.json');
     if (fs.existsSync(packageJsonPath)) {
       try {

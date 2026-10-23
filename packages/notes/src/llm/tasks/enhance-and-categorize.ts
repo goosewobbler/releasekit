@@ -33,7 +33,6 @@ export function buildSystemPrompt(categories: LLMCategory[] | undefined, style: 
     `Categories: Group into meaningful categories (e.g., "New", "Fixed", "Changed", "Removed").`,
   );
 
-  // Scope source: categories whose own `scopes` array is non-empty.
   const pairs = (categories ?? []).flatMap((c) => (c.scopes?.length ? [{ name: c.name, scopes: c.scopes }] : []));
   const scopeInstruction = renderScopeInstruction(pairs, ' entries');
 
@@ -69,13 +68,11 @@ export function createEnhanceAndCategorizeValidator(
   context: EnhanceContext & CategorizeContext,
 ): TaskValidator<CombinedResult> {
   return (result) => {
-    // Parse JSON (structured output or text fallback)
     const parsed = parseLLMResult(result);
     if (!parsed.ok) {
       return { valid: false, error: parsed.error };
     }
 
-    // Validate structure
     const zodResult = EnhanceAndCategorizeOutputSchema.safeParse(parsed.data);
     if (!zodResult.success) {
       return { valid: false, error: `Schema error: ${zodResult.error.message}` };
@@ -93,7 +90,6 @@ export function createEnhanceAndCategorizeValidator(
       zodResult.data.entries.length = entries.length;
     }
 
-    // Validate category names when categories are configured
     const categoryError = checkCategoryNames(
       zodResult.data.entries,
       context.categories?.map((c) => c.name),
@@ -102,7 +98,6 @@ export function createEnhanceAndCategorizeValidator(
       return { valid: false, error: categoryError };
     }
 
-    // Build enhanced entries
     const enhancedEntries: ChangelogEntry[] = entries.map((original, i) => {
       const llmEntry = zodResult.data.entries[i];
       if (!llmEntry) {
@@ -117,10 +112,6 @@ export function createEnhanceAndCategorizeValidator(
       };
     });
 
-    // Validate scopes. The validator applies `invalidScopeAction` (default `remove`) and
-    // returns `valid: true` once the action has been applied — we don't retry the LLM for
-    // scope mismatches, since the configured action defines the resolution. We do surface a
-    // warning so users can see which scopes the LLM produced that didn't match the allow list.
     const scopeResult = validateEntryScopes(enhancedEntries, context.scopes, context.categories, context.packageNames);
     if (scopeResult.errors.length > 0) {
       const offenders = [...new Set(scopeResult.errors.map((e) => e.providedScope))];
@@ -138,11 +129,6 @@ export function createEnhanceAndCategorizeValidator(
   };
 }
 
-/**
- * Merge `incoming` categories into `target` by category name, preserving first-seen order and
- * concatenating entries. Chunked runs can each emit e.g. a "Fixed" category — without merging, the
- * changelog would render duplicate sections for the same name.
- */
 function mergeCategories(target: CategorizedEntries[], incoming: CategorizedEntries[]): void {
   for (const cat of incoming) {
     const existing = target.find((c) => c.category === cat.category);
@@ -176,12 +162,8 @@ async function enhanceAndCategorizeChunk(
   } catch (error) {
     if (error instanceof LLMError) {
       warn(`enhanceAndCategorize failed for a ${chunk.length}-entry chunk: ${error.message}. Returning it ungrouped.`);
-      // Triggered by structural validation failures the LLM couldn't recover from across the
-      // retry budget: malformed JSON, schema-incompatible output, wrong entry count, or
-      // categories outside the configured list. (Disallowed scopes don't reach here — the
-      // configured invalidScopeAction resolves them in-place.) Strip the original entries'
-      // scope/leadIn since the LLM run never produced validated values for either. Isolated to this
-      // chunk so one bad batch can't drag the whole release into the General fallback.
+      // Strip the original entries' scope/leadIn since the LLM run never produced validated values for
+      // either. Isolated to this chunk so one bad batch can't drag the whole release into the General fallback.
       const stripped = chunk.map((e) => ({ ...e, scope: undefined, leadIn: undefined }));
       return { enhancedEntries: stripped, categories: [{ category: 'General', entries: stripped }] };
     }
@@ -207,9 +189,7 @@ export async function enhanceAndCategorize(
   );
 
   // Chunk so a large release doesn't go into one prompt: the whole set overflows the output ceiling,
-  // fails entry-count validation, and drives corrective retries that resend a growing transcript
-  // (~3× tokens by attempt 3). Bounded chunks keep each call within budget with per-chunk corrective
-  // retry and per-chunk fallback. A release at or under the chunk size is a single call, unchanged.
+  // fails entry-count validation, and drives corrective retries that resend a growing transcript.
   const chunkSize = LLM_DEFAULTS.enhanceCategorizeChunkSize;
   const enhancedEntries: ChangelogEntry[] = [];
   const categories: CategorizedEntries[] = [];

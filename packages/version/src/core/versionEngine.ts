@@ -19,14 +19,10 @@ import { resolvePrerequisiteTargets } from './prerequisiteScope.js';
 import { createStrategy, createStrategyMap, type StrategyFunction, type StrategyType } from './versionStrategies.js';
 import { buildWorkspaceGraph } from './workspaceGraph.js';
 
-// Define extended type that includes root property
 export interface PackagesWithRoot extends Packages {
   root: string;
 }
 
-/**
- * Main versioning engine that uses functional strategies
- */
 export class VersionEngine {
   private config: Config;
   private workspaceCache: PackagesWithRoot | null = null;
@@ -34,20 +30,15 @@ export class VersionEngine {
   private currentStrategy: StrategyFunction;
   private runtimeTargets: string[] = [];
   private includePrerequisites = false;
-  /** Package names to drop from the release set as the final discovery filter (see VersionRunOptions.exclude). */
   private excludePackages: string[] = [];
-  /** Prereq → target(s) it was pulled in for, captured during prerequisite resolution; used after
-   *  `run()` to tag each update's role/prerequisiteOf. Empty unless prerequisites were derived. */
   private prerequisiteOf: Record<string, string[]> = {};
 
   constructor(config: Config, runOptions?: VersionRunOptions) {
-    // Validate required configuration
     if (!config) {
       throw createVersionError(VersionErrorCode.CONFIG_REQUIRED);
     }
 
-    // Apply runtime overrides on top of a shallow copy so the caller's config
-    // object is never mutated.
+    // Shallow copy so the caller's config is never mutated.
     const effective: Config = { ...config };
 
     if (runOptions) {
@@ -68,20 +59,13 @@ export class VersionEngine {
       if (runOptions.stable) {
         effective.stableOnly = true;
       }
-      // Per-package graduation: graduate only the named packages, leaving other prereleases on
-      // their line. Sets stableOnly + graduateScope; applyOverrideScope clears stableOnly for any
-      // package outside the scope. The global `stable` flag wins — when it's set we graduate ALL
-      // prereleases, so a per-package scope would only narrow it (don't set graduateScope then).
+      // The global `stable` flag graduates everything, so a scope would only narrow it. applyOverrideScope
+      // clears stableOnly for packages outside the scope.
       if (!runOptions.stable && runOptions.graduate?.length) {
         effective.stableOnly = true;
         effective.graduateScope = runOptions.graduate;
       }
-      // Per-package prerelease: the symmetric twin of graduate. Shift only the named packages
-      // onto a prerelease line, leaving others on their projected version. Sets isPrerelease +
-      // prereleaseScope; applyOverrideScope clears isPrerelease for any package outside the scope, and
-      // computeGroup gates the group-level prerelease on scope membership. The global `prerelease` flag
-      // wins — when it's set we shift EVERY package, so a per-package scope would only narrow it (don't
-      // set prereleaseScope then). Default the identifier like the global prerelease path does.
+      // Twin of graduate above; the group strategy also gates group-level prerelease on the scope.
       if (!runOptions.prerelease && runOptions.prereleaseScope?.length) {
         effective.isPrerelease = true;
         effective.prereleaseIdentifier = effective.prereleaseIdentifier || 'next';
@@ -109,21 +93,12 @@ export class VersionEngine {
 
     this.config = effective;
 
-    // Create all strategy functions
     this.strategies = createStrategyMap(effective);
 
-    // Set initial strategy based on config
     this.currentStrategy = createStrategy(effective);
   }
 
-  /**
-   * Discover pure Rust packages (Cargo.toml only) in the workspace.
-   * Skips crates with `publish = false` (Cargo's publish opt-out).
-   * When a workspace root Cargo.toml with `[workspace].members` is found, only
-   * crates inside those member globs are discovered.
-   */
   private discoverCargoTomlPackages(workspaceRoot: string): PackagesWithRoot {
-    // Detect Cargo workspace members to scope discovery.
     let workspaceMembers: string[] | null = null;
     const rootCargoPath = path.join(workspaceRoot, 'Cargo.toml');
     if (fs.existsSync(rootCargoPath)) {
@@ -140,7 +115,6 @@ export class VersionEngine {
 
     const cargoTomlPaths: string[] = [];
 
-    // Recursive function to find Cargo.toml files
     const findCargoToml = (dir: string, relativePath: string = '') => {
       try {
         const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -149,7 +123,6 @@ export class VersionEngine {
           const fullPath = path.join(dir, entry.name);
           const relPath = path.join(relativePath, entry.name);
 
-          // Skip ignored directories
           if (entry.isDirectory()) {
             if (entry.name === 'node_modules' || entry.name === 'target' || entry.name === '.git') {
               continue;
@@ -160,7 +133,6 @@ export class VersionEngine {
           }
         }
       } catch (error) {
-        // Skip directories we can't read
         log(`Cannot read directory ${dir}: ${error}`, 'debug');
       }
     };
@@ -174,12 +146,11 @@ export class VersionEngine {
         const fullCargoPath = path.join(workspaceRoot, cargoPath);
         const packageDir = path.dirname(fullCargoPath);
 
-        // Skip if this directory already has a package.json (handled by @manypkg)
+        // package.json directories are discovered by @manypkg.
         if (fs.existsSync(path.join(packageDir, 'package.json'))) {
           continue;
         }
 
-        // Parse Cargo.toml
         const cargoData = parseCargoToml(fullCargoPath);
 
         if (!isCratePublishable(cargoData)) {
@@ -188,16 +159,13 @@ export class VersionEngine {
         }
 
         if (cargoData.package?.name && typeof cargoData.package?.version === 'string') {
-          // Check if this is a valid workspace package (not in target/ or other build dirs)
           const relativePath = path.relative(workspaceRoot, packageDir);
           const pathParts = relativePath.split(path.sep);
           if (pathParts.includes('target') || pathParts.includes('node_modules')) {
             continue;
           }
 
-          // When workspace members are declared, only include packages inside those globs.
-          // The workspace root itself (relativePath === '') is always included — it is the
-          // package whose Cargo.toml declares [workspace], so member globs don't apply to it.
+          // The workspace root (relativePath === '') declares [workspace], so member globs don't apply to it.
           if (workspaceMembers !== null && relativePath !== '') {
             const normalizedRelative = relativePath.replace(/\\/g, '/');
             const matchesMember = workspaceMembers.some((member) =>
@@ -236,17 +204,7 @@ export class VersionEngine {
     };
   }
 
-  /**
-   * Discover pure Dart/Flutter packages (pubspec.yaml only) in the workspace. Mirrors the Cargo
-   * discovery: directories that already carry a package.json are left to @manypkg, and the merge
-   * step dedupes any directory shared with a Cargo crate.
-   *
-   * Skips packages with `publish_to: none` (pub's publish opt-out).
-   * When pnpm-workspace.yaml exists at the workspace root, only packages whose paths match the
-   * declared workspace globs are discovered.
-   */
   private discoverPubspecPackages(workspaceRoot: string): PackagesWithRoot {
-    // Read pnpm-workspace.yaml globs to scope pub discovery to declared paths.
     let pnpmWorkspaceGlobs: string[] | null = null;
     const pnpmWorkspacePath = path.join(workspaceRoot, 'pnpm-workspace.yaml');
     if (fs.existsSync(pnpmWorkspacePath)) {
@@ -273,7 +231,6 @@ export class VersionEngine {
           const relPath = path.join(relativePath, entry.name);
 
           if (entry.isDirectory()) {
-            // Skip dependency/build output dirs (incl. Dart's .dart_tool and build).
             if (
               entry.name === 'node_modules' ||
               entry.name === 'target' ||
@@ -302,27 +259,21 @@ export class VersionEngine {
         const fullPubspecPath = path.join(workspaceRoot, pubspecPath);
         const packageDir = path.dirname(fullPubspecPath);
 
-        // Skip if this directory already has a package.json (handled by @manypkg).
         if (fs.existsSync(path.join(packageDir, 'package.json'))) {
           continue;
         }
 
         const pubData = parsePubspec(fullPubspecPath);
 
-        // Skip packages that explicitly opt out of publishing via pub's convention.
         if (pubData.publish_to === 'none') {
           log(`Skipping Dart package at ${packageDir}: publish_to: none`, 'debug');
           continue;
         }
 
-        // Require an explicit version, like the Cargo path. A versionless pubspec is a Dart workspace
-        // root or app manifest, not a publishable package — discovering it would feed a bogus baseline
-        // into the version stage. (No target/node_modules path check: findPubspec already skips those
-        // directories during the walk, so a found pubspec is never inside one.)
+        // A versionless pubspec is a Dart workspace root or app manifest, not a publishable package.
         if (pubData.name && typeof pubData.version === 'string') {
           const relativePath = path.relative(workspaceRoot, packageDir);
 
-          // When pnpm workspace globs are declared, only include packages inside those globs.
           if (pnpmWorkspaceGlobs !== null) {
             const normalizedRelative = relativePath.replace(/\\/g, '/');
             const matchesGlob = pnpmWorkspaceGlobs.some((glob) => minimatch(normalizedRelative, glob, { dot: true }));
@@ -356,17 +307,11 @@ export class VersionEngine {
     };
   }
 
-  /**
-   * Merge two package lists by directory, keeping the base entry for any shared directory. Used to
-   * fold Cargo and pubspec discoveries into the @manypkg set (and is run once per native ecosystem),
-   * so it stays manifest-agnostic.
-   */
   private mergePackageLists(basePackages: PackagesWithRoot, extraPackages: PackagesWithRoot): PackagesWithRoot {
     const mergedPackages = [...basePackages.packages];
 
     for (const extraPkg of extraPackages.packages) {
-      // Same directory already discovered (a hybrid package.json + native manifest) — keep the base
-      // entry, which carries the richer @manypkg data.
+      // A hybrid (package.json & native manifest) keeps the base entry, which carries the richer @manypkg data.
       const alreadyDiscovered = mergedPackages.some((pkg) => pkg.dir === extraPkg.dir);
 
       if (alreadyDiscovered) {
@@ -386,10 +331,8 @@ export class VersionEngine {
   }
 
   /**
-   * Lightweight changed-detection for prerequisite resolution: a package is "changed" when it has
-   * commits since its last release tag. Over-inclusive by design — a pulled-in prerequisite with no
-   * *releasable* change is still skipped by the per-package bump calc downstream. Tag lookups are
-   * independent per package, so they run in parallel.
+   * Over-inclusive by design (any commit since the last tag counts) - a pulled-in prerequisite with no
+   * *releasable* change is still skipped by the per-package bump calc downstream.
    */
   private async detectChangedPackages(packages: Package[]): Promise<Set<string>> {
     const formattedPrefix = formatVersionPrefix(this.config.versionPrefix || 'v');
@@ -405,7 +348,7 @@ export class VersionEngine {
             tag = await getLatestTag(formattedPrefix);
           }
         } catch {
-          // No tag resolvable — getCommitsLength falls back to git describe / full history.
+          // No tag resolvable - getCommitsLength falls back to git describe / full history.
         }
         return (await getCommitsLength(pkg.dir, tag)) > 0 ? pkg.packageJson.name : null;
       }),
@@ -413,13 +356,6 @@ export class VersionEngine {
     return new Set(results.filter((name): name is string => name !== null));
   }
 
-  /**
-   * True when a directory carries a still-publishable native manifest — a Cargo crate whose
-   * `publish` isn't `false`/`[]`, or a pub package whose `publish_to` isn't `none`. Lets the private
-   * filter keep a hybrid alive when its npm side is `private` but its crate/pub side still publishes;
-   * a private test-app hybrid whose crate is `publish = false` is still (correctly) dropped. A parse
-   * failure counts as not-publishable so a malformed manifest never resurrects a private package.
-   */
   private isNativelyPublishable(packageDir: string): boolean {
     const cargoPath = path.join(packageDir, 'Cargo.toml');
     if (fs.existsSync(cargoPath)) {
@@ -430,7 +366,7 @@ export class VersionEngine {
           return true;
         }
       } catch {
-        // Unparseable Cargo.toml — fall through; don't claim publishable on a parse failure.
+        // Unparseable: a malformed manifest must never resurrect a private package.
       }
     }
     const pubspecPath = path.join(packageDir, 'pubspec.yaml');
@@ -440,36 +376,28 @@ export class VersionEngine {
           return true;
         }
       } catch {
-        // Unparseable pubspec — fall through.
+        // Unparseable pubspec - fall through.
       }
     }
     return false;
   }
 
-  /**
-   * Get workspace packages information - with caching for performance
-   */
   public async getWorkspacePackages(workspaceRoot: string = cwd()): Promise<PackagesWithRoot> {
     try {
-      // Return cached result if available for better performance
       if (this.workspaceCache) {
         return this.workspaceCache;
       }
 
-      // 1. Discover packages with package.json (existing behavior)
       const npmPackages = getPackagesSync(workspaceRoot) as PackagesWithRoot;
       if (!npmPackages?.packages) {
         throw createVersionError(VersionErrorCode.PACKAGES_NOT_FOUND);
       }
 
-      // 2. Discover additional pure Rust (Cargo.toml) and Dart/Flutter (pubspec.yaml) packages
       const rustPackages = this.discoverCargoTomlPackages(workspaceRoot);
       const dartPackages = this.discoverPubspecPackages(workspaceRoot);
 
-      // 3. Merge package lists with proper deduplication (by directory; npm wins for hybrids)
       const mergedPackages = this.mergePackageLists(this.mergePackageLists(npmPackages, rustPackages), dartPackages);
 
-      // Log discovery results (pre-filter)
       const rustCount = rustPackages.packages.length;
       const dartCount = dartPackages.packages.length;
       const npmCount = npmPackages.packages.length;
@@ -478,30 +406,23 @@ export class VersionEngine {
         'info',
       );
 
-      // Ensure the root property is set
       if (!mergedPackages.root) {
         log('Root path is undefined in packages result, setting to current working directory', 'warning');
         mergedPackages.root = workspaceRoot;
       }
 
-      // Capture the FULL discovered workspace (name+dir) before any release-set filtering below, so
-      // the repo-level changelog classifier can tell "touches a non-releasing package" apart from
-      // "genuinely repo-level" and resolve shared-package globs against every package.
+      // Captured before release-set filtering so the repo-level changelog classifier can tell "touches a
+      // non-releasing package" from "genuinely repo-level" and resolve shared-package globs against every package.
       this.config.allWorkspacePackages = mergedPackages.packages.map((p) => ({
         name: p.packageJson.name,
         dir: p.dir,
       }));
 
-      // Skip npm packages marked `"private": true` — npm refuses to publish them, so by default they
-      // never belong in the release set. Mirrors the Cargo `publish = false` / pub `publish_to: none`
-      // skips applied during native discovery, and runs before prerequisite and group expansion so a
-      // private package can't be pulled in transitively. Two exemptions keep it honest:
-      //  - a private package named EXACTLY in version.packages is a deliberate escape hatch (a broad
-      //    glob does NOT exempt — it would silently disable the skip for everything it matches); and
-      //  - a hybrid whose native sibling is still publishable (Cargo `publish` ≠ false / pub
-      //    `publish_to` ≠ none) is kept — npm `private` only suppresses the npm publish, not the
-      //    crates.io / pub.dev one, and dropping it here would silently skip a publishable crate.
-      // Opt out wholesale with version.includePrivate.
+      // npm refuses to publish `"private": true` packages. Filtered before prerequisite and group expansion
+      // so a private package can't be pulled in transitively. Exemptions:
+      //  - a private package named EXACTLY in version.packages (a broad glob would silently disable the
+      //    skip for everything it matches); and
+      //  - a hybrid whose native sibling still publishes - npm `private` only suppresses the npm publish.
       if (!this.config.includePrivate) {
         const namedExactly = new Set(this.config.packages ?? []);
         const beforeCount = mergedPackages.packages.length;
@@ -523,10 +444,7 @@ export class VersionEngine {
         }
       }
 
-      // --include-prerequisites: expand the explicit targets to the full release set (their changed
-      // transitive dependencies + the rest of any group they belong to) and scope the bump/prerelease/
-      // stable override to just the explicit, group-expanded targets. Runs on the full discovered set,
-      // before the target pre-filter below, so prerequisites aren't pruned away.
+      // Runs on the full discovered set, before the target pre-filter below, so prerequisites aren't pruned.
       if (this.includePrerequisites && this.runtimeTargets.length > 0) {
         const graph = buildWorkspaceGraph(mergedPackages.packages);
         const changed = await this.detectChangedPackages(mergedPackages.packages);
@@ -549,14 +467,10 @@ export class VersionEngine {
         this.currentStrategy = createStrategy(this.config);
       }
 
-      // When explicit version groups are configured, do NOT pre-filter by runtime targets here.
-      // The group strategy needs the full group membership to expand a `--target` that hits a
-      // strict subset of a fixed group up to the whole group — pruning non-targeted members at
-      // discovery time would silently split the group. The strategy applies group-aware target
-      // filtering itself. (config.packages filtering still applies — it scopes the universe.)
+      // The group strategy filters targets itself: it needs full membership to expand a `--target` on part
+      // of an atomic group to the whole group. config.packages still applies - it scopes the universe.
       const deferTargetsToGroups = Object.keys(this.config.groups ?? {}).length > 0;
 
-      // Filter packages based on config.packages if specified
       if (this.config.packages && this.config.packages.length > 0) {
         const originalCount = mergedPackages.packages.length;
 
@@ -568,7 +482,6 @@ export class VersionEngine {
 
         mergedPackages.packages = filteredPackages;
 
-        // Log filtering results
         log(
           `Filtered ${originalCount} workspace packages to ${filteredPackages.length} based on packages config`,
           'info',
@@ -578,7 +491,6 @@ export class VersionEngine {
           log('Warning: No packages matched the specified patterns in config.packages', 'warning');
         }
       } else if (this.runtimeTargets.length > 0 && !deferTargetsToGroups) {
-        // If no config.packages but runtime targets specified, use targets as primary filter
         const originalCount = mergedPackages.packages.length;
         mergedPackages.packages = mergedPackages.packages.filter((pkg) =>
           shouldMatchPackageTargets(pkg.packageJson.name, this.runtimeTargets),
@@ -589,7 +501,6 @@ export class VersionEngine {
         );
       }
 
-      // Apply runtime targets as secondary filter (after config.packages)
       if (this.runtimeTargets.length > 0 && mergedPackages.packages.length > 0 && !deferTargetsToGroups) {
         const beforeCount = mergedPackages.packages.length;
         mergedPackages.packages = mergedPackages.packages.filter((pkg) =>
@@ -598,9 +509,7 @@ export class VersionEngine {
         log(`Runtime targets filter: ${beforeCount} → ${mergedPackages.packages.length} packages`, 'info');
       }
 
-      // Final filter: drop explicitly excluded packages from the release set (standing-PR ad-hoc
-      // deselection). Applied last so it overrides every inclusion above — an excluded package never
-      // gets bumped, even if a target or prerequisite expansion pulled it in. Exact name match.
+      // Last, so it overrides every inclusion above (see VersionRunOptions.exclude).
       if (this.excludePackages.length > 0) {
         const excluded = new Set(this.excludePackages);
         const beforeCount = mergedPackages.packages.length;
@@ -608,7 +517,6 @@ export class VersionEngine {
         log(`Exclude filter: ${beforeCount} → ${mergedPackages.packages.length} packages`, 'info');
       }
 
-      // Cache the result for subsequent calls
       this.workspaceCache = mergedPackages;
 
       return mergedPackages;
@@ -617,25 +525,15 @@ export class VersionEngine {
       log(`Failed to get packages information: ${errorMessage}`, 'error');
       log(inspect(error), 'error');
 
-      // Throw a more specific error for better error handling upstream
       throw createVersionError(VersionErrorCode.WORKSPACE_ERROR, errorMessage);
     }
   }
 
-  /**
-   * Run the current strategy
-   * @param packages Workspace packages to process
-   * @param targets Optional package targets to process (only used by async strategy)
-   */
   public async run(packages: PackagesWithRoot, targets: string[] = []): Promise<void> {
     try {
       clearCargoBumps();
-      // Execute the strategy function
       await this.currentStrategy(packages, targets);
       await syncCargoLockfiles(packages.root ?? cwd(), this.config.dryRun ?? false);
-      // Once the strategy has produced the updates, tag each one's role: explicit (group-expanded)
-      // targets keep the override; derived prerequisites carry their own bump and record the
-      // target(s) they were pulled in for. Only when prerequisites were actually derived.
       if (Object.keys(this.prerequisiteOf).length > 0) {
         tagPrerequisiteRoles(this.config.overrideScope ?? [], this.prerequisiteOf);
       }
@@ -643,7 +541,6 @@ export class VersionEngine {
       if (error instanceof VersionError || error instanceof GitError) {
         log(`Version engine failed: ${error.message} (${error.code || 'UNKNOWN'})`, 'error');
 
-        // Enhanced error logging for GitError
         if (error instanceof GitError) {
           log('Git error details:', 'error');
           if (error.message.includes('Command failed:')) {
@@ -666,10 +563,6 @@ export class VersionEngine {
     }
   }
 
-  /**
-   * Change the current strategy
-   * @param strategyType The strategy type to use: 'sync', 'single', or 'async'
-   */
   public setStrategy(strategyType: StrategyType): void {
     this.currentStrategy = this.strategies[strategyType];
   }

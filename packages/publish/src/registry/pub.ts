@@ -9,7 +9,6 @@ import type { Registry, RegistryTarget } from './types.js';
 
 const ALREADY_PUBLISHED_PATTERN = /already published|version already exists/i;
 
-/** Hosts that mean "publish to pub.dev" (the default when `publish_to` is unset). */
 const PUB_DEV_HOSTS = ['https://pub.dev', 'https://pub.dartlang.org'];
 
 interface PubTarget extends RegistryTarget {
@@ -18,16 +17,10 @@ interface PubTarget extends RegistryTarget {
   publishTo: string | undefined;
 }
 
-/**
- * Whether a package's `publish_to` targets pub.dev. `dart pub publish` honours a custom
- * `publish_to` (a private registry), but the pub.dev REST API checks here only make sense
- * for pub.dev, so they are skipped for custom servers.
- */
 function targetsPubDev(publishTo: string | undefined): boolean {
   return !publishTo || PUB_DEV_HOSTS.includes(publishTo.replace(/\/+$/, ''));
 }
 
-/** Error strategy: FAIL-FAST. First publish failure aborts the stage. */
 export const pubRegistry: Registry<PubTarget, void> = {
   id: 'pub',
   displayName: 'pub.dev',
@@ -38,8 +31,8 @@ export const pubRegistry: Registry<PubTarget, void> = {
 
   isEnabled: (config) => config.pub.enabled,
 
-  // Pub never fails fast on missing auth: it either uses PUB_TOKEN (registered in `prepare`,
-  // only when there is something to publish) or assumes OIDC automated publishing.
+  // Never fails fast on missing auth: PUB_TOKEN is registered in `prepare`, otherwise OIDC automated
+  // publishing is assumed.
   async authCheck(): Promise<void> {},
 
   async discover(ctx: PipelineContext): Promise<PubTarget[]> {
@@ -50,9 +43,6 @@ export const pubRegistry: Registry<PubTarget, void> = {
   },
 
   async prepare(ctx: PipelineContext): Promise<void> {
-    // If PUB_TOKEN is set, configure it before publishing; otherwise assume OIDC automated publishing.
-    // Wrap the token setup so a failure here is attributed to auth (with remediation hints) rather
-    // than surfacing as a raw exec error against an unknown stage.
     if (hasPubTokenAuth() && !ctx.cliOptions.dryRun) {
       try {
         await execCommand('dart', ['pub', 'token', 'add', 'https://pub.dev', '--env-var', 'PUB_TOKEN'], {
@@ -61,6 +51,7 @@ export const pubRegistry: Registry<PubTarget, void> = {
           label: 'dart pub token add',
         });
       } catch (error) {
+        // Attributed to auth (with remediation hints) rather than surfacing as a raw exec error.
         throw createPublishError(
           PublishErrorCode.PUB_AUTH_ERROR,
           error instanceof Error ? error.message : String(error),
@@ -70,7 +61,7 @@ export const pubRegistry: Registry<PubTarget, void> = {
   },
 
   async isPublished(target: PubTarget): Promise<boolean> {
-    // The pub.dev REST API only makes sense for pub.dev targets; skip it for custom registries.
+    // The pub.dev REST API only makes sense for pub.dev targets.
     if (!targetsPubDev(target.publishTo)) {
       return false;
     }
@@ -82,7 +73,7 @@ export const pubRegistry: Registry<PubTarget, void> = {
       cwd: target.dir,
       dryRun: ctx.cliOptions.dryRun,
       label: `${target.command} pub publish ${target.packageName}@${target.version}`,
-      timeout: 10 * 60 * 1000, // 10 minutes timeout
+      timeout: 10 * 60 * 1000,
     });
   },
 };
@@ -141,7 +132,6 @@ function orderPubPackages(packages: PubTarget[], explicitOrder: string[]): PubTa
     }
   }
 
-  // Append remaining packages not in explicit order
   for (const pkg of byName.values()) {
     ordered.push(pkg);
   }

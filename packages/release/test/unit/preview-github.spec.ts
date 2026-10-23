@@ -9,8 +9,7 @@ import {
   postOrUpdateComment,
 } from '../../src/github.js';
 
-// The git seam: `createGitCli()` returns the current FakeGit so the merge-PR lookup is driven by
-// seeded `describeTags` (nearest tag) and `log` (commit SHAs) instead of spawning git.
+// The merge-PR lookup is driven by seeded `describeTags` (nearest tag) and `log` (commit SHAs).
 let fakeGit: FakeGit;
 vi.mock('@releasekit/git', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@releasekit/git')>();
@@ -34,7 +33,7 @@ describe('findMergedPRsSinceLastRelease', () => {
   }
 
   it('should return PR numbers from merge commits since last tag', async () => {
-    // nearest tag → range `v1.0.0..HEAD`; `log` for that range yields the two merge SHAs.
+    // nearest tag → range `v1.0.0..HEAD`.
     setGit({ nearestTag: 'v1.0.0', commits: { 'v1.0.0..HEAD': 'abc123\ndef456\n' } });
 
     const forge = createPRLookupForge({ abc123: [10], def456: [20] });
@@ -54,7 +53,6 @@ describe('findMergedPRsSinceLastRelease', () => {
   });
 
   it('should fall back to last 50 merge commits when no tags exist', async () => {
-    // No reachable tag (describeTags → null) → the `-50` extraArgs path; `'*'` catch-all seeds log.
     setGit({ nearestTag: null, commits: { '*': 'abc123\n' } });
     const logSpy = vi.spyOn(fakeGit, 'log');
 

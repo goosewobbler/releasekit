@@ -77,7 +77,7 @@ describe('logError()', () => {
     const err = new InputParseError('bad input');
     err.logError();
 
-    // All log output now goes to console.error (stderr)
+    // All log output goes to console.error
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('bad input'));
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Suggested solutions'));
 

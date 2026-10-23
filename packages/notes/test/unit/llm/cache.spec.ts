@@ -58,8 +58,6 @@ describe('withContentHashCache', () => {
     const fresh = mockProvider(() => 'fresh');
     const refreshed = withContentHashCache(fresh, { model: 'model-x' }, dir, { refresh: true });
 
-    // The cached entry is not served back, and the new response replaces it on disk — without a
-    // refresh the read-first cache would return 'stale' forever and re-recording could never happen.
     expect(await refreshed.complete(msgs)).toEqual({ content: 'fresh' });
     expect(fresh.calls).toBe(1);
     expect(
@@ -89,19 +87,17 @@ describe('withContentHashCache', () => {
     const provider = mockProvider(() => 'r');
 
     await withContentHashCache(provider, { model: 'model-x' }, dir).complete(msgs);
-    await withContentHashCache(provider, { model: 'model-y' }, dir).complete(msgs); // different model
-    // Same provider name + model + prompt but a different endpoint must not collide (e.g. Groq vs Together).
+    await withContentHashCache(provider, { model: 'model-y' }, dir).complete(msgs);
     await withContentHashCache(provider, { model: 'model-x', baseURL: 'https://a.example' }, dir).complete(msgs);
     await withContentHashCache(provider, { model: 'model-x', baseURL: 'https://b.example' }, dir).complete(msgs);
-    await withContentHashCache(provider, { model: 'model-x' }, dir).complete(msgs, { temperature: 0.1 }); // different temp
-    await withContentHashCache(provider, { model: 'model-x' }, dir).complete(msgs, { schema: { type: 'object' } }); // different schema
+    await withContentHashCache(provider, { model: 'model-x' }, dir).complete(msgs, { temperature: 0.1 });
+    await withContentHashCache(provider, { model: 'model-x' }, dir).complete(msgs, { schema: { type: 'object' } });
 
     expect(provider.calls).toBe(6);
   });
 
   it('should ignore temperature in the cache key for providers that do not honor it', async () => {
     const dir = freshDir();
-    // Mirrors the Anthropic provider: temperature is never forwarded, so toggling it must not miss.
     const provider: LLMProvider & { calls: number } = {
       name: 'anthropic',
       capabilities: { systemRole: true, structuredOutputs: true, toolUse: true, honorsTemperature: false },

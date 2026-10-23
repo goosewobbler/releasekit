@@ -6,10 +6,8 @@ import { runPublishStage } from '../../../src/registry/dispatcher.js';
 import type { Registry, RegistryTarget } from '../../../src/registry/types.js';
 import type { PipelineContext } from '../../../src/types.js';
 
-// The dispatcher owns the shared publish lifecycle for every registry — per-target results, the
-// already-published idempotency handling, bounded retry, the fail-fast throw, and accumulation into
-// ctx.output. Driving it through a tiny in-memory Registry lets that contract be tested once instead
-// of re-proven in each of the npm/cargo/pub stage specs.
+// A tiny in-memory Registry tests the dispatcher's shared lifecycle once instead of re-proving it in each
+// of the npm/cargo/pub stage specs.
 
 type FakeTarget = RegistryTarget;
 
@@ -46,7 +44,7 @@ function createContext(cliOverrides?: Partial<PipelineContext['cliOptions']>): P
 
 const target = (packageName: string, version = '1.0.0'): FakeTarget => ({ packageName, version });
 
-/** An exec-style rejection: getExecErrorOutput joins message + stdout + stderr for pattern matching. */
+/** Exec-style, since getExecErrorOutput pattern-matches the message, stdout & stderr. */
 function execError(stderr: string): Error {
   return Object.assign(new Error('Command failed'), { stdout: '', stderr, exitCode: 1 });
 }
@@ -83,8 +81,6 @@ describe('runPublishStage dispatcher', () => {
   });
 
   it('should not authenticate when enabled but no targets are discovered', async () => {
-    // Enabled + zero targets must no-op without authenticating: discovery runs before authCheck, so a
-    // stage with nothing to publish can't fail on credentials it never needs (e.g. no crates, no token).
     const authCheck = vi.fn(async () => {
       throw new Error('missing registry token');
     });
@@ -172,7 +168,7 @@ describe('runPublishStage dispatcher', () => {
       runPublishStage(makeRegistry({ discover: async () => [target('a')], publish }), ctx),
     ).resolves.toBeUndefined();
 
-    expect(publish).toHaveBeenCalledTimes(1); // an already-published conflict is never retried
+    expect(publish).toHaveBeenCalledTimes(1);
     expect(ctx.output.npm[0]).toMatchObject({
       alreadyPublished: true,
       skipped: true,
@@ -210,7 +206,7 @@ describe('runPublishStage dispatcher', () => {
       runPublishStage(makeRegistry({ discover: async () => [target('a')], publish }), ctx),
     ).rejects.toMatchObject({ code: PublishErrorCode.NPM_PUBLISH_ERROR });
 
-    expect(publish).toHaveBeenCalledTimes(1); // permanent error, no retries
+    expect(publish).toHaveBeenCalledTimes(1);
     expect(ctx.output.npm[0]).toMatchObject({ success: false });
   });
 

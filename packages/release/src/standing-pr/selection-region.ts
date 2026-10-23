@@ -14,14 +14,9 @@ import { getDistTag } from '@releasekit/publish';
 type Update = VersionOutput['updates'][number];
 
 /**
- * The ad-hoc *selection* region of a standing-PR body: a GitHub task-list where a ticked row means
- * "release this package in the next merge". The bot seeds it (all ticked by default — the same set
- * that would release today), a maintainer ticks/unticks rows on the PR, and the bot reads the choice
- * back on the next run to narrow the release set. State round-trips by marker slicing, never by
- * parsing prose: the package each row refers to comes from its `<!-- rk-sel:NAME -->` marker, and
- * only the GitHub `[x]`/`[ ]` glyph (the one thing a human can toggle) carries the checked state.
- *
- * Built over the core selection-region codec — the second markerRegion adapter after notes-region.
+ * The standing-PR body's selection region: a task list where a ticked row releases that package on the next merge.
+ * State round-trips by marker slicing, never prose: identity comes from each row's `<!-- rk-sel:NAME -->` marker and
+ * the checked state only from the `[x]`/`[ ]` glyph, the one thing a human can toggle.
  */
 
 const REGION_HEADING = '### Packages to release';
@@ -29,12 +24,9 @@ const REGION_HINT =
   '> Untick a package to hold it back from the next release, then save — the bot re-runs and updates this PR. ' +
   'Keep the `<!-- rk-sel... -->` marker comments; they identify each row.';
 
-/** Render order for channel sections — stable first, prereleases after. */
 const CHANNEL_ORDER: readonly ReleaseChannel[] = ['stable', 'prerelease'] as const;
 
-/** Section headings shown only when a standing PR mixes channels; a single-channel PR drops them so
- *  the flat list renders byte-for-byte as before. Each prerelease row carries its own dist-tag, so the
- *  heading stays generic rather than naming one tag. */
+/** Generic because each prerelease row carries its own dist-tag. */
 const SECTION_HEADING: Record<ReleaseChannel, string> = {
   stable: '#### Stable — advancing on `latest`',
   prerelease: '#### Prereleases — advancing on their pre-release dist-tag',
@@ -44,14 +36,12 @@ function checkbox(selected: boolean): string {
   return selected ? '[x]' : '[ ]';
 }
 
-/** The channel a row sits on: the per-package value stamped on the update, falling back to deriving it
- *  from the version for manifests written before that field existed (old PRs still open). */
+/** Derived from the version when absent: manifests in still-open PRs can predate the `channel` field. */
 function channelOf(update: Update): ReleaseChannel {
   return update.channel ?? deriveReleaseChannel(update.newVersion);
 }
 
-/** A release unit's channel is its primary's; an unchanged primary (no `primaryUpdate`) inherits it
- *  from its members, which are single-channel by construction for `linked`/`fixed` groups. */
+/** An unchanged primary inherits its members' channel, single by construction for `linked`/`fixed` groups. */
 function unitChannel(unit: ReleaseUnit): ReleaseChannel {
   if (unit.primaryUpdate) {
     return channelOf(unit.primaryUpdate);
@@ -60,7 +50,6 @@ function unitChannel(unit: ReleaseUnit): ReleaseChannel {
   return child ? channelOf(child) : 'stable';
 }
 
-/** Bucket items by channel, preserving input order within each bucket. */
 function byChannel<T>(items: readonly T[], key: (item: T) => ReleaseChannel): Map<ReleaseChannel, T[]> {
   const map = new Map<ReleaseChannel, T[]>();
   for (const item of items) {
@@ -75,7 +64,6 @@ function byChannel<T>(items: readonly T[], key: (item: T) => ReleaseChannel): Ma
   return map;
 }
 
-/** Push a section heading, ensuring a blank line separates it from the rows above. */
 function pushSectionHeading(lines: string[], channel: ReleaseChannel): void {
   if (lines[lines.length - 1] !== '') {
     lines.push('');
@@ -83,16 +71,10 @@ function pushSectionHeading(lines: string[], channel: ReleaseChannel): void {
   lines.push(SECTION_HEADING[channel], '');
 }
 
-/** The `→ <version>` label for a row. A prerelease row also surfaces the dist-tag channel it advances
- *  on (npm publishes a prerelease under its preid, e.g. `1.0.0-next.1` → `next`), so a mixed PR shows
- *  per-package maturity at a glance. */
 function versionDisplay(update: Update): string {
   if (channelOf(update) !== 'prerelease') {
     return update.newVersion;
   }
-  // SEAM: the per-package "graduate to stable" affordance — gated on a `graduate:<package>`
-  // label — attaches to prerelease rows here once that mechanism merges. This renders the channel
-  // grouping + dist-tag only; it deliberately renders no affordance yet.
   return `${update.newVersion} · \`${getDistTag(update.newVersion)}\``;
 }
 
@@ -107,48 +89,36 @@ function row(
   return `${indent}- ${checkbox(selected)} ${prefix}${name} → ${versionDisplay(update)} ${rkSelMarker(update.packageName)}`;
 }
 
-/** Config controlling the hierarchical (release-unit) render. Absent / empty `primaryPackages` keeps
- *  the flat per-package render — fully backward-compatible. */
 export interface PrimaryConfig {
-  /** Glob patterns or exact names declaring which packages drive releases (the unit anchors). */
   primaryPackages: string[];
-  /** Render mode. streamlined: one toggle per primary, children read-only + cascaded. granular:
-   *  every package keeps its own toggle, nested under its primary, no cascade. */
+  /** streamlined: one toggle per primary, children cascade. granular: every package keeps its own toggle. */
   selection: 'streamlined' | 'granular';
-  /** `version.groups` — resolves an unchanged primary's group (its group-mates are its children). */
   groups: Record<string, { sync?: string; packages?: string[] }>;
-  /** Every workspace package name. Resolves `primaryPackages` patterns to concrete primaries —
-   *  including a primary that isn't bumping, which never appears in `updates`. */
+  /** Needed to resolve a primary that isn't bumping, which never appears in `updates`. */
   allPackageNames: string[];
 }
 
-/** A primary and the changed packages that ship with it. `primaryUpdate` is absent when the primary
- *  itself isn't bumping but still anchors changed members of its closure (common under `linked`). */
 export interface ReleaseUnit {
   primaryName: string;
+  /** Absent when the primary isn't bumping but still anchors changed members (common under `linked`). */
   primaryUpdate?: Update;
   children: Update[];
-  /** Sync mode of the primary's `version.group` (`fixed`/`linked`/`independent`), when it has one.
-   *  Drives the members' wording: `fixed`/`linked` members share a version (`coupled`), `independent`
-   *  members version on their own lines but ship atomically (`bundled`). */
   groupSync?: string;
 }
 
 export interface SelectionHierarchy {
   units: ReleaseUnit[];
-  /** Changed packages that are neither a primary nor a child of one — rendered as flat checkboxes. */
+  /** Changed packages outside every unit. */
   orphans: Update[];
-  /** child package name → the primary names that own it (a child can ship with several primaries). */
+  /** A child can ship with several primaries. */
   childOwners: Map<string, string[]>;
-  /** Names of the primaries that anchor a unit this run. */
   primaryNames: Set<string>;
 }
 
 /**
- * Resolve release units from the changed set. `children(P) = (P's group-mates ∪ P's changed
- * prerequisites) ∩ releasing − declaredPrimaries`. A declared primary that is itself a group-mate of
- * another stays a top-level peer (never nested). A primary anchors a unit when it is bumping OR any
- * member of its closure is — so an unchanged primary still leads its unit. Deterministic ordering.
+ * `children(P) = (P's group-mates ∪ P's changed prerequisites) ∩ releasing − declaredPrimaries`, so a primary that is
+ * another's group-mate stays a top-level peer. A primary anchors a unit when it or any member of its closure is
+ * bumping.
  */
 export function computeHierarchy(updates: Update[], cfg: PrimaryConfig): SelectionHierarchy {
   const { primaryPackages, groups, allPackageNames } = cfg;
@@ -202,7 +172,7 @@ export function computeHierarchy(updates: Update[], cfg: PrimaryConfig): Selecti
     const children = childrenOf(primaryName);
     const primaryUpdate = updateByName.get(primaryName);
     if (!primaryUpdate && children.length === 0) {
-      continue; // declared but nothing in its unit changed
+      continue;
     }
     const group = groupOfPrimary(primaryName);
     const groupSync = group ? groups[group]?.sync : undefined;
@@ -220,20 +190,14 @@ export function computeHierarchy(updates: Update[], cfg: PrimaryConfig): Selecti
   return { units, orphans, childOwners, primaryNames: new Set(units.map((u) => u.primaryName)) };
 }
 
-/**
- * Expand a maintainer's deselection (the unticked primaries + orphans read back from the body) into
- * the full set of held-back packages. A child is held back only when *every* primary owning it is
- * deselected (reference-counted) — so a shared package keeps releasing while any of its owners do.
- */
+/** A child is held back only when every primary owning it is, so a shared package releases while any owner does. */
 export function cascadeDeselection(hierarchy: SelectionHierarchy, deselected: ReadonlySet<string>): Set<string> {
   const effective = new Set<string>();
   const deselectedPrimaries = new Set(
     hierarchy.units.filter((u) => deselected.has(u.primaryName)).map((u) => u.primaryName),
   );
-  // A directly held-back *child* only reaches here from a legacy flat body the first run after
-  // `primaryPackages` is enabled (streamlined children carry no marker, so steady state never has
-  // one). Escalate it to holding its whole unit: a package a maintainer held back must never silently
-  // ship, and holding the unit keeps the render coherent (the primary shows unticked).
+  // A held-back child only arrives from a flat body on the first run after `primaryPackages` is enabled (streamlined
+  // children carry no marker). Hold its whole unit: a held-back package must never silently ship.
   for (const [child, owners] of hierarchy.childOwners) {
     if (deselected.has(child)) {
       for (const owner of owners) {
@@ -257,10 +221,6 @@ export function cascadeDeselection(hierarchy: SelectionHierarchy, deselected: Re
   return effective;
 }
 
-/**
- * Warn (never throw) about `primaryPackages` entries that can't do anything: a pattern matching no
- * known package, or one matching a `version.skip` package (never released, so it cannot anchor).
- */
 export function validatePrimaryPackages(
   primaryPackages: string[],
   allPackageNames: string[],
@@ -284,49 +244,35 @@ export function validatePrimaryPackages(
   return warnings;
 }
 
-/** A primary's task-list row: bold name, interactive checkbox, identity marker. Renders `— no change`
- *  when the primary anchors its unit without bumping. */
 function primaryRow(unit: ReleaseUnit, selected: boolean): string {
   const label = unit.primaryUpdate ? `→ ${versionDisplay(unit.primaryUpdate)}` : '— no change';
   return `- ${checkbox(selected)} **\`${unit.primaryName}\`** ${label} ${rkSelMarker(unit.primaryName)}`;
 }
 
-/** How a group's members relate to their primary: `independent`-group members version on their own
- *  commit-driven lines but ship atomically (`bundled`); `fixed`/`linked` members share a version
- *  (`coupled`). Un-grouped members fall through to `coupled` — the existing wording. */
+/** `independent` members version on their own lines but ship atomically (`bundled`); `fixed`/`linked` members
+ *  share a version (`coupled`). */
 function couplingWord(groupSync?: string): string {
   return groupSync === 'independent' ? 'bundled' : 'coupled';
 }
 
-/** The relationship word for one child of a unit. A prerequisite ships with the unit but isn't a
- *  group member, so it keeps the neutral `coupled` wording; only true group members reflect the
- *  group's sync mode (`bundled` for independent). */
+/** A prerequisite isn't a group member, so it keeps the neutral `coupled` wording. */
 function childWord(child: Update, groupSync?: string): string {
   return child.role === 'prerequisite' ? 'coupled' : couplingWord(groupSync);
 }
 
-/** The summary word for a unit's collapsed pane: `bundled` when it carries any bundled group member,
- *  else `coupled` — so the header never claims `bundled` over a pane of only prerequisites. */
 function unitWord(unit: ReleaseUnit): string {
   return unit.children.some((c) => childWord(c, unit.groupSync) === 'bundled') ? 'bundled' : 'coupled';
 }
 
-/** A streamlined child: a plain bullet (never a task item, so GitHub can't make it interactive and
- *  fight the cascade) and intentionally markerless — its state is derived from its primary each run. */
+/** Never a task item (GitHub would make it interactive and fight the cascade) and markerless: its state derives
+ *  from its primary each run. */
 function childBullet(child: Update, groupSync?: string): string {
   return `  - \`${child.packageName}\` → ${versionDisplay(child)} · ${childWord(child, groupSync)}`;
 }
 
-/**
- * Renders the collapsed per-row changelog for the package(s) a checkbox gates, indented to nest under
- * its row, returning `''` when those packages have no changelog entries. Injected by the caller so
- * selection-region stays free of changelog formatting (the implementation lives in
- * `changelog-region.ts`). The channel-section grouping reuses it unchanged when it regroups *where*
- * rows are placed.
- */
+/** Injected so this module stays free of changelog formatting (see changelog-region.ts). */
 export type RowChangelogRenderer = (packageNames: string[], heldBack: boolean, indent: string) => string;
 
-/** Append a per-row changelog block (if any) for the packages a row gates. No-op without a renderer. */
 function attachChangelog(
   lines: string[],
   rowChangelog: RowChangelogRenderer | undefined,
@@ -343,32 +289,17 @@ function attachChangelog(
   }
 }
 
-/**
- * The per-row channel toggle: a nested, interactive task item under a selectable row letting a
- * maintainer shift just that package's channel without narrowing the release — "ship as prerelease"
- * under a stable row (rk-pre), "graduate to stable" under a prerelease row (rk-grad). Gated on
- * `ci.standingPr.channelToggle`; the parsed tick state round-trips via {@link extractChannelSelection}.
- */
+/** Shifts one package's channel without narrowing the release; ticks round-trip via {@link extractChannelSelection}. */
 export interface ChannelToggleConfig {
-  /** Package names ticked for stable → prerelease (rk-pre). */
   prereleased: ReadonlySet<string>;
-  /** Package names ticked for prerelease → stable (rk-grad). */
   graduated: ReadonlySet<string>;
-  /** Prerelease identifier shown in the stable → prerelease affordance (and its dist-tag). Default 'next'. */
   prereleaseIdentifier?: string;
 }
 
-/** The stable base of a version — its prerelease segment dropped (`1.0.0-next.4` → `1.0.0`). */
 function stableBase(version: string): string {
   return version.split('-')[0] ?? version;
 }
 
-/**
- * Append the channel toggle under a selectable row when enabled and the row is NOT held back —
- * a held-back row's channel is moot, so it shows no toggle. A stable row offers "ship as prerelease"
- * (rk-pre); a prerelease row offers "graduate to stable" (rk-grad). These are real `- [ ]` task items
- * (interactive, unlike the streamlined children), indented one level under their row.
- */
 function attachChannelToggle(
   lines: string[],
   update: Update,
@@ -394,8 +325,6 @@ function attachChannelToggle(
   }
 }
 
-/** Render the flat (no-primary) rows for a single channel's updates: target → its derived
- *  prerequisites where those roles are present, otherwise plain per-package rows. */
 function renderFlatSection(
   lines: string[],
   updates: Update[],
@@ -419,8 +348,7 @@ function renderFlatSection(
       }
     }
   }
-  // Flat rows for the plain-async case, and for any prerequisite whose target had no update entry of
-  // its own (it would otherwise be silently dropped).
+  // Also catches a prerequisite whose target has no update entry of its own, which would otherwise be dropped.
   for (const update of updates.filter((u) => !rendered.has(u.packageName))) {
     lines.push(row(update, selected(update.packageName)));
     attachChannelToggle(lines, update, selected(update.packageName), '  ', channel);
@@ -428,13 +356,8 @@ function renderFlatSection(
   }
 }
 
-/** Flat render split into channel sections: stable then prereleases, each a self-contained
- *  flat list. A single-channel PR drops the headings and renders exactly as before.
- *
- *  Caveat: the `↳ prerequisite` nesting in `renderFlatSection` only holds when a target and its
- *  prerequisite share a channel. A cross-channel prerequisite (e.g. a `-next` dependency of a stable
- *  target) lands in its own channel section and renders as a flat row without the `↳` label —
- *  channel grouping wins over prerequisite nesting in that rare mixed-maturity case. */
+/** A cross-channel prerequisite (e.g. a `-next` dependency of a stable target) lands in its own channel section as
+ *  a flat row without the `↳` label: channel grouping wins over prerequisite nesting. */
 function renderFlat(
   lines: string[],
   updates: Update[],
@@ -453,7 +376,6 @@ function renderFlat(
   }
 }
 
-/** Render one release unit (primary row + its coupled members), streamlined or granular. */
 function renderUnit(
   lines: string[],
   unit: ReleaseUnit,
@@ -464,23 +386,21 @@ function renderUnit(
 ): void {
   lines.push(primaryRow(unit, selected(unit.primaryName)));
   const heldBack = !selected(unit.primaryName);
-  // The primary's channel toggle shifts the whole unit (the wiring expands the scope to its group);
-  // an unchanged primary anchoring the unit has no version to shift, so it gets none.
+  // An unchanged primary has no version to shift, so no toggle; a changed one's toggle shifts its whole group.
   if (unit.primaryUpdate) {
     attachChannelToggle(lines, unit.primaryUpdate, !heldBack, '  ', channel);
   }
   if (streamlined) {
     if (unit.children.length > 0) {
-      // Children inside a collapsed pane as plain bullets — a blank line after <summary> lets GitHub
-      // render the nested markdown list.
+      // The blank line after <summary> lets GitHub render the nested markdown list.
       lines.push(`  <details><summary>ships ${unit.children.length} ${unitWord(unit)}</summary>`, '');
       for (const child of unit.children) {
         lines.push(childBullet(child, unit.groupSync));
       }
       lines.push('  </details>');
     }
-    // The streamlined unit ships primary + its members together (coupled or bundled), so its changelog
-    // aggregates them all — a shared prerequisite re-appears under every owning unit (self-contained).
+    // The unit ships together, so its changelog aggregates every member; a shared prerequisite repeats under each
+    // owner.
     attachChangelog(
       lines,
       rowChangelog,
@@ -489,7 +409,6 @@ function renderUnit(
       '  ',
     );
   } else {
-    // granular: every package toggles on its own, so each row carries only its own changes.
     attachChangelog(lines, rowChangelog, [unit.primaryName], heldBack, '  ');
     for (const child of unit.children) {
       lines.push(row(child, selected(child.packageName), { indent: true }));
@@ -499,7 +418,6 @@ function renderUnit(
   }
 }
 
-/** Render an orphan — a changed package outside every known unit — as a flat top-level checkbox. */
 function renderOrphan(
   lines: string[],
   orphan: Update,
@@ -522,7 +440,7 @@ function renderHierarchical(
 ): void {
   const hierarchy = computeHierarchy(updates, primary);
   const streamlined = primary.selection !== 'granular';
-  // A unit stays intact and lands in its primary's channel section; orphans land in their own.
+  // A unit stays intact in its primary's channel section.
   const unitsByChannel = byChannel(hierarchy.units, unitChannel);
   const orphansByChannel = byChannel(hierarchy.orphans, channelOf);
   const channels = CHANNEL_ORDER.filter(
@@ -536,30 +454,12 @@ function renderHierarchical(
     for (const unit of unitsByChannel.get(channel) ?? []) {
       renderUnit(lines, unit, selected, streamlined, rowChangelog, channelToggle);
     }
-    // Orphans stay flat top-level checkboxes (fail-safe), grouped under their own channel.
     for (const orphan of orphansByChannel.get(channel) ?? []) {
       renderOrphan(lines, orphan, selected, rowChangelog, channelToggle);
     }
   }
 }
 
-/**
- * Render the selection region for a set of publishable updates. With `primary` set (non-empty
- * `primaryPackages`) it renders release units — primaries as parent rows with coupled members nested
- * beneath (streamlined: read-only bullets in a collapsed pane; granular: per-child checkboxes).
- * Otherwise rows render flat, grouping target → derived prerequisites when those roles are present.
- * Every row is ticked unless its package is in `deselected`. When `rowChangelog` is supplied, each
- * row gets its co-located collapsed changelog covering exactly the package(s) that row gates.
- *
- * Rows are grouped into channel sections: a **Stable** section (advancing on `latest`) and a
- * **Prereleases** section (advancing on each row's pre-release dist-tag). The hierarchy/flat render is
- * preserved *within* each section — a unit lands in its primary's channel. When every package shares
- * one channel the headings are dropped, so single-channel PRs render byte-for-byte as before.
- *
- * With `channelToggle` supplied (`ci.standingPr.channelToggle`), each selectable, non-held row also
- * gets a nested interactive channel toggle: "ship as prerelease" under a stable row, "graduate
- * to stable" under a prerelease row. Returns the marker-wrapped block.
- */
 export function renderSelectionRegion(
   updates: VersionOutput['updates'],
   deselected: ReadonlySet<string>,
@@ -579,12 +479,7 @@ export function renderSelectionRegion(
   return wrapSelectionRegion(lines.join('\n'));
 }
 
-/**
- * Read the maintainer's prior selection back from a live PR body: the package names whose row is
- * unticked (`[ ]`). Returns `undefined` when no selection region is present (a body that predates
- * this feature, or a sync release that carries none). Pure marker slicing — the package identity is
- * taken from the `rk-sel` marker, the checked state from the glyph anchored to that marker's line.
- */
+/** `undefined` when the body has no selection region (a sync release, or a body predating the feature). */
 export function extractSelection(body: string): { deselected: string[] } | undefined {
   const region = extractSelectionRegion(body);
   if (region === undefined) {
@@ -603,8 +498,7 @@ export function extractSelection(body: string): { deselected: string[] } | undef
       continue;
     }
     const name = line.slice(nameStart, nameEnd);
-    // A row is selected unless its checkbox glyph is explicitly empty. `includes('[ ]')` is a fixed
-    // substring check on the row text before the marker — no prose parsing, no backtracking regex.
+    // Selected unless explicitly empty; a fixed substring check, not a backtracking regex.
     if (line.slice(0, markerStart).includes('[ ]')) {
       deselected.push(name);
     }
@@ -612,8 +506,6 @@ export function extractSelection(body: string): { deselected: string[] } | undef
   return { deselected };
 }
 
-/** Every `<!-- <marker>:NAME -->` hit in a region, with the checkbox glyph state read from the row
- *  text before the marker. Identity always comes from the marker, never the prose. */
 function markerHits(region: string, marker: string): Array<{ name: string; ticked: boolean; unticked: boolean }> {
   const open = `<!-- ${marker}:`;
   const hits: Array<{ name: string; ticked: boolean; unticked: boolean }> = [];
@@ -637,12 +529,7 @@ function markerHits(region: string, marker: string): Array<{ name: string; ticke
   return hits;
 }
 
-/**
- * Read the maintainer's channel toggles back from a live PR body: the packages ticked to ship
- * as a prerelease (`rk-pre`) or graduate to stable (`rk-grad`). Pure marker slicing over the selection
- * region; empty result when the body carries no region or no toggles. A row held back via its `rk-sel`
- * untick WINS over its channel toggle — held back ⇒ channel is moot, so it's dropped here.
- */
+/** A held-back row's channel toggle is dropped: its channel is moot. */
 export function extractChannelSelection(body: string): { prereleased: string[]; graduated: string[] } {
   const region = extractSelectionRegion(body);
   if (region === undefined) {
@@ -661,20 +548,14 @@ export function extractChannelSelection(body: string): { prereleased: string[]; 
 }
 
 /**
- * Resolve a package caught in both channel scopes: the `rk-pre` toggle and a `graduate` label
- * (or `rk-grad`) can name the same package, but a run can't graduate and go prerelease at once. The
- * `rk-pre` toggle is the explicit in-body action so it wins — the package is dropped from `graduate`
- * and returned in `conflicts` for the caller to surface. Without this the engine's authoritative
- * `stableOnly` silently overrides an accepted prerelease toggle (publishing stable while the PR shows
- * the toggle ticked). Pure set arithmetic; both inputs are already group-expanded by the caller.
+ * The `rk-pre` toggle is the explicit in-body action, so it wins over a graduate label or `rk-grad` naming the same
+ * package. Otherwise the engine's `stableOnly` would silently publish stable while the PR shows the toggle ticked.
  */
 export function resolveChannelConflicts(
   graduate: readonly string[],
   prereleaseScope: readonly string[],
 ): { graduate: string[]; conflicts: string[] } {
-  // A graduate entry can be a glob target (e.g. a `graduate:@scope/*` label) while prereleaseScope is
-  // always exact marker names — so match by target, not string equality: an exact check would let a
-  // pattern that covers a prereleased package slip through and reach the engine in both scopes.
+  // Graduate entries can be globs (prereleaseScope never is), so match by target rather than string equality.
   const conflicts = graduate.filter((target) =>
     prereleaseScope.some((name) => shouldMatchPackageTargets(name, [target])),
   );
@@ -690,12 +571,7 @@ export interface SelectionWarning {
   reason: string;
 }
 
-/**
- * Coherence warnings for a deselection. Unticking a member of an `independent` group ships a partial
- * group; unticking a prerequisite that a still-ticked target depends on may publish that target
- * against an unreleased dependency. Lockstep (`fixed`/`linked`) members are handled upstream (their
- * untick is ignored, not warned here) since they cannot be held back individually.
- */
+/** Lockstep (`fixed`/`linked`) members aren't warned about: upstream ignores their untick. */
 export function selectionWarnings(
   updates: VersionOutput['updates'],
   deselected: ReadonlySet<string>,
@@ -707,8 +583,7 @@ export function selectionWarnings(
       continue;
     }
     if (update.group && groups[update.group]?.sync === 'independent') {
-      // Only a *partial* hold-back splits the group. When a primary toggle cascades the whole
-      // independent group out together, every member is deselected — coherent, so don't warn.
+      // A primary cascading the whole group out is coherent; only a partial hold-back splits it.
       const partial = updates.some((u) => u.group === update.group && !deselected.has(u.packageName));
       if (partial) {
         warnings.push({

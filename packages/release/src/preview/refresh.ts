@@ -11,30 +11,18 @@ export interface RefreshAfterReleaseOptions {
   projectDir: string;
 }
 
-/** Hard cap on feeder-PR previews refreshed in one run — keeps the cost bounded on busy repos. */
 const MAX_FEEDER_PR_REFRESH = 50;
 
 /**
- * Post-release cleanup of state that goes stale when a release moves `main`. Two halves with
- * deliberately different failure semantics:
- *
- * 1. **Standing-PR reconcile (release-critical).** A direct/manual/immediate release that bypasses
- *    the standing PR leaves its manifest computed against the old baseline — and the `chore: release `
- *    commit suppresses the normal push-triggered update. Reusing the existing `--reconcile` path
- *    re-syncs it. A failure here propagates: a stale standing PR can hold already-published versions.
- *    This half pushes the release branch, so it needs a workflow-triggering credential — hence it
- *    lives in this CLI step rather than being driven from the orchestrator.
- * 2. **Feeder-PR preview refresh (cosmetic, opt-in).** Delegated to {@link refreshFeederPreviews},
- *    which the release orchestrator also calls in-process after a successful publish (so a consumer
- *    no longer needs this CLI step purely for the cosmetic half).
+ * A release that bypasses the standing PR leaves its manifest on the old baseline, and the release commit suppresses
+ * the push-triggered update, so reconcile it here. A reconcile failure fails the job: a stale standing PR can hold
+ * already-published versions. It pushes the release branch, so it needs a workflow-triggering credential - hence a CLI
+ * step rather than the orchestrator. The feeder-preview refresh is cosmetic and never fatal.
  */
 export async function runRefreshAfterRelease(options: RefreshAfterReleaseOptions): Promise<void> {
   const ciConfig = loadCIConfig({ cwd: options.projectDir, configPath: options.config });
   const strategy = ciConfig?.releaseStrategy ?? 'direct';
 
-  // — Half 1: reconcile the standing PR (RELEASE-CRITICAL) —
-  // Only standing-pr mode has a standing PR. No try/catch: a failure must fail the job rather than
-  // silently leave the standing PR stating versions that may already be published.
   if (strategy === 'standing-pr') {
     info('Reconciling the standing PR after release...');
     await runStandingPRUpdate({
@@ -47,17 +35,12 @@ export async function runRefreshAfterRelease(options: RefreshAfterReleaseOptions
     });
   }
 
-  // — Half 2: refresh feeder-PR previews (COSMETIC, opt-in, never fatal) —
   await refreshFeederPreviews(options);
 }
 
 /**
- * Replay the (idempotent) "what would release" preview comment on still-open feeder PRs after a
- * release moves `main`, so their estimate isn't frozen at the pre-release baseline. Cosmetic and
- * opt-in (`ci.prPreview.refreshAfterRelease`); a pure forge-API operation (no git push) needing only
- * a `pull-requests: write` token. Best-effort — it **never throws**, so the release orchestrator can
- * drive it in-process after any successful publish (the standing-PR publish path as well as the
- * direct/scoped path) without risking the release.
+ * Never throws, so the orchestrator can run it in-process after any successful publish. Forge-only (no git push), so
+ * a `pull-requests: write` token suffices.
  */
 export async function refreshFeederPreviews(options: RefreshAfterReleaseOptions): Promise<void> {
   try {
@@ -86,14 +69,12 @@ export async function refreshFeederPreviews(options: RefreshAfterReleaseOptions)
       if (pr.headRef === branch) {
         continue; // the standing PR's manifest is authoritative, never previewed
       }
-      // Only refresh PRs that already have a preview — never manufacture one on a PR that opted out.
+      // Only PRs that already have a preview: never manufacture one on a PR that opted out.
       if (!(await forge.findComment(pr.number, MARKER))) {
         continue;
       }
       eligible.push(pr);
-      // Open PRs come back most-recently-updated first, so the first MAX_FEEDER_PR_REFRESH are exactly
-      // the set we refresh. Stop probing once one past the cap is in hand — bounds the per-PR
-      // findComment calls instead of fetching comments for every open PR on a busy repo.
+      // Open PRs come most-recently-updated first, so stop probing one past the cap (enough to know to warn).
       if (eligible.length > MAX_FEEDER_PR_REFRESH) {
         break;
       }
@@ -121,8 +102,6 @@ export async function refreshFeederPreviews(options: RefreshAfterReleaseOptions)
           pr: String(pr.number),
           repo,
           dryRun: false,
-          // Supply the PR's base SHA so standing-pr advisory scoping matches the event-driven path —
-          // there's no pull_request event payload on this push/dispatch-triggered run.
           baseSha: pr.baseSha,
         });
       } catch (err) {
@@ -131,7 +110,6 @@ export async function refreshFeederPreviews(options: RefreshAfterReleaseOptions)
       }
     }
   } catch (err) {
-    // Best-effort — config/enumeration/forge errors only warn, never fail the release.
     warn(`Feeder-PR preview refresh failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 }

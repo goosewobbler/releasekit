@@ -6,7 +6,6 @@ function pkg(name: string, deps: string[]): GraphPackage {
   return { name, dir: `/ws/${name}`, ecosystem: 'npm', deps };
 }
 
-// core <- utils, core <- types, {utils,types} <- app
 const graph = buildDependencyGraph([
   pkg('core', []),
   pkg('utils', ['core']),
@@ -23,7 +22,6 @@ describe('resolvePrerequisites', () => {
     );
     expect(targets).toEqual(['app']);
     expect(new Set(prerequisites)).toEqual(new Set(['core', 'utils', 'types']));
-    // core is depended on by utils + types, so it must come first.
     expect(prerequisites.indexOf('core')).toBeLessThan(prerequisites.indexOf('utils'));
     expect(prerequisites.indexOf('core')).toBeLessThan(prerequisites.indexOf('types'));
     expect(targetSet).toEqual(new Set(['app', 'utils', 'types', 'core']));
@@ -48,17 +46,15 @@ describe('resolvePrerequisites', () => {
   });
 
   it('should order prerequisites by the full release graph when a prereq depends on a target', () => {
-    // utils (a prerequisite) depends on core (an explicit target). The complete release order must
-    // place core before utils — prerequisites must not be treated as "publish before the targets".
+    // utils (a prerequisite) depends on core (an explicit target).
     const { targets, prerequisites, targetSet } = resolvePrerequisites(
       graph,
       ['core', 'app'],
       ['app', 'utils', 'core'],
     );
     expect(targets).toEqual(['core', 'app']);
-    expect(prerequisites).toEqual(['utils']); // core is a target, so only utils is a derived prereq
+    expect(prerequisites).toEqual(['utils']);
     expect(targetSet).toEqual(new Set(['core', 'app', 'utils']));
-    // The authoritative publish order is the topo-sort of the full release set: core before utils.
     const order = graph.topologicalOrder([...targetSet]);
     expect(order.indexOf('core')).toBeLessThan(order.indexOf('utils'));
   });
@@ -76,7 +72,6 @@ describe('resolvePrerequisites', () => {
   });
 
   it('should list a shared prerequisite under every target that depends on it', () => {
-    // Both utils and types depend on core, so core is a prerequisite of both.
     const { prerequisiteOf } = resolvePrerequisites(graph, ['utils', 'types'], ['utils', 'types', 'core']);
     expect(new Set(prerequisiteOf.core)).toEqual(new Set(['utils', 'types']));
   });

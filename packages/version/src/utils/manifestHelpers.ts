@@ -1,15 +1,8 @@
-/**
- * Helper utilities for working with package manifests (package.json and Cargo.toml)
- */
-
 import fs from 'node:fs';
 import path from 'node:path';
 import { getCargoInfo } from '../cargo/cargoHandler.js';
 import { log } from './logging.js';
 
-/**
- * Result of attempting to get a version from a manifest file
- */
 export interface ManifestVersionResult {
   version: string | null;
   manifestFound: boolean;
@@ -17,15 +10,10 @@ export interface ManifestVersionResult {
   manifestType: 'package.json' | 'Cargo.toml' | null;
 }
 
-/**
- * Tries to get a version from either package.json or Cargo.toml in the specified directory
- * First checks package.json, then falls back to Cargo.toml if needed
- */
 export function getVersionFromManifests(packageDir: string): ManifestVersionResult {
   const packageJsonPath = path.join(packageDir, 'package.json');
   const cargoTomlPath = path.join(packageDir, 'Cargo.toml');
 
-  // Try package.json first
   if (fs.existsSync(packageJsonPath)) {
     try {
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
@@ -45,7 +33,6 @@ export function getVersionFromManifests(packageDir: string): ManifestVersionResu
     }
   }
 
-  // Then try Cargo.toml as fallback
   if (fs.existsSync(cargoTomlPath)) {
     try {
       const cargoInfo = getCargoInfo(cargoTomlPath);
@@ -65,7 +52,6 @@ export function getVersionFromManifests(packageDir: string): ManifestVersionResu
     }
   }
 
-  // If no valid manifest found
   return {
     version: null,
     manifestFound: false,
@@ -74,9 +60,6 @@ export function getVersionFromManifests(packageDir: string): ManifestVersionResu
   };
 }
 
-/**
- * Throws an error if no version can be found in either package.json or Cargo.toml
- */
 export function throwIfNoManifestsFound(packageDir: string): never {
   const packageJsonPath = path.join(packageDir, 'package.json');
   const cargoTomlPath = path.join(packageDir, 'Cargo.toml');

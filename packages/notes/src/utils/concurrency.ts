@@ -1,8 +1,3 @@
-/**
- * Map over `items` running at most `limit` calls of `fn` concurrently, preserving input order in the
- * result. Used to bound fan-out that would otherwise fire one in-flight LLM request per item (e.g.
- * one `processWithLLM` per package), which can blow past provider rate limits on large monorepos.
- */
 export async function mapWithConcurrency<T, R>(
   items: readonly T[],
   limit: number,
@@ -14,8 +9,8 @@ export async function mapWithConcurrency<T, R>(
   let failed = false;
 
   async function worker(): Promise<void> {
-    // Stop pulling new items once any worker's fn has thrown, so a throwing fn doesn't keep starting
-    // fresh work after the first failure (in-flight calls still settle; Promise.all surfaces the error).
+    // Stop pulling new items after the first failure; in-flight calls still settle and Promise.all
+    // surfaces the error.
     while (!failed) {
       const i = next++;
       if (i >= items.length) {

@@ -1,8 +1,6 @@
 import type { VersionOutput } from '@releasekit/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// --- Mocks ---
-
 const mockFsExistsSync = vi.fn().mockReturnValue(false);
 const mockFsReadFileSync = vi.fn();
 
@@ -71,8 +69,6 @@ vi.mock('../../src/standing-pr/standing-pr.js', () => ({
   fetchStandingPRSnapshot: (...args: unknown[]) => mockFetchStandingPRSnapshot(...args),
 }));
 
-// --- Fixtures ---
-
 const versionOutputWithChanges: VersionOutput = {
   dryRun: true,
   updates: [{ packageName: 'test-pkg', newVersion: '1.1.0', filePath: 'package.json' }],
@@ -96,8 +92,6 @@ const defaultContext = {
   repo: 'repo',
   token: 'test-token',
 };
-
-// --- Tests ---
 
 describe('runPreview', () => {
   let runPreview: typeof import('../../src/preview/preview.js').runPreview;
@@ -198,7 +192,7 @@ describe('runPreview', () => {
     afterEach(() => {
       delete process.env.GITHUB_EVENT_PATH;
       // clearAllMocks() (in beforeEach) clears calls but not return-value impls, so reset the fs
-      // mocks explicitly — otherwise withHeadRef's `existsSync → true` leaks into later tests.
+      // mocks explicitly - otherwise withHeadRef's `existsSync → true` leaks into later tests.
       mockFsExistsSync.mockReturnValue(false);
       mockFsReadFileSync.mockReset();
     });
@@ -474,7 +468,7 @@ describe('runPreview', () => {
 
         await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
-        // minor + prerelease composes to preminor so an existing prerelease escalates a fresh
+        // minor & prerelease compose to preminor so an existing prerelease escalates a fresh
         // line rather than degrading to a prerelease increment.
         expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ bump: 'preminor', prerelease: true }));
       });
@@ -590,9 +584,6 @@ describe('runPreview', () => {
       });
 
       it('should surface the gate reason in the banner when channel:prerelease + scope but no bump (honest preview)', async () => {
-        // Reproduces the wdio-desktop-mobile scenario: channel:prerelease + scope:tauri.
-        // The OLD preview lied — it showed a version bump table because scope was present.
-        // The NEW preview matches the gate's verdict: this PR will NOT trigger a release.
         mockLoadCIConfig.mockReturnValue({
           releaseTrigger: 'label',
           scopeLabels: { 'scope:tauri': '@wdio/tauri-*' },
@@ -601,14 +592,11 @@ describe('runPreview', () => {
 
         await runPreview({ projectDir: '/test', dryRun: false });
 
-        // Critically: runRelease (which would compute the misleading version bump) is NOT called.
         expect(mockRunRelease).not.toHaveBeenCalled();
 
         const body = mockPostOrUpdateComment.mock.calls[0][2] as string;
         expect(body).toContain('No bump label detected');
-        // The gate reason — surfaced via labelContext.gateReason — explains exactly why.
         expect(body).toContain('channel:prerelease');
-        // No version bump table is rendered.
         expect(body).not.toContain('### Packages');
       });
 
@@ -631,8 +619,7 @@ describe('runPreview', () => {
         await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
         const callArgs = mockRunRelease.mock.calls[0][0];
-        // Per gate semantics: release:graduate causes bump to be auto-detected from commits.
-        // bump label magnitude is not propagated when graduation is the primary intent.
+        // Per gate semantics, release:graduate auto-detects the bump from commits.
         expect(callArgs.bump).toBeUndefined();
         expect(callArgs.stable).toBe(true);
       });
@@ -680,8 +667,6 @@ describe('runPreview', () => {
 
       await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
-      // Per-PR evaluation: scope label alone is not a release trigger in label mode —
-      // the gate would block, so the preview must show "won't release" too.
       expect(mockRunRelease).not.toHaveBeenCalled();
       expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
         expect.anything(),
@@ -720,9 +705,6 @@ describe('runPreview', () => {
     });
 
     it('should NOT release in label mode for scope-only PR — gate requires bump or stable label', async () => {
-      // Aligned with gate semantics: in label trigger mode, scope alone does not trigger
-      // a release. The user must add bump:* or release:graduate. Conventional-commits-driven
-      // bumps are only supported in commit trigger mode.
       mockLoadCIConfig.mockReturnValue({
         releaseTrigger: 'label',
         scopeLabels: {
@@ -747,8 +729,7 @@ describe('runPreview', () => {
 
       await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
-      // Banner shows the LABEL NAME (what the author can recognise on the PR), not the
-      // configured glob pattern. result.target still uses the pattern.
+      // The banner shows the label name the author recognises on the PR, not the configured glob pattern.
       expect(mockPostOrUpdateComment).toHaveBeenCalledWith(
         expect.anything(),
         1,
@@ -959,12 +940,9 @@ describe('runPreview', () => {
     });
 
     it('should exclude packages outside standing PR scope from the merge prediction table', async () => {
-      // The standing PR only knows about 'queued-pkg'. This PR's runRelease result includes
-      // 'test-pkg' (outside standing scope). After the fix, 'test-pkg' must not appear as
-      // a new-from-pr row in the After-merge table.
+      // The standing PR only knows about 'queued-pkg'.
       mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'standing-pr', releaseTrigger: 'commit' });
       mockFetchStandingPRSnapshot.mockResolvedValue(makeSnapshot());
-      // runRelease returns test-pkg (not in standing PR scope) and queued-pkg (is in scope)
       mockRunRelease.mockResolvedValue({
         versionOutput: {
           dryRun: true,
@@ -998,10 +976,8 @@ describe('runPreview', () => {
       await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
       const body = mockPostOrUpdateComment.mock.calls[0]?.[2] as string;
-      // queued-pkg is in the standing PR scope — must appear as a table row (escalated)
       expect(body).toContain('| `queued-pkg`');
-      // test-pkg is outside standing PR scope — must NOT appear as a merge-table row
-      // (it still appears in the changelog section as <b>test-pkg</b>, which is correct)
+      // Still listed in the changelog section, just not in the merge table.
       expect(body).not.toContain('| `test-pkg`');
       expect(body).toContain('<b>test-pkg</b>');
     });
@@ -1031,7 +1007,6 @@ describe('runPreview', () => {
 
       await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
-      // runRelease should be called WITHOUT bump derived from the label
       expect(mockRunRelease).toHaveBeenCalled();
       const callArg = mockRunRelease.mock.calls[0]?.[0] as { bump?: string };
       expect(callArg?.bump).toBeUndefined();
@@ -1040,7 +1015,6 @@ describe('runPreview', () => {
     it('should NOT throw "No scope specified" in standing-pr advisory mode', async () => {
       mockLoadCIConfig.mockReturnValue(ciWithLabels({ scopeLabels: { 'scope:foo': '@scope/foo' } }));
       mockFetchPRLabels.mockResolvedValue(['bump:patch']); // no scope label, no --target
-      // Without the advisory bypass this would throw "No scope specified"
       await runPreview({ projectDir: '/test', dryRun: false });
       expect(mockPostOrUpdateComment).toHaveBeenCalled();
     });
@@ -1066,8 +1040,6 @@ describe('runPreview', () => {
 
     it('should run version analysis with commit-driven bump when release:immediate is set without a bump label', async () => {
       // Mirrors the bypass workflow: `releasekit release` with no --bump runs commit-driven.
-      // Previously the preview required a bump:* label and rendered "no release", contradicting
-      // the "bypassing the standing PR for a direct release" banner.
       mockLoadCIConfig.mockReturnValue(ciWithLabels({ scopeLabels: { 'scope:all': '*' } }));
       mockFetchPRLabels.mockResolvedValue(['release:immediate', 'scope:all']);
 
@@ -1111,7 +1083,7 @@ describe('runPreview', () => {
 
       it('should pass prBaseSha as baseRef to runRelease in advisory mode', async () => {
         mockLoadCIConfig.mockReturnValue(ciWithLabels());
-        mockFetchPRLabels.mockResolvedValue([]); // no bump label — advisory mode
+        mockFetchPRLabels.mockResolvedValue([]); // no bump label - advisory mode
 
         process.env.GITHUB_EVENT_PATH = '/tmp/event.json';
         mockFsExistsSync.mockReturnValue(true);
@@ -1133,8 +1105,8 @@ describe('runPreview', () => {
 
         await runPreview({ projectDir: '/test', dryRun: false, target: '@test/package' });
 
-        // The event payload is read once (for the standing-PR guard), but immediate mode is not
-        // advisory, so prBaseSha is never extracted from it — baseRef stays undefined.
+        // The payload is still read for the standing-PR guard, but immediate mode isn't advisory, so prBaseSha is
+        // never extracted.
         const callArg = mockRunRelease.mock.calls[0]?.[0] as { baseRef?: string } | undefined;
         expect(callArg?.baseRef).toBeUndefined();
       });

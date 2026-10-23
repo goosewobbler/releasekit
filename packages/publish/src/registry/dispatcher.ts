@@ -5,15 +5,8 @@ import { getExecErrorOutput } from '../utils/exec.js';
 import { classifyPublishError, withPublishRetry } from '../utils/publish-retry.js';
 import type { Registry, RegistryTarget } from './types.js';
 
-/** Bounded auto-retry for transient registry blips: initial attempt + 2 retries. */
 const PUBLISH_RETRY = { maxAttempts: 3, initialDelay: 1000 } as const;
 
-/**
- * Drive one registry through the shared publish lifecycle. Every registry-specific decision lives
- * behind the `Registry` interface; this function owns what they all share — the per-target result,
- * the already-published idempotency handling, bounded retry for transient blips, the fail-fast
- * throw on a real failure, and accumulation into `ctx.output`.
- */
 export async function runPublishStage<T extends RegistryTarget, S>(
   registry: Registry<T, S>,
   ctx: PipelineContext,
@@ -27,13 +20,10 @@ export async function runPublishStage<T extends RegistryTarget, S>(
   const dryRun = ctx.cliOptions.dryRun;
   const results = ctx.output[registry.id];
 
-  // Discover before authenticating: an enabled registry with nothing to publish must no-op, not
-  // demand credentials it will never use. `enabled` means "publish the detected packages of this
-  // kind", so a repo with none (e.g. no crates) must not fail on a missing registry token.
+  // Discover before authenticating so an enabled registry with nothing to publish (e.g. no crates) no-ops
+  // rather than failing on a missing registry token.
   const targets = await registry.discover(ctx);
   if (targets.length === 0) {
-    // Restores the per-registry "nothing to do" breadcrumb the old per-target stages logged, so
-    // verbose output still confirms the stage ran and found no targets (vs. not running at all).
     debug(`[${registry.id}] No targets found, nothing to publish`);
     return;
   }
@@ -78,12 +68,11 @@ export async function runPublishStage<T extends RegistryTarget, S>(
         await withPublishRetry(() => registry.publish(target, ctx, session), {
           ...PUBLISH_RETRY,
           label: `${target.packageName}@${target.version}`,
-          // Never retry an already-published conflict — it resolves as a skip below.
+          // Never retry an already-published conflict - it resolves as a skip below.
           shouldRetry: (error) =>
             !registry.alreadyPublishedPattern.test(getExecErrorOutput(error)) &&
             classifyPublishError(error) === 'transient',
-          // Recorded via callback (not the return value) so the failure paths below — including
-          // exhaustion — still carry the attempt count.
+          // Via callback, not the return value, so the failure paths below still carry the attempt count.
           onAttempt: (attempt) => {
             result.attempts = attempt;
           },

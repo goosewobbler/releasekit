@@ -12,8 +12,7 @@ vi.mock('@releasekit/version', () => ({
   ]),
 }));
 
-// reconstruct reads each tag's commit date through the git seam (`log({ format: '%cd' })`); a
-// seeded FakeGit stands in so the tests don't touch git. `'*'` is the catch-all for any tag range.
+// reconstruct reads each tag's commit date through the git seam.
 let fakeGit: FakeGit;
 vi.mock('@releasekit/git', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@releasekit/git')>();
@@ -49,18 +48,15 @@ describe('reconstructChangelogs', () => {
   });
 
   it('should reconstruct one changelog per tag, paired with its predecessor and sorted by version', async () => {
-    // listPackageTags returns newest-first; reconstruct must re-sort ascending and pair each tag.
     vi.mocked(version.listPackageTags).mockResolvedValue(['pkg@v1.2.0', 'pkg@v1.0.0', 'pkg@v1.1.0']);
 
     const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p', packageSpecificTags: true });
 
     expect(result.map((r) => r.changelog.version)).toEqual(['1.0.0', '1.1.0', '1.2.0']);
-    // Each entry carries the source tag alongside its rebuilt changelog.
     expect(result.map((r) => r.tag)).toEqual(['pkg@v1.0.0', 'pkg@v1.1.0', 'pkg@v1.2.0']);
     expect(result[0]?.changelog).toMatchObject({ previousVersion: null, revisionRange: 'pkg@v1.0.0' });
     expect(result[1]?.changelog).toMatchObject({ previousVersion: '1.0.0', revisionRange: 'pkg@v1.0.0..pkg@v1.1.0' });
     expect(result[2]?.changelog).toMatchObject({ previousVersion: '1.1.0', revisionRange: 'pkg@v1.1.0..pkg@v1.2.0' });
-    // Entries are extracted from each pair's range.
     expect(result[2]?.changelog.entries[0]?.description).toBe('pkg@v1.1.0..pkg@v1.2.0');
   });
 
@@ -89,8 +85,7 @@ describe('reconstructChangelogs', () => {
   });
 
   it('should use the global tag series when packageSpecificTags is off', async () => {
-    // No package name in the tags — sync/single repos share one `v*` series. listPackageTags is not
-    // consulted; pairing and per-package commit scoping happen exactly as in the package-specific path.
+    // Sync/single repos share one `v*` series with no package name in the tags.
     vi.mocked(version.listGlobalTags).mockResolvedValue(['v1.1.0', 'v1.0.0']);
 
     const result = await reconstructChangelogs({ packageName: 'pkg', pkgPath: '/p', versionPrefix: 'v' });

@@ -39,7 +39,7 @@ async function assertHeadIsReleaseCommit(git: Git, commitMessage: string, cwd: s
   }
 }
 
-/** Error strategy: THROWS. Git is a prerequisite — failure halts pipeline. */
+/** Error strategy: THROWS. Git is a prerequisite - failure halts pipeline. */
 export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
   const { input, config, cliOptions, cwd } = ctx;
   const dryRun = cliOptions.dryRun;
@@ -53,7 +53,6 @@ export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
   }
 
   if (!skipCommit) {
-    // Stage all updated files (version bumps + any additional files like changelogs)
     const filePaths = input.updates.map((u) => path.resolve(cwd, u.filePath));
     if (ctx.additionalFiles) {
       filePaths.push(...ctx.additionalFiles.map((f) => path.resolve(cwd, f)));
@@ -96,18 +95,14 @@ export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
     }
   }
 
-  // Create tags. Baseline tags (when present) are created at the same commit as consumer
-  // tags but flagged separately on VersionOutput so the github-release stage can skip them.
+  // Baseline tags share the release commit but stay separate on VersionOutput so github-release can skip them.
   const allTags = [...input.tags, ...(input.baselineTags ?? [])];
   for (const tag of allTags) {
     if (!dryRun) {
-      // Check if tag already exists before creating
       if (await git.refExists(`refs/tags/${tag}`, cwd)) {
-        // The seam has no "resolve a tag's commit", so resolve the tag's commit via log and
-        // compare to HEAD (mirrors release/standing-pr's createReleaseTags idempotency check).
-        // A log failure resolves to '' so it falls through to the GIT_TAG_ERROR throw below —
-        // preserving the old execCommandSafe boundary (empty stdout on non-zero exit) rather than
-        // letting a raw GitError escape the PublishError contract.
+        // The seam can't resolve a tag's commit directly, so go via log. A log failure resolves to '' and
+        // falls through to the GIT_TAG_ERROR throw rather than letting a raw GitError escape the
+        // PublishError contract.
         const [tagCommitSha, headSha] = await Promise.all([
           git
             .log({ range: tag, format: '%H', extraArgs: ['-1'], cwd })

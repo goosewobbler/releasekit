@@ -14,7 +14,7 @@ export function hasCargoAuth(): boolean {
   return !!process.env.CARGO_REGISTRY_TOKEN;
 }
 
-/** Returns true if PUB_TOKEN is set (token auth). Without it, OIDC automated publishing is assumed. */
+/** Without PUB_TOKEN, OIDC automated publishing is assumed. */
 export function hasPubTokenAuth(): boolean {
   return !!process.env.PUB_TOKEN;
 }

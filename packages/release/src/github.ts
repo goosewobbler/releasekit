@@ -4,10 +4,6 @@ import { createGitCli } from '@releasekit/git';
 
 export const MARKER = '<!-- releasekit-preview -->';
 
-/**
- * Build a {@link Forge} for the repository described by a GitHub context. Callers guard on a present
- * token before reaching the forge-backed paths; the assertion is a safety net for that invariant.
- */
 export function forgeFor(context: { token: string | null | undefined; owner: string; repo: string }): Forge {
   if (!context.token) {
     throw new Error('A GitHub token is required to access the forge.');
@@ -15,10 +11,6 @@ export function forgeFor(context: { token: string | null | undefined; owner: str
   return createGitHubForge({ token: context.token, owner: context.owner, repo: context.repo });
 }
 
-/**
- * Find merged PR(s) associated with a commit.
- * Returns the PR numbers that were merged and included this commit.
- */
 export async function findMergedPRsForCommit(forge: Forge, commitSha: string): Promise<number[]> {
   try {
     const prs = await forge.listPullRequestsForCommit(commitSha);
@@ -28,17 +20,10 @@ export async function findMergedPRsForCommit(forge: Forge, commitSha: string): P
   }
 }
 
-/**
- * Find all merged PRs since the last release tag.
- * Uses git to enumerate commits in the window `<lastTag>..HEAD`, then looks up each
- * commit's associated PR via the forge API. Falls back to the last 50 commits when
- * no release tags exist. Returns a deduped list of PR numbers.
- */
 export async function findMergedPRsSinceLastRelease(forge: Forge, projectDir: string): Promise<number[]> {
   const git = createGitCli();
-  // describeTags returns null (not throws) when no tags exist — fall back to the last 50 commits.
-  // `-50` is a count flag, not a range, so it rides in extraArgs (the seam rejects a `-`-leading
-  // range as a would-be option); a real `<tag>..HEAD` range goes in `range`.
+  // No tags → the last 50 commits. `-50` is a count flag, not a range, so it rides in extraArgs: the seam rejects a
+  // `-`-leading range as a would-be option.
   const lastTag = await git.describeTags(projectDir);
   const logOpts = lastTag
     ? { range: `${lastTag}..HEAD`, format: '%H', cwd: projectDir }
@@ -62,11 +47,6 @@ export async function findMergedPRsSinceLastRelease(forge: Forge, projectDir: st
   return [...seen];
 }
 
-/**
- * Find an existing release preview comment on the PR by looking for the HTML marker.
- * Accepts an optional `marker` to find comments produced by other surfaces (e.g. the
- * gate's notify path uses a distinct marker so it doesn't collide with the preview).
- */
 export async function findPreviewComment(
   forge: Forge,
   prNumber: number,
@@ -75,18 +55,12 @@ export async function findPreviewComment(
   return (await forge.findComment(prNumber, marker))?.id ?? null;
 }
 
-/**
- * Fetch the label names on a PR.
- */
 export async function fetchPRLabels(forge: Forge, prNumber: number): Promise<string[]> {
   const issue = await forge.getIssue(prNumber);
   return issue.labels;
 }
 
-/**
- * Find the open standing release PR for the configured branch. Swallows errors (returns null) and
- * drops labels — callers that need labels use `forge.findStandingPR(branch)` directly.
- */
+/** Swallows errors and drops labels; callers needing labels use `forge.findStandingPR(branch)` directly. */
 export async function findStandingPR(
   forge: Forge,
   ciConfig: CIConfig | undefined,
@@ -100,13 +74,7 @@ export async function findStandingPR(
   }
 }
 
-/**
- * Create or update a marker-keyed comment on a PR. The body is expected to start with
- * the marker so subsequent calls find and update the same comment.
- *
- * Defaults to the release preview marker for backward compatibility. Pass an alternative
- * marker (e.g. the gate notify marker) to manage distinct comments on the same PR.
- */
+/** The body must start with the marker so later calls find and update the same comment. */
 export async function postOrUpdateComment(
   forge: Forge,
   prNumber: number,

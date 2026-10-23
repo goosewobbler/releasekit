@@ -11,12 +11,6 @@ interface LabelsCommandContext {
   token: string;
 }
 
-/**
- * Resolve the repo + token context for label operations. Unlike the preview context this does
- * not need a PR number, so it can run from a plain checkout or CI. Repo comes from `--repo`,
- * then `GITHUB_REPOSITORY`, then the `origin` git remote. Token comes from `GITHUB_TOKEN` then
- * `GH_TOKEN`.
- */
 export async function resolveLabelsContext(opts: {
   repo?: string;
   projectDir?: string;
@@ -43,7 +37,6 @@ export async function resolveLabelsContext(opts: {
 
 async function detectRepoFromGit(projectDir?: string): Promise<string | undefined> {
   try {
-    // remoteUrl returns null (not throws) when the origin remote is absent.
     const url = await createGitCli().remoteUrl('origin', projectDir ?? process.cwd());
     if (!url) {
       return undefined;
@@ -54,7 +47,7 @@ async function detectRepoFromGit(projectDir?: string): Promise<string | undefine
       return `${match[1]}/${match[2]}`;
     }
   } catch {
-    // git missing / unexpected failure — fall through to undefined.
+    // git missing or unexpected failure: fall through.
   }
   return undefined;
 }
@@ -93,11 +86,6 @@ export interface LabelsSyncOptions {
   check?: boolean;
 }
 
-/**
- * Core of `releasekit labels sync`. In `--check` mode it performs no mutations and exits
- * non-zero (via the thrown error path / explicit exit) when labels are missing. Otherwise it
- * idempotently creates the missing labels.
- */
 export async function runLabelsSync(options: LabelsSyncOptions): Promise<void> {
   const ciConfig = loadCIConfig({ cwd: options.projectDir, configPath: options.config });
   const definitions = deriveLabelDefinitions(ciConfig);

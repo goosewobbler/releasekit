@@ -24,7 +24,6 @@ describe('buildWorkspaceGraph', () => {
       }),
     ];
     const graph = buildWorkspaceGraph(packages);
-    // react is external (filtered by the core graph); vitest is a devDep (never collected).
     expect([...graph.getInternalDependencies('app')].sort()).toEqual(['core', 'types']);
   });
 

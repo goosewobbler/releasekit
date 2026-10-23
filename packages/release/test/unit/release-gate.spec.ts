@@ -58,7 +58,7 @@ describe('evaluatePR — label mode', () => {
     const result = evaluatePR(1, ['release:graduate'], DEFAULT_LABELS, labelMode);
     expect(result.shouldRelease).toBe(true);
     expect(result.stable).toBe(true);
-    // Stable graduation auto-detects magnitude from commits — bump intentionally undefined.
+    // Stable graduation auto-detects magnitude from commits.
     expect(result.bump).toBeUndefined();
   });
 
@@ -84,7 +84,7 @@ describe('evaluatePR — label mode', () => {
       scopeLabels: { 'scope:utils': '@wdio/native-utils' },
     });
     expect(result.shouldRelease).toBe(false);
-    // Scope label still counts as release intent — user gets a notify comment.
+    // Scope label still counts as release intent - the user gets a notify comment.
     expect(result.hasReleaseIntent).toBe(true);
     expect(result.reason).toMatch(/no release labels|need bump|release:graduate/i);
   });
@@ -108,7 +108,6 @@ describe('evaluatePR — label mode', () => {
   });
 
   it('should return first matching scope when multiple scope labels present (no union)', () => {
-    // The order in `labels` determines first-match. Per-PR evaluation does NOT join targets.
     const result = evaluatePR(1, ['bump:minor', 'scope:utils', 'scope:tauri'], DEFAULT_LABELS, {
       ...labelMode,
       scopeLabels: {

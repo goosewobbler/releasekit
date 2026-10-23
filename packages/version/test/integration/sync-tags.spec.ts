@@ -1,12 +1,6 @@
 /**
- * Integration test: sync strategy JSON output
- *
- * Runs the actual CLI binary against a real temp git repository and asserts
- * that the JSON output contains the expected per-package tags when
- * packageSpecificTags is enabled. This catches regressions that unit tests
- * (which mock addTag) cannot detect.
- *
- * Requires: `pnpm build` in @releasekit/version before running.
+ * Runs the built CLI against a real temp git repo, catching tag-output regressions that unit tests (which
+ * mock addTag) can't. Requires `pnpm build` in @releasekit/version first.
  */
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -21,17 +15,15 @@ import { cleanupTempDir, symlinkNodeModules } from '../utils/tempFixture.js';
 let tempDir: string;
 
 function writeReleaseKitConfig(dir: string, versionConfig: Record<string, unknown>) {
-  // The CLI reads releasekit.config.json
   writeFileSync(join(dir, 'releasekit.config.json'), JSON.stringify({ version: versionConfig }, null, 2));
 }
 
 function createMonorepoFixture(dir: string) {
-  // Root package.json (no workspaces field — @manypkg discovers packages via pnpm-workspace.yaml)
+  // No workspaces field: @manypkg finds packages via pnpm-workspace.yaml, which needs no node_modules install.
   writeFileSync(
     join(dir, 'package.json'),
     JSON.stringify({ name: 'test-monorepo', version: '0.1.0', private: true }, null, 2),
   );
-  // pnpm-workspace.yaml is detected by @manypkg without requiring node_modules installation
   writeFileSync(join(dir, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/*"\n');
   mkdirSync(join(dir, 'packages/pkg-a'), { recursive: true });
   mkdirSync(join(dir, 'packages/pkg-b'), { recursive: true });

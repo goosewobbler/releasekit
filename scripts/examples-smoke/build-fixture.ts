@@ -1,21 +1,4 @@
 #!/usr/bin/env tsx
-/**
- * Builds a throwaway consumer fixture for one examples smoke-test scenario
- * (issue #276). The fixture is a real git repo with conventional commits + a
- * tag, depending on locally-packed releasekit tarballs (so `pnpm exec
- * releasekit` resolves), and carrying the scenario's SHIPPED config so the dry
- * run exercises the same code path a consumer would hit.
- *
- * Usage:
- *   tsx scripts/examples-smoke/build-fixture.ts \
- *     --scenario <id> --out <dir> --tarball-dir <dir> [--seed-lockfile]
- *
- * `--seed-lockfile` runs `pnpm install --lockfile-only` so the example's
- * verbatim `pnpm install --frozen-lockfile` step has a lockfile to honour. It
- * needs pnpm on PATH, so it only runs in the prepare job (never in the smoke
- * job, which must start with pnpm ABSENT to catch a missing pnpm/action-setup).
- */
-
 import { execFileSync, spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, normalize, resolve } from 'node:path';
@@ -71,7 +54,6 @@ function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-/** `file:` deps + pnpm overrides pointing at the packed tarballs copied into the fixture. */
 function tarballDeps(tarballNames: Record<string, string>): {
   deps: Record<string, string>;
   overrides: Record<string, string>;
@@ -86,7 +68,6 @@ function tarballDeps(tarballNames: Record<string, string>): {
   return { deps, overrides };
 }
 
-/** pnpm 11+ ignores package.json's `pnpm` field, so the tarball overrides go in pnpm-workspace.yaml. */
 function writeRootManifests(
   out: string,
   name: string,
@@ -95,10 +76,9 @@ function writeRootManifests(
   workspacePackages?: string[],
 ): void {
   const { deps, overrides } = tarballDeps(tarballNames);
-  // Read the repo's pinned pnpm so the fixture's `packageManager` field matches
-  // what the smoke job's pnpm/action-setup@v6 will resolve. The hash suffix
-  // would be wrong on a different machine, so we keep just the `pnpm@X.Y.Z`
-  // portion and let the action pick the latest patch.
+  // Match the repo's pinned pnpm so the fixture's `packageManager` agrees with
+  // what the smoke job's pnpm/action-setup resolves. The hash suffix would be
+  // wrong on a different machine, so keep just `pnpm@X.Y.Z`.
   const repoPkg = JSON.parse(readFileSync(join(rootDir, 'package.json'), 'utf-8')) as {
     packageManager?: string;
   };
@@ -112,6 +92,7 @@ function writeRootManifests(
     ...extra,
     dependencies: deps,
   });
+  // pnpm 11+ ignores package.json's `pnpm` field, so the overrides go in pnpm-workspace.yaml.
   writeFileSync(
     join(out, 'pnpm-workspace.yaml'),
     stringifyYaml({ ...(workspacePackages ? { packages: workspacePackages } : {}), overrides }),
@@ -119,18 +100,14 @@ function writeRootManifests(
 }
 
 function buildNpmSingle(out: string, tarballNames: Record<string, string>): void {
-  // A single-package consumer's one package IS the publishable one, so it must not be `private`.
-  // writeRootManifests defaults `private: true` for the monorepo roots (where only members ship),
-  // but a private single package is skipped at discovery — leaving nothing to release.
+  // A private single package is skipped at discovery, leaving nothing to release.
   writeRootManifests(out, 'smoke-consumer', { private: false }, tarballNames);
 }
 
 function buildNpmMonorepo(out: string, tarballNames: Record<string, string>): void {
   writeRootManifests(out, 'smoke-consumer-root', {}, tarballNames, ['packages/*']);
 
-  // A single member package so releasekit has a workspace to walk. Names/paths
-  // follow the smoke consumer's monorepo shape; the example's releasekit.config
-  // is what actually decides which packages to release.
+  // One member so releasekit has a workspace to walk.
   for (const [dir, pkgName] of [['packages/js-lib', '@smoke/js-lib']] as const) {
     mkdirSync(join(out, dir), { recursive: true });
     writeJson(join(out, dir, 'package.json'), { name: pkgName, version: '1.0.0' });
@@ -140,8 +117,7 @@ function buildNpmMonorepo(out: string, tarballNames: Record<string, string>): vo
 function buildNpmCargoMonorepo(out: string, tarballNames: Record<string, string>): void {
   writeRootManifests(out, 'smoke-consumer-root', {}, tarballNames, ['packages/*']);
 
-  // Layout mirrors the monorepo-rust example config: packages/{js-lib,cli},
-  // crates/{core,ffi}. Names/paths follow the shipped releasekit.config.json.
+  // Paths must match the monorepo-rust example's releasekit.config.json.
   for (const [dir, pkgName] of [
     ['packages/js-lib', '@smoke/js-lib'],
     ['packages/cli', '@smoke/cli'],
@@ -173,8 +149,7 @@ function main(): void {
   rmSync(outDir, { recursive: true, force: true });
   mkdirSync(outDir, { recursive: true });
 
-  // Copy the packed tarballs into the fixture so its file: deps are self-contained
-  // (the smoke job downloads only the fixture artifact).
+  // The smoke job downloads only the fixture artifact, so its file: deps must be self-contained.
   const tarballsOut = join(outDir, '.tarballs');
   mkdirSync(tarballsOut, { recursive: true });
   const tarballNames: Record<string, string> = {};
@@ -195,18 +170,15 @@ function main(): void {
       buildNpmCargoMonorepo(outDir, tarballNames);
       break;
     default: {
-      // Exhaustiveness check: adding a new fixture kind to scenarios.ts fails to
-      // compile here until build-fixture.ts is taught how to build it.
       const _exhaustive: never = scenario.fixture;
       throw new Error(`Unhandled fixture kind: ${String(_exhaustive)}`);
     }
   }
 
-  // Drop in the SHIPPED config for this scenario — this is what makes the dry run
-  // faithful and keeps the runtime probe config-derived (see generate-smoke-workflow).
+  // The shipped config, so the dry run hits the same code path a consumer would.
   cpSync(join(rootDir, 'examples', 'ci', scenarioId, scenario.config), join(outDir, 'releasekit.config.json'));
 
-  // Conventional-commit history + a baseline tag so the dry run computes a bump.
+  // Conventional-commit history & a baseline tag so the dry run computes a bump.
   git(outDir, 'init', '-q', '-b', 'main');
   git(outDir, 'config', 'user.email', 'smoke@example.com');
   git(outDir, 'config', 'user.name', 'Smoke Test');
@@ -218,18 +190,17 @@ function main(): void {
   git(outDir, 'commit', '-q', '-m', 'feat: add a releasable change');
 
   if (seedLockfile) {
-    // Generate pnpm-lock.yaml so the example's verbatim `pnpm install
-    // --frozen-lockfile` has a lockfile to honour in the smoke job. The fixture's
-    // own pnpm-workspace.yaml keeps pnpm from walking up to the monorepo root;
-    // --ignore-workspace would also drop the overrides it carries.
+    // Gives the example's verbatim `pnpm install --frozen-lockfile` a lockfile to
+    // honour. Needs pnpm on PATH, so only the prepare job passes --seed-lockfile:
+    // the smoke job must start without pnpm to catch a missing pnpm/action-setup.
+    // The fixture's own pnpm-workspace.yaml keeps pnpm from walking up to the
+    // monorepo root; --ignore-workspace would also drop the overrides it carries.
     execFileSync('pnpm', ['install', '--lockfile-only', '--ignore-scripts'], {
       cwd: outDir,
       stdio: 'inherit',
     });
     git(outDir, 'add', '-A');
-    // Skip the commit when nothing is staged — pnpm's resolution can land on
-    // the existing lockfile shape with no fixture-local changes to record.
-    // `git diff --cached --quiet` exits 1 when there ARE staged changes.
+    // pnpm's resolution can leave nothing new to commit.
     const hasStagedChanges = spawnSync('git', ['diff', '--cached', '--quiet'], { cwd: outDir }).status !== 0;
     if (hasStagedChanges) {
       git(outDir, 'commit', '-q', '-m', 'chore: seed lockfile');

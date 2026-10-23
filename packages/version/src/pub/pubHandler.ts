@@ -55,13 +55,12 @@ export function updatePubVersion(pubspecPath: string, version: string, dryRun = 
 
     // Replace the version line, preserving an optional inline comment and tolerating
     // trailing whitespace. Flutter build numbers (e.g. `1.0.0+1`) are intentionally
-    // dropped — ReleaseKit manages the SemVer portion only.
+    // dropped - ReleaseKit manages the SemVer portion only.
     const updatedContent = content.replace(/^(version:[ \t]*)\S.*?([ \t]*#[^\n]*)?[ \t]*$/m, `$1${version}$2`);
 
-    // A no-op replacement is only legitimate when the file is already at the target
-    // version. Otherwise either there is no version field, or the parser found one the
-    // regex could not rewrite (an unusually-formatted line) — refuse rather than record
-    // a bump that never touched the file and let a stale version reach pub.dev.
+    // A no-op replacement is only legitimate when the file is already at the target version.
+    // Otherwise refuse rather than record a bump that never touched the file and let a stale
+    // version reach pub.dev.
     if (updatedContent === content && pubspec.version !== version) {
       throw new Error(`No version field found in ${pubspecPath}`);
     }

@@ -14,11 +14,7 @@ import { runNotesStep, runPublishStep, runVersionStep } from './steps.js';
 import type { ReleaseOptions, ReleaseOutput } from './types.js';
 import { publishableUpdates } from './version-display.js';
 
-/**
- * Resolve the release-driving PR + mode for the failure report. Direct/label mode: the merged
- * feature PR that triggered the release (discovered from the HEAD commit). Manual dispatch (no
- * PR): mode 'manual' with no PR number — the report goes to the workflow step summary.
- */
+/** With no triggering PR (e.g. manual dispatch) the report goes to the workflow step summary. */
 async function resolveReleaseReportTarget(): Promise<{
   forge: Forge;
   prNumber?: number;
@@ -41,10 +37,7 @@ async function resolveReleaseReportTarget(): Promise<{
   return { forge, prNumber, mode: prNumber !== undefined ? 'direct' : 'manual' };
 }
 
-/**
- * Post a partial-publish failure report for a direct/label-mode or manual-dispatch release.
- * Best-effort: never throws (the caller re-throws the original pipeline error).
- */
+/** Never throws: the caller re-throws the original pipeline error. */
 async function reportReleaseFailure(versionOutput: VersionOutput, err: PipelineError): Promise<void> {
   try {
     const target = await resolveReleaseReportTarget();
@@ -105,7 +98,6 @@ async function applyScopeLabelsFromPR(
     return { target: options.target, scopeLabels: [], labels: [] };
   }
 
-  // Skip scope label check for manual workflow_dispatch events
   const githubEventName = process.env.GITHUB_EVENT_NAME;
   if (githubEventName === 'workflow_dispatch') {
     info('Manual workflow_dispatch release — skipping scope label check');
@@ -124,19 +116,16 @@ async function applyScopeLabelsFromPR(
     perPRLabels.set(prNumber, labels);
   }
 
-  // Check for label conflicts per-PR (not aggregated across PRs)
-  // Labels from different PRs don't conflict with each other
+  // Per PR: labels from different PRs don't conflict.
   const labels = ciConfig?.labels ?? DEFAULT_LABELS;
   for (const [prNumber, prLabels] of perPRLabels) {
     const conflict = detectLabelConflicts(prLabels, labels);
 
-    // Check for release:skip label (only in commit trigger mode)
     if ((ciConfig?.releaseTrigger ?? 'label') === 'commit' && prLabels.includes(labels.skip)) {
       info(`PR #${prNumber} has "${labels.skip}" label — skipping release`);
       return { target: options.target, scopeLabels: [], labels: [], skipped: true };
     }
 
-    // Warn if skip label is used in label mode (not effective)
     if (prLabels.includes(labels.skip)) {
       warn(`PR #${prNumber} has "${labels.skip}" label — this has no effect in label trigger mode`);
     }
@@ -152,7 +141,6 @@ async function applyScopeLabelsFromPR(
   }
 
   if (prNumbers.length === 0) {
-    // Manual release (no PR context) - allow releasing all packages if no target specified
     info(`No merged PRs found — ${options.target ? `using target: ${options.target}` : 'releasing all packages'}`);
     return { target: options.target, scopeLabels: [], labels: allLabels };
   }
@@ -180,13 +168,8 @@ async function applyScopeLabelsFromPR(
   return { target: finalTarget, scopeLabels: matchedScopePatterns, labels: allLabels };
 }
 
-/**
- * Apply config-driven step overrides to the options object.
- * Priority order: CLI flags (already set on options) > release.ci overrides > release.steps.
- * The CLI always wins because both checks guard with !options.skipX before setting.
- */
+/** Config can only add skips, never undo a CLI flag. */
 function applyStepOverrides(options: ReleaseOptions, releaseConfig: ReleaseConfig | undefined): void {
-  // Steps array: a step absent from the list is skipped unless CLI already set the flag.
   if (releaseConfig?.steps) {
     if (!releaseConfig.steps.includes('notes') && !options.skipNotes) {
       options.skipNotes = true;
@@ -196,7 +179,6 @@ function applyStepOverrides(options: ReleaseOptions, releaseConfig: ReleaseConfi
     }
   }
 
-  // ci overrides: can suppress a step even when it appears in 'steps'.
   if (releaseConfig?.ci?.notes === false && !options.skipNotes) {
     options.skipNotes = true;
   }
@@ -206,7 +188,7 @@ function applyStepOverrides(options: ReleaseOptions, releaseConfig: ReleaseConfi
 }
 
 export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseOutput | null> {
-  // Work on a copy so config-driven overrides never mutate the caller's object
+  // A copy, so config-driven overrides never mutate the caller's object.
   const options = { ...inputOptions };
 
   if (options.verbose) {
@@ -219,7 +201,6 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
     setJsonMode(true);
   }
 
-  // Load release config for automation behavior
   let releaseKitConfig: ReturnType<typeof loadReleaseKitConfig>;
   try {
     releaseKitConfig = loadReleaseKitConfig({ cwd: options.projectDir, configPath: options.config });
@@ -230,7 +211,6 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   const releaseConfig = releaseKitConfig.release;
   const ciConfig = releaseKitConfig.ci;
 
-  // Resolve --scope flag to target packages if provided
   if (options.scope) {
     if (!ciConfig?.scopeLabels || Object.keys(ciConfig.scopeLabels).length === 0) {
       throw new Error(`--scope "${options.scope}" provided but ci.scopeLabels is not configured`);
@@ -240,15 +220,9 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
     options.target = resolvedTarget;
   }
 
-  // Apply scope labels from PR labels (if GitHub context available)
-  // Skip in dry-run mode since preview.ts already handles scope labels
-
-  // Determine effective target: CLI target can be overridden by scope labels
   let effectiveTarget = options.target;
 
-  // Only apply scope labels in non-dry-run (release) mode
-  // In dry-run/preview mode, preview.ts already handles scope labels via applyLabelOverrides
-  // However, we still call applyScopeLabelsFromPR to detect label conflicts (e.g., release:graduate + channel:prerelease)
+  // Runs in dry-run too, for its conflict detection, but only a real run takes its target: preview handles scope.
   const scopeResult = await applyScopeLabelsFromPR(ciConfig, options);
   if (scopeResult.blocked) {
     info('Release blocked due to conflicting PR labels');
@@ -258,14 +232,11 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
     info('Release skipped due to release:skip label');
     return null;
   }
-  // Only update effectiveTarget in real (non-dry-run) mode;
-  // preview.ts already handles scope label targeting in dry-run mode.
   if (!options.dryRun && scopeResult.target !== options.target) {
     info(`Scope labels override target: ${options.target} → ${scopeResult.target}`);
     effectiveTarget = scopeResult.target;
   }
 
-  // Apply skipPatterns: exit early if HEAD commit matches a skip pattern
   if (releaseConfig?.ci?.skipPatterns?.length) {
     const headCommit = await getHeadCommitMessage(options.projectDir);
     if (headCommit) {
@@ -279,15 +250,10 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
 
   applyStepOverrides(options, releaseConfig);
 
-  // --- Step 1: Version ---
-  // Always run the version engine with dryRun:true so no files are written yet.
-  // File writes are captured as pending writes instead of going to disk, allowing
-  // all early-exit guards to be evaluated before the repository is modified.
+  // Always dryRun: writes are captured as pending so every early-exit guard runs before the repo is touched.
   info('Running version analysis...');
   const versionOutput = await runVersionStep({ ...options, target: effectiveTarget, dryRun: true });
-  // The preflight always runs with dryRun:true, so _jsonData.dryRun is always
-  // true in the snapshot. Restore the caller's actual intent before forwarding
-  // to downstream steps (notes, publish) that inspect this flag.
+  // Restore the caller's intent; notes and publish inspect this flag.
   versionOutput.dryRun = options.dryRun ?? false;
 
   if (versionOutput.updates.length === 0) {
@@ -295,16 +261,13 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
     return null;
   }
 
-  // Apply minChanges threshold before modifying any files. Counts publishable packages only —
-  // the root lockstep bump (sync mode) would otherwise inflate the count by one.
   const publishableCount = publishableUpdates(versionOutput).length;
   if (releaseConfig?.ci?.minChanges !== undefined && publishableCount < releaseConfig.ci.minChanges) {
     info(`Skipping release: ${publishableCount} package(s) to update, minimum is ${releaseConfig.ci.minChanges}`);
     return null;
   }
 
-  // All guards passed. For a real (non-dry) run, flush the pending writes captured
-  // during the dryRun pass above so version bumps land on disk exactly once.
+  // All guards passed: land the captured writes exactly once.
   let versionFiles: string[] = [];
   if (!options.dryRun) {
     const { flushPendingWrites } = await import('@releasekit/version');
@@ -313,13 +276,10 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
 
   info(`Found ${versionOutput.updates.length} package update(s)`);
   for (const update of versionOutput.updates) {
-    // Annotate the resolved version action when present. Absent on manifests produced
-    // before the field existed — render nothing rather than an empty parenthetical.
     const annotation = update.action ? ` (${update.action})` : '';
     info(`  ${update.packageName} → ${update.newVersion}${annotation}`);
   }
 
-  // --- Step 2: Notes ---
   let notesGenerated = false;
   let packageNotes: Record<string, string> | undefined;
   let releaseNotes: Record<string, string> | undefined;
@@ -334,15 +294,12 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
     success('Release notes generated');
   }
 
-  // Human-edited notes win per package (manual-mode draft dispatch). Merged here so the
-  // edits flow into both the publish step's release-body map and the returned releaseNotes.
+  // Draft-edited notes win per package; merged here so they reach both the publish step and the return value.
   if (options.editedNotes && Object.keys(options.editedNotes).length > 0) {
     releaseNotes = mergeNotesRegions(releaseNotes ?? {}, options.editedNotes);
     info(`Using human-edited release notes for ${Object.keys(options.editedNotes).length} package(s) from the draft.`);
   }
 
-  // --- Step 3: Publish ---
-  // The publish step's git-commit stage commits version bumps + changelogs + tags.
   let publishOutput: ReleaseOutput['publishOutput'];
   if (!options.skipPublish) {
     info('Publishing...');
@@ -350,9 +307,6 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
       // Stage what `updates` misses, e.g. a hybrid's Cargo.toml.
       publishOutput = await runPublishStep(versionOutput, options, releaseNotes, [...versionFiles, ...notesFiles]);
     } catch (err) {
-      // On a partial-publish failure the pipeline throws a PipelineError carrying the per-package
-      // ledger. Surface a failure report on the release-driving PR (or the step summary), then
-      // re-throw so the workflow still fails. Skip in dry-run — no real publish happened.
       if (err instanceof PipelineError && !options.dryRun) {
         await reportReleaseFailure(versionOutput, err);
       }
@@ -360,8 +314,6 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
     }
     success('Publish complete');
 
-    // A successful publish clears any prior failure report for this release (resolves it and the
-    // supersede warning). Only meaningful for a direct-mode release with a triggering PR.
     if (!options.dryRun) {
       try {
         const target = await resolveReleaseReportTarget();
@@ -374,9 +326,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
         );
       }
 
-      // The release moved `main`: refresh still-open feeder PRs' "what would release" preview in
-      // process (opt-in via ci.prPreview.refreshAfterRelease) so they aren't left stale against the
-      // new baseline. Best-effort and never throws — must not fail an already-successful release.
+      // The release moved `main`, so open feeder PRs' previews are stale.
       await refreshFeederPreviews({ config: options.config, projectDir: options.projectDir });
     }
   }

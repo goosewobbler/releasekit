@@ -6,19 +6,6 @@ import { isPrerelease } from '../utils/semver.js';
 
 type BodySource = 'auto' | 'releaseNotes' | 'changelog' | 'generated' | 'none';
 
-/**
- * Resolve notes for a given tag based on the `body` config.
- *
- * Resolution order for 'auto':
- *   1. If releaseNotes enabled in notes config → use in-memory release notes from pipeline
- *   2. GitHub's auto-generated notes (--generate-notes flag)
- *
- * Other values:
- *   'releaseNotes' → use in-memory release notes from pipeline (error if not enabled)
- *   'changelog'    → use changelog entries from version output
- *   'generated'    → always --generate-notes
- *   'none'         → no notes body
- */
 function resolveNotes(
   bodySource: BodySource,
   tag: string,
@@ -58,7 +45,7 @@ function resolveNotes(
     return { useGithubNotes: true };
   }
 
-  // 'auto' mode — try release notes, fall back to GitHub auto-generated notes
+  // 'auto'
   if (releaseNotesEnabled && pipelineNotes) {
     const body = findNotesForTag(tag, pipelineNotes);
     if (body) {
@@ -70,7 +57,6 @@ function resolveNotes(
   return { useGithubNotes: true };
 }
 
-/** Check if a tag is version-only (e.g., "v1.0.0") vs package-specific (e.g., "pkg@v1.0.0"). */
 function isVersionOnlyTag(tag: string): boolean {
   return /^v?\d+\.\d+\.\d+/.test(tag);
 }
@@ -80,15 +66,8 @@ interface TagResolution {
   version: string;
 }
 
-/** Match a tag against a list of package names, handling three formats:
- *  - Raw:           "@scope/pkg@v1.0.0"  (unsanitized name, "@" separator — no tagTemplate)
- *  - Sanitized "@": "scope-pkg@v1.0.0"   (sanitized name, "@" separator — tagTemplate "${packageName}@v${version}")
- *  - Sanitized "-": "scope-pkg-v1.0.0"   (sanitized name, "-" separator — tagTemplate "${packageName}-${version}")
- *
- *  Checked in that order; for unscoped names the sanitized-"@" form collapses to the raw form.
- *  Sorts by sanitized name length (longest first) to resolve prefix ambiguity.
- */
 function resolveTagPackage(tag: string, packageNames: string[]): TagResolution | null {
+  // Longest sanitized name first, to resolve prefix ambiguity.
   const sorted = [...packageNames].sort((a, b) => sanitizePackageName(b).length - sanitizePackageName(a).length);
   for (const packageName of sorted) {
     // Raw, unsanitized name: "@scope/pkg@v1.0.0"
@@ -97,10 +76,8 @@ function resolveTagPackage(tag: string, packageNames: string[]): TagResolution |
       return { packageName, version: tag.slice(atPrefix.length) };
     }
     const sanitized = sanitizePackageName(packageName);
-    // Sanitized name + "@" separator: "scope-pkg@v1.0.0". Produced when `tagTemplate` is
-    // "${packageName}@v${version}" and the name is scoped — the template sanitizes the name into
-    // the tag, so neither the raw-"@" nor the sanitized-"-" branch matches it. (For unscoped names
-    // `sanitized` equals `packageName`, so this collapses to `atPrefix` above.)
+    // Sanitized name, "@" separator: "scope-pkg@v1.0.0", from tagTemplate "${packageName}@v${version}" on a
+    // scoped name. Unscoped names collapse to `atPrefix` above.
     const sanitizedAtPrefix = `${sanitized}@`;
     if (sanitizedAtPrefix !== atPrefix && tag.startsWith(sanitizedAtPrefix)) {
       const versionPart = tag.slice(sanitizedAtPrefix.length);
@@ -108,7 +85,7 @@ function resolveTagPackage(tag: string, packageNames: string[]): TagResolution |
         return { packageName, version: versionPart };
       }
     }
-    // Sanitized name + "-" separator: "scope-pkg-v1.0.0"
+    // Sanitized name, "-" separator: "scope-pkg-v1.0.0"
     const dashPrefix = `${sanitized}-`;
     if (tag.startsWith(dashPrefix)) {
       const versionPart = tag.slice(dashPrefix.length);
@@ -120,13 +97,7 @@ function resolveTagPackage(tag: string, packageNames: string[]): TagResolution |
   return null;
 }
 
-/** Extract title for GitHub release name using the original (unsanitized) package name.
- * - "@releasekit/version" matched from "releasekit-version-v0.4.1" → e.g. "@releasekit/version: v0.4.1"
- * - "@releasekit/release@v0.3.0"                                   → e.g. "@releasekit/release: v0.3.0"
- * - "v0.3.0"                                                        → "v0.3.0"
- *
- * @param packageNames - deduplicated union of changelog package names and release notes keys
- */
+/** Titles use the unsanitized package name, e.g. "releasekit-version-v0.4.1" → "@releasekit/version: v0.4.1". */
 function getTitleFromTag(tag: string, packageNames: string[], titleTemplate: string): string {
   const applyTemplate = (packageName: string, version: string): string =>
     titleTemplate.replace(/\$\{packageName\}/g, packageName).replace(/\$\{version\}/g, version);
@@ -137,7 +108,6 @@ function getTitleFromTag(tag: string, packageNames: string[], titleTemplate: str
       return applyTemplate(resolved.packageName, resolved.version);
     }
   }
-  // Fallback: try splitting on last @ for unsanitized "pkg@version" tags
   const atIndex = tag.lastIndexOf('@');
   if (atIndex === -1) {
     return tag;
@@ -145,7 +115,6 @@ function getTitleFromTag(tag: string, packageNames: string[], titleTemplate: str
   return applyTemplate(tag.slice(0, atIndex), tag.slice(atIndex + 1));
 }
 
-/** Match a tag to a package name in the notes map. */
 function findNotesForTag(tag: string, notes: Record<string, string>): string | undefined {
   const resolved = resolveTagPackage(tag, Object.keys(notes));
   if (resolved) {
@@ -154,7 +123,6 @@ function findNotesForTag(tag: string, notes: Record<string, string>): string | u
       return body;
     }
   }
-  // Single-package fallback for version-only tags (e.g., "v1.0.0")
   const entries = Object.values(notes).filter((b) => b.trim());
   if (entries.length === 1 && isVersionOnlyTag(tag)) {
     return entries[0];
@@ -162,9 +130,6 @@ function findNotesForTag(tag: string, notes: Record<string, string>): string | u
   return undefined;
 }
 
-/**
- * Find the changelog for a given tag and format its entries as markdown.
- */
 function formatChangelogForTag(tag: string, changelogs: VersionPackageChangelog[]): string | undefined {
   if (changelogs.length === 0) {
     return undefined;
@@ -204,10 +169,8 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
     return;
   }
 
-  // Filter baseline tags out of the candidate set. Baselines are pushed alongside consumer
-  // tags but are an internal source-branch marker, not a consumer-facing release point, so
-  // they shouldn't get a GitHub Release. The fallback to ctx.input.tags is preserved for
-  // callers that bypass the git-commit stage and don't pre-populate output.git.tags.
+  // Baseline tags are pushed alongside consumer tags but are an internal source-branch marker, not a release
+  // point. ctx.input.tags covers callers that bypass the git-commit stage and don't populate output.git.tags.
   const baselineSet = new Set(ctx.input.baselineTags ?? []);
   const candidateTags = output.git.tags.length > 0 ? output.git.tags : ctx.input.tags;
   const tags = candidateTags.filter((tag) => !baselineSet.has(tag));
@@ -226,10 +189,8 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
   const skipPackages = config.githubRelease.skipPackages ?? [];
 
   for (const tag of tagsToRelease) {
-    // Argument-injection guard (defense-in-depth): the git stage creates the tag first and already
-    // rejects a leading `-`, but reject here too so a `-`-prefixed tag can never reach the `gh` argv
-    // (cobra would parse it as a flag, e.g. -R/--repo). Non-critical per the per-tag error strategy —
-    // record the failure and move on rather than aborting the whole stage.
+    // Defense-in-depth against argument injection: the git stage already rejects a leading `-`, but a
+    // `-`-prefixed tag must never reach the `gh` argv, where cobra would parse it as a flag (e.g. -R/--repo).
     try {
       assertNotOption(tag, 'tag');
     } catch (error) {
@@ -245,9 +206,7 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
       continue;
     }
 
-    // Skip GitHub release creation when the package is listed in githubRelease.skipPackages.
-    // Tags are still created (needed for changelog range detection on the next release) and
-    // npm publish still runs — only the `gh release create` call is skipped.
+    // Tags are still created (the next release's changelog range needs them) and npm publish still runs.
     if (skipPackages.length > 0) {
       const resolved = resolveTagPackage(tag, skipPackages);
       if (resolved) {
@@ -256,8 +215,7 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
       }
     }
 
-    // Determine if this is a pre-release
-    // Limit tag length and use safer regex to prevent ReDoS
+    // Bounded length and quantifiers guard against ReDoS.
     const MAX_TAG_LENGTH = 1000;
     const truncatedTag = tag.length > MAX_TAG_LENGTH ? tag.slice(0, MAX_TAG_LENGTH) : tag;
     const versionMatch = truncatedTag.match(/(\d{1,20}\.\d{1,20}\.\d{1,20}(?:[-+.]?[a-zA-Z0-9.-]{0,100})?)$/);
@@ -291,8 +249,6 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
       ghArgs.push('--prerelease');
     }
 
-    // Resolve notes for this tag
-    // releaseNotesEnabled = whether we have any release notes content from the notes pipeline
     const releaseNotesEnabled = !!(ctx.releaseNotes && Object.keys(ctx.releaseNotes).length > 0);
     const { body, useGithubNotes } = resolveNotes(
       config.githubRelease.body,
@@ -307,7 +263,7 @@ export async function runGithubReleaseStage(ctx: PipelineContext): Promise<void>
       ghArgs.push('--generate-notes');
     }
 
-    // Check if GitHub release already exists before creating
+    // Leave an existing release alone so re-runs stay idempotent.
     if (!dryRun) {
       const viewResult = await execCommandSafe('gh', ['release', 'view', tag], { dryRun: false });
       if (viewResult.exitCode === 0) {

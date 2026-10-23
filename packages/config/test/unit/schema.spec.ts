@@ -176,7 +176,7 @@ describe('NpmConfigSchema', () => {
 describe('CargoPublishConfigSchema', () => {
   it('should apply defaults', () => {
     const result = CargoPublishConfigSchema.parse({});
-    // Detection enables, config opts out: crates.io publishing defaults on.
+    // Detection enables, config opts out.
     expect(result.enabled).toBe(true);
     expect(result.noVerify).toBe(false);
     expect(result.publishOrder).toEqual([]);
@@ -341,7 +341,6 @@ describe('LLMConfigSchema', () => {
     expect(() => LLMConfigSchema.parse({ provider: 'anthropic' })).toThrow();
     expect(() => LLMConfigSchema.parse({ provider: 'openai' })).toThrow();
     expect(() => LLMConfigSchema.parse({ provider: 'ollama' })).toThrow();
-    // An empty string must not slip through z.string().
     expect(() => LLMConfigSchema.parse({ provider: 'openai', model: '' })).toThrow(/non-empty/);
   });
 
@@ -640,7 +639,7 @@ describe('CIConfigSchema', () => {
   it('should apply standingPr defaults when provided as empty object', () => {
     const result = CIConfigSchema.parse({ standingPr: {} });
     expect(result.standingPr?.branch).toBe('release/next');
-    // No schema default — the title default is strategy-dependent, resolved at use site
+    // No schema default - the title default is strategy-dependent, resolved at use site
     expect(result.standingPr?.title).toBeUndefined();
     expect(result.standingPr?.labels).toEqual(['release']);
     expect(result.standingPr?.deleteBranchOnMerge).toBe(true);

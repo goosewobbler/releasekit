@@ -36,15 +36,12 @@ import type {
 /**
  * For dash-format compound tags (e.g. "scope-pkg-1.2.3" or "scope-pkg-1.2.3-next.1"),
  * find the index of the '-' that separates the package prefix from the semver version.
- * Scans right-to-left so pre-release dashes (e.g. the '-' in "1.2.3-next.1") are skipped.
- * Returns -1 when no semver-like segment is found (plain version tag).
  */
 function findCompoundTagSepPos(tag: string): number {
   let pos = tag.lastIndexOf('-');
   while (pos > 0) {
     const afterDash = pos + 1;
     if (tag.charCodeAt(afterDash) >= 48 && tag.charCodeAt(afterDash) <= 57) {
-      // Digit after dash — confirm semver-like by requiring ≥2 dots in the remainder
       let dots = 0;
       for (let i = afterDash; i < tag.length; i++) {
         if (tag[i] === '.') {
@@ -60,7 +57,6 @@ function findCompoundTagSepPos(tag: string): number {
   return -1;
 }
 
-/** True when position `i` in `tag` begins a semver version: a digit, or a `v` immediately followed by a digit. */
 function isVersionStartAt(tag: string, i: number): boolean {
   const c = tag.charCodeAt(i);
   if (c >= 48 && c <= 57) {
@@ -74,44 +70,37 @@ function isVersionStartAt(tag: string, i: number): boolean {
 }
 
 function generateCompareUrl(repoUrl: string, from: string, to: string, packageName?: string): string {
-  // Check if using package-specific tags (from version contains @ and package name)
   const isPackageSpecific = from.includes('@') && packageName && from.includes(packageName);
 
   let fromVersion: string;
   let toVersion: string;
 
   if (isPackageSpecific) {
-    // For package-specific tags, construct full tag format for both from and to
-    // from: @releasekit/version@v0.2.0-next.9 -> keep as is
     // to: 0.2.0-next.10 -> @releasekit/version@v0.2.0-next.10
     fromVersion = from;
     toVersion = `${packageName}@${to.startsWith('v') ? '' : 'v'}${to}`;
   } else {
-    // Detect compound tags like "scope-pkg-v1.2.3" (dash-format package-specific tags).
-    // Use index-based string operations instead of regex to avoid ReDoS on inputs with
-    // many repeated digits (polynomial backtracking with lazy + greedy quantifiers).
+    // Index-based string operations instead of regex to avoid ReDoS on inputs with many repeated digits.
     const toClean = to.replace(/^v/, '');
     const atPos = from.lastIndexOf('@');
     const dashVPos = from.lastIndexOf('-v');
     if (atPos > 0 && isVersionStartAt(from, atPos + 1)) {
       // Sanitized package-specific tag: "<de-scoped-name>@[v]<version>" (e.g. "scope-pkg@v1.2.3").
       // formatTag always strips the "@scope/", so the raw package name never appears literally and
-      // the isPackageSpecific check above can't match it. Keep the "<name>@" prefix and re-attach the
-      // new version, preserving a "v" only if the original tag had one.
+      // the isPackageSpecific check above can't match it.
       fromVersion = from;
       toVersion = `${from.slice(0, atPos + 1)}${from[atPos + 1] === 'v' ? 'v' : ''}${toClean}`;
     } else if (dashVPos > 0 && from.charCodeAt(dashVPos + 2) >= 48 && from.charCodeAt(dashVPos + 2) <= 57) {
-      // "-v" followed by a digit → compound tag with explicit "v" prefix
+      // Compound tag with "v" prefix (e.g. "scope-pkg-v1.2.3")
       fromVersion = from;
       toVersion = `${from.slice(0, dashVPos + 1)}v${toClean}`;
     } else {
       const sepPos = findCompoundTagSepPos(from);
       if (sepPos > 0) {
-        // Compound tag without "v" prefix (e.g. "scope-pkg-1.2.3" or "scope-pkg-1.2.3-next.1")
         fromVersion = from;
         toVersion = `${from.slice(0, sepPos + 1)}${toClean}`;
       } else {
-        // Plain version tag (e.g. "v1.2.3" or "1.2.3") — strip leading v for consistency
+        // Plain version tag (e.g. "v1.2.3" or "1.2.3")
         fromVersion = from.replace(/^v/, '');
         toVersion = toClean;
       }
@@ -214,7 +203,7 @@ async function processWithLLM(
     }
 
     const rawProvider = createProvider(llmConfig);
-    // Opt-in on-disk cache (innermost, so a hit skips both the provider call and the retry wrapper).
+    // Innermost, so a cache hit skips both the provider call and the retry wrapper.
     const baseProvider = llmConfig.cache
       ? withContentHashCache(rawProvider, { model: llmConfig.model, baseURL: llmConfig.baseURL })
       : rawProvider;
@@ -223,7 +212,6 @@ async function processWithLLM(
     provider = {
       name: baseProvider.name,
       capabilities: baseProvider.capabilities,
-      // Fail fast on non-transient errors (4xx auth/validation); only retry timeout/429/5xx/network.
       complete: (messages, opts) =>
         withRetry(() => baseProvider.complete(messages, { ...configOptions, ...opts }), {
           ...retryOpts,
@@ -236,7 +224,6 @@ async function processWithLLM(
       .map(([name]) => name);
     info(`Running LLM tasks: ${activeTasks.join(', ')}`);
   } catch (error) {
-    // Provider setup failed — nothing computed yet, so fall back to the raw context.
     warn(`LLM setup failed: ${error instanceof Error ? error.message : String(error)}`);
     warn('Falling back to non-LLM changelog rendering. Check your LLM config or set RELEASEKIT_DEBUG=1 for details.');
     return context;
@@ -381,17 +368,12 @@ export interface PipelineResult {
 
 export interface PipelineOptions {
   /**
-   * Skip the LLM pass and the release-notes file write (RELEASE_NOTES.md).
-   * Per-package CHANGELOG.md is unaffected. Use during standing-PR update so the
+   * Skip the LLM pass and the release-notes file write. Use during standing-PR update so the
    * standing-PR workflow doesn't depend on LLM availability and doesn't pay for
    * an LLM call on every push to main.
    */
   skipReleaseNotes?: boolean;
-  /**
-   * Skip the changelog file writes (CHANGELOG.md). LLM + release-notes generation
-   * are unaffected. Use during publish from manifest to regenerate only the
-   * release notes against an already-bumped tree.
-   */
+  /** Use during publish from manifest to regenerate only the release notes against an already-bumped tree. */
   skipChangelogs?: boolean;
 }
 
@@ -405,18 +387,11 @@ export async function runPipeline(
 
   let contexts = input.packages.map(createTemplateContext);
 
-  // changelog defaults to on (mode: root) when omitted; false = explicitly disabled.
-  // mode defaults to 'root' for any object config that omits it (e.g. { file: 'CHANGES.md' }).
   const changelogConfig = config.changelog === false ? false : { mode: 'root' as const, ...(config.changelog ?? {}) };
-  // releaseNotes: undefined = off (default), false = explicitly disabled, object = configured.
-  // Notes always flow to the GitHub release body; in-repo file output is opt-in via `file.dir`.
   const releaseNotesConfig =
     config.releaseNotes === false || config.releaseNotes === undefined ? undefined : config.releaseNotes;
 
   const llmConfig = releaseNotesConfig?.llm;
-  // The LLM pass is part of release-notes generation: enhanced text only flows into the
-  // release-notes output (and the per-package map returned to callers). When release notes
-  // are skipped, the LLM call is wasted compute, so gate them together.
   if (llmConfig && !process.env.CHANGELOG_NO_LLM && !pipelineOptions?.skipReleaseNotes) {
     info('Processing with LLM enhancement');
 
@@ -443,7 +418,6 @@ export async function runPipeline(
       );
     }
 
-    // Fetch PR context for all entries across all packages
     const prCache = new Map<number, PRContext | null>();
     const pullRequestsEnabled = llmConfig.context?.pullRequests !== false;
     if (pullRequestsEnabled && ownerRepo) {
@@ -463,7 +437,6 @@ export async function runPipeline(
       }
     }
 
-    // Decorate entries with fetched PR context
     if (prCache.size > 0) {
       contexts = contexts.map((ctx) => ({
         ...ctx,
@@ -534,20 +507,15 @@ export async function runPipeline(
     }
   }
 
-  // Release-notes file output is opt-in and always per-version (immutable file per release). Notes
-  // also flow to the GitHub release body via `releaseNotesResult` below regardless of file output.
   if (!pipelineOptions?.skipReleaseNotes && releaseNotesConfig?.file?.dir) {
     const dir = releaseNotesConfig.file.dir;
     info(`Generating release notes → ${dir}`);
 
     try {
       const { detectMonorepo } = await import('../monorepo/aggregator.js');
-      // Nest by package whenever the repo has more than one package (a monorepo), so independent
-      // per-package releases — one context per run — can't collide on release-notes/<version>.md.
       const nested = detectMonorepo(process.cwd()).isMonorepo || contexts.length > 1;
 
-      // Content precedence: a template (the docs-site frontmatter hook) wins, else LLM prose, else a
-      // clean single-release section. Never the changelog document — release notes aren't a changelog.
+      // Never the changelog document - release notes aren't a changelog.
       const renderContent = (ctx: TemplateContext): string => {
         if (releaseNotesConfig.templates?.path) {
           const templatePath = path.resolve(releaseNotesConfig.templates.path);
@@ -571,18 +539,15 @@ export async function runPipeline(
   const packageNotes: Record<string, string> = {};
   const releaseNotesResult: Record<string, string> = {};
   for (const ctx of contexts) {
-    // packageNotes is already keyed by package, so it keeps the bare header (no includePackageName);
-    // only the first-release intro is threaded in.
+    // packageNotes is already keyed by package, so it keeps the bare header (no includePackageName).
     packageNotes[ctx.packageName] = formatVersion(ctx, { firstRelease: releaseNotesConfig?.firstRelease });
     if (pipelineOptions?.skipReleaseNotes) {
-      // Caller asked to skip release notes — don't populate the per-package map either,
-      // otherwise the callsite will treat it as "available" content and propagate it.
+      // Leave the map empty, or the callsite treats it as available content and propagates it.
       continue;
     }
     if (ctx.enhanced?.releaseNotes) {
       releaseNotesResult[ctx.packageName] = ctx.enhanced.releaseNotes;
     } else if (releaseNotesConfig) {
-      // Populate release notes for the workflow summary even when no LLM releaseNotes task ran.
       if (releaseNotesConfig.templates?.path) {
         try {
           const templatePath = path.resolve(releaseNotesConfig.templates.path);

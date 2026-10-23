@@ -34,12 +34,11 @@ describe('isPathWithinRoot', () => {
   });
 
   it('should accept a sibling whose name merely starts with the escape sequence', () => {
-    // A child literally named "..foo" is inside the root — it must not be mistaken for a `..` escape.
+    // A child named "..foo", not a `..` escape.
     expect(isPathWithinRoot(root, path.join(root, '..foo'))).toBe(true);
   });
 
   it('should reject a sibling directory sharing the root name prefix', () => {
-    // "/repo-evil" shares the "/repo" prefix as a string but is not nested within "/repo".
     expect(isPathWithinRoot(root, path.resolve('/repo-evil', 'crate'))).toBe(false);
   });
 });

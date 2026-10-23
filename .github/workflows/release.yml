@@ -1,8 +1,6 @@
 name: Release
 
-# Automated releases trigger after CI completes on main. Release commits
-# contain [skip ci] so GitHub skips CI for them entirely, breaking the loop
-# without any extra condition needed.
+# Release commits skip CI, which breaks the CI -> Release loop with no extra condition.
 #
 # A single file calls _release.reusable.yml so that npm OIDC trusted
 # publishing can be configured against one workflow filename.
@@ -71,7 +69,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read # reads the merged PR + its labels via `gh api repos/.../commits/.../pulls`
+      pull-requests: read # reads the merged PR's labels
     if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     outputs:
       should_release: ${{ steps.check.outputs.should_release }}
@@ -84,14 +82,12 @@ jobs:
           REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Helper function to safely call gh API and capture output
           gh_api() {
             local result
             result=$(gh api "$1" 2>&1) || true
             echo "$result"
           }
 
-          # Get PRs that were merged with this commit (includes labels)
           PRS_OUTPUT=$(gh_api "repos/$REPO/commits/$COMMIT_SHA/pulls")
           PRS=$(echo "$PRS_OUTPUT" | jq -r '.[].number' 2>/dev/null | tr '\n' ' ') || PRS=""
 
@@ -102,11 +98,9 @@ jobs:
             exit 0
           fi
 
-          # Extract the release label and derive the bump type from it.
-          # Only bump:* labels are supported (release:* labels are deprecated).
           LABELS=$(echo "$PRS_OUTPUT" | jq -r '.[].labels[].name' 2>/dev/null)
 
-          # Check for channel:stable first (takes precedence over bump:* per ci-setup.md)
+          # channel:stable takes precedence over bump:*.
           if echo "$LABELS" | grep -qE "^channel:stable$"; then
             echo "should_release=true" >> "$GITHUB_OUTPUT"
             echo "bump=auto" >> "$GITHUB_OUTPUT"
@@ -114,9 +108,7 @@ jobs:
             exit 0
           fi
 
-          # Check for channel:prerelease + bump:* (creates prerelease)
           if echo "$LABELS" | grep -qE "^channel:prerelease$"; then
-            # Map bump label to prerelease bump type
             PRERELEASE_BUMP="prerelease"
             if echo "$LABELS" | grep -qE "^bump:patch$"; then
               PRERELEASE_BUMP="prepatch"
@@ -137,7 +129,6 @@ jobs:
             fi
           fi
 
-          # Check for bump:* labels
           BUMP_LABEL=$(echo "$LABELS" | grep -E "^bump:(patch|minor|major)$" | head -1)
           if [ -n "$BUMP_LABEL" ]; then
             BUMP_TYPE="${BUMP_LABEL#bump:}"
@@ -158,7 +149,7 @@ jobs:
     permissions:
       id-token: write
       contents: write
-      pull-requests: write # post the partial-publish failure report on the merged standing PR
+      pull-requests: write
     with:
       packages: all
       bump: ${{ needs.check-labels.outputs.bump || 'auto' }}
@@ -176,7 +167,7 @@ jobs:
     permissions:
       id-token: write
       contents: write
-      pull-requests: write # post the partial-publish failure report on the merged standing PR
+      pull-requests: write
     with:
       packages: ${{ inputs.packages }}
       bump: ${{ inputs.bump }}
@@ -187,10 +178,8 @@ jobs:
       ssh_key: ${{ secrets.DEPLOY_KEY }}
       OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
-  # Standing-PR publish path. Triggered by standing-pr.yml via `gh workflow run` so the OIDC
-  # token's `workflow_ref` claim is `release.yml` — the trusted-publisher entry on npmjs.com is
-  # keyed off the top-level workflow filename, and only one is allowed per package, so all
-  # OIDC publishes have to funnel through here.
+  # standing-pr.yml dispatches this via `gh workflow run` so its OIDC publish also goes through
+  # this file.
   release-standing-pr:
     name: Release from Standing PR
     if: github.event_name == 'workflow_dispatch' && inputs.standing_pr_number != ''
@@ -246,22 +235,18 @@ jobs:
     secrets:
       ssh_key: ${{ secrets.DEPLOY_KEY }}
 
-  # After an immediate release, the standing PR's queued changes overlap with what was just
-  # published. Re-running standing-pr update reconciles: closes the standing PR if nothing's
-  # left, otherwise rewrites the release branch against the new HEAD. Triggered by
-  # standing-pr.yml's `trigger-immediate` job via `reconcile_after=true`.
+  # The standing PR's queued changes overlap what the immediate release just published: reconcile
+  # closes it if nothing's left, otherwise rewrites the release branch against the new HEAD.
   reconcile-after-release:
     name: Reconcile standing PR (after immediate release)
     needs: release-manual
-    # Skip when nothing actually released — under sync mode (the current config), action_tag is
-    # set whenever any package releases. If you switch back to async, this gate becomes too
-    # narrow (it only fires when @releasekit/release itself is bumped) and should be revisited.
+    # Only under sync mode is action_tag set whenever any package releases; under async this gate
+    # would fire only when @releasekit/release itself is bumped.
     if: github.event_name == 'workflow_dispatch' && inputs.reconcile_after && needs.release-manual.result == 'success' && needs.release-manual.outputs.action_tag != ''
     uses: ./.github/workflows/_standing-pr-update.reusable.yml
-    # HEAD is the just-pushed release commit (matches the skip pattern), so the reconcile run must
-    # bypass the skip-pattern guard or it would no-op and leave the standing PR holding the
-    # just-published versions.
     with:
+      # HEAD is the just-pushed release commit, which matches the skip pattern; without this the
+      # run would no-op and leave the standing PR holding the just-published versions.
       reconcile: true
     permissions:
       contents: write

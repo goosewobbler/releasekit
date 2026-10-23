@@ -1,17 +1,12 @@
 /**
- * Scenario manifest for the examples execution smoke-test.
- *
- * Deliberately METADATA, not a mirror of the example steps: it names which
- * example workflow/job to EXTRACT setup steps from, which shipped config the
- * fixture uses, the fixture shape, and the (always `--dry-run`) releasekit
- * invocation. The steps themselves are read out of the example YAML at
- * generation time, so they can't drift — CI runs the generator with `--check`.
+ * Deliberately metadata, not a mirror of the example steps: the steps are
+ * extracted from the example YAML by generate-smoke-workflow.ts.
  */
 
 export interface Scenario {
   /** Stable id; used as the matrix key and the generated job name. */
   id: string;
-  /** Example workflow file, relative to examples/ci/<id>/. */
+  /** Relative to examples/ci/<id>/. */
   workflow: string;
   /**
    * Job whose setup steps to extract. The extractor drops the terminal
@@ -21,11 +16,10 @@ export interface Scenario {
   job: string;
   /** Shipped config copied into the throwaway fixture. */
   config: string;
-  /** Fixture layout the example assumes. */
   fixture: 'npm-single' | 'npm-monorepo' | 'npm-cargo-monorepo';
-  /** releasekit subcommand + flags (always including `--dry-run`) that replaces the example's terminal step. */
+  /** releasekit subcommand & flags (always including `--dry-run`) that replace the example's terminal step. */
   releaseArgs: string[];
-  /** One-line note shown in the job log explaining what this scenario proves. */
+  /** One-line note shown in the job log. */
   proves: string;
 }
 
@@ -81,8 +75,8 @@ export const SCENARIOS: Scenario[] = [
     job: 'update',
     config: 'releasekit.config.json',
     fixture: 'npm-single',
-    // standing-pr update mutates a real PR via the GitHub API (out of scope), so probe the
-    // environment with a plain dry-run release instead of the real `standing-pr update`.
+    // standing-pr update mutates a real PR via the GitHub API, so probe the environment with a
+    // plain dry-run release instead.
     releaseArgs: ['release', '--dry-run'],
     proves: 'standing-pr update setup resolves; the PR-mutating API path stays out of scope.',
   },

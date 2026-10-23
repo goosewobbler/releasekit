@@ -1,26 +1,13 @@
 import { execFileSync } from 'node:child_process';
 import { assertNotOption, NOTES_MARKER } from '@releasekit/core';
 
-/**
- * Marker that identifies a GitHub release body releasekit authored. Embedded at the top of every
- * backfilled body so re-runs can recognise their own work (see `decideReleaseUpdate`) — the same
- * idempotent-marker convention the preview/manifest/publish-failure comments use. Re-exported from
- * `@releasekit/core`, which owns the editable-region marker family shared with the notes pipeline.
- */
 export { NOTES_MARKER };
 
 export type UpdateDecision =
   | { action: 'update' }
   | { action: 'skip'; reason: 'no-release' | 'already-backfilled' | 'hand-edited' };
 
-/**
- * Decide whether to (re)write a release body during backfill.
- *
- * - No release exists for the tag (`existingBody === null`) → skip; backfill edits, it doesn't create.
- * - `--only-missing` and the body already carries our marker → skip; we've backfilled it before.
- * - Default mode + non-empty body without marker + not `--force` → skip; suspected hand-edit.
- * - Otherwise update. An empty body or one carrying our marker is safe to overwrite.
- */
+/** A non-empty body without our marker is a suspected hand-edit, overwritten only with `force`. */
 export function decideReleaseUpdate(
   existingBody: string | null,
   onlyMissing: boolean,
@@ -38,18 +25,13 @@ export function decideReleaseUpdate(
   return { action: 'update' };
 }
 
-/** Prepend the marker to rendered notes so the written body is recognisable on a later run. */
 export function withMarker(body: string): string {
   return `${NOTES_MARKER}\n\n${body.trim()}\n`;
 }
 
 /**
- * Read a GitHub release body by tag via `gh`, or null when no release exists for the tag.
- *
- * `gh release view` exits non-zero both for a genuinely missing release ("release not found") and
- * for auth/network/rate-limit failures, so a blanket catch would report a broken `gh` session as
- * "no release" for every tag. Only the not-found case maps to null; everything else (a missing CLI,
- * or any other failure) throws so the caller surfaces it instead of silently skipping the work.
+ * `gh release view` also exits non-zero on auth, network and rate-limit failures, so only "release not found" maps to
+ * null; anything else throws rather than reporting every tag as release-less.
  */
 export function getReleaseBody(tag: string): string | null {
   assertNotOption(tag, 'tag');
@@ -68,16 +50,11 @@ export function getReleaseBody(tag: string): string | null {
   }
 }
 
-/** Overwrite a GitHub release body via `gh release edit`. */
 export function editReleaseBody(tag: string, body: string): void {
   assertNotOption(tag, 'tag');
   execFileSync('gh', ['release', 'edit', tag, '--notes', body], { encoding: 'utf8' });
 }
 
-/**
- * Fetch release metadata (isDraft and body) in a single gh call. Returns null when no release exists.
- * Throws on auth/CLI/network failures.
- */
 export function getReleaseInfo(tag: string): { isDraft: boolean; body: string | null } | null {
   assertNotOption(tag, 'tag');
   try {

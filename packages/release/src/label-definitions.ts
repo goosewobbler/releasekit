@@ -2,34 +2,22 @@ import type { CIConfig } from '@releasekit/config';
 import type { Forge } from '@releasekit/forge';
 import { DEFAULT_LABELS, graduatePackageLabel } from './label-utils.js';
 
-/**
- * Canonical definition of a label ReleaseKit relies on. `name` honours `ci.labels` renames
- * and `ci.scopeLabels` keys; `color`/`description` are fixed canonical values applied on create.
- */
+/** `color` and `description` apply only on create; an existing label is left as is. */
 export interface LabelDefinition {
   name: string;
   color: string;
   description: string;
 }
 
-// Colours are grouped by family so labels are visually scannable in the GitHub picker.
-const COLOR_BUMP = '0e8a16'; // green — magnitude controls
-const COLOR_CHANNEL = '1d76db'; // blue — release channel
-const COLOR_RELEASE = 'd93f0b'; // orange — release-flow toggles
-const COLOR_SCOPE = '5319e7'; // purple — scope targeting
-const COLOR_STANDING = 'ededed'; // grey — standing PR markers (matches legacy createLabel colour)
+const COLOR_BUMP = '0e8a16'; // green - magnitude controls
+const COLOR_CHANNEL = '1d76db'; // blue - release channel
+const COLOR_RELEASE = 'd93f0b'; // orange - release-flow toggles
+const COLOR_SCOPE = '5319e7'; // purple - scope targeting
+const COLOR_STANDING = 'ededed'; // grey - standing PR markers
 
 /**
- * Derive the full set of labels implied by the resolved config: bump magnitudes, channel
- * modifiers, the release-flow toggles, every configured `scope:*` label, and the standing-PR
- * labels. Honours `ci.labels` renames and `ci.scopeLabels`. The result is deduped by name —
- * if a rename collides with another label (or a scope label reuses a reserved name) the first
- * definition wins, so we never emit two definitions for the same label name.
- *
- * `graduatablePackages` seeds the per-package `graduate:<package>` labels — GitHub can only
- * apply labels that already exist, so the standing-PR update passes the names of packages currently
- * on a prerelease line so a maintainer can pick one from the label picker. Callers without that
- * context (the label-sync command) omit it; those labels are then minted lazily on the next update.
+ * `graduatablePackages` seeds the `graduate:<package>` labels, since GitHub can only apply labels that exist. Callers
+ * without it (the label-sync command) omit it; the next standing-PR update mints them.
  */
 export function deriveLabelDefinitions(
   ciConfig: CIConfig | undefined,
@@ -84,9 +72,7 @@ export function deriveLabelDefinitions(
     });
   }
 
-  // Per-package graduate labels: one `graduate:<package>` per package currently on a
-  // prerelease line, so a maintainer can graduate just that package (and its lockstep group) to
-  // stable from the GitHub label picker. Channel-blue like the prerelease label — they steer channel.
+  // Channel-blue like the prerelease label: they steer channel.
   for (const pkg of graduatablePackages) {
     definitions.push({
       name: graduatePackageLabel(pkg, labels),
@@ -103,8 +89,7 @@ export function deriveLabelDefinitions(
     });
   }
 
-  // Dedupe by name — renames or scope labels could collide with a reserved name; keep the
-  // first (more specific) definition so each label is created exactly once.
+  // A rename or scope label can collide with a reserved name; the first definition wins.
   const seen = new Set<string>();
   return definitions.filter((def) => {
     if (!def.name || seen.has(def.name)) {
@@ -115,11 +100,7 @@ export function deriveLabelDefinitions(
   });
 }
 
-/**
- * Fetch all label names currently defined in the repo (paginated). Returns a Set of lowercased
- * names so callers can do case-insensitive comparisons; GitHub's `createLabel` API uses
- * case-insensitive uniqueness, so `bump:minor` and `Bump:Minor` are the same label.
- */
+/** Lowercased: GitHub label names are unique case-insensitively. */
 async function listRepoLabelNames(forge: Forge): Promise<Set<string>> {
   const names = await forge.listLabelNames();
   return new Set(names.map((name) => name.toLowerCase()));
@@ -130,10 +111,7 @@ export interface LabelSyncResult {
   existing: string[];
 }
 
-/**
- * Create every config-implied label that is missing from the repo. Labels already present are never
- * requested: each rejected create is logged by Octokit as a 422 and reads like a failure in CI.
- */
+/** Existing labels are never requested: Octokit logs each rejected create as a 422, which reads like a CI failure. */
 export async function syncLabels(forge: Forge, definitions: LabelDefinition[]): Promise<LabelSyncResult> {
   const repoLabels = await listRepoLabelNames(forge);
   const created: string[] = [];
@@ -152,10 +130,6 @@ export async function syncLabels(forge: Forge, definitions: LabelDefinition[]): 
   return { created, existing };
 }
 
-/**
- * Check (no mutations) which config-implied labels are missing from the repo. Returns the list
- * of missing label names; an empty list means the repo is fully provisioned.
- */
 export async function checkLabels(
   forge: Forge,
   definitions: LabelDefinition[],

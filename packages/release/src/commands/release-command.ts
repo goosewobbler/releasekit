@@ -98,8 +98,6 @@ export function createReleaseCommand(): Command {
               ? await runReleaseDraft(options)
               : await runRelease(options);
 
-        // A dry run plans but never mutates state, so it is never "changed"; a real run changed
-        // state iff it produced version updates.
         const changed = !opts.dryRun && Boolean(result?.versionOutput?.updates?.length);
         emitResult(result, { ...io, changed });
 

@@ -1,9 +1,8 @@
 import tsParser from '@typescript-eslint/parser';
 import vitest from '@vitest/eslint-plugin';
 
-// Bare `#NNN` issue references in comments aren't clickable and rot as the code moves; link them as a
-// full URL or drop them (git history is the canonical trace). Matches `#` + 2+ digits that aren't part
-// of a URL fragment or an identifier.
+// Bare `#NNN` refs in comments aren't clickable and rot as the code moves. Matches `#` and 2+ digits outside a URL
+// fragment or identifier.
 const noBareIssueRefs = {
   meta: {
     type: 'suggestion',
@@ -33,8 +32,7 @@ export default [
     ignores: ['**/dist/**/*', '**/coverage/**/*', '**/out/**/*', '**/.turbo/**/*'],
   },
   {
-    // Comment hygiene in production sources only. Test comments legitimately reference mock issue/PR
-    // data (fixture numbers, external-repo PRs), so bare `#NNN` there isn't a citation to flag.
+    // Production sources only: test comments reference mock issue/PR numbers, which aren't citations.
     files: ['packages/**/src/**/*.ts'],
     languageOptions: {
       parser: tsParser,
@@ -62,7 +60,6 @@ export default [
     rules: {
       ...vitest.configs.recommended.rules,
       'vitest/prefer-called-exactly-once-with': 'off',
-      // Behaviour-spec titles start with "should" (describe stays free-form) and carry no issue refs.
       'vitest/valid-title': [
         'error',
         { mustMatch: { it: '^should', test: '^should' }, mustNotMatch: { it: '#\\d', test: '#\\d' } },

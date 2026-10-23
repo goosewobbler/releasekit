@@ -14,12 +14,10 @@ export interface FetchExamplesOptions {
   count: number;
   githubToken?: string;
   isMonorepo?: boolean;
-  /** Inject a forge (tests); defaults to a GitHub-backed forge built from the token. */
+  /** Injected by tests. */
   forge?: Forge;
 }
 
-// Parsed release body text is cached in /tmp keyed by the latest release tag.
-// Cache is invalidated automatically when a new release is published (tag changes).
 function cacheDir(): string {
   return path.join(os.tmpdir(), 'releasekit', 'examples');
 }
@@ -40,8 +38,7 @@ function readCache(key: string, latestTag: string, count: number): Example[] | n
   try {
     const raw = fs.readFileSync(key, 'utf-8');
     const entry: CacheEntry = JSON.parse(raw);
-    // Invalidate if the tag changed or the cached count is smaller than requested
-    // (the user may have increased `examples` config since the last run).
+    // A new release changes the latest tag; `examples` may have been increased since the last run.
     if (entry.latestTag !== latestTag || entry.count < count) {
       return null;
     }

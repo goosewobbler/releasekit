@@ -112,7 +112,6 @@ describe('FakeGit mutations', () => {
     expect(git.addedAll).toBe(2);
     expect(git.committed).toEqual([{ message: 'chore: release', paths: ['CHANGELOG.md'], skipHooks: true }]);
     expect(git.fetched).toEqual(['origin']);
-    // Records the create flag, not just the ref.
     expect(git.checkedOut).toEqual([
       { ref: 'release/next', create: true },
       { ref: 'main', create: false },
@@ -123,7 +122,7 @@ describe('FakeGit mutations', () => {
   it('should record tags and surface a new tag in listTags', async () => {
     const git = createFakeGit({ tags: ['v1.0.0'] });
     await git.tag('v1.1.0', { message: 'release v1.1.0' });
-    await git.tag('v1.0.0'); // already present — not duplicated
+    await git.tag('v1.0.0'); // already present - not duplicated
 
     expect(git.tagged).toEqual([
       { name: 'v1.1.0', message: 'release v1.1.0' },

@@ -59,7 +59,6 @@ function pipelineErrorFor(versionOutput: VersionOutput): PipelineError {
   return new PipelineError('Failed to publish to npm: npm 403', 'npm-publish', publishOutput);
 }
 
-/** A forge seeded with existing comments, exposing its recorded create/update writes for assertions. */
 function fakeForgeWith(comments: Array<{ id: number; body: string }> = []) {
   return createFakeForge({ comments });
 }
@@ -115,7 +114,7 @@ describe('postFailureReport', () => {
       expect(written).toContain('1/2 package(s) published');
       fs.unlinkSync(tmp);
     } finally {
-      // Assigning undefined would coerce to the string "undefined" — delete instead.
+      // Assigning undefined would coerce to the string "undefined" - delete instead.
       delete process.env.GITHUB_STEP_SUMMARY;
     }
   });

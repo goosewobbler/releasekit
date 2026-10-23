@@ -45,8 +45,8 @@ function stripDetailsTags(input: string): string {
 
 function sanitiseBody(raw: string): string {
   return stripDetailsTags(stripHtmlComments(raw))
-    .replace(/!\[.*?\]\(.*?\)/g, '') // strip images
-    .replace(/\n{3,}/g, '\n\n') // collapse blank lines
+    .replace(/!\[.*?\]\(.*?\)/g, '')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 
@@ -80,7 +80,7 @@ export async function fetchPullRequestContext(
         try {
           const issue = await forge.getIssue(number);
           if (!issue.isPullRequest) {
-            cache.set(number, null); // cache as "not a PR" to avoid re-fetching
+            cache.set(number, null);
             return;
           }
           const body = truncateBody(sanitiseBody(issue.body));
@@ -90,7 +90,7 @@ export async function fetchPullRequestContext(
           if (status === 401 || status === 403) {
             warn(`GitHub API auth error fetching PR #${number} (${status}): check GITHUB_TOKEN permissions`);
           } else if (status === 404) {
-            cache.set(number, null); // not found — avoid re-fetching
+            cache.set(number, null);
           } else {
             debug(`Failed to fetch PR #${number}: ${error instanceof Error ? error.message : String(error)}`);
           }

@@ -8,16 +8,13 @@ export interface ScopeError {
 }
 
 export interface ScopeValidationResult {
-  // Always `true` — the configured `invalidScopeAction` defines the resolution, so the
-  // validator never signals retry-worthy failure. The literal type encodes the contract.
+  // The configured `invalidScopeAction` defines the resolution, so callers never corrective-retry the LLM over
+  // scopes; `errors` is for logging only.
   valid: true;
   entries: ChangelogEntry[];
   errors: ScopeError[];
 }
 
-/**
- * Extract allowed scopes from explicit category `scopes` arrays.
- */
 export function getAllowedScopesFromCategories(categories: LLMCategory[]): Map<string, string[]> {
   const scopeMap = new Map<string, string[]>();
   for (const cat of categories) {
@@ -29,10 +26,8 @@ export function getAllowedScopesFromCategories(categories: LLMCategory[]): Map<s
 }
 
 /**
- * Expand workspace package names into the scope forms a conventional-commit might use: the full
- * name, the unscoped form (`@acme/core` → `acme/core`), and the bare short name
- * (`@acme/core` → `core`). Commit scopes are typically short (`core`), not the full npm name, so
- * `scopes.mode: 'packages'` must accept all three to avoid stripping a valid package scope.
+ * Commit scopes are typically short (`core`), not the full npm name (`@acme/core`), so `scopes.mode: 'packages'`
+ * accepts the full, unscoped (`acme/core`) and bare forms to avoid stripping a valid package scope.
  */
 function expandPackageScopes(packageNames: string[]): string[] {
   const forms = new Set<string>();
@@ -45,10 +40,7 @@ function expandPackageScopes(packageNames: string[]): string[] {
   return [...forms];
 }
 
-/**
- * Build the complete allowed scope list from config + categories.
- * Returns `null` for unrestricted, `[]` for none, populated array for restricted/packages.
- */
+/** Returns `null` for unrestricted, `[]` for none. */
 export function resolveAllowedScopes(
   scopeConfig: ScopeConfig | undefined,
   categories?: LLMCategory[],
@@ -83,10 +75,6 @@ export function resolveAllowedScopes(
   return null;
 }
 
-/**
- * Check whether a single scope value is valid against the allowed list.
- * Returns the scope if valid, undefined if invalid.
- */
 export function validateScope(
   scope: string | undefined,
   allowedScopes: string[] | null,
@@ -104,14 +92,6 @@ export function validateScope(
   return isAllowed ? scope : undefined;
 }
 
-/**
- * Validate scopes on all entries and apply the configured `invalidScopeAction`
- * (`remove` | `keep` | `fallback`, default `remove`). Always returns
- * `valid: true` once the action has been applied — the action defines the
- * resolution, so callers should not trigger a corrective retry on the LLM.
- *
- * `errors` is populated for logging/inspection but does not signal failure.
- */
 export function validateEntryScopes(
   entries: ChangelogEntry[],
   scopeConfig: ScopeConfig | undefined,
@@ -128,9 +108,6 @@ export function validateEntryScopes(
   const fallback = scopeConfig?.rules?.fallbackScope;
   const errors: ScopeError[] = [];
 
-  // Misconfiguration guard: if `fallback` is set but isn't itself in the allow list, the
-  // substituted scope would still violate the rules. Warn once at the top of the validator
-  // rather than once per entry; this is a config bug, not an LLM bug.
   if (
     action === 'fallback' &&
     fallback !== undefined &&

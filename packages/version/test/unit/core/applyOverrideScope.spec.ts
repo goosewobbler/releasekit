@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { applyOverrideScope } from '../../../src/core/versionCalculator.js';
 import type { Config, VersionOptions } from '../../../src/types.js';
 
-// A config carrying a forced override (bump major + prerelease + stable), optionally scoped.
 const cfg = (overrideScope?: string[]): Config =>
   ({
     tagTemplate: '${prefix}${version}',
@@ -67,8 +66,7 @@ describe('applyOverrideScope', () => {
   });
 });
 
-// Per-package graduation: `graduateScope` gates ONLY the `stableOnly` graduation, leaving any
-// bump/prerelease the run also carries intact. A graduate config carries stableOnly (no other override).
+// graduateScope gates only the stableOnly graduation, leaving any bump/prerelease the run carries intact.
 const gradCfg = (graduateScope?: string[]): Config =>
   ({
     tagTemplate: '${prefix}${version}',
@@ -97,13 +95,11 @@ describe('applyOverrideScope — graduateScope (#486)', () => {
   });
 
   it('should leave a bump override intact when gating an out-of-scope package (graduate is bump-less)', () => {
-    // stableOnly + graduateScope + a forced bump: the out-of-scope package loses graduation but keeps
-    // the bump, so it advances along its line rather than graduating.
     const config = { ...gradCfg(['@scope/a']), type: 'minor' } as Config;
     const { config: scoped, options } = applyOverrideScope(config, opts('@other/b'));
     expect(scoped.stableOnly).toBeUndefined();
     expect(scoped.type).toBe('minor');
-    expect(options.type).toBe('major'); // options.type from opts() is untouched by graduateScope gating
+    expect(options.type).toBe('major'); // from opts(), untouched by graduateScope gating
   });
 
   it('should not mutate the input config', () => {
@@ -114,8 +110,7 @@ describe('applyOverrideScope — graduateScope (#486)', () => {
 });
 
 // `release:with-prerequisites` scopes the bump override to the explicit targets (overrideScope), while
-// `graduate:<pkg>` can target a transitive prerequisite that sits OUTSIDE that overrideScope. The two
-// scopes interact: graduateScope must win for stableOnly so the explicit graduation isn't lost.
+// `graduate:<pkg>` can target a transitive prerequisite outside it, so graduateScope must win for stableOnly.
 const comboCfg = (): Config =>
   ({
     tagTemplate: '${prefix}${version}',
@@ -130,11 +125,9 @@ const comboCfg = (): Config =>
 
 describe('applyOverrideScope — graduateScope + overrideScope combo (#486)', () => {
   it('should keep stableOnly for a graduated prerequisite outside overrideScope', () => {
-    // @scope/prereq is outside overrideScope (so block 1 strips its bump override) but inside
-    // graduateScope — it must still graduate (stableOnly survives the overrideScope clearing).
     const { config } = applyOverrideScope(comboCfg(), opts('@scope/prereq'));
     expect(config.stableOnly).toBe(true);
-    // The bump override is gone (it's outside overrideScope) — graduation is bump-less, so that's fine.
+    // Graduation is bump-less, so losing the override is fine.
     expect(config.type).toBeUndefined();
     expect(config.isPrerelease).toBeUndefined();
   });
@@ -145,16 +138,13 @@ describe('applyOverrideScope — graduateScope + overrideScope combo (#486)', ()
   });
 
   it('should clear stableOnly for an in-overrideScope target that was not graduated', () => {
-    // The explicit target keeps its bump override but does NOT graduate — it wasn't asked to.
     const { config } = applyOverrideScope(comboCfg(), opts('@scope/target'));
     expect(config.stableOnly).toBeUndefined();
   });
 });
 
-// Per-package prerelease: the symmetric twin of graduateScope. `prereleaseScope` gates ONLY the
-// `isPrerelease` shift, re-asserting it for an in-scope package and clearing it for an out-of-scope one
-// so the latter advances along its projected (commit-driven) line. A prerelease config carries
-// isPrerelease (folded from runOptions.prereleaseScope) with no other override.
+// prereleaseScope is graduateScope's twin: it gates only the isPrerelease shift, which is folded in from
+// runOptions.prereleaseScope.
 const preCfg = (prereleaseScope?: string[]): Config =>
   ({
     tagTemplate: '${prefix}${version}',
@@ -194,12 +184,11 @@ describe('applyOverrideScope — prereleaseScope (#521)', () => {
   });
 
   it('should re-assert isPrerelease for an in-prereleaseScope package that sits outside overrideScope', () => {
-    // The overrideScope clearing (block 1) strips isPrerelease for a package outside overrideScope, but
-    // prereleaseScope membership is authoritative — it must survive the clearing (symmetric to graduate).
+    // prereleaseScope membership must survive the overrideScope clearing, as graduateScope does.
     const config = { ...preCfg(['@scope/pre']), overrideScope: ['@scope/target'], type: 'minor' } as Config;
     const { config: scoped } = applyOverrideScope(config, opts('@scope/pre'));
     expect(scoped.isPrerelease).toBe(true);
-    // The bump override is gone (outside overrideScope) — the prerelease shift stays commit-driven.
+    // The prerelease shift stays commit-driven.
     expect(scoped.type).toBeUndefined();
   });
 });

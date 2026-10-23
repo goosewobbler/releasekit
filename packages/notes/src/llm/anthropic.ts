@@ -41,9 +41,7 @@ export class AnthropicProvider extends BaseLLMProvider {
     debugLogMessages(this.name, messages);
 
     // `options.temperature` is intentionally not passed to the Messages API: thinking-enabled models
-    // (Sonnet 5, Fable 5, Opus 4.8) reject `temperature` with a 400, and releasekit uses one provider
-    // for any configured model. Reflected as capabilities.honorsTemperature: false so the cache key
-    // ignores it too. To honor temperature, gate it on the model and drop that capability flag.
+    // reject `temperature` with a 400, and releasekit uses one provider for any configured model.
     const systemMsg = messages.find((m) => m.role === 'system');
     const nonSystemMessages = messages
       .filter((m) => m.role !== 'system')
@@ -89,8 +87,8 @@ export class AnthropicProvider extends BaseLLMProvider {
         idle,
       );
 
-      // Find the text block rather than assuming content[0]: thinking-enabled models (Sonnet 5,
-      // Fable 5) return one or more `thinking` blocks ahead of the `text` block for non-schema tasks.
+      // Find the text block rather than assuming content[0]: thinking-enabled models return one or
+      // more `thinking` blocks ahead of the `text` block for non-schema tasks.
       const textBlock = response.content.find((b) => b.type === 'text');
 
       if (textBlock?.type !== 'text') {

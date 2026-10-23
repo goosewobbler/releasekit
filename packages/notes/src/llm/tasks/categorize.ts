@@ -24,7 +24,6 @@ export function buildSystemPrompt(categories: LLMCategory[] | undefined): string
     `Categories: Group into meaningful categories (e.g., "Core", "UI", "API", "Performance", "Bug Fixes", "Documentation").`,
   );
 
-  // Scope source: explicit category `scopes` arrays via getAllowedScopesFromCategories.
   const pairs =
     categories && categories.length > 0
       ? [...getAllowedScopesFromCategories(categories)].map(([name, scopes]) => ({ name, scopes }))
@@ -50,7 +49,7 @@ export function createCategorizeValidator(
   entries: ChangelogEntry[],
   context: CategorizeContext,
 ): TaskValidator<CategorizedEntries[]> {
-  // Work with a copy that has scopes cleared (LLM assigns them fresh)
+  // The LLM assigns scopes fresh
   const cleanEntries = entries.map((e) => ({ ...e, scope: undefined }));
 
   return (result) => {
@@ -71,7 +70,6 @@ export function createCategorizeValidator(
       };
     }
 
-    // Validate category names when categories are configured
     const categoryError = checkCategoryNames(
       zodResult.data.entries,
       context.categories?.map((c) => c.name),
@@ -80,16 +78,12 @@ export function createCategorizeValidator(
       return { valid: false, error: categoryError };
     }
 
-    // Apply scopes from LLM response
     const withScopes: ChangelogEntry[] = cleanEntries.map((entry, i) => {
       const llmEntry = zodResult.data.entries[i];
       const scope = llmEntry?.scope ?? undefined;
       return scope ? { ...entry, scope } : entry;
     });
 
-    // Validate scopes. The validator applies `invalidScopeAction` (default `remove`) and
-    // returns `valid: true` — scope mismatches don't trigger an LLM retry, since the configured
-    // action defines the resolution. Surface a warning so disallowed scopes stay visible.
     const scopeResult = validateEntryScopes(withScopes, context.scopes, context.categories, context.packageNames);
     if (scopeResult.errors.length > 0) {
       const offenders = [...new Set(scopeResult.errors.map((e) => e.providedScope))];
@@ -129,11 +123,7 @@ export async function categorizeEntries(
   } catch (error) {
     if (error instanceof LLMError) {
       warn(`categorizeEntries failed after all attempts: ${error.message}. Returning entries under General.`);
-      // Triggered by structural validation failures the LLM couldn't recover from across the
-      // retry budget: malformed JSON, schema-incompatible output, wrong entry count, or
-      // categories outside the configured list. (Disallowed scopes don't reach here — the
-      // configured invalidScopeAction resolves them in-place.) Strip scopes since the LLM
-      // run never produced validated values.
+      // Strip scopes since the LLM run never produced validated values.
       return [{ category: 'General', entries: entries.map((e) => ({ ...e, scope: undefined })) }];
     }
     throw error;

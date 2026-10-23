@@ -28,10 +28,8 @@ import { isBotComment } from './types.js';
 
 const REPO_PERMISSIONS: readonly RepoPermission[] = ['admin', 'maintain', 'write', 'triage', 'read', 'none'];
 
-/** Releases are listed at most this many pages deep (100/page) — bounds the examples fetch. */
 const MAX_RELEASE_PAGES = 3;
 
-/** Open PRs are listed at most this many pages deep (100/page) — bounds the post-release refresh. */
 const MAX_OPEN_PR_PAGES = 5;
 
 type LabelLike = string | { name?: string | null };
@@ -40,7 +38,6 @@ function labelNames(labels: LabelLike[] | undefined): string[] {
   return (labels ?? []).map((label) => (typeof label === 'string' ? label : (label.name ?? '')));
 }
 
-/** Whether a createLabel error is GitHub's idempotent "label already exists" 422. */
 function isAlreadyExistsError(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) {
     return false;
@@ -48,17 +45,12 @@ function isAlreadyExistsError(error: unknown): boolean {
   if ((error as { status?: number }).status !== 422) {
     return false;
   }
-  // A 422 for "already exists" carries an errors[].code === 'already_exists'. Other 422s (name too
-  // long, disallowed characters, …) are real validation failures and must surface to the caller.
+  // Other 422s (name too long, disallowed characters) are real validation failures and must surface.
   const errors = (error as { response?: { data?: { errors?: Array<{ code?: string }> } } }).response?.data?.errors;
   return Array.isArray(errors) && errors.some((e) => e?.code === 'already_exists');
 }
 
-/**
- * Octokit-backed {@link Forge}. `owner`/`repo` are bound at construction so callers speak only in
- * domain terms. Methods map Octokit responses to the plain types in `./types.ts` and otherwise let
- * Octokit errors propagate — callers keep whatever status-specific handling they already had.
- */
+/** Octokit errors propagate unwrapped, so callers' status-specific handling still applies. */
 export class GitHubForge implements Forge {
   constructor(
     private readonly octokit: Octokit,
@@ -160,10 +152,8 @@ export class GitHubForge implements Forge {
   }
 
   async findOpenIssueByLabel(label: string): Promise<IssueRef | null> {
-    // listForRepo returns issues AND PRs; a PR carries a `pull_request` field, so skip those — we
-    // only want a real issue. Paginate rather than read one page, so a page full of label-carrying
-    // PRs (or an older reusable issue) can't hide the issue and leave the caller stacking a duplicate.
-    // Default sort is newest-first, so the first real issue we reach is the most recent.
+    // listForRepo returns PRs too. Paginate so a page full of label-carrying PRs can't hide the issue and leave the
+    // caller stacking a duplicate. Default sort is newest-first, so the first issue reached is the most recent.
     const iterator = this.octokit.paginate.iterator(this.octokit.rest.issues.listForRepo, {
       ...this.base,
       state: 'open',
@@ -183,18 +173,16 @@ export class GitHubForge implements Forge {
   async getActorPermission(username: string): Promise<RepoPermission> {
     try {
       const { data } = await this.octokit.rest.repos.getCollaboratorPermissionLevel({ ...this.base, username });
-      // Prefer `role_name` — it distinguishes maintain/triage, which the coarse `permission`
-      // ('admin'|'write'|'read'|'none') collapses. Fall back to `permission` for older API shapes.
+      // `role_name` distinguishes maintain/triage, which the coarse `permission` collapses; `permission` is the
+      // fallback for older API shapes.
       const role = data.role_name as RepoPermission | undefined;
       if (role && REPO_PERMISSIONS.includes(role)) {
         return role;
       }
       return (data.permission as RepoPermission) ?? 'none';
     } catch (error) {
-      // 404 = not a collaborator / unknown user → genuinely no permission. Any other error (403 from a
-      // mis-scoped token, 429 rate limit, 5xx, network) means we CAN'T determine permission — surface
-      // it rather than silently reporting 'none', which would fail the gate closed for every real
-      // actor (even admins) with no diagnostic.
+      // 404 = not a collaborator / unknown user. Any other error means permission can't be determined - surface it
+      // rather than report 'none', which would fail the gate closed for every actor with no diagnostic.
       if (forgeErrorStatus(error) === 404) {
         return 'none';
       }
@@ -205,12 +193,11 @@ export class GitHubForge implements Forge {
   async isTeamMember(org: string, teamSlug: string, username: string): Promise<boolean> {
     try {
       const { data } = await this.octokit.rest.teams.getMembershipForUserInOrg({ org, team_slug: teamSlug, username });
-      // A pending invite is not yet a member; only 'active' membership authorizes.
+      // A pending invite is not yet a member.
       return data.state === 'active';
     } catch (error) {
-      // 404 = not a member. Any other error (403 = the token lacks org-read scope, network, …) can't
-      // be answered — surface it (the caller's gate wrapper warns and fails closed) rather than
-      // silently reporting "not a member", which is indistinguishable from a real non-member.
+      // 404 = not a member. Any other error can't be answered - surface it rather than report "not a member", which
+      // is indistinguishable from a real non-member.
       if (forgeErrorStatus(error) === 404) {
         return false;
       }
@@ -224,9 +211,8 @@ export class GitHubForge implements Forge {
       issue_number: prNumber,
       per_page: 100,
     });
-    // Prefer a bot-authored match over a human-authored one carrying the same marker: a pre-seeded
-    // marker comment (write access, or the upsert race) must never shadow the bot's real one.
-    // A human-authored match is still returned when it's the only one, so the caller can reject it.
+    // Prefer a bot-authored match so a pre-seeded human marker comment can't shadow the bot's real one. A human
+    // match is still returned when it's the only one, so the caller can reject it.
     let humanMatch: ForgeComment | null = null;
     for await (const response of iterator) {
       for (const comment of response.data) {
@@ -257,9 +243,6 @@ export class GitHubForge implements Forge {
 
   async upsertMarkerComment(prNumber: number, marker: string, body: string): Promise<void> {
     const existing = await this.findComment(prNumber, marker);
-    // Only adopt (update in place) a comment the bot itself authored. A human-authored comment
-    // carrying the marker — pre-seeded to win the adoption race — is left alone; the bot posts its
-    // own so its content is authoritative and never laundered through an attacker-owned comment.
     if (existing && isBotComment(existing)) {
       await this.updateComment(existing.id, body);
     } else {
@@ -351,7 +334,6 @@ export class GitHubForge implements Forge {
   }
 }
 
-/** Construct a GitHub-backed {@link Forge} for `owner`/`repo`, authenticated with `token`. */
 export function createGitHubForge({ token, owner, repo }: { token: string; owner: string; repo: string }): Forge {
   return new GitHubForge(new Octokit({ auth: token }), owner, repo);
 }

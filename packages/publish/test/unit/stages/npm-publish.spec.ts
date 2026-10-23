@@ -19,8 +19,8 @@ vi.mock('../../../src/utils/auth.js', () => ({
   detectNpmAuth: vi.fn().mockReturnValue('token'),
 }));
 
-// Spy on `debug` (everything else from core stays real) to assert the absence of the misleading
-// "Failed to read package.json" log for non-npm manifests.
+// Spy on `debug` to assert the absence of the misleading "Failed to read package.json" log for non-npm
+// manifests.
 const { debugMock } = vi.hoisted(() => ({ debugMock: vi.fn() }));
 vi.mock('@releasekit/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@releasekit/core')>()),
@@ -75,11 +75,10 @@ describe('npm-publish stage', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    // Reset default mock return values after clearAllMocks
     const { execCommand, execCommandSafe } = await import('../../../src/utils/exec.js');
     const { detectNpmAuth } = await import('../../../src/utils/auth.js');
     vi.mocked(execCommand).mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
-    vi.mocked(execCommandSafe).mockResolvedValue({ stdout: '', stderr: '', exitCode: 1 }); // not published
+    vi.mocked(execCommandSafe).mockResolvedValue({ stdout: '', stderr: '', exitCode: 1 });
     vi.mocked(detectNpmAuth).mockReturnValue('token');
   });
 
@@ -102,8 +101,8 @@ describe('npm-publish stage', () => {
     const ctx = createContext(dir);
     await runNpmPublishStage(ctx);
 
-    expect(execCommand).toHaveBeenCalledTimes(2); // version check + publish
-    const publishCall = vi.mocked(execCommand).mock.calls[1]; // publish is the second call
+    expect(execCommand).toHaveBeenCalledTimes(2); // version check & publish
+    const publishCall = vi.mocked(execCommand).mock.calls[1];
     expect(publishCall?.[0]).toBe('pnpm');
     const args = publishCall?.[1] as string[];
     expect(args).toContain('publish');
@@ -154,7 +153,6 @@ describe('npm-publish stage', () => {
     expect(ctx.output.npm[0]?.skipped).toBe(true);
     expect(ctx.output.npm[0]?.reason).toBe('Not an npm package');
     expect(execCommand).not.toHaveBeenCalled();
-    // Regression: no confusing "Failed to read package.json" for a non-npm manifest.
     expect(debugMock).not.toHaveBeenCalledWith(expect.stringContaining('Failed to read package.json'));
   });
 
@@ -167,25 +165,23 @@ describe('npm-publish stage', () => {
 
     process.env.NPM_TOKEN = 'npm_test_token';
 
-    // Test pnpm (should use package cwd)
     const pnpmCtx = createContext(dir, { packageManager: 'pnpm' });
     await runNpmPublishStage(pnpmCtx);
 
-    expect(execCommand).toHaveBeenCalledTimes(2); // version check + publish
-    const pnpmPublishCall = vi.mocked(execCommand).mock.calls[1]; // publish is second
+    expect(execCommand).toHaveBeenCalledTimes(2);
+    const pnpmPublishCall = vi.mocked(execCommand).mock.calls[1];
     const pnpmOptions = pnpmPublishCall?.[2];
-    expect(pnpmOptions?.cwd).toBe(pkgDir); // pnpm now uses package directory
+    expect(pnpmOptions?.cwd).toBe(pkgDir);
 
     vi.clearAllMocks();
 
-    // Test npm (should use package cwd)
     const npmCtx = createContext(dir, { packageManager: 'npm' });
     await runNpmPublishStage(npmCtx);
 
-    expect(execCommand).toHaveBeenCalledTimes(2); // version check + publish
-    const npmPublishCall = vi.mocked(execCommand).mock.calls[1]; // publish is second
+    expect(execCommand).toHaveBeenCalledTimes(2);
+    const npmPublishCall = vi.mocked(execCommand).mock.calls[1];
     const npmOptions = npmPublishCall?.[2];
-    expect(npmOptions?.cwd).toBe(pkgDir); // npm uses package directory
+    expect(npmOptions?.cwd).toBe(pkgDir);
   });
 
   it('should skip already-published packages', async () => {
@@ -222,8 +218,8 @@ describe('npm-publish stage', () => {
 
     await runNpmPublishStage(ctx);
 
-    expect(execCommand).toHaveBeenCalledTimes(2); // version check + publish
-    const publishArgs = vi.mocked(execCommand).mock.calls[1]?.[1] as string[]; // publish is second
+    expect(execCommand).toHaveBeenCalledTimes(2);
+    const publishArgs = vi.mocked(execCommand).mock.calls[1]?.[1] as string[];
     expect(publishArgs).toEqual(expect.arrayContaining(['--tag', 'next']));
   });
 
@@ -241,11 +237,11 @@ describe('npm-publish stage', () => {
     const ctx = createContext(dir);
     await runNpmPublishStage(ctx);
 
-    expect(execCommand).toHaveBeenCalledTimes(2); // version check + publish
-    const publishArgs = vi.mocked(execCommand).mock.calls[1]?.[1] as string[]; // publish is second
+    expect(execCommand).toHaveBeenCalledTimes(2);
+    const publishArgs = vi.mocked(execCommand).mock.calls[1]?.[1] as string[];
     expect(publishArgs).toContain('--provenance');
 
-    const options = vi.mocked(execCommand).mock.calls[1]?.[2]; // publish options
+    const options = vi.mocked(execCommand).mock.calls[1]?.[2];
     expect(options?.env?.NPM_CONFIG_USERCONFIG).toBeTruthy();
     expect(options?.env?.NODE_AUTH_TOKEN).toBeUndefined();
   });
@@ -263,8 +259,8 @@ describe('npm-publish stage', () => {
     const ctx = createContext(dir);
     await runNpmPublishStage(ctx);
 
-    expect(execCommand).toHaveBeenCalledTimes(2); // version check + publish
-    const publishArgs = vi.mocked(execCommand).mock.calls[1]?.[1] as string[]; // publish is second
+    expect(execCommand).toHaveBeenCalledTimes(2);
+    const publishArgs = vi.mocked(execCommand).mock.calls[1]?.[1] as string[];
     expect(publishArgs).not.toContain('--provenance');
   });
 
@@ -333,7 +329,7 @@ describe('npm-publish stage', () => {
 
     const ctx = createContext(dir);
     await expect(runNpmPublishStage(ctx)).rejects.toThrow();
-    expect(publishCalls).toBe(1); // no retries
+    expect(publishCalls).toBe(1);
     expect(ctx.output.npm[0]?.success).toBe(false);
   });
 
@@ -366,7 +362,7 @@ describe('npm-publish stage', () => {
       await vi.runAllTimersAsync();
       await promise;
 
-      expect(publishCalls).toBe(2); // one failure + one success
+      expect(publishCalls).toBe(2);
       expect(ctx.output.npm[0]?.success).toBe(true);
       expect(ctx.output.npm[0]?.attempts).toBe(2);
     } finally {
@@ -401,11 +397,9 @@ describe('npm-publish stage', () => {
       await vi.runAllTimersAsync();
       const error = await promise;
 
-      // The final (real) error is surfaced, not a synthetic one.
       expect(String(error)).toContain('503');
       expect(publishCalls).toBe(3); // initial + 2 retries
       expect(ctx.output.npm[0]?.success).toBe(false);
-      // The failed result still records how many attempts were made.
       expect(ctx.output.npm[0]?.attempts).toBe(3);
     } finally {
       vi.useRealTimers();

@@ -6,8 +6,6 @@ import { detectGitPushMethod } from '../utils/auth.js';
 import { runGit } from '../utils/git.js';
 
 function toGithubAuthedUrl(remoteUrl: string, token: string): string | undefined {
-  // Only rewrite standard GitHub HTTPS URLs.
-  // Avoid logging token by never returning it via logs.
   try {
     const url = new URL(remoteUrl);
     if (url.protocol !== 'https:') {
@@ -17,7 +15,7 @@ function toGithubAuthedUrl(remoteUrl: string, token: string): string | undefined
       return undefined;
     }
 
-    // Use the recommended username for GitHub token auth in HTTPS URLs.
+    // GitHub's recommended username for token auth.
     url.username = 'x-access-token';
     url.password = token;
     return url.toString();
@@ -36,10 +34,6 @@ export interface PushSetup {
   branch?: string;
 }
 
-/**
- * Prepare push setup (method detection, auth, branch resolution) once to avoid redundant network probes.
- * Reuse this for all per-package pushes.
- */
 export async function preparePushSetup(ctx: PipelineContext): Promise<PushSetup | null> {
   const { config, cwd } = ctx;
 
@@ -87,12 +81,6 @@ export async function preparePushSetup(ctx: PipelineContext): Promise<PushSetup 
   return { remote, pushRemote, branch };
 }
 
-/**
- * Push a single package tag and (idempotently) the branch after a package publishes.
- * Safe to call once per package — branch push is a no-op when already up-to-date.
- * Pass precomputed setup to avoid redundant method detection and branch resolution.
- * Error strategy: THROWS.
- */
 export async function pushPackageTag(tag: string, ctx: PipelineContext, setup?: PushSetup): Promise<void> {
   const { config, cliOptions, cwd, output } = ctx;
   const dryRun = cliOptions.dryRun;
@@ -112,17 +100,14 @@ export async function pushPackageTag(tag: string, ctx: PipelineContext, setup?: 
 
   const { remote, pushRemote, branch } = resolvedSetup;
 
-  // Wrap raw exec failures as GIT_PUSH_ERROR so the failure report labels the stage `git-push`
-  // rather than `unknown` — mirrors runGitPushStage. Without this, a branch push rejected by a
-  // branch ruleset surfaced as "Stage unknown".
   try {
-    // Push the specific tag ref (carries the underlying commit with it)
+    // Pushing the tag ref carries its commit with it.
     await runGit(dryRun, `git push ${remote} refs/tags/${tag}`, () =>
       git.push({ remote: pushRemote, ref: `refs/tags/${tag}`, cwd }),
     );
     output.git.tags.push(tag);
 
-    // Push the branch (idempotent — no-op if remote is already up-to-date)
+    // A no-op once the remote is up to date, so safe to repeat per package.
     if (pushesBranch(ctx) && branch) {
       await runGit(dryRun, `git push ${remote} ${branch}`, () => git.push({ remote: pushRemote, ref: branch, cwd }));
     }
@@ -132,11 +117,12 @@ export async function pushPackageTag(tag: string, ctx: PipelineContext, setup?: 
     if (error instanceof PublishError) {
       throw error;
     }
+    // Wrapped so the failure report labels the stage `git-push`, not `unknown`.
     throw createPublishError(PublishErrorCode.GIT_PUSH_ERROR, error instanceof Error ? error.message : String(error));
   }
 }
 
-/** Error strategy: THROWS. Push after publish. */
+/** Error strategy: THROWS. */
 export async function runGitPushStage(ctx: PipelineContext): Promise<void> {
   const { config, cliOptions, cwd, output } = ctx;
   const dryRun = cliOptions.dryRun;
@@ -154,7 +140,6 @@ export async function runGitPushStage(ctx: PipelineContext): Promise<void> {
   const { remote } = config.git;
   const git = createGitCli();
 
-  // Auto-detect push method if needed
   let pushMethod = config.git.pushMethod;
   if (pushMethod === 'auto') {
     try {
@@ -164,13 +149,11 @@ export async function runGitPushStage(ctx: PipelineContext): Promise<void> {
     }
   }
 
-  // Only attempt token-based HTTPS auth when explicitly configured.
   const httpsTokenEnv = config.git.httpsTokenEnv;
   const httpsToken = httpsTokenEnv ? process.env[httpsTokenEnv] : undefined;
 
   try {
-    // If using HTTPS and a token is available, push directly to an authed URL.
-    // This avoids requiring workflow-specific remote rewriting.
+    // An authed push URL avoids workflow-specific remote rewriting.
     let pushRemote: string = remote;
     if (pushMethod === 'https' && httpsToken) {
       const remoteUrl = (await git.remoteUrl(remote, cwd)) ?? '';
@@ -180,13 +163,10 @@ export async function runGitPushStage(ctx: PipelineContext): Promise<void> {
       }
     }
 
-    // Push the branch first, then tags. When this runner created or reused the release commit (direct mode),
-    // the branch must land before the tags so a tag never points at a commit absent from the branch
-    // — and a branch rejected by a concurrent push / ruleset aborts before any tag is pushed, rather
-    // than leaving orphan tags on the remote with `git.pushed` false (no GitHub release). Standing-PR
-    // mode sets committed=false (the commit is already on the remote via the merge) and pushes tags
-    // only. Branch resolution is deferred to here so a tags-only push never triggers the detached-HEAD
-    // guard unnecessarily.
+    // Branch before tags, so a tag never points at a commit absent from the branch and a branch rejected by a
+    // concurrent push or ruleset aborts before any tag lands (orphan tags with `git.pushed` false get no GitHub
+    // release). Standing-PR mode pushes tags only. Branch resolution lives inside the guard so a tags-only push
+    // never trips the detached-HEAD check.
     let branch: string | undefined;
     if (pushesBranch(ctx)) {
       branch = config.git.branch;

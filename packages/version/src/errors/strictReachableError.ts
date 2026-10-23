@@ -1,14 +1,9 @@
 import { BaseVersionError } from './baseError.js';
 
 /**
- * Thrown by {@link BaselineResolver.resolve} when `version.strictReachable` is set and a baseline ref
- * is not reachable from HEAD (typically a shallow clone / `fetch-depth` misconfiguration).
- *
- * It is a distinct type purely so the per-package changelog `try/catch` in each strategy can tell it
- * apart from a genuine changelog-extraction failure: genuine failures degrade to a minimal entry and
- * the run continues, but this one is **rethrown** so it aborts the whole run — which is the entire
- * point of `strictReachable` (surface the misconfiguration loudly, don't ship a silently-degraded
- * whole-history changelog on a green run).
+ * A distinct type so each strategy's changelog try/catch rethrows it instead of degrading to a minimal
+ * entry: strictReachable exists to fail loudly on an unreachable baseline (typically a shallow clone),
+ * not ship a whole-history changelog on a green run.
  */
 export class StrictReachableError extends BaseVersionError {
   constructor(message: string) {

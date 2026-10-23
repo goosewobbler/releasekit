@@ -13,7 +13,7 @@ vi.mock('openai', () => ({
 
 describe('createProvider', () => {
   it('should throw a clear error when llm.model is missing (no curated default)', () => {
-    // A config assembled in-process (e.g. from CLI --llm-* flags) can bypass schema validation.
+    // A config assembled in-process can bypass schema validation.
     const cfg = { provider: 'openai' } as unknown as LLMConfig;
     expect(() => createProvider(cfg)).toThrow(LLMError);
     expect(() => createProvider(cfg)).toThrow(/llm\.model is required/);

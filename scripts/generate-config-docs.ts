@@ -1,8 +1,4 @@
 #!/usr/bin/env tsx
-/**
- * Generates docs/configuration.md from releasekit.schema.json.
- * Usage: pnpm docs:config
- */
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -33,10 +29,6 @@ interface Schema {
 }
 
 const schema = JSON.parse(readFileSync(SCHEMA_PATH, 'utf8')) as Schema;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function ensurePeriod(str: string | undefined): string {
   if (!str) {
@@ -121,10 +113,6 @@ function propsTable(properties: Record<string, SchemaProperty>): string {
   return ['| Key | Type | Default | Description |', '|-----|------|---------|-------------|', ...rows].join('\n');
 }
 
-// ---------------------------------------------------------------------------
-// Section renderers
-// ---------------------------------------------------------------------------
-
 const lines: string[] = [];
 
 function emit(...strs: string[]): void {
@@ -135,9 +123,6 @@ function emitBlank(): void {
   lines.push('');
 }
 
-// ---------------------------------------------------------------------------
-// git
-// ---------------------------------------------------------------------------
 function renderGit(prop: SchemaProperty): void {
   emit('## `git`', '');
   emit(ensurePeriod(prop.description), '');
@@ -145,9 +130,6 @@ function renderGit(prop: SchemaProperty): void {
   emitBlank();
 }
 
-// ---------------------------------------------------------------------------
-// monorepo
-// ---------------------------------------------------------------------------
 function renderMonorepo(prop: SchemaProperty): void {
   emit('## `monorepo`', '');
   emit(ensurePeriod(prop.description), '');
@@ -155,9 +137,6 @@ function renderMonorepo(prop: SchemaProperty): void {
   emitBlank();
 }
 
-// ---------------------------------------------------------------------------
-// version
-// ---------------------------------------------------------------------------
 function renderVersion(prop: SchemaProperty): void {
   emit('## `version`', '');
   emit(ensurePeriod(prop.description), '');
@@ -256,9 +235,6 @@ function renderVersion(prop: SchemaProperty): void {
   }
 }
 
-// ---------------------------------------------------------------------------
-// publish
-// ---------------------------------------------------------------------------
 function renderPublish(prop: SchemaProperty): void {
   emit('## `publish`', '');
   emit(ensurePeriod(prop.description), '');
@@ -333,9 +309,6 @@ function renderPublish(prop: SchemaProperty): void {
   }
 }
 
-// ---------------------------------------------------------------------------
-// notes
-// ---------------------------------------------------------------------------
 function renderOneOfBooleanObject(key: string, schemaProp: SchemaProperty): void {
   const objSchema = schemaProp.oneOf?.find((s) => s.type === 'object');
   if (!objSchema) {
@@ -457,9 +430,6 @@ function renderNotes(prop: SchemaProperty): void {
   }
 }
 
-// ---------------------------------------------------------------------------
-// ci
-// ---------------------------------------------------------------------------
 function renderCi(prop: SchemaProperty): void {
   emit('## `ci`', '');
   emit(ensurePeriod(prop.description), '');
@@ -496,9 +466,6 @@ function renderCi(prop: SchemaProperty): void {
   }
 }
 
-// ---------------------------------------------------------------------------
-// release
-// ---------------------------------------------------------------------------
 function renderRelease(prop: SchemaProperty): void {
   emit('## `release`', '');
   emit(ensurePeriod(prop.description), '');
@@ -524,10 +491,6 @@ function renderRelease(prop: SchemaProperty): void {
     emitBlank();
   }
 }
-
-// ---------------------------------------------------------------------------
-// Compose document
-// ---------------------------------------------------------------------------
 
 emit(
   '<!-- AUTO-GENERATED FROM releasekit.schema.json — DO NOT EDIT DIRECTLY -->',
@@ -579,10 +542,6 @@ emit('---', '');
 emit(
   'For the canonical machine-readable schema, see [releasekit.schema.json](https://goosewobbler.github.io/releasekit/schema.json).',
 );
-
-// ---------------------------------------------------------------------------
-// Write output
-// ---------------------------------------------------------------------------
 
 const output = `${lines.join('\n')}\n`;
 

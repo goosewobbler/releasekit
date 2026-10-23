@@ -120,7 +120,7 @@ describe('findCargoLockfile', () => {
     const member = path.join(root, 'crates', 'foo');
     fs.mkdirSync(member, { recursive: true });
     fs.writeFileSync(path.join(member, 'Cargo.toml'), '[package]\nname = "foo"\nversion = "1.0.0"\n');
-    // A stray lock in the member dir is ignored by cargo — the workspace-root lock is the one that moves.
+    // Cargo ignores a stray lock in a member dir.
     fs.writeFileSync(path.join(member, 'Cargo.lock'), '');
     expect(findCargoLockfile(member)).toBe(rootLock);
   });
@@ -131,7 +131,7 @@ describe('findCargoLockfile', () => {
     const member = path.join(root, 'crates', 'foo');
     fs.mkdirSync(member, { recursive: true });
     fs.writeFileSync(path.join(member, 'Cargo.toml'), '[package]\nname = "foo"\nversion = "1.0.0"\n');
-    // No lock at the workspace root → nothing to sync (don't fall back to a stray member lock).
+    // A stray member lock must not be used as a fallback.
     fs.writeFileSync(path.join(member, 'Cargo.lock'), '');
     expect(findCargoLockfile(member)).toBeUndefined();
   });
@@ -140,7 +140,6 @@ describe('findCargoLockfile', () => {
 const REGISTRY = 'registry+https://github.com/rust-lang/crates.io-index';
 const GIT = 'git+https://github.com/example/dupe#9a1327a6d3f8bc80a0f02fe01325c7828d587668';
 
-/** Join lock lines the way cargo writes them: LF endings and a trailing newline. */
 const lock = (...lines: string[]): string => `${lines.join('\n')}\n`;
 
 describe('setCargoLockVersion', () => {
@@ -405,7 +404,6 @@ describe('planCargoLockUpdates', () => {
     return file;
   }
 
-  /** A lock whose root package `root` depends on `dependency` by path. */
   const lockWithDependency = (root: string, dependency: string, version: string): string =>
     lock(
       'version = 4',

@@ -295,8 +295,6 @@ describe('loadPublishConfig', () => {
       }),
     );
 
-    // The publish.git block doesn't set push, so it must inherit the top-level git.push: false —
-    // not be silently flipped back to true by a default.
     const result = loadPublishConfig();
     expect(result?.git?.push).toBe(false);
   });

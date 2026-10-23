@@ -17,7 +17,6 @@ import * as jsonOutput from '../../../src/utils/jsonOutput.js';
 import * as logging from '../../../src/utils/logging.js';
 import * as manifestHelpers from '../../../src/utils/manifestHelpers.js';
 
-// Mock dependencies
 vi.mock('node:path');
 vi.mock('node:process');
 vi.mock('../../../src/package/packageManagement.js');
@@ -45,14 +44,12 @@ vi.mock('../../../src/utils/formatting.js', () => ({
 vi.mock('../../../src/utils/jsonOutput.js');
 vi.mock('../../../src/utils/manifestHelpers.js', () => ({
   getVersionFromManifests: vi.fn().mockImplementation((packageDir: string) => {
-    // Different mock results based on the package directory
     if (packageDir.includes('rust-package')) {
       if (
         vi.mocked(fs.existsSync, { partial: true }).mockImplementation((path) => {
           return String(path).endsWith('Cargo.toml');
         })
       ) {
-        // For tests that check Cargo.toml as fallback
         return {
           version: '1.0.0',
           manifestFound: true,
@@ -61,12 +58,10 @@ vi.mock('../../../src/utils/manifestHelpers.js', () => ({
         };
       }
 
-      // For tests that simulate errors reading Cargo.toml
       throw new Error('Failed to parse Cargo.toml');
     }
 
     if (packageDir.includes('package-a')) {
-      // For tests that use package.json as fallback
       return {
         version: '1.0.0',
         manifestFound: true,
@@ -75,7 +70,6 @@ vi.mock('../../../src/utils/manifestHelpers.js', () => ({
       };
     }
 
-    // Default for other tests - no manifest found
     return {
       version: null,
       manifestFound: false,
@@ -89,7 +83,6 @@ vi.mock('../../../src/version/versionCalc.js');
 vi.mock('node:fs');
 vi.mock('../../../src/cargo/cargoHandler.js');
 
-// Mock Package type without importing from @manypkg to avoid external dependencies
 interface MockPackage {
   dir: string;
   packageJson: {
@@ -99,7 +92,6 @@ interface MockPackage {
 }
 
 describe('Package Processor', () => {
-  // Mock data
   const mockPackages: Package[] = [
     {
       dir: '/path/to/package-a',
@@ -115,7 +107,6 @@ describe('Package Processor', () => {
     },
   ] as MockPackage[];
 
-  // Mock config
   const mockConfig: Config = {
     sync: false,
     preset: 'conventionalcommits',
@@ -125,10 +116,8 @@ describe('Package Processor', () => {
     commitMessage: 'chore(release): version ${version}',
   };
 
-  // Mock getLatestTag function
   const mockGetLatestTag = vi.fn().mockResolvedValue('v1.0.0');
 
-  // Default processor options
   const defaultOptions = {
     skip: ['package-c'],
     versionPrefix: 'v',
@@ -143,21 +132,16 @@ describe('Package Processor', () => {
   };
 
   beforeEach(() => {
-    // Reset mocks before each test
     vi.resetAllMocks();
 
-    // Path mock
     vi.spyOn(path, 'join').mockImplementation((...args) => args.join('/'));
 
-    // Baseline tag verification — default to a valid, reachable baseline so changelog ranges
-    // resolve to `<tag>..HEAD`. Tests exercising the all-history fallback override this.
+    // Reachable baseline so changelog ranges resolve to `<tag>..HEAD`; all-history fallback tests override this.
     vi.spyOn(tagVerification, 'verifyTag').mockResolvedValue({ exists: true, reachable: true });
 
-    // Calculator mock - fix to return a Promise
     vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
     vi.spyOn(versionCalculatorModule, 'calculateVersion').mockResolvedValue('1.1.0');
 
-    // Formatting mocks
     vi.spyOn(formatting, 'formatVersionPrefix').mockReturnValue('v');
     vi.spyOn(formatting, 'formatTag').mockImplementation((version, prefix) => `${prefix}${version}`);
     vi.spyOn(formatting, 'formatCommitMessage').mockImplementation(
@@ -169,21 +153,16 @@ describe('Package Processor', () => {
       },
     );
 
-    // Default mock implementations
     vi.spyOn(packageManagement, 'updatePackageVersion').mockImplementation(() => undefined);
 
-    // Ensure direct import is mocked correctly too
     vi.spyOn(versionCalculatorModule, 'calculateVersion').mockResolvedValue('1.1.0');
 
-    // Mock fs.existsSync to simulate package.json files exist
     vi.spyOn(fs, 'existsSync').mockReturnValue(true);
 
-    // Special case for specific paths
     vi.spyOn(fs, 'existsSync').mockImplementation((path) => {
       return String(path).endsWith('package.json');
     });
 
-    // Mock fs.readFileSync for package.json files
     vi.spyOn(fs, 'readFileSync').mockImplementation((path) => {
       const pathStr = String(path);
       if (pathStr.includes('package-a')) {
@@ -198,7 +177,6 @@ describe('Package Processor', () => {
       return '';
     });
 
-    // Cargo mock
     vi.spyOn(cargoHandler, 'getCargoInfo').mockReturnValue({
       name: 'rust-package',
       version: '1.0.0',
@@ -222,10 +200,8 @@ describe('Package Processor', () => {
 
       const processor = new PackageProcessor(minimalOptions);
 
-      // Test behaviour instead of implementation details
       const result = await processor.processPackages(mockPackages);
 
-      // Since we're not providing targets or skip lists, all packages should be processed
       expect(result.updatedPackages.length).toBe(mockPackages.length);
       expect(result.tags.length).toBe(mockPackages.length);
     });
@@ -233,11 +209,8 @@ describe('Package Processor', () => {
     it('should initialize with provided options', async () => {
       const processor = new PackageProcessor(defaultOptions);
 
-      // Test behaviour instead of checking private properties
-      // Process with packages to verify skip and target lists are applied
       const result = await processor.processPackages(mockPackages);
 
-      // Should only update package-a and package-b (skipping package-c)
       expect(result.updatedPackages.length).toBe(2);
       expect(result.updatedPackages.some((p) => p.name === 'package-a')).toBe(true);
       expect(result.updatedPackages.some((p) => p.name === 'package-b')).toBe(true);
@@ -262,7 +235,6 @@ describe('Package Processor', () => {
 
       const result = await processor.processPackages(mockPackages);
 
-      // Should process all packages except those in skip list (package-c is skipped)
       expect(result.updatedPackages.length).toBe(2);
       expect(result.updatedPackages.some((p) => p.name === 'package-a')).toBe(true);
       expect(result.updatedPackages.some((p) => p.name === 'package-b')).toBe(true);
@@ -290,10 +262,8 @@ describe('Package Processor', () => {
 
       await processor.processPackages(mockPackages);
 
-      // Should process all non-skipped packages (package-a and package-b, but not package-c which is skipped)
       expect(calculator.calculateVersion).toHaveBeenCalledTimes(2);
 
-      // Verify it was called for both package-a and package-b
       expect(calculator.calculateVersion).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
@@ -316,12 +286,10 @@ describe('Package Processor', () => {
 
       await processor.processPackages(mockPackages);
 
-      // Should process package-a and package-b, but not package-c (skipped)
       expect(calculator.calculateVersion).toHaveBeenCalledTimes(2);
     });
 
     it('should skip package updates if no version change needed', async () => {
-      // Set calculateVersion to return empty string (no version change)
       vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('');
       vi.spyOn(versionCalculatorModule, 'calculateVersion').mockResolvedValue('');
 
@@ -329,7 +297,6 @@ describe('Package Processor', () => {
 
       await processor.processPackages([mockPackages[0]]);
 
-      // Should not update any packages
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalled();
     });
 
@@ -340,18 +307,15 @@ describe('Package Processor', () => {
 
       const result = await processor.processPackages([mockPackages[0]]);
 
-      // Should update package-a
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/path/to/package-a/package.json',
         '1.1.0',
         false,
       );
 
-      // Should track the tag via JSON output (git ops now handled by publish)
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
       expect(jsonOutput.setPackageUpdateTag).toHaveBeenCalledWith('package-a', 'v1.1.0');
 
-      // Should return the updated package info
       expect(result.updatedPackages).toEqual([
         {
           name: 'package-a',
@@ -369,10 +333,8 @@ describe('Package Processor', () => {
 
       const result = await processor.processPackages(mockPackages);
 
-      // Should track commit message via JSON output (git ops handled by publish)
       expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore(release): 1.1.0');
 
-      // Should return info for both packages
       expect(result.updatedPackages).toHaveLength(2);
       expect(result.updatedPackages[0].name).toBe('package-a');
       expect(result.updatedPackages[1].name).toBe('package-b');
@@ -425,7 +387,7 @@ describe('Package Processor', () => {
 
       await processor.processPackages([mockPackages[0]]);
 
-      // The update carries the same baseline the changelog does — in consumer-facing display form.
+      // Same baseline as the changelog, in consumer-facing display form.
       expect(jsonOutput.setPackageUpdatePreviousVersion).toHaveBeenCalledWith('package-a', 'v1.0.0');
     });
 
@@ -452,16 +414,14 @@ describe('Package Processor', () => {
 
       await processor.processPackages([mockPackages[0]]);
 
-      // Surfaced loudly (not a silent debug line)...
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('could not be verified from HEAD'), 'warning');
-      // ...all-history range, and previousVersion omitted so the changelog doesn't claim an undiffed baseline.
+      // previousVersion omitted so the changelog doesn't claim an undiffed baseline.
       const calls = vi.mocked(jsonOutput.addChangelogData).mock.calls;
       expect(calls[0][0]).toMatchObject({ previousVersion: null, revisionRange: 'HEAD' });
     });
 
     it('should aggregate the changelog from the last stable tag when a prerelease graduates', async () => {
-      // latestTag is a prerelease; releasing stable 1.1.0 must base the range and previousVersion on
-      // the last *stable* tag, not the prerelease (which holds only the release-prep commit).
+      // The prerelease tag's range would hold only the release-prep commit.
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('package-a@v1.1.0-next.0');
       vi.spyOn(gitTags, 'getLatestStableTagForPackage').mockResolvedValue('package-a@v1.0.0');
       vi.spyOn(formatting, 'displayTag').mockImplementation((tag) => tag);
@@ -501,9 +461,7 @@ describe('Package Processor', () => {
     });
 
     it('should graduate against the global stable tag when packageSpecificTags is off', async () => {
-      // No package-specific tags → latestTag comes from the injected global lookup. A global
-      // prerelease graduating to stable must range from the last *global* stable tag. No manifest
-      // is found, so the global-tag fallback path is exercised.
+      // No package tag or manifest, so latestTag comes from the injected global lookup.
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
       vi.spyOn(gitTags, 'getLatestStableTag').mockResolvedValue('v1.0.0');
       vi.spyOn(gitTags, 'getLatestStableTagForPackage').mockResolvedValue('');
@@ -532,9 +490,8 @@ describe('Package Processor', () => {
     });
 
     it('should graduate against the global stable tag when packageSpecificTags is on but the package has no tags', async () => {
-      // The mismatch case: packageSpecificTags is true but the package has no tag history, so
-      // latestTag falls back to the global tag. The stable base must follow that fallback (global)
-      // rather than the empty package series, which would over-include every commit.
+      // latestTag falls back to the global tag; the stable base must follow it, since the empty package series
+      // would over-include every commit.
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
       vi.spyOn(gitTags, 'getLatestStableTag').mockResolvedValue('v1.0.0');
       vi.spyOn(gitTags, 'getLatestStableTagForPackage').mockResolvedValue('');
@@ -563,9 +520,7 @@ describe('Package Processor', () => {
     });
 
     it('should warn when a package has no prior tag (full-history changelog)', async () => {
-      // No package tag and no global tag — only the manifest version is available, so hasRealTag is
-      // false and the changelog spans the full history. The warning makes this visible (and heads off
-      // the opaque oversized-PR-body 422).
+      // Manifest-only baseline (hasRealTag false); the warning heads off the opaque oversized-PR-body 422.
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
       vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
         version: '0.1.0',
@@ -578,15 +533,14 @@ describe('Package Processor', () => {
 
       const processor = new PackageProcessor({
         ...defaultOptions,
-        getLatestTag: vi.fn().mockResolvedValue(null), // no global tag either
+        getLatestTag: vi.fn().mockResolvedValue(null),
         fullConfig: { ...mockConfig, packageSpecificTags: true, writeChangelog: false },
       });
 
       await processor.processPackages([mockPackages[1]]);
 
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('No prior tag found for package-b'), 'warning');
-      // ...and NOT the misleading "shallow clone / unpushed" warning about the synthetic
-      // manifest-fallback tag, which never existed as a git ref.
+      // Not the shallow-clone warning: the synthetic manifest-fallback tag never existed as a git ref.
       expect(logging.log).not.toHaveBeenCalledWith(
         expect.stringContaining('could not be verified from HEAD'),
         'warning',
@@ -594,11 +548,9 @@ describe('Package Processor', () => {
     });
 
     it('should bound repo-level changelog by the nearest reachable tag, even when getLatestTag is prefix-blind', async () => {
-      // package-a has no specific tag; getVersionFromManifests returns a manifest version via the
-      // global beforeEach mock, making hasRealTag=false and revisionRange='HEAD'. The baseline floor
-      // must come from getNearestReachableTag (git describe), which finds per-package prefixed tags.
-      // The injected getLatestTag (git-semver-tags, bare-semver only) returns '' for such repos —
-      // sourcing the floor from it collapsed the range to full history, the bug this guards against.
+      // The manifest mock gives package-a hasRealTag=false, so the floor must come from getNearestReachableTag
+      // (git describe), which sees per-package prefixed tags. Sourcing it from the bare-semver-only getLatestTag
+      // would collapse the range to full history.
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
       vi.spyOn(gitTags, 'getNearestReachableTag').mockResolvedValue('wdio-dioxus-bridge@v1.0.0-next.2');
       vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
@@ -607,11 +559,11 @@ describe('Package Processor', () => {
 
       const processor = new PackageProcessor({
         ...defaultOptions,
-        getLatestTag: vi.fn().mockResolvedValue(''), // prefix-blind: no bare-semver tag in this repo
+        getLatestTag: vi.fn().mockResolvedValue(''),
         fullConfig: { ...mockConfig, packageSpecificTags: true, writeChangelog: false },
       });
 
-      await processor.processPackages([mockPackages[0]]); // package-a triggers manifest fallback
+      await processor.processPackages([mockPackages[0]]);
 
       expect(extractSharedSpy).toHaveBeenCalledWith(
         expect.any(String),
@@ -690,7 +642,6 @@ describe('Package Processor', () => {
         ...defaultOptions,
         fullConfig: {
           ...mockConfig,
-          // @releasekit/core was formerly hardcoded as shared; it must no longer auto-match.
           allWorkspacePackages: [
             { name: '@releasekit/core', dir: '/path/to/core' },
             { name: 'package-a', dir: '/path/to/package-a' },
@@ -718,10 +669,8 @@ describe('Package Processor', () => {
       const processor = new PackageProcessor({ ...defaultOptions });
       await processor.processPackages(mockPackages);
 
-      // Repo-level entry should be emitted as sharedEntries
       expect(jsonOutput.setSharedEntries).toHaveBeenCalledWith([repoLevelEntry]);
 
-      // addChangelogData should not include the repo-level entry in any package's entries
       const calls = vi.mocked(jsonOutput.addChangelogData).mock.calls;
       for (const [data] of calls) {
         expect(data.entries).not.toContainEqual(repoLevelEntry);
@@ -745,7 +694,6 @@ describe('Package Processor', () => {
 
       await processor.processPackages([mockPackages[0]]);
 
-      // Tags are tracked via JSON output, not created directly
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
       expect(jsonOutput.setPackageUpdateTag).toHaveBeenCalledWith('package-a', 'v1.1.0');
       expect(jsonOutput.setCommitMessage).toHaveBeenCalled();
@@ -759,7 +707,6 @@ describe('Package Processor', () => {
 
       await processor.processPackages([mockPackages[0]]);
 
-      // Should log what would have been done
       expect(logging.log).toHaveBeenCalledWith('[DRY RUN] Would create tag: v1.1.0', 'info');
       expect(logging.log).toHaveBeenCalledWith(expect.stringMatching(/\[DRY RUN\] Would commit with message:/), 'info');
     });
@@ -776,7 +723,6 @@ describe('Package Processor', () => {
     });
 
     it('should replace packageName placeholder in commit message template for single package', async () => {
-      // Mock the specific implementation for this test
       vi.spyOn(formatting, 'formatCommitMessage').mockImplementation((_template, version, packageName) => {
         return `chore: release ${packageName || ''}@${version} [skip-ci]`;
       });
@@ -799,7 +745,6 @@ describe('Package Processor', () => {
 
       await processor.processPackages(mockPackages);
 
-      // Template has ${version} placeholder - formatCommitMessage replaces it but doesn't add package list
       expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('release: v1.1.0 of package');
     });
 
@@ -867,8 +812,6 @@ describe('Package Processor', () => {
 
       await processor.processPackages(mockPackages);
 
-      // We can't easily test the calculateVersion call since it's mocked
-      // but we can check if the packages are updated with appropriate mock
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledTimes(3);
     });
 
@@ -882,8 +825,6 @@ describe('Package Processor', () => {
 
       const result = await processor.processPackages(mockPackages);
 
-      // When calculateVersion returns empty string, packages should still be processed
-      // but without actual updates
       expect(result.updatedPackages.length).toBe(0);
       expect(result.tags.length).toBe(0);
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalled();
@@ -898,7 +839,7 @@ describe('Package Processor', () => {
 
       const result = await processor.processPackages(mockPackages);
 
-      // Version tracks metadata only — git ops are handled by publish
+      // Git ops are handled by publish.
       expect(jsonOutput.addTag).toHaveBeenCalledTimes(3);
       expect(jsonOutput.setCommitMessage).toHaveBeenCalledTimes(1);
       expect(result.updatedPackages.length).toBe(3);
@@ -917,9 +858,8 @@ describe('Package Processor', () => {
     });
 
     it('should update both package.json and Cargo.toml for hybrid packages', async () => {
-      // Mock fs.existsSync to return true for both package.json and Cargo.toml
       vi.spyOn(fs, 'existsSync').mockImplementation((_path) => {
-        return true; // Consider all files exist
+        return true;
       });
 
       const hybridPackage = {
@@ -939,7 +879,6 @@ describe('Package Processor', () => {
 
       await processor.processPackages([hybridPackage]);
 
-      // Both package.json and Cargo.toml should be updated
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/path/to/hybrid-package/package.json',
         '1.1.0',
@@ -969,7 +908,6 @@ describe('Package Processor', () => {
 
       await processor.processPackages([hybridPackage]);
 
-      // npm opted out → package.json is left untouched; Cargo.toml is still versioned.
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
         '/path/to/hybrid-package/package.json',
         expect.anything(),
@@ -984,27 +922,22 @@ describe('Package Processor', () => {
   });
 
   describe('Cargo.toml handling', () => {
-    // Mock package with both package.json and Cargo.toml
     const rustPackage: Package = {
       dir: '/path/to/rust-package',
       packageJson: { name: 'rust-package', version: '1.0.0' },
     } as MockPackage;
 
     beforeEach(() => {
-      // Mock path.join
       vi.spyOn(path, 'join').mockImplementation((...args) => args.join('/'));
 
-      // Mock fs.existsSync to handle both package.json and Cargo.toml files
       vi.spyOn(fs, 'existsSync').mockImplementation((path) => {
         const pathStr = String(path);
         return pathStr.endsWith('package.json') || pathStr.endsWith('Cargo.toml');
       });
 
-      // Calculator mock
       vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
       vi.spyOn(versionCalculatorModule, 'calculateVersion').mockResolvedValue('1.1.0');
 
-      // Cargo mock
       vi.spyOn(cargoHandler, 'getCargoInfo').mockReturnValue({
         name: 'rust-package',
         version: '1.0.0',
@@ -1015,14 +948,12 @@ describe('Package Processor', () => {
 
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
 
-      // Formatting mocks
       vi.spyOn(formatting, 'formatVersionPrefix').mockReturnValue('v');
       vi.spyOn(formatting, 'formatTag').mockImplementation((version, prefix) => `${prefix}${version}`);
       vi.spyOn(formatting, 'formatCommitMessage').mockImplementation((template, version) =>
         template.replace('${version}', version),
       );
 
-      // For Cargo.toml tests, explicitly mock getVersionFromManifests
       vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockImplementation((dir) => {
         if (dir.includes('rust-package')) {
           return {
@@ -1040,33 +971,26 @@ describe('Package Processor', () => {
         };
       });
 
-      // Mock packageManagement.updatePackageVersion with a proper implementation
-      // that adds the package to the updatedPackages array
       vi.spyOn(packageManagement, 'updatePackageVersion').mockImplementation(() => undefined);
 
-      // Mock jsonOutput.addPackageUpdate to simulate tracking updates
       vi.spyOn(jsonOutput, 'addPackageUpdate').mockImplementation(() => undefined);
     });
 
     it('should update both package.json and Cargo.toml when both exist', async () => {
-      // Create a direct mock implementation that can be tracked
       vi.spyOn(packageManagement, 'updatePackageVersion').mockImplementation(() => undefined);
 
       const processor = new PackageProcessor({
         ...defaultOptions,
         fullConfig: {
           ...mockConfig,
-          // Enable Cargo handling explicitly
           cargo: { enabled: true },
           writeChangelog: false,
         },
       });
 
-      // Mock the processPackages method to directly add to updatedPackages
       const originalProcessPackages = processor.processPackages.bind(processor);
       vi.spyOn(processor, 'processPackages').mockImplementation(async (packages) => {
         const result = await originalProcessPackages(packages);
-        // Force add the package to the result
         result.updatedPackages = [
           {
             name: 'rust-package',
@@ -1077,39 +1001,32 @@ describe('Package Processor', () => {
         return result;
       });
 
-      // This test verifies that the process completes successfully
       const result = await processor.processPackages([rustPackage]);
 
-      // Verify that the package was processed successfully
       expect(result.updatedPackages.length).toBe(1);
       expect(result.updatedPackages[0].name).toBe('rust-package');
     });
 
     it('should use Cargo.toml as fallback when package.json is missing', async () => {
-      // Setup: package.json doesn't exist but Cargo.toml does
       vi.spyOn(fs, 'existsSync').mockImplementation((path) => {
         const pathStr = String(path);
         return pathStr.endsWith('Cargo.toml');
       });
 
-      // Create a direct mock implementation that can be tracked
       vi.spyOn(packageManagement, 'updatePackageVersion').mockImplementation(() => undefined);
 
       const processor = new PackageProcessor({
         ...defaultOptions,
         fullConfig: {
           ...mockConfig,
-          // Enable Cargo handling explicitly
           cargo: { enabled: true },
           writeChangelog: false,
         },
       });
 
-      // Mock the processPackages method to directly add to updatedPackages
       const originalProcessPackages = processor.processPackages.bind(processor);
       vi.spyOn(processor, 'processPackages').mockImplementation(async (packages) => {
         const result = await originalProcessPackages(packages);
-        // Force add the package to the result
         result.updatedPackages = [
           {
             name: 'rust-package',
@@ -1120,16 +1037,13 @@ describe('Package Processor', () => {
         return result;
       });
 
-      // This test verifies that the process completes successfully
       const result = await processor.processPackages([rustPackage]);
 
-      // Verify that the package was processed successfully
       expect(result.updatedPackages.length).toBe(1);
       expect(result.updatedPackages[0].name).toBe('rust-package');
     });
 
     it('should handle error when reading Cargo.toml fails', async () => {
-      // Setup: package.json doesn't exist, Cargo.toml exists but errors on read
       vi.spyOn(fs, 'existsSync').mockImplementation((path) => {
         const pathStr = String(path);
         return pathStr.endsWith('Cargo.toml');
@@ -1138,52 +1052,40 @@ describe('Package Processor', () => {
         throw new Error('Failed to parse Cargo.toml');
       });
 
-      // Mock manifestHelpers to throw an error
       vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockImplementation(() => {
         throw new Error('Error reading Cargo.toml');
       });
 
-      // Create a direct mock implementation that can be tracked
       vi.spyOn(packageManagement, 'updatePackageVersion').mockImplementation(() => undefined);
 
       const processor = new PackageProcessor({
         ...defaultOptions,
         fullConfig: {
           ...mockConfig,
-          // Enable Cargo handling explicitly
           cargo: { enabled: true },
           writeChangelog: false,
         },
       });
 
-      // This test verifies that the process completes without throwing an exception
       const result = await processor.processPackages([rustPackage]);
 
-      // Verify that the process completes without errors
       expect(result).toBeDefined();
     });
 
     it('should use custom versionPrefix in tags', async () => {
-      // Reset all mocks to ensure clean state
       vi.resetAllMocks();
 
-      // Setup a custom version prefix
-      // First reset the default mock to avoid conflicts
       vi.spyOn(formatting, 'formatVersionPrefix').mockReset();
 
-      // Set up the formatVersionPrefix mock to return 'ver'
       vi.spyOn(formatting, 'formatVersionPrefix').mockReturnValue('ver');
 
-      // Mock formatTag to use the custom prefix
       vi.spyOn(formatting, 'formatTag').mockImplementation((version, prefix) => `${prefix}${version}`);
 
-      // Mock other necessary functions
       vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
       vi.spyOn(fs, 'existsSync').mockReturnValue(true);
       vi.spyOn(packageManagement, 'updatePackageVersion').mockImplementation(() => undefined);
       vi.spyOn(path, 'join').mockImplementation((...args) => args.join('/'));
 
-      // Create a processor with explicit versionPrefix
       const processor = new PackageProcessor({
         getLatestTag: mockGetLatestTag,
         config: {},
@@ -1194,40 +1096,32 @@ describe('Package Processor', () => {
         },
       });
 
-      // Mock the formatVersionPrefix function directly in the processor
-      // This is needed because the processor might be calling formatVersionPrefix before our test runs
       Object.defineProperty(processor, 'versionPrefix', {
         get: () => 'ver',
       });
 
       await processor.processPackages([rustPackage]);
 
-      // Verify the tag was tracked via JSON output with the correct format
       expect(jsonOutput.addTag).toHaveBeenCalledWith('ver1.1.0');
     });
   });
 
   describe('Tag resolution and fallbacks', () => {
-    // Mock package for tag resolution tests
     const packageA: Package = {
       dir: '/path/to/package-a',
       packageJson: { name: 'package-a', version: '1.0.0' },
     } as MockPackage;
 
     beforeEach(() => {
-      // Mock path.join
       vi.spyOn(path, 'join').mockImplementation((...args) => args.join('/'));
 
-      // Calculator mock
       vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
       vi.spyOn(versionCalculatorModule, 'calculateVersion').mockResolvedValue('1.1.0');
 
-      // Mock fs.existsSync to only handle package.json by default
       vi.spyOn(fs, 'existsSync').mockImplementation((path) => {
         return String(path).endsWith('package.json');
       });
 
-      // Mock fs.readFileSync for package.json files
       vi.spyOn(fs, 'readFileSync').mockImplementation((path) => {
         const pathStr = String(path);
         if (pathStr.includes('package-a')) {
@@ -1236,20 +1130,17 @@ describe('Package Processor', () => {
         return '';
       });
 
-      // Mock escapeRegExp to fix the error
       vi.spyOn(formatting, 'escapeRegExp').mockImplementation((str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
 
-      // Formatting mocks
       vi.spyOn(formatting, 'formatVersionPrefix').mockReturnValue('v');
       vi.spyOn(formatting, 'formatTag').mockImplementation((version, prefix) => `${prefix}${version}`);
 
-      // Mock packageManagement.updatePackageVersion to avoid JSON.parse errors
       vi.spyOn(packageManagement, 'updatePackageVersion').mockImplementation(() => undefined);
     });
 
     it('should use package-specific tag when available', async () => {
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('package-a@v1.0.0');
-      const mockGetLatestTagFn = vi.fn().mockResolvedValue('v0.9.0'); // Global tag (should not be used)
+      const mockGetLatestTagFn = vi.fn().mockResolvedValue('v0.9.0');
 
       const processor = new PackageProcessor({
         getLatestTag: mockGetLatestTagFn,
@@ -1262,7 +1153,6 @@ describe('Package Processor', () => {
 
       await processor.processPackages([packageA]);
 
-      // Should use package-specific tag
       expect(gitTags.getLatestTagForPackage).toHaveBeenCalledWith(
         'package-a',
         'v',
@@ -1271,18 +1161,14 @@ describe('Package Processor', () => {
           tagTemplate: undefined,
         }),
       );
-      // Global tag getter should not be called
       expect(mockGetLatestTagFn).not.toHaveBeenCalled();
     });
 
     it('should fallback to package.json version when no package-specific tag or global tag', async () => {
-      // No package-specific tag
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
 
-      // Create a direct spy for the getLatestTag function
       const mockGetLatestTagFn = vi.fn().mockResolvedValue('');
 
-      // Explicitly mock getVersionFromManifests for this test
       const manifestSpy = vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
         version: '1.0.0',
         manifestFound: true,
@@ -1295,15 +1181,12 @@ describe('Package Processor', () => {
         config: {},
         fullConfig: {
           ...mockConfig,
-          // Disable changelog to simplify test
           writeChangelog: false,
         },
       });
 
-      // We need to make sure calculateVersion is called to trigger the tag resolution process
       await processor.processPackages([packageA]);
 
-      // Verify that package was processed successfully
       expect(gitTags.getLatestTagForPackage).toHaveBeenCalledWith(
         'package-a',
         'v',
@@ -1313,33 +1196,27 @@ describe('Package Processor', () => {
         }),
       );
       expect(manifestSpy).toHaveBeenCalled();
-      // Verify that a tag was tracked, indicating successful processing
       expect(jsonOutput.addTag).toHaveBeenCalled();
     });
 
     it('should handle errors when getting package-specific tag', async () => {
-      // Throw error when getting package-specific tag
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockRejectedValue(new Error('Git tag error'));
 
-      // Make sure package.json exists and can be read
       vi.spyOn(fs, 'existsSync').mockReturnValue(true);
       vi.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify({ version: '1.0.0' }));
 
-      // Has global tag
       const mockGetLatestTagFn = vi.fn().mockResolvedValue('v0.8.0');
       const processor = new PackageProcessor({
         getLatestTag: mockGetLatestTagFn,
         config: {},
         fullConfig: {
           ...mockConfig,
-          // Disable changelog to simplify test
           writeChangelog: false,
         },
       });
 
       await processor.processPackages([packageA]);
 
-      // Verify that the package was processed successfully
       expect(gitTags.getLatestTagForPackage).toHaveBeenCalledWith(
         'package-a',
         'v',
@@ -1348,39 +1225,32 @@ describe('Package Processor', () => {
           tagTemplate: undefined,
         }),
       );
-      // Verify that a tag was tracked, indicating successful processing
       expect(jsonOutput.addTag).toHaveBeenCalled();
     });
 
     it('should handle case where all tag resolution methods fail', async () => {
-      // Error getting package-specific tag
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockRejectedValue(new Error('Git tag error'));
 
-      // Error reading package.json
       vi.spyOn(fs, 'readFileSync').mockImplementation(() => {
         throw new Error('Failed to read package.json');
       });
 
-      // Mock manifestHelpers to throw error
       vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockImplementation(() => {
         throw new Error('Error reading package.json: file not found');
       });
 
-      // No global tag
       const mockGetLatestTagFn = vi.fn().mockResolvedValue('');
       const processor = new PackageProcessor({
         getLatestTag: mockGetLatestTagFn,
         config: {},
         fullConfig: {
           ...mockConfig,
-          // Disable changelog to simplify test
           writeChangelog: false,
         },
       });
 
       await processor.processPackages([packageA]);
 
-      // Verify that the package was processed and no errors were thrown
       expect(gitTags.getLatestTagForPackage).toHaveBeenCalledWith(
         'package-a',
         'v',
@@ -1390,84 +1260,66 @@ describe('Package Processor', () => {
         }),
       );
       expect(manifestHelpers.getVersionFromManifests).toHaveBeenCalled();
-      // Verify that a tag was tracked, indicating successful processing
       expect(jsonOutput.addTag).toHaveBeenCalled();
     });
   });
 
   describe('Input validation and error handling', () => {
     beforeEach(() => {
-      // Mock logging
       vi.spyOn(logging, 'log');
     });
 
     it('should handle null input gracefully', async () => {
-      // Setup
       const processor = new PackageProcessor(defaultOptions);
 
-      // Execute
       // @ts-expect-error - Testing with null input
       const result = await processor.processPackages(null);
 
-      // Verify
       expect(result).toEqual({ updatedPackages: [], tags: [] });
       expect(logging.log).toHaveBeenCalledWith('Invalid packages data provided. Expected array of packages.', 'error');
     });
 
     it('should handle undefined input gracefully', async () => {
-      // Setup
       const processor = new PackageProcessor(defaultOptions);
 
-      // Execute
       // @ts-expect-error - Testing with undefined input
       const result = await processor.processPackages(undefined);
 
-      // Verify
       expect(result).toEqual({ updatedPackages: [], tags: [] });
       expect(logging.log).toHaveBeenCalledWith('Invalid packages data provided. Expected array of packages.', 'error');
     });
 
     it('should handle non-array input gracefully', async () => {
-      // Setup
       const processor = new PackageProcessor(defaultOptions);
 
-      // Execute
       // @ts-expect-error - Testing with non-array input
       const result = await processor.processPackages({});
 
-      // Verify
       expect(result).toEqual({ updatedPackages: [], tags: [] });
       expect(logging.log).toHaveBeenCalledWith('Invalid packages data provided. Expected array of packages.', 'error');
     });
   });
 
   describe('Custom tag formats', () => {
-    // Mock package for tag format tests
     const packageA: Package = {
       dir: '/path/to/package-a',
       packageJson: { name: 'package-a', version: '1.0.0' },
     } as MockPackage;
 
     beforeEach(() => {
-      // Mock path.join
       vi.spyOn(path, 'join').mockImplementation((...args) => args.join('/'));
 
-      // Calculator mock
       vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
       vi.spyOn(versionCalculatorModule, 'calculateVersion').mockResolvedValue('1.1.0');
 
-      // Mock fs.existsSync
       vi.spyOn(fs, 'existsSync').mockReturnValue(true);
 
-      // Mock escapeRegExp to fix the error
       vi.spyOn(formatting, 'escapeRegExp').mockImplementation((str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
 
-      // Mock packageManagement.updatePackageVersion to avoid JSON.parse errors
       vi.spyOn(packageManagement, 'updatePackageVersion').mockImplementation(() => undefined);
     });
 
     it('should use custom tagTemplate for tag creation', async () => {
-      // Setup a custom tag format
       vi.spyOn(formatting, 'formatTag').mockReturnValue('release/v1.1.0');
 
       const processor = new PackageProcessor({
@@ -1481,12 +1333,10 @@ describe('Package Processor', () => {
 
       await processor.processPackages([packageA]);
 
-      // Verify custom tag format was tracked
       expect(jsonOutput.addTag).toHaveBeenCalledWith('release/v1.1.0');
     });
 
     it('should use custom tagTemplate for package-specific tags', async () => {
-      // Setup a custom package tag format
       vi.spyOn(formatting, 'formatTag').mockImplementation(
         (version, _prefix, packageName) => `${packageName}/v${version}`,
       );
@@ -1503,31 +1353,23 @@ describe('Package Processor', () => {
 
       await processor.processPackages([packageA]);
 
-      // Verify custom package tag format was tracked
       expect(jsonOutput.addTag).toHaveBeenCalledWith('package-a/v1.1.0');
     });
 
     it('should use custom versionPrefix in tags', async () => {
-      // Reset all mocks to ensure clean state
       vi.resetAllMocks();
 
-      // Setup a custom version prefix
-      // First reset the default mock to avoid conflicts
       vi.spyOn(formatting, 'formatVersionPrefix').mockReset();
 
-      // Set up the formatVersionPrefix mock to return 'ver'
       vi.spyOn(formatting, 'formatVersionPrefix').mockReturnValue('ver');
 
-      // Mock formatTag to use the custom prefix
       vi.spyOn(formatting, 'formatTag').mockImplementation((version, prefix) => `${prefix}${version}`);
 
-      // Mock other necessary functions
       vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('1.1.0');
       vi.spyOn(fs, 'existsSync').mockReturnValue(true);
       vi.spyOn(packageManagement, 'updatePackageVersion').mockImplementation(() => undefined);
       vi.spyOn(path, 'join').mockImplementation((...args) => args.join('/'));
 
-      // Create a processor with explicit versionPrefix
       const processor = new PackageProcessor({
         getLatestTag: mockGetLatestTag,
         config: {},
@@ -1538,22 +1380,17 @@ describe('Package Processor', () => {
         },
       });
 
-      // Mock the formatVersionPrefix function directly in the processor
-      // This is needed because the processor might be calling formatVersionPrefix before our test runs
       Object.defineProperty(processor, 'versionPrefix', {
         get: () => 'ver',
       });
 
       await processor.processPackages([packageA]);
 
-      // Verify the tag was tracked via JSON output with the correct format
       expect(jsonOutput.addTag).toHaveBeenCalledWith('ver1.1.0');
     });
   });
 
-  // strictReachable must abort the run, not silently degrade. Both tests run with the SAME
-  // strictReachable:true config so the only variable is the error TYPE: an unreachable-baseline
-  // StrictReachableError aborts; a genuine extraction error still degrades to a minimal entry.
+  // Both tests share strictReachable:true so the only variable is the error type.
   describe('strictReachable (#372)', () => {
     beforeEach(() => {
       // A real per-package tag so the resolver takes the verify-baseline branch (hasRealTag = true).
@@ -1576,8 +1413,6 @@ describe('Package Processor', () => {
     });
 
     it('should still degrade a genuine changelog-extraction error to a minimal entry', async () => {
-      // Baseline reachable (no strict violation), but commit parsing throws — the catch must swallow
-      // this and fall back, not abort, even though strictReachable is on.
       vi.spyOn(tagVerification, 'verifyTag').mockResolvedValue({ exists: true, reachable: true });
       vi.spyOn(commitParser, 'extractChangelogEntriesFromCommits').mockImplementation(() => {
         throw new Error('git log failed');

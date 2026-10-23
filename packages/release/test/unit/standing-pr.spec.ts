@@ -17,32 +17,19 @@ import {
   serializeManifest,
 } from '../../src/standing-pr/standing-pr.js';
 
-/**
- * A {@link FakeGit} the standing-PR specs can steer per-call. The production code reaches git through
- * two formatted `log` reads that need independent control:
- *  - `getHeadCommitMessage` (`--format=%s`) — the HEAD commit subject the skip-pattern guards key on;
- *    `nextSubject` is a queue so a single test can return different subjects across the two guard
- *    calls (the mid-run-reset scenarios).
- *  - `createReleaseTags`' tag→commit resolution (`--format=%H`) — answered with the seeded HEAD SHA so
- *    a present tag reads as "at HEAD".
- * Everything else (commit/tag/push/checkout/reset/fetch/add) is the real FakeGit recorder, so specs
- * assert on `committed`/`tagged`/`pushed`/`checkedOut`/`resetTo`/`fetched`/`addedAll`/`added`.
- */
 class ControllableGit extends FakeGit {
-  /** Queued HEAD subjects for successive `--format=%s` reads; the last value sticks once drained. */
+  /** The last value sticks once drained, so a test can vary the HEAD subject across the two guard calls. */
   subjects: string[] = [];
-  /** Commit an existing tag resolves to under `--format=%H`. Defaults to HEAD ("tag at HEAD"). */
   tagCommitSha?: string;
-  /** When set, the `--format=%H` tag-resolution read throws (git couldn't resolve the tag). */
   tagResolveThrows = false;
 
   override async log(opts: GitLogOptions): Promise<string> {
     if (opts.format === '%s') {
-      // getHeadCommitMessage — return the next queued subject (keep the last once the queue drains).
+      // getHeadCommitMessage: the HEAD subject the skip-pattern guards key on.
       return this.subjects.length > 1 ? (this.subjects.shift() ?? '') : (this.subjects[0] ?? '');
     }
     if (opts.format === '%H') {
-      // createReleaseTags resolves an existing tag's commit — default to HEAD ("tag at HEAD").
+      // createReleaseTags resolving an existing tag's commit.
       if (this.tagResolveThrows) {
         throw new Error('cannot resolve tag');
       }
@@ -52,15 +39,12 @@ class ControllableGit extends FakeGit {
   }
 }
 
-// The git execution seam: `createGitCli()` hands back the current ControllableGit so specs can both
-// steer reads (HEAD subject/SHA) and assert recorded mutations. Re-pointed in each beforeEach.
 let fakeGit: ControllableGit;
 vi.mock('@releasekit/git', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@releasekit/git')>();
   return { ...actual, createGitCli: () => fakeGit };
 });
 
-/** Build a fresh ControllableGit (default HEAD subject = a non-release commit) and make it current. */
 function setupGit(
   seed: {
     headSha?: string;
@@ -72,15 +56,14 @@ function setupGit(
   fakeGit = new ControllableGit({
     headSha: seed.headSha ?? 'abc123',
     remoteBranches: seed.remoteBranches,
-    // The manifest baseSha ancestry guard refuses to publish when baseSha isn't an ancestor of
-    // HEAD; default to "is an ancestor" so the common publish path proceeds, override to test the guard.
+    // Default to "is an ancestor" so the manifest baseSha ancestry guard passes on the common publish path.
     ancestors: seed.ancestors ?? (() => true),
   });
   fakeGit.subjects = [seed.subject ?? 'feat: some feature'];
   return fakeGit;
 }
 
-/** Recorded remote-branch deletions: `deleteReleaseBranch` pushes a `:<branch>` delete refspec. */
+/** `deleteReleaseBranch` pushes a `:<branch>` delete refspec. */
 function branchDeletePushes() {
   return fakeGit.pushed.filter((p) => p.ref?.startsWith(':'));
 }
@@ -102,9 +85,7 @@ vi.mock('@releasekit/config', () => ({
   }),
 }));
 
-// The standing-PR primary-package path lazily imports `getWorkspacePackageNames` to resolve declared
-// primaries (incl. unchanged ones) against the workspace. Mock it so the test never hits a real fs;
-// defaults to empty (no primaries → flat render) for every test that doesn't opt in.
+// Resolves declared primaries against the workspace; empty (no primaries → flat render) unless a test opts in.
 const mockGetWorkspacePackageNames = vi.fn<(...args: unknown[]) => Promise<string[]>>().mockResolvedValue([]);
 // The publish path reads the merged tree's actual package versions to validate the manifest.
 const mockGetWorkspacePackageVersions = vi
@@ -145,8 +126,6 @@ function createMockVersionOutput(
 
 const MANIFEST_MARKER = '<!-- releasekit-manifest -->';
 
-// Build a FakeForge from seed state and point the mocked `forgeFor` at it, so production code
-// that calls `forgeFor(githubContext)` is driven by this fake.
 async function mockForge(seed: FakeForgeSeed = {}): Promise<FakeForge> {
   const { forgeFor } = await import('../../src/github.js');
   const forge = createFakeForge(seed);
@@ -179,14 +158,13 @@ describe('createReleaseTags', () => {
   });
 
   it('should create a tag when none exists', async () => {
-    // No existing ref seeded → refExists is false → the tag is created.
     await createReleaseTags(['v1.2.3'], '/tmp/test');
 
     expect(fakeGit.tagged).toContainEqual({ name: 'v1.2.3', message: 'Release v1.2.3' });
   });
 
   it('should skip creation when the tag already points at HEAD', async () => {
-    // Tag exists and resolves to HEAD (the %H read defaults to the seeded HEAD SHA) → no creation.
+    // The %H read defaults to the seeded HEAD SHA, so the tag resolves to HEAD.
     fakeGit = new ControllableGit({ headSha: 'abc123', existingRefs: ['refs/tags/v1.2.3'] });
     fakeGit.subjects = ['feat: some feature'];
 
@@ -196,7 +174,6 @@ describe('createReleaseTags', () => {
   });
 
   it('should not recreate a tag that points at a different commit', async () => {
-    // Tag exists but resolves to a different commit than HEAD → warn and skip (no rewrite).
     fakeGit = new ControllableGit({ headSha: 'abc123', existingRefs: ['refs/tags/v1.2.3'] });
     fakeGit.subjects = ['feat: some feature'];
     fakeGit.tagCommitSha = 'othersha';
@@ -213,12 +190,10 @@ describe('createReleaseTags', () => {
 
     await createReleaseTags(['v1.2.3', '@scope/pkg@v1.2.3'], '/tmp/test');
 
-    // Exactly one tag created — the second was already at HEAD.
     expect(fakeGit.tagged).toEqual([{ name: 'v1.2.3', message: 'Release v1.2.3' }]);
   });
 
   it('should not throw when tag creation fails', async () => {
-    // No existing ref → creation is attempted, but the tag write rejects; the error must not propagate.
     vi.spyOn(fakeGit, 'tag').mockRejectedValue(new Error('git tag failed'));
 
     await expect(createReleaseTags(['v1.2.3'], '/tmp/test')).resolves.toBeUndefined();
@@ -229,7 +204,6 @@ describe('createReleaseTags', () => {
     const tagSpy = vi.spyOn(fakeGit, 'tag');
 
     await expect(createReleaseTags(['v1.2.3'], '/tmp/test')).resolves.toBeUndefined();
-    // Bails at HEAD lookup — never reaches tag creation.
     expect(tagSpy).not.toHaveBeenCalled();
   });
 });
@@ -262,7 +236,6 @@ describe('serializeManifest / parseManifest', () => {
   });
 
   it('should accept a v1 manifest without firstUpdatedAt (backward compat)', () => {
-    // v1 manifests from before schema v2 have no firstUpdatedAt
     const v1Manifest = { ...baseManifest, schemaVersion: 1 as const };
     const serialized = serializeManifest(v1Manifest);
     const parsed = parseManifest(serialized);
@@ -367,11 +340,8 @@ describe('runStandingPRUpdate', () => {
   });
 
   it('should return noop when a release commit lands on the base branch during the run', async () => {
-    // Top-of-function guard sees a non-release HEAD (passes), but after resetting to origin/main a
-    // release commit is now HEAD — a release merged mid-run. The post-reset recheck must bow out so
-    // the standing PR doesn't double-bump off the just-merged-but-untagged version bump.
-    // The first HEAD-subject read (top guard) is a normal commit; the second (post-reset recheck)
-    // is a release commit — modelling a release that merged onto base mid-run.
+    // The top guard reads a normal commit, the post-reset recheck a release commit that merged mid-run; the recheck
+    // must bow out so the standing PR doesn't double-bump off the just-merged-but-untagged version.
     fakeGit.subjects = ['feat: something (#320)', 'chore: release v0.29.0 (#318)'];
 
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
@@ -384,14 +354,12 @@ describe('runStandingPRUpdate', () => {
     const result = await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     expect(result.action).toBe('noop');
-    // No PR write — the update bowed out before force-push / PR update.
     expect(forge.updatedPullRequests).toHaveLength(0);
     expect(forge.createdPullRequests).toHaveLength(0);
   });
 
   it('should bypass the skip-pattern guard when reconcile is set', async () => {
-    // HEAD is a release commit (matches the skip pattern) — the post-release reconcile scenario.
-    // Without reconcile this would noop; with reconcile it must proceed and create the PR.
+    // A release-commit HEAD is the post-release reconcile scenario.
     fakeGit.subjects = ['chore: release @scope/core v1.2.3'];
 
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
@@ -443,7 +411,7 @@ describe('runStandingPRUpdate', () => {
 
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    // The label OR'd `includePrerequisites` into the version run (dry-run call is the first one).
+    // The dry-run call is the first one.
     const firstCall = vi.mocked(runVersionStep).mock.calls[0]?.[0] as { includePrerequisites?: boolean };
     expect(firstCall.includePrerequisites).toBe(true);
   });
@@ -493,9 +461,7 @@ describe('runStandingPRUpdate', () => {
   });
 
   it('should list a prerequisite whose target has no update entry rather than render an empty body', async () => {
-    // The targeted package (@scope/app) had no releasable change of its own, so the engine never
-    // emits an update for it and it is never tagged 'target'. Its changed prerequisite (@scope/core)
-    // still publishes — the body must show it, not just the intro line.
+    // @scope/app had no releasable change, so the engine emits no update for it and it's never tagged 'target'.
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = {
       ...createMockVersionOutput([
@@ -539,7 +505,6 @@ describe('runStandingPRUpdate', () => {
     vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    // The live PR body carries a prior selection with @scope/b unticked.
     const priorBody = [
       '<!-- releasekit-selection -->',
       '',
@@ -555,20 +520,15 @@ describe('runStandingPRUpdate', () => {
 
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    // The write run (second call) excludes the unticked package so it is never bumped.
     const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { exclude?: string[] };
     expect(writeCall.exclude).toEqual(['@scope/b']);
 
-    // The regenerated body preserves the untick (merge-preserve) — @scope/b stays unticked, @scope/a ticked.
     const updatedBody = forge.updatedPullRequests[0]?.changes.body ?? '';
     expect(updatedBody).toContain('- [ ] `@scope/b`');
     expect(updatedBody).toContain('- [x] `@scope/a`');
   });
 
-  // --- Release-unit selection: primaryPackages wiring ---
-
-  // Config with `@wdio/tauri-service` as a primary over a linked `tauri` group, and the workspace
-  // resolver returning both packages so the primary (changed here) anchors the plugin as its child.
+  // The workspace resolver returns both packages so the primary anchors the plugin as its child.
   const withPrimaries = async () => {
     const { loadConfig } = await import('@releasekit/config');
     vi.mocked(loadConfig).mockReturnValue({
@@ -621,7 +581,6 @@ describe('runStandingPRUpdate', () => {
     expect(body).toContain('<details><summary>ships 1 coupled</summary>');
     expect(body).toContain('- `@wdio/tauri-plugin`');
     expect(body).toContain('· coupled');
-    // The child is read-only: no task-list checkbox and no identity marker (its state is derived).
     expect(body).not.toContain('rk-sel:@wdio/tauri-plugin');
   });
 
@@ -633,7 +592,6 @@ describe('runStandingPRUpdate', () => {
     );
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    // The live body has the primary unticked; the child carries no marker (streamlined).
     const priorBody = [
       '<!-- releasekit-selection -->',
       '',
@@ -645,7 +603,6 @@ describe('runStandingPRUpdate', () => {
       '',
       '<!-- releasekit-selection-end -->',
     ].join('\n');
-    // Sets up the live PR state runStandingPRUpdate reads; the assertion is on the write-step args.
     await mockForge({
       standingPR: openStandingPR(99),
       pullRequests: { 99: { body: priorBody, labels: [] } },
@@ -653,7 +610,6 @@ describe('runStandingPRUpdate', () => {
 
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    // Unticking the primary holds back the whole unit — both packages excluded from the bump.
     const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { exclude?: string[] };
     expect(writeCall.exclude?.slice().sort()).toEqual(['@wdio/tauri-plugin', '@wdio/tauri-service']);
   });
@@ -679,7 +635,6 @@ describe('runStandingPRUpdate', () => {
     } as unknown as ReturnType<typeof loadConfig>);
   };
 
-  // Authorization AND per-row channel toggles both enabled — the combination the gate protects.
   const withAuthzChannel = async () => {
     const { loadConfig } = await import('@releasekit/config');
     vi.mocked(loadConfig).mockReturnValue({
@@ -695,8 +650,7 @@ describe('runStandingPRUpdate', () => {
     } as unknown as ReturnType<typeof loadConfig>);
   };
 
-  // A selection body with @scope/a and @scope/b selected, and @scope/b's rk-pre channel toggle ticked
-  // (or not). Identity is marker-driven, so the toggle prose is illustrative only.
+  // Identity is marker-driven, so the toggle prose is illustrative only.
   const channelBody = (preB: boolean) =>
     [
       '<!-- releasekit-selection -->',
@@ -740,7 +694,7 @@ describe('runStandingPRUpdate', () => {
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { exclude?: string[] };
-    expect(writeCall.exclude).toEqual(['@scope/b']); // admin's untick is applied
+    expect(writeCall.exclude).toEqual(['@scope/b']);
   });
 
   it('should ignore an unauthorized actor’s untick (manifest stays authoritative) and post a notice', async () => {
@@ -757,8 +711,7 @@ describe('runStandingPRUpdate', () => {
     vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    // Body unticks @scope/b, but the authoritative manifest holds back @scope/a — the unauthorized
-    // edit must be ignored and the manifest's selection used instead.
+    // Body unticks @scope/b; the manifest holds back @scope/a.
     const forge = await mockForge({
       standingPR: openStandingPR(99),
       pullRequests: { 99: { body: selectionBody(), labels: [] } },
@@ -769,7 +722,7 @@ describe('runStandingPRUpdate', () => {
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { exclude?: string[] };
-    expect(writeCall.exclude).toEqual(['@scope/a']); // manifest's selection wins, not the body's
+    expect(writeCall.exclude).toEqual(['@scope/a']);
     expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-selection-denied -->')).toBe(true);
   });
 
@@ -792,13 +745,11 @@ describe('runStandingPRUpdate', () => {
       pullRequests: { 99: { body: selectionBody(), labels: [] } },
       comments: [{ id: 5, prNumber: 99, body: serializeManifest({ ...baseManifest, deselected: [] }) }],
     });
-    // A transient permission-check failure (rate-limit, etc.) must not abort the whole update.
     vi.spyOn(forge, 'getActorPermission').mockRejectedValue(Object.assign(new Error('429'), { status: 429 }));
 
     const result = await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    expect(result.action).toBe('updated'); // run completed, no crash
-    // Failed closed → the body's untick is ignored and the authoritative (empty) manifest selection wins.
+    expect(result.action).toBe('updated');
     const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { exclude?: string[] };
     expect(writeCall.exclude).toEqual([]);
   });
@@ -814,7 +765,7 @@ describe('runStandingPRUpdate', () => {
     vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    // 'rando' (write, below admin) added bump:major; the authoritative manifest has no override.
+    // rando (below admin) added bump:major; the manifest has no override.
     const forge = await mockForge({
       standingPR: openStandingPR(99, ['release', 'bump:major', 'area:ci']),
       pullRequests: { 99: { body: '', labels: [] } },
@@ -824,15 +775,12 @@ describe('runStandingPRUpdate', () => {
 
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    // The rogue bump:major is not honoured (no forced bump on the version run)…
     const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { bump?: string };
     expect(writeCall.bump).toBeUndefined();
-    // …and it is removed from the PR, while non-release labels (area:ci) and the standing label survive.
     const lastSetLabels = forge.setLabelsCalls.at(-1)?.labels ?? [];
     expect(lastSetLabels).not.toContain('bump:major');
     expect(lastSetLabels).toContain('area:ci');
     expect(lastSetLabels).toContain('release');
-    // The unauthorized labeller is told their label was rejected (idempotent notice).
     expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-label-denied -->')).toBe(true);
   });
 
@@ -847,9 +795,9 @@ describe('runStandingPRUpdate', () => {
     vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    // 'rando' (write, below admin) removed bump:major; the authoritative manifest still has it.
+    // rando (below admin) removed bump:major; the manifest still has it.
     const forge = await mockForge({
-      standingPR: openStandingPR(99, ['release', 'area:ci']), // bump:major already removed by rando
+      standingPR: openStandingPR(99, ['release', 'area:ci']),
       pullRequests: { 99: { body: '', labels: [] } },
       actorPermissions: { rando: 'write' },
       comments: [{ id: 5, prNumber: 99, body: serializeManifest({ ...baseManifest, overrideLabels: ['bump:major'] }) }],
@@ -857,12 +805,11 @@ describe('runStandingPRUpdate', () => {
 
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    // The authorized bump:major is RESTORED — honoured in the version run and re-applied to the PR.
     const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { bump?: string };
     expect(writeCall.bump).toBe('major');
     const lastSetLabels = forge.setLabelsCalls.at(-1)?.labels ?? [];
-    expect(lastSetLabels).toContain('bump:major'); // restored from the manifest
-    expect(lastSetLabels).toContain('area:ci'); // non-release label preserved
+    expect(lastSetLabels).toContain('bump:major');
+    expect(lastSetLabels).toContain('area:ci');
     expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-label-denied -->')).toBe(true);
   });
 
@@ -886,10 +833,9 @@ describe('runStandingPRUpdate', () => {
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { bump?: string };
-    expect(writeCall.bump).toBe('major'); // authorized override honoured
+    expect(writeCall.bump).toBe('major');
   });
 
-  // Channel toggles (rk-pre/rk-grad) get the same manifest reconciliation as ad-hoc deselection.
   const channelWriteOutput = async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = {
@@ -918,7 +864,7 @@ describe('runStandingPRUpdate', () => {
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { prereleaseScope?: string[] };
-    expect(writeCall.prereleaseScope).toEqual(['@scope/b']); // admin's prerelease toggle is applied
+    expect(writeCall.prereleaseScope).toEqual(['@scope/b']);
     expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(false);
   });
 
@@ -928,19 +874,18 @@ describe('runStandingPRUpdate', () => {
     await channelWriteOutput();
     const { runVersionStep } = await import('../../src/steps.js');
 
-    // The body ticks rk-pre on @scope/b, but the authoritative manifest records no prerelease — the
-    // unauthorized edit must be dropped and the (empty) manifest channel selection used instead.
+    // The body ticks rk-pre on @scope/b; the manifest records no prerelease.
     const forge = await mockForge({
       standingPR: openStandingPR(99),
       pullRequests: { 99: { body: channelBody(true), labels: [] } },
-      actorPermissions: { rando: 'write' }, // below the 'admin' threshold
+      actorPermissions: { rando: 'write' },
       comments: [{ id: 5, prNumber: 99, body: serializeManifest({ ...baseManifest, schemaVersion: 2 }) }],
     });
 
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { prereleaseScope?: string[] };
-    expect(writeCall.prereleaseScope).toBeUndefined(); // rogue prerelease toggle not published
+    expect(writeCall.prereleaseScope).toBeUndefined();
     expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(true);
   });
 
@@ -950,11 +895,10 @@ describe('runStandingPRUpdate', () => {
     await channelWriteOutput();
     const { runVersionStep } = await import('../../src/steps.js');
 
-    // The manifest approved @scope/b as a prerelease last run. An unauthorized editor unticked it in
-    // the body — the write must still prerelease @scope/b (manifest wins), reverting the removal.
+    // The manifest approved @scope/b as a prerelease; the body has it unticked.
     const forge = await mockForge({
       standingPR: openStandingPR(99),
-      pullRequests: { 99: { body: channelBody(false), labels: [] } }, // rk-pre unticked
+      pullRequests: { 99: { body: channelBody(false), labels: [] } },
       actorPermissions: { rando: 'write' },
       comments: [
         {
@@ -968,7 +912,7 @@ describe('runStandingPRUpdate', () => {
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { prereleaseScope?: string[] };
-    expect(writeCall.prereleaseScope).toEqual(['@scope/b']); // approved prerelease preserved
+    expect(writeCall.prereleaseScope).toEqual(['@scope/b']);
     expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(true);
   });
 
@@ -978,8 +922,7 @@ describe('runStandingPRUpdate', () => {
     await channelWriteOutput();
     const { runVersionStep } = await import('../../src/steps.js');
 
-    // The body's rk-pre tick on @scope/b matches the manifest's approved prerelease — an unrelated edit
-    // (e.g. to the notes region) must not misfire the notice just because the toggle is present.
+    // The body's rk-pre tick matches the manifest, so the edit was elsewhere (e.g. the notes region).
     const forge = await mockForge({
       standingPR: openStandingPR(99),
       pullRequests: { 99: { body: channelBody(true), labels: [] } },
@@ -996,13 +939,12 @@ describe('runStandingPRUpdate', () => {
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { prereleaseScope?: string[] };
-    expect(writeCall.prereleaseScope).toEqual(['@scope/b']); // unchanged, still applied
+    expect(writeCall.prereleaseScope).toEqual(['@scope/b']);
     expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(false);
   });
 
   it('should leave channel toggles unreconciled when the feature is disabled', async () => {
-    // authorization set, but channelToggle OFF — extractChannelSelection is never called, so a body
-    // toggle can't drive the write regardless of actor. The gate is a no-op here.
+    // Authorization set but channelToggle off: a body toggle can't drive the write regardless of actor.
     await withAuthz();
     await asEditedBy('rando');
     await channelWriteOutput();
@@ -1024,14 +966,12 @@ describe('runStandingPRUpdate', () => {
 
   it('should re-apply the manifest’s channel on a push run and post no notice', async () => {
     await withAuthzChannel();
-    await asActionBy('synchronize', 'rando'); // a push/synchronize run — not a body edit
+    await asActionBy('synchronize', 'rando'); // a push/synchronize run - not a body edit
     await channelWriteOutput();
     const { runVersionStep } = await import('../../src/steps.js');
 
-    // The manifest approved @scope/b as a prerelease; the body has it unticked (a rogue removal). A
-    // non-edit trigger is never an authorized edit, so the gate still resets to the manifest — the
-    // approved prerelease survives, a stale body edit can't leak into the push run, and because the
-    // actor didn't `edit` anything the reset is silent (no denied notice).
+    // A non-edit trigger is never an authorized edit, so the gate resets to the manifest; the actor didn't `edit`
+    // anything, so the reset is silent.
     const forge = await mockForge({
       standingPR: openStandingPR(99),
       pullRequests: { 99: { body: channelBody(false), labels: [] } },
@@ -1048,13 +988,13 @@ describe('runStandingPRUpdate', () => {
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     const writeCall = vi.mocked(runVersionStep).mock.calls[1]?.[0] as { prereleaseScope?: string[] };
-    expect(writeCall.prereleaseScope).toEqual(['@scope/b']); // manifest re-applied on the push run
-    expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(false); // silent
+    expect(writeCall.prereleaseScope).toEqual(['@scope/b']);
+    expect(forge.upsertedComments.some((c) => c.marker === '<!-- releasekit-channel-denied -->')).toBe(false);
   });
 
   it('should never honour a residual selection region in a sync release', async () => {
     // A repo that switched to sync may carry a leftover selection region. Sync ships atomically, so a
-    // stale deselection must NOT narrow it into a partial release — exclude stays empty.
+    // stale deselection must NOT narrow it into a partial release.
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = {
       ...createMockVersionOutput([
@@ -1082,12 +1022,9 @@ describe('runStandingPRUpdate', () => {
   });
 
   it('should bypass the initial skip-pattern guard on a pull_request label event', async () => {
-    // A label event checks out the standing PR's `chore: release preparation` commit (matches the
-    // skip pattern) — the first guard would noop. A label-triggered run must proceed. The post-reset
-    // HEAD is a normal commit, so the post-reset guard (not bypassed for label runs) passes.
-    // HEAD is the release-prep commit until the branch is reset to origin/main, after which it's a
-    // normal commit. Keying on the reset (resetTo recorded by resetReleaseBranch) keeps this correct
-    // whether or not the first guard runs its HEAD-subject read — the bypass is supposed to skip it.
+    // A label event checks out the standing PR's release-prep commit, which the first guard would noop on; the
+    // post-reset guard (not bypassed for label runs) sees a normal commit. Keying the subject on `resetTo` keeps
+    // this correct whether or not the bypassed first guard reads HEAD.
     vi.spyOn(fakeGit, 'log').mockImplementation(async (opts) => {
       if (opts.format === '%s') {
         return fakeGit.resetTo.length > 0 ? 'feat: something (#320)' : 'chore: release preparation';
@@ -1114,7 +1051,6 @@ describe('runStandingPRUpdate', () => {
 
       const result = await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-      // Did NOT noop on the first guard — the label-triggered run proceeded to update the PR.
       expect(result.action).not.toBe('noop');
     } finally {
       if (prevName === undefined) {
@@ -1172,8 +1108,7 @@ describe('runStandingPRUpdate', () => {
 
   it('should close (not render ****) when the write step recomputes to an empty release set', async () => {
     // Reconcile-race: the dry run sees updates (guard passes), but a release landing on base mid-run
-    // makes the write step recompute to 0 publishable updates. The second guard must close the PR
-    // instead of rendering a degenerate `****` body.
+    // makes the write step recompute to 0 publishable updates.
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const withUpdates = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
     const empty = createMockVersionOutput([]);
@@ -1196,7 +1131,6 @@ describe('runStandingPRUpdate', () => {
     expect(forge.updatedPullRequests).toContainEqual(
       expect.objectContaining({ prNumber: 42, changes: expect.objectContaining({ state: 'closed' }) }),
     );
-    // The empty body must never be rendered onto the PR.
     expect(forge.updatedPullRequests.some((u) => u.changes.body !== undefined)).toBe(false);
   });
 
@@ -1276,7 +1210,6 @@ describe('runStandingPRUpdate', () => {
     // Configured title template counts publishable packages only (root excluded)
     expect(forge.createdPullRequests[0]).toEqual(expect.objectContaining({ title: 'chore: release 2 package(s)' }));
 
-    // Sync body leads with the version and lists bare package names, root excluded
     const body = forge.createdPullRequests[0]?.body;
     expect(body).toContain('Merging this PR will publish **v1.2.3**:');
     expect(body).toContain('- `@scope/core`');
@@ -1313,10 +1246,8 @@ describe('runStandingPRUpdate', () => {
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     const body = forge.createdPullRequests[0]?.body ?? '';
-    // The single combined "### Changelog" blob and per-package version headers are gone.
     expect(body).not.toContain('### Changelog');
     expect(body).not.toContain('@scope/core — 1.2.2 → 1.2.3');
-    // Per-row changelog: a collapsed pane co-located with the row, grouped by change type.
     const rowIdx = body.indexOf('- [x] `@scope/core` → 1.2.3');
     const perRowIdx = body.indexOf('<details><summary>Changelog (2 entries)</summary>');
     expect(rowIdx).toBeGreaterThanOrEqual(0);
@@ -1325,15 +1256,13 @@ describe('runStandingPRUpdate', () => {
     expect(body).toContain('Add new widget');
     expect(body).toContain('#### Fixed');
     expect(body).toContain('Fix broken export');
-    // Combined footer: a single flat, de-duplicated block (default-on), below the selection region.
+    // The combined footer is on by default.
     expect(body).toContain('<details><summary>Show all changes (2 changes, de-duplicated)</summary>');
     expect(body.indexOf('Show all changes')).toBeGreaterThan(perRowIdx);
   });
 
   it('should de-duplicate a shared change across packages once in the combined footer', async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
-    // The same commit lands an identical entry in two packages — the footer collapses it to one line
-    // with inline scope attribution, while each package keeps its own per-row changelog copy.
     const shared = { type: 'fix', description: 'Patch the shared serializer' };
     const versionOutput = {
       ...createMockVersionOutput([
@@ -1372,7 +1301,6 @@ describe('runStandingPRUpdate', () => {
     const body = forge.createdPullRequests[0]?.body ?? '';
     const footerStart = body.indexOf('Show all changes');
     const footer = body.slice(footerStart);
-    // One footer line for the shared change, attributed to both packages.
     const occurrences = footer.split('Patch the shared serializer').length - 1;
     expect(occurrences).toBe(1);
     expect(footer).toContain('_(a, b)_');
@@ -1410,14 +1338,12 @@ describe('runStandingPRUpdate', () => {
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     const body = forge.createdPullRequests[0]?.body ?? '';
-    // No footer at all (no shared entries to home), but the per-row changelog still rides with the row.
+    // No shared entries to home, so no project-wide block either.
     expect(body).not.toContain('Show all changes');
     expect(body).not.toContain('Show project-wide changes');
     expect(body).toContain('<details><summary>Changelog (1 entry)</summary>');
   });
 
-  // Build a mixed-channel async version output whose updates carry the baseline/channel fields the
-  // summary line and table render from.
   function mixedChannelOutput() {
     return {
       dryRun: false,
@@ -1476,7 +1402,6 @@ describe('runStandingPRUpdate', () => {
 
     const body = forge.createdPullRequests[0]?.body ?? '';
     expect(body).toContain('**2 packages** will publish — 1 stable · 1 prerelease · 2 changes. No major bumps.');
-    // The table is opt-in via ci.standingPr.summaryTable — off in the default config.
     expect(body).not.toContain('Version summary (');
   });
 
@@ -1504,12 +1429,11 @@ describe('runStandingPRUpdate', () => {
     expect(body).toContain('| Package | Current | Next | Bump | Tag |');
     expect(body).toContain('| `@scope/a` | 1.1.0 | 1.2.0 | minor | latest |');
     expect(body).toContain('| `@scope/b` | 1.0.0-next.0 | 1.0.0-next.1 | prerelease | next |');
-    // The table sits above the interactive selection region (which it complements, never replaces).
     expect(tableIdx).toBeLessThan(body.indexOf('- [x] `@scope/a`'));
   });
 
   it('should always render the combined changelog in sync mode even when the footer is disabled', async () => {
-    // Sync releases carry no per-row changelogs, so the footer is the only changelog surface — the
+    // Sync releases carry no per-row changelogs, so the footer is the only changelog surface - the
     // gate must not strip it, or merging the PR would publish with the changelog gone from the body.
     const { loadConfig } = await import('@releasekit/config');
     vi.mocked(loadConfig).mockReturnValueOnce({
@@ -1547,8 +1471,7 @@ describe('runStandingPRUpdate', () => {
   });
 
   it('should still surface project-wide shared entries when the footer is disabled in non-sync mode', async () => {
-    // Shared (project-wide) entries have no per-row home, so disabling the footer must not drop them —
-    // only the redundant per-package summary is suppressed.
+    // Shared (project-wide) entries have no per-row home, so disabling the footer must not drop them.
     const { loadConfig } = await import('@releasekit/config');
     vi.mocked(loadConfig).mockReturnValueOnce({
       ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true, combinedChangelogFooter: false } },
@@ -1581,11 +1504,9 @@ describe('runStandingPRUpdate', () => {
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     const body = forge.createdPullRequests[0]?.body ?? '';
-    // The de-duplicated per-package summary is suppressed, but project-wide entries get their own block.
     expect(body).not.toContain('Show all changes');
     expect(body).toContain('Show project-wide changes (1 change)');
     expect(body).toContain('Project-wide CI fix');
-    // The per-row changelog still carries the package's own change.
     expect(body).toContain('<details><summary>Changelog (1 entry)</summary>');
     expect(body).toContain('Per-package change');
   });
@@ -1644,9 +1565,7 @@ describe('runStandingPRUpdate', () => {
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     const body = forge.updatedPullRequests[0]?.changes.body ?? '';
-    // Held-back row's changelog is greyed and flagged, but still shown next to the unticked row.
     expect(body).toContain('<s>Changelog (1 entry)</s> — held back');
-    // The footer reflects only what publishes — @scope/a's change is in, @scope/b's is not.
     const footer = body.slice(body.indexOf('Show all changes'));
     expect(footer).toContain('Ship A feature');
     expect(footer).not.toContain('Fix B bug');
@@ -1691,7 +1610,6 @@ describe('runStandingPRUpdate', () => {
 
   it('should omit the ### Changelog section when all updates are sync-bumped (no entries)', async () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
-    // sync-bumped: updates present but changelogs array is empty
     const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
     vi.mocked(runVersionStep)
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
@@ -1886,7 +1804,6 @@ describe('runStandingPRUpdate', () => {
     } as ReturnType<typeof loadConfig>);
 
     const { runVersionStep } = await import('../../src/steps.js');
-    // Only 1 package changed — below threshold of 3
     const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
     vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
 
@@ -1959,7 +1876,6 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    // Existing PR with a manifest that has a recent firstUpdatedAt (5 minutes ago)
     const recentTimestamp = new Date(Date.now() - 5 * 60_000).toISOString();
     const existingManifest = serializeManifest({ ...baseManifest, schemaVersion: 2, firstUpdatedAt: recentTimestamp });
     const forge = await mockForge({
@@ -1992,7 +1908,6 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    // firstUpdatedAt is 2 hours ago — minAge of 1h is satisfied
     const oldTimestamp = new Date(Date.now() - 2 * 3_600_000).toISOString();
     const existingManifest = serializeManifest({ ...baseManifest, schemaVersion: 2, firstUpdatedAt: oldTimestamp });
     const forge = await mockForge({
@@ -2028,7 +1943,6 @@ describe('runStandingPRUpdate', () => {
 
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    // The manifest comment update should contain the original firstUpdatedAt
     const updateCall = forge.updatedComments.find((c) => c.body.includes(MANIFEST_MARKER));
     expect(updateCall).toBeDefined();
     const writtenManifest = parseManifest(updateCall?.body as string);
@@ -2043,7 +1957,6 @@ describe('runStandingPRUpdate', () => {
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
 
-    // v1 manifest has no firstUpdatedAt — should fall back to createdAt
     const v1Manifest = serializeManifest({ ...baseManifest, schemaVersion: 1 });
     const forge = await mockForge({
       standingPR: openStandingPR(99),
@@ -2069,7 +1982,6 @@ describe('runStandingPRUpdate', () => {
     const forge = await mockForge({ standingPR: null });
     vi.spyOn(forge, 'setCommitStatus').mockRejectedValue(new Error('API rate limit exceeded'));
 
-    // Should resolve (not throw) even when status check post fails
     const result = await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     expect(result.action).toBe('created');
@@ -2112,7 +2024,6 @@ describe('runStandingPRUpdate', () => {
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-      // First call (dry run) and second call (write) should both carry bump: 'major'
       expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ bump: 'major' });
       expect(runVersionStepMock.mock.calls[1]?.[0]).toMatchObject({ bump: 'major' });
     });
@@ -2131,7 +2042,7 @@ describe('runStandingPRUpdate', () => {
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
       // Composed so an already-prerelease package escalates a fresh line (premajor → 2.0.0-next.0)
-      // rather than degrading to a prerelease increment. Both dry-run and write calls agree.
+      // rather than degrading to a prerelease increment.
       expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ bump: 'premajor', prerelease: true });
       expect(runVersionStepMock.mock.calls[1]?.[0]).toMatchObject({ bump: 'premajor', prerelease: true });
     });
@@ -2145,7 +2056,6 @@ describe('runStandingPRUpdate', () => {
       const manifestWrite = writes.find((b) => b.includes(MANIFEST_MARKER));
       expect(manifestWrite).toBeDefined();
       const manifest = parseManifest(manifestWrite as string);
-      // Sorted, marker 'release' label excluded.
       expect(manifest.overrideLabels).toEqual(['bump:major', 'channel:prerelease']);
     });
 
@@ -2168,8 +2078,6 @@ describe('runStandingPRUpdate', () => {
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-      // release:graduate wins — bump is dropped (not leaked as 'major'), consistent with
-      // composeBumpFromLabels returning undefined for stable.
       expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ stable: true });
       expect(runVersionStepMock.mock.calls[0]?.[0]?.bump).toBeUndefined();
     });
@@ -2179,10 +2087,8 @@ describe('runStandingPRUpdate', () => {
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-      // Conflict → bump override dropped, version analysis runs commit-driven
       expect(runVersionStepMock.mock.calls[0]?.[0]).not.toHaveProperty('bump', 'major');
       expect(runVersionStepMock.mock.calls[0]?.[0]?.bump).toBeUndefined();
-      // Final status check is pending with conflict description
       const lastStatus = forge.commitStatuses.at(-1);
       expect(lastStatus?.state).toBe('pending');
       expect(lastStatus?.description).toMatch(/Conflicting bump labels/);
@@ -2211,7 +2117,6 @@ describe('runStandingPRUpdate', () => {
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
       const lastSetLabels = forge.setLabelsCalls.at(-1);
-      // Should contain BOTH the configured 'release' and the maintainer-added 'bump:major'
       expect(lastSetLabels?.labels).toContain('release');
       expect(lastSetLabels?.labels).toContain('bump:major');
     });
@@ -2283,7 +2188,7 @@ describe('runStandingPRUpdate', () => {
 
       expect(runVersionStepMock.mock.calls[0]?.[0]).toMatchObject({ graduate: ['@scope/b'] });
       expect(runVersionStepMock.mock.calls[1]?.[0]).toMatchObject({ graduate: ['@scope/b'] });
-      // Per-package graduation is NOT the whole-batch graduate — `stable` stays unset.
+      // Per-package graduation isn't the whole-batch graduate.
       expect(runVersionStepMock.mock.calls[0]?.[0]?.stable).toBeUndefined();
     });
 
@@ -2322,7 +2227,6 @@ describe('runStandingPRUpdate', () => {
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-      // @scope/b is on a prerelease line → its graduate label is seeded; @scope/a is stable → no label.
       expect(forge.createdLabels.some((l) => l.name === 'graduate:@scope/b')).toBe(true);
       expect(forge.createdLabels.some((l) => l.name === 'graduate:@scope/a')).toBe(false);
     });
@@ -2334,8 +2238,7 @@ describe('runStandingPRUpdate', () => {
 
       const lastStatus = forge.commitStatuses.at(-1);
       expect(lastStatus?.state).toBe('pending');
-      // The specific stale graduate label is surfaced (not an opaque "release-type labels conflict")
-      // so the maintainer knows exactly what to remove — and it survives the 140-char status truncation.
+      // The label name must survive the 140-char status truncation.
       expect(lastStatus?.description).toContain('graduate:@scope/b');
       expect(lastStatus?.description).toContain('channel:prerelease');
     });
@@ -2371,7 +2274,6 @@ describe('runStandingPRUpdate', () => {
 
       await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
-      // LLM release notes were requested (skipReleaseNotes false) on the seeding run.
       expect(runNotesStepMock.mock.calls.at(-1)?.[1]).toMatchObject({ skipReleaseNotes: false });
       const body = forge.updatedPullRequests.at(-1)?.changes.body as string;
       expect(body).toContain('## Release Notes');
@@ -2384,7 +2286,7 @@ describe('runStandingPRUpdate', () => {
       const { forge, runNotesStepMock } = await setupPreviewPR({
         labels: ['release', 'release:preview-notes'],
         liveBody: editedBody,
-        // Even if the mock returned fresh notes, the edit must win — but generation should be skipped.
+        // The edit must win even if fresh notes were returned.
         freshNotes: { '@scope/core': 'REGENERATED notes' },
       });
 
@@ -2408,9 +2310,7 @@ describe('runStandingPRUpdate', () => {
     });
 
     it('should shed the notes region rather than emit an over-cap body when notes are inflated', async () => {
-      // Aggregate notes across many packages exceed GitHub's body limit; the cap fallback must collapse
-      // the notes region so the update never posts an over-limit body (which would 422 and wedge every
-      // future update).
+      // An over-limit body would 422 and wedge every future update.
       const bigNote = Array.from({ length: 300 }, (_, i) => `- inflated note line ${i}`).join('\n');
       const freshNotes = Object.fromEntries(Array.from({ length: 14 }, (_, i) => [`@scope/pkg${i}`, bigNote]));
       const { forge } = await setupPreviewPR({ labels: ['release', 'release:preview-notes'], freshNotes });
@@ -2419,10 +2319,8 @@ describe('runStandingPRUpdate', () => {
 
       const body = forge.updatedPullRequests.at(-1)?.changes.body as string;
       expect(body.length).toBeLessThanOrEqual(STANDING_PR_BODY_CAP);
-      // The editable notes were dropped for the collapsed notice — not left to blow the cap.
       expect(body).toContain('Release notes omitted');
       expect(body).not.toContain('<!-- releasekit-notes:@scope/pkg0 -->');
-      // updatePullRequest was never handed an over-limit body.
       const bodies = forge.updatedPullRequests
         .map((u) => u.changes.body)
         .filter((b): b is string => typeof b === 'string');
@@ -2435,7 +2333,7 @@ describe('runStandingPRUpdate', () => {
 
 describe('findLatestMergedStandingPR', () => {
   it('should pick the most recently merged PR even when an older merge was updated more recently', async () => {
-    // List order is the API's 'updated' sort — late activity (a comment, a label) on the
+    // List order is the API's 'updated' sort - late activity (a comment, a label) on the
     // older merged #42 floats it above the newer merge #77.
     const forge = createFakeForge({
       recentlyClosedPRs: [
@@ -2490,7 +2388,7 @@ describe('runStandingPRPublish', () => {
   it('should infer the latest merged standing PR from the API when GITHUB_EVENT_PATH is not set', async () => {
     delete process.env.GITHUB_EVENT_PATH;
 
-    // No manifest comment on the inferred PR — the publish attempt throwing proves the
+    // No manifest comment on the inferred PR - the publish attempt throwing proves the
     // inference resolved #77 and proceeded to publishFromManifest.
     const forge = await mockForge({
       recentlyClosedPRs: [
@@ -2518,7 +2416,7 @@ describe('runStandingPRPublish', () => {
     ).rejects.toThrow(/manifest not found/);
   });
 
-  // The two cases below are failures to resolve a PR, not "nothing to release" — they throw so the
+  // The two cases below are failures to resolve a PR, not "nothing to release" - they throw so the
   // JSON envelope reports status:"error" rather than a successful no-op. Contrast with the head-ref
   // and not-merged skips below, which stay null: pull_request:closed fires for every closed PR.
   it('should throw when API inference finds no merged standing PR', async () => {
@@ -2584,7 +2482,6 @@ describe('runStandingPRPublish', () => {
       }),
     );
 
-    // No manifest comment
     await mockForge({});
 
     await expect(
@@ -2603,9 +2500,8 @@ describe('runStandingPRPublish', () => {
     await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
 
     const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
-    // publishFromManifest regenerates LLM-enhanced notes against the merged commit set
-    // — the publish step should receive these regenerated notes, not whatever (now empty)
-    // releaseNotes lives on the manifest.
+    // publishFromManifest regenerates notes against the merged commit set; the publish step must get those, not
+    // the manifest's releaseNotes.
     vi.mocked(runNotesStep).mockResolvedValue({
       packageNotes: {},
       releaseNotes: { '@scope/core': '- regenerated at publish time' },
@@ -2623,8 +2519,7 @@ describe('runStandingPRPublish', () => {
     });
 
     expect(result).not.toBeNull();
-    // runNotesStep is called with skipChangelogs:true (LLM-only, against the already-merged
-    // tree) before the publish step runs.
+    // LLM notes only - changelogs are already in the merged tree.
     expect(vi.mocked(runNotesStep)).toHaveBeenCalledWith(
       expect.objectContaining({ updates: baseManifest.versionOutput.updates }),
       expect.objectContaining({ skipChangelogs: true, skipReleaseNotes: false }),
@@ -2647,7 +2542,6 @@ describe('runStandingPRPublish', () => {
     );
 
     const manifestBody = serializeManifest({ ...baseManifest, schemaVersion: 2, overrideLabels: ['bump:major'] });
-    // The merged PR carries a different bump label than the manifest was computed for.
     await mockForge({
       comments: [{ id: 1, body: manifestBody }],
       pullRequests: { 42: { body: '', labels: ['bump:minor', 'release'] } },
@@ -2683,7 +2577,7 @@ describe('runStandingPRPublish', () => {
     await mergedByEvent('rando');
     await mockForge({
       comments: [{ id: 1, body: serializeManifest(baseManifest) }],
-      actorPermissions: { rando: 'write' }, // below admin
+      actorPermissions: { rando: 'write' },
     });
 
     await expect(
@@ -2715,7 +2609,7 @@ describe('runStandingPRPublish', () => {
 
   it('should not check the merger when enforceMergeAuthor is false', async () => {
     await publishConfigWithAuthz({ requiredPermission: 'admin', enforceMergeAuthor: false });
-    await mergedByEvent('rando'); // unauthorized, but the check is disabled
+    await mergedByEvent('rando');
     await mockForge({
       comments: [{ id: 1, body: serializeManifest(baseManifest) }],
       actorPermissions: { rando: 'write' },
@@ -2736,7 +2630,7 @@ describe('runStandingPRPublish', () => {
     await publishConfigWithAuthz({ requiredPermission: 'admin', enforceMergeAuthor: true });
     await mergedByEvent('someone');
     const forge = await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
-    // A transient permission-check failure must not block the publish — the merge ruleset is primary.
+    // Fails open: the merge ruleset is the primary control.
     vi.spyOn(forge, 'getActorPermission').mockRejectedValue(Object.assign(new Error('500'), { status: 500 }));
     const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
     vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
@@ -2747,13 +2641,13 @@ describe('runStandingPRPublish', () => {
     const result = await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     expect(result).not.toBeNull();
-    expect(vi.mocked(runPublishStep)).toHaveBeenCalled(); // failed open
+    expect(vi.mocked(runPublishStep)).toHaveBeenCalled();
   });
 
   it('should treat a Bot merger as authorized via merged_by.type, without a permission call', async () => {
     await publishConfigWithAuthz({ requiredPermission: 'admin', enforceMergeAuthor: true });
     const { readFileSync } = await import('node:fs');
-    // A GitHub App whose login does NOT end in [bot] — recognised by type, not the login suffix.
+    // A GitHub App login without the [bot] suffix.
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({
         pull_request: {
@@ -2776,7 +2670,7 @@ describe('runStandingPRPublish', () => {
 
     expect(result).not.toBeNull();
     expect(vi.mocked(runPublishStep)).toHaveBeenCalled();
-    expect(permSpy).not.toHaveBeenCalled(); // recognised as a bot by type — no permission lookup
+    expect(permSpy).not.toHaveBeenCalled();
   });
 
   it('should publish when override labels match the manifest, ignoring non-override labels', async () => {
@@ -2786,7 +2680,6 @@ describe('runStandingPRPublish', () => {
     );
 
     const manifestBody = serializeManifest({ ...baseManifest, schemaVersion: 2, overrideLabels: ['bump:major'] });
-    // Same override label; the unrelated 'release' / 'area:ci' labels must not count as a mismatch.
     await mockForge({
       comments: [{ id: 1, body: manifestBody }],
       pullRequests: { 42: { body: '', labels: ['release', 'bump:major', 'area:ci'] } },
@@ -2808,7 +2701,7 @@ describe('runStandingPRPublish', () => {
       JSON.stringify({ pull_request: { head: { ref: 'release/next' }, number: 42, merged: true } }),
     );
 
-    // baseManifest has no overrideLabels — the check must be skipped even if labels differ.
+    // baseManifest has no overrideLabels.
     await mockForge({
       comments: [{ id: 1, body: serializeManifest(baseManifest) }],
       pullRequests: { 42: { body: '', labels: ['bump:major'] } },
@@ -2832,7 +2725,6 @@ describe('runStandingPRPublish', () => {
 
     const manifestBody = serializeManifest({ ...baseManifest, schemaVersion: 2, overrideLabels: ['bump:major'] });
     const forge = await mockForge({ comments: [{ id: 1, body: manifestBody }] });
-    // The PR can't be read (transient API failure) — can't verify labels, so fail closed.
     vi.spyOn(forge, 'getPullRequest').mockRejectedValue(new Error('API unavailable'));
 
     await expect(
@@ -2867,8 +2759,7 @@ describe('runStandingPRPublish', () => {
     });
 
     expect(result).not.toBeNull();
-    // Publish proceeds with empty releaseNotes — the publish stage falls back to
-    // GitHub's --generate-notes for the release body.
+    // The publish stage falls back to GitHub's --generate-notes for the release body.
     expect(vi.mocked(runPublishStep)).toHaveBeenCalledWith(
       expect.objectContaining({ updates: baseManifest.versionOutput.updates }),
       expect.objectContaining({ skipGitCommit: true }),
@@ -2957,7 +2848,6 @@ describe('runStandingPRPublish', () => {
     ).rejects.toThrow(/invalid or incompatible/);
   });
 });
-// ─── publishFromManifest ──────────────────────────────────────────────────────
 
 describe('publishFromManifest', () => {
   const originalEnv = { ...process.env };
@@ -2975,8 +2865,6 @@ describe('publishFromManifest', () => {
       git: { branch: 'main' },
     } as ReturnType<typeof loadConfig>);
 
-    // The merged tree's on-disk versions match the manifest — the recompute-and-compare guard
-    // passes so the common publish path proceeds. Divergence tests override this per case.
     mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
 
     setupGit();
@@ -3017,7 +2905,6 @@ describe('publishFromManifest', () => {
       git: { committed: true, tags: [], pushed: true },
     } as unknown as Awaited<ReturnType<typeof runPublishStep>>);
 
-    // Manifest comment present so publish proceeds; the merged PR body carries a human-edited region.
     await mockForge({
       comments: [{ id: 77, body: serializeManifest(baseManifest) }],
       pullRequests: { 99: { body: renderNotesRegion({ '@scope/core': 'EDITED AT MERGE' }), labels: [] } },
@@ -3025,13 +2912,11 @@ describe('publishFromManifest', () => {
 
     await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    // The edited notes (not the regenerated ones) reach the publish step's release-body map.
     expect(vi.mocked(runPublishStep).mock.calls[0]?.[2]).toMatchObject({ '@scope/core': 'EDITED AT MERGE' });
   });
 
   it('should refuse to publish when a forged manifest bumps a version beyond the merged source', async () => {
     const { runPublishStep } = await import('../../src/steps.js');
-    // The merged tree has @scope/core@1.2.3, but the (edited) manifest claims a bumped 9.9.9.
     mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
     const forged = {
       ...baseManifest,
@@ -3108,7 +2993,6 @@ describe('publishFromManifest', () => {
       ...baseManifest,
       versionOutput: {
         ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
-        // `@scope/evil@v1.2.3` carries a real published version but names a package outside the plan.
         tags: ['@scope/core@v1.2.3', '@scope/evil@v1.2.3'],
       },
     };
@@ -3127,8 +3011,7 @@ describe('publishFromManifest', () => {
       ...baseManifest,
       versionOutput: {
         ...createMockVersionOutput([]),
-        // No publishable updates, but rogue tags injected — tag validation must not be skipped, else
-        // createReleaseTags would push these before the (no-op) publish step.
+        // Tag validation must not be skipped, else createReleaseTags would push these before the (no-op) publish step.
         tags: ['@scope/evil@v1.2.3'],
       },
     };
@@ -3149,7 +3032,7 @@ describe('publishFromManifest', () => {
         ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
         tags: ['@scope/core@v1.2.3'],
         // Baseline tags are pushed alongside `tags` and encode a version too, so they are validated
-        // identically — `release/v9.9.9` names a version not being published.
+        // identically - `release/v9.9.9` names a version not being published.
         baselineTags: ['release/v9.9.9'],
       },
     };
@@ -3163,7 +3046,6 @@ describe('publishFromManifest', () => {
 
   it('should refuse to publish when the manifest comment is not authored by the bot', async () => {
     const { runPublishStep } = await import('../../src/steps.js');
-    // A human pre-seeded (or replaced) the manifest comment — author binding must reject it.
     await mockForge({
       comments: [{ id: 77, body: serializeManifest(baseManifest), user: { login: 'attacker', type: 'User' } }],
     });
@@ -3182,8 +3064,6 @@ describe('publishFromManifest', () => {
       githubReleases: [],
       git: { committed: true, tags: [], pushed: true },
     } as unknown as Awaited<ReturnType<typeof runPublishStep>>);
-    // An attacker pre-seeds a forged manifest comment; the bot's real one is also present. findComment
-    // must return the bot's, so the publish proceeds against the legitimate plan.
     const forged = {
       ...baseManifest,
       versionOutput: createMockVersionOutput([{ packageName: '@scope/core', newVersion: '9.9.9' }]),
@@ -3197,7 +3077,6 @@ describe('publishFromManifest', () => {
 
     await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    // The legitimate @scope/core@1.2.3 plan was published, not the forged 9.9.9.
     expect(vi.mocked(runPublishStep).mock.calls[0]?.[0]).toMatchObject({
       updates: [expect.objectContaining({ packageName: '@scope/core', newVersion: '1.2.3' })],
     });
@@ -3205,7 +3084,6 @@ describe('publishFromManifest', () => {
 
   it('should refuse to publish when the manifest baseSha is not an ancestor of HEAD', async () => {
     const { runPublishStep } = await import('../../src/steps.js');
-    // History was rewritten / wrong branch: baseSha is not reachable from HEAD.
     setupGit({ ancestors: () => false });
     await mockForge({ comments: [{ id: 77, body: serializeManifest(baseManifest) }] });
 
@@ -3217,7 +3095,6 @@ describe('publishFromManifest', () => {
 
   it('should refuse to publish a manifest whose schemaVersion is absent', async () => {
     const { runPublishStep } = await import('../../src/steps.js');
-    // Strip schemaVersion from the encoded payload — the schema check must reject it (not slip through).
     const noVersion = serializeManifest({ ...baseManifest, schemaVersion: undefined as unknown as 1 });
     await mockForge({ comments: [{ id: 77, body: noVersion }] });
 
@@ -3244,7 +3121,6 @@ describe('runStandingPRMerge', () => {
       git: { branch: 'main' },
     } as ReturnType<typeof loadConfig>);
 
-    // Matches the @scope/core@1.2.3 manifest fixture so the recompute-and-compare guard passes.
     mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/core': '1.2.3' });
 
     setupGit();
@@ -3298,7 +3174,7 @@ describe('runStandingPRMerge', () => {
     const { loadConfig } = await import('@releasekit/config');
     vi.mocked(loadConfig).mockReturnValue({
       ci: {
-        standingPr: { branch: 'release/next' }, // no mergeMethod
+        standingPr: { branch: 'release/next' },
       },
       git: { branch: 'main' },
     } as ReturnType<typeof loadConfig>);

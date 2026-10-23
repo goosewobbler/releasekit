@@ -4,7 +4,6 @@ node_modules
 *.log
 coverage
 dist
-# Explicitly include test fixtures
 !test/fixtures/
 !test/fixtures/**
 .aider*

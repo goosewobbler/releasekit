@@ -22,7 +22,6 @@ export interface LoadOptions {
   configPath?: string;
 }
 
-// Default config filenames, in lookup order. `.jsonc` is tried after `.json`.
 const CONFIG_FILES = ['releasekit.config.json', 'releasekit.config.jsonc'] as const;
 
 function resolveConfigPath(cwd: string): string {
@@ -32,7 +31,7 @@ function resolveConfigPath(cwd: string): string {
       return candidate;
     }
   }
-  // None found — return the primary path so the not-found path is exercised.
+  // Return the primary path so loadConfigFile's not-found handling applies.
   return path.join(cwd, CONFIG_FILES[0]);
 }
 
@@ -40,11 +39,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/**
- * `notes.releaseNotes` no longer mirrors the changelog's location modes (release notes are not a
- * changelog). Fail loudly with migration guidance instead of letting Zod silently strip the removed
- * keys — which would otherwise turn off a user's file output without a word.
- */
 function assertNoRemovedReleaseNotesFields(config: unknown): void {
   if (!isRecord(config) || !isRecord(config.notes) || !isRecord(config.notes.releaseNotes)) {
     return;
@@ -70,12 +64,6 @@ function assertNoRemovedReleaseNotesFields(config: unknown): void {
   );
 }
 
-/**
- * Branch-pattern versioning (`versionStrategy` / `branchPatterns` / `defaultReleaseType`) and
- * `updateInternalDependencies` were removed — they were unwired and did nothing. Fail loudly with
- * migration guidance instead of letting Zod silently strip them (which would also diverge from the
- * generated JSON schema, where editors/CI reject the same unknown keys).
- */
 function assertNoRemovedVersionFields(config: unknown): void {
   if (!isRecord(config) || !isRecord(config.version)) {
     return;
@@ -94,12 +82,6 @@ function assertNoRemovedVersionFields(config: unknown): void {
   );
 }
 
-/**
- * `ci.autoRelease` was removed (it had no effect), and the top-level `ci.skipPatterns` / `ci.minChanges`
- * were shadowed dead duplicates — the live settings are `release.ci.skipPatterns` / `release.ci.minChanges`.
- * `monorepo.mainPackage` duplicated `version.mainPackage`. Fail loudly with migration guidance rather than
- * silently stripping these (which also diverges from the JSON schema's unknown-key rejection).
- */
 function assertNoRemovedTopLevelFields(config: unknown): void {
   if (!isRecord(config)) {
     return;
@@ -118,10 +100,6 @@ function assertNoRemovedTopLevelFields(config: unknown): void {
   }
 }
 
-/**
- * `monorepo.mode` was removed — it never drove behaviour (changelog aggregation is controlled by
- * notes.changelog.mode). Fail loudly with migration guidance rather than silently stripping it.
- */
 function assertNoRemovedMonorepoMode(config: unknown): void {
   if (isRecord(config) && isRecord(config.monorepo) && 'mode' in config.monorepo) {
     throw new ConfigError('monorepo.mode was removed — changelog aggregation is controlled by notes.changelog.mode.');
@@ -136,9 +114,10 @@ function loadConfigFile(configPath: string): ReleaseKitConfig {
   try {
     const content = fs.readFileSync(configPath, 'utf-8');
     const parsed = parseJsonc(content);
-    // Confine {file:} substitution to the config file's directory (the repo root) so a config can't
-    // read files outside the tree.
+    // Confine {file:} substitution to the config file's directory so a config can't read files outside the tree.
     const substituted = substituteInObject(parsed, path.dirname(configPath));
+    // Zod would silently strip removed keys (diverging from the JSON schema, which rejects them) and could turn off
+    // a user's file output without a word, so fail loudly with migration guidance.
     assertNoRemovedReleaseNotesFields(substituted);
     assertNoRemovedVersionFields(substituted);
     assertNoRemovedTopLevelFields(substituted);

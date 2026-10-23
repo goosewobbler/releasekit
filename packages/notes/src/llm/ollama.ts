@@ -155,7 +155,7 @@ export class OllamaProvider extends BaseLLMProvider {
 
       if (options?.schema) {
         try {
-          // Strip markdown code fences / preamble first — cloud-hosted models (e.g. via ollama.com)
+          // Strip markdown code fences / preamble first - cloud-hosted models (e.g. via ollama.com)
           // often wrap schema-constrained output in a ```json fence despite the `format` request.
           const structured = JSON.parse(extractJsonFromResponse(content));
           return { content, structured };

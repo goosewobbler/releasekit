@@ -34,7 +34,6 @@ export function createGateCommand(): Command {
           quiet: opts.quiet,
         });
 
-        // gate is a read-only check — it never mutates state, so changed is always false.
         emitResult(result, { json: opts.json, output: opts.output, changed: false });
 
         process.exit(0);

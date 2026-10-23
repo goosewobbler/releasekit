@@ -16,43 +16,32 @@ import type {
   GitTagOptions,
 } from './types.js';
 
-/** Default ceiling for a push, mirroring the safety the publish package's exec wrapper provided. */
 const DEFAULT_PUSH_TIMEOUT_MS = 120_000;
 
-/** Git can emit a lot on a big `log`; match the publish exec wrapper's generous buffer. */
+/** Git can emit a lot on a big `log`. */
 const MAX_BUFFER = 1024 * 1024 * 10;
 
-/** Result of a single git invocation. */
 interface RunResult {
   stdout: string;
   stderr: string;
 }
 
-/** Per-invocation options threaded to the underlying runner. */
 interface RunOptions {
   cwd: string;
-  /** Discard stdio when the output is irrelevant (the "soft" exit-code lookups). */
   ignoreOutput?: boolean;
-  /** Hard timeout in milliseconds; on expiry the child is killed and the run rejects. */
+  /** In milliseconds. */
   timeout?: number;
 }
 
-/**
- * The subprocess primitive the adapter depends on: run `git` with an **argument array** and resolve
- * its stdout/stderr, or reject with the spawn/exit error. Injectable so tests can supply a stand-in
- * without spawning a real process; the default is `execFile` bound to the `git` binary.
- */
+/** Resolves stdout/stderr or rejects with the spawn/exit error. */
 export type GitRunner = (args: string[], options: RunOptions) => Promise<RunResult>;
 
 const execFileAsync = promisify(execFile);
 
 /**
- * Reject a value that git would parse as an option. `execFile('git', argv)` uses no shell, so there is
- * no shell-injection, but git itself still parses a leading-`-` positional as a flag — so a remote of
- * `--upload-pack=evil`, or a ref/branch/tag of `--output=…`, becomes argument injection (arbitrary
- * command execution via `--upload-pack`/`--receive-pack`). A ref/remote/branch/tag name can never
- * legitimately start with `-`, so we refuse it on the data-flow path *before* it reaches the argv —
- * this is the barrier that severs the injection (and clears CodeQL's second-order alert).
+ * No shell is involved, but git still parses a leading-`-` positional as a flag, so a remote of `--upload-pack=evil`
+ * is argument injection (RCE). No legitimate ref/remote/branch/tag starts with `-`; refusing it before it reaches the
+ * argv also clears CodeQL's second-order alert.
  */
 function assertNotOption(value: string, kind: string): void {
   if (value.startsWith('-')) {
@@ -65,12 +54,7 @@ function assertNotOption(value: string, kind: string): void {
   }
 }
 
-/**
- * The default {@link GitRunner}: `execFile('git', args)` — an argv array, so no shell, no
- * interpolation. `ignoreOutput` is part of the runner contract (it lets a custom runner discard
- * stdio for the soft exit-code lookups), but the promisified `execFile` always buffers stdout/stderr
- * — bounded by `maxBuffer` — so here we simply ignore the captured output by not reading it.
- */
+/** Ignores `ignoreOutput`: the promisified `execFile` always buffers stdio, bounded by `maxBuffer`. */
 const defaultRunner: GitRunner = async (args, options) => {
   const { stdout, stderr } = await execFileAsync('git', args, {
     cwd: options.cwd,
@@ -80,14 +64,7 @@ const defaultRunner: GitRunner = async (args, options) => {
   return { stdout: stdout.toString(), stderr: stderr.toString() };
 };
 
-/**
- * Subprocess-backed {@link Git}. Every method builds an argv array and hands it to the runner — a git
- * argument is therefore a literal argv slot, never text spliced into a shell command, so a malicious
- * tag/branch/message can't break out into shell execution (the security smell this seam removes).
- *
- * The runner is injected (default: `execFile('git', …)`), so tests assert on the exact argv without
- * spawning git.
- */
+/** Every git argument is a literal argv slot, never spliced into a shell command, so it can't reach a shell. */
 export class GitCli implements Git {
   constructor(private readonly run: GitRunner = defaultRunner) {}
 
@@ -95,7 +72,6 @@ export class GitCli implements Git {
     return cwd ?? process.cwd();
   }
 
-  /** Run git, wrapping any failure in a {@link GitError} that carries the argv, exit code, and stderr. */
   private async exec(args: string[], options: RunOptions): Promise<RunResult> {
     try {
       return await this.run(args, options);
@@ -110,11 +86,7 @@ export class GitCli implements Git {
     }
   }
 
-  /**
-   * Run a "soft" lookup whose non-zero exit is an expected answer (false/absent), not an error.
-   * Returns true on a clean exit, false on a non-zero exit — but a missing `git` binary (ENOENT)
-   * still throws, because that's a configuration failure, not a "no".
-   */
+  /** A missing `git` binary still throws: that's a configuration failure, not a "no". */
   private async execSoft(args: string[], options: RunOptions): Promise<boolean> {
     try {
       await this.run(args, options);
@@ -126,8 +98,6 @@ export class GitCli implements Git {
       return false;
     }
   }
-
-  // — Queries —
 
   async isRepository(cwd?: string): Promise<boolean> {
     return this.execSoft(['rev-parse', '--is-inside-work-tree'], { cwd: this.cwd(cwd), ignoreOutput: true });
@@ -157,7 +127,6 @@ export class GitCli implements Git {
           '',
         );
       }
-      // Non-zero exit (e.g. "No such remote") → the remote is simply absent.
       return null;
     }
   }
@@ -184,7 +153,6 @@ export class GitCli implements Git {
           '',
         );
       }
-      // Non-zero exit means "no names found, cannot describe anything" → no reachable tag.
       return null;
     }
   }
@@ -256,8 +224,7 @@ export class GitCli implements Git {
   }
 
   async forEachRef(opts: GitForEachRefOptions): Promise<string[]> {
-    // `format`/`sort` are flag values by design; `pattern` is a positional ref, so guard it like
-    // every other user-controlled positional (a leading-`-` pattern would be read as an option).
+    // `format`/`sort` are flag values, so only the positional `pattern` needs the guard.
     if (opts.pattern !== undefined) {
       assertNotOption(opts.pattern, 'pattern');
     }
@@ -275,8 +242,7 @@ export class GitCli implements Git {
   async remoteBranchExists(remote: string, branch: string, cwd?: string): Promise<boolean> {
     assertNotOption(remote, 'remote');
     assertNotOption(branch, 'branch');
-    // `--end-of-options` terminates option parsing so a remote/branch can never be read as a git
-    // option (e.g. a malicious `--upload-pack=…` → RCE). Belt-and-suspenders with assertNotOption.
+    // `--end-of-options` is belt-and-suspenders with assertNotOption.
     return this.execSoft(['ls-remote', '--exit-code', '--heads', '--end-of-options', remote, branch], {
       cwd: this.cwd(cwd),
       ignoreOutput: true,
@@ -295,14 +261,11 @@ export class GitCli implements Git {
     }
   }
 
-  // — Mutations —
-
   async addAll(cwd?: string): Promise<void> {
     await this.exec(['add', '-A'], { cwd: this.cwd(cwd) });
   }
 
   async add(paths: string[], cwd?: string): Promise<void> {
-    // Always an explicit pathspec list after `--`; "stage everything" is the dedicated addAll().
     await this.exec(['add', '--', ...paths], { cwd: this.cwd(cwd) });
   }
 
@@ -325,7 +288,6 @@ export class GitCli implements Git {
 
   async fetch(remote: string, opts: GitFetchOptions = {}): Promise<void> {
     assertNotOption(remote, 'remote');
-    // `--end-of-options`: a remote can never be parsed as a git option (`--upload-pack=…` → RCE).
     await this.exec(['fetch', '--end-of-options', remote], { cwd: this.cwd(opts.cwd) });
   }
 
@@ -366,18 +328,14 @@ export class GitCli implements Git {
     if (opts.tags) {
       args.push('--tags');
     }
-    // `--end-of-options`: remote/ref can never be parsed as git options (`--receive-pack=…` → RCE).
     args.push('--end-of-options', opts.remote);
     if (opts.ref !== undefined) {
       args.push(opts.ref);
     }
-    // A push can hang on a stalled network forever; a hard timeout preserves the safety the publish
-    // package previously got from its async exec wrapper. execFile kills the child on expiry.
     await this.exec(args, { cwd: this.cwd(opts.cwd), timeout: opts.timeoutMs ?? DEFAULT_PUSH_TIMEOUT_MS });
   }
 }
 
-/** Trim, split on newlines, and drop empties — the shape git's multi-line list outputs need. */
 function splitLines(output: string): string[] {
   return output
     .split('\n')
@@ -385,7 +343,6 @@ function splitLines(output: string): string[] {
     .filter((line) => line.length > 0);
 }
 
-/** Construct a subprocess-backed {@link Git}. Pass a custom runner to redirect away from `execFile`. */
 export function createGitCli(run?: GitRunner): Git {
   return new GitCli(run);
 }

@@ -37,7 +37,6 @@ describe('utils', () => {
       expect(() => assertNotOption('v1.0.0', 'tag')).not.toThrow();
       expect(() => assertNotOption('@scope/pkg@v1.0.0', 'tag')).not.toThrow();
       expect(() => assertNotOption('', 'tag')).not.toThrow();
-      // An interior dash is fine — only a leading dash is parsed as a flag.
       expect(() => assertNotOption('release-v1.0.0', 'tag')).not.toThrow();
     });
   });

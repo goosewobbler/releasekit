@@ -11,16 +11,15 @@ import {
 } from '../../../src/git/tagsAndBranches.js';
 import { log } from '../../../src/utils/logging.js';
 
-// getLatestTag/getLatestStableTag still go through git-semver-tags (NOT the seam) — keep mocking it.
+// getLatestTag/getLatestStableTag use git-semver-tags rather than the FakeGit seam.
 vi.mock('../../../src/utils/logging.js');
 vi.mock('git-semver-tags', () => ({
   getSemverTags: vi.fn(),
 }));
 
-/** A FakeGit seeded with `git tag --sort=-creatordate` output (newest-first), for listTags-backed lookups. */
+/** Tags newest-first, as `git tag --sort=-creatordate` returns them. */
 const gitWithTags = (tags: string[]): Git => createFakeGit({ tags });
 
-/** A FakeGit whose listTags rejects, to exercise the tag-listing error paths. */
 function gitThatFailsListTagsWith(message: string): Git {
   const git = createFakeGit();
   git.listTags = async () => {
@@ -48,7 +47,6 @@ describe('tagsAndBranches', () => {
     });
 
     it('should fall back to the nearest tag via describe when no sinceTag is given', async () => {
-      // describeTags returns the nearest tag; the count is then taken over `<tag>..HEAD`.
       const git = createFakeGit({ nearestTag: 'v0.9.0', commitCounts: { 'v0.9.0..HEAD': 5 } });
 
       const result = await getCommitsLength('packages/test', undefined, git);
@@ -242,7 +240,6 @@ describe('tagsAndBranches', () => {
 
       const result = await getLatestTagForPackage('test-package', 'v', { packageSpecificTags: true }, git);
 
-      // listPackageTags swallows the listTags error internally (logs + empty list) → no matches → ''.
       expect(result).toBe('');
     });
 

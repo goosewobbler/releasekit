@@ -54,7 +54,7 @@ describe('classifyPublishError', () => {
     });
 
     it('should not treat "invalid" inside raw socket errors as permanent', () => {
-      // Node can phrase transient socket failures with the word "invalid" —
+      // Node can phrase transient socket failures with the word "invalid" -
       // these must remain transient or retries would be suppressed.
       expect(classifyPublishError(new Error('read ECONNRESET, invalid argument'))).toBe('transient');
       expect(classifyPublishError(new Error('write EPIPE, invalid argument'))).toBe('transient');
@@ -119,7 +119,6 @@ describe('withPublishRetry', () => {
 
     await expect(withPublishRetry(fn, { ...opts, onAttempt })).rejects.toThrow('ETIMEDOUT');
 
-    // The thrown error carries no count — onAttempt is how callers record it.
     expect(onAttempt.mock.calls.map(([n]) => n)).toEqual([1, 2, 3]);
   });
 

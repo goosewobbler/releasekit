@@ -326,7 +326,7 @@ describe('Pipeline: versioned release notes file output', () => {
     const { runPipeline } = await import('../../src/core/pipeline.js');
 
     // detectMonorepo is mocked to isMonorepo: true at the top of this file, so even this
-    // single-package run nests by package — independent releases can't collide on <version>.md.
+    // single-package run nests by package.
     const config: Config = { changelog: false, releaseNotes: { file: { dir: 'release-notes' } } };
     const result = await runPipeline(sampleInput, config, false);
 
@@ -334,7 +334,6 @@ describe('Pipeline: versioned release notes file output', () => {
     const call = vi.mocked(fs.writeFileSync).mock.calls.find(([p]) => p === 'release-notes/test-pkg/1.0.0.md') as
       | [string, string]
       | undefined;
-    // Release notes are not a changelog — no Keep-a-Changelog document header.
     expect(call?.[1]).not.toContain('# Changelog');
   });
 

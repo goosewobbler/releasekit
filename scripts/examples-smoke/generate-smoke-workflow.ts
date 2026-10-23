@@ -1,22 +1,11 @@
 #!/usr/bin/env tsx
 /**
- * Generates .github/workflows/examples-smoke.yml from the SHIPPED example
- * workflows.
+ * Generated rather than hand-written so the smoke job runs the setup steps the
+ * examples actually ship; a hand-written mirror would rot. `--check` (run in CI)
+ * fails on drift.
  *
- * Why generated instead of hand-written: the smoke test must run the same setup
- * steps the example ships, or it proves nothing — and a hand-written mirror rots
- * out of sync. This generator EXTRACTS each example job's setup steps straight
- * from the example YAML, so the smoke job runs the real steps. Drift is caught
- * by `--check` (run in CI): regenerate, diff, fail on any change.
- *
- * Approach (chosen over `act`): extract + run on a REAL hosted runner. `act`
- * runs in a Docker image that pre-installs pnpm/cargo, so a missing
- * pnpm/action-setup would NOT fail under it — defeating the whole exercise. A
- * real ubuntu-latest ships neither, so the missing-tool class surfaces faithfully.
- *
- * Usage:
- *   tsx scripts/examples-smoke/generate-smoke-workflow.ts           # write
- *   tsx scripts/examples-smoke/generate-smoke-workflow.ts --check   # verify no drift
+ * Runs on a real hosted runner rather than under `act`, whose Docker image
+ * pre-installs pnpm/cargo and so would hide a missing pnpm/action-setup.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -38,35 +27,23 @@ interface Step {
   [k: string]: unknown;
 }
 
-/** True for the example's own checkout — dropped; the smoke job lays down a fixture instead. */
 function isCheckout(step: Step): boolean {
   return typeof step.uses === 'string' && step.uses.startsWith('actions/checkout');
 }
 
-/** True for the terminal step that actually invokes releasekit — dropped and replaced with a dry run. */
 function isReleasekitRun(step: Step): boolean {
   return typeof step.run === 'string' && /\breleasekit\b/.test(step.run);
 }
 
-/**
- * True for steps that need real secrets / a real repo and are out of scope (the
- * residual gap): the standing-pr retry label-removal `gh api` step. Identified
- * structurally (a `gh api` run), not by hand-listing, so it can't silently drift.
- */
+/** `gh api` steps (e.g. the standing-pr retry label removal) need real secrets and a real repo. */
 function isOutOfScopeApiStep(step: Step): boolean {
   return typeof step.run === 'string' && /\bgh\s+api\b/.test(step.run);
 }
 
-/**
- * An env value that's safe to replay in a dry-run smoke job. A reference to
- * `secrets.*` (e.g. `NPM_TOKEN`, `GITHUB_TOKEN`) is a real auth credential that
- * the smoke job has no need of; GHA expressions and literals are fine.
- */
 function isSecretReferencingEnvValue(value: unknown): boolean {
   return typeof value === 'string' && /\$\{\{\s*secrets\./.test(value);
 }
 
-/** Extract the setup steps to replay: everything up to (and excluding) the releasekit invocation. */
 function extractSetupSteps(scenario: Scenario): Step[] {
   const file = join(rootDir, 'examples', 'ci', scenario.id, scenario.workflow);
   const doc = parseYaml(readFileSync(file, 'utf8')) as { jobs?: Record<string, { steps?: Step[] }> };
@@ -77,15 +54,13 @@ function extractSetupSteps(scenario: Scenario): Step[] {
   const setup: Step[] = [];
   for (const step of job.steps) {
     if (isReleasekitRun(step)) {
-      break; // setup is everything before the release call
+      break;
     }
     if (isCheckout(step) || isOutOfScopeApiStep(step)) {
       continue;
     }
-    // Strip only envs that would fail or do harm in a dry run: references to
-    // `secrets.*`. Keep diagnostic toggles (LOG_LEVEL, RUST_BACKTRACE, ...) and
-    // plain literals — the smoke job's value is the missing-tool signal, not
-    // the secret-bearing env.
+    // Strip only `secrets.*` references, which would fail or do harm in a dry
+    // run; diagnostic toggles (LOG_LEVEL, RUST_BACKTRACE, ...) and literals stay.
     const cleaned: Step = { ...step };
     if (cleaned.env && typeof cleaned.env === 'object') {
       const filtered: Record<string, unknown> = {};
@@ -109,10 +84,8 @@ function extractSetupSteps(scenario: Scenario): Step[] {
 }
 
 /**
- * Config-derived runtime probe. The dry run short-circuits the real `cargo
- * publish`, so a missing rust-toolchain would slip through on dry-run alone.
- * When the shipped config enables cargo we assert `cargo` is actually on PATH —
- * derived from the config, so it can't drift from the example.
+ * The dry run short-circuits the real `cargo publish`, so a missing
+ * rust-toolchain would slip through on dry-run alone.
  */
 function runtimeProbe(scenario: Scenario): Step | undefined {
   const cfg = JSON.parse(readFileSync(join(rootDir, 'examples', 'ci', scenario.id, scenario.config), 'utf8')) as {
@@ -125,8 +98,6 @@ function runtimeProbe(scenario: Scenario): Step | undefined {
   }
   return {
     name: 'Probe: cargo is on PATH (config enables cargo)',
-    // The example's rust-toolchain step must have put cargo here; if it was
-    // dropped, this fails with the very `cargo: command not found` we guard against.
     run: 'cargo --version',
   };
 }
@@ -135,23 +106,19 @@ function smokeJob(scenario: Scenario): Record<string, unknown> {
   const steps: Step[] = [
     {
       // No actions/checkout: the workspace starts EMPTY so the example's own
-      // setup is the only thing that can put pnpm/cargo on PATH. The fixture
-      // arrives as a git bundle, downloaded outside the workspace.
+      // setup is the only thing that can put pnpm/cargo on PATH.
       name: 'Download fixture bundle',
       uses: 'actions/download-artifact@v8',
       // biome-ignore lint/suspicious/noTemplateCurlyInString: ${{ runner.temp }} is a GitHub Actions expression, not a JS template placeholder
       with: { name: `smoke-fixture-${scenario.id}`, path: '${{ runner.temp }}/fixture' },
     },
     {
-      // Clone the bundle into the (empty) workspace root so the lockfile sits at
-      // the root where setup-node's `cache: pnpm` expects it, and the dry run
-      // sees the conventional commits + baseline tag.
+      // Into the workspace root, where setup-node's `cache: pnpm` expects the lockfile.
       name: 'Restore fixture into workspace',
       run: `git clone --quiet "$RUNNER_TEMP/fixture/${scenario.id}.bundle" .`,
     },
   ];
 
-  // The real, extracted example setup — verbatim, never hand-copied.
   for (const step of extractSetupSteps(scenario)) {
     steps.push(step);
   }
@@ -182,9 +149,7 @@ export function buildWorkflow(): Record<string, unknown> {
       steps: [
         { name: 'Checkout', uses: 'actions/checkout@v7' },
         {
-          // Sets up pnpm/Node FOR THE RELEASEKIT BUILD only. This toolchain lives
-          // in the prepare job; the smoke jobs are separate and start with pnpm
-          // ABSENT, so a missing pnpm/action-setup in an example genuinely fails there.
+          // For the releasekit build only; the smoke jobs start without pnpm.
           name: 'Setup workspace',
           uses: './.github/workflows/actions/setup-workspace',
         },
@@ -225,9 +190,7 @@ export function buildWorkflow(): Record<string, unknown> {
     jobs[`smoke-${scenario.id}`] = smokeJob(scenario);
   }
 
-  // The smoke exercises `releasekit release`, so it must also run when that release code — or the
-  // dependencies it resolves — changes, not just the examples/harness; otherwise a regression in
-  // release logic can break the smoke without ever re-triggering it.
+  // Release code & its deps too, or a regression there could break the smoke without re-triggering it.
   const triggerPaths = [
     'examples/**',
     'scripts/examples-smoke/**',
@@ -248,8 +211,7 @@ export function buildWorkflow(): Record<string, unknown> {
         branches: ['main'],
         paths: [...triggerPaths],
       },
-      // Nightly backstop on main: catches regressions the path filters miss (transitive dep bumps,
-      // runner-image drift) within a day.
+      // Nightly backstop for regressions the path filters miss (transitive dep bumps, runner-image drift).
       schedule: [{ cron: '0 3 * * *' }],
       workflow_dispatch: {},
     },
@@ -304,7 +266,6 @@ function main(): void {
   console.log(`Wrote ${OUTPUT}`);
 }
 
-// Only run when invoked directly (not when imported by tests).
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   main();
 }

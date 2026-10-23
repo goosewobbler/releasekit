@@ -7,25 +7,17 @@ import { ConfigError } from './errors.js';
 const MAX_INPUT_LENGTH = 10000;
 
 /**
- * Inline `{env:NAME}` and `{file:REL_PATH}` references in a config string.
- *
- * Trust boundary: substituted values flow into config fields that can surface in bot-authored
- * output — tag templates, `standingPr.title`, changelog/notes text echoed into PR comments and
- * releases — so the two read primitives are scoped differently:
- * - `{env:NAME}` reads process env, the trusted-operator injection point for secrets (npm/LLM
- *   tokens). Returned verbatim; an unset variable resolves to an empty string.
- * - `{file:REL_PATH}` is confined to `rootDir` (the config file's directory). A reference that
- *   escapes it — via `..` or an absolute path outside the tree — is rejected rather than read, so a
- *   config cannot exfiltrate files such as `~/.ssh/id_rsa` or `/etc/passwd`. An in-bounds but
- *   unreadable path resolves to an empty string.
+ * Trust boundary: substituted values can surface in bot-authored output (tag templates, `standingPr.title`,
+ * notes echoed into PR comments and releases). `{env:NAME}` is the trusted operator's injection point for
+ * secrets, but `{file:REL_PATH}` is confined to `rootDir` so a config can't exfiltrate files such as
+ * `~/.ssh/id_rsa`.
  */
 export function substituteVariables(value: string, rootDir: string = process.cwd()): string {
-  // Limit input length to prevent ReDoS attacks
+  // Guards against ReDoS
   if (value.length > MAX_INPUT_LENGTH) {
     throw new Error(`Input too long: ${value.length} characters (max ${MAX_INPUT_LENGTH})`);
   }
 
-  // Use safer regex patterns with length limits for capture groups
   const envPattern = /\{env:([^}]{1,1000})\}/g;
   const filePattern = /\{file:([^}]{1,1000})\}/g;
 
@@ -59,8 +51,7 @@ const SOLE_REFERENCE_PATTERN = /^\{(?:env|file):[^}]+\}$/;
 export function substituteInObject<T>(obj: T, rootDir: string = process.cwd()): T {
   if (typeof obj === 'string') {
     const result = substituteVariables(obj, rootDir);
-    // When the entire string was a single {env:…} or {file:…} reference that
-    // resolved to nothing, return undefined so downstream ?? fallbacks work.
+    // A sole reference that resolved to nothing becomes undefined so downstream ?? fallbacks apply.
     if (result === '' && SOLE_REFERENCE_PATTERN.test(obj)) {
       return undefined as T;
     }

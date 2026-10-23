@@ -5,7 +5,6 @@ function pkg(name: string, deps: string[], ecosystem: GraphPackage['ecosystem'] 
   return { name, dir: `/ws/${name}`, ecosystem, deps };
 }
 
-// core <- utils, core <- types, {utils,types} <- app; `left-pad` is an external (non-workspace) dep.
 const workspace: GraphPackage[] = [
   pkg('core', []),
   pkg('utils', ['core']),
@@ -51,8 +50,7 @@ describe('buildDependencyGraph', () => {
   });
 
   it('should only consider edges among the requested names in topologicalOrder', () => {
-    // app depends on core only transitively (via utils/types) — with those excluded there is no
-    // direct edge, so both are roots and the subset is returned intact.
+    // app reaches core only via utils/types, so with those excluded neither depends on the other.
     const g = buildDependencyGraph(workspace);
     expect(g.topologicalOrder(['app', 'core']).sort()).toEqual(['app', 'core']);
   });

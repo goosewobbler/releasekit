@@ -10,21 +10,12 @@ import {
 import type { RowChangelogRenderer } from './selection-region.js';
 
 /**
- * Changelog rendering for the standing PR. Two surfaces share one core:
- *
- *  - **Per-row changelogs** ({@link makeRowChangelogRenderer}) — a collapsed `<details>` co-located
- *    with each releasable row, showing only the changes that ship with that row's release unit
- *    (primary + coupled members + changed prerequisites). A prerequisite shared by two units appears
- *    under each — the unit-centric view is self-contained, so the duplication is intentional.
- *  - **Combined footer** ({@link renderCombinedFooter}) — one default-collapsed block listing every
- *    change once, flat and de-duplicated across packages, grouped by change type. It is the
- *    whole-release view the per-row panes can't give.
- *
- * Both read straight from {@link VersionOutput.changelogs} / `sharedEntries` and never parse prose.
+ * Two surfaces share one core: per-row changelogs ({@link makeRowChangelogRenderer}), where a prerequisite shared by
+ * two units deliberately appears under each, and the combined footer ({@link renderCombinedFooter}), listing every
+ * change once. Both read structured entries and never parse prose.
  */
 
-/** Keep-a-Changelog bucket labels keyed by conventional-commit type. Several types fold onto one
- *  label (feat/added → Added), so deduped entries are grouped by *label*, not raw type. */
+/** Several types fold onto one label (feat/added → Added), so entries group by label, not raw type. */
 const CHANGELOG_TYPE_LABELS: Record<string, string> = {
   feat: 'Added',
   fix: 'Fixed',
@@ -43,7 +34,6 @@ const CHANGELOG_TYPE_LABELS: Record<string, string> = {
   style: 'Styles',
 };
 
-/** The distinct labels in first-occurrence order — the order type buckets render in. */
 const LABEL_ORDER: string[] = (() => {
   const seen = new Set<string>();
   const order: string[] = [];
@@ -62,28 +52,22 @@ function labelFor(type: string): string {
 
 interface AttributedEntry {
   entry: VersionChangelogEntry;
-  /** The package this entry was emitted for; absent for project-wide (`sharedEntries`) changes. */
+  /** Absent for project-wide (`sharedEntries`) changes. */
   pkg?: string;
 }
 
 interface DedupedEntry {
   entry: VersionChangelogEntry;
-  /** Packages the (de-duplicated) change touched, for inline attribution. */
   pkgs: Set<string>;
 }
 
-/** Identity of the underlying change: the same commit/PR yields an identical type + description +
- *  scope (+ issue refs) across every package it touched, so this key collapses those N copies into
- *  one. Scope and the breaking flag are part of the identity — two commits sharing a description but
- *  differing in scope (`fix(cli)` vs `fix(router)`) are distinct changes and must not merge into a
- *  mis-attributed line. */
+/** One commit yields identical entries in every package it touched; this key collapses them. Scope and the breaking
+ *  flag are part of the identity: `fix(cli)` and `fix(router)` with one description are distinct changes. */
 function dedupeKey(e: VersionChangelogEntry): string {
   return JSON.stringify([e.type, e.description, e.scope ?? null, e.issueIds ?? [], e.breaking === true]);
 }
 
-/** De-duplicate by underlying change, preserving first-seen order and collecting contributing
- *  packages. Synthetic lockstep-carry placeholders (`Update version to X`) are dropped — they
- *  are not real changes. */
+/** Drops synthetic lockstep-carry placeholders (`Update version to X`), which aren't real changes. */
 function dedupe(attributed: AttributedEntry[]): DedupedEntry[] {
   const byKey = new Map<string, DedupedEntry>();
   const order: DedupedEntry[] = [];
@@ -105,13 +89,11 @@ function dedupe(attributed: AttributedEntry[]): DedupedEntry[] {
   return order;
 }
 
-/** Compact attribution label for a package — drops an npm scope prefix (`@wdio/foo` → `foo`). */
 function shortName(pkg: string): string {
   const slash = pkg.lastIndexOf('/');
   return slash === -1 ? pkg : pkg.slice(slash + 1);
 }
 
-/** How bare `#NNN` refs render plus the repo to resolve canonical issue links against. */
 interface RefRenderOptions {
   refs: ChangelogRefsMode;
   repoUrl: string | null;
@@ -119,9 +101,8 @@ interface RefRenderOptions {
 
 function entryLine(d: DedupedEntry, attribution: boolean, refOpts: RefRenderOptions): string {
   const { entry, pkgs } = d;
-  // GitHub treats a bare `@scope/pkg` / `@user` in the description as a mention (stray link, can ping
-  // a real org/team on the standing PR) — always neutralise it, regardless of the refs mode. Bare `#N`
-  // refs carried over from the commit subject are neutralised / de-duped against the appended label.
+  // A bare `@scope/pkg` or `@user` would be a GitHub mention (and could ping a real team), so always neutralise it.
+  // Bare `#N` refs from the commit subject are de-duped against the appended refs.
   const appendedRefs = [...(entry.issueIds ?? []), entry.prNumber];
   const description = escapeChangelogMentions(
     neutralizeDescriptionRefs(entry.description, appendedRefs, refOpts.refs, refOpts.repoUrl),
@@ -133,15 +114,10 @@ function entryLine(d: DedupedEntry, attribution: boolean, refOpts: RefRenderOpti
   return `- ${entry.breaking ? '**BREAKING** ' : ''}${description}${scope}${issues}${attr}`;
 }
 
-/** Bare heading for the trailing demoted subsection — deliberately no count and no
- *  "shared across packages" descriptor: the descriptor isn't reliably true (`Update version to X` is
- *  package-specific), and where provenance matters it's already carried by the per-entry attribution. */
+/** No "shared across packages" descriptor: it isn't reliably true (`Update version to X` is package-specific). */
 const DEMOTED_HEADING = 'Dependencies & version bumps';
 
-/** Render the deduped entries as flat, type-grouped Markdown (no per-package sections). Entries whose
- *  scope is in `demoteScopes` are pulled out of their type buckets and rendered last, under a bare
- *  `#### Dependencies & version bumps` subsection — organized, never hidden. Nothing is
- *  removed, so the caller's de-duplicated change count is unchanged. */
+/** Demoted entries are moved, never removed, so the caller's de-duplicated change count still holds. */
 function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions, demoteScopes: readonly string[]): string[] {
   const distinct = new Set<string>();
   for (const d of deduped) {
@@ -149,7 +125,6 @@ function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions, demot
       distinct.add(p);
     }
   }
-  // Attribution only earns its place when the list spans more than one package.
   const attribution = distinct.size > 1;
 
   const demote = demoteScopes.length > 0;
@@ -180,9 +155,7 @@ function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions, demot
     if (!list?.length) {
       return;
     }
-    // `#### `, not bold `**…**`: inside the blockquote GitHub gives a heading paragraph-level
-    // top margin, so consecutive sections stay visually separated — bold text collapses to near-zero
-    // spacing there. Matches the preview surface, which already uses `#### ` headings.
+    // A heading, not bold: inside the blockquote bold text collapses to near-zero spacing between sections.
     lines.push(`#### ${label}`, '');
     for (const d of list) {
       lines.push(entryLine(d, attribution, refOpts));
@@ -199,8 +172,7 @@ function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions, demot
       emit(label);
     }
   }
-  // The demoted subsection trails every type bucket, so low-signal dependency churn never crowds the
-  // user-facing changes at the top. First-seen order is preserved (deduped iteration order).
+  // Last, so low-signal dependency churn never crowds the user-facing changes.
   if (demoted.length > 0) {
     lines.push(`#### ${DEMOTED_HEADING}`, '');
     for (const d of demoted) {
@@ -214,14 +186,8 @@ function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions, demot
   return lines;
 }
 
-/** Wrap inner Markdown in a collapsed `<details>`, indenting every line so the block nests cleanly
- *  under its list-item row (`indent` is '' for the top-level footer). Both call sites are PR-comment
- *  surfaces, so the inner CONTENT is wrapped in a Markdown blockquote (`> `) — GitHub renders a left
- *  vertical bar that visually sets the changelog apart from the surrounding PR-comment prose. The
- *  `<details>`/`<summary>`/`</details>` tags themselves stay un-quoted: a `> `-prefixed raw-HTML block
- *  renders unreliably on GitHub (it can fail to recognise the HTML block or break the disclosure). A
- *  plain blank line separates the tags from the quoted content; inner blank lines keep a bare `>` so
- *  the quote stays one contiguous block around the nested lists. */
+/** The content is blockquoted but the `<details>` tags aren't: GitHub renders a `> `-prefixed raw-HTML block
+ *  unreliably. Inner blank lines keep a bare `>` so the quote stays one contiguous block. */
 function wrapDetails(summary: string, inner: string[], indent: string): string {
   const quotedInner = inner.map((l) => (l.length > 0 ? `${indent}> ${l}` : `${indent}>`));
   const lines = [`${indent}<details><summary>${summary}</summary>`, '', ...quotedInner, '', `${indent}</details>`];
@@ -232,22 +198,12 @@ function pluralEntries(n: number): string {
   return `${n} ${n === 1 ? 'entry' : 'entries'}`;
 }
 
-/** Every package in a standing PR lives in the same repo, so any changelog's `repoUrl` resolves
- *  canonical issue links for the whole render. Pick the first present one. */
+/** Every package in a standing PR lives in the same repo, so any changelog's `repoUrl` serves the whole render. */
 function repoUrlOf(changelogs: VersionOutput['changelogs']): string | null {
   return changelogs.find((cl) => cl.repoUrl)?.repoUrl ?? null;
 }
 
-/**
- * Build the per-row changelog renderer for a set of package changelogs. The returned function takes
- * the package names a checkbox gates (a streamlined unit aggregates primary + coupled members +
- * changed prerequisites; every other row gates a single package), whether the row is held back, and
- * the indent that nests the block under its row. It returns the collapsed `<details>` block, or `''`
- * when those packages have no real changelog entries.
- *
- * Channel-section grouping reuses this renderer, so changelogs attach to rows the same way everywhere.
- * `refs` and `demoteScopes` come from `changelog.*`; demoted entries still count toward `(N entries)`.
- */
+/** The renderer returns `''` when the gated packages have no real entries; demoted entries count toward the total. */
 export function makeRowChangelogRenderer(
   changelogs: VersionOutput['changelogs'],
   refs: ChangelogRefsMode = 'link',
@@ -277,9 +233,7 @@ export function makeRowChangelogRenderer(
   };
 }
 
-/** Collect the changelog + shared entries the combined footer draws from, ready to dedupe. `sharedOnly`
- *  narrows to the project-wide (`sharedEntries`) changes with no per-row home. Shared by the footer and
- *  the release summary's change count so both read one authoritative set. */
+/** Shared by the footer and the summary's change count so both read one authoritative set. */
 function collectAttributed(versionOutput: VersionOutput, sharedOnly: boolean): AttributedEntry[] {
   const attributed: AttributedEntry[] = [];
   if (!sharedOnly) {
@@ -295,23 +249,11 @@ function collectAttributed(versionOutput: VersionOutput, sharedOnly: boolean): A
   return attributed;
 }
 
-/** The de-duplicated change count the full combined footer totals — every distinct change once, across
- *  every package changelog plus shared entries. Held-back packages are already excluded from the write
- *  output, so this mirrors exactly what will publish. Feeds the release summary line. */
 export function countCombinedChanges(versionOutput: VersionOutput): number {
   return dedupe(collectAttributed(versionOutput, false)).length;
 }
 
-/**
- * The combined footer: one default-collapsed block listing every change in `versionOutput` once,
- * flat and de-duplicated across packages, grouped by change type. Driven by the *write* output, which
- * already excludes held-back packages, so the footer always reflects exactly what will publish.
- * Returns `''` when there are no real entries.
- *
- * `sharedOnly` narrows it to the project-wide (`sharedEntries`) changes — those with no per-row home.
- * It's how the caller keeps shared entries visible when the maintainer disables the full footer: the
- * redundant per-package summary is dropped (it's covered per-row), but project-wide changes survive.
- */
+/** `sharedOnly` narrows to project-wide (`sharedEntries`) changes, which have no per-row home. */
 export function renderCombinedFooter(
   versionOutput: VersionOutput,
   opts: { sharedOnly?: boolean; refs?: ChangelogRefsMode; demoteScopes?: readonly string[] } = {},

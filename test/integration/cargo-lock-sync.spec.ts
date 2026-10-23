@@ -1,8 +1,3 @@
-/**
- * Cargo.lock sync checked against real cargo: after the built `releasekit version` runs without cargo,
- * cargo must accept every synced lock under `--locked` unchanged, and the edit must match
- * `cargo update --workspace` byte for byte. Skipped where cargo isn't installed.
- */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -34,7 +29,6 @@ function git(cwd: string, ...args: string[]): void {
   execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', ...args], { cwd, stdio: 'ignore' });
 }
 
-/** Versions of the sourceless (path or workspace) `[[package]]` entries named `name` in a lock. */
 function pathEntryVersions(lockContent: string, name: string): string[] {
   return lockContent
     .split('[[package]]')
@@ -55,7 +49,6 @@ describe.skipIf(!cargoAvailable())('Cargo.lock sync (real cargo)', () => {
     execFileSync('cargo', args, { cwd, stdio: 'pipe', env: { ...process.env, CARGO_HOME: cargoHome } });
   };
 
-  /** Commit the repo, tag every crate at its current version, then land a `feat:` change in `changedCrate`. */
   function commitWithChange(repo: string, crates: string[], changedCrate: string): void {
     // Workspace discovery starts from a root package.json, as in a JS monorepo that ships crates.
     writeFileSync(join(repo, 'package.json'), '{ "name": "rk-fixture", "private": true }\n');

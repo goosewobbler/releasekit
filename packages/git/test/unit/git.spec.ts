@@ -8,17 +8,11 @@ interface RunOptions {
   timeout?: number;
 }
 
-/** A recorded invocation: the argv git would have run, plus the per-call options. */
 interface Call {
   args: string[];
   options: RunOptions;
 }
 
-/**
- * A hand-built {@link GitRunner} stand-in (the analogue of forge's `makeOctokit`). It records every
- * argv array, returns canned stdout/stderr, and can be told to reject — so a test asserts on the exact
- * arguments without spawning a real `git`.
- */
 function makeRunner(responses: { stdout?: string; stderr?: string; reject?: unknown } = {}) {
   const calls: Call[] = [];
   const run: GitRunner = vi.fn(async (args, options) => {
@@ -31,11 +25,8 @@ function makeRunner(responses: { stdout?: string; stderr?: string; reject?: unkn
   return { run, calls };
 }
 
-/** A Node exec-style error: numeric `code` is an exit status; `stderr` carries git's message. */
 const exitError = (code: number, stderr = '') => Object.assign(new Error(`exit ${code}`), { code, stderr });
-/** A missing-binary spawn error. */
 const enoent = () => Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' });
-/** A timeout kill from execFile's `timeout` option. */
 const timeoutKill = () => Object.assign(new Error('killed'), { killed: true, signal: 'SIGTERM' });
 
 describe('GitCli queries', () => {
@@ -429,14 +420,12 @@ describe('redactUrlCredentials', () => {
     expect(redactUrlCredentials('git push https://user:pw@host/a failed: https://user:pw@host/a')).toBe(
       'git push https://***@host/a failed: https://***@host/a',
     );
-    // No userinfo → unchanged; scp-style remotes have no scheme:// and carry no inline secret.
+    // scp-style remotes have no `://` and carry no inline secret.
     expect(redactUrlCredentials('https://github.com/o/r.git')).toBe('https://github.com/o/r.git');
     expect(redactUrlCredentials('git@github.com:o/r.git')).toBe('git@github.com:o/r.git');
   });
 
   it('should scan a long adversarial input linearly (no polynomial-regex ReDoS)', () => {
-    // A long scheme-like run with no `://…@` span must return promptly and unchanged; the fixed
-    // `://` anchor + negated class give a linear scan (guards the CodeQL polynomial-regex alert).
     const long = 'a'.repeat(200_000);
     expect(redactUrlCredentials(long)).toBe(long);
   });

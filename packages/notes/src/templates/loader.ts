@@ -108,8 +108,6 @@ export function renderComposable(
     resolvedEngine = detected;
   }
 
-  // Liquid and Handlebars use native include/partial mechanisms so sub-templates
-  // resolve correctly relative to the template directory.
   if (resolvedEngine === 'liquid') {
     return { content: renderLiquidComposable(templateDir, context), engine: resolvedEngine };
   }

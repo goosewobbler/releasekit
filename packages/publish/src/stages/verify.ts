@@ -9,7 +9,6 @@ import { withRetry } from '../utils/retry.js';
 export async function runVerifyStage(ctx: PipelineContext): Promise<void> {
   const { config, cliOptions, output, cwd } = ctx;
 
-  // Verify NPM packages
   if (config.verify.npm.enabled) {
     const published = output.npm.filter((r) => r.success && !r.skipped && !r.alreadyPublished);
 
@@ -54,7 +53,6 @@ export async function runVerifyStage(ctx: PipelineContext): Promise<void> {
     }
   }
 
-  // Verify Cargo crates
   if (config.verify.cargo.enabled) {
     const published = output.cargo.filter((r) => r.success && !r.skipped && !r.alreadyPublished);
 
@@ -114,7 +112,6 @@ export async function runVerifyStage(ctx: PipelineContext): Promise<void> {
     }
   }
 
-  // Verify Dart packages on pub.dev
   if (config.verify.pub.enabled) {
     const published = output.pub.filter((r) => r.success && !r.skipped && !r.alreadyPublished);
 

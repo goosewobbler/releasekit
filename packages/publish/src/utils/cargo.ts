@@ -10,8 +10,7 @@ export type { CargoManifest };
 export { parseCargoToml };
 
 /**
- * Sync every Cargo.lock that records a crate this publish bumped (core's `planCargoLockUpdates`). Returns
- * every such lock, changed or not, so the caller stages them all.
+ * Returns every lock that records a bumped crate, changed or not, so the caller stages them all.
  *
  * Logs rather than throws: in the standing-PR flow this runs after the merge, and a lock fix-up mustn't
  * strand a release already on the base branch. The version step fails on an unsyncable lock instead.

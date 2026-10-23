@@ -1,8 +1,6 @@
 /**
- * Normalize a package.json `repository` field to a bare URL. Accepts the string shorthand or the
- * `{ url }` object form, then strips the `git+` prefix and `.git` suffix independently — a url may
- * carry either alone (e.g. `git+https://…/repo` with no suffix), and leaving the prefix breaks the
- * compare links the notes pipeline builds from it. Returns undefined when no URL is present.
+ * Strips the `git+` prefix and `.git` suffix independently: a URL may carry either alone, and a leftover prefix breaks
+ * the compare links the notes pipeline builds.
  */
 export function normalizeRepoUrl(repo: unknown): string | undefined {
   let url: string | undefined;

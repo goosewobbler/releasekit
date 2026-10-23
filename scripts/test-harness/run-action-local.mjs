@@ -181,6 +181,7 @@ export function runActionLocal(inputWithEnvVars, options = {}) {
     return paths;
   }
 
+  // Only the project's node_modules, mimicking CI where the action's node_modules aren't available.
   const nodePaths = collectNodePaths([userNodeModules, userPnpmStore])
     .filter((p) => {
       try {

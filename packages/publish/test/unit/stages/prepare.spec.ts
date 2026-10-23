@@ -110,7 +110,6 @@ describe('prepare stage', () => {
       },
     });
 
-    // Should not throw
     await runPrepareStage(ctx);
     expect(fs.existsSync(path.join(pkgDir, 'LICENSE'))).toBe(false);
   });
@@ -383,7 +382,6 @@ describe('prepare stage', () => {
       },
     });
 
-    // Should not throw or overwrite — LICENSE should remain unchanged
     await runPrepareStage(ctx);
     expect(fs.readFileSync(path.join(dir, 'LICENSE'), 'utf-8')).toBe('MIT License');
   });

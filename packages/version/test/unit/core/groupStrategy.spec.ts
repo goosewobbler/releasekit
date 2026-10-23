@@ -55,7 +55,7 @@ const baseConfig = (overrides: Partial<Config>): Config =>
 describe('createGroupStrategy', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    // Only package.json exists — no Cargo.toml — so each release writes exactly one manifest.
+    // No Cargo.toml, so each release writes exactly one manifest.
     vi.mocked(fs.existsSync, { partial: true }).mockImplementation((p) => !String(p).endsWith('Cargo.toml'));
     vi.mocked(fs.readFileSync, { partial: true }).mockReturnValue('{}');
     vi.mocked(path.join, { partial: true }).mockImplementation((...args) => args.join('/'));
@@ -65,7 +65,7 @@ describe('createGroupStrategy', () => {
     vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockResolvedValue([
       { type: 'added', description: 'New feature' },
     ]);
-    // formatting helpers are not module-mocked — spy on the real (pure) implementations.
+    // formatting isn't module-mocked, so these spy on the real module.
     vi.spyOn(formatting, 'formatVersionPrefix').mockReturnValue('v');
     vi.spyOn(formatting, 'formatTag').mockImplementation((version, prefix, name) =>
       name ? `${name}@${prefix}${version}` : `${prefix}${version}`,
@@ -85,7 +85,6 @@ describe('createGroupStrategy', () => {
       const utils = mkPackage('@wdio/native-utils', '2.3.0');
       const spy = mkPackage('@wdio/native-spy', '2.3.0');
 
-      // Only native-utils has a releasable change (patch).
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
         if (opts.name === '@wdio/native-utils') {
           return '2.3.1';
@@ -98,7 +97,6 @@ describe('createGroupStrategy', () => {
       );
       await strategy(workspace([core, utils, spy]));
 
-      // Group version = bump(max baseline 2.3.0) with patch = 2.3.1. All three members written.
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
         '2.3.1',
@@ -114,7 +112,6 @@ describe('createGroupStrategy', () => {
         '2.3.1',
         undefined,
       );
-      // Each member tagged with the group name for CI surfaces.
       expect(jsonOutput.setPackageUpdateGroup).toHaveBeenCalledWith('@wdio/native-core', 'native');
       expect(jsonOutput.setPackageUpdateGroup).toHaveBeenCalledWith('@wdio/native-spy', 'native');
     });
@@ -124,7 +121,6 @@ describe('createGroupStrategy', () => {
       const utils = mkPackage('@wdio/native-utils', '2.3.0');
       const spy = mkPackage('@wdio/native-spy', '2.3.0');
 
-      // core changes; spy is excluded via config.skip, so the group releases without it.
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
         opts.name === '@wdio/native-core' ? '2.3.1' : '',
       );
@@ -145,8 +141,6 @@ describe('createGroupStrategy', () => {
       const utils = mkPackage('@wdio/native-utils', '2.3.0');
       const spy = mkPackage('@wdio/native-spy', '2.3.0');
 
-      // Nothing changes. spy is excluded via config.skip, but since the group does not release,
-      // the divergence warning must not fire (it would only confuse — nothing is being released).
       vi.mocked(calculator.calculateVersion).mockResolvedValue('');
 
       const strategy = createGroupStrategy(
@@ -161,7 +155,6 @@ describe('createGroupStrategy', () => {
       const core = mkPackage('@wdio/native-core', '2.3.0');
       const utils = mkPackage('@wdio/native-utils', '2.3.0');
 
-      // core gets a minor, utils gets a patch — group should bump minor.
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
         if (opts.name === '@wdio/native-core') {
           return '2.4.0';
@@ -210,7 +203,6 @@ describe('createGroupStrategy', () => {
       const utils = mkPackage('@wdio/native-utils', '2.3.0');
       const spy = mkPackage('@wdio/native-spy', '2.3.0');
 
-      // Only utils changed.
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
         if (opts.name === '@wdio/native-utils') {
           return '2.3.1';
@@ -223,8 +215,6 @@ describe('createGroupStrategy', () => {
       );
       await strategy(workspace([core, utils, spy]));
 
-      // Only the changed member is written — the dealbreaker case from the issue (no empty
-      // re-release of unchanged members).
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledTimes(1);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-utils/package.json',
@@ -243,7 +233,6 @@ describe('createGroupStrategy', () => {
       const utils = mkPackage('@wdio/native-utils', '2.3.0');
       const spy = mkPackage('@wdio/native-spy', '2.3.0');
 
-      // core minor, utils patch, spy unchanged → both changed members align to 2.4.0.
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
         if (opts.name === '@wdio/native-core') {
           return '2.4.0';
@@ -273,13 +262,11 @@ describe('createGroupStrategy', () => {
     });
 
     it('should stay on the prerelease line when a member creates a prerelease from a stable baseline', async () => {
-      // Regression: a linked group's first prerelease (premajor 0.0.1 -> 1.0.0-next.0). The
-      // aggregate magnitude is a stable `major`, so without the pre-variant the group graduates to
-      // 1.0.0, and the never-regress guard can't recover it (1.0.0-next.0 < 1.0.0 in semver).
+      // premajor 0.0.1 -> 1.0.0-next.0. The aggregate magnitude is a stable `major`, so without the pre-variant
+      // the group graduates to 1.0.0, and never-regress can't recover it (1.0.0-next.0 < 1.0.0 in semver).
       const service = mkPackage('@wdio/flutter-service', '0.0.1');
       const contract = mkPackage('wdio_flutter', '0.0.1');
 
-      // Only the service earned a change — a premajor prerelease.
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
         if (opts.name === '@wdio/flutter-service') {
           return '1.0.0-next.0';
@@ -304,9 +291,7 @@ describe('createGroupStrategy', () => {
     });
 
     it('should stay on the prerelease line for a fixed group creating a prerelease from a stable baseline', async () => {
-      // Same premajor-from-stable bug, fixed mode: the aggregate magnitude (stable major) would
-      // graduate to 1.0.0. sync only affects which members release (fixed releases ALL of them, even
-      // the unchanged contract), not the groupVersion computation — so the fix must hold here too.
+      // sync only changes which members release, not the groupVersion computation, so fixed must hold too.
       const service = mkPackage('@wdio/flutter-service', '0.0.1');
       const contract = mkPackage('wdio_flutter', '0.0.1');
 
@@ -325,7 +310,6 @@ describe('createGroupStrategy', () => {
       );
       await strategy(workspace([service, contract]));
 
-      // Fixed → both members release at the shared prerelease version, none graduated to 1.0.0.
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledTimes(2);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-flutter-service/package.json',
@@ -341,7 +325,7 @@ describe('createGroupStrategy', () => {
 
     it('should increment within the prerelease when the latest tag is a prerelease', async () => {
       // The published prerelease lives in the tag while the manifest still reads 0.0.1 (an
-      // interrupted release that tagged+published but never committed the bump). The baseline must
+      // interrupted release that tagged & published but never committed the bump). The baseline must
       // keep the tag's prerelease, else it coerces to a stable 1.0.0 and the group graduates to
       // 2.0.0-next.0 instead of incrementing to 1.0.0-next.1.
       const service = mkPackage('@wdio/flutter-service', '0.0.1');
@@ -371,9 +355,7 @@ describe('createGroupStrategy', () => {
     });
 
     it('should increment within the prerelease for a fixed group when the latest tag is a prerelease', async () => {
-      // Same interrupted-release baseline as the linked case, but `fixed` releases ALL members at the
-      // shared group version — so a stable-baseline regression here would silently write the wrong
-      // version to every member. Both must land on 1.0.0-next.1, not graduate to 2.0.0-next.0.
+      // Same interrupted-release baseline as the linked case; `fixed` would write a wrong version to every member.
       const service = mkPackage('@wdio/flutter-service', '0.0.1');
       const contract = mkPackage('wdio_flutter', '0.0.1');
 
@@ -406,12 +388,9 @@ describe('createGroupStrategy', () => {
     });
 
     it('should not graduate an explicit prerelease when a member manifest lags its prerelease tag', async () => {
-      // Interrupted release: the published prerelease (1.0.0-next.0) lives in the tag, but the member's
-      // manifest still reads 0.0.1 AND the tag isn't reachable from HEAD, so the per-package calculator
-      // computes ownNext from the manifest (0.0.2-next.0) — *below* the tag-derived group baseline
-      // (1.0.0-next.0). The backwards diff reads as a `major`; pre-fix that graduated the explicit
-      // prerelease (stable=false) to a stable 1.0.0, and never-regress couldn't recover it. The group
-      // must stay on the prerelease line (1.0.0-next.1) — graduation requires stable=true.
+      // Manifest 0.0.1 lags the unreachable 1.0.0-next.0 tag, so ownNext (0.0.2-next.0) sits below the group
+      // baseline. The backwards diff reads as a `major`, but graduation requires stable=true and never-regress
+      // can't recover a stable 1.0.0.
       const service = mkPackage('@wdio/flutter-service', '0.0.1');
       const contract = mkPackage('wdio_flutter', '0.0.1');
 
@@ -440,8 +419,7 @@ describe('createGroupStrategy', () => {
     });
 
     it('should not graduate an explicit prerelease in a fixed group when a member manifest lags its tag', async () => {
-      // As above, but `fixed` writes the shared version to ALL members — a silent graduation would
-      // stamp a stable 1.0.0 across the whole group. Both must stay on 1.0.0-next.1.
+      // As above, but `fixed` would stamp a silent graduation across the whole group.
       const service = mkPackage('@wdio/flutter-service', '0.0.1');
       const contract = mkPackage('wdio_flutter', '0.0.1');
 
@@ -475,9 +453,8 @@ describe('createGroupStrategy', () => {
     });
 
     it('should still advance the prerelease when no prereleaseIdentifier is configured', async () => {
-      // Same manifest-lags-tag scenario, but with no configured prereleaseIdentifier. The group must
-      // still increment the existing prerelease (1.0.0-next.0 -> 1.0.0-next.1) rather than re-emit the
-      // published baseline — never-regress can't help (ownNext sits below maxBaseline).
+      // Same manifest-lags-tag scenario; the risk is re-emitting the published baseline, which never-regress
+      // can't catch since ownNext sits below maxBaseline.
       const service = mkPackage('@wdio/flutter-service', '0.0.1');
       const contract = mkPackage('wdio_flutter', '0.0.1');
 
@@ -490,7 +467,7 @@ describe('createGroupStrategy', () => {
 
       const strategy = createGroupStrategy(
         baseConfig({
-          isPrerelease: true, // no prereleaseIdentifier configured
+          isPrerelease: true,
           groups: { flutter: { packages: ['@wdio/flutter-service', 'wdio_flutter'], sync: 'linked' } },
         }),
       );
@@ -504,25 +481,22 @@ describe('createGroupStrategy', () => {
     });
 
     it('should advance the prerelease when the aggregate rank is itself prerelease and no identifier is set', async () => {
-      // The changed member earns a *prerelease-rank* bump (its own line increments), while a higher
-      // member's prerelease tag sets the group baseline (1.0.0-next.0). Pre-fix, the prerelease-rank
-      // branch returned the baseline unchanged when no identifier was set, and never-regress couldn't
-      // raise it (the changed member's own next sits below the group baseline) — republishing
-      // 1.0.0-next.0. It must advance to 1.0.0-next.1.
+      // A higher member's prerelease tag sets the group baseline (1.0.0-next.0) while the changed member only
+      // increments its own lower line. Returning the baseline unchanged would republish 1.0.0-next.0, and
+      // never-regress can't raise it.
       const service = mkPackage('@wdio/flutter-service', '1.0.0-next.0');
       const contract = mkPackage('wdio_flutter', '0.9.0-next.0');
 
       vi.mocked(gitTags.getLatestTagForPackage).mockImplementation(async (name) =>
         name === '@wdio/flutter-service' ? 'wdio-flutter-service@v1.0.0-next.0' : '',
       );
-      // Only the contract changed — a within-prerelease increment on its own (lower) line.
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
         opts.name === 'wdio_flutter' ? '0.9.0-next.1' : '',
       );
 
       const strategy = createGroupStrategy(
         baseConfig({
-          isPrerelease: true, // no prereleaseIdentifier configured
+          isPrerelease: true,
           groups: { flutter: { packages: ['@wdio/flutter-service', 'wdio_flutter'], sync: 'linked' } },
         }),
       );
@@ -539,11 +513,9 @@ describe('createGroupStrategy', () => {
   describe('group baseline = max(member baselines)', () => {
     it('should bump from the highest member baseline, not each member individually', async () => {
       const core = mkPackage('@wdio/native-core', '2.3.0');
-      // utils sits at a higher baseline than core.
       const utils = mkPackage('@wdio/native-utils', '2.5.0');
 
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
-        // core earns a patch from its own 2.3.0 baseline.
         if (opts.name === '@wdio/native-core') {
           return '2.3.1';
         }
@@ -555,7 +527,6 @@ describe('createGroupStrategy', () => {
       );
       await strategy(workspace([core, utils]));
 
-      // max baseline is 2.5.0, patch bump → 2.5.1 for the whole group (NOT core's 2.3.1).
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
         '2.5.1',
@@ -571,7 +542,6 @@ describe('createGroupStrategy', () => {
 
   describe('below-baseline member adoption', () => {
     it('should make a below-baseline member adopt the group version and warn on a >1-bump jump', async () => {
-      // core is the family at 2.3.0; newcomer joins at 1.0.0.
       const core = mkPackage('@wdio/native-core', '2.3.0');
       const newcomer = mkPackage('@wdio/native-fresh', '1.0.0');
 
@@ -579,7 +549,7 @@ describe('createGroupStrategy', () => {
         if (opts.name === '@wdio/native-core') {
           return '2.3.1';
         }
-        // newcomer also has a change, but its own bump is irrelevant under fixed.
+        // newcomer's own bump is irrelevant under fixed.
         if (opts.name === '@wdio/native-fresh') {
           return '1.0.1';
         }
@@ -591,13 +561,11 @@ describe('createGroupStrategy', () => {
       );
       await strategy(workspace([core, newcomer]));
 
-      // newcomer adopts the group version 2.3.1, skipping its own 1.x line.
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-fresh/package.json',
         '2.3.1',
         undefined,
       );
-      // A loud warning should fire for the big jump.
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('adopts group version 2.3.1'), 'warning');
     });
   });
@@ -620,7 +588,6 @@ describe('createGroupStrategy', () => {
       const strategy = createGroupStrategy(
         baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
       );
-      // Target only core — fixed group should expand to include utils.
       await strategy(workspace([core, utils]), ['@wdio/native-core']);
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
@@ -651,7 +618,6 @@ describe('createGroupStrategy', () => {
       const strategy = createGroupStrategy(baseConfig({ sync: true }));
       await strategy(workspace([a, b]));
 
-      // Both packages bump to 1.1.0 even though only a changed (fixed semantics).
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/app-a/package.json',
         '1.1.0',
@@ -670,8 +636,7 @@ describe('createGroupStrategy', () => {
       const core = mkPackage('@wdio/native-core', '1.0.0-next.5');
       const utils = mkPackage('@wdio/native-utils', '1.0.0-next.5');
 
-      // Only native-core is in graduateScope → its calculator returns the stable base; native-utils
-      // is out of scope so (per applyOverrideScope, simulated here) it advances its prerelease line.
+      // Simulates applyOverrideScope: in-scope native-core graduates while native-utils advances its prerelease line.
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
         if (opts.name === '@wdio/native-core') {
           return '1.0.0';
@@ -688,7 +653,6 @@ describe('createGroupStrategy', () => {
       );
       await strategy(workspace([core, utils]));
 
-      // The whole group graduates to 1.0.0 — native-utils does NOT stay on its -next line.
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
         '1.0.0',
@@ -705,8 +669,6 @@ describe('createGroupStrategy', () => {
       const core = mkPackage('@wdio/native-core', '2.0.0-next.2');
       const utils = mkPackage('@wdio/native-utils', '2.0.0-next.2');
 
-      // Both members changed; native-core is the graduate target. Linked releases only changed members,
-      // all at the shared graduated version.
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
         if (opts.name === '@wdio/native-core') {
           return '2.0.0';
@@ -739,8 +701,6 @@ describe('createGroupStrategy', () => {
       const core = mkPackage('@wdio/native-core', '1.0.0-next.5');
       const utils = mkPackage('@wdio/native-utils', '1.0.0-next.5');
 
-      // stableOnly is set for the run, but graduateScope targets a package in another group, so this
-      // group keeps advancing its prerelease line (simulated calculator output).
       vi.mocked(calculator.calculateVersion).mockResolvedValue('1.0.0-next.6');
 
       const strategy = createGroupStrategy(
@@ -793,8 +753,6 @@ describe('createGroupStrategy', () => {
       const core = mkPackage('@wdio/native-core', '2.3.0');
       const utils = mkPackage('@wdio/native-utils', '2.3.0');
 
-      // native-core is in prereleaseScope, so (per applyOverrideScope, simulated here) its calculator
-      // returns a prerelease line; native-utils is unchanged.
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
         opts.name === '@wdio/native-core' ? '2.4.0-next.0' : '',
       );
@@ -809,7 +767,6 @@ describe('createGroupStrategy', () => {
       );
       await strategy(workspace([core, utils]));
 
-      // The whole fixed group lands on the prerelease line — native-utils rides along, not left stable.
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
         '2.4.0-next.0',
@@ -823,10 +780,8 @@ describe('createGroupStrategy', () => {
     });
 
     it('should NOT force a group onto the prerelease line when no member is in prereleaseScope', async () => {
-      // The run carries a globally-set isPrerelease (folded from a scoped request), but this group has
-      // no scoped member, so it must stay on its projected STABLE line. The higher unchanged member sets
-      // the group baseline (2.5.0), so the forced prerelease (2.6.0-next.0) would NOT be masked by the
-      // changed member's own stable next (2.4.0) — this isolates the isGroupPrereleasing scoping.
+      // isPrerelease is global (folded from a scoped request). utils' higher 2.5.0 baseline stops core's stable
+      // 2.4.0 from masking a forced 2.6.0-next.0, isolating the isGroupPrereleasing scoping.
       const core = mkPackage('@wdio/native-core', '2.3.0');
       const utils = mkPackage('@wdio/native-utils', '2.5.0');
 
@@ -844,7 +799,6 @@ describe('createGroupStrategy', () => {
       );
       await strategy(workspace([core, utils]));
 
-      // Group advances on its stable line (max baseline 2.5.0, minor → 2.6.0), NOT 2.6.0-next.0.
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/wdio-native-core/package.json',
         '2.6.0',
@@ -863,8 +817,7 @@ describe('createGroupStrategy', () => {
     });
 
     it('should shift every member of an independent group onto its own prerelease line when the group is scoped', async () => {
-      // The wiring expands a scoped member to its whole independent group, so all members are in
-      // prereleaseScope and each computes its own prerelease line (independent = no shared version).
+      // The wiring expands a scoped member to its whole independent group, so every member is in prereleaseScope.
       const service = mkPackage('@wdio/tauri-service', '1.2.0');
       const plugin = mkPackage('@wdio/tauri-plugin', '0.5.0');
 
@@ -915,13 +868,11 @@ describe('createGroupStrategy', () => {
       );
       await strategy(workspace([core, standalone]));
 
-      // standalone keeps its own independent bump.
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/ws/packages/app-standalone/package.json',
         '5.1.0',
         undefined,
       );
-      // and is NOT tagged with the group.
       expect(jsonOutput.setPackageUpdateGroup).not.toHaveBeenCalledWith('@app/standalone', expect.anything());
     });
   });
@@ -946,8 +897,6 @@ describe('createGroupStrategy', () => {
       const core = mkPackage('@wdio/native-core', '2.3.0');
       const utils = mkPackage('@wdio/native-utils', '2.3.0');
 
-      // core earns a minor, utils a patch — independent means each keeps its own commit-driven bump
-      // (a fixed/linked group would write the shared 2.4.0 to both).
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) => {
         if (opts.name === '@wdio/native-core') {
           return '2.4.0';
@@ -982,7 +931,6 @@ describe('createGroupStrategy', () => {
       const core = mkPackage('@wdio/native-core', '2.3.0');
       const utils = mkPackage('@wdio/native-utils', '2.3.0');
 
-      // Only core changed.
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
         opts.name === '@wdio/native-core' ? '2.4.0' : '',
       );
@@ -1010,8 +958,7 @@ describe('createGroupStrategy', () => {
       const utils = mkPackage('@wdio/native-utils', '2.3.0');
       const spy = mkPackage('@wdio/native-spy', '2.3.0');
 
-      // core and spy both changed, but spy is in config.skip — dropping a changed member breaks the
-      // atomic set, so it must warn.
+      // Dropping a changed member breaks the atomic set.
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
         opts.name === '@wdio/native-core' || opts.name === '@wdio/native-spy' ? '2.4.0' : '',
       );
@@ -1034,8 +981,7 @@ describe('createGroupStrategy', () => {
       const core = mkPackage('@wdio/native-core', '2.3.0');
       const spy = mkPackage('@wdio/native-spy', '2.3.0');
 
-      // Only core changed; spy is skipped but had no releasable change, so the set still ships
-      // atomically — warning here would be a false alarm.
+      // spy had no releasable change, so the set still ships atomically.
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
         opts.name === '@wdio/native-core' ? '2.4.0' : '',
       );
@@ -1054,10 +1000,9 @@ describe('createGroupStrategy', () => {
 
   describe('synthetic carry entries (#469)', () => {
     it('should flag a lockstep carry synthetic while the changed member keeps real entries', async () => {
-      const core = mkPackage('@wdio/native-core', '2.3.0'); // the driver — has a commit
-      const utils = mkPackage('@wdio/native-utils', '2.3.0'); // a carry — no commits of its own
+      const core = mkPackage('@wdio/native-core', '2.3.0'); // the driver - has a commit
+      const utils = mkPackage('@wdio/native-utils', '2.3.0'); // a carry - no commits of its own
 
-      // The whole fixed group bumps because core changed; utils is only carried along.
       vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
         opts.name === '@wdio/native-core' ? '2.4.0' : '',
       );
@@ -1071,14 +1016,13 @@ describe('createGroupStrategy', () => {
       );
       await strategy(workspace([core, utils]));
 
-      // The changed member keeps its real (unflagged) entry.
       expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
         expect.objectContaining({
           packageName: '@wdio/native-core',
           entries: [{ type: 'added', description: 'New core feature' }],
         }),
       );
-      // The carry gets a synthetic placeholder so the preview can collapse it into "Also bumped".
+      // Synthetic so the preview can collapse it into "Also bumped".
       expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
         expect.objectContaining({
           packageName: '@wdio/native-utils',
@@ -1090,11 +1034,8 @@ describe('createGroupStrategy', () => {
     it('should leave a changed member unflagged when its extraction comes back empty (swallowed git failure)', async () => {
       const core = mkPackage('@wdio/native-core', '2.3.0');
 
-      // core earned a real bump, so it is NOT a carry...
       vi.mocked(calculator.calculateVersion).mockResolvedValue('2.4.0');
-      // ...yet extraction returns [] — extractChangelogEntriesFromCommits swallows git failures and
-      // returns an empty list rather than throwing, so a changed member can still come back empty.
-      // That must not be mistaken for a no-change carry.
+      // extractChangelogEntriesFromCommits swallows git failures as [], so a changed member can come back empty.
       vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockResolvedValue([]);
 
       const strategy = createGroupStrategy(
@@ -1106,7 +1047,7 @@ describe('createGroupStrategy', () => {
         .mocked(jsonOutput.addChangelogData)
         .mock.calls.find(([arg]) => arg.packageName === '@wdio/native-core');
       expect(call?.[0].entries).toHaveLength(1);
-      // Plain version-bump entry with no synthetic key — the bump stays visible, not collapsed.
+      // No synthetic key, so the bump stays visible rather than collapsed.
       expect(call?.[0].entries[0]).toEqual({
         type: 'changed',
         description: expect.stringContaining('Update version to'),

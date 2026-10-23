@@ -3,10 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PRContext } from '../../src/core/types.js';
 import { fetchPullRequestContext, parseIssueNumbers, resolveGitHubToken } from '../../src/llm/context/prFetcher.js';
 
-// ---------------------------------------------------------------------------
-// parseIssueNumbers
-// ---------------------------------------------------------------------------
-
 describe('parseIssueNumbers()', () => {
   it('should parse #-prefixed strings to numbers', () => {
     expect(parseIssueNumbers(['#123', '#456'])).toEqual([123, 456]);
@@ -24,10 +20,6 @@ describe('parseIssueNumbers()', () => {
     expect(parseIssueNumbers([])).toEqual([]);
   });
 });
-
-// ---------------------------------------------------------------------------
-// resolveGitHubToken
-// ---------------------------------------------------------------------------
 
 describe('resolveGitHubToken()', () => {
   afterEach(() => vi.unstubAllEnvs());
@@ -51,11 +43,6 @@ describe('resolveGitHubToken()', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// fetchPullRequestContext
-// ---------------------------------------------------------------------------
-
-/** A forge whose `getIssue` returns a PR with the given title/body. */
 function forgeWithIssue(number: number, title: string, body: string) {
   return createFakeForge({ issues: { [number]: { title, body, labels: [], isPullRequest: true } } });
 }

@@ -15,8 +15,7 @@ vi.mock('../../../src/utils/exec.js', async () => {
   };
 });
 
-// The cargo stage's working-dir dirty-check goes through `@releasekit/git`. Seed the fake per test;
-// the default (empty status) reads as a clean tree.
+// The cargo stage's working-dir dirty-check goes through `@releasekit/git`.
 let fakeGit: FakeGit;
 vi.mock('@releasekit/git', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@releasekit/git')>();
@@ -82,7 +81,6 @@ describe('cargo-publish stage', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    // Reset default mock return values after clearAllMocks
     const { execCommand } = await import('../../../src/utils/exec.js');
     const { hasCargoAuth } = await import('../../../src/utils/auth.js');
     vi.mocked(execCommand).mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
@@ -125,7 +123,6 @@ describe('cargo-publish stage', () => {
     const ctx = createContext(dir);
     await runCargoPublishStage(ctx);
 
-    // execCommand should have been called for cargo publish
     const publishCalls = vi
       .mocked(execCommand)
       .mock.calls.filter((c) => c[0] === 'cargo' && (c[1] as string[])[0] === 'publish');
@@ -226,7 +223,7 @@ describe('cargo-publish stage', () => {
 
     const ctx = createContext(dir);
     await expect(runCargoPublishStage(ctx)).rejects.toThrow();
-    expect(publishCalls).toBe(1); // permanent error, no retries
+    expect(publishCalls).toBe(1);
   });
 
   it('should retry a transient cargo publish error and succeed, recording attempts', async () => {
@@ -335,7 +332,6 @@ describe('cargo-publish stage', () => {
     fs.mkdirSync(crateDir, { recursive: true });
     fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "my-crate"\nversion = "0.5.0"\n');
 
-    // Seed git status to report a dirty working directory
     seedGit({ status: 'M some-file.txt' });
 
     const ctx = createContext(dir);
@@ -354,7 +350,6 @@ describe('cargo-publish stage', () => {
     fs.mkdirSync(crateDir, { recursive: true });
     fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "my-crate"\nversion = "0.5.0"\n');
 
-    // Seed git status to report a clean working directory (default, but explicit here)
     seedGit({ status: '' });
 
     const ctx = createContext(dir);

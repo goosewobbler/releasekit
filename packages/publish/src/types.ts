@@ -39,11 +39,8 @@ export interface GitHubReleaseConfig {
   draft: boolean;
   perPackage: boolean;
   prerelease: 'auto' | boolean;
-  /** 'auto' | 'releaseNotes' | 'changelog' | 'generated' | 'none' */
   body: 'auto' | 'releaseNotes' | 'changelog' | 'generated' | 'none';
-  /** Template for the release title when a package name is resolved. Variables: ${packageName}, ${version}. */
   titleTemplate: string;
-  /** Package names to exclude from GitHub release creation. Tags and npm publish are unaffected. */
   skipPackages: string[];
 }
 
@@ -82,9 +79,7 @@ export interface PublishCliOptions {
   skipVerification: boolean;
   json: boolean;
   verbose: boolean;
-  /** Per-package release notes keyed by package name, from the notes pipeline. */
   releaseNotes?: Record<string, string>;
-  /** Additional files to stage in the git commit (e.g., changelog files from the notes step). */
   additionalFiles?: string[];
 }
 
@@ -98,12 +93,7 @@ export interface PublishResult {
   skipped: boolean;
   reason?: string;
   alreadyPublished?: boolean;
-  /**
-   * Number of publish attempts made for this package (1 = succeeded first try,
-   * >1 = transient errors were retried). Recorded so the failure report can
-   * surface retry activity. Absent for packages that were never attempted
-   * (e.g. private/already-published skips).
-   */
+  /** Absent for packages that were never attempted (e.g. private or already-published skips). */
   attempts?: number;
 }
 

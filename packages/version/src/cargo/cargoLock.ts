@@ -17,12 +17,8 @@ export function clearCargoBumps(): void {
 }
 
 /**
- * Sync every Cargo.lock that records a crate bumped since the last sync (core's `planCargoLockUpdates`).
- * Under dry-run the edits are still planned, so an unsyncable lock fails the dry run too, and they're
- * recorded as pending writes instead of written.
- *
- * Throws {@link CargoLockSyncError} on a lock it can't read, edit or write; every edit is planned before
- * the first write, so a failure leaves all locks untouched.
+ * Dry runs still plan the edits, so an unsyncable lock fails them too. Every edit is planned before the
+ * first write, so a {@link CargoLockSyncError} leaves all locks untouched.
  */
 export async function syncCargoLockfiles(cwd: string, dryRun: boolean): Promise<void> {
   const bumps = recordedBumps.splice(0);

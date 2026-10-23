@@ -1,15 +1,12 @@
 {%- comment -%}
-Release notes template.
 Categories are pre-ordered by the pipeline (New → Fixed → Changed → Removed → Documentation → Developer).
 Breaking changes are moved out of their category into a Breaking section first, as the built-in renderer does.
-Developer entries use bolded subcategory labels.
 {%- endcomment -%}
 {%- for version in versions %}
 {%- unless perPackage %}
 
 ## `{{ version.packageName }}` @ {{ version.version }}
 {%- endunless %}
-{%- comment -%}`isFirstRelease` is true when the package has no prior version — lead with a debut line.{%- endcomment -%}
 {%- if version.isFirstRelease %}
 
 _First release of `{{ version.packageName }}`._

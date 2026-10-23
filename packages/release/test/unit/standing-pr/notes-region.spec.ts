@@ -28,10 +28,8 @@ describe('notes-region', () => {
       const oversized = Array.from({ length: 5000 }, (_, i) => `- line ${i} of a very inflated note`).join('\n');
       const rendered = renderNotesRegion({ '@scope/a': oversized });
 
-      // The rendered region carries a bounded slice with the truncation marker, not the whole payload.
       expect(rendered).toContain('…(truncated)');
       expect(rendered.length).toBeLessThan(oversized.length);
-      // The package's editable block stays under the per-package bound (plus small marker/heading overhead).
       expect(rendered).toContain('<!-- releasekit-notes:@scope/a -->');
     });
   });

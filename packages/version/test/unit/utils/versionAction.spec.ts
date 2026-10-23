@@ -10,7 +10,6 @@ describe('resolveVersionAction', () => {
   });
 
   it('should report first-release when there is no latestTag even if hasNoTags is false', () => {
-    // Defensive: an empty latestTag with hasNoTags mistakenly false still means no prior release.
     const result = resolveVersionAction({ hasNoTags: false, latestTag: '', nextVersion: '1.0.0' });
     expect(result.action).toBe('first-release');
   });
@@ -38,7 +37,6 @@ describe('resolveVersionAction', () => {
   });
 
   it('should report bumped when a prerelease advances to a higher base (not graduation)', () => {
-    // 1.0.0-next.1 -> 1.1.0 is a real bump, not a graduation of the same base, so it stays bumped.
     const result = resolveVersionAction({ hasNoTags: false, latestTag: 'v1.0.0-next.1', nextVersion: '1.1.0' });
     expect(result.action).toBe('bumped');
   });

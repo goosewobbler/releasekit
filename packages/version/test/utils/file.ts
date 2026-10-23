@@ -1,12 +1,8 @@
 import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-// Map to store original fixture content
 const originalFixtures = new Map<string, string>();
 
-/**
- * Recursively find all config files (package.json and releasekit.config.json) in the given directory
- */
 export function findConfigFiles(directory: string): string[] {
   const files: string[] = [];
 
@@ -32,9 +28,6 @@ export function findConfigFiles(directory: string): string[] {
   return files;
 }
 
-/**
- * Save the original state of all config files in fixtures directory
- */
 export function saveFixtureState(fixturesDir: string): void {
   const configFiles = findConfigFiles(fixturesDir);
 
@@ -48,9 +41,6 @@ export function saveFixtureState(fixturesDir: string): void {
   }
 }
 
-/**
- * Remove all .git directories from fixtures
- */
 export function cleanupGitDirectories(directory: string): void {
   if (!existsSync(directory)) {
     return;
@@ -61,7 +51,6 @@ export function cleanupGitDirectories(directory: string): void {
     rmSync(gitDir, { recursive: true, force: true });
   }
 
-  // Check subdirectories
   const items = readdirSync(directory, { withFileTypes: true });
   for (const item of items) {
     if (item.isDirectory()) {
@@ -70,9 +59,6 @@ export function cleanupGitDirectories(directory: string): void {
   }
 }
 
-/**
- * Restore all package.json files to their original state
- */
 export function restoreFixtureState(fixturesDir?: string): void {
   for (const [filePath, content] of originalFixtures) {
     try {
@@ -84,7 +70,6 @@ export function restoreFixtureState(fixturesDir?: string): void {
     }
   }
 
-  // Clean up .git directories if a fixtures directory was provided
   if (fixturesDir && existsSync(fixturesDir)) {
     cleanupGitDirectories(fixturesDir);
   }

@@ -5,9 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { npmRegistry } from '../../../src/registry/npm.js';
 import type { PipelineContext } from '../../../src/types.js';
 
-// precheckSkip reads the on-disk package.json under ctx.cwd, so these drive it against a real temp
-// file rather than a mock — the point is the `private` validation, which depends on what JSON.parse
-// actually yields.
+// Real temp files rather than mocks: the `private` validation depends on what JSON.parse actually
+// yields.
 describe('npmRegistry.precheckSkip', () => {
   let cwd: string;
 

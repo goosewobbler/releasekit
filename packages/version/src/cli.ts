@@ -7,7 +7,7 @@ import { createVersionCommand } from './command.js';
 
 export { createVersionCommand };
 
-// Standalone entry point (only when run directly, not when imported by dispatcher)
+// Only when run directly, not when imported by the dispatcher.
 const isMain = (() => {
   try {
     return process.argv[1] ? fs.realpathSync(process.argv[1]) === fileURLToPath(import.meta.url) : false;

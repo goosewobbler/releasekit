@@ -9,7 +9,6 @@ import { decideReleaseUpdate, editReleaseBody, getReleaseInfo, withMarker } from
 import { reconstructChangelogs } from '../backfill/reconstruct.js';
 import { normalizeRepoUrl } from '../backfill/repo-url.js';
 
-/** A single package to backfill: its name, the directory its commits are scoped to, and repo URL. */
 interface BackfillTarget {
   packageName: string;
   pkgPath: string;
@@ -22,8 +21,8 @@ function readPackageJson(pkgPath: string): { name?: string; repoUrl?: string } {
   try {
     raw = fs.readFileSync(file, 'utf-8');
   } catch (err) {
-    // A missing package.json is expected — the user can pass --package. Anything else (permissions,
-    // I/O) is surfaced so a found-but-unreadable file isn't mistaken for "no package.json".
+    // A missing package.json is expected (the user can pass --package); surface anything else so an unreadable file
+    // isn't mistaken for a missing one.
     if ((err as { code?: string }).code !== 'ENOENT') {
       warn(`Could not read ${file}: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -38,13 +37,6 @@ function readPackageJson(pkgPath: string): { name?: string; repoUrl?: string } {
   }
 }
 
-/**
- * Backfill release notes for already-released versions of one or more packages by reconstructing each
- * version's notes from git history. Renders each version through the notes pipeline and writes the
- * result to per-version files (`notes.releaseNotes.file.dir`), to the matching GitHub release bodies
- * (`--update-releases`), or both. Single package by default; `--all` discovers every workspace
- * package. Dry-run by default. (LLM caching and the Action surface are follow-ups.)
- */
 export function createBackfillCommand(): Command {
   return new Command('backfill')
     .description('Regenerate release notes for already-released versions from git history')
@@ -60,9 +52,7 @@ export function createBackfillCommand(): Command {
     .option('--apply', 'Apply changes (default: dry-run preview)', false)
     .option('-c, --config <path>', 'Config file path')
     .action(async (options) => {
-      // Validate the bounds up front: reconstructChangelogs feeds them straight to semver.lt/gt,
-      // whose SemVer constructor throws a bare TypeError on non-semver input — turn that into a
-      // clean CLI error before any work starts.
+      // reconstructChangelogs feeds these to semver.lt/gt, which throw a bare TypeError on non-semver input.
       for (const [flag, value] of [
         ['--from', options.from],
         ['--to', options.to],
@@ -125,7 +115,7 @@ export function createBackfillCommand(): Command {
         reconstructed: Awaited<ReturnType<typeof reconstructChangelogs>>;
       }> = [];
 
-      // Scan all targets to count total releases and estimate cost upfront
+      // A first pass so the LLM cost estimate covers every target.
       for (const target of targets) {
         const reconstructed = await reconstructChangelogs({
           packageName: target.packageName,
@@ -146,7 +136,6 @@ export function createBackfillCommand(): Command {
         }
       }
 
-      // Estimate and warn about LLM cost if not in --no-llm mode and LLM is enabled
       const llmEnabled = !noLlm && releaseNotes?.llm;
       if (llmEnabled && totalReleaseCount > 0) {
         const llmConfig = releaseNotes?.llm;
@@ -157,14 +146,13 @@ export function createBackfillCommand(): Command {
         );
       }
 
-      // Handle case where no releases were found across all targets
       if (releasesByTarget.length === 0) {
         info(`No matching tags found across ${targets.length} target(s).`);
         return;
       }
 
       for (const { target, reconstructed } of releasesByTarget) {
-        // Check skipPackages before rendering to avoid unnecessary LLM calls for excluded packages.
+        // Before rendering, to avoid LLM calls for excluded packages.
         const skipPackages = publishConfig.githubRelease?.skipPackages ?? [];
         const isSkipped = updateReleases && skipPackages.includes(target.packageName);
         if (isSkipped && !dir) {
@@ -183,9 +171,8 @@ export function createBackfillCommand(): Command {
         const versionOutput: VersionOutput = { dryRun, updates: [], changelogs, tags: [] };
         const input = versionOutputToChangelogInput(versionOutput);
 
-        // versionOutputToChangelogInput stamps every version with today's date (correct for a live
-        // release, wrong for a historical one). Replace it with each tag's real commit date where git
-        // could resolve it; `input.packages` aligns 1:1 and in order with `reconstructed`.
+        // versionOutputToChangelogInput stamps today's date, wrong for a historical release, so use each tag's commit
+        // date. `input.packages` aligns 1:1, in order, with `reconstructed`.
         for (let i = 0; i < input.packages.length; i++) {
           const date = reconstructed[i]?.date;
           const pkg = input.packages[i];
@@ -194,18 +181,12 @@ export function createBackfillCommand(): Command {
           }
         }
 
-        // Override LLM config if --no-llm is set
         const adjustedNotesConfig = noLlm
           ? { ...notesConfig, releaseNotes: { ...releaseNotes, llm: undefined } }
           : notesConfig;
 
-        // Render one version per pipeline call (single context each). The pipeline's nesting decision
-        // (`detectMonorepo(cwd).isMonorepo || contexts.length > 1`) then matches the live release
-        // pipeline, which also renders one package per run. Passing all versions at once would make
-        // `contexts.length > 1` force nesting, so a non-monorepo backfill of 2+ versions would write to
-        // <dir>/<package>/<version>.md while live releases write to <dir>/<version>.md.
-        // Backfill is release-notes only — never touch the cumulative changelog. `input.packages` aligns
-        // 1:1 (and in order) with `reconstructed`, so `reconstructed[i].tag` names the release to edit.
+        // One version per pipeline call: several contexts would force nested output (<dir>/<package>/<version>.md)
+        // where a live non-monorepo release writes <dir>/<version>.md. Release notes only - never the changelog.
         const writtenFiles: string[] = [];
         const renderedBodies: string[] = [];
         for (const pkg of input.packages) {
@@ -313,7 +294,6 @@ export function createBackfillCommand(): Command {
     });
 }
 
-/** Count the number of enabled LLM tasks (summarize, enhance, categorize, releaseNotes). */
 function countEnabledLlmTasks(tasks?: {
   summarize?: boolean;
   enhance?: boolean;
@@ -328,14 +308,8 @@ function countEnabledLlmTasks(tasks?: {
 }
 
 /**
- * Resolve the set of packages to backfill: every workspace package under `--all`, or a single package
- * from `--package`/`--path` (falling back to the package.json name at `--path`). Exits with a clean
- * error when discovery fails or a single package's name can't be determined.
- *
- * `--all` reuses the version stage's discovery (`VersionEngine.getWorkspacePackages`), so it finds the
- * same packages a live release would — npm/JS plus pure-Cargo crates, scoped by `config.packages` —
- * rather than just package.json workspaces. (pub-only packages aren't discovered there either; pass
- * those via `--package`.)
+ * `--all` reuses the version stage's discovery, so it finds the packages a live release would (npm & pure-Cargo,
+ * scoped by `config.packages`). Pub-only packages aren't discovered; pass those via `--package`.
  */
 async function resolveTargets(
   options: { all?: boolean; package?: string; path: string },
@@ -344,7 +318,7 @@ async function resolveTargets(
 ): Promise<BackfillTarget[]> {
   if (options.all) {
     const { VersionEngine } = await import('@releasekit/version');
-    // Minimal shape we consume — the version package's built types resolve loosely through re-exports.
+    // Minimal shape we consume: the version package's built types resolve loosely through re-exports.
     let packages: Array<{ dir: string; packageJson: { name: string; repository?: unknown } }>;
     try {
       ({ packages } = await new VersionEngine(versionConfig).getWorkspacePackages());

@@ -1,25 +1,9 @@
 #!/usr/bin/env tsx
 /**
- * Generates releasekit.schema.json from the Zod schema (single source of truth).
- *
- * Pipeline:
- *   packages/config/src/schema.ts  (Zod, with .describe() on every field)
- *     → z.toJSONSchema()           (JSON Schema draft-7)
- *     → post-processing            (this file)
- *     → releasekit.schema.json     (consumed by editors + ajv + docs:config)
- *
- * Usage:
- *   pnpm schema:gen     write releasekit.schema.json
- *   pnpm schema:check   verify the committed file matches (exits non-zero on drift)
- *
- * Never hand-edit releasekit.schema.json — edit the Zod schema and regenerate.
- *
- * Why native z.toJSONSchema (zod v4) rather than zod-to-json-schema:
- *   the repo is on zod v4, and zod-to-json-schema only reads zod v3 internals
- *   (it emits an empty schema against the v4 definitions). zod v4 ships a native
- *   JSON Schema exporter that reads the v4 schema directly. We post-process its
- *   output so the result stays drop-in compatible with the existing editor
- *   ($schema URL), ajv (draft-7, strict=false), and docs:config consumers.
+ * Uses zod v4's native z.toJSONSchema: zod-to-json-schema only reads zod v3
+ * internals and emits an empty schema for v4. The output is post-processed to
+ * stay compatible with its consumers: editors ($schema URL), ajv (draft-7,
+ * strict=false) and docs:config.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -35,9 +19,8 @@ const __dirname = dirname(__filename);
 const ROOT = resolve(__dirname, '..');
 const SCHEMA_PATH = resolve(ROOT, 'releasekit.schema.json');
 
-// Top-level metadata kept identical to the consumers' expectations (editor
-// $schema URL, $id, human title, description). Set here explicitly — zod's
-// root .describe() is not reliably carried to the document root by the exporter.
+// Set explicitly: the exporter doesn't reliably carry zod's root .describe() to
+// the document root.
 const META = {
   $comment: 'GENERATED from packages/config/src/schema.ts — do not edit; run `pnpm schema:gen`.',
   $schema: 'http://json-schema.org/draft-07/schema#',
@@ -46,9 +29,8 @@ const META = {
   description: 'Configuration schema for ReleaseKit - Automated versioning, changelog generation, and publishing',
 } as const;
 
-// The JS safe-integer ceiling zod attaches to every `.int()`. It carries no
-// real constraint for config values, so we drop it (the hand-maintained schema
-// never had it).
+// The JS safe-integer ceiling zod attaches to every `.int()`; meaningless for
+// config values, so dropped.
 const INT_SENTINEL_MAX = 9007199254740991;
 
 type JsonSchema = Record<string, unknown>;
@@ -57,20 +39,6 @@ function isPlainObject(value: unknown): value is JsonSchema {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/**
- * Recursively normalise zod's draft-7 output into the shape the rest of the
- * toolchain expects:
- *   - anyOf → oneOf (the config unions are mutually exclusive; the docs
- *     generator and the original schema both use oneOf)
- *   - const X → enum [X] (boolean-false literals and the 'auto' literal; the
- *     docs generator reads `enum`, not `const`)
- *   - exclusiveMinimum: 0 → minimum: 1 (positive ints/numbers; matches the
- *     reviewed hand-maintained schema)
- *   - strip the int safe-integer sentinel maximum
- *   - additionalProperties: false on every object literal (preserves the
- *     editor/ajv strictness of the hand-maintained schema WITHOUT making the
- *     Zod parser strict — load.ts still strips unknown keys leniently)
- */
 function normalise(node: unknown): unknown {
   if (Array.isArray(node)) {
     return node.map(normalise);
@@ -82,11 +50,12 @@ function normalise(node: unknown): unknown {
   const out: JsonSchema = {};
   for (const [key, value] of Object.entries(node)) {
     if (key === 'anyOf') {
+      // The config unions are mutually exclusive, and the docs generator reads oneOf.
       out.oneOf = normalise(value);
       continue;
     }
     if (key === 'const') {
-      // const → single-value enum; preserve the existing type alongside it.
+      // The docs generator reads `enum`, not `const`.
       out.enum = [value];
       continue;
     }
@@ -94,7 +63,6 @@ function normalise(node: unknown): unknown {
       continue;
     }
     if (key === 'minimum' && value === -INT_SENTINEL_MAX) {
-      // zod's lower safe-integer sentinel for unbounded `.int()` — drop it.
       continue;
     }
     if (key === 'exclusiveMinimum' && value === 0) {
@@ -104,26 +72,21 @@ function normalise(node: unknown): unknown {
     out[key] = normalise(value);
   }
 
-  // Drop `default` on object schemas. zod attaches the full default object of
-  // every defaulted container (publish.npm, ci.labels, verify, …); the
-  // hand-maintained schema never carried these and they bloat both the file and
-  // the generated docs. Scalar and array defaults on leaf fields are kept —
-  // they are the documented, user-facing defaults.
+  // zod attaches each defaulted container's full default object, which bloats
+  // both the file and the generated docs.
   if (out.type === 'object' && 'default' in out) {
     delete out.default;
   }
 
-  // Drop verbose prose defaults (e.g. the LLM writing-style guidance). These
-  // read poorly in the generated docs' per-field default column and are
-  // documented in prose elsewhere; the short, enumerable defaults stay.
+  // Long prose defaults (e.g. the LLM writing-style guidance) read poorly in the
+  // generated docs' per-field default column.
   if (typeof out.default === 'string' && out.default.length > 80) {
     delete out.default;
   }
 
-  // Add additionalProperties: false to object literals that declare their own
-  // properties and don't already constrain additionalProperties (record/map
-  // schemas such as version.groups and ci.scopeLabels keep their schema-valued
-  // additionalProperties untouched).
+  // Editor/ajv strictness without making the Zod parser strict (load.ts strips
+  // unknown keys leniently). Record/map schemas such as version.groups keep
+  // their schema-valued additionalProperties.
   if (out.type === 'object' && 'properties' in out && !('additionalProperties' in out)) {
     out.additionalProperties = false;
   }
@@ -131,10 +94,6 @@ function normalise(node: unknown): unknown {
   return out;
 }
 
-// Stable, readable keyword ordering matching the hand-maintained schema's
-// convention. Applied only to JSON Schema *keyword* keys of a schema node —
-// never to the field-name keys inside `properties` (definition order is
-// meaningful there) nor to raw `default` data.
 const KEY_ORDER = [
   '$comment',
   '$schema',
@@ -176,13 +135,6 @@ function orderedKeywordKeys(keys: string[]): string[] {
   });
 }
 
-/**
- * Reorder the keyword keys of a JSON Schema node for readable, stable output.
- * Recurses through schema-bearing positions (`properties` values, `items`,
- * `oneOf`/`anyOf` members, schema-valued `additionalProperties`) but preserves
- * the insertion order of property names and never rewrites `default`/`enum`
- * data values.
- */
 function orderSchemaNode(node: unknown): unknown {
   if (!isPlainObject(node)) {
     return node;
@@ -191,7 +143,7 @@ function orderSchemaNode(node: unknown): unknown {
   for (const key of orderedKeywordKeys(Object.keys(node))) {
     const value = node[key];
     if (key === 'properties' && isPlainObject(value)) {
-      // Preserve field-name (definition) order; order each field's schema node.
+      // Definition order is meaningful; only each field's schema is reordered.
       const props: JsonSchema = {};
       for (const field of Object.keys(value)) {
         props[field] = orderSchemaNode(value[field]);
@@ -202,10 +154,9 @@ function orderSchemaNode(node: unknown): unknown {
     } else if (key === 'oneOf' || key === 'anyOf' || key === 'allOf') {
       out[key] = Array.isArray(value) ? value.map(orderSchemaNode) : value;
     } else if (key === 'additionalProperties' && isPlainObject(value)) {
-      // Record/map value schema (e.g. version.groups, ci.scopeLabels).
       out[key] = orderSchemaNode(value);
     } else {
-      // type, enum, default, description, required, etc. — leave data as-is.
+      // Data values (enum, default, ...) are left as-is.
       out[key] = value;
     }
   }
@@ -215,8 +166,6 @@ function orderSchemaNode(node: unknown): unknown {
 export function buildSchema(): JsonSchema {
   const raw = z.toJSONSchema(ReleaseKitConfigSchema, { target: 'draft-7', io: 'input' }) as JsonSchema;
 
-  // zod emits its own $schema plus the body (description/type/properties/...);
-  // drop it and prepend our canonical metadata ($schema/$id/title).
   const { $schema: _drop, ...body } = raw;
   const normalisedBody = normalise(body) as JsonSchema;
 
@@ -229,19 +178,13 @@ export function buildSchema(): JsonSchema {
 }
 
 export function serialiseSchema(): string {
-  // 2-space indent + trailing newline to match biome's JSON formatting.
+  // Matches biome's JSON formatting.
   return `${JSON.stringify(buildSchema(), null, 2)}\n`;
 }
 
 /**
- * Print a unified diff between two strings to stderr. Inlined here so the
- * --check failure stays diagnostic in CI, where the working tree is clean
- * and `git diff` against the file produces no output (the file on disk
- * was never regenerated).
- *
- * Uses the host's `diff` binary via two temp files. `diff` is a no-op on
- * Windows, so the function falls back to a line-by-line diff if the binary
- * is missing or fails.
+ * `git diff` shows nothing in CI's clean checkout (the file on disk was never
+ * regenerated), so diff the committed and generated strings directly.
  */
 function printUnifiedDiff(before: string, after: string, label: string): void {
   const dir = mkdtempSync(join(tmpdir(), 'schema-check-'));
@@ -262,8 +205,7 @@ function printUnifiedDiff(before: string, after: string, label: string): void {
       process.stderr.write(result.stderr);
     }
     if (result.status === 127 || result.error) {
-      // `diff` not on PATH — fall back to a line-by-line diff. Good enough
-      // for diagnostic output on a (typically small) schema file.
+      // `diff` not on PATH (e.g. Windows).
       printLineDiffFallback(before, after, label);
     }
   } finally {
@@ -302,11 +244,6 @@ function main(): void {
       console.error(
         'releasekit.schema.json is out of date with the Zod schema.\n' + 'Run `pnpm schema:gen` and commit the result.',
       );
-      // Print a unified diff between the committed file and the freshly
-      // generated content. `git diff` is useless here: in a CI clean checkout
-      // the on-disk file matches HEAD (the file was never regenerated), so the
-      // diff against the working tree is empty. Diffing the two strings inline
-      // surfaces the actual drift.
       printUnifiedDiff(current, generated, SCHEMA_PATH);
       process.exit(1);
     }
@@ -318,8 +255,6 @@ function main(): void {
   console.log(`Generated: ${SCHEMA_PATH}`);
 }
 
-// Run only when invoked directly — importing this module (e.g. from the
-// generator's unit test) must not write the schema file as a side effect.
 if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
   main();
 }

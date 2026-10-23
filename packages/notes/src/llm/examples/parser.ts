@@ -15,7 +15,6 @@ export function parseReleaseBodyToExample(markdown: string, version: string): Ex
       continue;
     }
 
-    // ## / ### / #### Heading → new category (h1 skipped as document title)
     const heading = /^#{2,4} (.+)/.exec(line)?.[1];
     if (heading) {
       currentCategory = heading.trim();
@@ -25,7 +24,6 @@ export function parseReleaseBodyToExample(markdown: string, version: string): Ex
       continue;
     }
 
-    // Bullet entry
     if (BULLET_RE.test(line)) {
       const text = line.replace(BULLET_RE, '');
       const leadInMatch = LEAD_IN_RE.exec(text);
@@ -55,7 +53,7 @@ export function renderExamplesBlock(examples: Example[]): string {
   }
 
   // These examples are built from past release bodies and re-fed as few-shot input, and release-notes
-  // output becomes a future example — a self-poisoning loop. Escape every interpolated field so an
+  // output becomes a future example - a self-poisoning loop. Escape every interpolated field so an
   // entry can't forge a `</example>` tag or inject instructions into a later prompt.
   const blocks = examples.map((ex) => {
     const entryLines = ex.entries

@@ -96,7 +96,7 @@ export class OpenAIProvider extends BaseLLMProvider {
 
       if (options?.schema) {
         try {
-          // Strip markdown code fences / preamble first — some models (and openai-compatible
+          // Strip markdown code fences / preamble first - some models (and openai-compatible
           // backends) wrap schema-constrained output in a ```json fence rather than returning raw JSON.
           const structured = JSON.parse(extractJsonFromResponse(content));
           return { content, structured };

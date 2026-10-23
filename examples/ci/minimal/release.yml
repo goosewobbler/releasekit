@@ -1,7 +1,6 @@
 # Copy to: .github/workflows/release.yml
 #
-# Minimal release: every push to main runs `releasekit release`.
-# If there are no releasable commits the command exits 0 and does nothing.
+# With no releasable commits, `releasekit release` exits 0 and does nothing.
 name: Release
 
 on:
@@ -9,11 +8,10 @@ on:
     branches: [main]
 
 # An explicit permissions block zeroes every scope that is not listed, so
-# `contents: write` (tags + GitHub Releases) must be named even though the
-# default token would otherwise have it.
+# `contents: write` (tags & GitHub Releases) must be named.
 permissions:
   contents: write
-  id-token: write # npm OIDC trusted publishing — drop if you publish with NPM_TOKEN
+  id-token: write # npm OIDC trusted publishing - drop if you publish with NPM_TOKEN
 
 jobs:
   release:
@@ -37,7 +35,7 @@ jobs:
 
       # setup-node's registry-url writes a .npmrc with `_authToken=${NODE_AUTH_TOKEN}`.
       # With OIDC that var is empty, so npm fails ENEEDAUTH instead of the OIDC exchange.
-      # Remove it before publishing. (Drop this step if you publish with NODE_AUTH_TOKEN.)
+      # (Drop this step if you publish with NODE_AUTH_TOKEN.)
       - name: Remove token-based .npmrc so OIDC can take over
         run: rm -f .npmrc
 

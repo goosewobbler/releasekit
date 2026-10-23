@@ -69,7 +69,6 @@ describe('ReleaseKitError', () => {
       const error = new TestError('Test message', []);
       error.logError();
 
-      // Only the error message, no suggestions
       expect(consoleSpy).toHaveBeenCalledTimes(1);
 
       consoleSpy.mockRestore();

@@ -32,11 +32,7 @@ function isExcluded(workspace: CargoWorkspace, rootDir: string, manifestPath: st
   return covers(workspace.exclude) && !covers(workspace.members);
 }
 
-/**
- * The crate's workspace root, by cargo's rule: its `package.workspace` pointer if set, else the crate
- * itself if its manifest has a `[workspace]`, else the nearest ancestor `[workspace]` that doesn't exclude
- * it, else the crate.
- */
+/** Mirrors cargo's workspace-root rule. */
 function findCargoWorkspaceRoot(crateDir: string, read: ReadManifest = readManifest): string {
   const manifestPath = path.join(path.resolve(crateDir), 'Cargo.toml');
   const manifest = read(manifestPath);
@@ -58,10 +54,7 @@ function findCargoWorkspaceRoot(crateDir: string, read: ReadManifest = readManif
   return root;
 }
 
-/**
- * The Cargo.lock at the crate's workspace root. Undefined when the root has no lock: a bump syncs a
- * committed lock but never creates one.
- */
+/** Undefined when the crate's workspace root has no Cargo.lock: a bump syncs a committed lock but never creates one. */
 export function findCargoLockfile(crateDir: string): string | undefined {
   const lockPath = path.join(findCargoWorkspaceRoot(crateDir), 'Cargo.lock');
   return fs.existsSync(lockPath) ? lockPath : undefined;
@@ -253,8 +246,7 @@ function sortReferenceRuns(lines: string[], name: string, version: string): void
  * `"<name> <old version>"` references (cargo writes the version into a reference only when the lock
  * holds several versions of the name), re-sorting same-name entries if their order changes.
  *
- * Undefined when the lock has no path entry for the crate. Throws when the name is ambiguous (several
- * path entries, or another source's entry at the old or new version) or the lock format is newer than v4.
+ * Undefined when the lock has no path entry for the crate.
  */
 export function setCargoLockVersion(lockContent: string, crateName: string, version: string): string | undefined {
   const lines = lockContent.split('\n');
@@ -322,8 +314,6 @@ export interface CargoLockUpdate {
  *
  * A crate's own lock always takes its bump. Names repeat across workspaces (every `tauri init` app is
  * `app`), so another lock takes it only if the lock's workspace reaches the crate's directory by path.
- *
- * Writes nothing; throws, naming the lock, when any lock can't be edited unambiguously.
  */
 export async function planCargoLockUpdates(
   git: CargoLockGit,

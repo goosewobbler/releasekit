@@ -6,10 +6,6 @@ const DEFAULT_SYSTEM_PROMPT = `You are categorizing entries.
 
 Output a JSON object with an "entries" array.`;
 
-// ---------------------------------------------------------------------------
-// resolveSystemPrompt
-// ---------------------------------------------------------------------------
-
 describe('resolveSystemPrompt()', () => {
   it('should return default prompt when no config provided', () => {
     const result = resolveSystemPrompt('categorize', DEFAULT_SYSTEM_PROMPT);

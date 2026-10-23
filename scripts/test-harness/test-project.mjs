@@ -129,12 +129,7 @@ function installDependencies(projectDir) {
   }
 }
 
-/**
- * Build a fixture for the backfill scenario: a two-package monorepo with a shared global (sync) tag
- * series (`v1.0.0`, `v1.1.0`) whose commits are scoped to each package's directory and stamped with
- * fixed dates. No dependency install — backfill only reads git and writes notes files. The encoded
- * `expected` map drives the assertions in the harness.
- */
+/** No dependency install: backfill only reads git and writes notes files. */
 export function createBackfillTestProject() {
   const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), `${TEST_PREFIX}-backfill-${Date.now()}`));
   console.log(`Creating backfill test project at: ${projectDir}`);
@@ -178,15 +173,12 @@ export function createBackfillTestProject() {
     ),
   );
 
-  // initGitRepo stages everything and makes the initial (non-conventional) commit.
   initGitRepo(projectDir, remotePath);
 
-  // v1.0.0 era — one scoped commit per package; the tag lands on the last commit (2023-01-11).
   addCommitInDir(projectDir, 'feat(alpha): alpha one', 'packages/alpha', '2023-01-10T00:00:00');
   addCommitInDir(projectDir, 'feat(beta): beta one', 'packages/beta', '2023-01-11T00:00:00');
   addTag(projectDir, 'v1.0.0');
 
-  // v1.1.0 era — the tag lands on the last commit (2023-03-06).
   addCommitInDir(projectDir, 'fix(alpha): alpha two', 'packages/alpha', '2023-03-05T00:00:00');
   addCommitInDir(projectDir, 'feat(beta): beta two', 'packages/beta', '2023-03-06T00:00:00');
   addTag(projectDir, 'v1.1.0');

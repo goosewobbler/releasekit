@@ -1,8 +1,5 @@
 # Copy to: .github/workflows/standing-pr.yml
 #
-# Standing release PR: a single PR (on `release/next`) accumulates version bumps
-# and release notes as commits land on main. Maintainers merge it to publish.
-#
 # One-time repo setting (REQUIRED): Settings -> Actions -> General ->
 # Workflow permissions -> enable "Allow GitHub Actions to create and approve
 # pull requests". Without it the first `standing-pr update` fails with HTTP 403;
@@ -13,16 +10,12 @@ on:
   push:
     branches: [main]
   pull_request:
-    # closed: publish on merge. labeled/unlabeled: (1) apply bump/scope/channel
-    # override labels to the OPEN standing PR immediately instead of waiting for the
-    # next push or the hourly cron; (2) the release:retry path on the merged PR.
-    # edited: a maintainer ticked/unticked packages in the PR's selection region —
-    # re-run so the held-back set applies (the bot's own body edits are filtered by
-    # the sender guard below to avoid a loop).
+    # labeled/unlabeled/edited apply override labels and package (un)ticks on the
+    # OPEN standing PR immediately; labeled also drives release:retry on the merged PR.
     types: [closed, labeled, unlabeled, edited]
     branches: [main]
   schedule:
-    - cron: '0 * * * *' # hourly: advances the minAge status check as time passes
+    - cron: '0 * * * *' # advances the minAge status check as time passes
 
 concurrency:
   group: standing-release-pr
@@ -37,13 +30,10 @@ permissions:
 jobs:
   update:
     name: Update Release PR
-    # push/schedule rebuild the PR; a label change or selection-region edit on the OPEN standing PR
-    # re-runs the update so bump/scope/channel overrides and held-back packages take effect within
-    # seconds. `state == 'open'` keeps this off the merged-PR label events that drive publish/retry
-    # below. The `sender.type != 'Bot'` guard is load-bearing for `edited`: the update rewrites the PR
-    # body (an `edited` event), so without it the bot would re-trigger forever. Match on type, not a
-    # hardcoded `github-actions[bot]` login, so a custom GitHub App token (its own `*[bot]` login) is
-    # filtered too. The `release/` prefix is hardcoded (workflow `if` can't read config) — in-step config is authoritative.
+    # `sender.type != 'Bot'` is load-bearing: the update rewrites the PR body (an `edited` event), so
+    # the bot would otherwise re-trigger itself forever. Matching on type rather than the
+    # `github-actions[bot]` login also filters a custom GitHub App token. The `release/` prefix is
+    # hardcoded (workflow `if` can't read config) - in-step config is authoritative.
     if: >-
       github.event_name == 'push' ||
       github.event_name == 'schedule' ||
@@ -124,7 +114,7 @@ jobs:
 
       # setup-node's registry-url writes a .npmrc with `_authToken=${NODE_AUTH_TOKEN}`.
       # With OIDC that var is empty, so npm fails ENEEDAUTH instead of the OIDC exchange.
-      # Remove it before publishing. (Drop this step if you publish with NODE_AUTH_TOKEN.)
+      # (Drop this step if you publish with NODE_AUTH_TOKEN.)
       - name: Remove token-based .npmrc so OIDC can take over
         run: rm -f .npmrc
 
@@ -135,11 +125,10 @@ jobs:
 
   retry-publish:
     name: Retry Publish
-    # Maintainer-invoked retry after a partial-publish failure: apply `release:retry`
-    # to the MERGED standing PR (label events fire on closed PRs). Publishing is
-    # idempotent, so the retry finishes whatever the failed run left undone. The label
-    # name is hardcoded (workflow `if` can't read config) — update it if you change
-    # ci.labels.retry.
+    # After a partial-publish failure, apply `release:retry` to the MERGED standing
+    # PR (label events fire on closed PRs). Publishing is idempotent, so the retry
+    # finishes whatever the failed run left undone. The label name is hardcoded
+    # (workflow `if` can't read config) - update it if you change ci.labels.retry.
     if: >
       github.event_name == 'pull_request' &&
       github.event.action == 'labeled' &&
@@ -152,7 +141,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ github.token }}
-          ref: main # the standing PR branch is deleted on merge; publish from main
+          ref: main # the standing PR branch is deleted on merge
 
       - uses: pnpm/action-setup@v6
 
@@ -169,9 +158,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      # setup-node's registry-url writes a .npmrc with `_authToken=${NODE_AUTH_TOKEN}`.
-      # With OIDC that var is empty, so npm fails ENEEDAUTH instead of the OIDC exchange.
-      # Remove it before publishing. (Drop this step if you publish with NODE_AUTH_TOKEN.)
+      # See the publish job. (Drop this step if you publish with NODE_AUTH_TOKEN.)
       - name: Remove token-based .npmrc so OIDC can take over
         run: rm -f .npmrc
 

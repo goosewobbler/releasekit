@@ -16,7 +16,6 @@ import * as formatting from '../../../src/utils/formatting.js';
 import * as jsonOutput from '../../../src/utils/jsonOutput.js';
 import * as logging from '../../../src/utils/logging.js';
 
-// Mock dependencies
 vi.mock('../../../src/cargo/cargoLock.js');
 vi.mock('../../../src/git/commands.js');
 vi.mock('../../../src/git/tagsAndBranches.js');
@@ -56,14 +55,12 @@ vi.mock('../../../src/package/packageProcessor.js');
 vi.mock('node:fs');
 vi.mock('node:path');
 
-// For simplicity in tests
 const git = {
   ...gitCommands,
   ...gitTags,
 };
 
 describe('Version Strategies', () => {
-  // Mock data
   const mockPackages = {
     root: '/test/workspace',
     rootDir: '/test/workspace',
@@ -82,12 +79,10 @@ describe('Version Strategies', () => {
     ],
   } as unknown as PackagesWithRoot;
 
-  // Mock package paths
   const rootPackagePath = '/test/workspace/package.json';
   const packageAPath = '/test/workspace/packages/a/package.json';
   const packageBPath = '/test/workspace/packages/b/package.json';
 
-  // Default config for tests
   const defaultConfig: Partial<Config> = {
     preset: 'conventionalcommits',
     versionPrefix: 'v',
@@ -95,17 +90,14 @@ describe('Version Strategies', () => {
   };
 
   beforeEach(() => {
-    // Reset all mocks
     vi.resetAllMocks();
 
-    // Setup common mocks
     vi.mocked(path.join, { partial: true }).mockImplementation((...args) => args.join('/'));
     vi.mocked(fs.existsSync, { partial: true }).mockReturnValue(true);
     vi.mocked(git.getLatestTag, { partial: true }).mockResolvedValue('v1.0.0');
     vi.mocked(calculator.calculateVersion, { partial: true }).mockResolvedValue('1.1.0');
     vi.mocked(formatting.formatVersionPrefix, { partial: true }).mockReturnValue('v');
     vi.mocked(formatting.formatTag, { partial: true }).mockReturnValue('v1.1.0');
-    // Default mock: single-package result used by most tests. Sync tests override this.
     vi.mocked(formatting.formatCommitMessage, { partial: true }).mockReturnValue('chore: release package-a v1.1.0');
     vi.mocked(formatting.deriveBaselineTagPrefix, { partial: true }).mockImplementation(
       (template, formattedPrefix, packageName) => {
@@ -129,10 +121,9 @@ describe('Version Strategies', () => {
     vi.mocked(commitParser.extractChangelogEntriesFromCommits, { partial: true }).mockResolvedValue([
       { type: 'added', description: 'New feature' },
     ]);
-    // Default: the baseline tag verifies as reachable, so the range is bounded `<tag>..HEAD`.
+    // Reachable baseline, so the range is bounded `<tag>..HEAD`.
     vi.mocked(tagVerification.verifyTag, { partial: true }).mockResolvedValue({ exists: true, reachable: true });
 
-    // Setup PackageProcessor mock
     vi.mocked(PackageProcessor.prototype.processPackages, { partial: true }).mockResolvedValue({
       updatedPackages: [{ name: 'package-a', version: '1.1.0', path: '/test/workspace/packages/a' }],
       tags: ['v1.1.0'],
@@ -144,12 +135,9 @@ describe('Version Strategies', () => {
     vi.restoreAllMocks();
   });
 
-  // Helper function for testing package processing logic
-  // Since targeting is now handled at discovery time, this only checks skip logic
   const shouldProcessPackage = (pkg: Package, config: Partial<Config>): boolean => {
     const pkgName = pkg.packageJson.name;
 
-    // Only check skip list - targeting is now handled at discovery time
     return !config.skip?.includes(pkgName);
   };
 
@@ -190,8 +178,7 @@ describe('Version Strategies', () => {
 
   describe('createSyncStrategy', () => {
     it('should update all packages to the same version', async () => {
-      // Use the real mock implementation (not the beforeEach single-package override)
-      // so we can verify the combined package name is passed to formatCommitMessage.
+      // Replace the beforeEach fixed-string mock so setCommitMessage reflects the combined package name.
       vi.mocked(formatting.formatCommitMessage).mockImplementation((template, version, packageName) =>
         template.replace(/\$\{version\}/g, version).replace(/\$\{packageName\}/g, packageName || ''),
       );
@@ -204,10 +191,8 @@ describe('Version Strategies', () => {
 
       const syncStrategy = strategies.createSyncStrategy(config as Config);
 
-      // Execute
       await syncStrategy(mockPackages);
 
-      // Verify
       expect(git.getLatestTag).toHaveBeenCalled();
       expect(calculator.calculateVersion).toHaveBeenCalledWith(
         config as Config,
@@ -217,14 +202,11 @@ describe('Version Strategies', () => {
         }),
       );
 
-      // Check root package update
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined, true);
 
-      // Check workspace packages update
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0', undefined);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageBPath, '1.1.0', undefined);
 
-      // Both workspace package names should be passed to formatCommitMessage
       expect(formatting.formatCommitMessage).toHaveBeenCalledWith(
         config.commitMessage,
         '1.1.0',
@@ -232,23 +214,20 @@ describe('Version Strategies', () => {
         undefined,
       );
 
-      // Check tag and commit message tracked for JSON output (git ops now handled by publish)
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
       expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a, package-b v1.1.0');
-      // Sync mode with shared tag: setPackageUpdateTag must NOT be called (batch push mode)
+      // Sync mode shares one tag, so no per-package tag is set.
       expect(jsonOutput.setPackageUpdateTag).not.toHaveBeenCalled();
     });
 
     it('should still version Cargo.toml and not abandon it when npm handling is disabled on a hybrid repo', async () => {
-      // Hybrid sync monorepo (existsSync mock returns true for every package.json AND Cargo.toml) with
-      // npm versioning opted out: package.json writes are skipped, but Cargo.toml must still be versioned
-      // and the run must not early-return as "no packages updated" (which would abandon the written files).
+      // The existsSync mock makes every package a hybrid (package.json & Cargo.toml).
       const config: Partial<Config> = { ...defaultConfig, sync: true, npm: { enabled: false } };
       const syncStrategy = strategies.createSyncStrategy(config as Config);
 
       await syncStrategy(mockPackages);
 
-      // package.json manifests (root 4-arg, members 3-arg) are skipped...
+      // Root package.json calls take 4 args, members 3.
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
         packageAPath,
         expect.anything(),
@@ -260,21 +239,19 @@ describe('Version Strategies', () => {
         expect.anything(),
         expect.anything(),
       );
-      // ...but Cargo.toml is still versioned (root + members); updateCargoFiles passes dryRun=false.
+      // updateCargoFiles passes dryRun=false.
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/test/workspace/packages/a/Cargo.toml',
         '1.1.0',
         false,
       );
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith('/test/workspace/Cargo.toml', '1.1.0', false);
-      // ...and the run proceeds to tag rather than early-returning.
+      // Tagging proves the run didn't early-return and abandon the written files.
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
     });
 
     it('should not version a single-package repo Cargo.toml twice when npm is disabled', async () => {
-      // Single-package repo where the package IS the root (packages.root === packages[0].dir). With
-      // npm disabled, processedPaths must still record the root path so the per-package loop skips it,
-      // or updateCargoFiles runs for the same dir twice — writing Cargo.toml twice.
+      // With npm disabled, processedPaths must still record the root so the per-package loop skips it.
       const singlePkg = {
         root: '/test/workspace',
         packages: [{ dir: '/test/workspace', packageJson: { name: 'root-pkg', version: '1.0.0' } }],
@@ -286,13 +263,11 @@ describe('Version Strategies', () => {
         .mocked(packageManagement.updatePackageVersion)
         .mock.calls.filter((c) => c[0] === '/test/workspace/Cargo.toml');
       expect(cargoCalls).toHaveLength(1);
-      // The run must not early-return as "nothing updated" — 'root' is tracked for the cargo-only
-      // update, so the shared tag is still created and the written Cargo.toml is committed.
+      // 'root' is tracked for the cargo-only update, so the run doesn't early-return as nothing updated.
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
     });
 
     it('should use mainPackage for version calculation when specified', async () => {
-      // Setup with mainPackage
       const config: Partial<Config> = {
         ...defaultConfig,
         sync: true,
@@ -301,10 +276,8 @@ describe('Version Strategies', () => {
 
       const syncStrategy = strategies.createSyncStrategy(config as Config);
 
-      // Execute
       await syncStrategy(mockPackages);
 
-      // Verify that version calculation used package-b for version source but repo root for commit check
       expect(calculator.calculateVersion).toHaveBeenCalledWith(
         config as Config,
         expect.objectContaining({
@@ -314,14 +287,12 @@ describe('Version Strategies', () => {
         }),
       );
 
-      // Still updates all packages
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined, true);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0', undefined);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageBPath, '1.1.0', undefined);
     });
 
     it('should fall back to root package if mainPackage is not found', async () => {
-      // Setup with non-existent mainPackage
       const config: Partial<Config> = {
         ...defaultConfig,
         sync: true,
@@ -330,10 +301,8 @@ describe('Version Strategies', () => {
 
       const syncStrategy = strategies.createSyncStrategy(config as Config);
 
-      // Execute
       await syncStrategy(mockPackages);
 
-      // Verify that version calculation used root package
       expect(calculator.calculateVersion).toHaveBeenCalledWith(
         config as Config,
         expect.objectContaining({
@@ -342,7 +311,6 @@ describe('Version Strategies', () => {
         }),
       );
 
-      // Verify warning was logged
       expect(logging.log).toHaveBeenCalledWith(
         "Main package 'package-z' not found. Using root package for version determination.",
         'warning',
@@ -350,9 +318,6 @@ describe('Version Strategies', () => {
     });
 
     it('should pass commitCheckPath as repo root regardless of version source package', async () => {
-      // Regression: without commitCheckPath, getCommitsLength was called with the version
-      // source package dir (e.g. packages/version), so changes in other packages were
-      // invisible and no bump was produced even when other packages had new commits.
       const config: Partial<Config> = {
         ...defaultConfig,
         sync: true,
@@ -361,8 +326,7 @@ describe('Version Strategies', () => {
       const syncStrategy = strategies.createSyncStrategy(config as Config);
       await syncStrategy(mockPackages);
 
-      // path should be the first workspace package (version source)
-      // commitCheckPath should be the repo root so all commits are visible
+      // packages/a is the version source; commits are checked from the root so other packages' changes still bump.
       expect(calculator.calculateVersion).toHaveBeenCalledWith(
         config as Config,
         expect.objectContaining({
@@ -382,7 +346,6 @@ describe('Version Strategies', () => {
       const syncStrategy = strategies.createSyncStrategy(config as Config);
       await syncStrategy(mockPackages);
 
-      // Both workspace packages should be passed as a combined name
       expect(formatting.formatCommitMessage).toHaveBeenCalledWith(
         'chore: release ${' + 'packageName}@${' + 'version} [skip-ci]',
         '1.1.0',
@@ -392,7 +355,6 @@ describe('Version Strategies', () => {
     });
 
     it('should not include root in commit message for single-package sync repo', async () => {
-      // Simulate a single-package repo where only the root package.json is updated
       const singlePackageRepo = {
         root: '/test/workspace',
         rootDir: '/test/workspace',
@@ -409,14 +371,12 @@ describe('Version Strategies', () => {
       const syncStrategy = strategies.createSyncStrategy(config as Config);
       await syncStrategy(singlePackageRepo);
 
-      // When commitPackageName is undefined (no workspace packages) and template contains ${packageName},
-      // we bypass formatCommitMessage to avoid the spurious warning. Double space from empty
-      // ${packageName} should be collapsed automatically.
+      // With no workspace packages formatCommitMessage is bypassed to avoid its spurious warning, and the
+      // double space left by the empty ${packageName} collapses.
       expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release v1.1.0 [skip ci]');
     });
 
     it('should exit early if no version change needed', async () => {
-      // Mock calculateVersion to return empty string (no change)
       vi.mocked(calculator.calculateVersion, { partial: true }).mockResolvedValue('');
 
       const config: Partial<Config> = {
@@ -426,10 +386,8 @@ describe('Version Strategies', () => {
 
       const syncStrategy = strategies.createSyncStrategy(config as Config);
 
-      // Execute
       await syncStrategy(mockPackages);
 
-      // Verify no updates were made
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalled();
       expect(jsonOutput.addTag).not.toHaveBeenCalled();
       expect(jsonOutput.setCommitMessage).not.toHaveBeenCalled();
@@ -437,8 +395,7 @@ describe('Version Strategies', () => {
     });
 
     it('should emit a baseline tag and use its prefix for getLatestTag when baselineTagTemplate is set', async () => {
-      // Override the default formatTag mock so it actually applies the template — otherwise
-      // both the consumer tag and the baseline tag would render identically.
+      // The default formatTag mock ignores the template, so both tags would render identically.
       vi.mocked(formatting.formatTag).mockImplementation((version, prefix, packageName, template) => {
         if (template) {
           return template
@@ -459,13 +416,10 @@ describe('Version Strategies', () => {
 
       await syncStrategy(mockPackages);
 
-      // getLatestTag should be invoked with the baseline prefix so the semver scan filters
-      // to baseline tags (which stay on the source branch's history).
+      // Baseline tags stay on the source branch's history, so the semver scan filters to them.
       expect(git.getLatestTag).toHaveBeenCalledWith('release/v');
 
-      // Consumer tag goes to addTag; baseline tag goes to addBaselineTag — separate fields
-      // on VersionOutput so the publish pipeline can push both but skip the GitHub Release
-      // for the baseline.
+      // Separate VersionOutput fields so publish can push both but skip the GitHub Release for the baseline.
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
       expect(jsonOutput.addBaselineTag).toHaveBeenCalledWith('release/v1.1.0');
       expect(jsonOutput.addTag).not.toHaveBeenCalledWith('release/v1.1.0');
@@ -481,16 +435,12 @@ describe('Version Strategies', () => {
 
       await syncStrategy(mockPackages);
 
-      // No prefix passed — falls back to the default semver-tag scan.
       expect(git.getLatestTag).toHaveBeenCalledWith(undefined);
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
       expect(jsonOutput.addBaselineTag).not.toHaveBeenCalled();
     });
 
     it('should display previousVersion in consumer-facing form when baselineTagTemplate is set', async () => {
-      // The preview/changelog should show `v0.21.0 → 0.22.0`, not the internal baseline form
-      // `release/v0.21.0 → 0.22.0`. previousVersion needs the prefix swapped from the baseline
-      // family back to the consumer family.
       vi.mocked(git.getLatestTag).mockResolvedValue('release/v0.21.0');
 
       const config: Partial<Config> = {
@@ -511,9 +461,8 @@ describe('Version Strategies', () => {
     });
 
     it('should skip the package-specific tag override when baselineTagTemplate is set', async () => {
-      // Without the guard, getLatestTagForPackage's return value would clobber the baseline
-      // — which would re-introduce the unreachable-tag regression baselineTagTemplate exists
-      // to fix when packageSpecificTags is enabled alongside it.
+      // Otherwise getLatestTagForPackage would clobber the baseline, reintroducing the unreachable-tag problem
+      // baselineTagTemplate exists to fix.
       vi.mocked(git.getLatestTagForPackage).mockResolvedValue('v0.99.0');
       const config: Partial<Config> = {
         ...defaultConfig,
@@ -526,9 +475,7 @@ describe('Version Strategies', () => {
 
       await syncStrategy(mockPackages);
 
-      // getLatestTagForPackage must not be called when baselineTagTemplate is set.
       expect(git.getLatestTagForPackage).not.toHaveBeenCalled();
-      // calculateVersion must use the baseline tag, not the package-specific override.
       expect(calculator.calculateVersion).toHaveBeenCalledWith(
         config as Config,
         expect.objectContaining({ latestTag: 'v1.0.0' }),
@@ -544,10 +491,8 @@ describe('Version Strategies', () => {
 
       const syncStrategy = strategies.createSyncStrategy(config as Config);
 
-      // Execute
       await syncStrategy(mockPackages);
 
-      // Verify package-b was skipped
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined, true);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0', undefined);
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(packageBPath, '1.1.0', undefined);
@@ -594,7 +539,6 @@ describe('Version Strategies', () => {
       });
 
       it('should warn loudly and omit previousVersion when the baseline tag is unverifiable', async () => {
-        // The baseline tag fails verification (e.g. shallow clone / unpushed tag).
         vi.mocked(tagVerification.verifyTag, { partial: true }).mockResolvedValue({
           exists: true,
           reachable: false,
@@ -606,11 +550,9 @@ describe('Version Strategies', () => {
 
         await syncStrategy(mockPackages);
 
-        // Range falls back to all-history...
         expect(commitParser.extractChangelogEntriesFromCommits).toHaveBeenCalledWith('/test/workspace', 'HEAD');
-        // ...the fallback is surfaced as a warning, not a silent debug line...
         expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('could not be verified from HEAD'), 'warning');
-        // ...and previousVersion is omitted so the changelog doesn't claim a baseline it never diffed against.
+        // previousVersion omitted so the changelog doesn't claim a baseline it never diffed against.
         expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
           expect.objectContaining({ previousVersion: null, revisionRange: 'HEAD' }),
         );
@@ -673,7 +615,6 @@ describe('Version Strategies', () => {
       });
 
       it('should fall back to HEAD when baseRef cannot be resolved by git', async () => {
-        // The baseRef fails verification (bad object).
         vi.mocked(tagVerification.verifyTag, { partial: true }).mockResolvedValue({
           exists: false,
           reachable: false,
@@ -760,10 +701,7 @@ describe('Version Strategies', () => {
         const syncStrategy = strategies.createSyncStrategy(config as Config);
         await syncStrategy(rootOnlyRepo);
 
-        // workspaceNames is empty, so the per-package branch is skipped and
-        // the single-entry path falls through to mainPkgName || 'monorepo'.
-        // mainPkgName is undefined here (no mainPackage config, no workspace packages),
-        // so the entry is keyed as 'monorepo'.
+        // With no mainPackage or workspace packages, mainPkgName is undefined and the entry falls back to 'monorepo'.
         expect(jsonOutput.addChangelogData).toHaveBeenCalledTimes(1);
         expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(expect.objectContaining({ packageName: 'monorepo' }));
       });
@@ -791,7 +729,6 @@ describe('Version Strategies', () => {
 
   describe('createSingleStrategy', () => {
     it('should update only the specified package', async () => {
-      // Setup
       const config: Partial<Config> = {
         ...defaultConfig,
         mainPackage: 'package-a',
@@ -800,10 +737,8 @@ describe('Version Strategies', () => {
 
       const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-      // Execute
       await singleStrategy(mockPackages);
 
-      // Verify
       expect(git.getLatestTag).toHaveBeenCalled();
       expect(calculator.calculateVersion).toHaveBeenCalledWith(
         config as Config,
@@ -815,7 +750,6 @@ describe('Version Strategies', () => {
         }),
       );
 
-      // Check only package-a update
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0', undefined);
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
         packageBPath,
@@ -823,14 +757,12 @@ describe('Version Strategies', () => {
         expect.anything(),
       );
 
-      // Check tag and commit message tracked for JSON output (git ops now handled by publish)
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
       expect(jsonOutput.setPackageUpdateTag).toHaveBeenCalledWith('package-a', 'v1.1.0');
       expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a v1.1.0');
     });
 
     it('should warn and omit previousVersion when the baseline tag is unverifiable', async () => {
-      // The baseline tag fails verification (shallow clone / unpushed tag).
       vi.mocked(tagVerification.verifyTag, { partial: true }).mockResolvedValue({
         exists: true,
         reachable: false,
@@ -842,8 +774,6 @@ describe('Version Strategies', () => {
 
       await singleStrategy(mockPackages);
 
-      // Loud warning, all-history range, and previousVersion omitted so the changelog doesn't claim
-      // a baseline it never diffed against — same guarantee as createSyncStrategy.
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('could not be verified from HEAD'), 'warning');
       expect(jsonOutput.addChangelogData).toHaveBeenCalledWith(
         expect.objectContaining({ previousVersion: null, revisionRange: 'HEAD' }),
@@ -851,7 +781,6 @@ describe('Version Strategies', () => {
     });
 
     it('should use packageName in commit message template', async () => {
-      // Setup
       const config: Partial<Config> = {
         ...defaultConfig,
         mainPackage: 'package-a',
@@ -860,10 +789,8 @@ describe('Version Strategies', () => {
 
       const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-      // Execute
       await singleStrategy(mockPackages);
 
-      // Verify that formatCommitMessage was called with the right parameters
       expect(formatting.formatCommitMessage).toHaveBeenCalledWith(
         'chore: release ${' + 'packageName}@${' + 'version} [skip-ci]',
         '1.1.0',
@@ -872,13 +799,11 @@ describe('Version Strategies', () => {
     });
 
     it('should throw if packages array is not exactly one item', async () => {
-      // Setup with no packages
       const config1: Partial<Config> = {
         ...defaultConfig,
         packages: [],
       };
 
-      // Setup with multiple packages
       const config2: Partial<Config> = {
         ...defaultConfig,
         packages: ['package-a', 'package-b'],
@@ -887,7 +812,6 @@ describe('Version Strategies', () => {
       const singleStrategy1 = strategies.createSingleStrategy(config1 as Config);
       const singleStrategy2 = strategies.createSingleStrategy(config2 as Config);
 
-      // Execute and verify errors - update the expected error message to match the new implementation
       await expect(singleStrategy1(mockPackages)).rejects.toThrow(
         'Invalid configuration: Single mode requires either mainPackage or exactly one resolved package',
       );
@@ -897,7 +821,6 @@ describe('Version Strategies', () => {
     });
 
     it('should use mainPackage instead of packages array when both are provided', async () => {
-      // Setup with both mainPackage and packages array
       const config: Partial<Config> = {
         ...defaultConfig,
         mainPackage: 'package-b',
@@ -906,10 +829,8 @@ describe('Version Strategies', () => {
 
       const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-      // Execute
       await singleStrategy(mockPackages);
 
-      // Verify package-b was used instead of package-a
       expect(calculator.calculateVersion).toHaveBeenCalledWith(
         config as Config,
         expect.objectContaining({
@@ -927,7 +848,6 @@ describe('Version Strategies', () => {
     });
 
     it('should throw if mainPackage is not found', async () => {
-      // Setup with non-existent mainPackage
       const config: Partial<Config> = {
         ...defaultConfig,
         mainPackage: 'package-z',
@@ -935,12 +855,10 @@ describe('Version Strategies', () => {
 
       const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-      // Execute and verify error
       await expect(singleStrategy(mockPackages)).rejects.toThrow('Package not found: package-z');
     });
 
     it('should exit early if no version change needed', async () => {
-      // Mock calculateVersion to return empty string (no change)
       vi.mocked(calculator.calculateVersion, { partial: true }).mockResolvedValue('');
 
       const config: Partial<Config> = {
@@ -950,10 +868,8 @@ describe('Version Strategies', () => {
 
       const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-      // Execute
       await singleStrategy(mockPackages);
 
-      // Verify no updates were made
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalled();
       expect(jsonOutput.addTag).not.toHaveBeenCalled();
       expect(jsonOutput.setCommitMessage).not.toHaveBeenCalled();
@@ -975,7 +891,6 @@ describe('Version Strategies', () => {
       } as unknown as PackagesWithRoot;
 
       it('should update Cargo.toml in package root when cargo.enabled is true (default)', async () => {
-        // Setup
         const config: Partial<Config> = {
           ...defaultConfig,
           mainPackage: 'hybrid-package',
@@ -986,17 +901,14 @@ describe('Version Strategies', () => {
 
         const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-        // Execute
         await singleStrategy(hybridPackages);
 
-        // Verify package.json was updated
         expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/package.json',
           '1.1.0',
           undefined,
         );
 
-        // Verify Cargo.toml was also updated
         expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/Cargo.toml',
           '1.1.0',
@@ -1005,19 +917,15 @@ describe('Version Strategies', () => {
       });
 
       it('should default to cargo.enabled: true when cargo config not specified', async () => {
-        // Setup - no cargo config at all
         const config: Partial<Config> = {
           ...defaultConfig,
           mainPackage: 'hybrid-package',
-          // No cargo property
         };
 
         const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-        // Execute
         await singleStrategy(hybridPackages);
 
-        // Verify both files were updated (default behavior)
         expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/package.json',
           '1.1.0',
@@ -1031,7 +939,6 @@ describe('Version Strategies', () => {
       });
 
       it('should not update Cargo.toml when cargo.enabled is false', async () => {
-        // Setup
         const config: Partial<Config> = {
           ...defaultConfig,
           mainPackage: 'hybrid-package',
@@ -1042,17 +949,14 @@ describe('Version Strategies', () => {
 
         const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-        // Execute
         await singleStrategy(hybridPackages);
 
-        // Verify only package.json was updated
         expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/package.json',
           '1.1.0',
           undefined,
         );
 
-        // Verify Cargo.toml was NOT updated
         expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/Cargo.toml',
           expect.anything(),
@@ -1060,14 +964,8 @@ describe('Version Strategies', () => {
         );
       });
 
-      // Note: cargo.paths with multiple files is tested in integration tests
-      // Unit testing path resolution is complex due to mocking requirements
-      // The integration tests verify this works end-to-end with real file system
-
       it('should handle missing Cargo.toml gracefully when cargo is enabled', async () => {
-        // Setup - mock fs.existsSync to return false for Cargo.toml
         vi.mocked(fs.existsSync, { partial: true }).mockImplementation((filePath) => {
-          // Only package.json exists, Cargo.toml doesn't
           return !String(filePath).endsWith('Cargo.toml');
         });
 
@@ -1081,17 +979,14 @@ describe('Version Strategies', () => {
 
         const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-        // Execute - should not throw
         await singleStrategy(hybridPackages);
 
-        // Verify package.json was updated
         expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/package.json',
           '1.1.0',
           undefined,
         );
 
-        // Verify Cargo.toml update was not attempted (file doesn't exist)
         expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/Cargo.toml',
           expect.anything(),
@@ -1100,7 +995,6 @@ describe('Version Strategies', () => {
       });
 
       it('should apply the same version to both package.json and Cargo.toml', async () => {
-        // Setup - test with a prerelease version
         vi.mocked(calculator.calculateVersion, { partial: true }).mockResolvedValue('1.2.0-next.0');
 
         const config: Partial<Config> = {
@@ -1113,10 +1007,8 @@ describe('Version Strategies', () => {
 
         const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-        // Execute
         await singleStrategy(hybridPackages);
 
-        // Verify both files get the same version
         expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/package.json',
           '1.2.0-next.0',
@@ -1130,29 +1022,25 @@ describe('Version Strategies', () => {
       });
 
       it('should ignore cargo.paths when cargo.enabled is false', async () => {
-        // Setup
         const config: Partial<Config> = {
           ...defaultConfig,
           mainPackage: 'hybrid-package',
           cargo: {
             enabled: false,
-            paths: ['src', 'crates/core'], // Should be ignored
+            paths: ['src', 'crates/core'],
           },
         };
 
         const singleStrategy = strategies.createSingleStrategy(config as Config);
 
-        // Execute
         await singleStrategy(hybridPackages);
 
-        // Verify only package.json was updated
         expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
           '/test/workspace/hybrid-pkg/package.json',
           '1.1.0',
           undefined,
         );
 
-        // Verify NO Cargo.toml files were updated (even though paths were specified)
         expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
           expect.stringContaining('Cargo.toml'),
           expect.anything(),
@@ -1164,7 +1052,6 @@ describe('Version Strategies', () => {
 
   describe('createAsyncStrategy', () => {
     it('should use PackageProcessor to process packages', async () => {
-      // Setup
       const config: Partial<Config> = {
         ...defaultConfig,
         packages: ['package-a', 'package-b'],
@@ -1172,19 +1059,15 @@ describe('Version Strategies', () => {
 
       const asyncStrategy = strategies.createAsyncStrategy(config as Config);
 
-      // Execute
       await asyncStrategy(mockPackages);
 
-      // Verify that packages are processed (no setTargets call since targeting is at discovery time)
       expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(mockPackages.packages, '/test/workspace');
 
-      // Check logging
       expect(logging.log).toHaveBeenCalledWith('Processing 2 packages', 'info');
       expect(logging.log).toHaveBeenCalledWith('Updated 1 package(s): package-a', 'success');
     });
 
     it('should filter packages when runtime targets are provided', async () => {
-      // Setup
       const config: Partial<Config> = {
         ...defaultConfig,
         packages: ['package-a', 'package-b'],
@@ -1192,10 +1075,8 @@ describe('Version Strategies', () => {
 
       const asyncStrategy = strategies.createAsyncStrategy(config as Config);
 
-      // Execute with targets (should filter to only package-b)
       await asyncStrategy(mockPackages, ['package-b']);
 
-      // Verify that only targeted package is processed
       const expectedFilteredPackages = [
         {
           packageJson: { name: 'package-b', version: '1.0.0' },
@@ -1209,13 +1090,11 @@ describe('Version Strategies', () => {
         '/test/workspace',
       );
 
-      // Check filtering log messages
       expect(logging.log).toHaveBeenCalledWith('Runtime targets filter: 2 → 1 packages (package-b)', 'info');
       expect(logging.log).toHaveBeenCalledWith('Processing 1 packages', 'info');
     });
 
     it('should filter packages using wildcard patterns', async () => {
-      // Setup with packages that have different scopes
       const mockPackagesWithScopes = {
         root: '/test/workspace',
         rootDir: '/test/workspace',
@@ -1246,10 +1125,8 @@ describe('Version Strategies', () => {
 
       const asyncStrategy = strategies.createAsyncStrategy(config as Config);
 
-      // Execute with wildcard targets
       await asyncStrategy(mockPackagesWithScopes, ['@scope/*']);
 
-      // Verify that both @scope packages are processed
       const expectedFilteredPackages = [
         {
           packageJson: { name: '@scope/package-a', version: '1.0.0' },
@@ -1268,13 +1145,11 @@ describe('Version Strategies', () => {
         '/test/workspace',
       );
 
-      // Check filtering log messages
       expect(logging.log).toHaveBeenCalledWith('Runtime targets filter: 3 → 2 packages (@scope/*)', 'info');
       expect(logging.log).toHaveBeenCalledWith('Processing 2 packages', 'info');
     });
 
     it('should process all packages when no runtime targets are provided', async () => {
-      // Setup
       const config: Partial<Config> = {
         ...defaultConfig,
         packages: ['package-a', 'package-b'],
@@ -1282,18 +1157,14 @@ describe('Version Strategies', () => {
 
       const asyncStrategy = strategies.createAsyncStrategy(config as Config);
 
-      // Execute without runtime targets
       await asyncStrategy(mockPackages);
 
-      // Verify that all packages are processed (no filtering)
       expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(mockPackages.packages, '/test/workspace');
 
-      // Should not show runtime filter message
       expect(logging.log).toHaveBeenCalledWith('Processing 2 packages', 'info');
     });
 
     it('should process all pre-filtered packages', async () => {
-      // Setup
       const config: Partial<Config> = {
         ...defaultConfig,
         packages: [],
@@ -1301,16 +1172,13 @@ describe('Version Strategies', () => {
 
       const asyncStrategy = strategies.createAsyncStrategy(config as Config);
 
-      // Execute
       await asyncStrategy(mockPackages);
 
-      // Verify packages are processed
       expect(PackageProcessor.prototype.processPackages).toHaveBeenCalledWith(mockPackages.packages, '/test/workspace');
       expect(logging.log).toHaveBeenCalledWith('Processing 2 packages', 'info');
     });
 
     it('should handle case when no packages were updated', async () => {
-      // Mock PackageProcessor to return no updates
       vi.mocked(PackageProcessor.prototype.processPackages, { partial: true }).mockResolvedValue({
         updatedPackages: [],
         tags: [],
@@ -1322,10 +1190,8 @@ describe('Version Strategies', () => {
 
       const asyncStrategy = strategies.createAsyncStrategy(config as Config);
 
-      // Execute
       await asyncStrategy(mockPackages);
 
-      // Verify
       expect(logging.log).toHaveBeenCalledWith('No packages required a version update.', 'info');
     });
   });
@@ -1337,7 +1203,6 @@ describe('Version Strategies', () => {
         sync: true,
       };
 
-      // Since we've already tested the individual strategies, just verify the strategy map exists
       const strategyMap = strategies.createStrategyMap(config as Config);
       expect(strategyMap).toHaveProperty('sync');
     });
@@ -1348,18 +1213,12 @@ describe('Version Strategies', () => {
         packages: ['package-a'],
       };
 
-      // The createStrategy function now defaults to async strategy
-      // The CLI will determine the actual strategy based on resolved packages
       const strategy = strategies.createStrategy(config as Config);
 
-      // Since it's now async strategy, it should process packages without throwing
-      // (the actual strategy selection happens in the CLI)
       expect(strategy).toBeDefined();
     });
 
     it('should return async strategy when mainPackage is specified (CLI will handle strategy selection)', async () => {
-      // The createStrategy function now defaults to async strategy
-      // The CLI will determine the actual strategy based on resolved packages
       const config: Partial<Config> = {
         ...defaultConfig,
         mainPackage: 'package-a',
@@ -1367,8 +1226,6 @@ describe('Version Strategies', () => {
 
       const strategy = strategies.createStrategy(config as Config);
 
-      // Since it's now async strategy, it should process packages without throwing
-      // (the actual strategy selection happens in the CLI)
       await expect(strategy(mockPackages)).resolves.toBeUndefined();
     });
 
@@ -1377,7 +1234,6 @@ describe('Version Strategies', () => {
         ...defaultConfig,
       };
 
-      // Since we've already tested the individual strategies, just verify the strategy map exists
       const strategyMap = strategies.createStrategyMap(config as Config);
       expect(strategyMap).toHaveProperty('async');
     });
@@ -1391,7 +1247,6 @@ describe('Version Strategies', () => {
 
       const strategyMap = strategies.createStrategyMap(config as Config);
 
-      // Instead of checking function calls, check the structure of the returned map
       expect(strategyMap).toHaveProperty('sync');
       expect(strategyMap).toHaveProperty('single');
       expect(strategyMap).toHaveProperty('async');
@@ -1406,7 +1261,6 @@ describe('Version Strategies', () => {
         sync: false,
         groups: { native: { packages: ['@wdio/native-*'], sync: 'linked' } },
       };
-      // The group strategy is async (takes optional targets); just assert it's defined and callable.
       const strategy = strategies.createStrategy(config as Config);
       expect(strategy).toBeDefined();
     });
@@ -1417,8 +1271,7 @@ describe('Version Strategies', () => {
         sync: true,
       };
       const strategy = strategies.createStrategy(config as Config);
-      // The sync strategy updates the root package.json with isRoot=true — a fingerprint the
-      // group strategy never produces — so this confirms sync:true still uses createSyncStrategy.
+      // isRoot=true on the root package.json is a sync-strategy fingerprint the group strategy never produces.
       await strategy(mockPackages);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined, true);
     });

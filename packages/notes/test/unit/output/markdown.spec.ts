@@ -71,10 +71,6 @@ describe('writeMarkdown: dry run', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// formatVersion — leadIn rendering
-// ---------------------------------------------------------------------------
-
 describe('formatVersion: leadIn phrases', () => {
   it('should render bold leadIn prefix when present', async () => {
     const { formatVersion } = await import('../../../src/output/markdown.js');
@@ -122,10 +118,6 @@ describe('formatVersion: leadIn phrases', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// formatVersion — scope grouping
-// ---------------------------------------------------------------------------
-
 describe('formatVersion: scope grouping', () => {
   it('should group multiple entries with the same scope under a bold scope header', async () => {
     const { formatVersion } = await import('../../../src/output/markdown.js');
@@ -146,7 +138,6 @@ describe('formatVersion: scope grouping', () => {
 
     const result = formatVersion(ctx);
     expect(result).toContain('**api**:');
-    // Individual entries should NOT repeat the scope prefix
     expect(result).not.toContain('**api**: Feature A');
     expect(result).toContain('- Feature A');
     expect(result).toContain('- Feature B');
@@ -173,7 +164,6 @@ describe('formatVersion: scope grouping', () => {
     // Group headers appear on their own line (not prefixed with '-')
     expect(result).not.toMatch(/^\*\*core\*\*:/m);
     expect(result).not.toMatch(/^\*\*ui\*\*:/m);
-    // Scope still appears inline in the entry
     expect(result).toContain('**core**: Fix A');
     expect(result).toContain('**ui**: Fix B');
   });
@@ -202,10 +192,6 @@ describe('formatVersion: scope grouping', () => {
     expect(apiPos).toBeLessThan(noScopePos);
   });
 });
-
-// ---------------------------------------------------------------------------
-// formatVersion — breaking changes re-routing
-// ---------------------------------------------------------------------------
 
 describe('formatVersion: breaking changes section', () => {
   it('should route breaking entries into the Breaking category', async () => {
@@ -275,7 +261,7 @@ describe('formatVersion: breaking changes section', () => {
       },
     });
 
-    // categoryOrder only lists New and Changed — Breaking is omitted but must still land first
+    // categoryOrder only lists New and Changed - Breaking is omitted but must still land first
     const result = formatVersion(ctx, { categoryOrder: ['New', 'Changed'] });
     const breakingPos = result.indexOf('### Breaking');
     const newPos = result.indexOf('### New');
@@ -302,12 +288,10 @@ describe('formatVersion: breaking changes section', () => {
     });
 
     const result = formatVersion(ctx);
-    // Only one Breaking section
     const firstBreaking = result.indexOf('### Breaking');
     const secondBreaking = result.indexOf('### Breaking', firstBreaking + 1);
     expect(firstBreaking).toBeGreaterThanOrEqual(0);
     expect(secondBreaking).toBe(-1);
-    // Both entries present under it
     expect(result).toContain('Already-breaking entry');
     expect(result).toContain('Another breaking change');
   });
@@ -318,7 +302,7 @@ describe('formatVersion: breaking changes section', () => {
     const ctx = makeContext({
       enhanced: {
         categories: [
-          // All entries in this category are breaking — it should vanish after rerouting
+          // All entries in this category are breaking - it should vanish after rerouting
           { name: 'Removed', entries: [{ type: 'removed', description: 'Dropped endpoint', breaking: true }] },
           { name: 'New', entries: [{ type: 'added', description: 'Feature' }] },
         ],
@@ -333,7 +317,6 @@ describe('formatVersion: breaking changes section', () => {
   it('should preserve LLM category order when categoryOrder is absent', async () => {
     const { formatVersion } = await import('../../../src/output/markdown.js');
 
-    // Simulate a realistic LLM-returned category list with no categoryOrder configured
     const ctx = makeContext({
       enhanced: {
         categories: [
@@ -355,7 +338,6 @@ describe('formatVersion: breaking changes section', () => {
   it('should pin synthetic Breaking before all other categories when categoryOrder is absent', async () => {
     const { formatVersion } = await import('../../../src/output/markdown.js');
 
-    // Realistic LLM output: no Breaking category returned, breaking flag on one entry
     const ctx = makeContext({
       enhanced: {
         categories: [
@@ -384,10 +366,6 @@ describe('formatVersion: breaking changes section', () => {
     expect(result).toContain('Updated defaults');
   });
 });
-
-// ---------------------------------------------------------------------------
-// formatVersion — categoryOrder
-// ---------------------------------------------------------------------------
 
 describe('formatVersion: categoryOrder', () => {
   it('should sort categories according to provided order', async () => {
@@ -422,10 +400,6 @@ describe('formatVersion: categoryOrder', () => {
     expect(result.indexOf('### New')).toBeLessThan(result.indexOf('### Unknown'));
   });
 });
-
-// ---------------------------------------------------------------------------
-// formatVersion — migration links
-// ---------------------------------------------------------------------------
 
 describe('formatVersion: migration links', () => {
   it('should render explicit link items under ### Links by default', async () => {
@@ -566,10 +540,6 @@ describe('formatVersion: migration links', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// formatVersion — non-LLM path unchanged
-// ---------------------------------------------------------------------------
-
 describe('formatVersion: non-LLM path', () => {
   it('should use type-based grouping when no enhanced categories', async () => {
     const { formatVersion } = await import('../../../src/output/markdown.js');
@@ -586,10 +556,6 @@ describe('formatVersion: non-LLM path', () => {
     expect(result).toContain('### Fixed');
   });
 });
-
-// ---------------------------------------------------------------------------
-// formatVersion — issue refs + mention escaping
-// ---------------------------------------------------------------------------
 
 describe('formatVersion: issue refs', () => {
   const refsCtx = () =>
@@ -696,10 +662,6 @@ describe('formatVersion: mention escaping', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// formatVersion — first-release intro
-// ---------------------------------------------------------------------------
-
 describe('formatVersion: first-release intro', () => {
   const firstReleaseCtx = (overrides = {}) =>
     makeContext({ previousVersion: null, isFirstRelease: true, ...overrides });
@@ -710,7 +672,6 @@ describe('formatVersion: first-release intro', () => {
     const result = formatVersion(firstReleaseCtx());
 
     expect(result).toContain('_First release of test-pkg._');
-    // Intro sits between the header and the sections.
     expect(result.indexOf('## 1.0.0')).toBeLessThan(result.indexOf('_First release of test-pkg._'));
     expect(result.indexOf('_First release of test-pkg._')).toBeLessThan(result.indexOf('### Added'));
   });

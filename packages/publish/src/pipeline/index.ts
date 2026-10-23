@@ -60,36 +60,26 @@ export async function runPipeline(
     },
   };
 
-  // Per-package mode: when every package has its own tag (async or sync+packageSpecificTags),
-  // push each tag immediately after that package publishes rather than all at the end.
-  // In sync mode with a single shared tag no update carries a tag, so batch mode is used.
+  // Per-package mode (async, or sync & packageSpecificTags): push each tag right after its package publishes.
+  // A single shared sync tag isn't carried on any update, so that falls to batch mode.
   const perPackageMode = input.updates.some((u) => !!u.tag);
 
   try {
-    // Stage 2: Prepare (copy files, update Cargo.toml)
     await runPrepareStage(ctx);
 
-    // Stage 3: Git commit + tag
-    // When skipGitCommit is set, the caller already created the commit and tags.
-    // Pre-populate the output so push and github-release stages work. Both consumer-facing
-    // tags and baseline tags need to be pushed; the github-release stage filters back down
-    // to consumer tags via `ctx.input.tags`.
     if (options.skipGitCommit && !options.skipGit) {
-      // The caller already created the release commit AND it is already on the remote: the
-      // standing-PR squash merge landed it on the target branch before this publish ran. This
-      // runner has no local commit to contribute, so `committed` stays false and the push stage
-      // skips the branch push — only the tags need pushing. Pushing the branch here is at best a
-      // no-op and at worst races a concurrent push to the branch (e.g. a direct edit on GitHub),
-      // whose rejected `git push` would strand the tags and GitHub release behind it.
+      // The caller already created the commit and tags, and the standing-PR squash merge put the commit on the
+      // remote. `committed` stays false so the push stage pushes only tags: a branch push is at best a no-op and at
+      // worst races a concurrent push whose rejection would strand the tags & GitHub release behind it. Baseline
+      // tags are pushed too; github-release filters back to consumer tags via `ctx.input.tags`.
       ctx.output.git.tags = [...input.tags, ...(input.baselineTags ?? [])];
     } else if (!options.skipGit) {
       await runGitCommitStage(ctx);
     }
 
-    // Stage 4+5: Registry publishing
     if (!options.skipPublish) {
       if (!perPackageMode) {
-        // Batch mode: publish all, verify all, push all at the end (existing behavior).
+        // Batch mode: publish all, verify all, push all at the end.
         if (options.registry === 'all' || options.registry === 'npm') {
           await runNpmPublishStage(ctx);
         }
@@ -100,9 +90,6 @@ export async function runPipeline(
           await runPubPublishStage(ctx);
         }
       } else if (!options.skipPublish) {
-        // Per-package mode: for each update, publish → verify → push its tag.
-        // Uses a single-update context so existing stage logic is fully reused.
-        // Prepare push setup once to avoid redundant method detection and branch resolution per package.
         const pushSetup = !options.skipGit ? await preparePushSetup(ctx) : null;
 
         for (const update of input.updates) {
@@ -139,43 +126,40 @@ export async function runPipeline(
             ctx.output.verification.push(...singleCtx.output.verification);
           }
 
-          // Compute publish success for this package before pushing its tag
           singleCtx.output.publishSucceeded =
             singleCtx.output.npm.every((r) => r.success) &&
             singleCtx.output.cargo.every((r) => r.success) &&
             singleCtx.output.pub.every((r) => r.success);
 
-          // Push tag after publish/verify — only push if publish succeeded (commit is ready regardless).
+          // Tag only after a clean publish.
           if (!options.skipGit && update.tag && singleCtx.output.publishSucceeded) {
             await pushPackageTag(update.tag, ctx, pushSetup || undefined);
           }
         }
       }
 
-      // Stages throw on first failure (fail-fast), so reaching here means all packages succeeded.
-      // Only relevant for batch mode; per-package mode sets publishSucceeded per-loop but doesn't accumulate.
       if (!perPackageMode) {
         ctx.output.publishSucceeded =
           ctx.output.npm.every((r) => r.success) &&
           ctx.output.cargo.every((r) => r.success) &&
           ctx.output.pub.every((r) => r.success);
       } else {
-        // In per-package mode every singleCtx succeeded (stages throw on failure), so the overall run succeeded.
+        // Stages throw on failure, so reaching here means every package published.
         ctx.output.publishSucceeded = true;
       }
     }
 
-    // Stage 6: Verification (batch mode only — per-package mode verified inline above)
+    // Per-package mode verified inline above.
     if (!options.skipVerification && !options.skipPublish && !perPackageMode) {
       await runVerifyStage(ctx);
     }
 
-    // Stage 7: Git push — in per-package mode, whatever wasn't pushed inline above.
+    // In per-package mode, pushes whatever wasn't pushed inline above.
     if (!options.skipGit && (options.skipPublish || ctx.output.publishSucceeded)) {
       await runGitPushStage(ctx);
     }
 
-    // Stage 8: GitHub release — only if the push stage confirmed the tag landed on GitHub.
+    // Only once the push stage confirmed the tags landed on GitHub.
     if (!options.skipGithubRelease && ctx.output.git.pushed) {
       await runGithubReleaseStage(ctx);
     }

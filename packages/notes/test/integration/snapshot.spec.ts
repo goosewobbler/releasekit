@@ -12,7 +12,7 @@ vi.mock('../../src/llm/index.js', async (importOriginal) => {
 vi.mock('node:fs');
 
 // ---------------------------------------------------------------------------
-// Input fixture — representative entries that exercise all render features
+// Input fixture - representative entries that exercise all render features
 // ---------------------------------------------------------------------------
 
 const sampleInput: ChangelogInput = {
@@ -72,10 +72,6 @@ const MOCK_RESPONSE = JSON.stringify({
   ],
 });
 
-// ---------------------------------------------------------------------------
-// Snapshot test
-// ---------------------------------------------------------------------------
-
 describe('Pipeline: render snapshot', () => {
   beforeEach(() => {
     vi.mocked(fs.existsSync).mockReturnValue(false);
@@ -105,7 +101,7 @@ describe('Pipeline: render snapshot', () => {
             provider: 'mock',
             model: 'mock',
             tasks: { categorize: true, enhance: true },
-            examples: 0, // disable GitHub release fetching
+            examples: 0,
           },
         },
       },

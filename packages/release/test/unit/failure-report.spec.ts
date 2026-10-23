@@ -63,7 +63,7 @@ describe('buildLedger', () => {
       npmResult({ packageName: '@scope/a', version: '1.0.0', success: true }),
       npmResult({ packageName: '@scope/b', version: '1.0.0', success: true, alreadyPublished: true }),
       npmResult({ packageName: '@scope/c', version: '1.0.0', success: false, reason: 'npm 403 Forbidden' }),
-      // @scope/d has no result entry — the pipeline never reached it.
+      // @scope/d has no result entry - the pipeline never reached it.
     ]);
 
     const ledger = buildLedger(versionOutput, publishOutput);
@@ -166,7 +166,6 @@ describe('renderFailureReport', () => {
       recovery: { mode: 'standing-pr', standingPrNumber: 42 },
     });
     expect(parseFailureReportData(body)).toEqual({ label: 'v0.24.0', published: 1, total: 2 });
-    // Detection must survive copy-edits to the human-facing report text.
     const copyEdited = body.replace('did not complete', 'failed partway through');
     expect(parseFailureReportData(copyEdited)).toEqual({ label: 'v0.24.0', published: 1, total: 2 });
   });
@@ -244,13 +243,11 @@ describe('renderFailureReport', () => {
       errorMessage: 'npm 403',
       recovery: { mode: 'standing-pr', standingPrNumber: 42, retryLabelAvailable: true },
     });
-    // The label instruction is listed before the dispatch fallback.
     const labelIdx = body.indexOf('release:retry');
     const dispatchIdx = body.indexOf('--pr 42');
     expect(labelIdx).toBeGreaterThanOrEqual(0);
     expect(dispatchIdx).toBeGreaterThanOrEqual(0);
     expect(labelIdx).toBeLessThan(dispatchIdx);
-    // Still mentions that the label is removed / re-appliable, and keeps the dispatch fallback.
     expect(body).toContain('re-apply');
     expect(body).toContain('#42');
   });

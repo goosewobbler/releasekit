@@ -48,26 +48,17 @@ export function setQuietMode(quiet: boolean): void {
   quietMode = quiet;
 }
 
-/**
- * No-op retained for API compatibility.
- * JSON mode no longer suppresses stderr logging — JSON goes to stdout,
- * logs go to stderr, so they don't interfere.
- */
-export function setJsonMode(_json: boolean): void {
-  // intentionally empty
-}
+/** No-op: JSON goes to stdout and logs to stderr, so they don't interfere. */
+export function setJsonMode(_json: boolean): void {}
 
 export function getLogLevel(): LogLevel {
   return currentLevel;
 }
 
 function shouldLog(level: LogLevel): boolean {
-  // JSON mode no longer suppresses stderr logging — JSON output goes to stdout,
-  // logs go to stderr, so they don't interfere with each other.
   if (quietMode && level !== 'error') {
     return false;
   }
-  // Debug messages are shown when DEBUG env var is set or log level allows it
   if (level === 'debug' && (process.env.DEBUG === 'true' || process.env.DEBUG === '1')) {
     return true;
   }

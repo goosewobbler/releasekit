@@ -1,18 +1,10 @@
-/**
- * Markers delimiting a human-editable release-notes region inside a round-trippable surface
- * (a GitHub release body, or a standing-PR body). The tool seeds the region, a human may edit it,
- * and the tool extracts it back out — by marker slicing, never by parsing the surrounding prose.
- *
- * `NOTES_MARKER` is the region opener and is byte-identical to the original backfill provenance tag,
- * so `decideReleaseUpdate`'s `includes(NOTES_MARKER)` ownership check keeps working unchanged: a body
- * carrying the opener is recognised as releasekit-authored. The `-end` closer does not contain the
- * opener as a substring, so it never false-matches that check on its own.
- *
- * Multiple packages share one surface (a multi-package standing PR) by keying the markers:
- * `<!-- releasekit-notes:<key> -->` … `<!-- releasekit-notes-end:<key> -->`.
- */
+/** A human-editable notes region in a GitHub release or standing-PR body, delimited by markers so it round-trips. */
 import { extractMarkerRegion, neutralizeMarkers, wrapMarkerRegion } from './marker.js';
 
+/**
+ * `decideReleaseUpdate` treats a body containing this opener as releasekit-authored, and existing release bodies carry
+ * it, so it must stay byte-identical. The closer must not contain it as a substring.
+ */
 export const NOTES_MARKER = '<!-- releasekit-notes -->';
 export const NOTES_MARKER_END = '<!-- releasekit-notes-end -->';
 
@@ -24,22 +16,11 @@ function closeMarker(pkgKey?: string): string {
   return pkgKey ? `<!-- releasekit-notes-end:${pkgKey} -->` : NOTES_MARKER_END;
 }
 
-/**
- * Wrap rendered notes in the editable-region markers so they can be recognised and extracted later.
- * Content is neutralized first: notes prose (LLM/human/changelog free text) must never carry a live
- * releasekit marker, or a forged one would truncate/hijack a region or spoof the ownership check on
- * the next round-trip. This is the single wrap boundary for notes, so every path (LLM output, human
- * edits read back, and the non-LLM changelog fallback) is covered here.
- */
+/** The single wrap boundary for notes, so every source is neutralized here. */
 export function wrapNotesRegion(content: string, pkgKey?: string): string {
   return wrapMarkerRegion(neutralizeMarkers(content), openMarker(pkgKey), closeMarker(pkgKey));
 }
 
-/**
- * Extract the editable-region content from a body, or `undefined` when the opener is absent. The
- * notes-region adapter over {@link extractMarkerRegion}: pure marker slicing, with the legacy
- * "opener but no closer" body falling back to everything after the opener.
- */
 export function extractNotesRegion(body: string, pkgKey?: string): string | undefined {
   return extractMarkerRegion(body, openMarker(pkgKey), closeMarker(pkgKey));
 }

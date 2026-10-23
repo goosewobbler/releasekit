@@ -3,8 +3,6 @@ import { FakeGit } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReleaseOptions } from '../../src/types.js';
 
-// --- Mocks ---
-
 const mockLoadReleaseKitConfig = vi.fn();
 const mockLoadCIConfig = vi.fn();
 const mockForgeFor = vi.fn();
@@ -21,8 +19,7 @@ vi.mock('@releasekit/config', () => ({
   loadConfig: (...args: unknown[]) => ({ ...mockLoadReleaseKitConfig(...args), ci: mockLoadCIConfig() }),
 }));
 
-// The git seam backs `getHeadCommitMessage` (the skip-pattern guard's HEAD-subject read). A fresh
-// FakeGit per test, seeded via `gitCommits` (the `'*'` catch-all), drives `log({ format: '%s' })`.
+// The git seam backs `getHeadCommitMessage` (the skip-pattern guard's HEAD-subject read).
 let fakeGit: FakeGit;
 let gitLogSpy: ReturnType<typeof vi.spyOn> | undefined;
 function setGitSubject(subject: string) {
@@ -59,7 +56,6 @@ const MockVersionEngine = vi.fn(function (this: Record<string, unknown>, config,
   this.getWorkspacePackages = mockVersionEngineGetWorkspacePackages;
 });
 
-// Convenience getter to access the last call's arguments
 Object.defineProperty(MockVersionEngine, 'lastCall', {
   get() {
     const calls = MockVersionEngine.mock.calls;
@@ -89,8 +85,7 @@ const mockPublishRunPipeline = vi.fn();
 const mockPublishLoadConfig = vi.fn();
 
 vi.mock('@releasekit/publish', async (importOriginal) => {
-  // Pull the real PipelineError through so release.ts's `instanceof PipelineError` check works;
-  // only runPipeline/loadConfig are stubbed.
+  // Pull the real PipelineError through so release.ts's `instanceof PipelineError` check works.
   const actual = await importOriginal<typeof import('@releasekit/publish')>();
   return {
     PipelineError: actual.PipelineError,
@@ -112,8 +107,6 @@ vi.mock('@releasekit/core', async (importOriginal) => {
     setJsonMode: vi.fn(),
   };
 });
-
-// --- Fixtures ---
 
 const defaultOptions: ReleaseOptions = {
   dryRun: false,
@@ -168,8 +161,6 @@ const mockPublishOutput = {
   githubReleases: [],
 };
 
-// --- Tests ---
-
 describe('runRelease', () => {
   let runRelease: typeof import('../../src/release.js').runRelease;
 
@@ -179,7 +170,6 @@ describe('runRelease', () => {
     // Default HEAD subject is a non-release commit so the skip-pattern guard passes.
     setGitSubject('feat: some feature');
 
-    // Default mock setup
     mockForgeFor.mockReturnValue({});
     mockFindMergedPRsForCommit.mockResolvedValue([]);
     mockFetchPRLabels.mockResolvedValue([]);
@@ -202,7 +192,6 @@ describe('runRelease', () => {
     mockPublishLoadConfig.mockReturnValue(mockPublishConfig);
     mockPublishRunPipeline.mockResolvedValue(mockPublishOutput);
 
-    // Dynamic import to get fresh module
     const mod = await import('../../src/release.js');
     runRelease = mod.runRelease;
   });
@@ -602,7 +591,6 @@ describe('runRelease', () => {
 
       await runRelease({ ...defaultOptions, projectDir: '/custom/project' });
 
-      // getHeadCommitMessage reads the HEAD subject via `log({ format: '%s' })`, scoped to projectDir.
       expect(gitLogSpy).toHaveBeenCalledWith(expect.objectContaining({ format: '%s', cwd: '/custom/project' }));
     });
   });
@@ -689,8 +677,6 @@ describe('runRelease', () => {
     });
   });
 
-  // --- Scope label tests ---
-
   describe('scope labels', () => {
     const originalEnv = { ...process.env };
 
@@ -740,7 +726,6 @@ describe('runRelease', () => {
     });
 
     it('should skip scope label check for workflow_dispatch event', async () => {
-      // Set GITHUB_EVENT_NAME explicitly to workflow_dispatch before the test
       const originalEventName = process.env.GITHUB_EVENT_NAME;
       process.env.GITHUB_EVENT_NAME = 'workflow_dispatch';
 
@@ -754,11 +739,9 @@ describe('runRelease', () => {
         const { runRelease } = await import('../../src/release.js');
         const result = await runRelease(defaultOptions);
 
-        // workflow_dispatch should not query for merged PRs at all
         expect(mockFindMergedPRsForCommit).not.toHaveBeenCalled();
         expect(result).not.toBeNull();
       } finally {
-        // Restore original value
         if (originalEventName !== undefined) {
           process.env.GITHUB_EVENT_NAME = originalEventName;
         } else {
@@ -895,10 +878,8 @@ describe('runRelease', () => {
       });
 
       expect(result).not.toBeNull();
-      // In dry-run mode, the scope label should NOT override the CLI target
-      // because preview.ts handles scope targeting
+      // In dry-run the scope label doesn't override the CLI target: preview.ts handles scope targeting.
       expect(mockVersionEngineRun).toHaveBeenCalled();
-      // Verify the original CLI target was preserved (not overridden by scope:electron → @wdio/electron-*)
       const runOptions = MockVersionEngine.mock.calls[0]?.[1];
       expect(runOptions.targets).toEqual(['@wdio/native-types', '@wdio/tauri-service']);
     });
@@ -956,8 +937,6 @@ describe('runRelease', () => {
       expect(runOptions.targets).toEqual(['@wdio/electron-*']);
     });
   });
-
-  // --- resolveScopeToTarget tests ---
 
   describe('resolveScopeToTarget', () => {
     it('should resolve prefixed scope name (scope:electron)', async () => {

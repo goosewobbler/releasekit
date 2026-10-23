@@ -1,42 +1,27 @@
-/**
- * Workspace dependency graph — the internal (workspace-member-to-workspace-member) dependency
- * relationships used to order publishes dependencies-first and, later, to derive prerequisite
- * release sets. Ecosystem-agnostic: callers resolve each ecosystem's edges to workspace package
- * names (npm dependency keys ∩ workspace; cargo `path:` deps resolved to crate names) and hand the
- * graph already-named edges.
- */
-
 export type Ecosystem = 'npm' | 'cargo' | 'pub';
 
-/**
- * One workspace package as input to {@link buildDependencyGraph}. `deps` is the package's declared
- * dependency identifiers (names); any that aren't themselves workspace members are ignored when the
- * graph is built, so callers may pass a superset.
- */
 export interface GraphPackage {
-  /** Canonical package name (npm name / crate name). */
   name: string;
   /** Absolute package directory. */
   dir: string;
   ecosystem: Ecosystem;
-  /** Declared internal-dependency candidate names. Filtered to workspace members on build. */
+  /**
+   * Package names, already resolved by the caller (e.g. cargo `path:` deps to crate names). Non-members are ignored,
+   * so a superset is fine.
+   */
   deps: string[];
 }
 
 export interface WorkspaceDependencyGraph {
-  /** Direct internal dependencies of `name` (workspace members it depends on). */
   getInternalDependencies(name: string): Set<string>;
-  /** Direct internal dependents of `name` (workspace members that depend on it). */
   getInternalDependents(name: string): Set<string>;
-  /** Transitive closure of `name`'s internal dependencies, excluding `name` itself. */
+  /** Excludes `name` itself. */
   transitiveDependencies(name: string): Set<string>;
   /**
-   * The given names ordered dependencies-first: a dependency always precedes anything that depends
-   * on it. Names not in the graph are dropped; only edges among the given names are considered.
-   * Cycle members can't be ordered — they are appended in input order so nothing is lost.
+   * Dependencies first. Names not in the graph are dropped, and only edges among the given names count. Cycle members
+   * are appended in input order rather than dropped.
    */
   topologicalOrder(names: string[]): string[];
-  /** True when the workspace graph contains at least one dependency cycle. */
   hasCycle(): boolean;
 }
 
@@ -54,7 +39,6 @@ export function buildDependencyGraph(packages: GraphPackage[]): WorkspaceDepende
   }
   for (const p of packages) {
     for (const d of p.deps) {
-      // Ignore self-edges and dependencies outside the workspace (the ∩-workspace filter).
       if (d === p.name || !known.has(d)) {
         continue;
       }
@@ -95,7 +79,7 @@ export function buildDependencyGraph(packages: GraphPackage[]): WorkspaceDepende
       }
       indegree.set(n, degree);
     }
-    // Seed with nodes that have no in-subset dependencies, preserving input order for stability.
+    // Input order is preserved for a stable result.
     const ready = subset.filter((n) => indegree.get(n) === 0);
     const result: string[] = [];
     const emitted = new Set<string>();
@@ -117,7 +101,6 @@ export function buildDependencyGraph(packages: GraphPackage[]): WorkspaceDepende
         }
       }
     }
-    // Cycle members never reach indegree 0 — append them in input order rather than dropping them.
     for (const n of subset) {
       if (!emitted.has(n)) {
         result.push(n);
@@ -129,7 +112,6 @@ export function buildDependencyGraph(packages: GraphPackage[]): WorkspaceDepende
   let cycle: boolean | undefined;
   const hasCycle = (): boolean => {
     if (cycle === undefined) {
-      // A full toposort that can't emit every node has a cycle.
       const indegree = new Map<string, number>();
       for (const p of packages) {
         indegree.set(p.name, deps.get(p.name)?.size ?? 0);

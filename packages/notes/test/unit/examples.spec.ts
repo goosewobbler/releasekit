@@ -4,10 +4,6 @@ import { fetchExamples } from '../../src/llm/examples/fetcher.js';
 import { parseReleaseBodyToExample, renderExamplesBlock } from '../../src/llm/examples/parser.js';
 import type { Example } from '../../src/llm/examples/types.js';
 
-// ---------------------------------------------------------------------------
-// parseReleaseBodyToExample
-// ---------------------------------------------------------------------------
-
 describe('parseReleaseBodyToExample()', () => {
   it('should parse category headings and bullet entries', () => {
     const body = `
@@ -46,7 +42,6 @@ describe('parseReleaseBodyToExample()', () => {
   });
 
   it('should treat ## heading before ### heading as an overridable category', () => {
-    // ## is now a valid category; when followed by ###, the deeper heading wins
     const body = '## v1.0.0\n\n### New\n- Add feature\n';
     const result = parseReleaseBodyToExample(body, '1.0.0');
     expect(result?.entries[0]?.category).toBe('New');
@@ -72,10 +67,6 @@ describe('parseReleaseBodyToExample()', () => {
     expect(result?.entries[0]?.category).toBe('General');
   });
 });
-
-// ---------------------------------------------------------------------------
-// renderExamplesBlock
-// ---------------------------------------------------------------------------
 
 describe('renderExamplesBlock()', () => {
   it('should return empty string for empty examples array', () => {
@@ -129,7 +120,6 @@ describe('renderExamplesBlock()', () => {
   });
 
   it('should escape interpolated fields so an example cannot forge tags or inject markup', () => {
-    // Examples are built from past release bodies, so treat their content as attacker-influenceable.
     const examples: Example[] = [
       {
         version: '1.0.0<script>',
@@ -157,10 +147,6 @@ describe('renderExamplesBlock()', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// fetchExamples
-// ---------------------------------------------------------------------------
-
 describe('fetchExamples()', () => {
   beforeEach(() => {
     vi.stubEnv('GITHUB_TOKEN', 'test-token');
@@ -185,7 +171,6 @@ describe('fetchExamples()', () => {
   });
 
   it('should use provided githubToken over env', async () => {
-    // An explicit token lets fetchExamples proceed past the early token check without an env token.
     vi.stubEnv('GITHUB_TOKEN', '');
     vi.stubEnv('GH_TOKEN', '');
     const forge = createFakeForge({
@@ -204,17 +189,12 @@ describe('fetchExamples()', () => {
   });
 
   it('should return empty array and does not throw on API error', async () => {
-    // fetchExamples catches all forge errors and returns []
     const forge = createFakeForge();
     vi.spyOn(forge, 'listReleases').mockRejectedValue(new Error('boom'));
     const result = await fetchExamples({ owner: 'o', repo: 'r-err', packageName: 'pkg', count: 1, forge });
     expect(result).toEqual([]);
   });
 });
-
-// ---------------------------------------------------------------------------
-// fetchExamples() - release matching (monorepo / bare-version fallback)
-// ---------------------------------------------------------------------------
 
 describe('fetchExamples() - release matching', () => {
   // Pagination/page-bounding lives in the forge adapter (covered in packages/forge github.spec.ts);

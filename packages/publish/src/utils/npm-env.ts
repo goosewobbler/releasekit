@@ -13,8 +13,7 @@ export interface NpmEnvIsolation {
 function writeTempNpmrc(contents: string): { npmrcPath: string; cleanup: () => void } {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-npmrc-'));
   const npmrcPath = path.join(dir, '.npmrc');
-  // The temp `.npmrc` carries an auth token; write it owner-only (parity with config's saveAuth) so
-  // it isn't left readable even if the enclosing 0700 mkdtemp dir's protection is ever weakened.
+  // Carries an auth token, so owner-only even if the enclosing 0700 mkdtemp dir's protection is ever weakened.
   fs.writeFileSync(npmrcPath, contents, { encoding: 'utf-8', mode: 0o600 });
   return {
     npmrcPath,
@@ -29,11 +28,8 @@ function writeTempNpmrc(contents: string): { npmrcPath: string; cleanup: () => v
 }
 
 /**
- * Create an isolated npm config environment for subprocesses.
- *
- * Why: npm OIDC trusted publishing can be blocked by token-based config/env (e.g. NODE_AUTH_TOKEN,
- * setup-node injected auth settings). We isolate user config so OIDC mode doesn't accidentally use
- * token auth.
+ * Token-based npm config (e.g. setup-node's injected auth settings) can block OIDC trusted publishing, so
+ * subprocesses get an isolated userconfig.
  */
 export function createNpmSubprocessIsolation(options: {
   authMethod: NpmAuthMethod;
@@ -41,7 +37,6 @@ export function createNpmSubprocessIsolation(options: {
 }): NpmEnvIsolation {
   const { authMethod, registryUrl } = options;
 
-  // Default: no isolation. Still allow targeted env unsets.
   const baseEnv: Record<string, string | undefined> = {};
 
   if (!authMethod) {
@@ -57,12 +52,11 @@ export function createNpmSubprocessIsolation(options: {
     }
   })();
 
-  // OIDC mode: npm trusted publishing uses the OIDC exchange directly via npm's built-in
-  // support - no additional .npmrc configuration required.
+  // OIDC needs only the registry line; npm performs the trusted-publishing exchange itself.
   const lines: string[] = [`registry=${registryUrl}`];
 
   if (authMethod === 'token' && token) {
-    // Use registry-scoped token to avoid affecting other registries.
+    // Registry-scoped so the token isn't sent to other registries.
     lines.push(`//${registryHost}/:_authToken=${token}`);
   }
 
@@ -80,10 +74,9 @@ export function createNpmSubprocessIsolation(options: {
       // Ensure npm and tools that read npm_config_* pick up our temp file
       NPM_CONFIG_USERCONFIG: npmrcPath,
       npm_config_userconfig: npmrcPath,
-      // Auth-specific hardening
       ...(isOidc
         ? {
-            // Prevent any ambient token from overriding OIDC trusted publishing
+            // An ambient token would override OIDC trusted publishing
             NODE_AUTH_TOKEN: undefined,
             NPM_TOKEN: undefined,
           }
