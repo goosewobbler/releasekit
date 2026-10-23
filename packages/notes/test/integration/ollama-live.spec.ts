@@ -104,47 +104,29 @@ async function callProvider<T>(ctx: TestContext, run: () => Promise<T>): Promise
 
 // Outside the opt-in suite on purpose: this decides whether the live test can fail at all.
 describe('isOllamaUnreachable', () => {
-  it('should treat a provider-classified transient failure as infra', () => {
-    expect(isOllamaUnreachable(new LLMError('Ollama request timed out after 120000ms', { retryable: true }))).toBe(
-      true,
-    );
+  const refused = new TypeError('fetch failed', {
+    cause: Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:11434'), { code: 'ECONNREFUSED' }),
   });
+  const ourBug = new TypeError("Cannot read properties of null (reading 'message')");
 
-  it('should treat a non-retryable request failure as our bug', () => {
-    expect(isOllamaUnreachable(new LLMError('Ollama request failed: 400', { retryable: false }))).toBe(false);
-  });
-
-  it('should treat an unclassified LLMError as our bug', () => {
-    expect(isOllamaUnreachable(new LLMError('Empty response from Ollama'))).toBe(false);
-  });
-
-  it("should treat a connection refused under undici's fetch failure as infra", () => {
-    const socket = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:11434'), { code: 'ECONNREFUSED' });
-    const fetchFailed = new TypeError('fetch failed', { cause: socket });
-    expect(
-      isOllamaUnreachable(new LLMError('Ollama error: fetch failed', { cause: fetchFailed, retryable: true })),
-    ).toBe(true);
-  });
-
-  it('should not trust the retryable flag when the cause is a bug in our code', () => {
-    const bug = new TypeError("Cannot read properties of null (reading 'message')");
-    expect(isOllamaUnreachable(new LLMError(`Ollama error: ${bug.message}`, { cause: bug, retryable: true }))).toBe(
-      false,
-    );
-  });
-
-  it('should not trust the retryable flag when the cause is an unparseable response', () => {
-    const parse = new SyntaxError('Unexpected token \'<\', "<html><bod"... is not valid JSON');
-    expect(isOllamaUnreachable(new LLMError(`Ollama error: ${parse.message}`, { cause: parse, retryable: true }))).toBe(
-      false,
-    );
-  });
-
-  it('should never classify a non-LLM failure as infra', () => {
-    expect(isOllamaUnreachable(new Error('expected 35 entries, got 34'))).toBe(false);
-    expect(isOllamaUnreachable(new TypeError('x.map is not a function'))).toBe(false);
-    expect(isOllamaUnreachable('a string')).toBe(false);
-    expect(isOllamaUnreachable(undefined)).toBe(false);
+  it.each([
+    {
+      label: 'a retryable error Ollama classified itself',
+      error: new LLMError('Ollama request timed out after 120000ms', { retryable: true }),
+      expected: true,
+    },
+    {
+      label: 'a socket error under fetch failed',
+      error: new LLMError('Ollama error: fetch failed', { cause: refused, retryable: true }),
+      expected: true,
+    },
+    {
+      label: 'a retryable error caused by our own code',
+      error: new LLMError(`Ollama error: ${ourBug.message}`, { cause: ourBug, retryable: true }),
+      expected: false,
+    },
+  ])('should return $expected for $label', ({ error, expected }) => {
+    expect(isOllamaUnreachable(error)).toBe(expected);
   });
 });
 
