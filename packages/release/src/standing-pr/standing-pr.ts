@@ -156,6 +156,17 @@ export interface StandingPRManifest {
   prereleased?: string[];
 }
 
+/** Sync changelogs are keyed `monorepo` (or `mainPackage`), not a publishable package name. */
+function notesRegionPackageNames(versionOutput: VersionOutput): string[] {
+  const fromChangelogs = versionOutput.changelogs
+    .map((changelog) => changelog.packageName)
+    .filter((name) => name.length > 0);
+  if (fromChangelogs.length > 0) {
+    return fromChangelogs;
+  }
+  return publishableUpdates(versionOutput).map((update) => update.packageName);
+}
+
 async function getHeadSha(cwd: string): Promise<string> {
   try {
     return await createGitCli().headSha(cwd);
@@ -1159,15 +1170,15 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     return closeEmptyQueue(existingStandingPr, githubContext);
   }
 
-  const previewPackages = publishableUpdates(versionOutput).map((u) => u.packageName);
+  const notesKeys = notesRegionPackageNames(versionOutput);
   let editedNotes: Record<string, string> = {};
   if (previewNotesEnabled && liveBody) {
-    editedNotes = extractNotesRegions(liveBody, previewPackages);
+    editedNotes = extractNotesRegions(liveBody, notesKeys);
   }
 
   // Notes are seeded once when the label is applied, then preserved, so skip the LLM when every package has a region.
   info('Generating changelog...');
-  const allPackagesHaveRegions = previewPackages.length > 0 && previewPackages.every((p) => p in editedNotes);
+  const allPackagesHaveRegions = notesKeys.length > 0 && notesKeys.every((name) => name in editedNotes);
   const generateReleaseNotes = previewNotesEnabled && !allPackagesHaveRegions;
   const notesOptions = { ...writeOptions, skipNotes: false, skipReleaseNotes: !generateReleaseNotes };
   const notesResult = await runNotesStep(versionOutput, notesOptions);
@@ -1584,10 +1595,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   // From the body, not the manifest: the manifest holds machine state only.
   let editedNotes: Record<string, string> = {};
   if (livePr) {
-    editedNotes = extractNotesRegions(
-      livePr.body ?? '',
-      publishableUpdates(manifest.versionOutput).map((u) => u.packageName),
-    );
+    editedNotes = extractNotesRegions(livePr.body ?? '', notesRegionPackageNames(manifest.versionOutput));
   }
 
   let releaseNotes: Record<string, string> = {};
