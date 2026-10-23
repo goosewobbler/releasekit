@@ -14,9 +14,11 @@ export function debugLogMessages(providerName: string, messages: LLMMessage[]): 
   if (process.env.RELEASEKIT_DEBUG !== '1') {
     return;
   }
-  console.error(`[RELEASEKIT_DEBUG] ${providerName} messages (${messages.length}):`);
+  const lines = [`[RELEASEKIT_DEBUG] ${providerName} messages (${messages.length}):`];
   for (const msg of messages) {
     const preview = msg.content.length > 300 ? `${msg.content.slice(0, 300)}…` : msg.content;
-    console.error(`  [${msg.role}]: ${preview}`);
+    lines.push(`  [${msg.role}]: ${preview}`);
   }
+  // biome-ignore lint/suspicious/noConsole: RELEASEKIT_DEBUG=1 should always print this; the logger would hide it under --quiet
+  console.error(lines.join('\n'));
 }

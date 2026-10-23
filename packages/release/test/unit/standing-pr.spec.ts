@@ -92,6 +92,7 @@ vi.mock('node:fs', () => ({
 }));
 
 vi.mock('@releasekit/config', () => ({
+  DEFAULT_DEMOTE_SCOPES: ['deps', 'deps-dev'],
   loadCIConfig: vi.fn(),
   loadConfig: vi.fn().mockReturnValue({
     ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: true } },
@@ -409,6 +410,24 @@ describe('runStandingPRUpdate', () => {
 
     expect(result.action).toBe('created');
     expect(forge.createdPullRequests).toHaveLength(1);
+  });
+
+  it('should target main when git.branch is unset', async () => {
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValue({
+      ...defaultConfig,
+      git: { remote: 'origin', pushMethod: 'auto' },
+    } as ReturnType<typeof loadConfig>);
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+    vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+
+    const forge = await mockForge({ standingPR: null });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(forge.createdPullRequests[0]?.base).toBe('main');
   });
 
   it('should enable prerequisites in the version run when the with-prerequisites label is present', async () => {

@@ -6,13 +6,23 @@ Each section below covers a specific failure mode. Search for the exact message 
 
 ## Version stage
 
-### No new commits found for X since tag Y, skipping version bump
+### No relevant commits found for X since Y, skipping version bump
 
-**Symptom:** The version stage logs `No new commits found for <package> since tag <tag>, skipping version bump` and exits with code 0.
+**Symptom:** The version stage logs `No relevant commits found for <package> since <tag>, skipping version bump` and exits with code 0.
 
-**Cause:** There are commits since the tag, but none qualify as releasable under the configured preset. The default `conventionalcommits` preset treats only `feat:`, `fix:`, and `BREAKING CHANGE` as releasable. Commits with types like `chore:`, `docs:`, `refactor:`, `test:`, and `ci:` are not releasable.
+**Cause:** There are commits since the tag, but none triggers a bump under the configured preset. With `conventionalcommits` (the default), only `feat`, `fix`, `perf`, `revert` and breaking changes do; `chore`, `docs`, `refactor`, `test`, `ci` and similar don't.
 
-**Fix:** Either (a) add a releasable commit (`feat:` or `fix:`), (b) force a bump with `--bump patch`, or (c) extend the preset's `releasableTypes` in config if your project treats additional types as releasable. Confirm which commits exist with `git log <tag>..HEAD --oneline`.
+**Fix:** Either (a) add a releasable commit, (b) force a bump with `--bump patch`, or (c) set `"preset": "angular"`, which releases at least a patch for any commit but doesn't treat a `type!:` header as breaking. Confirm which commits exist with `git log <tag>..HEAD --oneline`.
+
+---
+
+### No new commits found for X since Y, skipping version bump
+
+**Symptom:** The version stage logs `No new commits found for <package> since <tag>, skipping version bump` and exits with code 0.
+
+**Cause:** No commit since the tag touches the package's directory (the repo root in sync mode).
+
+**Fix:** None needed if nothing changed. Otherwise check that the changes are under the package's path with `git log <tag>..HEAD --oneline -- <package-dir>`, and that `<tag>` is the release you expect.
 
 ---
 

@@ -24,6 +24,13 @@
   },
   "formatter": {
     "enabled": true,
+    // Skip generated YAML and all Markdown.
+    "includes": [
+      "**",
+      "!**/*.md",
+      "!pnpm-lock.yaml",
+      "!.github/workflows/examples-smoke.yml"
+    ],
     "formatWithErrors": false,
     "indentStyle": "space",
     "indentWidth": 2,
@@ -41,7 +48,7 @@
       "**"
     ],
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "style": {
         "useBlockStatements": {
           "level": "error",
@@ -68,6 +75,12 @@
       "expand": "always"
     }
   },
+  "yaml": {
+    "formatter": {
+      "quoteStyle": "single",
+      "bracketSpacing": false
+    }
+  },
   "overrides": [
     {
       "includes": [
@@ -89,7 +102,7 @@
             "useAsConstAssertion": "error"
           },
           "suspicious": {
-            "noExplicitAny": "warn",
+            "noExplicitAny": "error",
             "noExtraNonNullAssertion": "error",
             "noRedeclare": "off"
           }
@@ -123,6 +136,23 @@
         "rules": {
           "performance": {
             "noBarrelFile": "error"
+          }
+        }
+      }
+    },
+    {
+      // Disallow console except in the loggers and CLI command files.
+      "includes": [
+        "packages/*/src/**",
+        "!packages/core/src/logger.ts",
+        "!packages/version/src/utils/logging.ts",
+        "!packages/*/src/command.ts",
+        "!packages/*/src/commands/**"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "error"
           }
         }
       }

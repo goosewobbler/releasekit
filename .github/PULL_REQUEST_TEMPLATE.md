@@ -21,6 +21,7 @@
 - [ ] `@releasekit/version`
 - [ ] `@releasekit/notes`
 - [ ] `@releasekit/publish`
+- [ ] `@releasekit/release`
 - [ ] `@releasekit/config`
 - [ ] `@releasekit/core`
 - [ ] CI / workflows

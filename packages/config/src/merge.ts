@@ -7,7 +7,6 @@ export function mergeGitConfig(topLevel?: GitConfig, packageLevel?: PublishGitCo
 
   const base: GitConfig = topLevel ?? {
     remote: 'origin',
-    branch: 'main',
     pushMethod: 'auto',
   };
 

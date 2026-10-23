@@ -12,9 +12,17 @@ import { z } from 'zod';
 // schema:gen` (then `pnpm docs:config`).
 // ---------------------------------------------------------------------------
 
+/** Dependabot's default commit scopes: `deps` for production bumps, `deps-dev` for development bumps. */
+export const DEFAULT_DEMOTE_SCOPES: readonly string[] = ['deps', 'deps-dev'];
+
 export const GitConfigSchema = z.object({
   remote: z.string().default('origin').describe('Git remote name'),
-  branch: z.string().default('main').describe('Default branch name'),
+  branch: z
+    .string()
+    .optional()
+    .describe(
+      'Branch that releases land on: a direct release pushes its commit here, and the standing release PR targets it. When unset, a direct release pushes the current branch and the standing PR targets main.',
+    ),
   pushMethod: z.enum(['auto', 'ssh', 'https']).default('auto').describe('Method for pushing to remote'),
   push: z.boolean().optional().describe('Whether to push changes to remote'),
   httpsTokenEnv: z.string().optional().describe('Environment variable name containing a GitHub token for HTTPS pushes'),
@@ -353,9 +361,9 @@ export const ChangelogConfigSchema = z
       ),
     demoteScopes: z
       .array(z.string())
-      .default(['deps'])
+      .default([...DEFAULT_DEMOTE_SCOPES])
       .describe(
-        'Conventional-commit scopes whose changelog entries are demoted into a trailing "Dependencies & version bumps" subsection instead of interleaving with Added / Fixed / Changed. Applies to the standing-PR changelogs — each releasable row and the "Show all changes" footer. Nothing is hidden or dropped: low-signal dependency bumps just stop crowding the user-facing changes at the top, and a reader who wants the exact per-package deps expands the subsection. The de-duplicated change count is unchanged. Default: ["deps"]. Set to [] to render every scope inline.',
+        'Conventional-commit scopes whose changelog entries are demoted into a trailing "Dependencies & version bumps" subsection instead of interleaving with Added / Fixed / Changed. Applies to the standing-PR changelogs — each releasable row and the "Show all changes" footer. Nothing is hidden or dropped: low-signal dependency bumps just stop crowding the user-facing changes at the top, and a reader who wants the exact per-package deps expands the subsection. The de-duplicated change count is unchanged. Default: ["deps", "deps-dev"] (the scopes Dependabot uses for production and development bumps). Set to [] to render every scope inline.',
       ),
   })
   .describe('Changelog file configuration');

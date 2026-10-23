@@ -1,8 +1,9 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { cwd } from 'node:process';
+import { inspect } from 'node:util';
 import { getPackagesSync, type Package, type Packages } from '@manypkg/get-packages';
-import { filterPackagesByConfig, parseCargoToml, parsePubspec } from '@releasekit/config';
+import { filterPackagesByConfig, isCratePublishable, parseCargoToml, parsePubspec } from '@releasekit/config';
 import { isPrivatePackageJson, shouldMatchPackageTargets } from '@releasekit/core';
 import { minimatch } from 'minimatch';
 import * as yaml from 'yaml';
@@ -186,9 +187,7 @@ export class VersionEngine {
         // Parse Cargo.toml
         const cargoData = parseCargoToml(fullCargoPath);
 
-        // Skip crates that explicitly opt out of publishing (`publish = false` or `publish = []`).
-        const publishField = cargoData.package?.publish;
-        if (publishField === false || (Array.isArray(publishField) && publishField.length === 0)) {
+        if (!isCratePublishable(cargoData)) {
           log(`Skipping Rust package at ${packageDir}: publish = false`, 'debug');
           continue;
         }
@@ -621,7 +620,7 @@ export class VersionEngine {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       log(`Failed to get packages information: ${errorMessage}`, 'error');
-      console.error(error);
+      log(inspect(error), 'error');
 
       // Throw a more specific error for better error handling upstream
       throw createVersionError(VersionErrorCode.WORKSPACE_ERROR, errorMessage);
@@ -649,11 +648,11 @@ export class VersionEngine {
 
         // Enhanced error logging for GitError
         if (error instanceof GitError) {
-          console.error('Git error details:');
+          log('Git error details:', 'error');
           if (error.message.includes('Command failed:')) {
             const cmdOutput = error.message.split('Command failed:')[1];
             if (cmdOutput) {
-              console.error('Command output:', cmdOutput.trim());
+              log(`Command output: ${cmdOutput.trim()}`, 'error');
             }
           }
         }
@@ -662,8 +661,8 @@ export class VersionEngine {
         log(`Version engine failed: ${errorMessage}`, 'error');
 
         if (error instanceof Error && error.stack) {
-          console.error('Error stack trace:');
-          console.error(error.stack);
+          log('Error stack trace:', 'error');
+          log(error.stack, 'error');
         }
       }
       throw error;

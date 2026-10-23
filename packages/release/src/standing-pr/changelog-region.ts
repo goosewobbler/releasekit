@@ -1,3 +1,4 @@
+import { DEFAULT_DEMOTE_SCOPES } from '@releasekit/config';
 import {
   type ChangelogRefsMode,
   escapeChangelogMentions,
@@ -243,17 +244,13 @@ function repoUrlOf(changelogs: VersionOutput['changelogs']): string | null {
  * the indent that nests the block under its row. It returns the collapsed `<details>` block, or `''`
  * when those packages have no real changelog entries.
  *
- * The channel-section grouping regroups *where* rows are placed; it reuses this renderer unchanged
- * to keep *how* changelogs attach to a row identical. `refs` (`changelog.refs`, default `'link'`)
- * controls how bare `#NNN`
- * refs render. `demoteScopes` (`changelog.demoteScopes`, default `['deps']`) routes matching-
- * scope entries into a trailing "Dependencies & version bumps" subsection instead of interleaving
- * them; the `(N entries)` count still counts every entry, demoted included.
+ * Channel-section grouping reuses this renderer, so changelogs attach to rows the same way everywhere.
+ * `refs` and `demoteScopes` come from `changelog.*`; demoted entries still count toward `(N entries)`.
  */
 export function makeRowChangelogRenderer(
   changelogs: VersionOutput['changelogs'],
   refs: ChangelogRefsMode = 'link',
-  demoteScopes: readonly string[] = ['deps'],
+  demoteScopes: readonly string[] = DEFAULT_DEMOTE_SCOPES,
 ): RowChangelogRenderer {
   const byPkg = new Map(changelogs.map((cl) => [cl.packageName, cl]));
   const refOpts: RefRenderOptions = { refs, repoUrl: repoUrlOf(changelogs) };
@@ -327,5 +324,5 @@ export function renderCombinedFooter(
     ? `Show project-wide changes (${n} ${n === 1 ? 'change' : 'changes'})`
     : `Show all changes (${n} ${n === 1 ? 'change' : 'changes'}, de-duplicated)`;
   const refOpts: RefRenderOptions = { refs: opts.refs ?? 'link', repoUrl: repoUrlOf(versionOutput.changelogs) };
-  return wrapDetails(summary, renderGrouped(deduped, refOpts, opts.demoteScopes ?? ['deps']), '');
+  return wrapDetails(summary, renderGrouped(deduped, refOpts, opts.demoteScopes ?? DEFAULT_DEMOTE_SCOPES), '');
 }

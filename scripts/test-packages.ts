@@ -19,10 +19,11 @@
  */
 
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stringify as stringifyYaml } from 'yaml';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -150,23 +151,32 @@ function createPackageJson(dir: string, pkg: string, tarballs: Record<PackageNam
 
   deps[`@releasekit/${pkg}`] = `file:${tarballs[pkg as PackageName]}`;
 
+  // Pin the repo's pnpm so a local run installs with the same pnpm as CI, not whatever is on PATH.
+  const { packageManager } = JSON.parse(readFileSync(join(rootDir, 'package.json'), 'utf-8')) as {
+    packageManager?: string;
+  };
   const packageJson = {
     name: `@releasekit/test-${pkg}`,
     version: '0.0.0',
     private: true,
     type: 'module',
+    ...(packageManager ? { packageManager: packageManager.split('+')[0] } : {}),
     dependencies: deps,
-    pnpm: { overrides },
   };
 
   writeFileSync(join(dir, 'package.json'), JSON.stringify(packageJson, null, 2));
 
-  // Disable hoisting so missing dependencies are not masked by sibling installs.
-  // We use public-hoist-pattern to allow conventional-changelog presets to be
-  // found by the preset loader (which dynamically imports them across packages).
+  // pnpm 11+ reads these only from pnpm-workspace.yaml (not package.json's `pnpm` field or .npmrc).
+  // Disable hoisting so missing dependencies are not masked by sibling installs. We use
+  // publicHoistPattern to allow conventional-changelog presets to be found by the preset loader
+  // (which dynamically imports them across packages).
   writeFileSync(
-    join(dir, '.npmrc'),
-    'hoist=false\npublic-hoist-pattern[]=conventional-changelog-*\npublic-hoist-pattern[]=conventional-commits-*\n',
+    join(dir, 'pnpm-workspace.yaml'),
+    stringifyYaml({
+      overrides,
+      hoist: false,
+      publicHoistPattern: ['conventional-changelog-*', 'conventional-commits-*'],
+    }),
   );
 }
 

@@ -1,6 +1,9 @@
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { createFakeGit, type FakeGit, type FakeGitSeed } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getDefaultConfig } from '../../../src/config.js';
+import { getDefaultConfig, loadConfig } from '../../../src/config.js';
 import { PublishError } from '../../../src/errors/index.js';
 import { pushPackageTag, runGitPushStage } from '../../../src/stages/git-push.js';
 import type { PipelineContext } from '../../../src/types.js';
@@ -81,9 +84,30 @@ describe('git-push stage', () => {
     // branch push then tags push, both to the plain remote name.
     expect(fakeGit.pushed).toEqual([
       expect.objectContaining({ remote: 'origin', ref: 'main' }),
-      expect.objectContaining({ remote: 'origin', tags: true }),
+      expect.objectContaining({ remote: 'origin', ref: 'refs/tags/v1.0.0' }),
     ]);
     expect(ctx.output.git.pushed).toBe(true);
+  });
+
+  it("should push only this release's tags, each once", async () => {
+    const ctx = createContext({
+      output: {
+        dryRun: false,
+        git: { committed: false, tags: ['pkg-a@v1.1.0', 'release/pkg-a@v1.1.0', 'pkg-a@v1.1.0'], pushed: false },
+        npm: [],
+        cargo: [],
+        verification: [],
+        githubReleases: [],
+      },
+    });
+
+    await runGitPushStage(ctx);
+
+    expect(fakeGit.pushed).toEqual([
+      expect.objectContaining({ ref: 'refs/tags/pkg-a@v1.1.0' }),
+      expect.objectContaining({ ref: 'refs/tags/release/pkg-a@v1.1.0' }),
+    ]);
+    expect(fakeGit.pushed.some((push) => push.tags)).toBe(false);
   });
 
   it('should push using authed GitHub URL when httpsTokenEnv is configured', async () => {
@@ -98,7 +122,7 @@ describe('git-push stage', () => {
     const authedUrl = 'https://x-access-token:gh_test_token@github.com/org/repo.git';
     // Both pushes target the authed URL as the remote.
     expect(fakeGit.pushed[0]).toEqual(expect.objectContaining({ remote: authedUrl, ref: 'main' }));
-    expect(fakeGit.pushed[1]).toEqual(expect.objectContaining({ remote: authedUrl, tags: true }));
+    expect(fakeGit.pushed[1]).toEqual(expect.objectContaining({ remote: authedUrl, ref: 'refs/tags/v1.0.0' }));
   });
 
   it('should not attempt token auth when httpsTokenEnv is not configured', async () => {
@@ -110,7 +134,7 @@ describe('git-push stage', () => {
     // No remoteUrl read happened (no authed rewrite); pushes target the plain remote name.
     expect(fakeGit.pushed).toEqual([
       expect.objectContaining({ remote: 'origin', ref: 'main' }),
-      expect.objectContaining({ remote: 'origin', tags: true }),
+      expect.objectContaining({ remote: 'origin', ref: 'refs/tags/v1.0.0' }),
     ]);
   });
 
@@ -125,7 +149,7 @@ describe('git-push stage', () => {
 
     expect(fakeGit.pushed).toEqual([
       expect.objectContaining({ remote: 'origin', ref: 'main' }),
-      expect.objectContaining({ remote: 'origin', tags: true }),
+      expect.objectContaining({ remote: 'origin', ref: 'refs/tags/v1.0.0' }),
     ]);
 
     delete process.env.MY_TOKEN;
@@ -137,6 +161,25 @@ describe('git-push stage', () => {
     await runGitPushStage(ctx);
 
     expect(fakeGit.pushed[0]).toEqual(expect.objectContaining({ remote: 'origin', ref: 'feature/my-branch' }));
+  });
+
+  it.each([
+    ['a top-level git block', { git: { remote: 'origin' } }],
+    ['top-level git and publish blocks', { git: { remote: 'origin' }, publish: {} }],
+    ['a publish.git block', { publish: { git: { push: true } } }],
+  ])('should push the current branch for a loaded config with %s but no branch', async (_label, fileConfig) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-git-push-test-'));
+    try {
+      fs.writeFileSync(path.join(dir, 'releasekit.config.json'), JSON.stringify(fileConfig));
+      seedGit({ currentBranch: 'feature/my-branch' });
+      const ctx = createContext({ config: loadConfig({ cwd: dir }) });
+
+      await runGitPushStage(ctx);
+
+      expect(fakeGit.pushed[0]).toEqual(expect.objectContaining({ remote: 'origin', ref: 'feature/my-branch' }));
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('should throw a clear error when in detached HEAD state', async () => {
@@ -222,7 +265,7 @@ describe('git-push stage', () => {
 
     await runGitPushStage(ctx);
 
-    expect(fakeGit.pushed).toEqual([expect.objectContaining({ remote: 'origin', tags: true })]);
+    expect(fakeGit.pushed).toEqual([expect.objectContaining({ remote: 'origin', ref: 'refs/tags/v1.0.0' })]);
     expect(currentBranchSpy).not.toHaveBeenCalled();
   });
 

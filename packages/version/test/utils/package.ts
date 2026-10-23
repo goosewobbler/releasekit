@@ -8,7 +8,6 @@ export function createPackageJson(dir: string, name: string, version = '0.1.0') 
   const packageJson = {
     name,
     version,
-    private: true,
   };
 
   writeFileSync(join(dir, 'package.json'), JSON.stringify(packageJson, null, 2));

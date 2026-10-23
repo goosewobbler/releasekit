@@ -37,8 +37,8 @@ jobs:
           all: ${{ inputs.package == '' }}
           from: ${{ inputs.from }}
           to: ${{ inputs.to }}
-          update-releases: "true"
-          only-missing: "true"
+          update-releases: 'true'
+          only-missing: 'true'
           apply: ${{ inputs.apply }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
