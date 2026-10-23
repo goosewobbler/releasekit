@@ -74,6 +74,8 @@ export interface FakeGitSeed {
   commitCounts?: Record<string, number>;
   /** Working-tree status text returned by `status`. Defaults to empty (clean). */
   status?: string;
+  /** Whether `hasStagedChanges` reports staged changes. Defaults to true, as after adding changed files. */
+  stagedChanges?: boolean;
 }
 
 function ancestryHas(ancestors: FakeGitSeed['ancestors'], ancestor: string, ref: string): boolean {
@@ -107,6 +109,7 @@ export class FakeGit implements Git {
   private readonly refLines: string[];
   private readonly commitCounts: Record<string, number>;
   private statusText: string;
+  private readonly stagedChanges: boolean;
 
   // Recorded mutations, for assertions.
   readonly added: string[][] = [];
@@ -136,6 +139,7 @@ export class FakeGit implements Git {
     this.refLines = [...(seed.refLines ?? [])];
     this.commitCounts = seed.commitCounts ?? {};
     this.statusText = seed.status ?? '';
+    this.stagedChanges = seed.stagedChanges ?? true;
   }
 
   // — Queries —
@@ -205,6 +209,10 @@ export class FakeGit implements Git {
 
   async remoteBranchExists(remote: string, branch: string, _cwd?: string): Promise<boolean> {
     return (this.remoteBranches[remote] ?? []).includes(branch);
+  }
+
+  async hasStagedChanges(_cwd?: string): Promise<boolean> {
+    return this.stagedChanges;
   }
 
   // — Mutations —

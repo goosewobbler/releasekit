@@ -1,9 +1,34 @@
 import * as path from 'node:path';
 import { info, success } from '@releasekit/core';
-import { createGitCli } from '@releasekit/git';
+import { createGitCli, type Git } from '@releasekit/git';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext } from '../types.js';
 import { runGit } from '../utils/git.js';
+
+async function hasStagedChanges(git: Git, cwd: string): Promise<boolean> {
+  try {
+    return await git.hasStagedChanges(cwd);
+  } catch (error) {
+    throw createPublishError(
+      PublishErrorCode.GIT_COMMIT_ERROR,
+      `git diff --cached failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+async function assertHeadIsReleaseCommit(git: Git, commitMessage: string, cwd: string): Promise<void> {
+  const subject = commitMessage.split('\n')[0]?.trim();
+  const headSubject = await git
+    .log({ range: 'HEAD', format: '%s', extraArgs: ['-1'], cwd })
+    .then((out) => out.trim())
+    .catch(() => '');
+  if (headSubject !== subject) {
+    throw createPublishError(
+      PublishErrorCode.GIT_COMMIT_ERROR,
+      `Nothing to commit, and HEAD ("${headSubject}") is not the release commit ("${subject}")`,
+    );
+  }
+}
 
 /** Error strategy: THROWS. Git is a prerequisite — failure halts pipeline. */
 export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
@@ -39,20 +64,26 @@ export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
       );
     }
 
-    // Create commit
-    try {
-      await runGit(dryRun, `git commit -m "${input.commitMessage}"`, () =>
-        git.commit(input.commitMessage as string, { cwd, skipHooks }),
-      );
-      ctx.output.git.committed = true;
-      if (!dryRun) {
-        success('Created git commit');
+    // A dry run skipped the add, so the index can't say whether there is anything to commit.
+    if (dryRun || (await hasStagedChanges(git, cwd))) {
+      try {
+        await runGit(dryRun, `git commit -m "${input.commitMessage}"`, () =>
+          git.commit(input.commitMessage as string, { cwd, skipHooks }),
+        );
+        ctx.output.git.committed = true;
+        if (!dryRun) {
+          success('Created git commit');
+        }
+      } catch (error) {
+        throw createPublishError(
+          PublishErrorCode.GIT_COMMIT_ERROR,
+          `git commit failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
-    } catch (error) {
-      throw createPublishError(
-        PublishErrorCode.GIT_COMMIT_ERROR,
-        `git commit failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
+    } else {
+      await assertHeadIsReleaseCommit(git, input.commitMessage, cwd);
+      ctx.releaseCommitReused = true;
+      info('Nothing to commit: HEAD is already the release commit, reusing it');
     }
   }
 

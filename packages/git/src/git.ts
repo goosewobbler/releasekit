@@ -283,6 +283,18 @@ export class GitCli implements Git {
     });
   }
 
+  async hasStagedChanges(cwd?: string): Promise<boolean> {
+    try {
+      await this.exec(['diff', '--cached', '--quiet'], { cwd: this.cwd(cwd), ignoreOutput: true });
+      return false;
+    } catch (error) {
+      if (error instanceof GitError && error.exitCode === 1) {
+        return true;
+      }
+      throw error;
+    }
+  }
+
   // — Mutations —
 
   async addAll(cwd?: string): Promise<void> {

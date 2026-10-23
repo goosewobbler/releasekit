@@ -11,6 +11,7 @@ describe('FakeGit queries', () => {
       remoteUrls: { origin: 'git@github.com:o/r.git' },
       commitCounts: { 'v1..HEAD': 3 },
       status: ' M a.ts\n',
+      stagedChanges: false,
     });
 
     expect(await git.isRepository()).toBe(true);
@@ -23,6 +24,7 @@ describe('FakeGit queries', () => {
     expect(await git.countCommits('v1..HEAD')).toBe(3);
     expect(await git.countCommits('absent..HEAD')).toBe(0);
     expect(await git.status({ porcelain: true })).toBe(' M a.ts\n');
+    expect(await git.hasStagedChanges()).toBe(false);
   });
 
   it('should default to a repo with main/zeroed-sha and empty/null reads when unseeded', async () => {
@@ -33,6 +35,10 @@ describe('FakeGit queries', () => {
     expect(await git.describeTags()).toBeNull();
     expect(await git.listTags()).toEqual([]);
     expect(await git.status()).toBe('');
+  });
+
+  it('should report staged changes unless seeded otherwise', async () => {
+    expect(await createFakeGit().hasStagedChanges()).toBe(true);
   });
 
   it('should honour an isRepo: false seed', async () => {

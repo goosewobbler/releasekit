@@ -146,6 +146,8 @@ export interface Git {
   forEachRef(opts: GitForEachRefOptions): Promise<string[]>;
   /** Whether `branch` exists on `remote` (`ls-remote --exit-code --heads`). */
   remoteBranchExists(remote: string, branch: string, cwd?: string): Promise<boolean>;
+  /** Whether the index differs from `HEAD` (`diff --cached --quiet` exits 1). */
+  hasStagedChanges(cwd?: string): Promise<boolean>;
 
   // — Mutations —
   /** Stage the given pathspecs (`add -- <paths>`). To stage everything, use {@link Git.addAll}. */
