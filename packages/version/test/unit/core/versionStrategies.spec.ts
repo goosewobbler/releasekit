@@ -220,6 +220,26 @@ describe('Version Strategies', () => {
       expect(jsonOutput.setPackageUpdateTag).not.toHaveBeenCalled();
     });
 
+    it('should version a pub-only package and not abandon it', async () => {
+      vi.mocked(fs.existsSync, { partial: true }).mockImplementation((filePath) =>
+        String(filePath).endsWith('pubspec.yaml'),
+      );
+      const config: Partial<Config> = { ...defaultConfig, sync: true };
+      await strategies.createSyncStrategy(config as Config)(mockPackages);
+
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/test/workspace/packages/a/pubspec.yaml',
+        '1.1.0',
+        false,
+      );
+      expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
+        packageAPath,
+        expect.anything(),
+        expect.anything(),
+      );
+      expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
+    });
+
     it('should still version Cargo.toml and not abandon it when npm handling is disabled on a hybrid repo', async () => {
       // The existsSync mock makes every package a hybrid (package.json & Cargo.toml).
       const config: Partial<Config> = { ...defaultConfig, sync: true, npm: { enabled: false } };
@@ -760,6 +780,17 @@ describe('Version Strategies', () => {
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
       expect(jsonOutput.setPackageUpdateTag).toHaveBeenCalledWith('package-a', 'v1.1.0');
       expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a v1.1.0');
+    });
+
+    it('should update pubspec.yaml in single mode', async () => {
+      const config: Partial<Config> = { ...defaultConfig, mainPackage: 'package-a' };
+      await strategies.createSingleStrategy(config as Config)(mockPackages);
+
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/test/workspace/packages/a/pubspec.yaml',
+        '1.1.0',
+        false,
+      );
     });
 
     it('should warn and omit previousVersion when the baseline tag is unverifiable', async () => {

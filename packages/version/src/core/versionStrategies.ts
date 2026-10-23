@@ -11,7 +11,6 @@ import { getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js'
 import { updatePackageVersion } from '../package/packageManagement.js';
 import { PackageProcessor } from '../package/packageProcessor.js';
 import type { Config } from '../types.js';
-import { resolveConfinedManifestPath } from '../utils/confinedPath.js';
 import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
 import {
   addBaselineTag,
@@ -26,6 +25,7 @@ import {
   setVersioningStrategy,
 } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
+import { updateCargoFiles, updatePubFiles } from '../utils/manifestUpdates.js';
 import { resolveVersionAction } from '../utils/versionAction.js';
 import { BaselineResolver } from './baselineResolver.js';
 import { hasExplicitGroups } from './groupResolution.js';
@@ -43,42 +43,6 @@ export type StrategyFunction = (packages: PackagesWithRoot, targets?: string[]) 
 function shouldProcessPackage(pkg: Package, config: Config): boolean {
   const pkgName = pkg.packageJson.name;
   return shouldProcessPackageUtil(pkgName, config.skip);
-}
-
-function updateCargoFiles(
-  packageDir: string,
-  version: string,
-  cargoConfig: Config['cargo'],
-  dryRun = false,
-  repoRoot: string = process.cwd(),
-): string[] {
-  const updatedFiles: string[] = [];
-
-  const cargoEnabled = cargoConfig?.enabled !== false;
-
-  if (!cargoEnabled) {
-    return updatedFiles;
-  }
-
-  const cargoPaths = cargoConfig?.paths;
-
-  if (cargoPaths && cargoPaths.length > 0) {
-    for (const cargoPath of cargoPaths) {
-      const resolvedCargoPath = resolveConfinedManifestPath(repoRoot, packageDir, cargoPath, 'Cargo.toml');
-      if (fs.existsSync(resolvedCargoPath)) {
-        updatePackageVersion(resolvedCargoPath, version, dryRun);
-        updatedFiles.push(resolvedCargoPath);
-      }
-    }
-  } else {
-    const cargoTomlPath = path.join(packageDir, 'Cargo.toml');
-    if (fs.existsSync(cargoTomlPath)) {
-      updatePackageVersion(cargoTomlPath, version, dryRun);
-      updatedFiles.push(cargoTomlPath);
-    }
-  }
-
-  return updatedFiles;
 }
 
 export function createSyncStrategy(config: Config): StrategyFunction {
@@ -186,9 +150,11 @@ export function createSyncStrategy(config: Config): StrategyFunction {
 
           const rootCargoFiles = updateCargoFiles(packages.root, nextVersion, config.cargo, dryRun, repoRoot);
           files.push(...rootCargoFiles);
-          // Track a Cargo-only root bump: the loop skips this path in a single-package repo, so the early
+          const rootPubFiles = updatePubFiles(packages.root, nextVersion, config.pub, dryRun, repoRoot);
+          files.push(...rootPubFiles);
+          // Track a Cargo- or pub-only root bump: the loop skips this path in a single-package repo, so the early
           // return below would otherwise abandon the written file.
-          if (rootCargoFiles.length > 0 && !updatedPackages.includes('root')) {
+          if ((rootCargoFiles.length > 0 || rootPubFiles.length > 0) && !updatedPackages.includes('root')) {
             updatedPackages.push('root');
           }
         } else {
@@ -214,7 +180,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
           log(`Skipping package.json update for ${pkg.packageJson.name} - npm version handling disabled`, 'debug');
         } else if (!fs.existsSync(packageJsonPath)) {
           log(
-            `Skipping package.json update for ${pkg.packageJson.name} - no package.json found (Rust-only package)`,
+            `Skipping package.json update for ${pkg.packageJson.name} - no package.json found (Cargo- or pub-only package)`,
             'debug',
           );
         } else {
@@ -226,9 +192,14 @@ export function createSyncStrategy(config: Config): StrategyFunction {
 
         const pkgCargoFiles = updateCargoFiles(pkg.dir, nextVersion, config.cargo, dryRun, repoRoot);
         files.push(...pkgCargoFiles);
+        const pkgPubFiles = updatePubFiles(pkg.dir, nextVersion, config.pub, dryRun, repoRoot);
+        files.push(...pkgPubFiles);
 
-        // Track Cargo-only updates, or the early return below abandons the written Cargo.toml.
-        if ((!fs.existsSync(packageJsonPath) || config.npm?.enabled === false) && pkgCargoFiles.length > 0) {
+        // Track Cargo- or pub-only updates, or the early return below abandons the written manifests.
+        if (
+          (!fs.existsSync(packageJsonPath) || config.npm?.enabled === false) &&
+          (pkgCargoFiles.length > 0 || pkgPubFiles.length > 0)
+        ) {
           updatedPackages.push(pkg.packageJson.name);
         }
       }
@@ -553,12 +524,15 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         updatePackageVersion(packageJsonPath, nextVersion, dryRun);
         filesToCommit.push(packageJsonPath);
       } else {
-        const reason = !npmEnabled ? 'npm version handling disabled' : 'no package.json found (Rust-only package)';
+        const reason = !npmEnabled
+          ? 'npm version handling disabled'
+          : 'no package.json found (Cargo- or pub-only package)';
         log(`Skipping package.json update for ${packageName} - ${reason}`, 'debug');
       }
 
       const cargoFiles = updateCargoFiles(pkgPath, nextVersion, config.cargo, dryRun, repoRoot);
       filesToCommit.push(...cargoFiles);
+      filesToCommit.push(...updatePubFiles(pkgPath, nextVersion, config.pub, dryRun, repoRoot));
 
       log(`Updated package ${packageName} to version ${nextVersion}`, 'success');
 
