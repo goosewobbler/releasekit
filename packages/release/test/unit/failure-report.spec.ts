@@ -280,6 +280,20 @@ describe('renderFailureReport', () => {
     expect(body).not.toContain('Re-run failed jobs');
   });
 
+  it('should say the branch may be on the remote after a direct push failure', () => {
+    const committed = { ...publishOutput, git: { ...publishOutput.git, committed: true, pushed: false } };
+    const body = renderFailureReport({
+      versionOutput: versionOutputFor([{ name: '@scope/a', version: '1.0.0' }]),
+      publishOutput: committed,
+      failedStage: 'git-push',
+      errorMessage: 'push rejected',
+      recovery: { mode: 'direct' },
+    });
+    expect(body).toContain('The branch may already be on the remote');
+    expect(body).toContain('Re-run failed jobs');
+    expect(body).not.toContain('Nothing was pushed');
+  });
+
   it('should keep retry instructions when a per-package run pushed nothing', () => {
     const tagged = versionOutputFor([{ name: '@scope/a', version: '1.0.0' }]);
     tagged.updates[0] = { ...tagged.updates[0], tag: '@scope/a@v1.0.0' };

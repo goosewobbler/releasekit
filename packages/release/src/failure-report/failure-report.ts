@@ -149,23 +149,17 @@ function partialFailureState(
   const pushed = publishOutput?.git.pushed === true;
   if (mode === 'standing-pr') {
     if (pushed) {
-      return (
-        'Versions are on `main` from the merge. This run pushed before it failed, so some tags may already be on the remote. ' +
-        'GitHub releases are created only after every package succeeds. Do not delete a tag for a version that was published.'
-      );
+      return 'Versions are on `main` from the merge. This run pushed before it failed, so some tags may already be on the remote. GitHub releases are created only after every package succeeds.';
     }
-    return 'Versions are on `main` from the merge. This run did not confirm a push. Re-run the publish. Do not delete a tag for a version that was published.';
+    return 'Versions are on `main` from the merge. This run did not confirm a push.';
   }
   if (pushed) {
-    return (
-      'A push succeeded before the failure, so the release commit or some tags may already be on the remote. ' +
-      'Do not delete a tag for a version that was published. Roll forward with the next release if those tags are on the remote.'
-    );
+    return 'A push succeeded before the failure, so the release commit or some tags may already be on the remote.';
   }
   if (failedStage === 'git-push' && publishOutput?.git.committed) {
-    return 'The push stage failed after a local commit. The branch may already be on the remote if it was pushed before a tag push failed. Re-run the publish. Do not delete a tag for a version that was published.';
+    return 'The push stage failed after a local commit. The branch may already be on the remote if it was pushed before a tag push failed.';
   }
-  return 'This run did not confirm a push. The version commit and tags may exist only locally. Re-run `publish` with the same version output — a fresh `release` on that commit matches the skip pattern and exits before publishing. Packages that reached the registry stay published.';
+  return 'This run did not confirm a push, so the version commit and tags may exist only in the failed run. Packages that reached the registry stay published.';
 }
 
 function renderRecovery(
@@ -198,12 +192,10 @@ function renderRecovery(
     );
   } else if (ctx.mode === 'direct') {
     lines.push(
-      'Use GitHub’s **"Re-run failed jobs"** on the failed workflow run. Nothing was pushed; the re-run skips versions already on the registry.',
+      'Use GitHub’s **"Re-run failed jobs"** on the failed workflow run. The re-run skips versions already on the registry.',
     );
   } else {
-    lines.push(
-      'Re-run the release workflow (manual dispatch). Nothing was pushed; the re-run skips versions already on the registry.',
-    );
+    lines.push('Re-run the release workflow (manual dispatch). The re-run skips versions already on the registry.');
   }
   return lines;
 }
