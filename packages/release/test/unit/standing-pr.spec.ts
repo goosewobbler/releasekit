@@ -2132,6 +2132,20 @@ describe('runStandingPRUpdate', () => {
       expect(manifest.overrideLabels).toEqual(['bump:major', 'channel:prerelease']);
     });
 
+    it('should record the base tip after the reset as the manifest baseSha, not the checked-out commit', async () => {
+      const { forge } = await setupWithStandingPRLabels(['release']);
+      const headSha = vi.spyOn(fakeGit, 'headSha').mockResolvedValue('pr-merge-commit');
+      vi.spyOn(fakeGit, 'resetHard').mockImplementation(async () => {
+        headSha.mockResolvedValue('base-tip');
+      });
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const writes = [...forge.createdComments.map((c) => c.body), ...forge.updatedComments.map((c) => c.body)];
+      const manifest = parseManifest(writes.find((b) => b.includes(MANIFEST_MARKER)) as string);
+      expect(manifest.baseSha).toBe('base-tip');
+    });
+
     it('should drop the bump under release:graduate (graduation is bump-less, matching the SSOT)', async () => {
       const { runVersionStepMock } = await setupWithStandingPRLabels(['release', 'bump:major', 'release:graduate']);
 
