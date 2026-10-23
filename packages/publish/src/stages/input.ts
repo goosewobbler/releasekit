@@ -1,5 +1,5 @@
 import * as fs from 'node:fs';
-import { info, type VersionOutput } from '@releasekit/core';
+import { info, unwrapEnvelope, type VersionOutput } from '@releasekit/core';
 import { z } from 'zod';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 
@@ -54,6 +54,13 @@ export async function parseInput(inputPath?: string): Promise<VersionOutput> {
     parsed = JSON.parse(raw);
   } catch {
     throw createPublishError(PublishErrorCode.INPUT_PARSE_ERROR, 'Input is not valid JSON');
+  }
+
+  // An unusable or failed upstream envelope is an input error (exit 3).
+  try {
+    parsed = unwrapEnvelope(parsed);
+  } catch (err) {
+    throw createPublishError(PublishErrorCode.INPUT_PARSE_ERROR, err instanceof Error ? err.message : String(err));
   }
 
   const result = VersionOutputSchema.safeParse(parsed);

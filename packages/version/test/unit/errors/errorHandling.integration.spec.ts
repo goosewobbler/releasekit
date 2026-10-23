@@ -1,6 +1,8 @@
+import { EXIT_CODES, exitCodeForError } from '@releasekit/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BaseVersionError } from '../../../src/errors/baseError.js';
 import { createGitError, GitError, GitErrorCode } from '../../../src/errors/gitError.js';
+import { StrictReachableError } from '../../../src/errors/strictReachableError.js';
 import { createVersionError, VersionError, VersionErrorCode } from '../../../src/errors/versionError.js';
 
 describe('Error Handling Integration', () => {
@@ -144,6 +146,20 @@ describe('Error Handling Integration', () => {
       expect(versionError.stack).toBeDefined();
       expect(gitError.stack).toContain('GitError');
       expect(versionError.stack).toContain('VersionError');
+    });
+  });
+
+  describe('Exit codes', () => {
+    it('should give every error code its exit-code family rather than the generic exit 1', () => {
+      const errors: BaseVersionError[] = [
+        ...Object.values(VersionErrorCode).map((code) => createVersionError(code)),
+        ...Object.values(GitErrorCode).map((code) => createGitError(code)),
+        new StrictReachableError('baseline unreachable'),
+      ];
+
+      const unmapped = errors.filter((e) => exitCodeForError(e) === EXIT_CODES.GENERAL_ERROR).map((e) => e.code);
+
+      expect(unmapped).toEqual([]);
     });
   });
 

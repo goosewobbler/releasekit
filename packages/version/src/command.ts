@@ -1,4 +1,5 @@
-import { EXIT_CODES } from '@releasekit/core';
+import * as path from 'node:path';
+import { EXIT_CODES, exitCodeForError, InputError, writeErrorEnvelope } from '@releasekit/core';
 import { Command } from 'commander';
 import { loadConfig } from './config.js';
 import { VersionEngine } from './core/versionEngine.js';
@@ -21,6 +22,7 @@ export function createVersionCommand(): Command {
     )
     .option('-s, --sync', 'Use synchronized versioning across all packages')
     .option('-j, --json', 'Output results as JSON', false)
+    .option('--output <path>', 'Write the JSON result to a file instead of stdout')
     .option('-t, --target <packages>', 'Comma-delimited list of package names to target')
     .option(
       '--include-prerequisites',
@@ -29,12 +31,18 @@ export function createVersionCommand(): Command {
     )
     .option('--project-dir <path>', 'Project directory to run commands in', process.cwd())
     .action(async (options) => {
+      // Resolve before --project-dir chdirs, so the file lands where the caller asked (as `release --output` does).
+      const output: string | undefined = options.output ? path.resolve(options.output) : undefined;
+      const io = { json: options.json, output };
+
       if (options.stable && options.prerelease) {
-        console.error('Error: Cannot use both --stable and --prerelease at the same time');
+        const message = 'Cannot use both --stable and --prerelease at the same time';
+        writeErrorEnvelope(new InputError(message), io);
+        console.error(`Error: ${message}`);
         process.exit(EXIT_CODES.INPUT_ERROR);
       }
 
-      if (options.json) {
+      if (options.json || options.output) {
         enableJsonOutput(options.dryRun);
       }
 
@@ -110,16 +118,17 @@ export function createVersionCommand(): Command {
 
         log('Versioning process completed.', 'success');
 
-        printJsonOutput();
+        printJsonOutput(output);
       } catch (error) {
         const { BaseVersionError } = await import('./errors/baseError.js');
 
+        writeErrorEnvelope(error, io);
         if (BaseVersionError.isVersionError(error)) {
           error.logError();
         } else {
           log(`Error: ${error instanceof Error ? error.message : String(error)}`, 'error');
         }
-        process.exit(1);
+        process.exit(exitCodeForError(error));
       }
     });
 }

@@ -88,9 +88,7 @@ run_cli_json() {
     cat "$stderrfile" >&2
   fi
 
-  # Output the JSON (stdout only). Unwrap the uniform CLI envelope ({ schemaVersion, status, data, … })
-  # to its data payload so callers read result fields (.versionOutput, …) directly. Output that isn't
-  # an envelope — non-JSON, or a command that isn't enveloped yet — passes through unchanged.
+  # Print stdout's JSON, unwrapping an envelope to its data so callers read result fields directly.
   if jq -e 'type == "object" and has("schemaVersion") and has("data")' "$tmpfile" >/dev/null 2>&1; then
     jq '.data' "$tmpfile"
   else

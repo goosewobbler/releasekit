@@ -12,7 +12,7 @@ export {
   parseGitHubOwnerRepo,
   renderIssueRefs,
 } from './changelogRefs.js';
-export { readPackageVersion } from './cli.js';
+export { readPackageVersion, writeEnvelope, writeErrorEnvelope } from './cli.js';
 export {
   buildDependencyGraph,
   type Ecosystem,
@@ -29,6 +29,7 @@ export {
   exitCodeForError,
   successEnvelope,
   toEnvelopeError,
+  unwrapEnvelope,
 } from './envelope.js';
 export { EXIT_CODES, type ExitCode, InputError, ReleaseKitError } from './errors.js';
 export {

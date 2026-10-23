@@ -1,7 +1,12 @@
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { EXIT_CODES } from '@releasekit/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createVersionCommand, createVersionProgram } from '../../src/cli.js';
 import * as configModule from '../../src/config.js';
 import { VersionEngine } from '../../src/core/versionEngine.js';
+import { createVersionError, VersionErrorCode } from '../../src/errors/versionError.js';
 import type { Config, VersionRunOptions } from '../../src/types.js';
 import * as jsonOutputModule from '../../src/utils/jsonOutput.js';
 
@@ -156,6 +161,88 @@ describe('createVersionCommand', () => {
       await createVersionCommand().parseAsync(['node', 'test']);
 
       expect(jsonOutputModule.enableJsonOutput).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('--output', () => {
+    it('should write the result envelope to the --output file without --json', async () => {
+      const actual = await vi.importActual<typeof jsonOutputModule>('../../src/utils/jsonOutput.js');
+      vi.mocked(jsonOutputModule.enableJsonOutput).mockImplementation(actual.enableJsonOutput);
+      vi.mocked(jsonOutputModule.printJsonOutput).mockImplementation(actual.printJsonOutput);
+      const stdoutSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-version-output-'));
+      const file = path.join(dir, 'version.json');
+
+      try {
+        await createVersionCommand().parseAsync(['node', 'test', '--output', file]);
+
+        expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toMatchObject({ status: 'success', data: { updates: [] } });
+        expect(stdoutSpy).not.toHaveBeenCalled();
+      } finally {
+        vi.mocked(jsonOutputModule.enableJsonOutput).mockReset();
+        vi.mocked(jsonOutputModule.printJsonOutput).mockReset();
+        stdoutSpy.mockRestore();
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('should resolve a relative --output against the invocation directory, before --project-dir changes it', async () => {
+      // Model the chdir, so a path resolved after it would land inside --project-dir.
+      const invocationDir = process.cwd();
+      let cwd = invocationDir;
+      const chdir = vi.spyOn(process, 'chdir').mockImplementation((dir) => {
+        cwd = path.resolve(cwd, String(dir));
+      });
+      const getCwd = vi.spyOn(process, 'cwd').mockImplementation(() => cwd);
+
+      try {
+        await createVersionCommand().parseAsync([
+          'node',
+          'test',
+          '--project-dir',
+          path.join(invocationDir, 'app'),
+          '--output',
+          'version.json',
+        ]);
+
+        expect(chdir).toHaveBeenCalledWith(path.join(invocationDir, 'app'));
+        expect(jsonOutputModule.printJsonOutput).toHaveBeenCalledWith(path.join(invocationDir, 'version.json'));
+      } finally {
+        chdir.mockRestore();
+        getCwd.mockRestore();
+      }
+    });
+  });
+
+  describe('failures under --json', () => {
+    it('should print an error envelope carrying the engine error code and exit by its family', async () => {
+      mockRun.mockRejectedValue(createVersionError(VersionErrorCode.INVALID_CONFIG, 'groups overlap'));
+      const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const stdoutSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+      await createVersionCommand().parseAsync(['node', 'test', '--json']);
+
+      const envelope = JSON.parse(stdoutSpy.mock.calls[0]?.[0] as string);
+      expect(envelope).toMatchObject({ status: 'error', changed: false, data: null });
+      expect(envelope.errors).toMatchObject([
+        { code: 'INVALID_CONFIG', message: expect.stringContaining('groups overlap') },
+      ]);
+      expect(mockExit).toHaveBeenCalledWith(EXIT_CODES.CONFIG_ERROR);
+      stderrSpy.mockRestore();
+      stdoutSpy.mockRestore();
+    });
+
+    it('should print an INPUT_ERROR envelope and exit with INPUT_ERROR for --stable with --prerelease', async () => {
+      const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const stdoutSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+      await createVersionCommand().parseAsync(['node', 'test', '--json', '--stable', '--prerelease']);
+
+      const envelope = JSON.parse(stdoutSpy.mock.calls[0]?.[0] as string);
+      expect(envelope.errors).toMatchObject([{ code: 'INPUT_ERROR' }]);
+      expect(mockExit).toHaveBeenCalledWith(EXIT_CODES.INPUT_ERROR);
+      stderrSpy.mockRestore();
+      stdoutSpy.mockRestore();
     });
   });
 

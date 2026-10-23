@@ -211,7 +211,7 @@ jobs:
 
 **`Failed to sync Cargo.lock: …`**
 
-releasekit edits each lock's text the way cargo would, and fails the version step (`CARGO_LOCK_SYNC_ERROR`: exit code 8 from `release` and `standing-pr`, 1 from `releasekit version`) rather than leave a lock behind. The message names the lock and the reason:
+releasekit edits each lock's text the way cargo would, and fails the version step (`CARGO_LOCK_SYNC_ERROR`, exit code 8) rather than leave a lock behind. The message names the lock and the reason:
 
 - `it also has <crate> <version> from another source`: the lock also lists the crate from a registry or git source at the old or the new version, so cargo would have to change how it tells the two apart. Sync that lock with cargo yourself (`cargo update` with the new version in `Cargo.toml`) and commit it, or drop the second source of the crate.
 - `it has <n> path entries named <crate>`: the lock holds several local crates of that name, so releasekit can't tell which one is the bumped crate. Sync that lock with cargo yourself.

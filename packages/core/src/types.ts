@@ -82,7 +82,7 @@ export function deriveReleaseChannel(version: string): ReleaseChannel {
 }
 
 /**
- * The complete JSON output of @releasekit/version --json.
+ * The `data` of @releasekit/version's `--json` envelope.
  * This is the primary interchange format between version and notes.
  */
 export interface VersionOutput {

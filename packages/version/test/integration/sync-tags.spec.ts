@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { VersionOutput } from '@releasekit/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { executeCliCommand } from '../utils/cli.js';
+import { executeCliCommand, readVersionOutput } from '../utils/cli.js';
 import { createConventionalCommit, initGitRepo } from '../utils/git.js';
 import { createPackageJson } from '../utils/package.js';
 import { cleanupTempDir, symlinkNodeModules } from '../utils/tempFixture.js';
@@ -72,7 +72,7 @@ describe('sync strategy — JSON tag output', () => {
     const result = executeCliCommand('--json', tempDir);
 
     expect(result.status).toBe(0);
-    const output: VersionOutput = JSON.parse(result.stdout);
+    const output = readVersionOutput(result.stdout);
 
     expect(releasedVersions(output)).toEqual(SYNCED_RELEASE);
     // @test/pkg-a is sanitized to test-pkg-a (@ stripped, / replaced with -)
@@ -93,7 +93,7 @@ describe('sync strategy — JSON tag output', () => {
     const result = executeCliCommand('--json', tempDir);
 
     expect(result.status).toBe(0);
-    const output: VersionOutput = JSON.parse(result.stdout);
+    const output = readVersionOutput(result.stdout);
 
     expect(releasedVersions(output)).toEqual(SYNCED_RELEASE);
     expect(output.tags).toEqual(['v0.2.0']);

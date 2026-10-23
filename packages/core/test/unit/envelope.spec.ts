@@ -5,6 +5,7 @@ import {
   exitCodeForError,
   successEnvelope,
   toEnvelopeError,
+  unwrapEnvelope,
 } from '../../src/envelope.js';
 import { EXIT_CODES, ReleaseKitError } from '../../src/errors.js';
 
@@ -96,6 +97,55 @@ describe('envelope', () => {
 
     it('should default to GENERAL_ERROR for a plain Error', () => {
       expect(exitCodeForError(new Error('x'))).toBe(EXIT_CODES.GENERAL_ERROR);
+    });
+  });
+
+  describe('errorEnvelope partial progress', () => {
+    it('should carry data and changed when a command failed partway with progress to report', () => {
+      const env = errorEnvelope([toEnvelopeError(new Error('registry rejected'))], {
+        data: { npm: ['@acme/a'] },
+        changed: true,
+      });
+      expect(env.status).toBe('error');
+      expect(env.data).toEqual({ npm: ['@acme/a'] });
+      expect(env.changed).toBe(true);
+    });
+  });
+
+  describe('unwrapEnvelope', () => {
+    it('should return the payload from a success envelope', () => {
+      const payload = { dryRun: false, updates: [{ packageName: 'a' }], tags: ['v1.0.0'] };
+      expect(unwrapEnvelope(successEnvelope(payload))).toEqual(payload);
+    });
+
+    it('should pass a bare payload through unchanged', () => {
+      const bare = { dryRun: false, updates: [], tags: [] };
+      expect(unwrapEnvelope(bare)).toBe(bare);
+      expect(unwrapEnvelope(null)).toBeNull();
+      expect(unwrapEnvelope('a string')).toBe('a string');
+    });
+
+    it('should throw with the upstream message and code for an error envelope', () => {
+      const env = errorEnvelope([toEnvelopeError(new TestConfigError('bad config'))]);
+      expect(() => unwrapEnvelope(env)).toThrow(/CONFIG_ERROR.*bad config/);
+    });
+
+    it('should throw even when an error envelope carries no error detail', () => {
+      expect(() => unwrapEnvelope(errorEnvelope([]))).toThrow(/reported no error detail/);
+    });
+
+    it('should refuse an envelope from a newer producer', () => {
+      const future = { ...successEnvelope({ updates: [] }), schemaVersion: ENVELOPE_SCHEMA_VERSION + 1 };
+      expect(() => unwrapEnvelope(future)).toThrow(/schemaVersion/);
+    });
+
+    it('should refuse an unrecognised status', () => {
+      const odd = { ...successEnvelope({ updates: [] }), status: 'partial' };
+      expect(() => unwrapEnvelope(odd)).toThrow(/Unrecognised.*status/);
+    });
+
+    it('should refuse a success envelope carrying no payload', () => {
+      expect(() => unwrapEnvelope(successEnvelope(null))).toThrow(/success but produced no data/);
     });
   });
 });

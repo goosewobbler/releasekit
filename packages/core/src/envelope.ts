@@ -52,28 +52,107 @@ export function successEnvelope<T>(
   };
 }
 
-export function errorEnvelope(errors: EnvelopeError[], opts: { warnings?: EnvelopeWarning[] } = {}): Envelope<null> {
+export function errorEnvelope<T = null>(
+  errors: EnvelopeError[],
+  opts: { warnings?: EnvelopeWarning[]; data?: T; changed?: boolean } = {},
+): Envelope<T | null> {
   return {
     schemaVersion: ENVELOPE_SCHEMA_VERSION,
     status: 'error',
-    changed: false,
-    data: null,
+    // Progress made before the failure, e.g. what a partial publish landed.
+    changed: opts.changed ?? false,
+    data: opts.data ?? null,
     warnings: opts.warnings ?? [],
     errors,
   };
 }
 
+function isEnvelope(value: unknown): value is Envelope {
+  return (
+    typeof value === 'object' && value !== null && 'schemaVersion' in value && 'status' in value && 'data' in value
+  );
+}
+
+const KNOWN_STATUSES = new Set<EnvelopeStatus>(['success', 'error']);
+
+/** Returns an envelope's `data`, or a bare payload as is; throws on a newer, failed or empty envelope. */
+export function unwrapEnvelope(value: unknown): unknown {
+  if (!isEnvelope(value)) {
+    return value;
+  }
+
+  if (typeof value.schemaVersion !== 'number' || value.schemaVersion > ENVELOPE_SCHEMA_VERSION) {
+    throw new Error(
+      `Unsupported releasekit envelope schemaVersion ${String(value.schemaVersion)} (this build understands ` +
+        `up to ${ENVELOPE_SCHEMA_VERSION}). Upgrade the consuming releasekit to match the producer.`,
+    );
+  }
+
+  if (!KNOWN_STATUSES.has(value.status)) {
+    throw new Error(`Unrecognised releasekit envelope status "${String(value.status)}".`);
+  }
+
+  if (value.status === 'error') {
+    const first = value.errors?.[0];
+    throw new Error(
+      first
+        ? `Upstream releasekit stage failed (${first.code}): ${first.message}`
+        : 'Upstream releasekit stage failed, but reported no error detail.',
+    );
+  }
+
+  if (value.data === null || value.data === undefined) {
+    throw new Error('Upstream releasekit stage reported success but produced no data.');
+  }
+
+  return value.data;
+}
+
+/** Maps each code to its family's exit code (docs/cli.md); unknown codes exit 1. */
 const CODE_TO_EXIT: Record<string, number> = {
   CONFIG_ERROR: EXIT_CODES.CONFIG_ERROR,
   INPUT_ERROR: EXIT_CODES.INPUT_ERROR,
   INPUT_PARSE_ERROR: EXIT_CODES.INPUT_ERROR,
+  INPUT_VALIDATION_ERROR: EXIT_CODES.INPUT_ERROR,
   TEMPLATE_ERROR: EXIT_CODES.TEMPLATE_ERROR,
   LLM_ERROR: EXIT_CODES.LLM_ERROR,
   GITHUB_ERROR: EXIT_CODES.GITHUB_ERROR,
   GIT_ERROR: EXIT_CODES.GIT_ERROR,
   VERSION_ERROR: EXIT_CODES.VERSION_ERROR,
   PUBLISH_ERROR: EXIT_CODES.PUBLISH_ERROR,
+
+  // @releasekit/version: discovery failures mean bad `packages` globs, so they're config errors.
+  CONFIG_REQUIRED: EXIT_CODES.CONFIG_ERROR,
+  INVALID_CONFIG: EXIT_CODES.CONFIG_ERROR,
+  UNSAFE_CONFIG_PATH: EXIT_CODES.CONFIG_ERROR,
+  PACKAGES_NOT_FOUND: EXIT_CODES.CONFIG_ERROR,
+  PACKAGE_NOT_FOUND: EXIT_CODES.CONFIG_ERROR,
+  WORKSPACE_ERROR: EXIT_CODES.CONFIG_ERROR,
+  NOT_GIT_REPO: EXIT_CODES.GIT_ERROR,
+  GIT_PROCESS_ERROR: EXIT_CODES.GIT_ERROR,
+  TAG_ALREADY_EXISTS: EXIT_CODES.GIT_ERROR,
+  VERSION_CALCULATION_ERROR: EXIT_CODES.VERSION_ERROR,
+  STRICT_REACHABLE_UNREACHABLE: EXIT_CODES.VERSION_ERROR,
+  NO_COMMIT_MESSAGE: EXIT_CODES.VERSION_ERROR,
+  NO_FILES: EXIT_CODES.VERSION_ERROR,
   CARGO_LOCK_SYNC_ERROR: EXIT_CODES.VERSION_ERROR,
+
+  // @releasekit/publish: a malformed manifest is a config error.
+  PIPELINE_STAGE_ERROR: EXIT_CODES.PUBLISH_ERROR,
+  NPM_AUTH_ERROR: EXIT_CODES.PUBLISH_ERROR,
+  NPM_PUBLISH_ERROR: EXIT_CODES.PUBLISH_ERROR,
+  CARGO_AUTH_ERROR: EXIT_CODES.PUBLISH_ERROR,
+  CARGO_PUBLISH_ERROR: EXIT_CODES.PUBLISH_ERROR,
+  PUB_AUTH_ERROR: EXIT_CODES.PUBLISH_ERROR,
+  PUB_PUBLISH_ERROR: EXIT_CODES.PUBLISH_ERROR,
+  FILE_COPY_ERROR: EXIT_CODES.PUBLISH_ERROR,
+  VERIFICATION_FAILED: EXIT_CODES.PUBLISH_ERROR,
+  CARGO_TOML_ERROR: EXIT_CODES.CONFIG_ERROR,
+  PUBSPEC_YAML_ERROR: EXIT_CODES.CONFIG_ERROR,
+  GIT_COMMIT_ERROR: EXIT_CODES.GIT_ERROR,
+  GIT_PUSH_ERROR: EXIT_CODES.GIT_ERROR,
+  GIT_TAG_ERROR: EXIT_CODES.GIT_ERROR,
+  GITHUB_RELEASE_ERROR: EXIT_CODES.GITHUB_ERROR,
 };
 
 /** Map any thrown value to its process exit code, defaulting to GENERAL_ERROR. */
