@@ -1,0 +1,41 @@
+name: Notes LLM (live Ollama)
+
+on:
+  workflow_call:
+    inputs:
+      cache_key:
+        required: true
+        type: string
+    secrets:
+      OLLAMA_API_KEY:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  notes-llm-live:
+    name: Notes LLM (live Ollama)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
+
+      - name: Download build artifacts
+        uses: ./.github/workflows/actions/download-archive
+        with:
+          name: releasekit-build
+          cache_key: ${{ inputs.cache_key }}
+
+      # Not turbo: its strict env mode strips RELEASEKIT_NOTES_LIVE and the suite silently skips.
+      - name: Run notes LLM live test
+        run: pnpm --filter @releasekit/notes test ollama-live
+        env:
+          RELEASEKIT_NOTES_LIVE: '1'
+          RELEASEKIT_NOTES_LIVE_MODEL: 'minimax-m2.7:cloud'
+          OLLAMA_BASE_URL: 'https://ollama.com'
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
