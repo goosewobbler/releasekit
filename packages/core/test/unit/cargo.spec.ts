@@ -48,6 +48,22 @@ describe('findCargoLockfile', () => {
     expect(findCargoLockfile(crate)).toBe(path.join(crate, 'Cargo.lock'));
   });
 
+  it('should follow a member’s package.workspace pointer to a root outside its directory', () => {
+    const root = tmp();
+    const workspace = path.join(root, 'workspace');
+    const member = path.join(root, 'member');
+    fs.mkdirSync(workspace);
+    fs.mkdirSync(member);
+    fs.writeFileSync(path.join(workspace, 'Cargo.toml'), '[workspace]\nmembers = ["../member"]\n');
+    fs.writeFileSync(path.join(workspace, 'Cargo.lock'), '');
+    fs.writeFileSync(
+      path.join(member, 'Cargo.toml'),
+      '[package]\nname = "member"\nversion = "0.1.0"\nworkspace = "../workspace"\n',
+    );
+
+    expect(findCargoLockfile(member)).toBe(path.join(workspace, 'Cargo.lock'));
+  });
+
   it.each([
     ['an ancestor workspace excludes it', '[workspace]\nmembers = ["crates/*"]\nexclude = ["apps/x"]\n', 'own'],
     ['an ancestor workspace excludes a directory above it', '[workspace]\nexclude = ["./apps/"]\n', 'own'],
@@ -559,6 +575,11 @@ describe('planCargoLockUpdates', () => {
       'depends on a crate that has the bumped crate as a dev-dependency',
       '[dependencies]\ncore = { path = "core" }\napi = { path = "../plugins/api" }',
       '[dev-dependencies]\ncore = { path = "../core" }',
+    ],
+    [
+      'depends on a crate whose patch, which cargo ignores outside the root, points at the bumped crate',
+      '[dependencies]\ncore = { path = "core" }\napi = { path = "../plugins/api" }',
+      '[patch.crates-io]\ncore = { path = "../core" }',
     ],
   ])('should leave an app’s lock alone when the app %s', async (_label, appDependencies, apiDependencies) => {
     const { root, pluginsLock, git, bump } = pluginsAndApp(appDependencies, apiDependencies);

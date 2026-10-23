@@ -33,14 +33,19 @@ function isExcluded(workspace: CargoWorkspace, rootDir: string, manifestPath: st
 }
 
 /**
- * The crate's workspace root, by cargo's rule: the crate itself if its manifest has a `[workspace]`, else
- * the nearest ancestor `[workspace]` that doesn't exclude it, else the crate. `package.workspace`
- * pointers aren't followed.
+ * The crate's workspace root, by cargo's rule: its `package.workspace` pointer if set, else the crate
+ * itself if its manifest has a `[workspace]`, else the nearest ancestor `[workspace]` that doesn't exclude
+ * it, else the crate.
  */
 function findCargoWorkspaceRoot(crateDir: string, read: ReadManifest = readManifest): string {
   const manifestPath = path.join(path.resolve(crateDir), 'Cargo.toml');
+  const manifest = read(manifestPath);
+  const pointer = asTable(manifest?.package).workspace;
+  if (typeof pointer === 'string') {
+    return path.resolve(path.dirname(manifestPath), pointer);
+  }
   let root = path.dirname(manifestPath);
-  if (!read(manifestPath)?.workspace) {
+  if (!manifest?.workspace) {
     for (let dir = root; path.dirname(dir) !== dir; ) {
       dir = path.dirname(dir);
       const workspace = read(path.join(dir, 'Cargo.toml'))?.workspace as CargoWorkspace | undefined;
@@ -84,7 +89,9 @@ function findPathCrates(lockRoot: string, manifestDirs: string[], read: ReadMani
     const tables = [manifest, ...Object.values(asTable(manifest.target)).map(asTable)].flatMap((scope) =>
       kinds.map((kind) => asTable(scope[kind])),
     );
-    for (const table of [...tables, ...Object.values(asTable(manifest.patch)).map(asTable)]) {
+    // Cargo honours `[patch]` only in the workspace root's manifest.
+    const patches = dir === lockRoot ? Object.values(asTable(manifest.patch)).map(asTable) : [];
+    for (const table of [...tables, ...patches]) {
       for (const [key, value] of Object.entries(table)) {
         const dependency = asTable(value);
         const [base, source] = dependency.workspace === true ? [root, asTable(inherited[key])] : [dir, dependency];
