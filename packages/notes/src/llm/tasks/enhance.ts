@@ -1,4 +1,4 @@
-import { warn } from '@releasekit/core';
+import { removeDescriptionRefs, warn } from '@releasekit/core';
 import type { ChangelogEntry } from '../../core/types.js';
 import { LLM_DEFAULTS } from '../defaults.js';
 import type { EnhanceContext, LLMProvider } from '../index.js';
@@ -58,7 +58,10 @@ export async function enhanceEntries(
       batch.map(async (entry) => {
         try {
           const newDescription = await enhanceEntry(provider, entry, context);
-          return { ...entry, description: newDescription };
+          return {
+            ...entry,
+            description: removeDescriptionRefs(newDescription, [...(entry.issueIds ?? []), entry.prNumber]),
+          };
         } catch {
           // Keep the raw entry so one failure doesn't sink the batch.
           failures++;

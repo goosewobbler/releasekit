@@ -220,6 +220,20 @@ describe('createEnhanceAndCategorizeValidator()', () => {
     expect(result.error).toBe('Unknown categories: Mystery. Valid categories: New, Fixed, Changed');
   });
 
+  it('should strip refs the renderer will append from an enhanced description', () => {
+    const validate = createEnhanceAndCategorizeValidator(
+      [{ type: 'changed', description: 'Rename preset', prNumber: '608' }],
+      ctx,
+    );
+    const result = validate(structured({ entries: [fullEntry('Renamed the preset (#608)', 'Changed')] }));
+
+    expect(result.valid).toBe(true);
+    if (!result.valid) {
+      return;
+    }
+    expect(result.value.enhancedEntries[0]?.description).toBe('Renamed the preset');
+  });
+
   it.each([
     ['keep a breaking change breaking when the model says it is not', true, false],
     ['mark an entry breaking when the model says it is', undefined, true],

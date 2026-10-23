@@ -10,6 +10,7 @@ export {
   escapeChangelogMentions,
   neutralizeDescriptionRefs,
   parseGitHubOwnerRepo,
+  removeDescriptionRefs,
   renderIssueRefs,
 } from './changelogRefs.js';
 export { readPackageVersion, writeEnvelope, writeErrorEnvelope } from './cli.js';
