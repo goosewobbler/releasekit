@@ -180,11 +180,9 @@ jobs:
       github.event.action == 'closed' &&
       github.event.pull_request.merged == true &&
       startsWith(github.event.pull_request.head.ref, 'release/')
-    # Optional: `environment: release` restricted to the default branch. Use the
-    # same environment on immediate-release. Move registry tokens to environment
-    # secrets, and require that environment on each trusted publisher. A repo
-    # secret or `id-token: write` with no environment is still available to
-    # other workflows.
+    # Optional: `environment: release`, restricted to the default branch, here and on
+    # immediate-release. It only protects registry tokens moved to environment secrets
+    # and trusted publishers that require it.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

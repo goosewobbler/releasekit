@@ -34,7 +34,7 @@ Needs `notes.releaseNotes.llm` configured and the matching LLM secret uncommente
   — this toggle is separate. It also lets any workflow's `GITHUB_TOKEN` approve
   pull requests, which counts toward a "≥ 1 approval" ruleset. Require code
   owners (or a team review), or create the standing PR with a GitHub App token
-  and leave the toggle off. See `packages/release/docs/ci-setup.md`.
+  and leave the toggle off. See [Workflow token approvals](../../../packages/release/docs/ci-setup.md#workflow-token-approvals).
 - `release/next` is **not** branch-protected (the bot force-pushes it), or the
   bot has bypass.
 - Squash merge produces a single `chore: release ...` commit on `main`, which

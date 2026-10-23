@@ -331,23 +331,20 @@ The `pull-requests: write` permission in the workflow is necessary but not suffi
 
 #### Workflow token approvals
 
-GitHub ties creating pull requests and approving them to that one toggle. With it on, **any** workflow's `GITHUB_TOKEN` can submit an approving review, not only the standing-PR workflow. That approval counts toward a default-branch ruleset of "Require a pull request before merging (≥ 1 approval)" for any PR that `github-actions[bot]` did not author.
+GitHub ties creating and approving pull requests to that one toggle. With it on, **any** workflow's `GITHUB_TOKEN` can approve a pull request, and that approval counts toward a "Require a pull request before merging (≥ 1 approval)" ruleset for any PR that `github-actions[bot]` didn't author. A write collaborator could add a workflow on their own branch that approves their feeder PR. Once it merges, it ships in the next standing release, whose diff shows only version and changelog updates.
 
-A write collaborator can add a workflow on their own branch that approves their feeder PR. Once that PR merges, its changes ship in the next standing release, whose diff shows only version and changelog updates.
+Pair the ruleset with a check a workflow token can't satisfy:
 
-Pair the ruleset with a check a workflow token cannot satisfy:
+- **Required code owners review**, or **required reviewers** from a team.
+- Or create and update the standing PR with a **GitHub App** token (`actions/create-github-app-token`) and leave the toggle off. Pass it as `GITHUB_TOKEN` to the steps that run `standing-pr update` or `refresh-after-release`, since either can open the standing PR.
 
-- **Required code owners review**, or **required reviewers** from a team. A `GITHUB_TOKEN` approval does not meet either.
-- Or create and update the standing PR with a **GitHub App** token (`actions/create-github-app-token`) and leave the toggle off. Pass that token as `GITHUB_TOKEN` on the update job only. The default `GITHUB_TOKEN` then cannot open pull requests, so the repo setting stays disabled.
+Optionally, publish from a deployment **environment** restricted to the default branch. It only protects credentials that live on the environment:
 
-Optionally, publish from a deployment **environment** restricted to the default branch (and required reviewers, if you want a second gate). That only helps if the credentials live on the environment, not the repository:
+- Move registry tokens such as `NPM_TOKEN` to **environment secrets**. Any workflow can read a repository secret.
+- Require the environment in each registry's trusted-publisher settings. Any job with `id-token: write` can mint an OIDC token.
+- Name the environment on every job that publishes: `publish-release`, `retry-publish` and `immediate-release`. A job without it can't read the secrets, and a trusted publisher that requires it rejects the job's token.
 
-- Move `NPM_TOKEN` (and any other registry token) to an **environment secret**. A repository secret is still readable by a workflow that never names the environment.
-- In each registry's trusted-publisher settings, require that same environment. `id-token: write` on a job with no environment can still mint an OIDC token.
-
-Put that environment on **both** publishing jobs: `publish-release` and `immediate-release`. `immediate-release` also runs `releasekit release`. If only `publish-release` names the environment, an immediate release cannot read the environment secret, and a trusted publisher that requires the environment will reject its OIDC token.
-
-The template sets no `environment:` until you add it to both jobs, and it does not move secrets for you.
+The templates set no `environment:`.
 
 **Workflow permissions** (in the workflow YAML):
 
