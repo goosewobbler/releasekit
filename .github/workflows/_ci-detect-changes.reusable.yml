@@ -73,6 +73,8 @@ jobs:
             config:
               - 'packages/config/**'
               - 'packages/core/**'
+              - 'packages/forge/**'
+              - 'packages/git/**'
             integration:
               - 'test/integration/**'
               - '.github/workflows/_ci-integration.reusable.yml'
@@ -172,7 +174,7 @@ jobs:
           echo "| publish | $PUBLISH | $RUN_PUBLISH |" >> $GITHUB_STEP_SUMMARY
           echo "| notes | $NOTES | $RUN_NOTES |" >> $GITHUB_STEP_SUMMARY
           echo "| release | $RELEASE | $RUN_RELEASE |" >> $GITHUB_STEP_SUMMARY
-          echo "| config/core | $CONFIG | $RUN_CONFIG |" >> $GITHUB_STEP_SUMMARY
+          echo "| config/core/forge/git | $CONFIG | $RUN_CONFIG |" >> $GITHUB_STEP_SUMMARY
           echo "| integration | $INTEGRATION | $RUN_INTEGRATION |" >> $GITHUB_STEP_SUMMARY
           echo "| e2e | $E2E | $RUN_E2E |" >> $GITHUB_STEP_SUMMARY
           echo "| infra | $INFRA | - |" >> $GITHUB_STEP_SUMMARY
