@@ -6,16 +6,6 @@ Each section below covers a specific failure mode. Search for the exact message 
 
 ## Version stage
 
-### version.preset: Invalid option: expected one of "angular"|"conventionalcommits"
-
-**Symptom:** The run fails with a `CONFIG_ERROR` before any stage starts.
-
-**Cause:** `version.preset` accepts only `conventionalcommits` (the default) and `angular`. The old names `conventional` and `conventional-commits` are rejected.
-
-**Fix:** Set `"preset": "conventionalcommits"`, or remove the key to use the default.
-
----
-
 ### No relevant commits found for X since Y, skipping version bump
 
 **Symptom:** The version stage logs `No relevant commits found for <package> since <tag>, skipping version bump` and exits with code 0.

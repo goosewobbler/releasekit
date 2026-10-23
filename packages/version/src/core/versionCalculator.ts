@@ -24,7 +24,7 @@ import {
   type VersionSourceResult,
 } from '../utils/versionUtils.js';
 
-// Static imports, not the bumper's import(name): that resolves from wherever it's bundled (release's dist).
+// Imported statically so they resolve from releasekit's own dependencies in any install layout, bundled dist included.
 const PRESETS: Record<Preset, () => BumperPreset> = {
   angular: createAngularPreset as () => BumperPreset,
   conventionalcommits: createConventionalCommitsPreset as () => BumperPreset,
@@ -398,7 +398,6 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
     log(`Falling back to conventional commits`, 'debug');
     try {
       log(`Creating bumper with preset: ${preset}`, 'debug');
-      // Eager, not bumper.loadPreset(): its lazy promise can reject unobserved across the await below and crash Node.
       const presetConfig = PRESETS[preset]();
       const bumper = new Bumper();
       bumper.config(presetConfig);
