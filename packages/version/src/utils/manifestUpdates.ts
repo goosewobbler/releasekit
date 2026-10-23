@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { Config } from '@releasekit/config';
 import { updatePackageVersion } from '../package/packageManagement.js';
+import type { Config } from '../types.js';
 import { resolveConfinedManifestPath } from './confinedPath.js';
 
 export function updateCargoFiles(
