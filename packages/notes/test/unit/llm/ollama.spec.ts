@@ -161,6 +161,7 @@ describe('OllamaProvider', () => {
 
     await expect(makeProvider().complete(ask)).rejects.toMatchObject({
       message: expect.stringMatching(/stream ended before the response was complete/),
+      cause: expect.objectContaining({ message: expect.stringMatching(/^Last line received: .*"done":false/) }),
       retryable: true,
     });
   });

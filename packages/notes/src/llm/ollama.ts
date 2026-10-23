@@ -58,7 +58,9 @@ async function* ndjsonLines(body: ReadableStream<Uint8Array>, onData: () => void
 
 async function readChatStream(body: ReadableStream<Uint8Array>, idle: IdleTimeout): Promise<string> {
   let content = '';
+  let last = '';
   for await (const line of ndjsonLines(body, idle.reset)) {
+    last = line;
     const chunk = JSON.parse(line) as OllamaChatChunk;
     if (chunk.error) {
       throw new LLMError(`Ollama error: ${chunk.error}`, { retryable: true });
@@ -68,7 +70,10 @@ async function readChatStream(body: ReadableStream<Uint8Array>, idle: IdleTimeou
       return content;
     }
   }
-  throw new LLMError('Ollama stream ended before the response was complete', { retryable: true });
+  throw new LLMError('Ollama stream ended before the response was complete', {
+    cause: new Error(`Last line received: ${last || '(none)'}`),
+    retryable: true,
+  });
 }
 
 export class OllamaProvider extends BaseLLMProvider {

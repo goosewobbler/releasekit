@@ -175,6 +175,14 @@ describe('isOllamaUnreachable', () => {
       expected: false,
     },
     {
+      label: 'a stream that ended without done',
+      error: new LLMError('Ollama stream ended before the response was complete', {
+        cause: new Error('Last line received: {}'),
+        retryable: true,
+      }),
+      expected: false,
+    },
+    {
       label: 'a socket error under fetch failed',
       error: new LLMError('Ollama error: fetch failed', { cause: refused, retryable: true }),
       expected: true,
