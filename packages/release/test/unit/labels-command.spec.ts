@@ -21,7 +21,6 @@ import { createFakeForge } from '@releasekit/forge';
 import { runLabelsSync } from '../../src/commands/labels-command.js';
 import { forgeFor } from '../../src/github.js';
 
-/** A forge whose repo already has `existingLabels` — `createLabel` resolves 'exists' for those. */
 function mockForge(existingLabels: string[] = []) {
   const forge = createFakeForge({ labelNames: existingLabels });
   vi.mocked(forgeFor).mockReturnValue(forge);
@@ -57,11 +56,15 @@ describe('runLabelsSync', () => {
     expect(exitSpy).not.toHaveBeenCalled();
   });
 
-  it('should be idempotent — 422 already-exists does not fail the run', async () => {
-    // The forge resolves an existing label to 'exists' rather than throwing — the run succeeds.
-    mockForge(['bump:minor']);
+  it('should create only the labels missing from the repo', async () => {
+    const forge = mockForge(['bump:minor', 'Release']);
 
     await expect(runLabelsSync({ repo: 'owner/repo' })).resolves.toBeUndefined();
+
+    const created = forge.createdLabels.map((l) => l.name);
+    expect(created).toContain('bump:patch');
+    expect(created).not.toContain('bump:minor');
+    expect(created).not.toContain('release');
     expect(exitSpy).not.toHaveBeenCalled();
   });
 

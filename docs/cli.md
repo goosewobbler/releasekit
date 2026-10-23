@@ -246,7 +246,7 @@ The repository is resolved from `--repo`, then `GITHUB_REPOSITORY`, then the `or
 
 ### `releasekit labels sync`
 
-Idempotently create every config-implied label that is missing from the repo. Existing labels are left untouched (a 422 "already exists" is ignored).
+Idempotently create every config-implied label that is missing from the repo. Existing labels, matched case-insensitively, are left untouched and never re-requested.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
