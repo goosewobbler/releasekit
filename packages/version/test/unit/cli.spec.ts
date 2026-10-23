@@ -186,6 +186,23 @@ describe('createVersionCommand', () => {
       }
     });
 
+    it('should resolve a relative --project-dir before loading config', async () => {
+      const invocationDir = process.cwd();
+      const relProject = 'app';
+      const absProject = path.join(invocationDir, relProject);
+      let cwd = invocationDir;
+      vi.spyOn(process, 'chdir').mockImplementation((dir) => {
+        cwd = path.resolve(cwd, String(dir));
+      });
+      vi.spyOn(process, 'cwd').mockImplementation(() => cwd);
+
+      await createVersionCommand().parseAsync(['node', 'test', '--project-dir', relProject]);
+
+      expect(configModule.loadConfig).toHaveBeenCalledWith(
+        expect.objectContaining({ cwd: absProject, configPath: undefined }),
+      );
+    });
+
     it('should resolve a relative --output against the invocation directory, before --project-dir changes it', async () => {
       // Model the chdir, so a path resolved after it would land inside --project-dir.
       const invocationDir = process.cwd();
