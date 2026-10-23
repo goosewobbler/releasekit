@@ -90,7 +90,7 @@ export interface PublishCliOptions {
 
 export interface PublishResult {
   packageName: string;
-  /** The `VersionOutput` update this result belongs to; `packageName` is the registry's name for it. */
+  /** The name in `VersionOutput`. `packageName` is the registry's name, which differs for some crates and Dart packages. */
   updatePackageName: string;
   version: string;
   registry: 'npm' | 'cargo' | 'pub';
