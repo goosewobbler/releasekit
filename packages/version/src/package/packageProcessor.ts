@@ -281,7 +281,7 @@ export class PackageProcessor {
         if (repoLevelEntries.length > 0) {
           log(`Found ${repoLevelEntries.length} repo-level commit(s) for ${name}`, 'debug');
           for (const entry of repoLevelEntries) {
-            sharedEntriesMap.set(`${entry.type}:${entry.description}`, entry);
+            sharedEntriesMap.set(`${entry.type}${entry.breaking ? '!' : ''}:${entry.description}`, entry);
           }
         }
 

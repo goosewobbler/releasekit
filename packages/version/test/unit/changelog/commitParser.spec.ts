@@ -70,8 +70,8 @@ describe('Commit Parser', () => {
     const entries = await extractChangelogEntriesFromCommits('/test', RANGE, gitWithLog(mockGitOutput));
 
     expect(entries).toHaveLength(2);
-    expect(entries[0].description).toContain('**BREAKING**');
-    expect(entries[1].description).toContain('**BREAKING**');
+    expect(entries[0]).toMatchObject({ description: 'breaking change', breaking: true });
+    expect(entries[1]).toMatchObject({ description: 'another fix', breaking: true });
   });
 
   it('should extract issue IDs from commit messages', async () => {
