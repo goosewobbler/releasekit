@@ -50,6 +50,7 @@
     "rules": {
       "preset": "recommended",
       "style": {
+        "noNonNullAssertion": "error",
         "useBlockStatements": {
           "level": "error",
           "fix": "safe"

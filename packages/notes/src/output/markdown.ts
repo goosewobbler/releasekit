@@ -251,9 +251,9 @@ function extractLinksFromPRBodies(entries: ChangelogEntry[], marker: string): Li
             seen.add(mdLink.url);
             links.push(mdLink);
           }
-        } else if (/^https?:\/\//.test(rest)) {
-          const url = rest.split(/\s/)[0]!;
-          if (!seen.has(url)) {
+        } else {
+          const url = /^https?:\/\/\S*/.exec(rest)?.[0];
+          if (url && !seen.has(url)) {
             seen.add(url);
             links.push({ label: marker.replace(/:$/, ''), url });
           }

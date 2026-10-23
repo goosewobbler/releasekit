@@ -93,12 +93,13 @@ export async function fetchExamples(options: FetchExamplesOptions): Promise<Exam
       packageScoped.length > 0 ? packageScoped : isMonorepo ? [] : nonDraft.filter((r) => matchesBareVersion(r.tagName))
     ).slice(0, count);
 
-    if (matching.length === 0) {
+    const latest = matching[0];
+    if (!latest) {
       debug(`No matching releases found for ${packageName}`);
       return [];
     }
 
-    const latestTag = matching[0]!.tagName;
+    const latestTag = latest.tagName;
     const key = cacheKey(owner, repo, packageName);
     const cached = readCache(key, latestTag, count);
     if (cached) {

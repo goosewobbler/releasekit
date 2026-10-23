@@ -34,10 +34,7 @@ export function buildSystemPrompt(categories: LLMCategory[] | undefined, style: 
   );
 
   // Scope source: categories whose own `scopes` array is non-empty.
-  const pairs =
-    categories && categories.length > 0
-      ? categories.filter((c) => c.scopes?.length).map((c) => ({ name: c.name, scopes: c.scopes! }))
-      : [];
+  const pairs = (categories ?? []).flatMap((c) => (c.scopes?.length ? [{ name: c.name, scopes: c.scopes }] : []));
   const scopeInstruction = renderScopeInstruction(pairs, ' entries');
 
   return `You are generating release notes for a software project. Given changelog entries, rewrite each as a clear user-friendly description and categorize it.

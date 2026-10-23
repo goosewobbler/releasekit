@@ -16,9 +16,9 @@ export function parseReleaseBodyToExample(markdown: string, version: string): Ex
     }
 
     // ## / ### / #### Heading → new category (h1 skipped as document title)
-    const headingMatch = /^#{2,4} (.+)/.exec(line);
-    if (headingMatch) {
-      currentCategory = headingMatch[1]!.trim();
+    const heading = /^#{2,4} (.+)/.exec(line)?.[1];
+    if (heading) {
+      currentCategory = heading.trim();
       continue;
     }
     if (line.startsWith('#')) {
