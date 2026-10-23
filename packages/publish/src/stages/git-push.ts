@@ -101,16 +101,14 @@ export async function pushPackageTag(tag: string, ctx: PipelineContext, setup?: 
   const { remote, pushRemote, branch } = resolvedSetup;
 
   try {
-    // Pushing the tag ref carries its commit with it.
+    if (pushesBranch(ctx) && branch) {
+      await runGit(dryRun, `git push ${remote} ${branch}`, () => git.push({ remote: pushRemote, ref: branch, cwd }));
+    }
+
     await runGit(dryRun, `git push ${remote} refs/tags/${tag}`, () =>
       git.push({ remote: pushRemote, ref: `refs/tags/${tag}`, cwd }),
     );
     output.git.tags.push(tag);
-
-    // A no-op once the remote is up to date, so safe to repeat per package.
-    if (pushesBranch(ctx) && branch) {
-      await runGit(dryRun, `git push ${remote} ${branch}`, () => git.push({ remote: pushRemote, ref: branch, cwd }));
-    }
 
     output.git.pushed = true;
   } catch (error) {

@@ -10,6 +10,7 @@ import { runPubPublishStage } from '../stages/pub-publish.js';
 import { runVerifyStage } from '../stages/verify.js';
 import type { PipelineContext, PublishCliOptions, PublishConfig, PublishOutput } from '../types.js';
 import { detectPackageManager } from '../utils/package-manager.js';
+import { orderVersionUpdates } from './order-updates.js';
 
 function inferStageName(error: unknown): string {
   if (error instanceof BasePublishError) {
@@ -63,6 +64,7 @@ export async function runPipeline(
   // Per-package mode (async, or sync & packageSpecificTags): push each tag right after its package publishes.
   // A single shared sync tag isn't carried on any update, so that falls to batch mode.
   const perPackageMode = input.updates.some((u) => !!u.tag);
+  const publishUpdates = perPackageMode ? orderVersionUpdates(input.updates, config, cwd) : input.updates;
 
   try {
     await runPrepareStage(ctx);
@@ -92,7 +94,7 @@ export async function runPipeline(
       } else if (!options.skipPublish) {
         const pushSetup = !options.skipGit ? await preparePushSetup(ctx) : null;
 
-        for (const update of input.updates) {
+        for (const update of publishUpdates) {
           const singleCtx: PipelineContext = {
             ...ctx,
             input: { ...ctx.input, updates: [update] },

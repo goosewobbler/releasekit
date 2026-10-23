@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { isCratePublishable } from '@releasekit/config';
-import { buildDependencyGraph, debug, type GraphPackage } from '@releasekit/core';
+import { buildDependencyGraph, debug, type GraphPackage, type VersionPackageUpdate } from '@releasekit/core';
 import { createGitCli } from '@releasekit/git';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext } from '../types.js';
@@ -148,6 +148,33 @@ function findCrates(
   }
 
   return crates;
+}
+
+export function orderCargoVersionUpdates(
+  updates: VersionPackageUpdate[],
+  explicitOrder: string[],
+  cwd: string,
+): VersionPackageUpdate[] {
+  const withDir = updates.map((u) => ({
+    ...u,
+    dir: path.dirname(path.resolve(cwd, u.filePath)),
+  }));
+  const crates = findCrates(withDir);
+  if (crates.length <= 1) {
+    return updates;
+  }
+  const orderedCrates = orderCrates(crates, explicitOrder);
+  const cargoNames = new Set(crates.map((c) => c.updatePackageName));
+  const byName = new Map(updates.map((u) => [u.packageName, u]));
+  const ordered = orderedCrates
+    .map((c) => byName.get(c.updatePackageName))
+    .filter((u): u is VersionPackageUpdate => u !== undefined);
+  for (const u of updates) {
+    if (!cargoNames.has(u.packageName)) {
+      ordered.push(u);
+    }
+  }
+  return ordered;
 }
 
 function orderCrates(crates: CargoTarget[], explicitOrder: string[]): CargoTarget[] {

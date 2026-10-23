@@ -334,14 +334,14 @@ describe('pushPackageTag', () => {
     vi.mocked(detectGitPushMethod).mockResolvedValue('https');
   });
 
-  it('should push the specific tag ref and then the branch', async () => {
+  it('should push the branch before the specific tag ref', async () => {
     const ctx = createContext();
 
     await pushPackageTag('pkg-a@v1.0.0', ctx);
 
     expect(fakeGit.pushed).toEqual([
-      expect.objectContaining({ remote: 'origin', ref: 'refs/tags/pkg-a@v1.0.0' }),
       expect.objectContaining({ remote: 'origin', ref: 'main' }),
+      expect.objectContaining({ remote: 'origin', ref: 'refs/tags/pkg-a@v1.0.0' }),
     ]);
     expect(ctx.output.git.tags).toContain('pkg-a@v1.0.0');
     expect(ctx.output.git.pushed).toBe(true);
@@ -404,8 +404,8 @@ describe('pushPackageTag', () => {
     await pushPackageTag('pkg-a@v1.0.0', ctx, setup ?? undefined);
 
     expect(fakeGit.pushed).toEqual([
-      expect.objectContaining({ remote: 'origin', ref: 'refs/tags/pkg-a@v1.0.0' }),
       expect.objectContaining({ remote: 'origin', ref: 'main' }),
+      expect.objectContaining({ remote: 'origin', ref: 'refs/tags/pkg-a@v1.0.0' }),
     ]);
   });
 
