@@ -7,6 +7,7 @@ import type {
   GitForEachRefOptions,
   GitListTagsOptions,
   GitLogOptions,
+  GitLsFilesOptions,
   GitPushOptions,
   GitStatusOptions,
   GitTagOptions,
@@ -188,6 +189,14 @@ export class FakeGit implements Git {
 
   async diffTreeNames(commitSha: string, _cwd?: string): Promise<string[]> {
     return [...(this.diffNames[commitSha] ?? [])];
+  }
+
+  async lsFiles(_opts: GitLsFilesOptions = {}): Promise<string[]> {
+    return [];
+  }
+
+  async isIgnored(_file: string, _cwd?: string): Promise<boolean> {
+    return false;
   }
 
   async forEachRef(_opts: GitForEachRefOptions): Promise<string[]> {

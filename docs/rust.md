@@ -9,6 +9,7 @@ See [configuration.md](./configuration.md) for the full config reference.
 ## What's supported
 
 - `Cargo.toml` version bumping driven by conventional commits
+- `Cargo.lock` sync on every bump: the crate's own lock, and every other committed lock whose workspace reaches the crate's directory through path dependencies (`workspace = true` included), is updated in the same release commit, without running cargo. Gitignored locks are left alone, and so are other crates of the same name (every `tauri init` app is `app`)
 - Per-crate git tags (via `version.packageSpecificTags`)
 - Publishing to crates.io with `cargo publish`
 - Workspace dependency ordering via topological sort (Kahn's algorithm) so path-dependent crates are published in the correct sequence
@@ -22,6 +23,7 @@ See [configuration.md](./configuration.md) for the full config reference.
 
 - OIDC / trusted publishing for crates.io — token-based auth only via `CARGO_REGISTRY_TOKEN`
 - Automatic workspace root discovery — crate directories must be listed in `version.cargo.paths` or inferred from `version.packages`
+- `[patch]`, in `Cargo.toml` or `.cargo/config.toml`, when syncing `Cargo.lock` — a lock whose workspace reaches a bumped crate only through a patch keeps the old version, without an error, and `cargo build --locked` there fails until you run `cargo update --workspace` in that workspace and commit the lock
 - Comment and formatting preservation in `Cargo.toml` — the file is rewritten on version bump using `smol-toml`'s serialiser; whitespace, comments, and key order may change
 
 ---
@@ -206,6 +208,15 @@ jobs:
 ---
 
 ## Edge cases and troubleshooting
+
+**`Failed to sync Cargo.lock: …`**
+
+releasekit edits each lock's text the way cargo would, and fails the version step (`CARGO_LOCK_SYNC_ERROR`: exit code 8 from `release` and `standing-pr`, 1 from `releasekit version`) rather than leave a lock behind. The message names the lock and the reason:
+
+- `it also has <crate> <version> from another source`: the lock also lists the crate from a registry or git source at the old or the new version, so cargo would have to change how it tells the two apart. Sync that lock with cargo yourself (`cargo update` with the new version in `Cargo.toml`) and commit it, or drop the second source of the crate.
+- `it has <n> path entries named <crate>`: the lock holds several local crates of that name, so releasekit can't tell which one is the bumped crate. Sync that lock with cargo yourself.
+- `its format (version = <n>) is newer than releasekit can edit`: releasekit edits lock formats up to v4. Sync that lock with cargo yourself.
+- A file-system error such as `EACCES`: the lock couldn't be read or written.
 
 **`error: failed to verify package tarball`**
 

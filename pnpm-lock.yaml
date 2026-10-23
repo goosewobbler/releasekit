@@ -317,6 +317,9 @@ importers:
       minimatch:
         specifier: 'catalog:'
         version: 10.2.6
+      smol-toml:
+        specifier: 'catalog:'
+        version: 1.9.1
     devDependencies:
       '@biomejs/biome':
         specifier: 'catalog:'

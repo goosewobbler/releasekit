@@ -27,7 +27,8 @@
   "dependencies": {
     "@manypkg/get-packages": "catalog:",
     "chalk": "catalog:",
-    "minimatch": "catalog:"
+    "minimatch": "catalog:",
+    "smol-toml": "catalog:"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
