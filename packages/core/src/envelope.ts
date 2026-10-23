@@ -146,6 +146,7 @@ const CODE_TO_EXIT: Record<string, number> = {
   STRICT_REACHABLE_UNREACHABLE: EXIT_CODES.VERSION_ERROR,
   NO_COMMIT_MESSAGE: EXIT_CODES.VERSION_ERROR,
   NO_FILES: EXIT_CODES.VERSION_ERROR,
+  CARGO_LOCK_SYNC_ERROR: EXIT_CODES.VERSION_ERROR,
 
   // @releasekit/publish. Registry auth and publish failures are publish errors; a malformed package
   // manifest is a configuration problem; the git and GitHub stages map to their own families.

@@ -165,6 +165,25 @@ describe('GitCli queries', () => {
     expect(calls[0].args).toEqual(['diff-tree', '--no-commit-id', '--name-only', '-r', 'sha1']);
   });
 
+  it('should list tracked files NUL-separated, passing pathspecs after --', async () => {
+    const { run, calls } = makeRunner({ stdout: '../Cargo.lock\0app/Cargo.lock\0' });
+    expect(await new GitCli(run).lsFiles({ paths: [':(top,glob)**/Cargo.lock'], cwd: '/r/crates' })).toEqual([
+      '../Cargo.lock',
+      'app/Cargo.lock',
+    ]);
+    expect(calls[0].args).toEqual(['ls-files', '-z', '--', ':(top,glob)**/Cargo.lock']);
+    expect(calls[0].options.cwd).toBe('/r/crates');
+  });
+
+  it('should answer isIgnored via check-ignore -q exit code, passing the file after --', async () => {
+    const ignored = makeRunner();
+    expect(await new GitCli(ignored.run).isIgnored('/r/Cargo.lock', '/r')).toBe(true);
+    expect(ignored.calls[0].args).toEqual(['check-ignore', '-q', '--', '/r/Cargo.lock']);
+    expect(ignored.calls[0].options).toEqual({ cwd: '/r', ignoreOutput: true });
+    const notIgnored = makeRunner({ reject: exitError(1) });
+    expect(await new GitCli(notIgnored.run).isIgnored('Cargo.lock')).toBe(false);
+  });
+
   it('should run for-each-ref with format, and append sort/pattern when given', async () => {
     const { run, calls } = makeRunner({ stdout: 'v1 sha1\nv2 sha2\n' });
     expect(

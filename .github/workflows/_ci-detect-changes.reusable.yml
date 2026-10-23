@@ -33,6 +33,9 @@ on:
       run_e2e:
         description: 'Whether to run E2E tests'
         value: ${{ jobs.detect.outputs.run_e2e }}
+      run_live:
+        description: 'Whether to run tests against live external services'
+        value: ${{ jobs.detect.outputs.run_live }}
 
 permissions:
   contents: read
@@ -50,6 +53,7 @@ jobs:
       run_config: ${{ steps.determine.outputs.run_config }}
       run_integration: ${{ steps.determine.outputs.run_integration }}
       run_e2e: ${{ steps.determine.outputs.run_e2e }}
+      run_live: ${{ steps.determine.outputs.run_live }}
 
     steps:
       - name: Checkout
@@ -73,6 +77,8 @@ jobs:
             config:
               - 'packages/config/**'
               - 'packages/core/**'
+              - 'packages/forge/**'
+              - 'packages/git/**'
             integration:
               - 'test/integration/**'
               - '.github/workflows/_ci-integration.reusable.yml'
@@ -80,6 +86,14 @@ jobs:
               - 'test/e2e/**'
               - 'scripts/test-e2e.ts'
               - '.github/workflows/_ci-e2e.reusable.yml'
+            live:
+              - 'packages/notes/src/**'
+              - 'packages/notes/package.json'
+              - 'packages/notes/test/integration/ollama-live.spec.ts'
+              - 'releasekit.config.json'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/_ci-detect-changes.reusable.yml'
+              - '.github/workflows/_ci-live.reusable.yml'
             infra:
               - '.github/workflows/**'
               - '.github/actions/**'
@@ -101,6 +115,7 @@ jobs:
             echo "run_config=true" >> $GITHUB_OUTPUT
             echo "run_integration=true" >> $GITHUB_OUTPUT
             echo "run_e2e=true" >> $GITHUB_OUTPUT
+            echo "run_live=true" >> $GITHUB_OUTPUT
             echo "::notice::Force all mode - running all tests"
             exit 0
           fi
@@ -112,6 +127,7 @@ jobs:
           CONFIG="${{ steps.changes.outputs.config }}"
           INTEGRATION="${{ steps.changes.outputs.integration }}"
           E2E="${{ steps.changes.outputs.e2e }}"
+          LIVE="${{ steps.changes.outputs.live }}"
           INFRA="${{ steps.changes.outputs.infra }}"
 
           RUN_VERSION="false"
@@ -163,6 +179,7 @@ jobs:
           echo "run_config=$RUN_CONFIG" >> $GITHUB_OUTPUT
           echo "run_integration=$RUN_INTEGRATION" >> $GITHUB_OUTPUT
           echo "run_e2e=$RUN_E2E" >> $GITHUB_OUTPUT
+          echo "run_live=$LIVE" >> $GITHUB_OUTPUT
 
           echo "## Change Detection" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -172,7 +189,8 @@ jobs:
           echo "| publish | $PUBLISH | $RUN_PUBLISH |" >> $GITHUB_STEP_SUMMARY
           echo "| notes | $NOTES | $RUN_NOTES |" >> $GITHUB_STEP_SUMMARY
           echo "| release | $RELEASE | $RUN_RELEASE |" >> $GITHUB_STEP_SUMMARY
-          echo "| config/core | $CONFIG | $RUN_CONFIG |" >> $GITHUB_STEP_SUMMARY
+          echo "| config/core/forge/git | $CONFIG | $RUN_CONFIG |" >> $GITHUB_STEP_SUMMARY
           echo "| integration | $INTEGRATION | $RUN_INTEGRATION |" >> $GITHUB_STEP_SUMMARY
           echo "| e2e | $E2E | $RUN_E2E |" >> $GITHUB_STEP_SUMMARY
+          echo "| live | $LIVE | $LIVE |" >> $GITHUB_STEP_SUMMARY
           echo "| infra | $INFRA | - |" >> $GITHUB_STEP_SUMMARY

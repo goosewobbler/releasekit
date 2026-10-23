@@ -10,6 +10,7 @@ import type {
   GitForEachRefOptions,
   GitListTagsOptions,
   GitLogOptions,
+  GitLsFilesOptions,
   GitPushOptions,
   GitStatusOptions,
   GitTagOptions,
@@ -239,6 +240,19 @@ export class GitCli implements Git {
       cwd: this.cwd(cwd),
     });
     return splitLines(stdout);
+  }
+
+  async lsFiles(opts: GitLsFilesOptions = {}): Promise<string[]> {
+    const args = ['ls-files', '-z'];
+    if (opts.paths && opts.paths.length > 0) {
+      args.push('--', ...opts.paths);
+    }
+    const { stdout } = await this.exec(args, { cwd: this.cwd(opts.cwd) });
+    return stdout.split('\0').filter((file) => file.length > 0);
+  }
+
+  async isIgnored(file: string, cwd?: string): Promise<boolean> {
+    return this.execSoft(['check-ignore', '-q', '--', file], { cwd: this.cwd(cwd), ignoreOutput: true });
   }
 
   async forEachRef(opts: GitForEachRefOptions): Promise<string[]> {

@@ -1,4 +1,10 @@
-export { findCargoLockfile } from './cargo.js';
+export {
+  type CargoLockBump,
+  type CargoLockGit,
+  type CargoLockUpdate,
+  findCargoLockfile,
+  planCargoLockUpdates,
+} from './cargo.js';
 export {
   type ChangelogRefsMode,
   escapeChangelogMentions,

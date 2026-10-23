@@ -1,53 +1,49 @@
-import { execFileSync } from 'node:child_process';
-import path from 'node:path';
-import { findCargoLockfile } from '@releasekit/core';
+import fs from 'node:fs';
+import { type CargoLockBump, planCargoLockUpdates } from '@releasekit/core';
+import { createGitCli } from '@releasekit/git';
+import { CargoLockSyncError } from '../errors/cargoLockSyncError.js';
+import { recordPendingWrite } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 
-/**
- * Sync a crate's `Cargo.lock` self-version entry after its `Cargo.toml` version was bumped, so a
- * committed lock doesn't drift from the manifest (which breaks `cargo build --locked`/`--frozen` and
- * leaks a spurious lock diff into later builds). The bump only rewrites `Cargo.toml`, so without this
- * the lock's own `[[package]]` entry stays at the old version.
- *
- * The refresh is surgical and offline: `cargo update --workspace --offline` moves only the workspace
- * members' own lock entries to match their manifests, never re-resolving registry dependencies, so it
- * can't reintroduce a dependency-cascade. We never create a lock that wasn't already committed.
- *
- * Returns the lock path when it was refreshed (so the caller can stage it), or `undefined` when there
- * is no committed lock, under dry-run, or when cargo is unavailable / the refresh fails. A failure is
- * logged but never thrown: the version bump itself already succeeded and must not be blocked by a
- * lockfile fix-up — surfacing the drift loudly is enough.
- */
-export function syncCargoLockfile(cargoTomlPath: string, dryRun = false): string | undefined {
-  const crateDir = path.dirname(cargoTomlPath);
-  const lockPath = findCargoLockfile(crateDir);
-  if (!lockPath) {
-    log(`No Cargo.lock found above ${crateDir}; nothing to sync`, 'debug');
-    return undefined;
-  }
+const recordedBumps: CargoLockBump[] = [];
 
-  if (dryRun) {
-    log(`[DRY RUN] Would refresh Cargo.lock at ${lockPath}`, 'info');
-    return undefined;
+export function recordCargoBump(bump: CargoLockBump): void {
+  recordedBumps.push(bump);
+}
+
+/** Drop bumps recorded outside a version run, so a run never syncs another run's bumps. */
+export function clearCargoBumps(): void {
+  recordedBumps.length = 0;
+}
+
+/**
+ * Sync every Cargo.lock that records a crate bumped since the last sync (core's `planCargoLockUpdates`).
+ * Under dry-run the edits are still planned, so an unsyncable lock fails the dry run too, and they're
+ * recorded as pending writes instead of written.
+ *
+ * Throws {@link CargoLockSyncError} on a lock it can't read, edit or write; every edit is planned before
+ * the first write, so a failure leaves all locks untouched.
+ */
+export async function syncCargoLockfiles(cwd: string, dryRun: boolean): Promise<void> {
+  const bumps = recordedBumps.splice(0);
+  if (bumps.length === 0) {
+    return;
   }
 
   try {
-    execFileSync('cargo', ['update', '--workspace', '--offline'], { cwd: crateDir, stdio: 'pipe' });
-    log(`Synced Cargo.lock at ${lockPath}`, 'success');
-    return lockPath;
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === 'ENOENT') {
-      log(
-        `cargo not found on PATH — Cargo.lock at ${lockPath} may drift from the bumped version. ` +
-          'Install the Rust toolchain in the release environment, or set version.cargo.enabled to false.',
-        'warning',
-      );
-    } else {
-      const stderr = (error as { stderr?: Buffer | string }).stderr;
-      const detail = stderr ? stderr.toString().trim() : error instanceof Error ? error.message : String(error);
-      log(`Failed to refresh Cargo.lock at ${lockPath}: ${detail}`, 'warning');
+    for (const { lockPath, content, changed } of await planCargoLockUpdates(createGitCli(), cwd, bumps)) {
+      if (!changed) {
+        continue;
+      }
+      if (dryRun) {
+        recordPendingWrite(lockPath, content);
+        log(`[DRY RUN] Would sync Cargo.lock at ${lockPath}`, 'info');
+      } else {
+        fs.writeFileSync(lockPath, content);
+        log(`Synced Cargo.lock at ${lockPath}`, 'success');
+      }
     }
-    return undefined;
+  } catch (error) {
+    throw new CargoLockSyncError(error instanceof Error ? error.message : String(error));
   }
 }
