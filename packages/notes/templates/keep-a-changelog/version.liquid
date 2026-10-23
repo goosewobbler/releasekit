@@ -13,42 +13,42 @@
 {% if added.size > 0 %}
 ### Added
 {% for entry in added %}
-- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+- {% if entry.breaking %}**BREAKING** {% endif %}{% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
 
 {% endfor %}
 {% endif %}
 {% if changed.size > 0 %}
 ### Changed
 {% for entry in changed %}
-- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+- {% if entry.breaking %}**BREAKING** {% endif %}{% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
 
 {% endfor %}
 {% endif %}
 {% if deprecated.size > 0 %}
 ### Deprecated
 {% for entry in deprecated %}
-- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+- {% if entry.breaking %}**BREAKING** {% endif %}{% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
 
 {% endfor %}
 {% endif %}
 {% if removed.size > 0 %}
 ### Removed
 {% for entry in removed %}
-- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+- {% if entry.breaking %}**BREAKING** {% endif %}{% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
 
 {% endfor %}
 {% endif %}
 {% if fixed.size > 0 %}
 ### Fixed
 {% for entry in fixed %}
-- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+- {% if entry.breaking %}**BREAKING** {% endif %}{% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
 
 {% endfor %}
 {% endif %}
 {% if security.size > 0 %}
 ### Security
 {% for entry in security %}
-- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+- {% if entry.breaking %}**BREAKING** {% endif %}{% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
 
 {% endfor %}
 {% endif %}
