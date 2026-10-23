@@ -3130,16 +3130,13 @@ describe('runStandingPRMerge', () => {
     process.env = { ...originalEnv };
   });
 
-  it('should return null when no GitHub context available', async () => {
+  it('should throw when no GitHub context available', async () => {
     delete process.env.GITHUB_REPOSITORY;
     delete process.env.GITHUB_TOKEN;
 
-    const result = await runStandingPRMerge(
-      { projectDir: '/test', verbose: false, quiet: false, json: false },
-      { publish: false },
-    );
-
-    expect(result).toBeNull();
+    await expect(
+      runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false }),
+    ).rejects.toThrow(/No GitHub context/);
   });
 
   it('should return null when no open standing PR found', async () => {
@@ -3212,7 +3209,7 @@ describe('runStandingPRMerge', () => {
     ).rejects.toThrow('Network error');
   });
 
-  it('should return null without publishing when publish flag is false', async () => {
+  it('should return a merge result without publishing when publish flag is false', async () => {
     await mockForge({ standingPR: openStandingPR(42) });
 
     const result = await runStandingPRMerge(
@@ -3220,7 +3217,7 @@ describe('runStandingPRMerge', () => {
       { publish: false },
     );
 
-    expect(result).toBeNull();
+    expect(result).toEqual({ merged: true, prNumber: 42 });
   });
 
   it('should call publishFromManifest when publish flag is true and manifest exists', async () => {

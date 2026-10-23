@@ -49,3 +49,10 @@ export interface ReleaseOutput {
   releaseNotes?: Record<string, string>;
   publishOutput?: PublishOutput;
 }
+
+export interface StandingPRMergeOutput {
+  merged: true;
+  prNumber: number;
+}
+
+export type StandingPRMergeResult = ReleaseOutput | StandingPRMergeOutput | null;

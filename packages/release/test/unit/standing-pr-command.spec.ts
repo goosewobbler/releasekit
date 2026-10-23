@@ -4,6 +4,7 @@ import { createStandingPRCommand } from '../../src/commands/standing-pr-command.
 vi.mock('../../src/standing-pr/standing-pr.js', () => ({
   runStandingPRUpdate: vi.fn().mockResolvedValue({ action: 'noop' }),
   runStandingPRPublish: vi.fn().mockResolvedValue(null),
+  runStandingPRMerge: vi.fn().mockResolvedValue(null),
 }));
 
 async function parseCommand(argv: string[]) {
@@ -24,6 +25,37 @@ describe('createStandingPRCommand', () => {
     const names = cmd.commands.map((c) => c.name());
     expect(names).toContain('update');
     expect(names).toContain('publish');
+    expect(names).toContain('merge');
+  });
+
+  describe('merge changed reporting', () => {
+    it('should report changed:true after a merge without --publish', async () => {
+      const { runStandingPRMerge } = await import('../../src/standing-pr/standing-pr.js');
+      vi.mocked(runStandingPRMerge).mockResolvedValueOnce({ merged: true, prNumber: 42 });
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      try {
+        await parseCommand(['merge', '--project-dir', '/test', '--json']);
+        const envelope = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
+        expect(envelope.status).toBe('success');
+        expect(envelope.changed).toBe(true);
+        expect(envelope.data).toEqual({ merged: true, prNumber: 42 });
+      } finally {
+        logSpy.mockRestore();
+      }
+    });
+
+    it('should report changed:false when there is no open standing PR', async () => {
+      const { runStandingPRMerge } = await import('../../src/standing-pr/standing-pr.js');
+      vi.mocked(runStandingPRMerge).mockResolvedValueOnce(null);
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      try {
+        await parseCommand(['merge', '--project-dir', '/test', '--json']);
+        const envelope = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
+        expect(envelope.changed).toBe(false);
+      } finally {
+        logSpy.mockRestore();
+      }
+    });
   });
 
   it('should call runStandingPRUpdate for update subcommand', async () => {

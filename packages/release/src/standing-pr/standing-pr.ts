@@ -30,7 +30,7 @@ import { deriveLabelDefinitions, syncLabels } from '../label-definitions.js';
 import { DEFAULT_LABELS, graduatedPackageFromLabel, isGraduatePackageLabel } from '../label-utils.js';
 import { refreshFeederPreviews } from '../preview/refresh.js';
 import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
-import type { ReleaseOptions, ReleaseOutput } from '../types.js';
+import type { ReleaseOptions, ReleaseOutput, StandingPRMergeResult } from '../types.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
 import { type EventActor, getEventActor, isAuthorizedActor, type StandingPrAuthorization } from './authorization.js';
 import { makeRowChangelogRenderer, renderCombinedFooter } from './changelog-region.js';
@@ -1777,7 +1777,7 @@ export async function runStandingPRPublish(
 export async function runStandingPRMerge(
   options: StandingPROptions,
   flags: { publish: boolean },
-): Promise<ReleaseOutput | null> {
+): Promise<StandingPRMergeResult> {
   const cwd = options.projectDir;
 
   const releaseKitConfig = loadReleaseKitConfig({ cwd, configPath: options.config });
@@ -1788,8 +1788,9 @@ export async function runStandingPRMerge(
 
   const githubContext = getGitHubContext();
   if (!githubContext?.token) {
-    error('No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available');
-    return null;
+    throw new Error(
+      'No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available — set GITHUB_REPOSITORY and GITHUB_TOKEN.',
+    );
   }
 
   const forge = forgeFor(githubContext);
@@ -1820,7 +1821,7 @@ export async function runStandingPRMerge(
   }
 
   if (!flags.publish) {
-    return null;
+    return { merged: true, prNumber: pr.number };
   }
 
   return publishFromManifest(pr.number, options);
