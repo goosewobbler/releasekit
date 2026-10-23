@@ -5,6 +5,6 @@ export default defineConfig({
   format: ['esm'],
   dts: { resolve: ['@releasekit/core', '@releasekit/config', '@releasekit/forge', '@releasekit/git'] },
   noExternal: ['@releasekit/core', '@releasekit/config', '@releasekit/forge', '@releasekit/git'],
-  // Bare package names only: the declaration build also checks resolved absolute paths, and @releasekit/* is bundled.
+  // Bare package names only. The declaration build also matches resolved paths against this; @releasekit/* is bundled.
   external: [/^(?![./]|[A-Za-z]:[\\/]|@releasekit\/)/],
 });
