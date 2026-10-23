@@ -8,7 +8,7 @@ on:
         type: string
     secrets:
       OLLAMA_API_KEY:
-        required: true
+        required: false
 
 permissions:
   contents: read
@@ -33,9 +33,11 @@ jobs:
 
       # Not turbo: its strict env mode strips RELEASEKIT_NOTES_LIVE and the suite silently skips.
       - name: Notes against live Ollama
-        run: pnpm --filter @releasekit/notes test ollama-live
+        run: |
+          RELEASEKIT_NOTES_LIVE_MODEL=$(jq -er '.notes.releaseNotes.llm.model' releasekit.config.json)
+          OLLAMA_BASE_URL=$(jq -er '.notes.releaseNotes.llm.baseURL' releasekit.config.json)
+          export RELEASEKIT_NOTES_LIVE_MODEL OLLAMA_BASE_URL
+          pnpm --filter @releasekit/notes test ollama-live
         env:
           RELEASEKIT_NOTES_LIVE: '1'
-          RELEASEKIT_NOTES_LIVE_MODEL: ${{ vars.OLLAMA_MODEL }}
-          OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL }}
           OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}

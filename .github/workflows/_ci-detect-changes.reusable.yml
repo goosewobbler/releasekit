@@ -88,6 +88,9 @@ jobs:
               - 'packages/notes/src/**'
               - 'packages/notes/package.json'
               - 'packages/notes/test/integration/ollama-live.spec.ts'
+              - 'releasekit.config.json'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/_ci-detect-changes.reusable.yml'
               - '.github/workflows/_ci-live.reusable.yml'
             infra:
               - '.github/workflows/**'
@@ -162,7 +165,7 @@ jobs:
           fi
 
           HAS_CHANGES="false"
-          if [ "$RUN_VERSION" = "true" ] || [ "$RUN_PUBLISH" = "true" ] || [ "$RUN_NOTES" = "true" ] || [ "$RUN_RELEASE" = "true" ] || [ "$RUN_CONFIG" = "true" ] || [ "$RUN_INTEGRATION" = "true" ] || [ "$RUN_E2E" = "true" ] || [ "$LIVE" = "true" ]; then
+          if [ "$RUN_VERSION" = "true" ] || [ "$RUN_PUBLISH" = "true" ] || [ "$RUN_NOTES" = "true" ] || [ "$RUN_RELEASE" = "true" ] || [ "$RUN_CONFIG" = "true" ] || [ "$RUN_INTEGRATION" = "true" ] || [ "$RUN_E2E" = "true" ]; then
             HAS_CHANGES="true"
           fi
 
