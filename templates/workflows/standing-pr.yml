@@ -3,6 +3,9 @@
 #     enable "Allow GitHub Actions to create and approve pull requests"
 #
 # Without it, the first `standing-pr update` run will fail with HTTP 403.
+# The same toggle lets any workflow token approve PRs. Pair a "≥ 1 approval"
+# ruleset with required code owners, or create the standing PR with a GitHub
+# App token and leave the toggle off.
 # See packages/release/docs/ci-setup.md → Standing Release PR for the full guide.
 #
 # Tip: exempt this PR's branch (release/*) from your build/test CI, or every update
@@ -175,6 +178,8 @@ jobs:
       github.event.action == 'closed' &&
       github.event.pull_request.merged == true &&
       startsWith(github.event.pull_request.head.ref, 'release/')
+    # Optional: `environment: release` restricted to the default branch, so
+    # registry credentials are not available to workflows on other branches.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

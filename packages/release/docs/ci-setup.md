@@ -329,6 +329,19 @@ GitHub Actions is not permitted to create or approve pull requests.
 
 The `pull-requests: write` permission in the workflow is necessary but not sufficient — this is a separate org/repo-level toggle.
 
+#### Workflow token approvals
+
+GitHub ties creating pull requests and approving them to that one toggle. With it on, **any** workflow's `GITHUB_TOKEN` can submit an approving review, not only the standing-PR workflow. That approval counts toward a default-branch ruleset of "Require a pull request before merging (≥ 1 approval)" for any PR that `github-actions[bot]` did not author.
+
+A write collaborator can add a workflow on their own branch that approves their feeder PR. Once that PR merges, its changes ship in the next standing release, whose diff shows only version and changelog updates.
+
+Pair the ruleset with a check a workflow token cannot satisfy:
+
+- **Required code owners review**, or **required reviewers** from a team. A `GITHUB_TOKEN` approval does not meet either.
+- Or create and update the standing PR with a **GitHub App** token (`actions/create-github-app-token`) and leave the toggle off. Pass that token as `GITHUB_TOKEN` on the update job only. The default `GITHUB_TOKEN` then cannot open pull requests, so the repo setting stays disabled.
+
+Optionally, give the publish job a deployment **environment** restricted to the default branch (and required reviewers, if you want a second gate). Registry credentials and `id-token` trusted-publishing permissions then are not available to a workflow running from another branch. The template's publish job sets no `environment:` until you add one.
+
 **Workflow permissions** (in the workflow YAML):
 
 ```yaml
@@ -432,7 +445,7 @@ The in-code gates keep the *manifest* clean, but the merge itself is a GitHub ac
 
 > ⚠️ The release bot pushes (and force-pushes) this branch, so it **must** be on the ruleset's *Bypass list* or releases break — ReleaseKit can't infer the bot's identity for you. **Add the bot as a bypass actor before the ruleset goes `active`.** On **GitHub Enterprise** you can instead create it in **evaluate** (dry-run) mode first and confirm in the repo's *rule insights* that the bot isn't tripped, then switch to active — but **evaluate mode is Enterprise-only**, so on every other plan add the bypass actor first and create the ruleset directly as `active`. (A bypass actor's force-push is not blocked by the lock, so the standing-PR refresh keeps working.)
 
-**2. Require review on the default branch** — target `main` (or `~DEFAULT_BRANCH`). Enable **Require a pull request before merging** (≥ 1 approval), **Block force pushes**, and **Restrict deletions**. Since merging the standing PR is the publish, this gates the publish behind review. The standing-PR template needs *Allow GitHub Actions to create and approve pull requests*, which also lets workflow tokens approve pull requests — so require code-owner or team review rather than relying on "≥ 1 approval" alone ([#653](https://github.com/goosewobbler/releasekit/issues/653)).
+**2. Require review on the default branch** — target `main` (or `~DEFAULT_BRANCH`). Enable **Require a pull request before merging** (≥ 1 approval), **Block force pushes**, and **Restrict deletions**. Since merging the standing PR is the publish, this gates the publish behind review. The standing-PR template needs the create-and-approve toggle, which also lets workflow tokens approve pull requests — require code-owner or team review rather than relying on "≥ 1 approval" alone ([Workflow token approvals](#workflow-token-approvals)).
 
 **Mapping `allowedActors` to ruleset bypass actors:** a `@org/team-slug` entry maps to a **Team** bypass actor and a plain **username** maps to a **User** bypass actor — add either to the ruleset's *Bypass list*. (GitHub also exposes repository **roles** and **Apps**, which is how a bot running as a GitHub App or the Actions bot is exempted.) Always keep org/repo admins on the bypass list so you can't lock yourself out.
 
