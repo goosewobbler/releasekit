@@ -14,6 +14,15 @@ class TestConfigError extends ReleaseKitError {
   readonly suggestions: string[] = [];
 }
 
+class TestCodedError extends ReleaseKitError {
+  readonly code: string;
+  readonly suggestions: string[] = [];
+  constructor(code: string) {
+    super(code);
+    this.code = code;
+  }
+}
+
 class TestLLMError extends ReleaseKitError {
   readonly code = 'LLM_ERROR';
   readonly suggestions: string[] = [];
@@ -66,6 +75,18 @@ describe('envelope', () => {
         retryable: false,
         message: 'bad config',
       });
+    });
+
+    it.each([
+      ['INPUT_PARSE_ERROR', 'input'],
+      ['INVALID_CONFIG', 'config'],
+      ['TAG_ALREADY_EXISTS', 'git'],
+      ['CARGO_LOCK_SYNC_ERROR', 'version'],
+      ['PIPELINE_STAGE_ERROR', 'publish'],
+      ['GITHUB_RELEASE_ERROR', 'github'],
+      ['UNMAPPED_ERROR', 'general'],
+    ])('should give %s its exit-code family, %s, as its category', (code, category) => {
+      expect(toEnvelopeError(new TestCodedError(code)).category).toBe(category);
     });
 
     it('should surface a retryable ReleaseKitError as retryable', () => {
