@@ -1,3 +1,4 @@
+import { PipelineError, type PublishOutput } from '@releasekit/publish';
 import { describe, expect, it, vi } from 'vitest';
 import { createStandingPRCommand } from '../../src/commands/standing-pr-command.js';
 
@@ -144,6 +145,38 @@ describe('createStandingPRCommand', () => {
       expect(envelope.changed).toBe(false);
       expect(envelope.data.versionOutput.updates).toHaveLength(1);
     });
+  });
+
+  it('should keep a publish PipelineError partial output in the json envelope', async () => {
+    const { runStandingPRPublish } = await import('../../src/standing-pr/standing-pr.js');
+    const partialOutput = {
+      dryRun: false,
+      git: { committed: false, tags: ['v2.0.0'], pushed: false },
+      npm: [{ packageName: '@acme/widget', version: '2.0.0', registry: 'npm', success: true, skipped: false }],
+      cargo: [],
+      pub: [],
+      verification: [],
+      githubReleases: [],
+      publishSucceeded: false,
+    } as PublishOutput;
+    vi.mocked(runStandingPRPublish).mockRejectedValueOnce(
+      new PipelineError('push rejected', 'git-push', partialOutput),
+    );
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await parseCommand(['publish', '--project-dir', '/test', '--json', '--pr', '189']);
+      const envelope = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
+      expect(envelope.status).toBe('error');
+      expect(envelope.changed).toBe(true);
+      expect(envelope.data).toEqual(partialOutput);
+      expect(envelope.errors[0].message).toContain('git-push');
+    } finally {
+      exitSpy.mockRestore();
+      logSpy.mockRestore();
+      errSpy.mockRestore();
+    }
   });
 
   it('should pass --verbose, --quiet, --json flags through', async () => {
