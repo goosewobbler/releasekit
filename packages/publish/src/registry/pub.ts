@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import type { VersionPackageUpdate } from '@releasekit/core';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext } from '../types.js';
 import { hasPubTokenAuth } from '../utils/auth.js';
@@ -77,6 +78,16 @@ export const pubRegistry: Registry<PubTarget, void> = {
     });
   },
 };
+
+/** Each publishable pub package's directory, ranked in batch publish order. */
+export function pubPublishRanks(
+  updates: VersionPackageUpdate[],
+  explicitOrder: string[],
+  cwd: string,
+): Map<string, number> {
+  const packages = findPubPackages(updates.map((u) => ({ ...u, dir: path.dirname(path.resolve(cwd, u.filePath)) })));
+  return new Map(orderPubPackages(packages, explicitOrder).map((p, rank) => [p.dir, rank]));
+}
 
 function findPubPackages(
   updates: Array<{ packageName: string; newVersion: string; filePath: string; dir: string }>,

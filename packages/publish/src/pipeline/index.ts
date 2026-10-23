@@ -64,7 +64,6 @@ export async function runPipeline(
   // Per-package mode (async, or sync & packageSpecificTags): push each tag right after its package publishes.
   // A single shared sync tag isn't carried on any update, so that falls to batch mode.
   const perPackageMode = input.updates.some((u) => !!u.tag);
-  const publishUpdates = perPackageMode ? orderVersionUpdates(input.updates, config, cwd) : input.updates;
 
   try {
     await runPrepareStage(ctx);
@@ -94,7 +93,7 @@ export async function runPipeline(
       } else if (!options.skipPublish) {
         const pushSetup = !options.skipGit ? await preparePushSetup(ctx) : null;
 
-        for (const update of publishUpdates) {
+        for (const update of orderVersionUpdates(input.updates, config, options.registry, cwd)) {
           const singleCtx: PipelineContext = {
             ...ctx,
             input: { ...ctx.input, updates: [update] },

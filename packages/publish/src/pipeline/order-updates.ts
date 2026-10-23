@@ -1,46 +1,38 @@
 import * as path from 'node:path';
 import type { VersionPackageUpdate } from '@releasekit/core';
-import { cargoUpdateDirs, orderCargoVersionUpdates } from '../registry/cargo.js';
+import { cargoPublishRanks } from '../registry/cargo.js';
 import { orderNpmUpdates } from '../registry/npm.js';
-import type { PublishConfig } from '../types.js';
+import { pubPublishRanks } from '../registry/pub.js';
+import type { PublishCliOptions, PublishConfig } from '../types.js';
 
 /**
- * npm order is the base, so an npm dependency stays ahead of a hybrid that depends on it.
- * Cargo updates, including hybrids, are reordered only within the slots npm order gave them.
+ * Applies the batch stages' publish order to per-package mode, which publishes one update at a time. Crates, then pub
+ * packages, are reordered among the positions npm order gave them, so a hybrid can land after an npm package that
+ * depends on it: npm accepts that, where cargo rejects a crate published before its path dependency.
  */
 export function orderVersionUpdates(
   updates: VersionPackageUpdate[],
   config: PublishConfig,
+  registry: PublishCliOptions['registry'],
   cwd: string,
 ): VersionPackageUpdate[] {
-  const npmOrdered = orderNpmUpdates(updates, config.npm.publishOrder, cwd);
-  const cargoDirs = cargoUpdateDirs(updates, cwd);
-  if (cargoDirs.size <= 1) {
-    return npmOrdered;
+  let ordered = orderNpmUpdates(updates, config.npm.publishOrder, cwd);
+  if (config.cargo.enabled && (registry === 'all' || registry === 'cargo')) {
+    ordered = reorderAmongOwnPositions(ordered, cargoPublishRanks(updates, config.cargo.publishOrder, cwd), cwd);
   }
-  const cargoRank = new Map(
-    orderCargoVersionUpdates(updates, config.cargo.publishOrder, cwd)
-      .filter((u) => cargoDirs.has(path.dirname(path.resolve(cwd, u.filePath))))
-      .map((u, index) => [path.dirname(path.resolve(cwd, u.filePath)), index]),
-  );
-  const slots: number[] = [];
-  npmOrdered.forEach((u, index) => {
-    if (cargoDirs.has(path.dirname(path.resolve(cwd, u.filePath)))) {
-      slots.push(index);
-    }
-  });
-  const cargoInNpmOrder = slots.map((index) => npmOrdered[index]).filter((u): u is VersionPackageUpdate => !!u);
-  cargoInNpmOrder.sort(
-    (a, b) =>
-      (cargoRank.get(path.dirname(path.resolve(cwd, a.filePath))) ?? 0) -
-      (cargoRank.get(path.dirname(path.resolve(cwd, b.filePath))) ?? 0),
-  );
-  const result = [...npmOrdered];
-  slots.forEach((index, i) => {
-    const next = cargoInNpmOrder[i];
-    if (next) {
-      result[index] = next;
-    }
-  });
-  return result;
+  if (config.pub.enabled && (registry === 'all' || registry === 'pub')) {
+    ordered = reorderAmongOwnPositions(ordered, pubPublishRanks(updates, config.pub.publishOrder, cwd), cwd);
+  }
+  return ordered;
+}
+
+function reorderAmongOwnPositions(
+  updates: VersionPackageUpdate[],
+  rankByDir: Map<string, number>,
+  cwd: string,
+): VersionPackageUpdate[] {
+  const rankOf = (u: VersionPackageUpdate) => rankByDir.get(path.dirname(path.resolve(cwd, u.filePath)));
+  const ranked = updates.filter((u) => rankOf(u) !== undefined).sort((a, b) => (rankOf(a) ?? 0) - (rankOf(b) ?? 0));
+  let next = 0;
+  return updates.map((u) => (rankOf(u) === undefined ? u : (ranked[next++] ?? u)));
 }

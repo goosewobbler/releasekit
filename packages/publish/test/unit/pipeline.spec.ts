@@ -1,3 +1,6 @@
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import type { VersionOutput } from '@releasekit/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDefaultConfig } from '../../src/config.js';
@@ -386,6 +389,63 @@ describe('pipeline', () => {
       await runPipeline(perPackageInput, getDefaultConfig(), defaultOptions);
 
       expect(seenUpdates).toEqual([['pkg-a'], ['pkg-b']]);
+    });
+
+    it('should publish and tag in npm publishOrder', async () => {
+      const { pushPackageTag } = await import('../../src/stages/git-push.js');
+      const { runNpmPublishStage } = await import('../../src/stages/npm-publish.js');
+      const seen: string[] = [];
+      vi.mocked(runNpmPublishStage).mockImplementation(async (ctx) => {
+        seen.push(...ctx.input.updates.map((u) => u.packageName));
+      });
+      const config = getDefaultConfig();
+
+      await runPipeline(
+        perPackageInput,
+        { ...config, npm: { ...config.npm, publishOrder: ['pkg-b', 'pkg-a'] } },
+        defaultOptions,
+      );
+
+      expect(seen).toEqual(['pkg-b', 'pkg-a']);
+      expect(vi.mocked(pushPackageTag).mock.calls.map((c) => c[0])).toEqual(['pkg-b@v2.0.0', 'pkg-a@v1.1.0']);
+    });
+
+    it('should publish a crate after its path dependency', async () => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-pipeline-'));
+      const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(root);
+      try {
+        fs.mkdirSync(path.join(root, 'app'));
+        fs.mkdirSync(path.join(root, 'core'));
+        fs.writeFileSync(
+          path.join(root, 'app', 'Cargo.toml'),
+          '[package]\nname = "app"\nversion = "1.0.0"\n\n[dependencies]\ncore = { path = "../core", version = "1.0.0" }\n',
+        );
+        fs.writeFileSync(path.join(root, 'core', 'Cargo.toml'), '[package]\nname = "core"\nversion = "1.0.0"\n');
+        const { runCargoPublishStage } = await import('../../src/stages/cargo-publish.js');
+        const seen: string[] = [];
+        vi.mocked(runCargoPublishStage).mockImplementation(async (ctx) => {
+          seen.push(...ctx.input.updates.map((u) => u.packageName));
+        });
+
+        await runPipeline(
+          {
+            dryRun: false,
+            updates: [
+              { packageName: 'app', newVersion: '1.0.0', filePath: 'app/Cargo.toml', tag: 'app@v1.0.0' },
+              { packageName: 'core', newVersion: '1.0.0', filePath: 'core/Cargo.toml', tag: 'core@v1.0.0' },
+            ],
+            changelogs: [],
+            tags: ['app@v1.0.0', 'core@v1.0.0'],
+          },
+          getDefaultConfig(),
+          { ...defaultOptions, registry: 'cargo' },
+        );
+
+        expect(seen).toEqual(['core', 'app']);
+      } finally {
+        cwdSpy.mockRestore();
+        fs.rmSync(root, { recursive: true, force: true });
+      }
     });
 
     it('should not call pushPackageTag for updates without a tag', async () => {
