@@ -3,10 +3,10 @@
 #     enable "Allow GitHub Actions to create and approve pull requests"
 #
 # Without it, the first `standing-pr update` run will fail with HTTP 403.
-# See packages/release/docs/ci-setup.md → Standing Release PR for the full guide.
+# See https://github.com/goosewobbler/releasekit/blob/main/packages/release/docs/ci-setup.md#standing-release-pr
 #
 # Tip: exempt this PR's branch (release/*) from your build/test CI, or every update
-# re-runs your whole matrix. See ci-setup.md → "Keeping CI off the standing PR".
+# re-runs your whole matrix. See https://github.com/goosewobbler/releasekit/blob/main/packages/release/docs/ci-setup.md#keeping-ci-off-the-standing-pr
 
 name: Standing Release PR
 
