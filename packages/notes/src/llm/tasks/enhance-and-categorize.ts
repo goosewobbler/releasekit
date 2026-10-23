@@ -1,4 +1,4 @@
-import { warn } from '@releasekit/core';
+import { removeDescriptionRefs, warn } from '@releasekit/core';
 import type { ChangelogEntry, LLMCategory } from '../../core/types.js';
 import { LLMError } from '../../errors/index.js';
 import { LLM_DEFAULTS } from '../defaults.js';
@@ -105,7 +105,7 @@ export function createEnhanceAndCategorizeValidator(
       }
       return {
         ...original,
-        description: llmEntry.description,
+        description: removeDescriptionRefs(llmEntry.description, [...(original.issueIds ?? []), original.prNumber]),
         scope: llmEntry.scope ?? undefined,
         breaking: original.breaking || llmEntry.breaking === true,
         leadIn: llmEntry.leadIn ?? undefined,

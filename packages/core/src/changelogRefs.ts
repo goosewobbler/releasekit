@@ -126,3 +126,14 @@ export function neutralizeDescriptionRefs(
   // `( ?)` only eats the space before a ref, so one removed from the very start leaves the following space behind.
   return out.trim();
 }
+
+/** Removes each ref in `refs` from `text`, leaving any other ref as written. */
+export function removeDescriptionRefs(text: string, refs: Array<string | undefined>): string {
+  const remove = new Set(refs.filter((r): r is string => !!r).map((r) => Number(r.replace(/^#/, ''))));
+  return text
+    .replace(CODE_SPAN_OR_DESC_REF, (match, _lead: string | undefined, parenNum?: string, bareNum?: string) => {
+      const num = parenNum ?? bareNum;
+      return num !== undefined && remove.has(Number(num)) ? '' : match;
+    })
+    .trim();
+}

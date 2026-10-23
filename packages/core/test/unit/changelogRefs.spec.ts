@@ -3,6 +3,7 @@ import {
   escapeChangelogMentions,
   neutralizeDescriptionRefs,
   parseGitHubOwnerRepo,
+  removeDescriptionRefs,
   renderIssueRefs,
 } from '../../src/changelogRefs.js';
 
@@ -198,5 +199,14 @@ describe('neutralizeDescriptionRefs', () => {
 
   it('should not leave a leading space when a stripped bare ref opens the description', () => {
     expect(neutralizeDescriptionRefs('#999 see here', [], 'strip', repo)).toBe('see here');
+  });
+});
+
+describe('removeDescriptionRefs', () => {
+  it('should remove the given refs and leave other refs and code spans as written', () => {
+    expect(removeDescriptionRefs('Fixed the parser (#720), see #12 (#720)', ['#720'])).toBe(
+      'Fixed the parser, see #12',
+    );
+    expect(removeDescriptionRefs('Kept `#720` in code (#720)', ['#720'])).toBe('Kept `#720` in code');
   });
 });
