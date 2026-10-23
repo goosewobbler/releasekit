@@ -164,17 +164,27 @@ export function orderCargoVersionUpdates(
     return updates;
   }
   const orderedCrates = orderCrates(crates, explicitOrder);
-  const cargoNames = new Set(crates.map((c) => c.updatePackageName));
-  const byName = new Map(updates.map((u) => [u.packageName, u]));
+  // Match by directory, not package name: a crate and a pub package can share a name.
+  const byDir = new Map(updates.map((u) => [path.dirname(path.resolve(cwd, u.filePath)), u]));
+  const cargoDirs = new Set(crates.map((c) => path.resolve(c.dir)));
   const ordered = orderedCrates
-    .map((c) => byName.get(c.updatePackageName))
+    .map((c) => byDir.get(path.resolve(c.dir)))
     .filter((u): u is VersionPackageUpdate => u !== undefined);
   for (const u of updates) {
-    if (!cargoNames.has(u.packageName)) {
+    if (!cargoDirs.has(path.dirname(path.resolve(cwd, u.filePath)))) {
       ordered.push(u);
     }
   }
   return ordered;
+}
+
+/** Directories whose update is a publishable crate. Hybrids use a package.json path in that directory. */
+export function cargoUpdateDirs(updates: VersionPackageUpdate[], cwd: string): Set<string> {
+  const withDir = updates.map((u) => ({
+    ...u,
+    dir: path.dirname(path.resolve(cwd, u.filePath)),
+  }));
+  return new Set(findCrates(withDir).map((c) => path.resolve(c.dir)));
 }
 
 function orderCrates(crates: CargoTarget[], explicitOrder: string[]): CargoTarget[] {
