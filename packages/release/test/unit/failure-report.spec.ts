@@ -264,7 +264,23 @@ describe('renderFailureReport', () => {
     expect(body).not.toContain('--pr');
   });
 
-  it('should tell a per-package direct failure to roll forward and keep published tags', () => {
+  it('should tell a per-package direct failure to roll forward only after a push', () => {
+    const tagged = versionOutputFor([{ name: '@scope/a', version: '1.0.0' }]);
+    tagged.updates[0] = { ...tagged.updates[0], tag: '@scope/a@v1.0.0' };
+    const pushed = { ...publishOutput, git: { ...publishOutput.git, pushed: true } };
+    const body = renderFailureReport({
+      versionOutput: tagged,
+      publishOutput: pushed,
+      failedStage: 'npm-publish',
+      errorMessage: 'npm 403',
+      recovery: { mode: 'direct' },
+    });
+    expect(body).toContain('Roll forward');
+    expect(body).toContain('Do not delete a tag');
+    expect(body).not.toContain('Re-run failed jobs');
+  });
+
+  it('should keep retry instructions when a per-package run pushed nothing', () => {
     const tagged = versionOutputFor([{ name: '@scope/a', version: '1.0.0' }]);
     tagged.updates[0] = { ...tagged.updates[0], tag: '@scope/a@v1.0.0' };
     const body = renderFailureReport({
@@ -274,9 +290,8 @@ describe('renderFailureReport', () => {
       errorMessage: 'npm 403',
       recovery: { mode: 'direct' },
     });
-    expect(body).toContain('Roll forward');
-    expect(body).toContain('Do not delete those tags');
-    expect(body).not.toContain('Re-run failed jobs');
+    expect(body).toContain('Re-run failed jobs');
+    expect(body).not.toContain('Roll forward');
   });
 });
 

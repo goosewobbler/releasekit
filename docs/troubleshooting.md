@@ -166,7 +166,7 @@ env:
 
 **Fix:** Do not delete a tag whose version was published. Confirm with `git ls-remote --tags origin`.
 
-- **Tag only exists locally** (batch failure before the push): delete that local tag (`git tag -d vX.Y.Z`) and re-run. A tag that already points at the current commit is skipped, so a re-run is enough when the commit matches.
+- **Tag only exists locally** (batch failure before the push): delete that local tag (`git tag -d vX.Y.Z`) if it points at a different commit, then re-run **`publish`** with the original version output. Do not re-run `release` on that commit: its subject matches `release.ci.skipPatterns` (`chore: release `), so `release` exits before publishing. Re-running the failed workflow job checks out the pre-release commit and is the right direct-mode retry.
 - **Tag exists on the remote:** the version was published. Leave the tag. Re-run a batch publish (already-published versions are skipped) or roll forward — see [Recovering from a failed publish](#recovering-from-a-failed-publish).
 
 ---

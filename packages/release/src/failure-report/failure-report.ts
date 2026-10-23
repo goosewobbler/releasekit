@@ -141,29 +141,41 @@ function pushesPerPackage(versionOutput: VersionOutput): boolean {
   return versionOutput.updates.some((update) => !!update.tag);
 }
 
-function partialFailureState(versionOutput: VersionOutput, mode: FailureReportMode): string {
-  const perPackage = pushesPerPackage(versionOutput);
+function partialFailureState(
+  mode: FailureReportMode,
+  publishOutput: PublishOutput | undefined,
+  failedStage: string,
+): string {
+  const pushed = publishOutput?.git.pushed === true;
   if (mode === 'standing-pr') {
-    if (perPackage) {
+    if (pushed) {
       return (
-        'Versions are on `main` from the merge. Tags for packages that published may already be on the remote; ' +
-        'GitHub releases are created only after every package succeeds. Do not delete those tags.'
+        'Versions are on `main` from the merge. This run pushed before it failed, so some tags may already be on the remote. ' +
+        'GitHub releases are created only after every package succeeds. Do not delete a tag for a version that was published.'
       );
     }
-    return 'Versions are on `main` from the merge. Nothing was pushed, so there are no tags or GitHub releases yet.';
+    return 'Versions are on `main` from the merge. This run did not confirm a push. Re-run the publish. Do not delete a tag for a version that was published.';
   }
-  if (perPackage) {
+  if (pushed) {
     return (
-      'The release commit and the tags for packages that published are already on the remote. ' +
-      'GitHub releases were not created. Do not delete those tags — roll forward with the next release.'
+      'A push succeeded before the failure, so the release commit or some tags may already be on the remote. ' +
+      'Do not delete a tag for a version that was published. Roll forward with the next release if those tags are on the remote.'
     );
   }
-  return 'Nothing was pushed. The version commit and tags exist only locally. Packages that reached the registry stay published.';
+  if (failedStage === 'git-push' && publishOutput?.git.committed) {
+    return 'The push stage failed after a local commit. The branch may already be on the remote if it was pushed before a tag push failed. Re-run the publish. Do not delete a tag for a version that was published.';
+  }
+  return 'This run did not confirm a push. The version commit and tags may exist only locally. Re-run `publish` with the same version output — a fresh `release` on that commit matches the skip pattern and exits before publishing. Packages that reached the registry stay published.';
 }
 
-function renderRecovery(ctx: RecoveryContext, versionOutput: VersionOutput): string[] {
+function renderRecovery(
+  ctx: RecoveryContext,
+  versionOutput: VersionOutput,
+  publishOutput: PublishOutput | undefined,
+): string[] {
   const lines: string[] = ['### How to recover', ''];
-  const perPackage = pushesPerPackage(versionOutput);
+  const pushed = publishOutput?.git.pushed === true;
+  const perPackage = pushesPerPackage(versionOutput) && pushed;
   if (ctx.mode === 'standing-pr') {
     const prRef = ctx.standingPrNumber ? `#${ctx.standingPrNumber}` : 'the merged standing PR';
     lines.push(
@@ -220,7 +232,7 @@ export function renderFailureReport(input: FailureReportInput): string {
     '',
     `## ❌ Release of ${label} did not complete`,
     '',
-    `**${published}/${total} package(s) published.** ${partialFailureState(versionOutput, recovery.mode)} The release is not finished.`,
+    `**${published}/${total} package(s) published.** ${partialFailureState(recovery.mode, publishOutput, failedStage)} The release is not finished.`,
     '',
     '### Package ledger',
     '',
@@ -244,7 +256,7 @@ export function renderFailureReport(input: FailureReportInput): string {
     errorMessage,
     '```',
     '',
-    ...renderRecovery(recovery, versionOutput),
+    ...renderRecovery(recovery, versionOutput, publishOutput),
     '',
     SAFE_RETRY_NOTE,
     '',
