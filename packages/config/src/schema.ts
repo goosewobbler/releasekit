@@ -614,7 +614,7 @@ export const StandingPrConfigSchema = z.object({
   branch: z.string().default('release/next').describe('Branch name for the standing release PR.'),
   title: z.string().optional().describe(
     // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting placeholder syntax to the user
-    "PR title template. Variables: ${count} (publishable package count), ${version} (raw version), ${tag} (version with tag prefix). Must start with 'chore: release' to match the default skip pattern on squash merge. Default depends on the versioning strategy: 'chore: release ${tag}' in sync mode, 'chore: release ${count} package(s)' otherwise.",
+    "PR title template. Variables: ${count} (publishable package count), ${version} (raw version), ${tag} (version with tag prefix). Must match a release.ci.skipPatterns entry and carry no CI-skip marker, or 'chore: release preparation' is used instead. Default depends on the versioning strategy: 'chore: release ${tag}' in sync mode, 'chore: release ${count} package(s)' otherwise.",
   ),
   labels: z.array(z.string()).default(['release']).describe('Labels to apply to the standing release PR.'),
   deleteBranchOnMerge: z

@@ -203,7 +203,6 @@ async function commitAndForcePush(branch: string, subject: string, cwd: string):
 
   const status = (await git.status({ porcelain: true, cwd })).trim();
   if (status) {
-    // No skip-ci token: a squash merge inherits this message, and on main it would suppress the publish workflow.
     await git.commit(subject, { cwd });
   }
 
@@ -1181,19 +1180,23 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   /* biome-ignore lint/suspicious/noTemplateCurlyInString: template string uses config variable */
   const defaultTitle = isSync ? 'chore: release ${tag}' : 'chore: release ${count} package(s)';
   const titleTemplate = standingPrConfig?.title ?? defaultTitle;
-  const title = titleTemplate
+  const renderedTitle = titleTemplate
     .replace(/\$\{count\}/g, String(count))
     .replace(/\$\{version\}/g, firstUpdate?.newVersion ?? '')
     .replace(/\$\{tag\}/g, syncVersionDisplay(versionOutput));
 
-  // GitHub's default squash title for a single-commit PR is the commit's subject, so the commit carries
-  // the PR title. It must still match a skip pattern so the merge doesn't trigger another update, and
-  // carry no CI-skip marker, which the merge would inherit and so skip the publish.
-  const commitSubject =
-    matchesSkipPattern(title, skipPatterns) && !CI_SKIP_MARKER.test(title) ? title : 'chore: release preparation';
-  const prTitle = commitSubject;
+  // The title doubles as the commit subject, because GitHub squashes a single-commit PR under the commit's subject.
+  // The merge on main inherits it, so it must match a skip pattern, or the merge triggers another update, and carry
+  // no CI-skip marker, or the merge skips the publish.
+  const titleIsSafe = matchesSkipPattern(renderedTitle, skipPatterns) && !CI_SKIP_MARKER.test(renderedTitle);
+  const title = titleIsSafe ? renderedTitle : 'chore: release preparation';
+  if (!titleIsSafe) {
+    warn(
+      `Standing PR title '${renderedTitle}' must match release.ci.skipPatterns and carry no CI-skip marker; using '${title}'`,
+    );
+  }
   info(`Committing and pushing '${branch}'...`);
-  await commitAndForcePush(branch, commitSubject, cwd);
+  await commitAndForcePush(branch, title, cwd);
 
   const releaseBranchSha = await getHeadSha(cwd);
 
@@ -1298,13 +1301,13 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   let action: StandingPRResult['action'];
 
   if (existing) {
-    await forge.updatePullRequest(existing.number, { title: prTitle, body });
+    await forge.updatePullRequest(existing.number, { title, body });
     prNumber = existing.number;
     prUrl = existing.url;
     action = 'updated';
     info(`Updated standing PR #${prNumber}`);
   } else {
-    const newPr = await forge.createPullRequest({ title: prTitle, body, head: branch, base });
+    const newPr = await forge.createPullRequest({ title, body, head: branch, base });
     prNumber = newPr.number;
     prUrl = newPr.url;
     action = 'created';
