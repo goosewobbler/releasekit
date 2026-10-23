@@ -32,7 +32,7 @@ describe('resuming a partial publish', () => {
   it.each([
     ['a one-line release message', 'chore: release rk-resume v0.2.0'],
     ['a release message with a second line', 'chore: release rk-resume v0.2.0\n[skip ci]'],
-  ])('should reuse the release commit and push the branch and tag after a failed push, with %s', (_label, commitMessage) => {
+  ])('should resume a publish that failed at the push, with %s', (_label, commitMessage) => {
     const repo = join(dir, 'repo');
     const remote = join(dir, 'remote.git');
     const input = join(dir, 'version.json');

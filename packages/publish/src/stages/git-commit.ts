@@ -19,7 +19,8 @@ async function hasStagedChanges(git: Git, cwd: string): Promise<boolean> {
 /** Git's `%s`: the first paragraph, each line's trailing whitespace dropped, joined with spaces. */
 function subjectOf(message: string): string {
   const lines = message.split('\n').map((line) => line.trimEnd());
-  const paragraph = lines.slice(Math.max(lines.findIndex((line) => line !== ''), 0));
+  const start = lines.findIndex((line) => line !== '');
+  const paragraph = start === -1 ? [] : lines.slice(start);
   const end = paragraph.indexOf('');
   return (end === -1 ? paragraph : paragraph.slice(0, end)).join(' ').trim();
 }
