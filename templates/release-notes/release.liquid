@@ -1,6 +1,7 @@
 {%- comment -%}
 Release notes template.
 Categories are pre-ordered by the pipeline (New → Fixed → Changed → Removed → Documentation → Developer).
+Breaking changes are moved out of their category into a Breaking section first, as the built-in renderer does.
 Developer entries use bolded subcategory labels.
 {%- endcomment -%}
 {%- for version in versions %}
@@ -15,11 +16,29 @@ _First release of `{{ version.packageName }}`._
 {%- endif %}
 
 {%- if version.enhanced.categories %}
+{%- assign breaking = "" | split: "" %}
 {%- for cat in version.enhanced.categories %}
-{%- if cat.entries.size > 0 %}
+{%- assign catBreaking = cat.entries | where: "breaking" %}
+{%- assign breaking = breaking | concat: catBreaking %}
+{%- endfor %}
+{%- else %}
+{%- assign breaking = version.entries | where: "breaking" %}
+{%- endif %}
+{%- if breaking.size > 0 %}
+
+### Breaking:
+{%- for entry in breaking %}
+- {% if entry.scope %}**{{ entry.scope }}**: {% endif %}{{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
+{%- endfor %}
+{%- endif %}
+
+{%- if version.enhanced.categories %}
+{%- for cat in version.enhanced.categories %}
+{%- assign catEntries = cat.entries | reject: "breaking" %}
+{%- if catEntries.size > 0 %}
 
 ### {{ cat.name }}:
-{%- for entry in cat.entries %}
+{%- for entry in catEntries %}
 {%- if entry.scope %}
 - **{{ entry.scope }}**: {{ entry.description }}{% if entry.issueIds %} ({{ entry.issueIds | join: ", " }}){% endif %}
 {%- else %}
@@ -30,10 +49,11 @@ _First release of `{{ version.packageName }}`._
 {%- endfor %}
 {%- else %}
 {%- comment -%}Fallback: no LLM categories, use conventional commit types{%- endcomment -%}
-{%- assign added = version.entries | where: "type", "added" %}
-{%- assign fixed = version.entries | where: "type", "fixed" %}
-{%- assign changed = version.entries | where: "type", "changed" %}
-{%- assign removed = version.entries | where: "type", "removed" %}
+{%- assign nonBreaking = version.entries | reject: "breaking" %}
+{%- assign added = nonBreaking | where: "type", "added" %}
+{%- assign fixed = nonBreaking | where: "type", "fixed" %}
+{%- assign changed = nonBreaking | where: "type", "changed" %}
+{%- assign removed = nonBreaking | where: "type", "removed" %}
 {%- if added.size > 0 %}
 
 ### New:

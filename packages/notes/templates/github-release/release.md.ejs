@@ -8,7 +8,7 @@
 <% } else { %>
 <% if (version.entries.length > 0) { %>
 <% version.entries.forEach(function(entry) { %>
-- <% if (entry.scope) { %>**<%= entry.scope %>**: <% } %><%= entry.description %><% if (entry.issueIds) { %> (<%= entry.issueIds.join(', ') %>)<% } %>
+- <% if (entry.breaking) { %>**BREAKING** <% } %><% if (entry.scope) { %>**<%= entry.scope %>**: <% } %><%= entry.description %><% if (entry.issueIds) { %> (<%= entry.issueIds.join(', ') %>)<% } %>
 
 <% }); %>
 <% } %>

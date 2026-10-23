@@ -5,7 +5,7 @@ import type { DocumentContext, TemplateContext } from '../../src/core/types.js';
 import { renderEjs } from '../../src/templates/ejs.js';
 import { registerHandlebarsHelpers, renderHandlebars } from '../../src/templates/handlebars.js';
 import { renderLiquid } from '../../src/templates/liquid.js';
-import { detectTemplateMode } from '../../src/templates/loader.js';
+import { detectTemplateMode, renderTemplate } from '../../src/templates/loader.js';
 
 const sampleContext: TemplateContext = {
   packageName: 'test-pkg',
@@ -158,6 +158,41 @@ describe('release.liquid template', () => {
     expect(renderLiquid(template, subsequent)).not.toContain('First release of');
   });
 
+  it.each([
+    [
+      'with',
+      {
+        enhanced: {
+          entries: sampleContext.entries,
+          categories: [
+            { name: 'New', entries: [{ type: 'added', description: 'New feature' }] },
+            {
+              name: 'Fixed',
+              entries: [{ type: 'fixed', description: 'Reject old presets', scope: 'config', breaking: true }],
+            },
+          ],
+        },
+      },
+    ],
+    [
+      'without',
+      {
+        entries: [
+          { type: 'added', description: 'New feature' },
+          { type: 'fixed', description: 'Reject old presets', scope: 'config', breaking: true },
+        ],
+      },
+    ],
+  ])('should move breaking changes into a Breaking section first, %s LLM categories', (_label, version) => {
+    const result = renderLiquid(template, {
+      project: { name: 'test-pkg' },
+      versions: [{ ...sampleContext, ...version }],
+    });
+
+    expect(result).toContain('### Breaking:\n- **config**: Reject old presets\n\n### New:\n- New feature');
+    expect(result).not.toContain('### Fixed:');
+  });
+
   it('should skip empty categories', () => {
     const ctx: DocumentContext = {
       project: { name: 'test-pkg' },
@@ -240,6 +275,27 @@ describe('release.liquid template', () => {
     const separatorPos = result.lastIndexOf('---');
     expect(separatorPos).toBeLessThan(lastVersionPos);
   });
+});
+
+describe('Built-in templates', () => {
+  it.each(['keep-a-changelog', 'angular', 'github-release/release.md.ejs'])(
+    'should mark a breaking change in %s',
+    (name) => {
+      const ctx: DocumentContext = {
+        project: { name: 'test-pkg' },
+        versions: [
+          {
+            ...sampleContext,
+            entries: [{ type: 'fixed', description: 'Reject old presets', scope: 'config', breaking: true }],
+          },
+        ],
+      };
+
+      const { content } = renderTemplate(path.join(process.cwd(), 'templates', name), ctx);
+
+      expect(content).toContain('- **BREAKING** **config**: Reject old presets');
+    },
+  );
 });
 
 describe('Template Loader', () => {
