@@ -215,6 +215,18 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('- Migrate to Vitest');
   });
 
+  it('should mark a breaking change', () => {
+    const output = structuredClone(releaseOutput);
+    const entry = output.versionOutput.changelogs
+      .flatMap((c) => c.entries)
+      .find((e) => e.description === 'New dry-run flag');
+    if (entry) {
+      entry.breaking = true;
+    }
+
+    expect(formatPreviewComment(output)).toContain('- **BREAKING** New dry-run flag (`cli`)');
+  });
+
   it('should render bare #NNN refs per the refs mode', () => {
     expect(formatPreviewComment(releaseOutput, { refs: 'escape' })).toContain(
       '- Fix prerelease sorting (`semver`) (\\#42)',

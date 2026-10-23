@@ -557,7 +557,7 @@ function formatPackageChangelog(changelog: VersionPackageChangelog, refs: Change
 
 function formatEntryGroup(
   type: string,
-  entries: { description: string; scope?: string; issueIds?: string[]; prNumber?: string }[],
+  entries: { description: string; scope?: string; issueIds?: string[]; prNumber?: string; breaking?: boolean }[],
   refs: ChangelogRefsMode,
   repoUrl: string | null,
 ): string[] {
@@ -568,7 +568,10 @@ function formatEntryGroup(
     // Always neutralise `@`-mentions in the description; the scope is already backticked (safe). Bare
     // `#N` refs carried over from the commit subject are neutralised / de-duped against the label.
     const appendedRefs = [...(entry.issueIds ?? []), entry.prNumber];
-    let line = `- ${escapeChangelogMentions(neutralizeDescriptionRefs(entry.description, appendedRefs, refs, repoUrl))}`;
+    const description = escapeChangelogMentions(
+      neutralizeDescriptionRefs(entry.description, appendedRefs, refs, repoUrl),
+    );
+    let line = `- ${entry.breaking ? '**BREAKING** ' : ''}${description}`;
     if (entry.scope) {
       line += ` (\`${entry.scope}\`)`;
     }

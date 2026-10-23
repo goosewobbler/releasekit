@@ -85,6 +85,15 @@ describe('changelog-region', () => {
       expect(footer).toContain('_(a, b)_');
     });
 
+    it('should mark a breaking change', () => {
+      const footer = renderCombinedFooter(
+        output({
+          changelogs: [cl('@scope/a', [{ type: 'fix', description: 'Reject the old preset', breaking: true }])],
+        }),
+      );
+      expect(footer).toContain('- **BREAKING** Reject the old preset');
+    });
+
     it('should keep same-description changes with different scopes as distinct lines', () => {
       const footer = renderCombinedFooter(
         output({

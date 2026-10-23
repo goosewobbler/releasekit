@@ -129,7 +129,7 @@ function entryLine(d: DedupedEntry, attribution: boolean, refOpts: RefRenderOpti
   const refs = renderIssueRefs(entry.issueIds ?? [], refOpts.refs, refOpts.repoUrl, entry.prNumber);
   const issues = refs ? ` ${refs}` : '';
   const attr = attribution && pkgs.size > 0 ? ` _(${[...pkgs].map(shortName).sort().join(', ')})_` : '';
-  return `- ${description}${scope}${issues}${attr}`;
+  return `- ${entry.breaking ? '**BREAKING** ' : ''}${description}${scope}${issues}${attr}`;
 }
 
 /** Bare heading for the trailing demoted subsection — deliberately no count and no

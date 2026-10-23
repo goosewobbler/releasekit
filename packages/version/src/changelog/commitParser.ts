@@ -300,18 +300,13 @@ function parseCommitMessage(message: string): ChangelogEntry | null {
     const bodyIssueIds = extractIssueIds(body);
     const issueIds = prNumber ? [prNumber, ...bodyIssueIds] : bodyIssueIds;
 
-    // Format description, adding BREAKING prefix if needed
-    let description = subjectText;
-    if (hasBreakingChange) {
-      description = `**BREAKING** ${description}`;
-    }
-
     return {
       type: changelogType,
-      description,
+      description: subjectText,
       scope: scope || undefined,
       issueIds: issueIds.length > 0 ? issueIds : undefined,
       prNumber,
+      ...(hasBreakingChange && { breaking: true }),
       originalType: type, // Store original type for custom formatting
     };
   }
