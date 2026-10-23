@@ -22,7 +22,7 @@ uses: goosewobbler/releasekit@v0
 
 ## Requirements
 
-- Node.js **22.12+** (matches ReleaseKit's `engines`). The action runs `actions/setup-node` with `node-version` (default `22`) unless you skip checkout and provide your own Node setup.
+- Node.js **22.12+** (matches ReleaseKit's `engines`). The action always runs its own `actions/setup-node` (default `node-version` `22`) and `pnpm/action-setup` unless you manage Node/pnpm entirely outside the action.
 - For npm publishing, run `actions/setup-node` with `registry-url: https://registry.npmjs.org` before this action so that `NODE_AUTH_TOKEN` is wired up correctly.
 
 ## Required permissions and env
@@ -58,7 +58,7 @@ uses: goosewobbler/releasekit@v0
 | `node-version` | `22` | Node.js version for the action's setup-node step |
 | `npm-token` | - | NPM token when not using OIDC; when unset, the job's `NPM_TOKEN` env is preserved |
 | `summary` | `true` | Write a job summary for `release` and `gate` |
-| `skip-checkout` | `false` | Skip the action's checkout/setup-node/pnpm steps (repo must already be on disk) |
+| `skip-checkout` | `false` | Skip the action's checkout steps only; setup-node, pnpm, and install still run. The repo must already be on disk (e.g. a prior checkout step). |
 | `json` | `false` | JSON output (release mode) |
 | `verbose` | `false` | Verbose logs |
 | `quiet` | `false` | Suppress non-error logs |
