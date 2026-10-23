@@ -39,7 +39,7 @@ Every command that produces a JSON result — `release`, `gate`, `standing-pr`, 
   - `publish`: a registry publish or a new release commit.
   - `standing-pr publish`: registry publishes only, since the merge already made the commit. A re-run where every version was already published reports `false`.
   - `gate` is read-only, so always `false`.
-- **`errors[]`** replaces prose-only failures in JSON mode. Each carries a stable machine `code`, a coarse `category`, a `retryable` flag (only `true` for known-transient failures — a timeout, 429, or 5xx from a provider — so an agent never retries an unknown failure), and a human `message`.
+- **`errors[]`** replaces prose-only failures in JSON mode. Each carries a stable machine `code`, a coarse `category` (its family in the table below), a `retryable` flag (only `true` for known-transient failures — a timeout, 429, or 5xx from a provider — so an agent never retries an unknown failure), and a human `message`.
 - **Stream discipline:** the envelope is the only thing on stdout; all diagnostics (progress, warnings, error text) go to stderr. Parsing stdout as JSON is always safe, and no command prompts interactively on a CI path.
 
 ### Chaining `version`, `notes`, and `publish`
@@ -65,7 +65,7 @@ When `publish` fails partway, its error envelope carries what already landed in 
 |---|---|---|
 | `GENERAL_ERROR` | `general` | 1 |
 | `CONFIG_ERROR` | `config` | 2 |
-| `INPUT_ERROR` / `INPUT_PARSE_ERROR` | `input` / `input-parse` | 3 |
+| `INPUT_ERROR` | `input` | 3 |
 | `TEMPLATE_ERROR` | `template` | 4 |
 | `LLM_ERROR` | `llm` | 5 |
 | `GITHUB_ERROR` | `github` | 6 |
@@ -73,7 +73,7 @@ When `publish` fails partway, its error envelope carries what already landed in 
 | `VERSION_ERROR` | `version` | 8 |
 | `PUBLISH_ERROR` | `publish` | 9 |
 
-Commands report more specific codes than these nine (`INPUT_VALIDATION_ERROR`, `PIPELINE_STAGE_ERROR`, …). `errors[].code` is the specific code and the exit code is its family's, so scripts can branch on the family. For example, `publish` exits 3 for any input problem, 2 for an invalid config, and 9 for any pipeline failure (`PIPELINE_STAGE_ERROR`, with the failing stage in the message). `release` and `standing-pr` report a failing stage's own code.
+Commands report more specific codes than these nine (`INPUT_VALIDATION_ERROR`, `PIPELINE_STAGE_ERROR`, …). `errors[].code` is the specific code; `category` and the exit code are its family's, so scripts can branch on the family. For example, `publish` exits 3 for any input problem, 2 for an invalid config, and 9 for any pipeline failure (`PIPELINE_STAGE_ERROR`, with the failing stage in the message). `release` and `standing-pr` report a failing stage's own code.
 
 `schemaVersion` bumps only on a breaking change to the envelope shape and is stable across minor releases, so agents and CI can pin against it. A consumer reading an envelope from a **newer** producer fails with a version-mismatch error rather than acting on a payload whose shape it may not understand.
 

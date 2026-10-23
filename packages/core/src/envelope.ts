@@ -1,4 +1,4 @@
-import { EXIT_CODES, ReleaseKitError } from './errors.js';
+import { EXIT_CODES, type ExitCode, ReleaseKitError } from './errors.js';
 
 /**
  * Version of the `--json` envelope contract. Bumped only on a breaking change to the envelope
@@ -11,7 +11,7 @@ export type EnvelopeStatus = 'success' | 'error';
 export interface EnvelopeError {
   /** Stable machine code mirroring `ReleaseKitError.code` (e.g. CONFIG_ERROR, LLM_ERROR). */
   code: string;
-  /** Coarse grouping derived from the code (e.g. config, llm, github). */
+  /** The code's exit-code family (e.g. config, llm, github). */
   category: string;
   /** Whether the failure is transient and worth retrying. Only true when known-transient. */
   retryable: boolean;
@@ -108,8 +108,10 @@ export function unwrapEnvelope(value: unknown): unknown {
   return value.data;
 }
 
+type ErrorExitCode = Exclude<ExitCode, typeof EXIT_CODES.SUCCESS>;
+
 /** Maps each code to its family's exit code (docs/cli.md); unknown codes exit 1. */
-const CODE_TO_EXIT: Record<string, number> = {
+const CODE_TO_EXIT: Record<string, ErrorExitCode> = {
   CONFIG_ERROR: EXIT_CODES.CONFIG_ERROR,
   INPUT_ERROR: EXIT_CODES.INPUT_ERROR,
   INPUT_PARSE_ERROR: EXIT_CODES.INPUT_ERROR,
@@ -163,14 +165,20 @@ export function exitCodeForError(error: unknown): number {
   return EXIT_CODES.GENERAL_ERROR;
 }
 
-/** Derive a coarse category from a code: CONFIG_ERROR -> config, INPUT_PARSE_ERROR -> input-parse. */
+const CATEGORY_FOR_EXIT: Record<ErrorExitCode, string> = {
+  [EXIT_CODES.GENERAL_ERROR]: 'general',
+  [EXIT_CODES.CONFIG_ERROR]: 'config',
+  [EXIT_CODES.INPUT_ERROR]: 'input',
+  [EXIT_CODES.TEMPLATE_ERROR]: 'template',
+  [EXIT_CODES.LLM_ERROR]: 'llm',
+  [EXIT_CODES.GITHUB_ERROR]: 'github',
+  [EXIT_CODES.GIT_ERROR]: 'git',
+  [EXIT_CODES.VERSION_ERROR]: 'version',
+  [EXIT_CODES.PUBLISH_ERROR]: 'publish',
+};
+
 function categoryForCode(code: string): string {
-  return (
-    code
-      .replace(/_ERROR$/, '')
-      .replace(/_/g, '-')
-      .toLowerCase() || 'general'
-  );
+  return CATEGORY_FOR_EXIT[CODE_TO_EXIT[code] ?? EXIT_CODES.GENERAL_ERROR];
 }
 
 /** Convert a thrown value into a structured envelope error. */
