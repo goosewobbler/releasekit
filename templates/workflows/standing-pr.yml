@@ -123,8 +123,6 @@ jobs:
   immediate-release:
     # Bypasses the standing PR queue when a feeder PR carrying `release:immediate`
     # (configurable via `ci.labels.immediate`) merges to main.
-    # If you bind publish credentials to an environment, set the same
-    # `environment:` here. This job publishes too.
     name: Immediate Release (bypass standing PR)
     if: >
       github.event_name == 'pull_request' &&
