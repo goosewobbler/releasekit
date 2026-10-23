@@ -1,15 +1,10 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { runPipeline } from '../../src/core/pipeline.js';
-import type { ChangelogInput, Config, PackageChangelog } from '../../src/core/types.js';
-
-// `both` mode also writes per-package files under the detected workspace; keep it out of the real repo.
-vi.mock('../../src/monorepo/aggregator.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../src/monorepo/aggregator.js')>()),
-  detectMonorepo: () => ({ isMonorepo: false, packagesPath: 'packages' }),
-}));
+import type { ChangelogInput, Config, PackageChangelog, TemplateContext } from '../../src/core/types.js';
+import { writeMonorepoChangelogs } from '../../src/monorepo/aggregator.js';
 
 const EXISTING = `# Changelog
 
@@ -20,6 +15,8 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Ancient history that must survive
 `;
+
+const NO_HEADER = '## [1.0.0] - 2026-01-01\n\n### Added\n- Ancient history that must survive\n';
 
 const SINGLE_PACKAGE_GOLDEN = `# Changelog
 
@@ -112,8 +109,7 @@ describe('Pipeline: root changelog keeps its history', () => {
   });
 
   it('should prepend above a first section that has no header before it', async () => {
-    const existing = '## [1.0.0] - 2026-01-01\n\n### Added\n- Ancient history that must survive\n';
-    const out = await writeChangelog(twoPackages, { changelog: { mode: 'root' } }, existing);
+    const out = await writeChangelog(twoPackages, { changelog: { mode: 'root' } }, NO_HEADER);
 
     expect(out.startsWith('## [@x/a@1.1.0]')).toBe(true);
     expect(out.indexOf('## [@x/b@1.1.0]')).toBeLessThan(out.indexOf('## [1.0.0]'));
@@ -128,5 +124,34 @@ describe('Pipeline: root changelog keeps its history', () => {
     const out = await writeChangelog(single, { changelog: { mode: 'root' } }, EXISTING);
 
     expect(out).toBe(SINGLE_PACKAGE_GOLDEN);
+  });
+});
+
+describe('writeMonorepoChangelogs: per-package changelogs keep their history', () => {
+  it.each([
+    ['a header', EXISTING],
+    ['no header', NO_HEADER],
+  ])('should prepend the new section to a file with %s', (_, existing) => {
+    const pkgDir = path.join(dir, 'packages', 'a');
+    fs.mkdirSync(pkgDir, { recursive: true });
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: '@x/a' }));
+    const file = path.join(pkgDir, 'CHANGELOG.md');
+    fs.writeFileSync(file, existing);
+    const context: TemplateContext = {
+      packageName: '@x/a',
+      version: '1.1.0',
+      previousVersion: '1.0.0',
+      date: '2026-02-01',
+      repoUrl: null,
+      entries: [{ type: 'added', description: 'feature A' }],
+    };
+
+    writeMonorepoChangelogs([context], { rootPath: dir, packagesPath: 'packages', mode: 'packages' }, {}, false);
+
+    const out = fs.readFileSync(file, 'utf-8');
+    const added = out.indexOf('## [1.1.0]');
+    expect(added).toBeGreaterThan(-1);
+    expect(added).toBeLessThan(out.indexOf('## [1.0.0]'));
+    expect(out).toContain('- Ancient history that must survive');
   });
 });
