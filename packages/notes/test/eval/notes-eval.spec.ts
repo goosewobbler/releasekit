@@ -59,18 +59,17 @@ describe('notes eval: release notes', () => {
         .filter((scope) => scope !== undefined && !allowedScopes.includes(scope));
       expect(leakedScopes).toEqual([]);
 
-      // Descriptions are user-facing prose, so the content checks apply too.
       const descriptions = enhancedEntries.map((e) => `- ${e.description}`).join('\n');
       expect(findMarkerLeaks(descriptions)).toEqual([]);
       expect(findDuplicateDependencyChurn(descriptions)).toEqual([]);
       expect(checkPastTenseLeaning(descriptions)).toEqual([]);
 
-      // Type and scope mustn't leak into the prose as a prefix (`feat(api): …`, `api: …`). Matching only
-      // this case's labels keeps a real lead-in like "CLI: …" from counting.
+      // Match only this case's labels, so a real lead-in like "CLI: …" doesn't count.
       const labels = [...new Set(golden.entries.flatMap((e) => [e.type, e.originalType, e.scope]))].filter(
         (label): label is string => typeof label === 'string' && label.length > 0,
       );
-      const prefixLeak = new RegExp(`^- (?:${labels.join('|')})(?:\\([^)]*\\))?!?:\\s`, 'im');
+      const alternatives = labels.map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      const prefixLeak = new RegExp(`^- (?:${alternatives})(?:\\([^)]*\\))?!?:\\s`, 'im');
       expect(descriptions).not.toMatch(prefixLeak);
     },
     isLiveMode ? 180_000 : 10_000,

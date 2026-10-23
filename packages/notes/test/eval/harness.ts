@@ -107,10 +107,7 @@ export interface GoldenCase<TContext = ReleaseNotesContext> {
   context: TContext;
 }
 
-/**
- * Load a golden input fixture (a real-shaped commit set with a fixed date, so cache keys are stable).
- * The context type varies by task, so the caller names it.
- */
+/** Load a golden input fixture (a real-shaped commit set with a fixed date, so cache keys are stable). */
 export function loadGoldenCase<TContext = ReleaseNotesContext>(name: string): GoldenCase<TContext> {
   const path = fileURLToPath(new URL(`./fixtures/${name}.json`, import.meta.url));
   return JSON.parse(readFileSync(path, 'utf-8')) as GoldenCase<TContext>;

@@ -64,8 +64,8 @@ interface CategoryGroup {
 }
 
 /**
- * Flags a grouping that passes validation but is useless, e.g. everything in one category. Checks for
- * too few populated categories, empty categories, and one category over `maxShare` (four entries or more).
+ * Flags a grouping that passes validation but is useless, e.g. everything in one category. The `maxShare`
+ * check needs four or more entries.
  */
 export function checkCategoryDistribution(
   categories: CategoryGroup[],
