@@ -1,5 +1,5 @@
 import * as fs from 'node:fs';
-import { unwrapEnvelope } from '@releasekit/core';
+import { unwrapEnvelope, type VersionOutput } from '@releasekit/core';
 import { VersionPackageChangelogSchema } from '@releasekit/core/version-output-schema';
 import { z } from 'zod';
 import type { ChangelogEntry, ChangelogInput, PackageChangelog } from '../core/types.js';
@@ -9,8 +9,6 @@ import { InputParseError, InputValidationError } from '../errors/index.js';
 const NotesVersionOutputSchema = z.looseObject({
   changelogs: z.array(VersionPackageChangelogSchema),
 });
-
-type NotesVersionOutput = z.infer<typeof NotesVersionOutputSchema>;
 
 function normalizeEntryType(type: string): ChangelogEntry['type'] {
   const typeMap: Record<string, ChangelogEntry['type']> = {
@@ -31,7 +29,7 @@ function normalizeEntryType(type: string): ChangelogEntry['type'] {
   return typeMap[type.toLowerCase()] ?? 'changed';
 }
 
-export function versionOutputToChangelogInput(data: NotesVersionOutput): ChangelogInput {
+export function versionOutputToChangelogInput(data: VersionOutput): ChangelogInput {
   if (!data.changelogs || !Array.isArray(data.changelogs)) {
     throw new InputParseError('Input must contain a "changelogs" array');
   }
@@ -88,7 +86,8 @@ export function parseVersionOutput(json: string): ChangelogInput {
     throw new InputValidationError(`Version output failed schema validation:\n${issues}`);
   }
 
-  return versionOutputToChangelogInput(result.data);
+  // Validated above. The schema is only the changelog slice, so it is not a VersionOutput.
+  return versionOutputToChangelogInput(result.data as unknown as VersionOutput);
 }
 
 export function parseVersionOutputFile(filePath: string): ChangelogInput {
