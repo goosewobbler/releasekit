@@ -38,13 +38,12 @@ describe('direct-commit release of hybrid packages', () => {
   it('should commit the Cargo.toml, Cargo.lock and pubspec.yaml it bumps and leave the tree clean', () => {
     write(join(repo, 'package.json'), '{ "name": "rk-fixture", "private": true }\n');
     write(join(repo, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/*"\n');
-    // Cargo publishing off, as for a napi-rs crate: then only the version step writes the Cargo.toml.
-    // Per-package versioning, since the sync strategy doesn't bump a pubspec.yaml.
     write(
       join(repo, 'releasekit.config.json'),
       JSON.stringify({
         version: {
           preset: 'angular',
+          // The sync strategy doesn't bump a pubspec.yaml.
           sync: false,
           versionPrefix: 'v',
           tagTemplate: '${packageName}@v${version}',
@@ -52,6 +51,7 @@ describe('direct-commit release of hybrid packages', () => {
         },
         publish: {
           npm: { enabled: false },
+          // As for a napi-rs crate: publish leaves the Cargo.toml alone, so only the version step bumps it.
           cargo: { enabled: false },
           git: { push: false },
           githubRelease: { enabled: false },
