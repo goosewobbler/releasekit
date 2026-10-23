@@ -3,8 +3,7 @@ import { createFakeForge } from '@releasekit/forge';
 import { describe, expect, it, vi } from 'vitest';
 import { checkLabels, deriveLabelDefinitions, type LabelDefinition, syncLabels } from '../../src/label-definitions.js';
 
-// A fully-defaulted CIConfig.labels block (mirrors CILabelsConfigSchema defaults). Tests build
-// on this so a rename only has to override the field under test.
+// Mirrors CILabelsConfigSchema defaults.
 const DEFAULT_LABELS_CONFIG = {
   graduate: 'release:graduate',
   prerelease: 'channel:prerelease',
@@ -95,7 +94,6 @@ describe('deriveLabelDefinitions', () => {
     const defs = deriveLabelDefinitions(ciConfig(), ['@scope/a', '@scope/b']);
     expect(names(defs)).toContain('graduate:@scope/a');
     expect(names(defs)).toContain('graduate:@scope/b');
-    // The fixed whole-batch graduate label is still present and distinct.
     expect(names(defs)).toContain('release:graduate');
   });
 

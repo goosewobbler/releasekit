@@ -217,7 +217,6 @@ describe('pub-publish stage', () => {
     const ctx = createContext(dir);
     await runPubPublishStage(ctx);
 
-    // pub.dev API must not be queried for a custom registry
     expect(fetchMock).not.toHaveBeenCalled();
 
     const publishCalls = vi.mocked(execCommand).mock.calls.filter((c) => (c[1] as string[]).includes('publish'));
@@ -319,7 +318,6 @@ describe('pub-publish stage', () => {
 
     const publishCalls = vi.mocked(execCommand).mock.calls.filter((c) => (c[1] as string[]).includes('publish'));
     expect(publishCalls).toHaveLength(2);
-    // pkg_b should come before pkg_a
     const cwds = publishCalls.map((c) => (c[2] as { cwd?: string })?.cwd ?? '');
     expect(cwds[0]).toContain('pkg_b');
     expect(cwds[1]).toContain('pkg_a');

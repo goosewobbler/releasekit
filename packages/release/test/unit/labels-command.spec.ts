@@ -49,7 +49,6 @@ describe('runLabelsSync', () => {
 
     await runLabelsSync({ repo: 'owner/repo' });
 
-    // Default config implies the 8 reserved labels + the default 'release' standing-PR label.
     expect(forge.createdLabels.length).toBeGreaterThan(0);
     const created = forge.createdLabels.map((l) => l.name);
     expect(created).toEqual(expect.arrayContaining(['bump:minor', 'release:graduate', 'release:skip', 'release']));
@@ -69,12 +68,11 @@ describe('runLabelsSync', () => {
   });
 
   it('should exit non-zero in --check mode when labels are missing', async () => {
-    const forge = mockForge([]); // repo has no labels → all missing
+    const forge = mockForge([]);
 
     await runLabelsSync({ repo: 'owner/repo', check: true });
 
     expect(exitSpy).toHaveBeenCalledWith(EXIT_CODES.GENERAL_ERROR);
-    // --check performs NO mutations.
     expect(forge.createdLabels).toHaveLength(0);
   });
 

@@ -5,9 +5,7 @@ import { publishDidChange } from '../../../src/output.js';
 import { runGitCommitStage } from '../../../src/stages/git-commit.js';
 import type { PipelineContext } from '../../../src/types.js';
 
-// Drive the stage through a seeded FakeGit. `createGitCli()` resolves to the fake we seed per test,
-// so we can assert on its recorders (`added`/`committed`/`tagged`) and seeded reads (`refExists`,
-// `log`, `headSha`).
+// `createGitCli()` resolves to the FakeGit seeded per test.
 let fakeGit: FakeGit;
 vi.mock('@releasekit/git', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@releasekit/git')>();
@@ -110,7 +108,7 @@ describe('git-commit stage', () => {
 
     await runGitCommitStage(ctx);
 
-    // No write reached the seam — the dry-run guard short-circuits before the FakeGit op runs.
+    // The dry-run guard short-circuits before the FakeGit op runs.
     expect(fakeGit.added).toHaveLength(0);
     expect(fakeGit.committed).toHaveLength(0);
     expect(fakeGit.tagged).toHaveLength(0);
@@ -138,8 +136,6 @@ describe('git-commit stage', () => {
   });
 
   it('should also create baseline tags when present on input', async () => {
-    // Baseline tags live alongside consumer tags: both are created locally and pushed,
-    // but the github-release stage only reads input.tags so baselines don't get a Release.
     const ctx = createContext({
       input: {
         dryRun: false,
@@ -185,9 +181,7 @@ describe('git-commit stage', () => {
 
       await runGitCommitStage(ctx);
 
-      // Should not create the tag.
       expect(fakeGit.tagged).toHaveLength(0);
-      // But tag should still be tracked in output.
       expect(ctx.output.git.tags).toContain('foo@v1.0.0');
     });
 
@@ -203,7 +197,6 @@ describe('git-commit stage', () => {
     });
 
     it('should create tag when it does not exist', async () => {
-      // Default seed: no existing refs.
       const ctx = createContext();
 
       await runGitCommitStage(ctx);

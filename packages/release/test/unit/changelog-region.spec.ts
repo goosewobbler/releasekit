@@ -21,8 +21,6 @@ describe('changelog-region', () => {
         cl('@scope/lib', [{ type: 'fix', description: 'Lib fix' }]),
       ]);
       const block = render(['@scope/app', '@scope/lib'], false, '  ');
-      // One <details> covering both packages, grouped by Keep-a-Changelog type. The disclosure tags stay
-      // un-quoted (raw HTML); only the inner content is blockquoted (`> `), indented to nest under its row.
       expect(block).toContain('  <details><summary>Changelog (2 entries)</summary>');
       expect(block).toContain('  > #### Added');
       expect(block).toContain('  > - App feature');
@@ -140,7 +138,7 @@ describe('changelog-region', () => {
           ],
         }),
       );
-      // The `(#467)` carried into the description is removed — it shows once, in the appended label.
+      // The `(#467)` carried into the description is removed - it shows once, in the appended label.
       expect(footer).toContain('failed queued batch (PR [#475](https://github.com/octocat/hello/pull/475)');
       expect(footer).toContain('closes [#467](https://github.com/octocat/hello/issues/467)');
       expect(footer).not.toContain('batch (#467)');
@@ -300,8 +298,7 @@ describe('changelog-region', () => {
       const footer = renderCombinedFooter(
         output({ changelogs: [cl('@scope/a', [{ type: 'feat', description: 'A feature' }], repo)] }),
       );
-      // The <details>/<summary>/</details> raw-HTML tags render un-quoted; only the inner content
-      // carries the `> ` bar (blank lines keep a bare `>`), with a plain blank line separating them.
+      // A plain blank line separates the raw-HTML tags from the quoted content.
       expect(footer).toContain('<details><summary>Show all changes (1 change, de-duplicated)</summary>');
       expect(footer).not.toContain('> <details>');
       expect(footer).not.toContain('> </details>');
@@ -320,7 +317,6 @@ describe('changelog-region', () => {
       ]);
       const block = render(['@scope/app'], false, '  ');
       const bl = block.split('\n');
-      // Disclosure tags carry only the indent; the inner content is `  > `-prefixed.
       expect(bl[0]).toBe('  <details><summary>Changelog (1 entry)</summary>');
       expect(bl[bl.length - 1]).toBe('  </details>');
       expect(block).toContain('  > #### Added');
@@ -349,9 +345,8 @@ describe('changelog-region', () => {
         cl('@scope/shared', [{ type: 'fix', description: 'Shared fix' }]),
       ]);
       const region = renderSelectionRegion(updates, new Set(), cfg(), render);
-      // The shared change is intentionally duplicated — each unit's pane is self-contained.
+      // The shared change is intentionally duplicated - each unit's pane is self-contained.
       expect(region.split('Shared fix').length - 1).toBe(2);
-      // Each unit aggregates its primary plus the shared child.
       expect(region).toContain('A feature');
       expect(region).toContain('B feature');
     });
@@ -362,8 +357,8 @@ describe('changelog-region', () => {
       return { dryRun: false, updates: [], changelogs: [], tags: [], ...over };
     }
 
-    // Deps bumps reach this surface as `type: 'changed'` (commitParser maps `chore(deps)` → changed),
-    // so the bucket assertions here mirror the real pipeline: not demoted, they'd land under Changed.
+    // Deps bumps reach this surface as `type: 'changed'` (commitParser maps `chore(deps)` → changed), so undemoted
+    // they'd land under Changed.
     it('should demote deps-scoped entries into a trailing subsection while user-facing types stay', () => {
       const render = makeRowChangelogRenderer([
         cl('@scope/app', [
@@ -373,16 +368,13 @@ describe('changelog-region', () => {
         ]),
       ]);
       const block = render(['@scope/app'], false, '');
-      // User-facing buckets keep their entries…
       expect(block).toContain('#### Added');
       expect(block).toContain('- App feature');
       expect(block).toContain('#### Fixed');
       expect(block).toContain('- App fix');
-      // …and the deps entry is pulled out of Changed into its own subsection.
       expect(block).not.toContain('#### Changed');
       expect(block).toContain('#### Dependencies & version bumps');
       expect(block).toContain('- bump the npm-dependencies group');
-      // The subsection trails every user-facing bucket.
       const demoted = block.indexOf('#### Dependencies & version bumps');
       expect(demoted).toBeGreaterThan(block.indexOf('#### Added'));
       expect(demoted).toBeGreaterThan(block.indexOf('#### Fixed'));
@@ -419,7 +411,6 @@ describe('changelog-region', () => {
           ],
         }),
       );
-      // Nothing removed — the demoted entry is still one of the de-duplicated changes.
       expect(footer).toContain('Show all changes (2 changes, de-duplicated)');
       expect(footer).toContain('#### Added');
       expect(footer).not.toContain('#### Changed');
@@ -432,7 +423,6 @@ describe('changelog-region', () => {
       const shared = { type: 'changed', description: 'bump shared dep', scope: 'deps' } as const;
       const footer = renderCombinedFooter(output({ changelogs: [cl('@scope/a', [shared]), cl('@scope/b', [shared])] }));
       expect(footer).toContain('#### Dependencies & version bumps');
-      // De-duplicated to one demoted line, attributed to both packages.
       expect(footer.split('bump shared dep').length - 1).toBe(1);
       expect(footer).toContain('_(a, b)_');
     });
@@ -464,7 +454,6 @@ describe('changelog-region', () => {
       );
       const block = render(['@scope/app'], false, '');
       expect(block).not.toContain('Dependencies & version bumps');
-      // Rendered inline in its normal type bucket, with its scope label.
       expect(block).toContain('#### Changed');
       expect(block).toContain('- bump deps (`deps`)');
     });
@@ -484,7 +473,6 @@ describe('changelog-region', () => {
       expect(block).toContain('#### Added');
       expect(block).toContain('#### Dependencies & version bumps');
       expect(block).toContain('- retune workflow');
-      // The ci-scoped entry is demoted, so no Changed bucket remains.
       expect(block).not.toContain('#### Changed');
     });
   });

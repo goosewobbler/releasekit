@@ -1,8 +1,6 @@
 import type { OpenPullRequest } from '@releasekit/forge';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// --- Mocks ---
-
 const mockLoadCIConfig = vi.fn();
 
 vi.mock('@releasekit/config', () => ({
@@ -39,13 +37,11 @@ vi.mock('../../src/preview/preview.js', () => ({
   runPreview: (...args: unknown[]) => mockRunPreview(...args),
 }));
 
-// --- Helpers ---
-
 function pr(number: number, overrides: Partial<OpenPullRequest> = {}): OpenPullRequest {
   return { number, headRef: `feat/pr-${number}`, draft: false, baseSha: `sha-${number}`, ...overrides };
 }
 
-/** A minimal fake forge: `commentsOn` lists PR numbers that already have a preview comment. */
+/** `commentsOn` lists PRs that already have a preview comment. */
 function fakeForge(openPullRequests: OpenPullRequest[], commentsOn: number[] = openPullRequests.map((p) => p.number)) {
   const present = new Set(commentsOn);
   return {
@@ -57,8 +53,6 @@ function fakeForge(openPullRequests: OpenPullRequest[], commentsOn: number[] = o
 }
 
 const context = { owner: 'owner', repo: 'repo', token: 'tok', sha: null };
-
-// --- Tests ---
 
 describe('runRefreshAfterRelease', () => {
   let runRefreshAfterRelease: typeof import('../../src/preview/refresh.js').runRefreshAfterRelease;

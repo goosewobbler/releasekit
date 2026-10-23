@@ -4,7 +4,7 @@ import { createFakeGit } from '@releasekit/git';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getCurrentBranch, isGitRepository } from '../../../src/git/repository.js';
 
-// Mock fs so the `.git` directory pre-checks are controllable; the git call itself goes to a FakeGit.
+// fs is mocked so the `.git` directory pre-checks are controllable.
 vi.mock('node:fs', () => ({
   existsSync: vi.fn(),
   statSync: vi.fn(() => ({

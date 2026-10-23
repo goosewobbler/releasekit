@@ -1,8 +1,5 @@
 name: Action Release
 
-# Runs when releasekit-release is tagged. Builds the dist, commits it, and
-# creates/updates the action version tags (v1.2.3, v1) that consumers pin to.
-
 on:
   workflow_call:
     inputs:
@@ -36,12 +33,10 @@ jobs:
       - name: Skip if dist already committed on the tag
         id: guard
         run: |
-          # Idempotency + loop-break: on a fresh release the tag points at a dist-less commit
-          # (proceed); after a heal it points at the dist commit (no-op) — so re-running on the
-          # force-moved tag can't loop or double-commit. Lets action-dist-heal.yml reuse this job.
-          # The sentinel is the action's entry point (what run-action.mjs loads / the releasekit-release
-          # bin); if the dist layout ever moves, update this path too — otherwise the guard silently
-          # stops no-op'ing and every scheduled heal rebuilds and re-moves the tag.
+          # Idempotent so action-dist-heal.yml can reuse this job: a fresh release tag points at a
+          # dist-less commit (proceed); a healed one points at the dist commit (no-op), so re-runs on
+          # the force-moved tag can't loop or double-commit. If the action's entry point moves, update
+          # this path, or every scheduled heal rebuilds and re-moves the tag.
           if git cat-file -e "HEAD:packages/release/dist/cli.js" 2>/dev/null; then
             echo "already_healed=true" >> "$GITHUB_OUTPUT"
             echo "dist already committed on ${{ inputs.tag }} — skipping (no-op)."
@@ -63,9 +58,8 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Retry the network/API operations only — a transient push rejection or GitHub API blip
-          # shouldn't strand a dist-less tag while the job is otherwise healthy. Local git ops and
-          # `pnpm build` are deliberately not retried: those fail deterministically and should surface.
+          # Retry only network/API ops: a transient push rejection or API blip shouldn't strand a
+          # dist-less tag. Local git ops fail deterministically and should surface.
           retry() {
             local -r what="$*"
             local n=1
@@ -83,12 +77,9 @@ jobs:
           git add -f packages/release/dist/
           git commit --no-verify -m "chore: build action dist for ${RELEASE_TAG} [skip ci]"
 
-          # Extract semver from the sync-mode shared tag, e.g. `v1.2.3` -> `1.2.3`.
           VERSION="${RELEASE_TAG#v}"
           MAJOR="${VERSION%%.*}"
 
-          # The release tag itself is already `v${VERSION}` in sync mode, so the version tag
-          # exists. Just ensure the GitHub Release exists (idempotent for re-runs).
           if gh release view "v${VERSION}" >/dev/null 2>&1; then
             echo "Release v${VERSION} already exists, skipping"
           else
@@ -99,12 +90,10 @@ jobs:
             fi
           fi
 
-          # Force-move the exact version tag to the dist commit so consumers
-          # pinning `uses: goosewobbler/releasekit@v1.2.3` get the built dist.
+          # Consumers pinning `uses: goosewobbler/releasekit@v1.2.3` must get the built dist.
           git tag -f "v${VERSION}"
           retry git push origin -f "v${VERSION}"
 
-          # Moving major alias — only update for stable releases
           if [[ "${VERSION}" != *"-"* ]]; then
             git tag -f "v${MAJOR}"
             retry git push origin -f "v${MAJOR}"

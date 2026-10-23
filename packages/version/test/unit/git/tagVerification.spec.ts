@@ -4,25 +4,18 @@ import { verifyTag } from '../../../src/git/tagVerification.js';
 import { log } from '../../../src/utils/logging.js';
 import { getBestVersionSource, VersionMismatchError } from '../../../src/utils/versionUtils.js';
 
-// Mock logging only; git execution is driven through an injected FakeGit.
 vi.mock('../../../src/utils/logging.js');
 
 const mockLog = vi.mocked(log);
 
-/**
- * A FakeGit seeded so a tag both exists (refExists) and is reachable from HEAD (isAncestor). Mirrors
- * the old "tag exists, rev-parse + merge-base both succeed" mock.
- */
 function gitWithReachableTag(tag: string): Git {
   return createFakeGit({ existingRefs: [tag], ancestors: { HEAD: [tag] } });
 }
 
-/** A FakeGit where the tag exists but is NOT an ancestor of HEAD. */
 function gitWithUnreachableTag(tag: string): Git {
   return createFakeGit({ existingRefs: [tag] });
 }
 
-/** A FakeGit where the tag is absent entirely (refExists → false). */
 function gitWithMissingTag(): Git {
   return createFakeGit();
 }
@@ -30,7 +23,7 @@ function gitWithMissingTag(): Git {
 describe('Tag Verification', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    mockLog.mockImplementation(() => {}); // Silent by default
+    mockLog.mockImplementation(() => {});
   });
 
   describe('verifyTag', () => {
@@ -64,7 +57,6 @@ describe('Tag Verification', () => {
     });
 
     it('should surface a git error when refExists throws unexpectedly', async () => {
-      // refExists only throws when git itself is missing/fails unexpectedly (e.g. binary not found).
       const git = createFakeGit();
       git.refExists = async () => {
         throw new Error('git binary not found');
@@ -396,7 +388,6 @@ describe('Tag Verification', () => {
       });
 
       it('should use package version when it is newer than prerelease tag', async () => {
-        // Package 1.0.0 is greater than tag 1.0.0-beta.1
         const result = await getBestVersionSource(
           'v1.0.0-beta.1',
           '1.0.0',
@@ -424,7 +415,6 @@ describe('Tag Verification', () => {
         );
 
         expect(result.source).toBe('git');
-        // Should not log warnings with ignore strategy
         const warningCalls = mockLog.mock.calls.filter((call) => call[1] === 'warning');
         expect(warningCalls.length).toBe(0);
       });

@@ -1,28 +1,14 @@
-/**
- * Formatting utilities for releasekit-version
- */
-
 import { sanitizePackageName } from '@releasekit/core';
 import { log } from './logging.js';
 
-/**
- * Escapes special characters in a string to be used in a RegExp safely
- * Prevents regex injection when using user-provided strings in RegExp constructors
- */
 export function escapeRegExp(string: string): string {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/**
- * Format a version prefix by ensuring it doesn't end with a slash
- */
 export function formatVersionPrefix(prefix: string): string {
   return prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
 }
 
-/**
- * Format a tag based on the provided parameters
- */
 export function formatTag(
   version: string,
   prefix: string,
@@ -30,10 +16,8 @@ export function formatTag(
   template?: string,
   packageSpecificTags?: boolean,
 ): string {
-  // Strip @ prefix from package names for tags (e.g., @releasekit/version -> releasekit-version)
   const sanitizedPackageName = packageName ? sanitizePackageName(packageName) : packageName;
 
-  // Show context-specific warning if template uses packageName but no package name is available
   if (template?.includes('${' + 'packageName}') && !packageName) {
     log(
       `Warning: Your tagTemplate contains \${packageName} but no package name is available.\n` +
@@ -53,7 +37,6 @@ export function formatTag(
       .replace(/\$\{packageName\}/g, sanitizedPackageName || '');
   }
 
-  // Default template logic
   if (packageSpecificTags && sanitizedPackageName) {
     return `${sanitizedPackageName}@${prefix}${version}`;
   }
@@ -61,16 +44,12 @@ export function formatTag(
   return `${prefix}${version}`;
 }
 
-/**
- * Format a commit message based on the provided parameters
- */
 export function formatCommitMessage(
   template: string,
   version: string,
   packageName?: string | null,
   additionalContext?: Record<string, string>,
 ): string {
-  // Show context-specific warning if template uses packageName but no package name is available
   if (template.includes('${' + 'packageName}') && !packageName) {
     log(
       `Warning: Your commitMessage template contains \${packageName} but no package name is available.\n` +
@@ -85,7 +64,6 @@ export function formatCommitMessage(
 
   let result = template.replace(/\$\{version\}/g, version).replace(/\$\{packageName\}/g, packageName || '');
 
-  // Apply additional context if provided
   if (additionalContext) {
     for (const [key, value] of Object.entries(additionalContext)) {
       const placeholder = `${key ? `\${${key}}` : ''}`;
@@ -96,28 +74,21 @@ export function formatCommitMessage(
   return result;
 }
 
-/**
- * Format a tag prefix for git tag searching
- */
 export function formatTagPrefix(
   prefix: string,
   packageName?: string | null,
   template?: string,
   packageSpecificTags?: boolean,
 ): string {
-  // Strip @ prefix from package names for tags (e.g., @releasekit/version -> releasekit-version)
   const sanitizedPackageName = packageName ? sanitizePackageName(packageName) : packageName;
 
   if (template) {
-    // For template-based tags, we need to create a prefix pattern
-    // Replace version with * and packageName with actual name or *
     return template
       .replace(/\$\{version\}/g, '*')
       .replace(/\$\{prefix\}/g, prefix)
       .replace(/\$\{packageName\}/g, sanitizedPackageName || '*');
   }
 
-  // Default prefix logic
   if (packageSpecificTags && sanitizedPackageName) {
     return `${sanitizedPackageName}@${prefix}`;
   }
@@ -125,32 +96,22 @@ export function formatTagPrefix(
   return prefix;
 }
 
-/**
- * Build a regex pattern to strip tag prefixes based on a tag template
- * This dynamically generates strip patterns from tagTemplate configuration
- * instead of using hardcoded patterns
- */
 export function buildTagStripPatternFromTemplate(template: string, packageName: string, prefix: string): string {
   if (!template) {
     return '';
   }
 
-  // Strip @ prefix from package names for tags
   const sanitizedPackageName = packageName ? sanitizePackageName(packageName) : packageName;
 
-  // Find the part of the template before ${version}
-  // This represents the prefix pattern that needs to be stripped
   /* biome-ignore lint/suspicious/noTemplateCurlyInString: searching for literal template placeholder */
   const versionIndex = template.indexOf('${version}');
   if (versionIndex === -1) {
-    // If no ${version} placeholder, the whole template is the prefix
     const prefixPattern = template
       .replace(/\$\{packageName\}/g, sanitizedPackageName || '')
       .replace(/\$\{prefix\}/g, prefix);
     return escapeRegExp(prefixPattern);
   }
 
-  // Extract the prefix part (everything before ${version})
   const prefixPart = template.substring(0, versionIndex);
   const prefixPattern = prefixPart
     .replace(/\$\{packageName\}/g, sanitizedPackageName || '')
@@ -159,12 +120,7 @@ export function buildTagStripPatternFromTemplate(template: string, packageName: 
   return escapeRegExp(prefixPattern);
 }
 
-/**
- * Resolve a `baselineTagTemplate` to its literal leading prefix — the substring before the
- * `${version}` placeholder, with `${prefix}` and `${packageName}` substitutions applied.
- * Used to filter `getSemverTags`'s scan to the baseline family and to recognise baseline
- * tags when stripping for display. Returns `undefined` when the template is unset.
- */
+/** Filters `getSemverTags`'s scan to the baseline family and recognises baseline tags when stripping for display. */
 export function deriveBaselineTagPrefix(
   template: string | undefined,
   formattedPrefix: string,
@@ -179,15 +135,7 @@ export function deriveBaselineTagPrefix(
     .replace(/\$\{packageName\}/g, packageName ? sanitizePackageName(packageName) : '');
 }
 
-/**
- * Convert an internal baseline tag (e.g. `release/v1.2.3`) to its consumer-facing display
- * form (e.g. `v1.2.3`) by swapping the baseline prefix for the consumer prefix. When the
- * tag isn't a baseline tag — or no baseline prefix is configured — returns it unchanged.
- *
- * Used wherever a tag is shown to the user (changelog headers, preview blocks). The
- * underlying `latestTag` value used for git-rev-parse and `${tag}..HEAD` ranges is left
- * alone — only the display surfaces are cleaned up.
- */
+/** Display form of a baseline tag (`release/v1.2.3` → `v1.2.3`); git ranges keep using the raw tag. */
 export function displayTag(tag: string, baselineTagPrefix: string | undefined, formattedPrefix: string): string {
   if (!baselineTagPrefix || !tag.startsWith(baselineTagPrefix)) {
     return tag;

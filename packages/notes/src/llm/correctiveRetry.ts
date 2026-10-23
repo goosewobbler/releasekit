@@ -4,14 +4,8 @@ import type { CompleteResult, LLMMessage } from './messages.js';
 export type ValidationResult<T> = { valid: true; value: T } | { valid: false; error: string };
 
 /**
- * Attempts a structured-output call, validates the result, and on failure
- * appends the bad output + a correction message and retries.
- *
- * The first call uses `isFirstAttempt = true` so callers can pass structured-
- * output options (schema, toolName) only on the first attempt and fall back
- * to plain-text completion on corrective attempts.
- *
- * maxCorrectiveAttempts = 2 means: 1 initial call + up to 2 corrective calls.
+ * `isFirstAttempt` lets callers pass structured-output options (schema, toolName) only on the first
+ * attempt and fall back to plain-text completion on corrective attempts.
  */
 export async function withCorrectiveRetry<T>(
   call: (messages: LLMMessage[], isFirstAttempt: boolean) => Promise<CompleteResult>,

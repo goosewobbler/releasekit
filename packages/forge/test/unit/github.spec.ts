@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { forgeErrorStatus } from '../../src/errors.js';
 import { createGitHubForge, GitHubForge } from '../../src/github.js';
 
-/** A hand-built Octokit stand-in exposing only the surface GitHubForge touches. */
 function makeOctokit() {
   const fns = {
     listPullRequestsAssociatedWithCommit: vi.fn(),
@@ -68,7 +67,7 @@ function makeOctokit() {
   return { octokit, fns };
 }
 
-/** Build an async-iterable matching octokit.paginate.iterator's contract over the given pages. */
+/** Mimics octokit.paginate.iterator over the given pages. */
 function pages<T>(...batches: T[][]) {
   return {
     async *[Symbol.asyncIterator]() {
@@ -274,7 +273,6 @@ describe('GitHubForge', () => {
 
     it('should find the first open issue by label across pages, skipping PRs', async () => {
       const { octokit, fns } = makeOctokit();
-      // listForRepo returns issues AND PRs; a PR carries a `pull_request` field and must be skipped.
       // A first page full of label-carrying PRs must not hide the issue on a later page.
       fns.iterator.mockReturnValue(
         pages([{ number: 5, html_url: 'pr-url', pull_request: {} }], [{ number: 8, html_url: 'issue-url' }]),

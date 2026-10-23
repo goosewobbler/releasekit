@@ -45,7 +45,6 @@ async function isCratePublished(name: string, version: string): Promise<boolean>
   }
 }
 
-// Check if git working directory has uncommitted changes
 async function isGitWorkingDirDirty(cwd: string): Promise<boolean> {
   try {
     const status = await createGitCli().status({ porcelain: true, cwd });
@@ -55,7 +54,6 @@ async function isGitWorkingDirDirty(cwd: string): Promise<boolean> {
   }
 }
 
-/** Error strategy: FAIL-FAST. First publish failure aborts the stage. */
 export const cargoRegistry: Registry<CargoTarget, CargoSession> = {
   id: 'cargo',
   displayName: 'crates.io',
@@ -81,7 +79,6 @@ export const cargoRegistry: Registry<CargoTarget, CargoSession> = {
   },
 
   async prepare(ctx: PipelineContext, session: CargoSession): Promise<void> {
-    // Working-directory dirtiness is a repository-level property, resolved once for all crates.
     session.isDirty = await isGitWorkingDirDirty(ctx.cwd);
   },
 
@@ -110,7 +107,7 @@ export const cargoRegistry: Registry<CargoTarget, CargoSession> = {
       cwd: ctx.cwd,
       dryRun: ctx.cliOptions.dryRun,
       label: `cargo publish ${target.packageName}@${target.version}`,
-      timeout: 30 * 60 * 1000, // 30 minutes timeout
+      timeout: 30 * 60 * 1000,
     });
   },
 };
@@ -166,7 +163,6 @@ function orderCrates(crates: CargoTarget[], explicitOrder: string[]): CargoTarge
       }
     }
 
-    // Append remaining crates not in explicit order
     for (const crate of byName.values()) {
       ordered.push(crate);
     }
@@ -174,13 +170,12 @@ function orderCrates(crates: CargoTarget[], explicitOrder: string[]): CargoTarge
     return ordered;
   }
 
-  // Auto-detect order via topological sort based on path dependencies
   return topologicalSort(crates);
 }
 
 function topologicalSort(crates: CargoTarget[]): CargoTarget[] {
   const byName = new Map(crates.map((c) => [c.packageName, c]));
-  // Map each crate's directory to its name so `path:` deps (which are paths) resolve to crate names.
+  // `path` deps are directories, so map each crate's directory back to its name.
   const nameByDir = new Map(crates.map((c) => [path.resolve(c.dir), c.packageName]));
 
   const graphPackages: GraphPackage[] = crates.map((c) => ({

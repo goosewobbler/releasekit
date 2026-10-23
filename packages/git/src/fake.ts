@@ -13,20 +13,17 @@ import type {
   GitTagOptions,
 } from './types.js';
 
-/** A recorded commit. */
 export interface FakeCommitRecord {
   message: string;
   paths?: string[];
   skipHooks?: boolean;
 }
 
-/** A recorded tag. */
 export interface FakeTagRecord {
   name: string;
   message?: string;
 }
 
-/** A recorded push. */
 export interface FakePushRecord {
   remote: string;
   ref?: string;
@@ -35,46 +32,28 @@ export interface FakePushRecord {
   tags?: boolean;
 }
 
-/** A seeded `git log` response, matched against the requested range (or `'*'` as a catch-all). */
 export type FakeLog = Record<string, string>;
 
-/**
- * Seed state for a {@link FakeGit}. Everything is optional; unseeded reads return empty/false/null so
- * a consumer can be driven end-to-end without spawning git.
- */
 export interface FakeGitSeed {
-  /** Whether the directory is a git repo (`isRepository`). Defaults to true. */
   isRepo?: boolean;
-  /** Tag names returned by `listTags` (in seeded order). */
+  /** Returned by `listTags` in seeded order. */
   tags?: string[];
-  /** The "nearest reachable tag" returned by `describeTags`. `null` (or omitted) → no tag. */
   nearestTag?: string | null;
-  /** The SHA returned by `headSha`. */
   headSha?: string;
-  /** The branch returned by `currentBranch`. */
   currentBranch?: string;
-  /** Remote URLs by remote name (`remoteUrl`). Unseeded remotes resolve to null. */
   remoteUrls?: Record<string, string>;
-  /** Refs that `refExists` reports present. */
   existingRefs?: string[];
-  /**
-   * Ancestry for `isAncestor`. A record maps a `ref` to the list of refs it has as ancestors, OR a
-   * predicate `(ancestor, ref) => boolean` for finer control. Unseeded → false.
-   */
+  /** A record maps a `ref` to its ancestors. */
   ancestors?: Record<string, string[]> | ((ancestor: string, ref: string) => boolean);
-  /** Branches present on each remote (`remoteBranchExists`), keyed by remote name. */
   remoteBranches?: Record<string, string[]>;
   /** `git log` responses keyed by range; `'*'` is a catch-all when no range matches. */
   commits?: FakeLog;
-  /** Changed paths per commit SHA (`diffTreeNames`). Unseeded SHAs return empty. */
   diffNames?: Record<string, string[]>;
-  /** Lines returned by `forEachRef` (the seam is format-agnostic, so callers seed final lines). */
+  /** Returned by `forEachRef` as-is; `format` is ignored, so seed final lines. */
   refLines?: string[];
-  /** Commit counts per range (`countCommits`). Unseeded ranges return 0. */
   commitCounts?: Record<string, number>;
-  /** Working-tree status text returned by `status`. Defaults to empty (clean). */
   status?: string;
-  /** Whether `hasStagedChanges` reports staged changes. Defaults to true. */
+  /** Defaults to true. */
   stagedChanges?: boolean;
 }
 
@@ -88,14 +67,8 @@ function ancestryHas(ancestors: FakeGitSeed['ancestors'], ancestor: string, ref:
   return (ancestors[ref] ?? []).includes(ancestor);
 }
 
-/**
- * In-memory {@link Git} for tests — the second adapter that justifies the seam. Queries return seeded
- * data; mutations record their calls on public readonly arrays for assertions (and keep the in-memory
- * view consistent enough to re-query, e.g. a tagged name shows up in `listTags`).
- */
 export class FakeGit implements Git {
   private readonly isRepo: boolean;
-  // Not readonly: tag() mutates this via push(); the other readonly fields are genuinely immutable.
   private tagsList: string[];
   private readonly nearestTag: string | null;
   private readonly head: string;
@@ -113,13 +86,10 @@ export class FakeGit implements Git {
 
   // Recorded mutations, for assertions.
   readonly added: string[][] = [];
-  /** How many times `addAll()` ("stage everything") was called. */
   addedAll = 0;
   readonly committed: FakeCommitRecord[] = [];
   readonly tagged: FakeTagRecord[] = [];
   readonly fetched: string[] = [];
-  /** Each `checkout` call: the ref and whether `-B` (create) was requested — so consumer tests can
-   *  assert the create flag, not just the ref. */
   readonly checkedOut: Array<{ ref: string; create: boolean }> = [];
   readonly resetTo: string[] = [];
   readonly pushed: FakePushRecord[] = [];
@@ -142,8 +112,6 @@ export class FakeGit implements Git {
     this.stagedChanges = seed.stagedChanges ?? true;
   }
 
-  // — Queries —
-
   async isRepository(_cwd?: string): Promise<boolean> {
     return this.isRepo;
   }
@@ -165,10 +133,8 @@ export class FakeGit implements Git {
   }
 
   /**
-   * Returns the seeded `nearestTag`. Note the asymmetry with {@link FakeGit.listTags}: `tag()`
-   * appends to the tag list (so `listTags()` reflects newly-created tags) but does NOT update
-   * `nearestTag` — "nearest reachable tag" is a reachability fact the fake can't derive, so seed it
-   * explicitly. A test expecting `describeTags()` to see a tag created via `tag()` must re-seed.
+   * Unlike `listTags`, doesn't see tags created via `tag()`: the nearest reachable tag is a reachability fact the fake
+   * can't derive, so seed `nearestTag` explicitly.
    */
   async describeTags(_cwd?: string): Promise<string | null> {
     return this.nearestTag;
@@ -214,8 +180,6 @@ export class FakeGit implements Git {
   async hasStagedChanges(_cwd?: string): Promise<boolean> {
     return this.stagedChanges;
   }
-
-  // — Mutations —
 
   async addAll(_cwd?: string): Promise<void> {
     this.addedAll += 1;
@@ -263,7 +227,6 @@ export class FakeGit implements Git {
   }
 }
 
-/** Convenience factory mirroring {@link createGitCli}. */
 export function createFakeGit(seed: FakeGitSeed = {}): FakeGit {
   return new FakeGit(seed);
 }

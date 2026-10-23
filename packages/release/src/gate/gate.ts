@@ -8,10 +8,6 @@ import { DEFAULT_LABELS, type LabelConfig } from '../label-utils.js';
 import { resolveScopeToTarget } from '../release.js';
 import { evaluatePR, type PREvaluation } from './evaluate-pr.js';
 
-/**
- * Distinct comment marker for gate-notify comments. Kept separate from the preview marker
- * (`<!-- releasekit-preview -->`) so the two surfaces don't overwrite each other.
- */
 const NOTIFY_MARKER = '<!-- releasekit-gate-notify -->';
 
 export interface GateOutput {
@@ -24,10 +20,6 @@ export interface GateOutput {
   prNumbers: number[];
   blocked?: boolean;
   reason?: string;
-  /**
-   * Per-PR verdicts. The gate evaluates each PR independently — labels are NEVER unioned.
-   * This array reflects every PR found in the window since the last release tag.
-   */
   evaluations: PREvaluation[];
 }
 
@@ -38,11 +30,7 @@ export interface GateOptions {
   json?: boolean;
   verbose?: boolean;
   quiet?: boolean;
-  /**
-   * When true (default), the gate posts a comment on PRs whose labels indicated release
-   * intent but did not produce a release (e.g. `channel:prerelease` without `bump:*`, or
-   * conflicting bump labels). Disable for dry-runs / local scripts.
-   */
+  /** Comment on PRs whose release intent didn't produce a release; disable for dry runs and local scripts. */
   notify?: boolean;
 }
 
@@ -50,7 +38,7 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
   const releaseKitConfig = await loadReleaseKitConfig({ cwd: options.projectDir, configPath: options.config });
   const ciConfig = releaseKitConfig.ci;
 
-  // Check GitHub context (sha serves as a proxy for "are we in GitHub Actions?")
+  // `sha` stands in for "are we in GitHub Actions?".
   const githubContext = getGitHubContext();
   if (!githubContext?.sha) {
     return {
@@ -62,7 +50,6 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
     };
   }
 
-  // Check GitHub token
   const token = githubContext.token;
   if (!token) {
     return {
@@ -74,9 +61,8 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
     };
   }
 
-  // Find merged PRs since the last release tag (not just the triggering SHA) so that
-  // a labelled PR isn't silently dropped when a subsequent push (e.g. dependabot) cancels
-  // the original CI run and fires the gate with a different head_sha.
+  // Since the last release tag, not just the triggering SHA: a later push (e.g. dependabot) can cancel the original
+  // run and fire the gate with a different head_sha.
   const forge = forgeFor({ token, owner: githubContext.owner, repo: githubContext.repo });
   const prNumbers = await findMergedPRsSinceLastRelease(forge, options.projectDir);
 
@@ -93,9 +79,7 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
 
   const labelConfig = ciConfig?.labels ?? DEFAULT_LABELS;
 
-  // Evaluate each PR independently. Labels are never unioned across PRs — a PR with
-  // insufficient labels stays insufficient and CANNOT contaminate another PR's verdict.
-  // Fetches are independent so we parallelise them.
+  // Labels are never unioned across PRs, so one PR's labels can't change another's verdict.
   const evaluations = await Promise.all(
     prNumbers.map((prNumber) =>
       fetchPRLabels(forge, prNumber).then((labels) => evaluatePR(prNumber, labels, labelConfig, ciConfig)),
@@ -111,8 +95,6 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
     releaseKitConfig,
   });
 
-  // Notify users of PRs whose labels indicated release intent but didn't trigger one.
-  // Idempotent: postOrUpdateComment finds the existing notify-marker comment and updates it.
   if (options.notify !== false) {
     await notifyInsufficientLabels(forge, evaluations, trigger, labelConfig);
   }
@@ -131,7 +113,6 @@ interface ComputeGateInput {
 async function computeGateResult(input: ComputeGateInput): Promise<GateOutput> {
   const { evaluations, prNumbers, options, ciConfig, releaseKitConfig } = input;
 
-  // Hard errors short-circuit (label conflict on a single PR)
   const blocked = evaluations.find((e) => e.blocked);
   if (blocked) {
     return {
@@ -149,7 +130,6 @@ async function computeGateResult(input: ComputeGateInput): Promise<GateOutput> {
   // is the most recently merged valid PR.
   const winner = evaluations.find((e) => e.shouldRelease);
 
-  // Resolve scope: --scope CLI flag overrides PR-driven scope.
   let resolvedScope = winner?.scope;
   let resolvedTarget = winner?.target;
   if (options.scope) {
@@ -164,8 +144,7 @@ async function computeGateResult(input: ComputeGateInput): Promise<GateOutput> {
   }
 
   if (!winner) {
-    // Surface the most-recent PR's reason — that's the one the user is most likely
-    // looking at (e.g. a merge that just landed). evaluations[0] is newest by git-log order.
+    // The newest PR's reason: the merge the user most likely just landed.
     const primaryReason = evaluations[0]?.reason ?? 'No PR in window has sufficient labels to trigger a release';
     info(`No PR in window (${prNumbers.join(', ')}) has sufficient labels to trigger a release`);
     return {
@@ -178,9 +157,7 @@ async function computeGateResult(input: ComputeGateInput): Promise<GateOutput> {
     };
   }
 
-  // Skip-pattern check on the HEAD commit message. This is a global guard against the
-  // gate firing on its own release commits (e.g. "chore: release ..."). Applied AFTER the
-  // winner is picked because it depends on the head commit, not on labels.
+  // Stops the gate firing on its own release commits.
   const releaseConfig = releaseKitConfig.release;
   if (releaseConfig?.ci?.skipPatterns?.length) {
     const headCommit = await getHeadCommitMessage(options.projectDir);
@@ -217,13 +194,7 @@ async function computeGateResult(input: ComputeGateInput): Promise<GateOutput> {
   };
 }
 
-/**
- * Whether a non-releasing evaluation warrants a comment on the PR.
- *
- * - Always notify on hard errors (`blocked`), in any trigger mode.
- * - In `label` mode, notify when the PR had release intent but no qualifying bump.
- * - In `commit` mode, don't notify on `release:skip` — that's deliberate, not user error.
- */
+/** In commit mode a non-release is a deliberate `release:skip`, not a user error, so only `blocked` notifies. */
 function shouldNotifyPR(e: PREvaluation, trigger: 'commit' | 'label'): boolean {
   if (e.shouldRelease) {
     return false;

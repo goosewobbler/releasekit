@@ -57,7 +57,7 @@ describe('Pipeline: per-task soft-fail', () => {
 
   it('should keep enhance+categorize output when a later summarize task fails', async () => {
     createMock.mockImplementation((params: { response_format?: unknown }) => {
-      // enhance+categorize uses the structured-output (response_format) path; summarize is plain text.
+      // enhance & categorize uses the structured-output (response_format) path; summarize is plain text.
       if (params.response_format) {
         return Promise.resolve([{ choices: [{ delta: { content: enhancedPayload }, finish_reason: 'stop' }] }]);
       }
@@ -66,7 +66,6 @@ describe('Pipeline: per-task soft-fail', () => {
 
     const result = await runPipeline(input, config, false);
 
-    // Old behavior discarded the whole enhancement on a late failure and re-rendered the raw entries.
     const notes = result.packageNotes['my-lib'] ?? '';
     expect(notes).toContain('ENHANCED');
     expect(notes).not.toContain('raw one');

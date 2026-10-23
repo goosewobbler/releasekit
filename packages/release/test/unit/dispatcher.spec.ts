@@ -18,10 +18,9 @@ import { createDispatcherProgram } from '../../src/dispatcher.js';
 vi.mocked(createNotesCommand).mockReturnValue(new Command('notes').description('notes'));
 vi.mocked(createPublishCommand).mockReturnValue(new Command('publish').description('publish'));
 vi.mocked(createVersionCommand).mockReturnValue(new Command('version').description('version'));
-// exitOverride so an accidental route to preview (the default command) throws a catchable error
-// instead of process.exit()-ing the test worker — see the routing smoke test below.
+// exitOverride so an accidental route to preview throws instead of exiting the test worker.
 vi.mocked(createPreviewCommand).mockReturnValue(new Command('preview').description('preview').exitOverride());
-// No-op action so routing to it in the smoke test doesn't run the real post-release reconcile.
+// No-op action so routing to it doesn't run the real post-release reconcile.
 vi.mocked(createRefreshAfterReleaseCommand).mockReturnValue(
   new Command('refresh-after-release').description('refresh-after-release').action(() => {}),
 );
@@ -97,22 +96,19 @@ describe('createDispatcherProgram', () => {
     expect((program as unknown as { _defaultCommandName: string })._defaultCommandName).toBe('preview');
   });
 
-  // Durable drift guard: the public `releasekit` bin (dispatcher) must expose every release-domain
-  // command the `releasekit-release` bin does, or `releasekit <cmd>` silently routes to the default
-  // `preview` command. Registering a new command in cli.ts without the dispatcher trips this.
+  // A command registered in cli.ts but not the dispatcher makes `releasekit <cmd>` silently route to the default
+  // `preview`.
   it('should expose every release-domain command the release CLI does', () => {
     const dispatcher = new Set(createDispatcherProgram().commands.map((c) => c.name()));
     const releaseCli = createReleaseProgram().commands.map((c) => c.name());
-    // No command is intentionally CLI-only today; add a name here (with a reason) only if that changes.
+    // Add a name here (with a reason) only if a command must be CLI-only.
     const INTENTIONALLY_CLI_ONLY = new Set<string>([]);
     const missing = releaseCli.filter((n) => !dispatcher.has(n) && !INTENTIONALLY_CLI_ONLY.has(n));
     expect(missing).toEqual([]);
   });
 
   it('should route `refresh-after-release` to its own command, not the default preview', () => {
-    // The reported symptom: an unregistered command falls through to the default `preview`, which
-    // rejects the stray positional. preview is mocked with exitOverride and refresh with a no-op action
-    // (both above), so a misroute throws instead of exiting — a clean parse proves correct routing.
+    // A misroute hits the exitOverride preview mock and throws; a clean parse proves correct routing.
     const program = createDispatcherProgram().exitOverride();
     expect(() => program.parse(['refresh-after-release'], { from: 'user' })).not.toThrow();
   });

@@ -17,7 +17,7 @@ export interface ChangelogEntry {
   description: string;
   issueIds?: string[];
   /** The PR this entry shipped through (trailing `(#N)` of a squash-merge subject); marks which of
-   *  {@link issueIds} is the PR vs. a closed issue. Optional — absent means no identifiable PR. */
+   *  {@link issueIds} is the PR vs. a closed issue. */
   prNumber?: string;
   scope?: string;
   originalType?: string;
@@ -69,8 +69,6 @@ export interface TemplateContext {
   entries: ChangelogEntry[];
   compareUrl?: string;
   enhanced?: EnhancedData;
-  /** True when `previousVersion === null` — the package has no prior release. Templates can branch
-   *  on it to add a first-release intro; the default renderer seeds a placeholder line. */
   isFirstRelease?: boolean;
 }
 
@@ -82,12 +80,10 @@ export interface DocumentContext {
   versions: TemplateContext[];
   unreleased?: TemplateContext;
   compareUrls?: Record<string, string>;
-  /** True when rendered for a single-package inline context (e.g. GitHub release body).
-   *  Templates can use this to suppress document-level headings that are redundant
+  /** Templates can use this to suppress document-level headings that are redundant
    *  when the content is embedded in a release that already shows the package/version. */
   perPackage?: boolean;
-  /** Which release-notes destination this render targets: `'file'` (an in-repo per-version file)
-   *  or `'release'` (the GitHub release body). Templates can branch on it — e.g. emit docs-site
+  /** `'release'` is the GitHub release body. Templates can branch on it - e.g. emit docs-site
    *  YAML frontmatter only for `'file'`, since it would render as literal text in a GitHub release. */
   output?: 'file' | 'release';
 }
@@ -192,7 +188,6 @@ export interface ChangelogConfig {
   mode?: LocationMode;
   file?: string;
   templates?: TemplateConfig;
-  /** How bare `#NNN` issue/PR refs render in the changelog. Default `'link'` when unset. */
   refs?: ChangelogRefsMode;
 }
 
@@ -203,21 +198,18 @@ export interface LinksConfig {
 }
 
 export interface ReleaseNotesFileConfig {
-  /** Directory for the per-version release-notes files (default: release-notes). */
   dir?: string;
 }
 
 export interface FirstReleaseConfig {
-  /** Placeholder intro line for a package's first release. Supports ${packageName} and ${version}. */
+  /** Supports ${packageName} and ${version}. */
   text?: string;
 }
 
 export interface ReleaseNotesConfig {
-  /** In-repo per-version file output. Omit to keep notes only on the GitHub release body. */
   file?: ReleaseNotesFileConfig;
   templates?: TemplateConfig;
   llm?: LLMConfig;
   links?: LinksConfig;
-  /** First-release placeholder intro. Default-on with a factual line; set to false to disable. */
   firstRelease?: false | FirstReleaseConfig;
 }

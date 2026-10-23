@@ -21,24 +21,21 @@ interface NpmSession {
   isolation: NpmEnvIsolation;
 }
 
-/** Workspace deps an npm package declares (dependencies + peerDependencies; devDependencies excluded). */
 function readNpmWorkspaceDeps(pkgJsonPath: string): string[] {
   try {
     const json = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
     return [...Object.keys(json.dependencies ?? {}), ...Object.keys(json.peerDependencies ?? {})];
   } catch (error) {
-    // A package whose deps can't be read looks dependency-free to the graph and could be ordered
-    // ahead of packages it actually depends on — surface it rather than silently mis-ordering.
+    // Unreadable deps look dependency-free to the graph and could order a package ahead of its own
+    // dependencies - surface it rather than silently mis-ordering.
     debug(`Failed to read workspace deps from ${pkgJsonPath}: ${error}`);
     return [];
   }
 }
 
 /**
- * Order npm updates so a dependency publishes before any package that depends on it, closing the
- * window where a just-published package references a not-yet-published version. An explicit
- * `publishOrder` wins (matching cargo); otherwise the workspace graph topo-sorts dependencies first.
- * Non-npm updates are moved to the end — the stage skips them anyway, so publish order is unaffected.
+ * Dependencies publish first, closing the window where a just-published package references a
+ * not-yet-published version. Non-npm updates go last - the stage skips them anyway.
  */
 export function orderNpmUpdates<T extends { packageName: string; filePath: string }>(
   updates: T[],
@@ -81,7 +78,6 @@ export function orderNpmUpdates<T extends { packageName: string; filePath: strin
   return [...orderedNpm, ...other];
 }
 
-/** Error strategy: FAIL-FAST. First publish failure aborts the stage. */
 export const npmRegistry: Registry<NpmTarget, NpmSession> = {
   id: 'npm',
   displayName: 'npm',
@@ -118,9 +114,8 @@ export const npmRegistry: Registry<NpmTarget, NpmSession> = {
   },
 
   precheckSkip(target: NpmTarget, ctx: PipelineContext): SkipDecision | undefined {
-    // Only npm packages have a package.json; cargo (Cargo.toml) and pub (pubspec.yaml) manifests
-    // flow through here too. Skip non-package.json manifests up front so we never JSON.parse a
-    // TOML/YAML file and emit a confusing "Failed to read package.json" debug.
+    // Cargo and pub manifests flow through here too; skip them before JSON.parse chokes on TOML/YAML and
+    // emits a confusing "Failed to read package.json" debug.
     if (!target.filePath.endsWith('package.json')) {
       return { reason: 'Not an npm package' };
     }
@@ -134,7 +129,6 @@ export const npmRegistry: Registry<NpmTarget, NpmSession> = {
       debug(`Package.json version: ${parsed.version}`);
       debug(`Package.json name: ${parsed.name}`);
     } catch (error) {
-      // A genuinely unreadable/malformed package.json — log and continue with empty metadata.
       debug(`Failed to read package.json: ${error}`);
     }
 
@@ -151,7 +145,7 @@ export const npmRegistry: Registry<NpmTarget, NpmSession> = {
     const { file, args } = buildViewCommand(ctx.packageManager, target.packageName, target.version);
     const viewResult = await execCommandSafe(file, args, {
       cwd: ctx.cwd,
-      dryRun: false, // Always check, even in dry-run
+      dryRun: false,
       env: session.isolation.env,
     });
     return viewResult.exitCode === 0 && viewResult.stdout.trim() !== '';
@@ -160,7 +154,6 @@ export const npmRegistry: Registry<NpmTarget, NpmSession> = {
   async prePublish(target: NpmTarget, ctx: PipelineContext): Promise<void> {
     const pkgDir = path.dirname(path.resolve(ctx.cwd, target.filePath));
 
-    // Debug: Check if dist directory exists before publishing
     const distExists = fs.existsSync(path.join(pkgDir, 'dist'));
     debug(`Publishing ${target.packageName}@${target.version} from ${pkgDir}`);
     debug(`Dist directory exists: ${distExists}`);
@@ -169,7 +162,6 @@ export const npmRegistry: Registry<NpmTarget, NpmSession> = {
       debug(`Dist directory contents: ${distContents.join(', ')}`);
     }
 
-    // Check package manager version
     try {
       const versionResult = await execCommand(ctx.packageManager, ['--version'], { cwd: ctx.cwd, dryRun: false });
       debug(`Package manager version (${ctx.packageManager}): ${versionResult.stdout.trim()}`);
@@ -192,7 +184,7 @@ export const npmRegistry: Registry<NpmTarget, NpmSession> = {
     debug(`Working directory: ${pkgDir}`);
 
     const publishResult = await execCommand(file, args, {
-      cwd: pkgDir, // Always publish from the package directory for reliability
+      cwd: pkgDir,
       dryRun: ctx.cliOptions.dryRun,
       label: `npm publish ${target.packageName}@${target.version}`,
       env: session.isolation.env,

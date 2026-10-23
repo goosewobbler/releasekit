@@ -240,7 +240,7 @@ describe('Gate', () => {
     const result = await runGate();
 
     expect(result.shouldRelease).toBe(true);
-    // release:graduate causes detectBumpFromLabels to return undefined (auto-detect from commits)
+    // release:graduate auto-detects the bump from commits.
     expect(result.bump).toBeUndefined();
     expect(result.stable).toBe(true);
   });
@@ -417,8 +417,7 @@ describe('Gate', () => {
 
       const result = await runGate();
 
-      // Without the standing-pr guard, commit mode releases every merge — a feeder PR
-      // slipping through here would direct-release on every push.
+      // Commit mode releases every merge, so a feeder PR slipping through here would direct-release on every push.
       expect(result.shouldRelease).toBe(false);
       expect(result.reason).toContain('standing release PR');
       expect(mockPostOrUpdateComment).not.toHaveBeenCalled();
@@ -481,8 +480,7 @@ describe('Gate', () => {
         },
       },
     });
-    // Newer PR (123) has the bump label; older PR (456) has only an unrelated label.
-    // git-log order is newest-first, so 123 should win and 456 must NOT contaminate.
+    // git-log order is newest-first, so 123 is the newer PR.
     mockFindMergedPRsSinceLastRelease.mockResolvedValue([123, 456]);
     mockFetchPRLabels.mockResolvedValueOnce(['bump:minor', 'scope:electron']).mockResolvedValueOnce(['enhancement']);
 
@@ -491,15 +489,12 @@ describe('Gate', () => {
     expect(result.shouldRelease).toBe(true);
     expect(result.labels).toContain('bump:minor');
     expect(result.labels).toContain('scope:electron');
-    // Critical: labels from the non-winning PR must not appear in the winning verdict.
     expect(result.labels).not.toContain('enhancement');
   });
 
   describe('per-PR evaluation — wdio-desktop-mobile #225 + #224 regression', () => {
-    // PR #225 merged with `channel:prerelease` + `scope:tauri` (no bump:*) — gate must block.
-    // PR #224 merged later with `bump:minor` + `scope:utils` — gate must release #224 alone.
-    // Before this fix: gate unioned the labels and produced `preminor` for `@wdio/native-utils`.
-    // After: per-PR evaluation, #225's labels are ignored, #224 wins cleanly with `minor`.
+    // #225 (`channel:prerelease` & `scope:tauri`, no bump:*) must block; #224, merged later with `bump:minor` &
+    // `scope:utils`, must release alone rather than unioning into `preminor`.
     const fullConfig = {
       ci: {
         releaseTrigger: 'label',
@@ -521,7 +516,7 @@ describe('Gate', () => {
 
     it('should not produce preminor when an older prerelease-only PR is in the window', async () => {
       mockLoadReleaseKitConfig.mockReturnValue(fullConfig);
-      // git-log order is newest-first: #224 (winner) before #225 (insufficient).
+      // #224 (winner) before #225 (insufficient).
       mockFindMergedPRsSinceLastRelease.mockResolvedValue([224, 225]);
       mockFetchPRLabels
         .mockResolvedValueOnce(['bump:minor', 'scope:utils']) // #224
@@ -534,7 +529,6 @@ describe('Gate', () => {
       expect(result.bump).not.toBe('preminor');
       expect(result.target).toBe('@wdio/native-utils');
       expect(result.scope).toBe('utils');
-      // #225's prerelease label must not contaminate the verdict.
       expect(result.labels).not.toContain('channel:prerelease');
       expect(result.labels).not.toContain('scope:tauri');
     });
@@ -566,8 +560,6 @@ describe('Gate', () => {
 
       await runGate(); // notify defaults to true
 
-      // Notify is only posted on PR #225 (insufficient labels with intent),
-      // never on the winning PR #224.
       expect(mockPostOrUpdateComment).toHaveBeenCalledTimes(1);
       const [, prNumber, body, marker] = mockPostOrUpdateComment.mock.calls[0];
       expect(prNumber).toBe(225);
@@ -598,7 +590,6 @@ describe('Gate', () => {
 
       await runGate();
 
-      // PR #1 wins (no notify). PR #2 has no release-intent labels (no notify).
       expect(mockPostOrUpdateComment).not.toHaveBeenCalled();
     });
 

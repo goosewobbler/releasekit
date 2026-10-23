@@ -1,6 +1,3 @@
-# Standing Release PR — keeps a single PR open with accumulated version
-# bumps and release notes. Maintainers merge to publish.
-#
 # Required repo setting (one-time):
 #   Settings → Actions → General → Workflow permissions →
 #     enable "Allow GitHub Actions to create and approve pull requests"
@@ -17,24 +14,15 @@ on:
   push:
     branches: [main] # Should match git.branch in releasekit.config.json
   pull_request:
-    # closed: publish / immediate-release on merge. labeled/unlabeled: apply
-    # bump/scope/channel override labels to the OPEN standing PR immediately.
-    # edited: a maintainer ticked/unticked packages in the PR's selection region —
-    # re-run so the held-back set is applied (the bot's own body edits are filtered
-    # out by the sender guard below to avoid a loop).
-    # (The merge-gated jobs below add `action == 'closed'` so they ignore these.)
     types: [closed, labeled, unlabeled, edited]
     branches: [main]
   schedule:
-    - cron: '0 * * * *' # Hourly — re-evaluates minAge status check as time passes
+    - cron: '0 * * * *' # re-evaluates the minAge status check as time passes
 
 concurrency:
-  # Rapid checkbox toggles each fire a separate `edited` event — route a maintainer's edits to a
-  # per-PR group that cancels in-progress runs, so a flurry of ticks collapses to one rebuild of the
-  # latest selection. Everything else — push / schedule / merge, AND the bot's own body edits (the
-  # processing banner + the rebuilt body, which are `edited` from a Bot sender) — stays on the stable
-  # shared group with cancelling OFF, so a bot edit never cancels the run doing the work and a queued
-  # publish dispatch is never dropped. The `sender.type != 'Bot'` guard is what keeps the two apart.
+  # A maintainer's checkbox edits go to a per-PR cancelling group so a flurry of ticks collapses to one
+  # rebuild. Everything else, including the bot's own body edits, shares a non-cancelling group so a
+  # bot edit never cancels the run doing the work and a queued publish is never dropped.
   group: ${{ (github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot') && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
 
@@ -47,13 +35,10 @@ permissions:
 jobs:
   update-release-pr:
     name: Update Release PR
-    # push/schedule rebuild the PR; a label change or selection-region edit on the OPEN standing PR
-    # re-runs the update so bump/scope/channel overrides and held-back packages apply within seconds.
-    # `state == 'open'` keeps this off the merged-PR label events that drive the jobs below. The
-    # `sender.type != 'Bot'` guard is load-bearing for `edited`: the update itself rewrites the PR
-    # body (an `edited` event), so without it the bot would re-trigger forever. Match on type, not a
-    # hardcoded `github-actions[bot]` login, so a custom GitHub App token (its own `*[bot]` login) is
-    # filtered too. `release/` prefix hardcoded (workflow `if` can't read config) — in-step config is authoritative.
+    # `sender.type != 'Bot'` is load-bearing: the update rewrites the PR body (an `edited` event), so
+    # the bot would otherwise re-trigger itself forever. Matching on type rather than the
+    # `github-actions[bot]` login also filters a custom GitHub App token. The `release/` prefix is
+    # hardcoded (workflow `if` can't read config) - in-step config is authoritative.
     if: >-
       github.event_name == 'push' ||
       github.event_name == 'schedule' ||
@@ -70,12 +55,8 @@ jobs:
       )
     runs-on: ubuntu-latest
     steps:
-      # Post an instant "updating…" banner so a maintainer who just ticked a checkbox (or changed a
-      # label) knows the change was received while the slower rebuild runs — the Dependabot pattern.
-      # Reactive events only (push/schedule aren't interactive). Runs BEFORE checkout so it lands within
-      # seconds of the runner starting (~10-15s spin-up is the floor). The `standing-pr update` below
-      # regenerates the PR body from scratch, so the banner self-clears on success; the failure step at
-      # the end strips it if the run dies first. Idempotent — skips if a banner is already present.
+      # Instant banner so a maintainer knows their tick or label change was received while the slower
+      # rebuild runs. Before checkout so it lands within seconds of the runner starting.
       - name: Acknowledge the update in progress
         if: github.event_name == 'pull_request'
         env:
@@ -121,10 +102,8 @@ jobs:
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-      # On success the regenerated body already omits the banner; only a run that ended before the
-      # rebuild leaves it behind. Strip the marker region so it doesn't linger as a false "in progress".
-      # `cancelled()` too — a manual cancel (or a superseded reactive run) also skips the rebuild; the
-      # next update self-heals it anyway, but clearing here is immediate.
+      # Only a run that ended before the rebuild leaves the banner behind. `cancelled()` covers a manual
+      # cancel or a superseded reactive run.
       - name: Clear the in-progress banner if the update didn't finish
         if: (failure() || cancelled()) && github.event_name == 'pull_request'
         env:
@@ -138,11 +117,8 @@ jobs:
           gh api --method PATCH "repos/$REPO/pulls/$PR" -f body="$CLEANED" >/dev/null
 
   immediate-release:
-    # Bypass the standing PR queue and release directly. Triggered when a feeder PR
-    # carrying `release:immediate` (configurable via `ci.labels.immediate`) merges to main.
-    # Honours companion bump:* / scope:* / channel:* labels normally.
-    # The final reconcile step keeps the standing PR fresh — released packages drop out
-    # of the queue with no staleness window.
+    # Bypasses the standing PR queue when a feeder PR carrying `release:immediate`
+    # (configurable via `ci.labels.immediate`) merges to main.
     name: Immediate Release (bypass standing PR)
     if: >
       github.event_name == 'pull_request' &&
@@ -182,11 +158,9 @@ jobs:
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
       - name: Reconcile standing PR
-        # The release above tagged new versions. Use refresh-after-release, not `standing-pr update`:
-        # HEAD is now a `chore: release …` commit, which the skip-pattern guard matches, so a plain
-        # update no-ops. refresh-after-release forces the reconcile bypass so the queued release
-        # actually reflects the post-immediate state (released packages drop out, anything still
-        # queued stays) and refreshes stale feeder-PR previews. Zero-staleness reconciliation.
+        # Not `standing-pr update`: HEAD is now a `chore: release …` commit, which the skip-pattern
+        # guard matches, so a plain update no-ops. refresh-after-release bypasses the guard and also
+        # refreshes stale feeder-PR previews.
         run: pnpm exec releasekit refresh-after-release
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -225,7 +199,6 @@ jobs:
         run: pnpm exec releasekit standing-pr publish
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # With OIDC trusted publishing (recommended) NODE_AUTH_TOKEN is
-          # unnecessary — releasekit detects OIDC automatically. With
-          # token-based npm auth, uncomment the next line:
+          # NODE_AUTH_TOKEN unnecessary with OIDC trusted publishing. With token-based
+          # npm auth, uncomment the next line:
           # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

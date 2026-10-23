@@ -22,8 +22,7 @@ runs:
     - name: Create bin stubs
       shell: bash
       run: |
-        # Create placeholder dist/cli.js files so pnpm install can create bin symlinks.
-        # These get overwritten by the real build step that follows.
+        # Placeholder dist/cli.js files so pnpm install can create bin symlinks before the build.
         for pkg in packages/version packages/notes packages/publish packages/release; do
           mkdir -p "$pkg/dist"
           [ -f "$pkg/dist/cli.js" ] || echo '#!/usr/bin/env node' > "$pkg/dist/cli.js"

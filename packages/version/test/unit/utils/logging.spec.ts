@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as jsonOutput from '../../../src/utils/jsonOutput.js';
 import { log, printFiglet } from '../../../src/utils/logging.js';
 
-// Mock dependencies
 vi.mock('../../../src/utils/jsonOutput.js');
 vi.mock('chalk', () => ({
   default: {
@@ -82,7 +81,6 @@ describe('Logging Utilities', () => {
     });
 
     it('should log debug message with gray color', () => {
-      // Set DEBUG to true to ensure debug messages are shown
       const originalDebug = process.env.DEBUG;
       process.env.DEBUG = 'true';
 
@@ -91,7 +89,6 @@ describe('Logging Utilities', () => {
       expect(chalk.gray).toHaveBeenCalledWith('[DEBUG] Debug message');
       expect(console.log).toHaveBeenCalledWith('GRAY:[DEBUG] Debug message');
 
-      // Restore original DEBUG value
       process.env.DEBUG = originalDebug;
     });
 
@@ -100,7 +97,7 @@ describe('Logging Utilities', () => {
 
       log('Info message', 'info');
 
-      // In JSON mode, logs go to stderr instead of stdout to avoid polluting JSON output
+      // Keeps stdout clean for the JSON output.
       expect(console.log).not.toHaveBeenCalled();
       expect(console.error).toHaveBeenCalledWith('BLUE:Info message');
     });

@@ -1,16 +1,4 @@
 #!/usr/bin/env tsx
-/**
- * Script to run E2E tests in an isolated environment
- * Usage: pnpm tsx scripts/test-e2e.ts [--skip-build]
- *
- * This script:
- * 1. Packs releasekit packages as tarballs
- * 2. Creates an isolated temp directory
- * 3. Installs dependencies from tarballs
- * 4. Runs bash E2E tests
- * 5. Cleans up
- */
-
 import { execFileSync, execSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -120,14 +108,12 @@ function createIsolatedEnvironment(tarballs: TarballPaths): string {
   log(`Creating isolated test environment at ${tempDir}`);
   mkdirSync(tempDir, { recursive: true });
 
-  // Copy E2E test files
   const e2eSourceDir = join(rootDir, 'test', 'e2e');
   const e2eTargetDir = join(tempDir, 'e2e');
   cpSync(e2eSourceDir, e2eTargetDir, { recursive: true });
   log('✅ Copied E2E test files');
 
-  // Create package.json for the isolated test environment. Pin the repo's pnpm so a local run
-  // installs with the same pnpm as CI, not whatever is on PATH.
+  // Pin the repo's pnpm so a local run installs with the same pnpm as CI, not whatever is on PATH.
   const { packageManager } = JSON.parse(readFileSync(join(rootDir, 'package.json'), 'utf-8')) as {
     packageManager?: string;
   };
@@ -168,10 +154,8 @@ function createIsolatedEnvironment(tarballs: TarballPaths): string {
 function runTests(isolatedDir: string): void {
   const e2eDir = join(isolatedDir, 'e2e');
 
-  // Install dependencies
   execCommand('pnpm install', e2eDir, 'Installing dependencies');
 
-  // Run all .sh test files with RELEASEKIT_ROOT pointing to node_modules
   const testFiles = readdirSync(e2eDir).filter((f) => f.endsWith('.sh'));
 
   for (const testFile of testFiles) {

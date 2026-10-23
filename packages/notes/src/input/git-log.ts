@@ -15,8 +15,6 @@ async function parseGitLog(git: Git, fromRef?: string, toRef = 'HEAD'): Promise<
   const range = fromRef ? `${fromRef}..${toRef}` : toRef;
 
   try {
-    // `--format=` (tformat) vs the old `--pretty=format:` differ only by a trailing newline, which
-    // the trim()/split() below absorbs — the parsed result is identical, minus the shell string.
     const output = await git.log({ range, format: '%H|||%s|||%an|||%ad', extraArgs: ['--date=short'] });
 
     if (!output.trim()) {
@@ -69,8 +67,8 @@ function parseConventionalCommit(message: string): ChangelogEntry | null {
     issueMatch = issuePattern.exec(message);
   }
 
-  // GitHub appends `(#N)` to the squash-merge subject — that's the PR. Strip it from the description
-  // and mark it so the renderer labels it; the number is still in issueIds (extracted message-wide).
+  // GitHub appends `(#N)` to the squash-merge subject - that's the PR. The number is still in issueIds
+  // (extracted message-wide).
   const subject = description ?? message;
   const prMatch = subject.match(/\s*\(#(\d+)\)\s*$/);
   const prNumber = prMatch ? `#${prMatch[1]}` : undefined;

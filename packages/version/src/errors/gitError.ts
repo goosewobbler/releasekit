@@ -1,13 +1,7 @@
 import { BaseVersionError } from './baseError.js';
 
-/**
- * Custom error class for Git operations
- */
 export class GitError extends BaseVersionError {}
 
-/**
- * Error codes for Git operations
- */
 export enum GitErrorCode {
   NOT_GIT_REPO = 'NOT_GIT_REPO',
   GIT_PROCESS_ERROR = 'GIT_PROCESS_ERROR',
@@ -17,12 +11,6 @@ export enum GitErrorCode {
   TAG_ALREADY_EXISTS = 'TAG_ALREADY_EXISTS',
 }
 
-/**
- * Creates a GitError with standard error message for common failure scenarios
- * @param code Error code
- * @param details Additional error details
- * @returns GitError instance
- */
 export function createGitError(code: GitErrorCode, details?: string): GitError {
   const messages: Record<GitErrorCode, string> = {
     [GitErrorCode.NOT_GIT_REPO]: 'Not a git repository',
@@ -33,7 +21,6 @@ export function createGitError(code: GitErrorCode, details?: string): GitError {
     [GitErrorCode.TAG_ALREADY_EXISTS]: 'Git tag already exists',
   };
 
-  // Provide helpful suggestions for specific error types
   const suggestions: Record<GitErrorCode, string[] | undefined> = {
     [GitErrorCode.NOT_GIT_REPO]: [
       'Initialize git repository with: git init',

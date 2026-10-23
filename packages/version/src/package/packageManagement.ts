@@ -1,7 +1,3 @@
-/**
- * Package management utilities for releasekit-version
- */
-
 import fs from 'node:fs';
 import path from 'node:path';
 import { isCargoToml, updateCargoVersion } from '../cargo/cargoHandler.js';
@@ -10,7 +6,6 @@ import type { PkgJson } from '../types.js';
 import { addPackageUpdate, recordPendingWrite } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 
-// Define the PackageInfo interface here for internal use
 export interface PackageInfo {
   name: string;
   version: string;
@@ -19,20 +14,15 @@ export interface PackageInfo {
   content: PkgJson;
 }
 
-/**
- * Get package info from package.json
- */
 export function getPackageInfo(pkgPath: string): PackageInfo {
   if (!fs.existsSync(pkgPath)) {
     const dir = path.dirname(pkgPath);
 
-    // Check if this might be a hybrid package with Cargo.toml in root and package.json in subdirectory
     const cargoPath = path.join(dir, 'Cargo.toml');
     const nodeSubdirPath = path.join(dir, 'node', 'package.json');
     const jsSubdirPath = path.join(dir, 'js', 'package.json');
 
     if (fs.existsSync(cargoPath)) {
-      // This is likely a hybrid package
       let suggestedPath = '';
 
       if (fs.existsSync(nodeSubdirPath)) {
@@ -78,7 +68,6 @@ Then optionally use the "packages" config to target specific package names:
         );
       }
     } else {
-      // Standard missing package.json error
       log(`Package file not found at: ${pkgPath}`, 'error');
     }
 
@@ -110,24 +99,18 @@ Then optionally use the "packages" config to target specific package names:
   }
 }
 
-/**
- * Update a package file (package.json or Cargo.toml) with a new version
- * @param isRoot True when updating the workspace-root package.json in lockstep (sync mode)
- */
+/** @param isRoot The workspace-root package.json, bumped in lockstep (sync mode). */
 export function updatePackageVersion(packagePath: string, version: string, dryRun = false, isRoot = false): void {
-  // Handle Cargo.toml files separately
   if (isCargoToml(packagePath)) {
     updateCargoVersion(packagePath, version, dryRun);
     return;
   }
 
-  // Handle pubspec.yaml files separately
   if (isPubspecYaml(packagePath)) {
     updatePubVersion(packagePath, version, dryRun);
     return;
   }
 
-  // Handle package.json files
   try {
     const packageContent = fs.readFileSync(packagePath, 'utf8');
     const packageJson = JSON.parse(packageContent);
@@ -140,7 +123,6 @@ export function updatePackageVersion(packagePath: string, version: string, dryRu
       fs.writeFileSync(packagePath, updatedContent);
     }
 
-    // Track update for JSON output
     addPackageUpdate(packageName, version, packagePath, isRoot);
 
     log(

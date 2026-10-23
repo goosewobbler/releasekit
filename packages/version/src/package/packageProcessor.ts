@@ -35,7 +35,6 @@ export interface PackageProcessorOptions {
   dryRun?: boolean;
   getLatestTag: () => Promise<string | null>;
   config: Omit<VersionConfigBase, 'versionPrefix' | 'path' | 'name'>;
-  // Config needed for version calculation
   fullConfig: Config;
 }
 
@@ -57,7 +56,6 @@ export class PackageProcessor {
   private dryRun: boolean;
   private getLatestTag: () => Promise<string | null>;
   private config: Omit<VersionConfigBase, 'versionPrefix' | 'path' | 'name'>;
-  // Config for version calculation
   private fullConfig: Config;
 
   constructor(options: PackageProcessorOptions) {
@@ -72,24 +70,19 @@ export class PackageProcessor {
   }
 
   /**
-   * Process packages based on skip list only (targeting handled at discovery time).
-   *
-   * `repoRoot` is the confinement boundary for config-driven manifest writes
-   * (`version.cargo.paths` / `version.pub.paths`): a path escaping it is rejected. It defaults
-   * to `process.cwd()` but callers pass the discovered workspace root when they have it, since the
-   * tool can run from a subdirectory whose cwd is narrower than the repo.
+   * Targeting is applied at discovery time, so only `skip` filters here. `repoRoot` confines
+   * config-driven `cargo.paths` / `pub.paths` writes; pass the workspace root, since the tool can run
+   * from a subdirectory narrower than the repo.
    */
   async processPackages(packages: Package[], repoRoot: string = process.cwd()): Promise<ProcessResult> {
     const tags: string[] = [];
     const updatedPackagesInfo: Array<{ name: string; version: string; path: string }> = [];
 
-    // 1. Basic validation
     if (!packages || !Array.isArray(packages)) {
       log('Invalid packages data provided. Expected array of packages.', 'error');
       return { updatedPackages: [], tags: [] };
     }
 
-    // 2. Apply skip filtering only (targeting is handled at discovery time)
     const pkgsToConsider = packages.filter((pkg) => {
       const pkgName = pkg.packageJson.name;
       const shouldProcess = shouldProcessPackage(pkgName, this.skip);
@@ -108,13 +101,8 @@ export class PackageProcessor {
       return { updatedPackages: [], tags: [] };
     }
 
-    // 3. Process each targeted package
-    // Accumulate repo-level entries across all packages (keyed by type+description to deduplicate)
     const sharedEntriesMap = new Map<string, ChangelogEntry>();
 
-    // BaselineResolver owns the per-package changelog floor (B) and the repo-level shared floor (C),
-    // constructed once per run so the nearest-reachable shared floor is computed a single time
-    // and reused across packages.
     const baselineResolver = new BaselineResolver({
       versionPrefix: this.versionPrefix,
       tagTemplate: this.tagTemplate,
@@ -130,14 +118,9 @@ export class PackageProcessor {
       const pkgPath = pkg.dir;
       log(`Processing package ${name} at path: ${pkgPath}`, 'info');
       const formattedPrefix = formatVersionPrefix(this.versionPrefix);
-      // For package-specific tags, we may need to request package-specific version history
-      // Try to get the latest tag specific to this package first
       let latestTagResult = '';
       let hasRealTag = false;
-      // Whether `latestTag` came from this package's own tag series (vs. the global/manifest
-      // fallback below). Decides which stable-tag lookup to use when graduating, since
-      // `packageSpecificTags: true` can still fall back to a global tag for a package without its
-      // own tag history.
+      // Distinct from hasRealTag: `packageSpecificTags: true` can still fall back to a global tag.
       let usedPackageSpecificTag = false;
       try {
         latestTagResult = await getLatestTagForPackage(name, this.versionPrefix, {
@@ -147,19 +130,15 @@ export class PackageProcessor {
         hasRealTag = !!latestTagResult;
         usedPackageSpecificTag = !!latestTagResult;
       } catch (error) {
-        // Log the specific error, but continue with fallback
         const errorMessage = error instanceof Error ? error.message : String(error);
         log(`Error getting package-specific tag for ${name}, falling back to global tag: ${errorMessage}`, 'warning');
       }
 
-      // Fallback to global tag if no package-specific tag exists
       if (!latestTagResult) {
         try {
-          // First try the package manifest files as fallback
           const packageDir = pkgPath;
           let manifestFallbackUsed = false;
 
-          // Use the centralized helper to check manifests
           const manifestResult = getVersionFromManifests(packageDir);
           if (manifestResult.manifestFound && manifestResult.version) {
             log(
@@ -167,17 +146,16 @@ export class PackageProcessor {
               'info',
             );
             log(`FALLBACK: Using package version from ${manifestResult.manifestType} instead of global tag`, 'debug');
-            // We'll create a fake tag with this version to use as base
+            // Synthetic tag: a version base, not a git ref (hasRealTag stays false).
             latestTagResult = `${this.versionPrefix || ''}${manifestResult.version}`;
             manifestFallbackUsed = true;
           }
 
-          // Only if we couldn't use either manifest file, try global tag
           if (!manifestFallbackUsed) {
             const globalTagResult = await this.getLatestTag();
             if (globalTagResult) {
               latestTagResult = globalTagResult;
-              hasRealTag = true; // Global tag is a real git tag
+              hasRealTag = true;
               log(`Using global tag ${globalTagResult} as fallback for package ${name}`, 'info');
             }
           }
@@ -187,7 +165,6 @@ export class PackageProcessor {
         }
       }
 
-      // At this point, latestTagResult is guaranteed to be a string (possibly empty)
       const latestTag = latestTagResult;
 
       const nextVersion = await calculateVersion(this.fullConfig, {
@@ -201,17 +178,13 @@ export class PackageProcessor {
       });
 
       if (!nextVersion) {
-        continue; // No version change calculated for this package
+        continue;
       }
 
-      // previousVersion is shown to users in the changelog header — strip the baseline-tag scheme
-      // back to its consumer-facing form so `release/v0.22.0` appears as `v0.22.0`.
       const baselineTagPrefix = deriveBaselineTagPrefix(this.fullConfig.baselineTagTemplate, formattedPrefix, name);
 
-      // A package with no prior git tag has its changelog computed from the FULL git history,
-      // which in standing-PR mode can push the rendered PR body past GitHub's 65,536-char limit and
-      // fail PR creation with an opaque 422. Surface it loudly with an actionable baseline-tag
-      // suggestion. (baseRef-scoped runs — advisory preview — are bounded to the PR, so skip them.)
+      // An untagged package's changelog can push the standing-PR body past GitHub's 65,536-char limit (an
+      // opaque 422). baseRef-scoped runs are bounded to the PR.
       if (!hasRealTag && !this.fullConfig.baseRef) {
         const currentVersion = pkg.packageJson.version;
         const suggestedTag = currentVersion
@@ -226,8 +199,6 @@ export class PackageProcessor {
         );
       }
 
-      // Generate changelog entries from conventional commits. The changelog floor (range,
-      // reachability, prerelease→stable graduation) is resolved by BaselineResolver.
       let changelogEntries: ChangelogEntry[] = [];
       let revisionRange = 'HEAD';
       let previousVersion: string | null = null;
@@ -248,25 +219,17 @@ export class PackageProcessor {
 
         changelogEntries = await extractChangelogEntriesFromCommits(pkgPath, revisionRange);
 
-        // Also extract repo-level commits (those touching no package dir, plus declared shared
-        // packages whose changes belong project-wide). Classify against the FULL discovered
-        // workspace, not the filtered release set (`packages`) — otherwise a commit touching only a
-        // *non-releasing* package's dir touches "no package" and wrongly leaks into the shared block
-        // Falls back to the processing set when the engine didn't populate the workspace
-        // (e.g. a direct PackageProcessor construction in tests).
+        // The full workspace, so a commit touching only a non-releasing package isn't misread as repo-level.
+        // Falls back to the release set when the engine didn't populate it (e.g. tests).
         const workspace =
           this.fullConfig.allWorkspacePackages ?? packages.map((p) => ({ name: p.packageJson.name, dir: p.dir }));
         const allPackageDirs = workspace.map((p) => p.dir);
-        // Foundational packages whose changes route to repo-level, from config (exact name or glob).
-        // No hardcoded names — a consumer declares its own via `version.sharedPackages`.
         const sharedPackagePatterns = this.fullConfig.sharedPackages ?? [];
         const sharedPackageDirs =
           sharedPackagePatterns.length === 0
             ? []
             : workspace.filter((p) => shouldMatchPackageTargets(p.name, sharedPackagePatterns)).map((p) => p.dir);
-        // Bound the repo-level ("shared") entries by the run's nearest-reachable floor when this
-        // package's own range collapsed to full history (untagged / unreachable), so a single
-        // untagged package doesn't flood "Project-wide changes" with the entire history.
+        // Bounded so one untagged package can't flood "Project-wide changes" with the entire history.
         const sharedRevisionRange = await baselineResolver.sharedFloor(revisionRange);
 
         const repoLevelEntries = await extractRepoLevelChangelogEntries(
@@ -276,8 +239,7 @@ export class PackageProcessor {
           sharedPackageDirs,
         );
 
-        // Accumulate repo-level commits separately — they will be emitted once on VersionOutput
-        // rather than duplicated into every individual package changelog.
+        // Emitted once on VersionOutput rather than duplicated into every package changelog.
         if (repoLevelEntries.length > 0) {
           log(`Found ${repoLevelEntries.length} repo-level commit(s) for ${name}`, 'debug');
           for (const entry of repoLevelEntries) {
@@ -285,8 +247,6 @@ export class PackageProcessor {
           }
         }
 
-        // If we have no entries but we're definitely changing versions,
-        // add a minimal entry about the version change
         if (changelogEntries.length === 0) {
           changelogEntries = [
             {
@@ -296,12 +256,10 @@ export class PackageProcessor {
           ];
         }
       } catch (error) {
-        // A strictReachable violation must abort the run, not degrade to a minimal entry.
         if (error instanceof StrictReachableError) {
           throw error;
         }
         log(`Error extracting changelog entries: ${error instanceof Error ? error.message : String(error)}`, 'warning');
-        // Fall back to minimal entry
         changelogEntries = [
           {
             type: 'changed',
@@ -310,7 +268,6 @@ export class PackageProcessor {
         ];
       }
 
-      // Determine repo URL from package.json or git config
       let repoUrl: string | undefined;
       try {
         const packageJsonPath = path.join(pkgPath, 'package.json');
@@ -323,7 +280,6 @@ export class PackageProcessor {
               repoUrl = packageJson.repository.url;
             }
 
-            // Clean up GitHub URL format if needed
             if (repoUrl?.startsWith('git+') && repoUrl?.endsWith('.git')) {
               repoUrl = repoUrl.substring(4, repoUrl.length - 4);
             }
@@ -336,8 +292,6 @@ export class PackageProcessor {
         );
       }
 
-      // Track changelog data for JSON output. previousVersion is resolved by BaselineResolver (the
-      // floor tag in consumer-facing display form, null when we fell back to all-history).
       addChangelogData({
         packageName: name,
         version: nextVersion,
@@ -347,30 +301,21 @@ export class PackageProcessor {
         entries: changelogEntries,
       });
 
-      // Update both package.json and Cargo.toml if they exist.
-      // Note: There is no priority between package.json and Cargo.toml.
-      //       Both files are updated independently if they are present.
-      //       Each manifest will receive the same calculated version.
-      //       This ensures consistent versioning across language ecosystems.
       const packageJsonPath = path.join(pkgPath, 'package.json');
 
-      // Update package.json when npm version handling is enabled (default true) and it exists.
       const npmEnabled = this.fullConfig.npm?.enabled !== false;
       if (npmEnabled && fs.existsSync(packageJsonPath)) {
         updatePackageVersion(packageJsonPath, nextVersion, this.dryRun);
       }
 
-      // Check if Cargo.toml handling is enabled (default to true if not specified)
       const cargoEnabled = this.fullConfig.cargo?.enabled !== false;
       log(`Cargo enabled for ${name}: ${cargoEnabled}, config: ${JSON.stringify(this.fullConfig.cargo)}`, 'debug');
 
       if (cargoEnabled) {
-        // Check for cargo paths configuration
         const cargoPaths = this.fullConfig.cargo?.paths;
         log(`Cargo paths config for ${name}: ${JSON.stringify(cargoPaths)}`, 'debug');
 
         if (cargoPaths && cargoPaths.length > 0) {
-          // If paths are specified, only include those Cargo.toml files
           for (const cargoPath of cargoPaths) {
             const resolvedCargoPath = resolveConfinedManifestPath(repoRoot, pkgPath, cargoPath, 'Cargo.toml');
             log(`Checking cargo path for ${name}: ${resolvedCargoPath}`, 'debug');
@@ -382,7 +327,6 @@ export class PackageProcessor {
             }
           }
         } else {
-          // Default behaviour: check for Cargo.toml in the root package directory
           const cargoTomlPath = path.join(pkgPath, 'Cargo.toml');
           log(`Checking default cargo path for ${name}: ${cargoTomlPath}`, 'debug');
           if (fs.existsSync(cargoTomlPath)) {
@@ -396,7 +340,6 @@ export class PackageProcessor {
         log(`Cargo disabled for ${name}`, 'debug');
       }
 
-      // Check if Dart/pubspec.yaml handling is enabled (default to true if not specified)
       const pubEnabled = this.fullConfig.pub?.enabled !== false;
       log(`Pub enabled for ${name}: ${pubEnabled}, config: ${JSON.stringify(this.fullConfig.pub)}`, 'debug');
 
@@ -429,7 +372,6 @@ export class PackageProcessor {
         log(`Pub disabled for ${name}`, 'debug');
       }
 
-      // Create package-specific tag (using the updated formatTag function with package name)
       const packageTag = formatTag(
         nextVersion,
         this.versionPrefix,
@@ -437,11 +379,8 @@ export class PackageProcessor {
         this.tagTemplate,
         this.fullConfig.packageSpecificTags,
       );
-      // Track tag for JSON output (git ops now handled by publish)
       addTag(packageTag);
       setPackageUpdateTag(name, packageTag);
-      // Resolved version action — derived from the same tag facts the calculator saw.
-      // `hasNoTags` is `!hasRealTag`: a manifest-fallback synthetic tag isn't a real prior tag.
       const { action, reason } = resolveVersionAction({ hasNoTags: !hasRealTag, latestTag, nextVersion });
       setPackageUpdateAction(name, action, reason);
       setPackageUpdatePreviousVersion(name, previousVersion);
@@ -453,20 +392,16 @@ export class PackageProcessor {
         log(`Version ${nextVersion} prepared (tag: ${packageTag})`, 'success');
       }
 
-      // Collect info for the final commit
       updatedPackagesInfo.push({ name, version: nextVersion, path: pkgPath });
     }
 
-    // Emit accumulated repo-level entries as sharedEntries on the output
     setSharedEntries([...sharedEntriesMap.values()]);
 
-    // 4. Create single commit if any packages were updated
     if (updatedPackagesInfo.length === 0) {
       log('No packages required a version update.', 'info');
       return { updatedPackages: [], tags };
     }
 
-    // Build commit message for JSON output (git ops now handled by publish)
     const packageNames = updatedPackagesInfo.map((p) => p.name).join(', ');
     const representativeVersion = updatedPackagesInfo[0]?.version || 'multiple';
     const versionsMatch =
@@ -480,18 +415,10 @@ export class PackageProcessor {
     }
     const placeholderRegex = /\$\{[^{}$]{1,1000}\}/;
     if (placeholderRegex.test(commitMessage)) {
-      // Template has placeholders: substitute with the combined package list and representative version.
-      // For single-package releases this produces the exact configured message; for multi-package
-      // releases the ${packageName} placeholder is replaced with the comma-separated list.
-      // Note: ${version} always refers to the first package's version. Users who need per-package
-      // versions in async mode should use the no-placeholder path or a custom template.
+      // ${version} is the first package's version; per-package versions need the no-placeholder path.
       const packageName = updatedPackagesInfo.length === 1 ? updatedPackagesInfo[0].name : packageNames;
       commitMessage = formatCommitMessage(commitMessage, representativeVersion, packageName);
     } else {
-      // No placeholders in template — append package summary directly.
-      // When all packages share the same version, use 'name1, name2 v1.2.0'.
-      // When versions diverge (async independent bumps), use 'name1@1.2.0, name2@2.0.0' instead
-      // to avoid silently referencing only the first package's version.
       if (versionsMatch) {
         const formattedVersion = `${formatVersionPrefix(this.versionPrefix)}${representativeVersion}`;
         commitMessage = `${commitMessage} ${packageNames} ${formattedVersion}`;

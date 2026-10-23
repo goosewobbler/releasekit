@@ -6,13 +6,9 @@ import { DEFAULT_SYSTEM_PROMPT as RELEASE_NOTES_PROMPT } from '../../src/llm/tas
 import { DEFAULT_SYSTEM_PROMPT as SUMMARIZE_PROMPT } from '../../src/llm/tasks/summarize.js';
 
 /**
- * Snapshots of the default task system prompts. A prompt is the highest-leverage, least-visible input
- * to LLM notes — a wording tweak reshapes every generation and silently busts the response cache, yet
- * never shows up as a reviewable diff on its own. Pinning each here makes prompt drift an explicit,
- * reviewed event: an intentional edit updates the snapshot in the same PR; an accidental one fails CI.
- *
- * Snapshotted with default (unconfigured) inputs, so the snapshot captures the base prompt, not a
- * user's category/style overrides.
+ * A prompt wording tweak reshapes every generation and silently busts the response cache, yet never
+ * shows up as a reviewable diff on its own. Pinning each here makes prompt drift an explicit, reviewed
+ * event.
  */
 describe('task system prompt snapshots', () => {
   it('should match the enhance system prompt', () => {

@@ -30,9 +30,7 @@ describe('markerData', () => {
   });
 
   it('should be linear (ReDoS-safe) scanning a long unterminated payload', () => {
-    // The opener IS matched (note the space after the colon), then the closer is scanned over a
-    // huge payload with no terminator. A backtracking regex would blow up here; the linear indexOf
-    // for the closer returns immediately (no close → null).
+    // The opener matches (note the space after the colon), so the closer is scanned over a huge unterminated payload.
     expect(field.decode(`<!-- demo-data: ${'{'.repeat(100000)}`)).toBeNull();
   });
 
@@ -43,8 +41,6 @@ describe('markerData', () => {
   });
 
   it('should not latch onto a broader-prefixed marker before the real one', () => {
-    // `<!-- base64 ` (with the trailing space) must skip a stray `<!-- base64url … -->` and find the
-    // actual manifest marker that follows.
     const base64 = markerData<string>({ open: '<!-- base64', serialize: (s) => s, deserialize: (s) => s || null });
     expect(base64.decode('<!-- base64url not-the-manifest -->\n<!-- base64 QUJD -->')).toBe('QUJD');
   });
@@ -73,7 +69,7 @@ describe('neutralizeMarkers', () => {
     expect(neutralizeMarkers('x <!-- releasekit-notes-end:pkg --> y')).toBe('x &lt;!-- releasekit-notes-end:pkg --> y');
     expect(neutralizeMarkers('<!-- releasekit-manifest -->')).toBe('&lt;!-- releasekit-manifest -->');
     expect(neutralizeMarkers('<!-- rk-sel:pkg -->')).toBe('&lt;!-- rk-sel:pkg -->');
-    // Also the no-space form, which the marker slicing would still see as `<!--` + prefix.
+    // Also the no-space form, which marker slicing would still see as `<!--` followed by the prefix.
     expect(neutralizeMarkers('<!--releasekit-notes -->')).toBe('&lt;!--releasekit-notes -->');
   });
 
@@ -85,7 +81,7 @@ describe('neutralizeMarkers', () => {
 
   it('should scan a long adversarial input linearly (no polynomial-regex ReDoS)', () => {
     const long = '<!-- '.repeat(100_000);
-    // Returns promptly and unchanged: none of these openers is followed by a releasekit/rk prefix.
+    // Unchanged: no opener is followed by a releasekit/rk prefix.
     expect(neutralizeMarkers(long)).toBe(long);
   });
 });

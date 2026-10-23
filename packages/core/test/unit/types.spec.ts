@@ -15,7 +15,6 @@ describe('deriveReleaseChannel', () => {
   });
 
   it('should ignore build metadata when deriving the channel', () => {
-    // A `+build` segment is not a prerelease — only the hyphen-introduced segment is.
     expect(deriveReleaseChannel('1.0.0+build.5')).toBe('stable');
     expect(deriveReleaseChannel('1.0.0-next.1+build.5')).toBe('prerelease');
   });

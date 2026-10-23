@@ -4,7 +4,6 @@ import { fileURLToPath } from 'node:url';
 import { type Envelope, errorEnvelope, toEnvelopeError } from './envelope.js';
 import { log } from './logger.js';
 
-/** Writes to `--output` if given, else to stdout under `--json`, else nothing. */
 export function writeEnvelope(envelope: Envelope, opts: { json?: boolean; output?: string }): void {
   if (!opts.json && !opts.output) {
     return;
@@ -18,7 +17,6 @@ export function writeEnvelope(envelope: Envelope, opts: { json?: boolean; output
   try {
     fs.writeFileSync(opts.output, text);
   } catch (err) {
-    // A failed result write rethrows so the command fails; a failed error-envelope write is only logged.
     if (envelope.status !== 'error') {
       throw err;
     }
@@ -33,11 +31,7 @@ export function writeErrorEnvelope(error: unknown, opts: { json?: boolean; outpu
   writeEnvelope(errorEnvelope([toEnvelopeError(error)]), opts);
 }
 
-/**
- * Reads the version from the package.json nearest to the given module URL.
- * Pass `import.meta.url` from the CLI entry file so the path resolves to
- * that package's own package.json, not core's.
- */
+/** Pass the CLI entry's `import.meta.url` so this reads that package's version, not core's. */
 export function readPackageVersion(importMetaUrl: string): string {
   try {
     const dir = path.dirname(fileURLToPath(importMetaUrl));

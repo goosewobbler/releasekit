@@ -78,8 +78,7 @@ export function createStandingPRCommand(): Command {
 
     let prNumber: number | undefined;
     if (opts.pr !== undefined) {
-      // Use a strict regex rather than parseInt — the latter silently accepts trailing
-      // non-digit characters ('123abc' → 123), which would mask genuine input errors.
+      // Not parseInt, which silently accepts trailing junk ('123abc' → 123).
       const trimmed = String(opts.pr).trim();
       if (!/^[1-9]\d*$/.test(trimmed)) {
         failInput(`--pr must be a positive integer (got: ${opts.pr})`, { json: opts.json, output: opts.output });
@@ -115,7 +114,6 @@ export function createStandingPRCommand(): Command {
 
     try {
       const result = await runStandingPRMerge(options, { publish: opts.publish });
-      // A non-null result means the PR was merged (nothing-to-merge returns null).
       emitResult(result, { json: opts.json, output: opts.output, changed: result != null });
     } catch (err) {
       emitError(err, { json: opts.json, output: opts.output });

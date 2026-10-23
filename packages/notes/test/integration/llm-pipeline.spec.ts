@@ -35,10 +35,6 @@ function makeMockProvider(response = 'Enhanced description'): LLMProvider & { ca
   };
 }
 
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
-
 const sampleInput: ChangelogInput = {
   source: 'version',
   packages: [
@@ -58,13 +54,8 @@ const sampleInput: ChangelogInput = {
   ],
 };
 
-// ---------------------------------------------------------------------------
-// Dry-run skips LLM
-// ---------------------------------------------------------------------------
-
 describe('Pipeline: dry-run skips LLM', () => {
   it('should not throw even when LLM provider is misconfigured', async () => {
-    // If dry-run skips LLM, a nonexistent provider should not cause a failure.
     const config = {
       changelog: false as const,
       releaseNotes: {
@@ -75,10 +66,6 @@ describe('Pipeline: dry-run skips LLM', () => {
     await expect(runPipeline(sampleInput, config, true)).resolves.not.toThrow();
   });
 });
-
-// ---------------------------------------------------------------------------
-// LLM enhance task with a mock provider (direct task tests)
-// ---------------------------------------------------------------------------
 
 describe('LLM tasks: enhance', () => {
   it('should replace entry descriptions with provider responses', async () => {
@@ -129,7 +116,6 @@ describe('LLM tasks: enhance', () => {
     }));
 
     await enhanceEntries(trackingProvider, manyEntries, {}, 3);
-    // With concurrency=3, no more than 3 calls should be in flight at once
     expect(maxActive).toBeLessThanOrEqual(3);
   });
 });
@@ -197,7 +183,6 @@ describe('LLM tasks: categorize', () => {
 
     expect(callCount).toBe(2);
     expect(result.find((c) => c.category === 'Features')?.entries[0]?.description).toBe('Add streaming support');
-    // Second call must include the assistant's bad output and a correction user message
     const secondMessages = capturedMessages[1] ?? [];
     expect(secondMessages.some((m) => m.role === 'assistant')).toBe(true);
     expect(secondMessages.some((m) => m.role === 'user' && m.content.includes('error'))).toBe(true);
@@ -217,7 +202,6 @@ describe('LLM tasks: categorize', () => {
       name: 'openai-compatible',
       capabilities: { systemRole: true, structuredOutputs: false, toolUse: false },
       async complete(_messages, options): Promise<CompleteResult> {
-        // With structuredOutputs:false, no schema should be passed to complete()
         expect(options).toBeUndefined();
         return { content: jsonResponse };
       },
@@ -243,14 +227,8 @@ describe('LLM tasks: release notes', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Pipeline: LLM error falls back gracefully
-// ---------------------------------------------------------------------------
-
 describe('Pipeline: LLM error fallback', () => {
   it('should not throw when LLM createProvider throws', async () => {
-    // 'nonexistent-provider' will throw LLMError inside createProvider,
-    // which is caught by the try/catch in processWithLLM → falls back to raw entries.
     const config = {
       changelog: false as const,
       releaseNotes: {
@@ -261,10 +239,6 @@ describe('Pipeline: LLM error fallback', () => {
     await expect(runPipeline(sampleInput, config, false)).resolves.not.toThrow();
   });
 });
-
-// ---------------------------------------------------------------------------
-// Pipeline: releaseNotes in output
-// ---------------------------------------------------------------------------
 
 describe('Pipeline: releaseNotes in output', () => {
   let tmpDir: string;
@@ -278,7 +252,6 @@ describe('Pipeline: releaseNotes in output', () => {
   });
 
   it('should populate releaseNotes in result when a template is configured', async () => {
-    // Minimal liquid template that renders something deterministic
     const templatePath = path.join(tmpDir, 'release.liquid');
     fs.writeFileSync(
       templatePath,
@@ -327,8 +300,6 @@ describe('Pipeline: releaseNotes in output', () => {
 
     const result = await runPipeline(sampleInput, config, false);
 
-    // The per-version file is rendered through the same template (the docs-site frontmatter hook),
-    // with the per-version document context (perPackage=true).
     expect(result.files.length).toBeGreaterThan(0);
     const fileContent = fs.readFileSync(result.files[0] as string, 'utf-8');
     expect(fileContent).toContain('version: 2.0.0');
@@ -336,8 +307,6 @@ describe('Pipeline: releaseNotes in output', () => {
   });
 
   it('should keep frontmatter out of the GitHub release body via the output flag', async () => {
-    // A template that emits frontmatter only for file output. The same template also feeds the
-    // GitHub release body, where YAML frontmatter would otherwise render as literal text.
     const templatePath = path.join(tmpDir, 'release.liquid');
     fs.writeFileSync(
       templatePath,
@@ -354,22 +323,16 @@ describe('Pipeline: releaseNotes in output', () => {
 
     const result = await runPipeline(sampleInput, config, false);
 
-    // File render (output: 'file') includes the frontmatter…
     expect(result.files.length).toBeGreaterThan(0);
     const fileContent = fs.readFileSync(result.files[0] as string, 'utf-8');
     expect(fileContent).toContain('---');
     expect(fileContent).toContain('version: 2.0.0');
     expect(fileContent).toContain('Notes for 2.0.0');
 
-    // …but the GitHub release body render (output: 'release') does not.
     expect(result.releaseNotes?.['my-lib']).toContain('Notes for 2.0.0');
     expect(result.releaseNotes?.['my-lib']).not.toContain('---');
   });
 });
-
-// ---------------------------------------------------------------------------
-// Pipeline: package name in changelog headers
-// ---------------------------------------------------------------------------
 
 describe('Pipeline: package name in changelog headers', () => {
   let tmpDir: string;

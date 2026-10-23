@@ -1,9 +1,8 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-// npm-packlist is the same library `npm pack` uses internally, but as an in-process
-// function call. Replaces a multi-second `npm pack --dry-run` subprocess that flaked
-// on CI runners (cold npm-CLI bootstrap was ~4-5s, brushing the 5s test timeout).
+// npm-packlist is what `npm pack` uses internally, called in-process: a cold
+// `npm pack --dry-run` subprocess takes ~4-5s on CI, brushing the 5s test timeout.
 // @ts-expect-error - npm-packlist ships no type declarations.
 import packlist from 'npm-packlist';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -13,13 +12,9 @@ interface PackTree {
   package: { name: string; version: string; files?: string[] };
 }
 
-// npm-packlist's documented API takes an Arborist node from `arborist.loadActual()`,
-// but it only reads `node.path` and `node.package` for plain packages with a `files`
-// field, no workspaces, and no bundleDependencies — which is what we test here. A
-// minimal POJO is enough; pulling in @npmcli/arborist just to construct a real node
-// would be a heavy dep for no gain. If a future npm-packlist version starts reading
-// other Arborist properties (e.g. node.realpath, node.edgesIn) this will break loudly
-// and we revisit.
+// npm-packlist's documented API takes an Arborist node, but for plain packages (a
+// `files` field, no workspaces, no bundleDependencies) it reads only `node.path` and
+// `node.package`, so a minimal POJO avoids depending on @npmcli/arborist.
 const pack = (tree: PackTree): Promise<string[]> => packlist(tree) as Promise<string[]>;
 
 describe('Package Content Verification', () => {

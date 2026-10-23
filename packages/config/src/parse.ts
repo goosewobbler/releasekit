@@ -1,15 +1,11 @@
 import { type ParseError, parse, printParseErrorCode } from 'jsonc-parser';
 
 /**
- * Parses JSONC (JSON with comments) content.
- *
- * Strict JSON parses identically to `JSON.parse`. JSONC features (line and
- * block comments, trailing commas) are supported via a string-aware parser, so
- * `//` and `/* *\/` sequences inside string values are never mistaken for
- * comments. Malformed input throws a `SyntaxError` with a useful message.
+ * Uses a string-aware parser so `//` and `/* *\/` sequences inside string
+ * values are never mistaken for comments.
  */
 export function parseJsonc(content: string): unknown {
-  // Fast path: valid strict JSON parses identically to JSON.parse.
+  // Fast path for strict JSON.
   try {
     return JSON.parse(content);
   } catch {
@@ -24,8 +20,8 @@ export function parseJsonc(content: string): unknown {
     throw new SyntaxError(`Invalid JSONC: ${printParseErrorCode(error)} at position ${offset}`);
   }
 
-  // The parser returns `undefined` (with no errors) when the input holds no
-  // value at all — e.g. only comments or whitespace. Treat that as invalid.
+  // The parser returns `undefined` without errors for comment- or
+  // whitespace-only input.
   if (result === undefined) {
     throw new SyntaxError('Invalid JSONC: no value found');
   }

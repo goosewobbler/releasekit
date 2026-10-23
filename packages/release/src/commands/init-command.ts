@@ -45,7 +45,7 @@ export function createInitCommand(): Command {
           const pkg = JSON.parse(fs.readFileSync('package.json', 'utf-8')) as { name?: string };
           packageName = pkg.name;
         } catch {
-          // no package.json or unreadable — omit access
+          // No package.json or unreadable: omit access.
         }
         const isScoped = packageName?.startsWith('@') ?? false;
 
@@ -67,9 +67,7 @@ export function createInitCommand(): Command {
         fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2), 'utf-8');
         success(`Created ${configPath}`);
 
-        // --labels is opt-in sugar: init stays a local generator unless the user explicitly
-        // asks for the remote label setup. Run it now if a token is present; otherwise fall
-        // through to the next-steps epilogue so the manual command is always surfaced.
+        // Opt-in so init stays a local generator unless the user asks for the remote label setup.
         if (options.labels) {
           try {
             await runLabelsSync({ config: undefined, projectDir: process.cwd() });

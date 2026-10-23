@@ -162,16 +162,13 @@ describe('pipeline', () => {
 
     expect(runGitCommitStage).not.toHaveBeenCalled();
     expect(runGitPushStage).toHaveBeenCalled();
-    // `committed` stays false: the caller already landed the commit on the remote (the standing-PR
-    // merge), so this runner has no local commit to push. The push stage pushes only the tags;
-    // marking `committed` would make it push the branch and race a concurrent push to it.
+    // The standing-PR merge already landed the commit on the remote, so only tags are pushed.
     expect(result.git.committed).toBe(false);
     expect(result.git.tags).toEqual(['v1.0.0', 'pkg-a@v1.0.0']);
   });
 
   it('should merge baselineTags into pre-populated git.tags when skipGitCommit is set', async () => {
-    // Both consumer tags and baseline tags need to be pushed, but only consumer tags get a
-    // GitHub Release (the github-release stage reads input.tags directly).
+    // Baseline tags are pushed too; only consumer tags get a GitHub Release.
     const inputWithBaseline: VersionOutput = {
       dryRun: false,
       updates: [],
@@ -398,7 +395,7 @@ describe('pipeline', () => {
       const mixedInput: VersionOutput = {
         ...perPackageInput,
         updates: [
-          { packageName: 'root', newVersion: '1.1.0', filePath: 'package.json' }, // no tag (root pkg in sync+pkgSpecificTags)
+          { packageName: 'root', newVersion: '1.1.0', filePath: 'package.json' }, // no tag (root pkg in sync & pkgSpecificTags)
           { packageName: 'pkg-a', newVersion: '1.1.0', filePath: 'packages/a/package.json', tag: 'pkg-a@v1.1.0' },
         ],
       };
@@ -445,7 +442,6 @@ describe('pipeline', () => {
 
       await expect(runPipeline(perPackageInput, getDefaultConfig(), defaultOptions)).rejects.toThrow();
 
-      // Only pkg-a's tag should have been pushed
       expect(pushPackageTag).toHaveBeenCalledTimes(1);
       const callsB = vi.mocked(pushPackageTag).mock.calls;
       expect(callsB[0]?.[0]).toBe('pkg-a@v1.1.0');

@@ -46,7 +46,7 @@ describe('FakeForge', () => {
     expect(await forge.findComment(1, 'MARK')).toMatchObject({ body: 'MARK first' });
 
     await forge.upsertMarkerComment(1, 'MARK', 'MARK second');
-    expect(forge.createdComments).toHaveLength(1); // not stacked
+    expect(forge.createdComments).toHaveLength(1);
     expect(forge.updatedComments).toHaveLength(1);
     expect(await forge.findComment(1, 'MARK')).toMatchObject({ body: 'MARK second' });
   });
@@ -55,9 +55,7 @@ describe('FakeForge', () => {
     const forge = createFakeForge({ comments: [{ id: 1, body: 'AMBIENT note' }] });
     await forge.createComment(5, 'PR5 note');
 
-    // An unscoped seeded comment is visible from any PR.
     expect(await forge.findComment(99, 'AMBIENT')).toMatchObject({ body: 'AMBIENT note' });
-    // A created comment is only found on its own PR.
     expect(await forge.findComment(5, 'PR5')).toMatchObject({ body: 'PR5 note' });
     expect(await forge.findComment(6, 'PR5')).toBeNull();
   });
@@ -67,7 +65,7 @@ describe('FakeForge', () => {
 
     expect(await forge.createLabel({ name: 'existing', color: 'c', description: 'd' })).toBe('exists');
     expect(await forge.createLabel({ name: 'fresh', color: 'c', description: 'd' })).toBe('created');
-    expect(await forge.createLabel({ name: 'fresh', color: 'c', description: 'd' })).toBe('exists'); // now present
+    expect(await forge.createLabel({ name: 'fresh', color: 'c', description: 'd' })).toBe('exists');
     expect((await forge.listLabelNames()).sort()).toEqual(['existing', 'fresh']);
     expect(forge.createdLabels).toHaveLength(3);
   });
@@ -128,7 +126,7 @@ describe('FakeForge', () => {
 
   it('should return seeded actor permission (case-insensitively), and none for unseeded actors', async () => {
     const forge = createFakeForge({ actorPermissions: { Alice: 'admin', bob: 'write' } });
-    expect(await forge.getActorPermission('alice')).toBe('admin'); // seeded as 'Alice'
+    expect(await forge.getActorPermission('alice')).toBe('admin');
     expect(await forge.getActorPermission('BOB')).toBe('write');
     expect(await forge.getActorPermission('stranger')).toBe('none');
   });

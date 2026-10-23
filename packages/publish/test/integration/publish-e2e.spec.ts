@@ -1,23 +1,13 @@
 /**
- * End-to-end coverage of the NON-dry-run publish pipeline.
+ * The NON-dry-run publish pipeline. Every other test layer bypasses the real publish path: Examples Smoke
+ * runs `--dry-run` (registry auth is dry-run-exempt), the Action harness sets `SKIP_PUBLISH`, and unit specs
+ * mock the registries.
  *
- * Every other test layer bypasses the real publish path — Examples Smoke runs `--dry-run` (registry
- * auth is dry-run-exempt), the Action harness sets `SKIP_PUBLISH`, and unit specs mock the registries.
- * That gap is exactly why cargo auth demanded on a crateless repo shipped despite a green suite.
- * This spec drives the real `runPipeline` with `dryRun: false` so registry auth, discovery, stage
- * ordering, tagging and the GitHub-Release call all run for real.
- *
- * Strategy (per the issue):
- *  - npm  → a local in-process registry (verdaccio-style) so `npm publish` + `npm view` + token auth
- *           run for real without hitting npmjs. The registry MUST be serviced asynchronously: the
- *           pipeline shells out via async `execFile`, so the Node event loop stays free to answer the
- *           subprocess's HTTP requests (a synchronous `execFileSync` would deadlock against it).
- *  - cargo → the `cargo publish` exec is stubbed on PATH; the value under test is auth + discovery +
- *           ordering, not the upload itself.
- *
- * The lightweight guards (enabled-but-empty no-op, missing-credential detection) run by default — they
- * need no network and are the direct regression net. The heavier real-`npm publish` cases
- * are opt-in via `RELEASEKIT_PUBLISH_E2E=1` so the default gate stays fast (see the PR body).
+ *  - npm  → a local in-process registry, so `npm publish`, `npm view` & token auth run for real. It MUST be
+ *           serviced asynchronously: the pipeline's async `execFile` leaves the event loop free to answer
+ *           the subprocess's HTTP requests, where `execFileSync` would deadlock against it.
+ *  - cargo → `cargo publish` is stubbed on PATH; the value under test is auth, discovery & ordering, not
+ *           the upload itself.
  */
 import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
@@ -30,11 +20,6 @@ import { getDefaultConfig, type PublishCliOptions, type PublishConfig } from '..
 
 const E2E_ENABLED = process.env.RELEASEKIT_PUBLISH_E2E === '1' || process.env.RELEASEKIT_PUBLISH_E2E === 'true';
 
-// ---------------------------------------------------------------------------
-// In-process npm registry (verdaccio-style, minimal): enough of the registry API for `npm publish`
-// and `npm view` — GET returns the packument (404 when unknown), PUT requires a Bearer token and
-// stores the published versions so a re-run sees the version as already published.
-// ---------------------------------------------------------------------------
 interface Packument {
   name: string;
   'dist-tags': Record<string, string>;
@@ -52,10 +37,9 @@ function startLocalRegistry(): Promise<LocalRegistry> {
   const store = new Map<string, Packument>();
   let puts = 0;
 
-  // Always answer with `Cache-Control: no-store`: Node's http server auto-adds a `Date` header, and
-  // without an explicit cache directive npm's fetch layer (make-fetch-happen) applies heuristic
-  // freshness and can serve a STALE 404 from the pre-publish `npm view` on the idempotency re-run —
-  // which made the already-published skip flaky. `no-store` forces npm to re-query every time.
+  // `no-store` on every response: Node's http server auto-adds a `Date` header, so without a cache
+  // directive npm's fetch layer (make-fetch-happen) applies heuristic freshness and can serve a STALE
+  // 404 from the pre-publish `npm view` on the idempotency re-run.
   const send = (res: http.ServerResponse, status: number, payload: unknown): void => {
     res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
     res.end(JSON.stringify(payload));
@@ -70,9 +54,7 @@ function startLocalRegistry(): Promise<LocalRegistry> {
         send(res, 200, pkg);
         return;
       }
-      // Version-specific manifest endpoint `GET /<pkg>/<version>` (npm's abbreviated manifest): resolve
-      // the trailing path segment as a version from the stored packument, so the registry answers npm
-      // clients that query per-version rather than the full packument.
+      // `GET /<pkg>/<version>`, for npm clients that query per-version rather than the full packument.
       const lastSlash = name.lastIndexOf('/');
       const versioned =
         lastSlash > 0 ? store.get(name.slice(0, lastSlash))?.versions[name.slice(lastSlash + 1)] : undefined;
@@ -85,8 +67,7 @@ function startLocalRegistry(): Promise<LocalRegistry> {
     }
 
     if (req.method === 'PUT') {
-      // Auth is the point: without a Bearer token the publish is rejected, exercising the real
-      // npm auth handshake rather than a mock.
+      // Rejecting tokenless PUTs exercises the real npm auth handshake rather than a mock.
       const auth = req.headers.authorization;
       if (!auth || !/^Bearer\s+\S+/.test(auth)) {
         send(res, 401, { error: 'unauthorized: auth token required' });
@@ -111,8 +92,8 @@ function startLocalRegistry(): Promise<LocalRegistry> {
             return;
           }
         }
-        // Count only a PUT that clears the version-conflict check (i.e. actually stores something), so
-        // putCount() unambiguously means "a new publish was accepted", not "a PUT was received".
+        // Counted only past the version-conflict check, so putCount() means "a new publish was accepted",
+        // not "a PUT was received".
         puts += 1;
         Object.assign(existing.versions, incoming);
         Object.assign(existing['dist-tags'], meta['dist-tags'] ?? {});
@@ -139,9 +120,6 @@ function startLocalRegistry(): Promise<LocalRegistry> {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Fixtures + PATH stubs
-// ---------------------------------------------------------------------------
 const ORIGINAL_CWD = process.cwd();
 let stubBinDir: string;
 let originalPath: string | undefined;
@@ -214,9 +192,7 @@ function makeCliOptions(overrides: Partial<PublishCliOptions> = {}): PublishCliO
 }
 
 beforeAll(() => {
-  // Stub `gh` (GitHub Release) and `cargo` (crate publish) on PATH. Both append their argv to the
-  // log file named by $GH_STUB_LOG / $CARGO_STUB_LOG so a test can assert they were invoked. `gh
-  // release view` exits non-zero so the release-create path is always taken.
+  // `gh release view` exits non-zero so the release-create path is always taken.
   stubBinDir = mkTemp('bin');
   writeExecutable(
     path.join(stubBinDir, 'gh'),
@@ -267,13 +243,10 @@ afterEach(async () => {
 });
 
 // ===========================================================================
-// Lightweight guards — run in the default gate (no network, no real publish).
+// Lightweight guards - run in the default gate (no network, no real publish).
 // ===========================================================================
 describe('Publish pipeline e2e (non-dry-run guards)', () => {
   it('should no-op enabled-but-empty cargo and pub stages without demanding credentials', async () => {
-    // The regression class: cargo/pub enabled on a repo with no crates/pub packages must not
-    // fail on a missing registry token. A dry run can't catch this (auth is dry-run-exempt); this is
-    // a REAL non-dry-run run with no CARGO_REGISTRY_TOKEN / PUB_TOKEN present.
     delete process.env.CARGO_REGISTRY_TOKEN;
     delete process.env.PUB_TOKEN;
 
@@ -302,8 +275,7 @@ describe('Publish pipeline e2e (non-dry-run guards)', () => {
   });
 
   it('should fail with an auth error when a non-dry-run npm publish has targets but no credentials', async () => {
-    // Per-registry auth DETECTION (absence): npm enabled, a target present, auth 'auto' resolving to
-    // no method must abort before any publish. Deleting the token/OIDC env keeps detection deterministic.
+    // Deleting the token/OIDC env keeps auth detection deterministic.
     delete process.env.NPM_TOKEN;
     delete process.env.NODE_AUTH_TOKEN;
     delete process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
@@ -330,8 +302,6 @@ describe('Publish pipeline e2e (non-dry-run guards)', () => {
   });
 
   it('should demand a cargo token only when crates are actually present (the inverse)', async () => {
-    // The complement of the no-op guard: with a crate discovered, a non-dry-run run WITH no token must
-    // fail fast at auth — proving the discover-then-auth ordering demands credentials exactly when used.
     delete process.env.CARGO_REGISTRY_TOKEN;
 
     const dir = mkTemp('cargo-noauth');
@@ -358,16 +328,14 @@ describe('Publish pipeline e2e (non-dry-run guards)', () => {
 });
 
 // ===========================================================================
-// Heavy path — real `npm publish` against the in-process registry. Opt-in.
+// Heavy path - real `npm publish` against the in-process registry. Opt-in.
 // ===========================================================================
 describe.skipIf(!E2E_ENABLED)('Publish pipeline e2e (real npm registry)', () => {
   function useTokenAuth(): void {
-    // pnpm (the CI invocation is `pnpm --filter @releasekit/publish test`, not bare vitest) injects
-    // `npm_config_*` into the environment — including an `npm_config_registry` that, being env-level,
-    // OVERRIDES the pipeline's per-run userconfig and makes `npm publish` target registry.npmjs.org
-    // (→ ENEEDAUTH). Strip every `npm_config_*` key so the pipeline's isolated userconfig (local
-    // registry + token) wins, and pin globalconfig / cache / HOME to throwaway paths so no ambient
-    // `~/.npmrc` leaks in either. The full-env restore in afterEach undoes all of this.
+    // pnpm (the CI invocation is `pnpm --filter @releasekit/publish test`) injects `npm_config_*`,
+    // including an env-level `npm_config_registry` that OVERRIDES the pipeline's per-run userconfig and
+    // sends `npm publish` to registry.npmjs.org (ENEEDAUTH). Strip them so the isolated userconfig wins,
+    // and pin globalconfig, cache & HOME to throwaway paths so no ambient `~/.npmrc` leaks in either.
     for (const key of Object.keys(process.env)) {
       if (/^npm_config_/i.test(key)) {
         delete process.env[key];
@@ -386,9 +354,6 @@ describe.skipIf(!E2E_ENABLED)('Publish pipeline e2e (real npm registry)', () => 
   }
 
   it('should publish to the registry with token auth, then create and push the tag and GitHub release', async () => {
-    // The full non-dry-run pipeline in ORDER: prepare → commit+tag → npm publish (token auth, real
-    // client) → push branch+tags to a local bare remote → `gh release create`. Covers scenario (3)
-    // auth-present detection and scenario (4) post-publish tag + GitHub-Release creation.
     useTokenAuth();
     const registry = await startLocalRegistry();
     activeRegistry = registry;
@@ -401,7 +366,7 @@ describe.skipIf(!E2E_ENABLED)('Publish pipeline e2e (real npm registry)', () => 
     git(['init', '--bare', bare], ORIGINAL_CWD);
     git(['remote', 'add', 'origin', bare], dir);
 
-    // Bump on disk (uncommitted) so the commit stage has a real change to record — as the version
+    // Bump on disk (uncommitted) so the commit stage has a real change to record - as the version
     // step would leave it before publish runs.
     writeNpmPackage(dir, name, '1.0.1');
     const ghLog = path.join(mkTemp('ghlog'), 'gh.log');
@@ -424,20 +389,17 @@ describe.skipIf(!E2E_ENABLED)('Publish pipeline e2e (real npm registry)', () => 
     process.chdir(dir);
     const output = await runPipeline(input, config, options);
 
-    // npm published for real, exactly once.
     expect(output.npm).toHaveLength(1);
     expect(output.npm[0]).toMatchObject({ success: true, skipped: false });
     expect(registry.putCount()).toBe(1);
     expect(registry.publishedVersions(name)).toContain('1.0.1');
 
-    // Tag committed + pushed to the remote.
     expect(output.git.committed).toBe(true);
     expect(output.git.pushed).toBe(true);
     expect(output.git.tags).toContain('v1.0.1');
     const remoteTags = execFileSync('git', ['-C', bare, 'tag', '--list'], { encoding: 'utf-8' });
     expect(remoteTags).toContain('v1.0.1');
 
-    // GitHub release created (via the stubbed gh) after the push.
     expect(output.githubReleases).toHaveLength(1);
     expect(output.githubReleases[0]).toMatchObject({ tag: 'v1.0.1', success: true });
     const ghCalls = fs.readFileSync(ghLog, 'utf-8');
@@ -446,8 +408,6 @@ describe.skipIf(!E2E_ENABLED)('Publish pipeline e2e (real npm registry)', () => 
   });
 
   it('should skip an already-published version on a re-run without re-publishing (idempotency)', async () => {
-    // A partial-failure re-run must be safe: the second pipeline sees the version already on the
-    // registry (via `npm view`) and skips it — no second PUT, no failure.
     useTokenAuth();
     const registry = await startLocalRegistry();
     activeRegistry = registry;
@@ -480,15 +440,13 @@ describe.skipIf(!E2E_ENABLED)('Publish pipeline e2e (real npm registry)', () => 
 
     const second = await runPipeline(input, config, options);
     expect(second.npm[0]).toMatchObject({ success: true, skipped: true, alreadyPublished: true });
-    expect(registry.putCount()).toBe(1); // no second publish
+    expect(registry.putCount()).toBe(1);
     expect(second.publishSucceeded).toBe(true);
   });
 
   it('should run the stubbed cargo publish once auth is present (auth + ordering, upload stubbed)', async () => {
-    // Cargo's upload is stubbed (PATH). With a token present, auth passes and the pipeline proceeds
-    // through discovery → already-published check → the stubbed `cargo publish`. Exercises the
-    // "stub the exec, keep the auth/ordering real" half of the issue. A unique crate name keeps the
-    // crates.io already-published check a fast 404 (and it is catch-safe if the network is down).
+    // A unique crate name keeps the real crates.io already-published check a fast 404 (and it is
+    // catch-safe if the network is down).
     process.env.CARGO_REGISTRY_TOKEN = 'releasekit-e2e-cargo-token';
     const cargoLog = path.join(mkTemp('cargolog'), 'cargo.log');
     process.env.CARGO_STUB_LOG = cargoLog;

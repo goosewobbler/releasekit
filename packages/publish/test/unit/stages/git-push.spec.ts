@@ -8,8 +8,7 @@ import { PublishError } from '../../../src/errors/index.js';
 import { preparePushSetup, pushPackageTag, runGitPushStage } from '../../../src/stages/git-push.js';
 import type { PipelineContext } from '../../../src/types.js';
 
-// Drive the stage through a seeded FakeGit. `createGitCli()` resolves to the fake we seed per test,
-// so we can assert on its `pushed` recorder and seeded reads (`remoteUrl`, `currentBranch`).
+// `createGitCli()` resolves to the FakeGit seeded per test.
 let fakeGit: FakeGit;
 vi.mock('@releasekit/git', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@releasekit/git')>();
@@ -81,7 +80,6 @@ describe('git-push stage', () => {
 
     await runGitPushStage(ctx);
 
-    // branch push then tags push, both to the plain remote name.
     expect(fakeGit.pushed).toEqual([
       expect.objectContaining({ remote: 'origin', ref: 'main' }),
       expect.objectContaining({ remote: 'origin', ref: 'refs/tags/v1.0.0' }),
@@ -120,7 +118,6 @@ describe('git-push stage', () => {
     await runGitPushStage(ctx);
 
     const authedUrl = 'https://x-access-token:gh_test_token@github.com/org/repo.git';
-    // Both pushes target the authed URL as the remote.
     expect(fakeGit.pushed[0]).toEqual(expect.objectContaining({ remote: authedUrl, ref: 'main' }));
     expect(fakeGit.pushed[1]).toEqual(expect.objectContaining({ remote: authedUrl, ref: 'refs/tags/v1.0.0' }));
   });
@@ -128,10 +125,9 @@ describe('git-push stage', () => {
   it('should not attempt token auth when httpsTokenEnv is not configured', async () => {
     process.env.GITHUB_TOKEN = 'gh_test_token';
 
-    const ctx = createContext(); // default config has httpsTokenEnv: undefined
+    const ctx = createContext();
     await runGitPushStage(ctx);
 
-    // No remoteUrl read happened (no authed rewrite); pushes target the plain remote name.
     expect(fakeGit.pushed).toEqual([
       expect.objectContaining({ remote: 'origin', ref: 'main' }),
       expect.objectContaining({ remote: 'origin', ref: 'refs/tags/v1.0.0' }),
@@ -201,7 +197,6 @@ describe('git-push stage', () => {
     }
 
     expect(thrown).toBeInstanceOf(PublishError);
-    // Message must not be double-wrapped (e.g. "Failed to push to remote: ... detached HEAD ...")
     expect((thrown as PublishError).message).toMatch(/detached HEAD/);
     expect((thrown as PublishError).message).not.toMatch(/Failed to push to remote.*Failed to push to remote/);
   });
@@ -211,7 +206,6 @@ describe('git-push stage', () => {
     config.git.branch = 'release/v2';
     const ctx = createContext({ config });
 
-    // Make currentBranch throw so we prove it is never consulted.
     const currentBranchSpy = vi.spyOn(fakeGit, 'currentBranch').mockRejectedValue(new Error('should not be called'));
 
     await runGitPushStage(ctx);
@@ -260,7 +254,7 @@ describe('git-push stage', () => {
       },
     });
 
-    // Branch resolution (currentBranch) must NOT run — branch is only needed when pushing commits.
+    // The branch is only needed when pushing commits.
     const currentBranchSpy = vi.spyOn(fakeGit, 'currentBranch');
 
     await runGitPushStage(ctx);
@@ -345,7 +339,6 @@ describe('pushPackageTag', () => {
 
     await pushPackageTag('pkg-a@v1.0.0', ctx);
 
-    // tag push first, then branch push.
     expect(fakeGit.pushed).toEqual([
       expect.objectContaining({ remote: 'origin', ref: 'refs/tags/pkg-a@v1.0.0' }),
       expect.objectContaining({ remote: 'origin', ref: 'main' }),
@@ -355,7 +348,7 @@ describe('pushPackageTag', () => {
   });
 
   it('should wrap a branch-push failure as GIT_PUSH_ERROR, not unknown', async () => {
-    // The branch push is rejected by a branch ruleset — a raw seam failure.
+    // The branch push is rejected by a branch ruleset - a raw seam failure.
     vi.spyOn(fakeGit, 'push').mockImplementation(async (opts) => {
       if (opts.ref === 'main') {
         throw new Error('Command failed: git push origin main\nremote: error: GH013: rule violations');
@@ -369,8 +362,6 @@ describe('pushPackageTag', () => {
       thrown = err;
     }
 
-    // Must be a GIT_PUSH_ERROR so inferStageName labels the report `git-push` (not `unknown`),
-    // and the remote's message is preserved.
     expect(thrown).toBeInstanceOf(PublishError);
     expect((thrown as PublishError).code).toBe('GIT_PUSH_ERROR');
     expect((thrown as PublishError).message).toContain('git push origin main');

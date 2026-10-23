@@ -35,7 +35,6 @@ export function createDispatcherProgram(): Command {
   return program;
 }
 
-// Standalone entry point
 const isMain = (() => {
   try {
     return process.argv[1] ? realpathSync(process.argv[1]) === fileURLToPath(import.meta.url) : false;

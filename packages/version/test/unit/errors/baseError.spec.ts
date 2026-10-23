@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BaseVersionError } from '../../../src/errors/baseError.js';
 
-// Create a concrete test class since BaseVersionError is not abstract itself
-// but extends the abstract ReleaseKitError
 class TestVersionError extends BaseVersionError {}
 
 describe('BaseVersionError', () => {

@@ -6,10 +6,8 @@ import { InputParseError } from '../errors/index.js';
 // Matches: ## [1.2.3] - 2024-01-15  or  ## 1.2.3 (2024-01-15)  or  # [1.2.3](url) (2024-01-15)
 const VERSION_HEADER = /^#{1,2}\s+\[?v?([\d.]+(?:-[\w.]+)?)\]?(?:\([^)]*\))?\s*[-–]?\s*\(?(\d{4}-\d{2}-\d{2})?\)?/;
 
-// Matches Keep a Changelog section headers: ### Added, ### Fixed, etc.
 const SECTION_HEADER = /^###\s+(.+)$/;
 
-// Matches bullet entries: - description  or  * description
 const BULLET = /^[-*]\s+(.+)$/;
 
 // Matches scope prefix: **scope**: description  or  **scope:** description
@@ -54,7 +52,6 @@ function extractIssueIds(text: string): { description: string; issueIds: string[
     match = ISSUE_REF.exec(text);
   }
 
-  // Strip issue refs and trailing parenthetical groups from description
   const description = text
     .replace(/\s*\((?:closes\s+)?(?:#\d+(?:,\s*)?)+\)/gi, '')
     .replace(/\s*\[#\d+\]\([^)]*\)/g, '')
@@ -73,22 +70,19 @@ function parseEntry(line: string, sectionType: ChangelogEntry['type']): Changelo
   let scope: string | undefined;
   let breaking = false;
 
-  // Detect BREAKING CHANGE prefix
   if (/^\*\*BREAKING\*\*/i.test(rawText) || /^BREAKING CHANGE/i.test(rawText)) {
     breaking = true;
     rawText = rawText.replace(/^\*\*BREAKING\*\*\s*/i, '').replace(/^BREAKING CHANGE:\s*/i, '');
   }
 
-  // Detect scope prefix: **scope**: text
   const scopeMatch = rawText.match(SCOPE_PREFIX);
   if (scopeMatch) {
     scope = scopeMatch[1];
     rawText = scopeMatch[2] ?? rawText;
   }
 
-  // No PR detection here: this adapter parses existing/external CHANGELOG.md text, where a trailing
-  // `(#N)` is ambiguous (it could be an issue ref) and there's no commit signal to confirm. Only the
-  // commit-based parsers (commitParser.ts, git-log.ts) infer prNumber, from a real squash-merge subject.
+  // No PR detection here: in existing/external CHANGELOG.md text a trailing `(#N)` is ambiguous (it could
+  // be an issue ref) and there's no commit signal to confirm.
   const { description, issueIds } = extractIssueIds(rawText);
 
   return {

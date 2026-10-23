@@ -57,16 +57,12 @@ describe('github-release stage', () => {
     });
     // Default: release does not exist (gh release view returns non-zero)
     vi.mocked(execCommandSafe).mockResolvedValue({ stdout: '', stderr: 'not found', exitCode: 1 });
-    // Default: no RELEASE_NOTES.md on disk
     vi.mocked(fs.readFileSync).mockImplementation(() => {
       throw new Error('ENOENT');
     });
   });
 
   it('should not create a Release for baseline tags even when they appear in output.git.tags', async () => {
-    // Baseline tags (e.g. release/v1.0.0) get pushed alongside consumer tags but are an
-    // internal source-branch marker, not a consumer-facing release. The stage should read
-    // input.tags directly and ignore the merged set in output.git.tags.
     const { execCommand } = await import('../../../src/utils/exec.js');
     const ctx = createContext({
       input: { dryRun: false, updates: [], changelogs: [], tags: ['v1.0.0'], baselineTags: ['release/v1.0.0'] },
@@ -84,7 +80,6 @@ describe('github-release stage', () => {
 
     await runGithubReleaseStage(ctx);
 
-    // Exactly one Release call — the consumer tag.
     expect(execCommand).toHaveBeenCalledTimes(1);
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
     expect(args).toEqual(expect.arrayContaining(['release', 'create', 'v1.0.0']));
@@ -159,14 +154,13 @@ describe('github-release stage', () => {
         verification: [],
         githubReleases: [],
       },
-      // Release notes exist but for a different package — no match for this tag
+      // Release notes exist but for a different package - no match for this tag
       releaseNotes: { 'other-pkg': 'Notes for a different package' },
     });
 
     await runGithubReleaseStage(ctx);
 
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
-    // Should NOT fall through to changelog when release notes are configured
     expect(args).not.toContain('fix a bug');
     expect(args).toContain('--generate-notes');
   });
@@ -201,7 +195,6 @@ describe('github-release stage', () => {
         verification: [],
         githubReleases: [],
       },
-      // No releaseNotes — should fall back to GitHub auto-notes, not changelog
     });
 
     await runGithubReleaseStage(ctx);
@@ -230,7 +223,6 @@ describe('github-release stage', () => {
     await runGithubReleaseStage(ctx);
 
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
-    // Should NOT use @scope/pkg notes for @scope/pkg-extra tag
     expect(args).not.toContain('Wrong package notes');
     expect(args).toContain('--generate-notes');
   });
@@ -267,7 +259,6 @@ describe('github-release stage', () => {
     await runGithubReleaseStage(ctx);
 
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
-    // Should NOT match pkg-a changelog for pkg-ab tag
     expect(args).toContain('--generate-notes');
     expect(args).not.toContain('--notes');
   });
@@ -342,10 +333,8 @@ describe('github-release stage', () => {
     await runGithubReleaseStage(ctx);
 
     const args = vi.mocked(execCommand).mock.calls[0]?.[1] as string[];
-    // Title should use original package name, not sanitized tag prefix
     expect(args).toContain('--title');
     expect(args[args.indexOf('--title') + 1]).toBe('@releasekit/version: v0.4.1');
-    // No release notes configured — should fall back to GitHub auto-generated notes
     expect(args).toContain('--generate-notes');
   });
 
@@ -376,9 +365,7 @@ describe('github-release stage', () => {
   });
 
   it('should match a sanitized "name@vX.Y.Z" tag to release notes keyed by scoped package name', async () => {
-    // Regression: tagTemplate "${packageName}@v${version}" sanitizes a scoped name into
-    // the tag (e.g. wdio-tauri-plugin@v1.1.0). Previously neither the raw-"@" nor the sanitized-"-"
-    // branch matched it, so notes silently fell back to GitHub auto-generated notes.
+    // tagTemplate "${packageName}@v${version}" sanitizes a scoped name into the tag.
     const { execCommand } = await import('../../../src/utils/exec.js');
 
     const ctx = createContext({
@@ -400,7 +387,6 @@ describe('github-release stage', () => {
     expect(args).toContain('--notes');
     expect(args[args.indexOf('--notes') + 1]).toBe('LLM-enhanced release notes');
     expect(args).not.toContain('--generate-notes');
-    // Title resolves via the original (unsanitized) scoped name
     expect(args[args.indexOf('--title') + 1]).toBe('@wdio/tauri-plugin: v1.1.0');
   });
 
@@ -734,7 +720,6 @@ describe('github-release stage', () => {
 
       await runGithubReleaseStage(ctx);
 
-      // Should not call gh release create
       expect(execCommand).not.toHaveBeenCalled();
       expect(ctx.output.githubReleases).toHaveLength(1);
       expect(ctx.output.githubReleases[0]?.success).toBe(true);
@@ -744,7 +729,6 @@ describe('github-release stage', () => {
       const { execCommand, execCommandSafe } = await import('../../../src/utils/exec.js');
       const ctx = createContext();
 
-      // gh release view returns non-zero (release does not exist)
       vi.mocked(execCommandSafe).mockResolvedValue({ stdout: '', stderr: 'release not found', exitCode: 1 });
 
       await runGithubReleaseStage(ctx);

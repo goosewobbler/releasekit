@@ -91,7 +91,6 @@ jobs:
           INPUT_NPM_AUTH: ${{ inputs.npm_auth }}
           INPUT_SYNC: ${{ inputs.sync }}
         run: |
-          # Build target flags
           TARGET_FLAGS=""
           if [ "$INPUT_PACKAGES" = "version" ]; then
             TARGET_FLAGS="--target @releasekit/version"
@@ -103,7 +102,7 @@ jobs:
             TARGET_FLAGS="--target @releasekit/release"
           fi
 
-          # Build bump flags (omit entirely for 'auto' — releasekit detects from commits)
+          # 'auto' omits --bump: releasekit detects from commits.
           BUMP_FLAGS=""
           PRERELEASE_FLAGS=""
           if [ "$INPUT_BUMP" != "auto" ] && [ -n "$INPUT_BUMP" ]; then
@@ -111,9 +110,9 @@ jobs:
               BUMP_FLAGS="--bump prerelease"
               PRERELEASE_FLAGS="--prerelease next"
             elif [[ "$INPUT_BUMP" == pre* ]]; then
-              # Pass the composed pre* bump through verbatim — the engine handles premajor/
-              # preminor/prepatch directly (escalating a fresh prerelease line). De-composing to
-              # "--bump <magnitude> --prerelease" would increment an existing prerelease instead (#335).
+              # Pass pre* through verbatim: the engine escalates a fresh prerelease line, whereas
+              # "--bump <magnitude> --prerelease" would increment an existing prerelease instead.
+              # See https://github.com/goosewobbler/releasekit/issues/335
               BUMP_FLAGS="--bump ${INPUT_BUMP}"
               PRERELEASE_FLAGS="--prerelease next"
             else
@@ -145,8 +144,6 @@ jobs:
             SYNC_FLAG="--sync"
           fi
 
-          # Run releasekit and capture JSON output (stdout only)
-          # Use local releasekit from the built packages
           set +e
           RELEASE_OUTPUT=$(node packages/release/dist/dispatcher.js release \
             --json \
@@ -165,14 +162,12 @@ jobs:
             exit $EXIT_CODE
           fi
 
-          # Unwrap the uniform CLI envelope ({ schemaVersion, status, data, … }) to its data payload so
-          # the .versionOutput / .releaseNotes reads below (and in release-output.json) work unchanged.
-          # Tolerate non-enveloped output.
+          # Unwrap the CLI's { schemaVersion, status, data } envelope.
           if echo "$RELEASE_OUTPUT" | jq -e 'type == "object" and has("schemaVersion") and has("data")' > /dev/null 2>&1; then
             RELEASE_OUTPUT=$(echo "$RELEASE_OUTPUT" | jq '.data')
           fi
 
-          # Check if output is valid JSON (releasekit returns null for no changes)
+          # data is null when there are no changes.
           if echo "$RELEASE_OUTPUT" | jq -e '.versionOutput' > /dev/null 2>&1; then
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
             echo "$RELEASE_OUTPUT" > release-output.json
@@ -180,9 +175,8 @@ jobs:
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
           fi
 
-      # Standing-PR publish path. Routed through this reusable so the OIDC `job_workflow_ref`
-      # matches the npm trusted-publisher entry — npm only allows one trusted-publisher
-      # workflow path per package, and that path is this file.
+      # Routed through this reusable so the OIDC `job_workflow_ref` matches the npm trusted-publisher
+      # entry: npm allows only one trusted-publisher workflow path per package, and it's this file.
       - name: Run releasekit (standing-pr publish)
         id: release-standing-pr
         if: inputs.standing_pr_number != ''
@@ -210,7 +204,6 @@ jobs:
             exit $EXIT_CODE
           fi
 
-          # Unwrap the uniform CLI envelope (see the release path above) so the reads below work.
           if echo "$RELEASE_OUTPUT" | jq -e 'type == "object" and has("schemaVersion") and has("data")' > /dev/null 2>&1; then
             RELEASE_OUTPUT=$(echo "$RELEASE_OUTPUT" | jq '.data')
           fi
@@ -229,18 +222,14 @@ jobs:
           STANDING_PR: ${{ inputs.standing_pr_number }}
           HAS_CHANGES: ${{ steps.release.outputs.has_changes || steps.release-standing-pr.outputs.has_changes }}
         run: |
-          # Source of truth is git, not the captured JSON. The publish creates the sync-mode release
-          # tag at HEAD (createReleaseTags), so a tag on HEAD is authoritative and immune to a stdout
-          # hiccup emptying release-output.json — which could otherwise leave action_tag empty and
-          # silently skip the action-dist build. Consumed by _action-release (the GitHub Action build)
-          # and to gate reconcile-standing-pr in standing-pr.yml.
+          # Read the tag from git, not the captured JSON: the publish creates the sync-mode release tag
+          # at HEAD, and a stdout hiccup emptying release-output.json would otherwise leave action_tag
+          # empty and silently skip the action-dist build.
           ACTION_TAG=$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
 
-          # Fail loud when a publish that must tag produced none — a red run beats a silently broken
-          # published tag. Two gates by design: the standing-PR publish of a merged PR always releases,
-          # so a missing tag there is authoritative (no stdout dependency). The normal release path may
-          # legitimately have no changes, so it falls back to HAS_CHANGES — best-effort, since that
-          # signal comes from the same stdout we no longer trust for the tag; in practice they agree.
+          # Fail loud when a publish that must tag produced none. A merged standing PR always releases,
+          # so a missing tag there is authoritative; the normal path may legitimately have no changes,
+          # so it falls back to HAS_CHANGES - best-effort, as that comes from the same stdout.
           if [ -z "$ACTION_TAG" ] && { [ -n "$STANDING_PR" ] || [ "$HAS_CHANGES" = "true" ]; }; then
             echo "::error::Publish reported success but no vX.Y.Z tag is on HEAD — the action-dist build would be skipped, stranding a dist-less action tag."
             exit 1

@@ -2,28 +2,20 @@ import { execSync } from 'node:child_process';
 import { readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-/**
- * Initialize a git repository in the given directory
- */
 export function initGitRepo(dir: string): void {
-  // Always initialize a git repo first
   execSync('git init', { cwd: dir });
   console.log('[DEBUG] Ran git init in', dir);
   execSync('git config user.email "test@example.com"', { cwd: dir });
   execSync('git config user.name "Test User"', { cwd: dir });
-  // Debug: show files before git add
   console.log('[DEBUG] Files before git add:', readdirSync(dir));
-  // Initial commit
   execSync('git add .', { cwd: dir });
-  // Debug: show files before git commit
   console.log('[DEBUG] Files before git commit:', readdirSync(dir));
 
-  // Check if there are any files to commit
   try {
     const status = execSync('git status --porcelain', { cwd: dir, encoding: 'utf8' });
     if (status.trim() === '') {
       console.log('[DEBUG] No changes to commit in', dir);
-      return; // Skip commit if no changes
+      return;
     }
   } catch (error) {
     console.log('[DEBUG] Error checking git status:', error);
@@ -34,13 +26,9 @@ export function initGitRepo(dir: string): void {
   // Allow operations in nested git directories
   execSync('git config --local --add safe.directory "*"', { cwd: dir });
 
-  // Create .gitignore
   writeFileSync(join(dir, '.gitignore'), 'node_modules\n');
 }
 
-/**
- * Create a conventional commit in the given repository
- */
 export function createConventionalCommit(
   dir: string,
   type: string,
@@ -49,7 +37,6 @@ export function createConventionalCommit(
   breaking = false,
   files: string[] = ['.'],
 ): void {
-  // Create or modify some files if none specified
   if (files.length === 1 && files[0] === '.') {
     const changeFile = join(dir, 'change.txt');
     writeFileSync(changeFile, `Change: ${Date.now()}`);
@@ -69,7 +56,7 @@ export function createConventionalCommit(
       { cwd: dir },
     );
   } catch {
-    // If the commit fails (e.g., due to lint-staged), try with --no-verify
+    // Hooks such as lint-staged can fail the commit.
     execSync(
       `git commit --no-verify -m "${type}${scopeStr}${breakingStr}: ${message}${breaking ? '\n\nBREAKING CHANGE: This is a breaking change' : ''}"`,
       { cwd: dir },

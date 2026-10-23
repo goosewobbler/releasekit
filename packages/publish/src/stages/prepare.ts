@@ -8,7 +8,6 @@ import { syncCargoLockfiles, updateCargoVersion } from '../utils/cargo.js';
 export async function runPrepareStage(ctx: PipelineContext): Promise<void> {
   const { input, config, cliOptions, cwd } = ctx;
 
-  // Copy files (e.g., LICENSE) to each package directory
   if (config.npm.enabled && config.npm.copyFiles.length > 0) {
     for (const update of input.updates) {
       const pkgDir = path.dirname(path.resolve(cwd, update.filePath));
@@ -17,7 +16,7 @@ export async function runPrepareStage(ctx: PipelineContext): Promise<void> {
         const src = path.resolve(cwd, file);
         const dest = path.join(pkgDir, file);
 
-        // Confine both the read source and the write destination to the repo root — a `../` or
+        // Confine both the read source and the write destination to the repo root - a `../` or
         // absolute copyFiles entry would otherwise read or write outside the tree.
         if (!isPathWithinRoot(cwd, src) || !isPathWithinRoot(cwd, dest)) {
           throw createPublishError(
@@ -31,7 +30,6 @@ export async function runPrepareStage(ctx: PipelineContext): Promise<void> {
           continue;
         }
 
-        // Skip if source and destination are the same directory
         if (path.resolve(path.dirname(src)) === path.resolve(pkgDir)) {
           debug(`Skipping copy of ${file} - same directory as source`);
           continue;
@@ -55,7 +53,6 @@ export async function runPrepareStage(ctx: PipelineContext): Promise<void> {
     }
   }
 
-  // Update Cargo.toml versions for cargo packages
   if (config.cargo.enabled) {
     // Re-synced here so the direct-commit flow, which stages an explicit file list, commits every lock
     // that records a bump. A no-op in the standing-PR flow, which stages with `git add -A`.

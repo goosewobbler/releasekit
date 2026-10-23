@@ -60,7 +60,7 @@ export async function enhanceEntries(
           const newDescription = await enhanceEntry(provider, entry, context);
           return { ...entry, description: newDescription };
         } catch {
-          // Per-entry soft-fail: keep the raw entry so one failure doesn't sink the batch.
+          // Keep the raw entry so one failure doesn't sink the batch.
           failures++;
           return entry;
         }
@@ -70,7 +70,6 @@ export async function enhanceEntries(
   }
 
   if (failures > 0) {
-    // Surface the count so a run that silently mixes enhanced and raw voice is visible.
     warn(`LLM enhancement failed for ${failures} of ${entries.length} entries; keeping their original text.`);
   }
 

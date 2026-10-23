@@ -35,14 +35,13 @@ describe('isAuthorizedActor', () => {
 
   it('should match the allow-list case-insensitively (GitHub usernames are case-insensitive)', async () => {
     const forge = createFakeForge({ actorPermissions: { Alice: 'read' } });
-    // Configured as `Alice`, event delivers `alice` — must still authorize.
     expect(await isAuthorizedActor(forge, 'alice', 'User', authz({ allowedActors: ['Alice'] }))).toBe(true);
   });
 
   it('should reject an unknown actor (no login, or no repo access)', async () => {
     const forge = createFakeForge();
     expect(await isAuthorizedActor(forge, undefined, 'User', authz())).toBe(false);
-    expect(await isAuthorizedActor(forge, 'stranger', 'User', authz())).toBe(false); // unseeded → 'none'
+    expect(await isAuthorizedActor(forge, 'stranger', 'User', authz())).toBe(false);
   });
 
   it('should authorize a member of an allow-listed @org/team', async () => {
@@ -56,7 +55,7 @@ describe('isAuthorizedActor', () => {
     const forge = createFakeForge({ actorPermissions: { alice: 'admin' } });
     const teamSpy = vi.spyOn(forge, 'isTeamMember');
     expect(await isAuthorizedActor(forge, 'alice', 'User', authz({ allowedActors: ['@acme/releasers'] }))).toBe(true);
-    expect(teamSpy).not.toHaveBeenCalled(); // admin passed the threshold; team membership never queried
+    expect(teamSpy).not.toHaveBeenCalled();
   });
 });
 

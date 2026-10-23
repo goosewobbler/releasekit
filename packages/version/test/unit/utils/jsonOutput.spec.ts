@@ -23,9 +23,8 @@ vi.mock('node:fs');
 
 describe('JSON Output Utilities', () => {
   beforeEach(() => {
-    // Reset JSON output state before each test
+    // enableJsonOutput resets all state.
     enableJsonOutput(false);
-    // Clear any console mocks
     vi.clearAllMocks();
   });
 
@@ -35,10 +34,8 @@ describe('JSON Output Utilities', () => {
 
   describe('JSON Output Core Functions', () => {
     it('should manage state correctly', () => {
-      // Enable JSON output
       enableJsonOutput(true);
 
-      // Check initial state after enabling
       const initialData = getJsonData();
       expect(initialData.dryRun).toBe(true);
       expect(initialData.updates).toEqual([]);
@@ -46,13 +43,10 @@ describe('JSON Output Utilities', () => {
       expect(initialData.tags).toEqual([]);
       expect(initialData.commitMessage).toBeUndefined();
 
-      // Add data
       addPackageUpdate('test-package', '1.0.0', '/path/to/package.json');
       addTag('v1.0.0');
       setCommitMessage('Release v1.0.0');
-      // (tagPrerequisiteRoles is exercised in its own describe below.)
 
-      // Check data was added
       const updatedData = getJsonData();
       expect(updatedData.updates).toHaveLength(1);
       expect(updatedData.updates[0]).toEqual({
@@ -65,10 +59,8 @@ describe('JSON Output Utilities', () => {
       expect(updatedData.tags[0]).toBe('v1.0.0');
       expect(updatedData.commitMessage).toBe('Release v1.0.0');
 
-      // Reset by enabling again
       enableJsonOutput(false);
 
-      // Check data was reset
       const resetData = getJsonData();
       expect(resetData.dryRun).toBe(false);
       expect(resetData.updates).toEqual([]);
@@ -82,10 +74,8 @@ describe('JSON Output Utilities', () => {
       addPackageUpdate('test-package', '1.0.0', '/path/to/package.json');
 
       const data1 = getJsonData();
-      // Modify the returned data
       data1.updates = [];
 
-      // The internal data should remain unchanged
       const data2 = getJsonData();
       expect(data2.updates).toHaveLength(1);
     });
@@ -114,7 +104,7 @@ describe('JSON Output Utilities', () => {
         channel: 'stable',
         isRoot: true,
       });
-      // isRoot is omitted (not false) so pre-existing consumers see an unchanged shape
+      // isRoot is omitted (not false) so consumers see an unchanged shape.
       expect(data.updates[1]).toEqual({
         packageName: 'test-package',
         newVersion: '1.0.0',
@@ -123,12 +113,12 @@ describe('JSON Output Utilities', () => {
       });
     });
 
-    // A hybrid package (one dir, both package.json + a native manifest) is a single package — npm
+    // A hybrid package (one dir, both package.json & a native manifest) is a single package - npm
     // owns its identity. Without dir-keyed dedup the native sibling's write registers a second
     // update under its crate/pub name and the package surfaces twice downstream.
     it('should keep one update per directory for a hybrid, with npm winning regardless of write order', () => {
       enableJsonOutput();
-      // package.json written first (the order every strategy uses), then the Cargo.toml sibling.
+      // package.json first, the order every strategy uses.
       addPackageUpdate('@scope/x-y', '1.1.0', '/ws/packages/x/package.json');
       addPackageUpdate('x-y', '1.1.0', '/ws/packages/x/Cargo.toml');
 
@@ -185,8 +175,7 @@ describe('JSON Output Utilities', () => {
     it('should dedupe a hybrid when manifest paths are not string-identical for the same directory', () => {
       enableJsonOutput();
       addPackageUpdate('@scope/x-y', '1.1.0', '/ws/packages/x/package.json');
-      // Same directory, written via a non-normalized path form — keying on path.dirname alone would
-      // miss this and re-admit the crate-name duplicate; resolving first dedupes it.
+      // Keying on path.dirname alone would miss this non-normalized form and re-admit the crate-name duplicate.
       addPackageUpdate('x-y', '1.1.0', '/ws/packages/./x/Cargo.toml');
 
       const data = getJsonData();
@@ -273,12 +262,7 @@ describe('JSON Output Utilities', () => {
     });
 
     it('should not add data when JSON output is not enabled', () => {
-      // Create a fresh module state by not calling enableJsonOutput
-      // The module-level _jsonOutputMode defaults to false after the beforeEach reset
-      // but enableJsonOutput(false) sets _jsonOutputMode = true, so we need to test differently
-
-      // enableJsonOutput was called in beforeEach, so JSON mode is active
-      // Test that data accumulates normally
+      // beforeEach's enableJsonOutput(false) still turns JSON mode on, so data accumulates.
       addChangelogData({
         packageName: 'my-package',
         version: '1.0.0',
@@ -409,7 +393,6 @@ describe('JSON Output Utilities', () => {
       fresh.enableJsonOutput();
       fresh.addPackageUpdate('pkg', '1.0.0', '/pkg.json');
 
-      // Reset mode to simulate disabled state
       const freshDisabled = await (async () => {
         vi.resetModules();
         return import('../../../src/utils/jsonOutput.js');
@@ -574,7 +557,7 @@ describe('JSON Output Utilities', () => {
       expect(byName('app')).toMatchObject({ role: 'target' });
       expect(byName('app')?.prerequisiteOf).toBeUndefined();
       expect(byName('core')).toMatchObject({ role: 'prerequisite', prerequisiteOf: ['app'] });
-      // The root lockstep bump is neither a target nor a prerequisite — left untagged.
+      // The root lockstep bump is neither a target nor a prerequisite.
       expect(byName('root')?.role).toBeUndefined();
     });
   });

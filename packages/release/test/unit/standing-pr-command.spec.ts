@@ -8,9 +8,7 @@ vi.mock('../../src/standing-pr/standing-pr.js', () => ({
 
 async function parseCommand(argv: string[]) {
   const program = createStandingPRCommand();
-  // Prevent commander from calling process.exit
   program.exitOverride();
-  // Use { from: 'user' } with argv-only (no node/script prefix)
   await program.parseAsync(argv, { from: 'user' });
   return program;
 }
@@ -54,7 +52,7 @@ describe('createStandingPRCommand', () => {
     }) as never);
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
-      // Exits with INPUT_ERROR (3), not the general error code.
+      // 3 = INPUT_ERROR, not the general error code.
       await expect(parseCommand(['publish', '--project-dir', '/test', '--pr', '123abc'])).rejects.toThrow(
         /process\.exit\(3\)/,
       );
@@ -89,7 +87,7 @@ describe('createStandingPRCommand', () => {
   });
 
   // The manifest's versionOutput.updates is populated on every publish run, so it can't distinguish a
-  // real publish from an idempotent re-run — `changed` has to come from the publish effects.
+  // real publish from an idempotent re-run - `changed` has to come from the publish effects.
   describe('publish changed reporting', () => {
     const manifestVersionOutput = {
       dryRun: false,
@@ -133,7 +131,7 @@ describe('createStandingPRCommand', () => {
     it('should report changed:false when every version was already published', async () => {
       const envelope = await publishEnvelope({
         dryRun: false,
-        // Tags pushed and the GitHub release "succeeded" (it already existed) — neither is a change.
+        // Tags pushed and the GitHub release "succeeded" (it already existed) - neither is a change.
         git: { committed: false, tags: ['v2.0.0'], pushed: true },
         npm: [{ ...npmResult, skipped: true, alreadyPublished: true }],
         cargo: [],
@@ -144,7 +142,6 @@ describe('createStandingPRCommand', () => {
       });
       expect(envelope.status).toBe('success');
       expect(envelope.changed).toBe(false);
-      // The manifest payload still rides along untouched — the envelope wraps, never replaces.
       expect(envelope.data.versionOutput.updates).toHaveLength(1);
     });
   });

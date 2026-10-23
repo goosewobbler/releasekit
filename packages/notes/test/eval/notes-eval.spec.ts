@@ -13,14 +13,6 @@ import {
 } from './assertions.js';
 import { asEvalProvider, CAPABILITIES, evalProvider, isLiveMode, loadGoldenCase } from './harness.js';
 
-/**
- * Golden-fixture eval for the LLM-notes pipeline. Runs a real commit set through the real pipeline and
- * checks the output against deterministic quality assertions. By default the provider response is
- * replayed from a committed cache fixture (no keys, deterministic); with RELEASEKIT_EVAL=1 it runs a
- * live model, and with RELEASEKIT_EVAL_RECORD=1 it re-seeds the fixture from the recorded markdown.
- * The assertions are the regression net — they hold whether the response is replayed or freshly
- * generated, so a prompt or post-processing change that degrades output is caught.
- */
 describe('notes eval: release notes', () => {
   it(
     'should generate clean release notes for the basic golden case',
@@ -75,11 +67,6 @@ describe('notes eval: release notes', () => {
     isLiveMode ? 180_000 : 10_000,
   );
 
-  // Guards the one thing that makes record→replay work at all. Capabilities decide whether a task
-  // sends a structured-output schema/toolName, and those are part of the cache key — so a live
-  // recording made under the real provider's capabilities would key differently from the replay that
-  // has to read it back. Ollama advertises structuredOutputs: true, so this fails the moment the
-  // wrapper passes the base provider's capabilities through instead of the harness's fixed set.
   it('should report the fixed eval capabilities regardless of what the live provider advertises', () => {
     const ollamaLike: LLMProvider = {
       name: 'ollama',

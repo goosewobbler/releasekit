@@ -1,14 +1,12 @@
 import { createFakeGit, FakeGit, type Git } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GitError, GitErrorCode } from '../../../src/errors/gitError.js';
-// Import types only to avoid conflicts
 import type { GitCommitOptions, GitProcessOptions, GitTagOptions } from '../../../src/git/commands.js';
 import * as repository from '../../../src/git/repository.js';
 import * as jsonOutput from '../../../src/utils/jsonOutput.js';
 import * as logging from '../../../src/utils/logging.js';
 
-// Mock dependencies. The repository check is mocked so command tests don't touch the filesystem;
-// the actual git mutations are driven through an injected FakeGit and asserted on its recorders.
+// The repository check is mocked so command tests don't touch the filesystem.
 vi.mock('../../../src/git/repository.js');
 vi.mock('../../../src/utils/logging.js');
 vi.mock('../../../src/utils/jsonOutput.js');
@@ -16,10 +14,8 @@ vi.mock('node:process', () => ({
   cwd: () => '/fake/path',
 }));
 
-// Import the actual commands module
 import * as commands from '../../../src/git/commands.js';
 
-/** A Git whose tag() rejects, to exercise the TAG_ALREADY_EXISTS specialization. */
 function gitThatFailsTagWith(message: string): Git {
   const git = createFakeGit();
   git.tag = async () => {
@@ -32,7 +28,6 @@ describe('Git Commands', () => {
   beforeEach(() => {
     vi.resetAllMocks();
 
-    // Mock repository check to return true by default
     vi.mocked(repository.isGitRepository, { partial: true }).mockResolvedValue(true);
   });
 
@@ -147,7 +142,6 @@ describe('Git Commands', () => {
 
       await commands.gitProcess(options, git);
 
-      // Dry run: nothing is written through the seam.
       expect(git.added).toEqual([]);
       expect(git.committed).toEqual([]);
       expect(git.tagged).toEqual([]);

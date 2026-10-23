@@ -28,10 +28,6 @@ export abstract class BaseLLMProvider implements LLMProvider {
     return Math.min(Math.trunc(timeout), MAX_TIMEOUT_MS);
   }
 
-  /**
-   * Runs one request under the idle timeout and normalises its errors to LLMError. An abort is a timeout
-   * whatever `request` then threw, because each SDK surfaces an aborted stream differently.
-   */
   protected async withIdleTimeout<T>(
     label: string,
     options: CompleteOptions | undefined,
@@ -46,6 +42,8 @@ export abstract class BaseLLMProvider implements LLMProvider {
     try {
       return await request({ signal: controller.signal, reset: () => timer.refresh() });
     } catch (error) {
+      // An abort is a timeout whatever `request` then threw, because each SDK surfaces an aborted stream
+      // differently.
       if (controller.signal.aborted) {
         throw new LLMError(`${label} request timed out: nothing received for ${ms}ms`, {
           cause: controller.signal.reason,

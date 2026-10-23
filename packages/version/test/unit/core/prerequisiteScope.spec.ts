@@ -20,7 +20,6 @@ const baseConfig = (overrides: Partial<Config> = {}): Config =>
     ...overrides,
   }) as Config;
 
-// core <- utils, core <- types, {utils,types} <- app
 const packages = [pkg('core'), pkg('utils'), pkg('types'), pkg('app')];
 const graph = buildDependencyGraph([
   gpkg('core', []),

@@ -14,11 +14,11 @@
       "!**/out",
       "!.turbo",
       "!**/node_modules",
-      // Agent worktrees are full checkouts carrying their own root biome.jsonc, and Biome refuses to
-      // run at all on a nested root config — in scope, one breaks `pnpm lint` for the whole repo.
+      // Agent worktrees carry their own root biome.jsonc, and Biome refuses to run on a nested root config, so one in
+      // scope breaks `pnpm lint` for the whole repo.
       "!**/.claude",
-      // Recorded eval fixtures — opaque provider-response blobs in the cache's native (compact) format.
-      // Formatting them would churn on every re-record and diverge from what the harness writes.
+      // Recorded eval fixtures: formatting them would churn on every re-record and diverge from what the harness
+      // writes.
       "!packages/notes/test/eval/fixtures/cache"
     ]
   },
@@ -128,7 +128,6 @@
       }
     },
     {
-      // Only a package's root index.ts (its public API) may re-export.
       "includes": [
         "packages/*/src/**",
         "!packages/*/src/index.ts"
@@ -142,7 +141,6 @@
       }
     },
     {
-      // Disallow console except in the loggers and CLI command files.
       "includes": [
         "packages/*/src/**",
         "!packages/core/src/logger.ts",

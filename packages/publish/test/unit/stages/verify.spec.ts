@@ -9,7 +9,6 @@ vi.mock('../../../src/utils/exec.js', () => ({
 
 function createContext(overrides?: Partial<PipelineContext>): PipelineContext {
   const config = getDefaultConfig();
-  // Use minimal delays for tests
   config.verify.npm.initialDelay = 1;
   config.verify.npm.maxAttempts = 2;
   config.verify.cargo.initialDelay = 1;
@@ -237,9 +236,7 @@ describe('verify stage', () => {
       await runVerifyStage(ctx);
 
       expect(ctx.output.verification[0]?.verified).toBe(false);
-      // Should stop after the first attempt, not use all maxAttempts (2)
       expect(fetchMock).toHaveBeenCalledTimes(1);
-      // The 403 diagnostic should be surfaced in the warning, not swallowed
       const warnCalls = warnSpy.mock.calls.map((c) => c.join(' '));
       expect(warnCalls.some((msg) => msg.includes('403'))).toBe(true);
       warnSpy.mockRestore();

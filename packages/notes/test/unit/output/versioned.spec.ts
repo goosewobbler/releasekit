@@ -22,7 +22,7 @@ function makeContext(overrides: Partial<TemplateContext> = {}): TemplateContext 
   };
 }
 
-// Stand-in for the pipeline's content resolver — proves the writer writes whatever it returns.
+// Stand-in for the pipeline's content resolver - proves the writer writes whatever it returns.
 const render = (ctx: TemplateContext): string => `notes for ${ctx.packageName} ${ctx.version}`;
 
 describe('writeVersionedNotes', () => {
@@ -54,8 +54,6 @@ describe('writeVersionedNotes', () => {
   });
 
   it('should nest by package even for a single context when nested', () => {
-    // Regression for the independent-monorepo collision: one context per run must still nest, so two
-    // packages that share a version (e.g. both 1.0.0) don't overwrite release-notes/1.0.0.md.
     const written = writeVersionedNotes(
       [makeContext({ packageName: '@scope/pkg-a', version: '1.0.0' })],
       'release-notes',

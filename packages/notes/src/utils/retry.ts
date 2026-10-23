@@ -3,11 +3,6 @@ export interface RetryOptions {
   initialDelay?: number;
   maxDelay?: number;
   backoffFactor?: number;
-  /**
-   * Decide whether a thrown error is worth retrying. `true` (or omitting the predicate) retries;
-   * `false` stops immediately and rethrows. Lets callers fail fast on non-transient errors
-   * (e.g. 4xx auth/validation) while still retrying timeout/429/5xx/network failures.
-   */
   shouldRetry?: (error: unknown) => boolean;
 }
 

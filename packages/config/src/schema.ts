@@ -1,18 +1,13 @@
 import { z } from 'zod';
 
 // ---------------------------------------------------------------------------
-// NOTE FOR EDITORS
-//
-// Field descriptions live here as Zod `.describe()` calls. They are the single
-// source of truth: `releasekit.schema.json` is generated from this file via
-// `pnpm schema:gen` (scripts/generate-schema.ts), and `docs/configuration.md`
-// is generated from that JSON Schema via `pnpm docs:config`. Never hand-edit
-// `releasekit.schema.json`; `pnpm schema:check` enforces that it matches Zod in
-// CI. To change a description or add a field, edit it here and run `pnpm
-// schema:gen` (then `pnpm docs:config`).
+// `.describe()` text is the source of truth: `pnpm schema:gen` generates
+// `releasekit.schema.json` from it, and `pnpm docs:config` generates
+// `docs/configuration.md` from that. Never hand-edit the JSON schema -
+// `pnpm schema:check` enforces in CI that it matches Zod.
 // ---------------------------------------------------------------------------
 
-/** Dependabot's default commit scopes: `deps` for production bumps, `deps-dev` for development bumps. */
+/** Dependabot's default commit scopes. */
 export const DEFAULT_DEMOTE_SCOPES: readonly string[] = ['deps', 'deps-dev'];
 
 export const GitConfigSchema = z.object({
@@ -342,9 +337,7 @@ export const TemplateConfigSchema = z.object({
 
 export const LocationModeSchema = z.enum(['root', 'packages', 'both']);
 
-// Release notes are not a changelog, so they don't share the changelog's location modes. Their
-// only file shape is an immutable per-version directory; the default target is the GitHub release
-// body (no file). Hence a dedicated `file` config rather than a `mode` enum.
+// Release notes are not a changelog, so they get a dedicated `file` config rather than the changelog's `mode` enum.
 export const ReleaseNotesFileConfigSchema = z.object({
   dir: z.string().default('release-notes').describe('Directory for the per-version release-notes files.'),
 });
@@ -383,10 +376,6 @@ export const LLMOptionsSchema = z.object({
 
 export const LLMRetryConfigSchema = z.object({
   maxAttempts: z.number().int().positive().optional().describe('Maximum number of attempts'),
-  // `.int()` here matches the generated JSON Schema (`type: integer`, `minimum`),
-  // and closes a pre-generator gap where the Zod runtime accepted floats. Keep
-  // these in sync with scripts/generate-schema.ts — relaxing one without the
-  // other re-introduces the divergence.
   initialDelay: z.number().int().nonnegative().optional().describe('Initial delay in ms'),
   maxDelay: z.number().int().positive().optional().describe('Maximum delay in ms'),
   backoffFactor: z.number().positive().optional().describe('Delay multiplier per attempt'),
@@ -451,8 +440,7 @@ const LLMConfigBaseSchema = z.object({
   provider: z.enum(['openai', 'openai-compatible', 'anthropic', 'ollama']).describe('LLM provider'),
   model: z
     .string()
-    // .min(1): an empty string passes z.string(), so "model": "" would slip through Zod at load and
-    // only fail deep in the pipeline (soft-caught). Reject it at config validation instead.
+    // Otherwise "model": "" passes load and only fails deep in the pipeline.
     .min(1, 'model must be a non-empty string — set it to a model the provider serves.')
     .describe(
       'Model identifier for the selected provider. Required — releasekit ships no default, so enabling LLM enhancement needs an explicit, current model (a missing model fails config validation).',
@@ -505,9 +493,8 @@ const LLMConfigBaseSchema = z.object({
     ),
 });
 
-// The openai-compatible provider points at a custom endpoint, so releasekit can't assume a base URL:
-// it must be set explicitly. Enforced at config-validation time (a Zod refinement) so a misconfig
-// fails loudly here rather than silently degrading to non-LLM notes inside the notes soft-fail catch.
+// Validated here so a missing openai-compatible baseURL fails loudly rather than silently degrading to non-LLM notes
+// inside the notes soft-fail catch.
 export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((cfg, ctx) => {
   if (cfg.provider === 'openai-compatible' && !cfg.baseURL) {
     ctx.addIssue({
@@ -662,9 +649,7 @@ export const StandingPrConfigSchema = z.object({
         ),
       allowedActors: z
         .array(
-          // A GitHub username (e.g. `octocat`) or a team as `@org/team-slug`. The `@…/…` form needs
-          // the slash — `@octocat` is neither a username nor a team and would silently match nobody,
-          // so reject it at config-load time. Round-trips into the JSON Schema as `pattern`.
+          // `@octocat` (no slash) is neither a username nor a team and would silently match nobody.
           z.string().regex(/^(?:[A-Za-z0-9-]+|@[A-Za-z0-9-]+\/[A-Za-z0-9._-]+)$/, {
             message:
               'allowedActors entries must be a GitHub username (e.g. "octocat") or a team as "@org/team-slug" (note the slash).',
@@ -744,8 +729,6 @@ export const CIConfigSchema = z.object({
       }),
     ])
     .default(true)
-    // Normalize the boolean shorthand and the object form to one canonical shape so every consumer
-    // reads `prPreview.enabled` / `prPreview.refreshAfterRelease` without re-checking the input type.
     .transform((v) =>
       typeof v === 'boolean'
         ? { enabled: v, refreshAfterRelease: false }

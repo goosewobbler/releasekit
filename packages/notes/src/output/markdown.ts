@@ -17,12 +17,9 @@ import type {
   TemplateContext,
 } from '../core/types.js';
 
+// A true statement, so it reads fine even when published unedited (automated modes).
 const DEFAULT_FIRST_RELEASE_TEXT = '_First release of ${packageName}._';
 
-/**
- * The placeholder intro line for a first release, or `undefined` when not a first release or disabled.
- * The default text is a true statement so it reads fine even when published unedited (automated modes).
- */
 export function firstReleaseLine(context: TemplateContext, config?: FirstReleaseConfig | false): string | undefined {
   if (!context.isFirstRelease || config === false) {
     return undefined;
@@ -60,18 +57,15 @@ function groupEntriesByType(entries: ChangelogEntry[]): Map<ChangelogEntry['type
 
 interface EntryRefOptions {
   hideScope?: boolean;
-  /** How bare `#NNN` issue/PR refs are rendered (default `'link'`). */
   refs?: ChangelogRefsMode;
-  /** Repo URL used to build canonical issue links in `link` mode. */
   repoUrl?: string | null;
 }
 
 function formatEntry(entry: ChangelogEntry, opts?: EntryRefOptions): string {
-  // GitHub treats a bare `@scope/pkg` / `@user` in prose as a mention (stray link, can ping a real
-  // org/team on a release PR) — always neutralise it, regardless of the refs mode. The scope and
-  // lead-in are interpolated as bold prose too (a scoped package name like `@wdio/native-cdp-bridge`
-  // would mention `@wdio`), so escape all three, not just the description. Bare `#N` refs carried over
-  // from the commit subject are also neutralised / de-duped against the appended label.
+  // GitHub treats a bare `@scope/pkg` / `@user` in prose as a mention that can ping a real org/team on a
+  // release PR - always neutralise it, regardless of the refs mode. The scope and lead-in are interpolated
+  // as bold prose too, so escape all three. Bare `#N` refs carried over from the commit subject are also
+  // de-duped against the appended label.
   const refsMode = opts?.refs ?? 'link';
   const appendedRefs = [...(entry.issueIds ?? []), entry.prNumber];
   const description = escapeChangelogMentions(
@@ -95,7 +89,7 @@ function formatEntry(entry: ChangelogEntry, opts?: EntryRefOptions): string {
     line = `- ${description}`;
   }
 
-  // renderIssueRefs returns the complete group including its own parens — append it bare, no re-wrap.
+  // renderIssueRefs includes its own parens.
   const refs = renderIssueRefs(entry.issueIds ?? [], refsMode, opts?.repoUrl ?? null, entry.prNumber);
   if (refs) {
     line += ` ${refs}`;
@@ -108,7 +102,6 @@ function formatCategorySection(name: string, entries: ChangelogEntry[], refOpts:
   const lines: string[] = [];
   lines.push(`### ${name}`);
 
-  // Identify scopes that appear on 2+ entries → group them
   const scopeCounts = new Map<string, number>();
   for (const entry of entries) {
     if (entry.scope) {
@@ -123,7 +116,6 @@ function formatCategorySection(name: string, entries: ChangelogEntry[], refOpts:
   }
 
   if (groupedScopes.size === 0) {
-    // No scope grouping — render flat
     for (const entry of entries) {
       lines.push(formatEntry(entry, refOpts));
     }
@@ -150,7 +142,6 @@ function formatCategorySection(name: string, entries: ChangelogEntry[], refOpts:
             lines.push(formatEntry(e, { ...refOpts, hideScope: true }));
           }
         }
-        // Remaining entries in this group already rendered above — skip
       } else {
         lines.push(formatEntry(entry, refOpts));
       }
@@ -183,7 +174,6 @@ function rerouteBreakingEntries(categories: EnhancedCategory[]): EnhancedCategor
   if (breakingCatIdx >= 0) {
     return stripped.map((c, i) => (i === breakingCatIdx ? { ...c, entries: [...breakingEntries, ...c.entries] } : c));
   }
-  // Create a "Breaking" category if it doesn't exist yet
   return [{ name: 'Breaking', entries: breakingEntries }, ...stripped.filter((c) => c.entries.length > 0)];
 }
 
@@ -194,7 +184,6 @@ function applyOrder(categories: EnhancedCategory[], order: string[]): EnhancedCa
   return [...categories].sort((a, b) => {
     const ai = order.indexOf(a.name);
     const bi = order.indexOf(b.name);
-    // Breaking not in order: pin before all explicitly-ordered categories
     const rank = (name: string, idx: number) => (idx === -1 ? (name === 'Breaking' ? -1 : order.length) : idx);
     return rank(a.name, ai) - rank(b.name, bi);
   });
@@ -272,7 +261,6 @@ function resolveLinks(entries: ChangelogEntry[], linksConfig: LinksConfig | unde
   const discovered = linksConfig.fromPRBodyMarker
     ? extractLinksFromPRBodies(entries, linksConfig.fromPRBodyMarker)
     : [];
-  // Merge, de-dup by URL (explicit items take precedence)
   const seen = new Set(items.map((i) => i.url));
   const merged = [...items];
   for (const link of discovered) {
@@ -285,15 +273,11 @@ function resolveLinks(entries: ChangelogEntry[], linksConfig: LinksConfig | unde
 }
 
 export interface FormatVersionOptions {
-  /** Include the package name in the version header (e.g. `## [pkg@1.0.0]`). */
   includePackageName?: boolean;
-  /** Order to render LLM-categorised sections. Only applies when enhanced.categories is present. */
+  /** Order to render LLM-categorised sections. */
   categoryOrder?: string[];
-  /** Migration/doc links to render at the end of the release notes section. */
   links?: LinksConfig;
-  /** First-release placeholder intro config, or `false` to suppress it. */
   firstRelease?: FirstReleaseConfig | false;
-  /** How bare `#NNN` issue/PR refs are rendered (`changelog.refs`; default `'link'`). */
   refs?: ChangelogRefsMode;
 }
 
@@ -325,7 +309,6 @@ export function formatVersion(context: TemplateContext, options?: FormatVersionO
   }
 
   if (context.enhanced?.categories && context.enhanced.categories.length > 0) {
-    // LLM-enhanced path: category-based rendering with breaking re-routing and scope grouping
     let categories = rerouteBreakingEntries(context.enhanced.categories);
     categories = applyOrder(categories, options?.categoryOrder ?? []);
 
@@ -345,7 +328,6 @@ export function formatVersion(context: TemplateContext, options?: FormatVersionO
       lines.push('');
     }
   } else {
-    // Non-LLM / changelog path: type-based grouping
     const grouped = groupEntriesByType(context.entries);
 
     for (const [type, entries] of grouped) {
@@ -438,11 +420,9 @@ export function writeMarkdown(
       fs.writeFileSync(outputPath, updated, 'utf-8');
     }
   } else {
-    // NOTE: prepend only applies to single-context writes. A multi-package changelog 'root' release
-    // overwrites this file with just the current release's sections — prior history is lost. The
-    // aggregating-prepend path (writeMonorepoChangelogs 'root' branch) is currently unreachable from
-    // the pipeline. Monorepos wanting a durable per-release history can use release-notes file output
-    // (`releaseNotes.file.dir`, immutable per-version files) or changelog `mode: 'packages'`.
+    // A multi-package changelog 'root' release overwrites this file with just the current release's
+    // sections - prior history is lost. The aggregating-prepend path (writeMonorepoChangelogs 'root'
+    // branch) is unreachable from the pipeline.
     fs.writeFileSync(outputPath, content, 'utf-8');
   }
 

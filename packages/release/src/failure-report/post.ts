@@ -16,18 +16,12 @@ import {
 export interface PostFailureReportContext {
   forge: Forge;
   mode: FailureReportMode;
-  /** PR to comment on. Omit for manual dispatch with no PR — the report goes to the step summary. */
+  /** Omitted with no PR (manual dispatch): the report goes to the step summary. */
   prNumber?: number;
   standingPrNumber?: number;
-  /** Whether the `release:retry` label flow is wired — makes it the primary hint. */
   retryLabelAvailable?: boolean;
 }
 
-/**
- * Post (or update) the partial-publish failure report. When a PR number is available the report
- * is a marker-keyed comment (idempotent — a repeat failure updates the same comment). With no PR
- * (manual dispatch) it is appended to the workflow step summary at `$GITHUB_STEP_SUMMARY`.
- */
 export async function postFailureReport(
   ctx: PostFailureReportContext,
   versionOutput: VersionOutput,
@@ -58,11 +52,6 @@ export async function postFailureReport(
   }
 }
 
-/**
- * On a successful publish, flip any existing failure report for this release to resolved. This
- * also clears the supersede warning on the next standing PR / preview. No-op when no report
- * exists. Safe to call unconditionally after a successful publish.
- */
 export async function resolveFailureReportIfPresent(
   forge: Forge,
   prNumber: number,
@@ -80,7 +69,6 @@ export async function resolveFailureReportIfPresent(
   }
 }
 
-/** Append a block to the GitHub Actions step summary file, when configured. */
 export function writeStepSummary(body: string): void {
   const summaryPath = process.env.GITHUB_STEP_SUMMARY;
   if (!summaryPath) {
@@ -96,20 +84,12 @@ export function writeStepSummary(body: string): void {
 }
 
 export interface UnresolvedFailure {
-  /** Release label of the partially-published prior release, e.g. `v0.24.0`. */
   previousLabel: string;
   published: number;
   total: number;
-  /** PR number carrying the failure report (the retry surface). */
   prNumber: number;
 }
 
-/**
- * Detect an unresolved partial-publish failure on a given PR by locating the failure-report
- * comment (marker) and reading its encoded resolution status. Returns null when there is no
- * report or it is already resolved. The published/total fraction is recovered from the ledger
- * embedded in the report body so the caller doesn't need the original pipeline output.
- */
 export async function detectUnresolvedFailure(forge: Forge, prNumber: number): Promise<UnresolvedFailure | null> {
   let body: string | undefined;
   try {
@@ -128,11 +108,6 @@ export async function detectUnresolvedFailure(forge: Forge, prNumber: number): P
   return parseReportLedgerSummary(body, prNumber);
 }
 
-/**
- * Recover the headline numbers from a rendered failure report so the supersede warning can be
- * rebuilt without the original pipeline output. Reads the machine-readable data comment the
- * report embeds — never the human-facing copy, which is free to change.
- */
 function parseReportLedgerSummary(body: string, prNumber: number): UnresolvedFailure | null {
   const data = parseFailureReportData(body);
   if (!data) {

@@ -6,10 +6,6 @@ export interface PrereleaseDetection {
   identifier?: string;
 }
 
-/**
- * Detect if current package versions are prereleases by reading package.json files.
- * Returns the first prerelease identifier found, or { isPrerelease: false }.
- */
 export function detectPrerelease(packagePaths: string[], projectDir: string): PrereleaseDetection {
   const paths =
     packagePaths.length > 0
@@ -35,10 +31,7 @@ export function detectPrerelease(packagePaths: string[], projectDir: string): Pr
   return { isPrerelease: false };
 }
 
-/**
- * Parse a semver version string to extract the prerelease identifier.
- * E.g. "0.3.0-next.4" → { isPrerelease: true, identifier: "next" }
- */
+/** e.g. `0.3.0-next.4` → `{ isPrerelease: true, identifier: 'next' }` */
 export function parsePrerelease(version: string | undefined): PrereleaseDetection {
   if (!version) {
     return { isPrerelease: false };

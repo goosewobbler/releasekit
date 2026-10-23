@@ -6,9 +6,6 @@ import { addTag, setCommitMessage } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { isGitRepository } from './repository.js';
 
-/**
- * Options for git tag command
- */
 export type GitTagOptions = {
   tag: string;
   message?: string;
@@ -16,9 +13,6 @@ export type GitTagOptions = {
   args?: string;
 };
 
-/**
- * Options for git commit command
- */
 export type GitCommitOptions = {
   message: string;
   amend?: boolean;
@@ -27,9 +21,6 @@ export type GitCommitOptions = {
   skipHooks?: boolean;
 };
 
-/**
- * Options for git process
- */
 export type GitProcessOptions = {
   files: string[];
   nextTag: string;
@@ -38,25 +29,11 @@ export type GitProcessOptions = {
   dryRun?: boolean;
 };
 
-/**
- * Add files to git staging
- * @param files Files to add
- * @param git Injected git seam (defaults to the real CLI adapter)
- */
 export async function gitAdd(files: string[], git: Git = createGitCli()): Promise<void> {
   await git.add(files);
 }
 
-/**
- * Create a git commit
- * @param options Commit options
- * @param git Injected git seam (defaults to the real CLI adapter)
- *
- * NOTE: `amend`/`author`/`date` are not expressible through the Git seam's commit options (only
- * message, skipHooks, and paths are). No call path ever sets them — `gitProcess` only passes
- * `message` + `skipHooks` — so this preserves behaviour. If a future caller sets one, fail loudly
- * rather than silently dropping it.
- */
+/** The git seam can't express `amend`/`author`/`date`, so they throw rather than being silently dropped. */
 export async function gitCommit(options: GitCommitOptions, git: Git = createGitCli()): Promise<void> {
   if (options.amend || options.author || options.date) {
     throw createGitError(
@@ -67,21 +44,15 @@ export async function gitCommit(options: GitCommitOptions, git: Git = createGitC
   await git.commit(options.message, { skipHooks: options.skipHooks });
 }
 
-/**
- * Create a git tag
- * @param options Tag options
- * @param git Injected git seam (defaults to the real CLI adapter)
- */
 export async function createGitTag(options: GitTagOptions, git: Git = createGitCli()): Promise<void> {
   const { tag, message = '' } = options;
 
   try {
-    // Annotated tag (`tag -a -m <message>`), matching the original `tag -a -m <msg> <tag>`.
+    // Annotated tag (`tag -a -m <message>`).
     await git.tag(tag, { message });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
 
-    // Check if the error is due to tag already existing
     if (errorMessage.includes('already exists')) {
       throw createGitError(
         GitErrorCode.TAG_ALREADY_EXISTS,
@@ -89,15 +60,10 @@ export async function createGitTag(options: GitTagOptions, git: Git = createGitC
       );
     }
 
-    // Re-throw other errors as generic git errors
     throw createGitError(GitErrorCode.GIT_ERROR, errorMessage);
   }
 }
 
-/**
- * Execute git add, commit, and tag in a single process
- * @param options Git process options
- */
 export async function gitProcess(options: GitProcessOptions, git: Git = createGitCli()) {
   const { files, nextTag, commitMessage, skipHooks, dryRun } = options;
 
@@ -140,7 +106,6 @@ export async function gitProcess(options: GitProcessOptions, git: Git = createGi
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : String(err);
 
-    // Check if this is a tag already exists error
     if (errorMessage.includes('already exists') && nextTag) {
       log(`Tag '${nextTag}' already exists in the repository.`, 'error');
       throw createGitError(
@@ -149,7 +114,6 @@ export async function gitProcess(options: GitProcessOptions, git: Git = createGi
       );
     }
 
-    // Log detailed error information
     log(`Git process error: ${errorMessage}`, 'error');
 
     if (err instanceof Error && err.stack) {
@@ -161,14 +125,6 @@ export async function gitProcess(options: GitProcessOptions, git: Git = createGi
   }
 }
 
-/**
- * Create git commit and tag with detailed output tracking
- * @param files List of files to commit
- * @param nextTag Tag to create
- * @param commitMessage Message for the commit
- * @param skipHooks Whether to skip git hooks
- * @param dryRun Whether to perform a dry run (no actual changes)
- */
 export async function createGitCommitAndTag(
   files: string[],
   nextTag: string,
@@ -178,7 +134,6 @@ export async function createGitCommitAndTag(
   git: Git = createGitCli(),
 ): Promise<void> {
   try {
-    // Validate inputs
     if (!files || files.length === 0) {
       throw createGitError(GitErrorCode.NO_FILES);
     }
@@ -187,7 +142,6 @@ export async function createGitCommitAndTag(
       throw createGitError(GitErrorCode.NO_COMMIT_MESSAGE);
     }
 
-    // Track commit message and tag for JSON output
     setCommitMessage(commitMessage);
     if (nextTag) {
       addTag(nextTag);
@@ -208,7 +162,6 @@ export async function createGitCommitAndTag(
       log(`Created tag: ${nextTag}`, 'success');
     }
   } catch (error) {
-    // If it's already a GitError, re-throw it to preserve the specific error type
     if (error instanceof GitError) {
       throw error;
     }
@@ -216,13 +169,10 @@ export async function createGitCommitAndTag(
     const errorMessage = error instanceof Error ? error.message : String(error);
     log(`Failed to create git commit and tag: ${errorMessage}`, 'error');
 
-    // Enhanced error logging
     if (error instanceof Error) {
-      // Log the full stack trace for debugging
       log('Git operation error details:', 'error');
       log(error.stack || error.message, 'error');
 
-      // Extract and log command output if available
       if (errorMessage.includes('Command failed:')) {
         const cmdOutput = errorMessage.split('Command failed:')[1];
         if (cmdOutput) {

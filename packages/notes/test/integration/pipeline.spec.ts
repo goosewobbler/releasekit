@@ -7,10 +7,6 @@ import { aggregateToRoot } from '../../src/monorepo/aggregator.js';
 import { splitByPackage } from '../../src/monorepo/splitter.js';
 import { formatVersion, renderMarkdown } from '../../src/output/markdown.js';
 
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
-
 const versionOutputFixture = {
   dryRun: false,
   updates: [{ packageName: 'my-lib', newVersion: '2.0.0', filePath: 'package.json' }],
@@ -50,10 +46,6 @@ const sampleChangelog = `
 - Initial release
 `.trim();
 
-// ---------------------------------------------------------------------------
-// Full pipeline: version output → markdown
-// ---------------------------------------------------------------------------
-
 describe('Pipeline: version output → markdown', () => {
   it('should produce a valid changelog with version header', () => {
     const input = parseVersionOutput(JSON.stringify(versionOutputFixture));
@@ -88,10 +80,6 @@ describe('Pipeline: version output → markdown', () => {
     expect(doc.compareUrls?.['2.0.0']).toBe('https://github.com/acme/my-lib/compare/1.0.0...2.0.0');
   });
 });
-
-// ---------------------------------------------------------------------------
-// compareUrl generation by platform
-// ---------------------------------------------------------------------------
 
 describe('compareUrl: platform detection', () => {
   function makeCtx(repoUrl: string) {
@@ -167,9 +155,6 @@ describe('compareUrl: platform detection', () => {
   });
 
   it('should generate compare URL for sanitized "@v" package-specific tags', () => {
-    // formatTag strips "@scope/" -> "scope-name", so a `${packageName}@v${version}` template
-    // yields "zubridge-electron@v3.0.0". The raw "@zubridge/electron" never appears in the tag,
-    // so the `to` ref must be derived from the tag's own prefix, not the package name.
     const ctx = createTemplateContext({
       packageName: '@zubridge/electron',
       version: '3.1.0',
@@ -212,10 +197,6 @@ describe('compareUrl: platform detection', () => {
     expect(ctx.compareUrl).toBeUndefined();
   });
 });
-
-// ---------------------------------------------------------------------------
-// conventional-changelog parser
-// ---------------------------------------------------------------------------
 
 describe('Parser: conventional-changelog', () => {
   it('should extract all versions', () => {
@@ -260,9 +241,6 @@ describe('Parser: conventional-changelog', () => {
 
   it('should NOT label a trailing (#N) as the PR when parsing existing changelog text', () => {
     const result = parseConventionalChangelog(sampleChangelog, 'my-lib');
-    // `- **api**: Batch operations (#42)` — in an existing/external changelog a trailing (#42) is
-    // ambiguous (could be an issue), and there's no commit signal, so prNumber is not inferred here.
-    // It still lands in issueIds as a generic ref. PR detection only happens in the commit parsers.
     const apiEntry = result.packages[0]?.entries.find((e) => e.scope === 'api');
     expect(apiEntry?.prNumber).toBeUndefined();
     expect(apiEntry?.issueIds).toContain('#42');
@@ -297,10 +275,6 @@ describe('Parser: conventional-changelog', () => {
     expect(() => parseConventionalChangelog('# Just a title\nSome text.', 'pkg')).toThrow();
   });
 });
-
-// ---------------------------------------------------------------------------
-// Monorepo: aggregation and splitting
-// ---------------------------------------------------------------------------
 
 describe('Monorepo: aggregation and splitting', () => {
   const pkgA = createTemplateContext({
@@ -348,10 +322,8 @@ describe('Monorepo: aggregation and splitting', () => {
   it('should render root changelog with per-package sections with package names in headers', () => {
     const markdown = renderMarkdown([pkgA, pkgB], { includePackageName: true });
 
-    // Each package gets its own version header with package name
     expect(markdown).toContain('## @acme/core@1.0.0');
     expect(markdown).toContain('## @acme/ui@1.0.0');
-    // Entries are in their respective sections
     expect(markdown).toContain('- Core init');
     expect(markdown).toContain('- Button alignment');
   });

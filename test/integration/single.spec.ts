@@ -177,7 +177,7 @@ describe('Integration: single package', () => {
 
       const markdown = renderMarkdown(contexts);
 
-      // Unbracketed header (no prior version to link), the factual intro line, and the entries.
+      // Unbracketed header: no prior version to link.
       expect(markdown).toContain('## 0.1.0');
       expect(markdown).not.toContain('## [0.1.0]');
       expect(markdown).toContain('_First release of test-single-package._');

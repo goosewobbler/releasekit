@@ -345,8 +345,6 @@ describe('action runner', () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'releasekit-action-runner-test-'));
     tempDirs.push(tempDir);
     const cliPath = path.join(tempDir, 'fake-cli.mjs');
-    // The fake CLI writes JSON to its --output path and prints noise to stdout — outputJson must come
-    // from the file, immune to the stdout noise.
     fs.writeFileSync(
       cliPath,
       [

@@ -1,13 +1,7 @@
 import { BaseVersionError } from './baseError.js';
 
-/**
- * Custom error class for versioning operations
- */
 export class VersionError extends BaseVersionError {}
 
-/**
- * Error codes for versioning operations
- */
 export enum VersionErrorCode {
   CONFIG_REQUIRED = 'CONFIG_REQUIRED',
   PACKAGES_NOT_FOUND = 'PACKAGES_NOT_FOUND',
@@ -18,12 +12,6 @@ export enum VersionErrorCode {
   UNSAFE_CONFIG_PATH = 'UNSAFE_CONFIG_PATH',
 }
 
-/**
- * Creates a VersionError with standard error message for common failure scenarios
- * @param code Error code
- * @param details Additional error details
- * @returns VersionError instance
- */
 export function createVersionError(code: VersionErrorCode, details?: string): VersionError {
   const messages: Record<VersionErrorCode, string> = {
     [VersionErrorCode.CONFIG_REQUIRED]: 'Configuration is required',
@@ -35,7 +23,6 @@ export function createVersionError(code: VersionErrorCode, details?: string): Ve
     [VersionErrorCode.UNSAFE_CONFIG_PATH]: 'Refusing to write a manifest outside the repository root',
   };
 
-  // Provide helpful suggestions for specific error types
   const suggestions: Record<VersionErrorCode, string[] | undefined> = {
     [VersionErrorCode.CONFIG_REQUIRED]: [
       'Create a releasekit.config.json file in your project root',

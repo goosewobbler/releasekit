@@ -103,9 +103,8 @@ export function buildStandingPRPublishArgs(input) {
   pushOptionalArg(args, '--config', input.config);
   pushOptionalArg(args, '--project-dir', input.projectDir);
   pushOptionalArg(args, '--npm-auth', input.npmAuth);
-  // Dispatch-funnelled publishes (gh workflow run from standing-pr.yml) run on a
-  // workflow_dispatch event with no pull_request payload, so the merged standing PR's
-  // number has to be carried across the dispatch boundary explicitly.
+  // Publishes funnelled through workflow_dispatch have no pull_request payload, so the merged
+  // standing PR's number must be passed explicitly.
   pushOptionalArg(args, '--pr', input.pr);
   pushBooleanFlag(args, '--verbose', input.verbose);
   pushBooleanFlag(args, '--quiet', input.quiet);
@@ -175,18 +174,13 @@ export function parseReleaseOutput(stdout, verbose = false) {
     }
     return undefined;
   }
-  // The CLI wraps every result in the uniform envelope { schemaVersion, status, data, ... }; unwrap
-  // to the data payload so output derivation reads result fields (versionOutput, shouldRelease)
-  // directly. Legacy un-enveloped output is returned as-is for backward compatibility.
   if (parsed && typeof parsed === 'object' && 'schemaVersion' in parsed && 'data' in parsed) {
     return parsed.data;
   }
-  return parsed;
+  return parsed; // legacy un-enveloped output
 }
 
-// Sync-mode version tags on HEAD, straight from git. The release creates them at HEAD, so they
-// survive a stdout-capture hiccup that would empty the parsed JSON — the authoritative fallback for
-// the `tags` output. Per-package tag formats aren't matched here and still rely on the parsed output.
+// Sync-mode tags only; per-package tag formats rely on the parsed output.
 function gitVersionTagsAtHead(cwd) {
   try {
     const out = execFileSync('git', ['tag', '--points-at', 'HEAD'], { cwd, encoding: 'utf8' });
@@ -199,10 +193,6 @@ function gitVersionTagsAtHead(cwd) {
   }
 }
 
-// Pure tag selection, testable without git or GITHUB_OUTPUT. Prefer the parsed release output; only
-// when recovery is allowed (json output was expected but couldn't be parsed — see writeReleaseOutputs)
-// do we fall back to git's authoritative tags so a stdout hiccup can't silently empty `tags`.
-// `recovered` flags that fallback so the caller can surface it.
 export function resolveReleaseTags({ parsedTags, gitTags, allowRecovery }) {
   const parsed = Array.isArray(parsedTags) ? parsedTags : [];
   if (parsed.length > 0 || !allowRecovery) {
@@ -321,12 +311,10 @@ export async function runAction(input, options = {}) {
     preview: buildPreviewArgs,
     'refresh-after-release': buildRefreshAfterReleaseArgs,
   };
-  // `mode` is validated against validModes above, and every entry has a key here.
   const args = argBuilders[mode](input);
 
-  // Capture the JSON-result modes' structured output via a temp file (--output) instead of scraping
-  // stdout, which subprocess/log noise can corrupt — a single stray byte breaks JSON.parse. The CLI
-  // writes the result JSON to this file; we read it back after the run (see the `close` handler).
+  // Read the structured result from a temp file (--output) rather than stdout, which subprocess/log
+  // noise can corrupt.
   const OUTPUT_MODES = new Set(['release', 'gate', 'standing-pr-update', 'standing-pr-publish']);
   let outputFile;
   let outputDir;
@@ -348,7 +336,6 @@ export async function runAction(input, options = {}) {
     resolvedProjectDir = path.resolve(process.cwd(), projectDir);
   }
 
-  // Validate project directory exists and is a directory
   try {
     const stats = fs.statSync(resolvedProjectDir);
     if (!stats.isDirectory()) {
@@ -425,11 +412,8 @@ export async function runAction(input, options = {}) {
     delete spawnEnv[k];
   }
 
-  // Stream child stdout/stderr live to the parent process so progress is visible in
-  // CI logs as it happens, while also collecting both into buffers for downstream
-  // parsing (--json output, summary generation, etc.). Using spawnSync here would
-  // buffer everything until the child exits, which masks where long-running steps
-  // (publish, verify) actually are.
+  // Not spawnSync: it buffers output until the child exits, hiding where long-running steps
+  // (publish, verify) are in CI logs.
   return new Promise((resolve, reject) => {
     const child = spawn('node', [cliPath, ...args], {
       env: spawnEnv,
@@ -460,7 +444,6 @@ export async function runAction(input, options = {}) {
     });
 
     child.on('close', (status, signal) => {
-      // Prefer the --output file (reliable) over captured stdout for the structured result.
       let outputJson = '';
       if (outputFile) {
         try {
@@ -494,10 +477,9 @@ function writeReleaseOutputs(input, stdout) {
   const versionOutput = parsed?.versionOutput ? JSON.stringify(parsed.versionOutput) : '';
   setOutput('version-output', versionOutput);
 
-  // Recover `tags` from git only when json output was expected but did not parse — a stdout hiccup
-  // must not silently empty it. Never when json mode is off (no parse was attempted, so an empty
-  // `tags` is intentional), on a dry run (nothing tagged), or with --skip-git (a version tag on HEAD
-  // would be the *previous* release's, not this run's).
+  // A stdout hiccup that breaks the parse mustn't silently empty `tags`, so recover them from git.
+  // Not with json mode off (an empty `tags` is intentional), on a dry run (nothing tagged), or with
+  // --skip-git (a version tag on HEAD would be the *previous* release's).
   const allowRecovery =
     jsonMode && parsed === undefined && !normalizeBoolean(input.dryRun) && !normalizeBoolean(input.skipGit);
   const parsedTags = parsed?.versionOutput?.tags;
@@ -613,7 +595,6 @@ export function buildReleaseSummary(input, parsed, success) {
 export function buildGateSummary(_input, parsed, success) {
   const lines = [];
 
-  // Show error banner if the gate step itself failed (not just shouldRelease=false)
   if (!success) {
     lines.push('## :x: Gate Failed');
     lines.push('');
@@ -672,11 +653,8 @@ async function main() {
   const success = result.status === 0;
   const verbose = normalizeBoolean(input.verbose);
 
-  // The structured result comes from the --output file for the JSON-result modes (reliable), falling
-  // back to captured stdout for the rest (preview) and if the file is missing.
   const structured = result.outputJson || (result.stdout ?? '');
 
-  // parsed is used for release/preview output; gateParsed is parsed separately for gate output
   const parsed = normalizeBoolean(input.json) ? parseReleaseOutput(structured, verbose) : undefined;
 
   // Write summary BEFORE setFailure (which calls process.exit)
@@ -689,8 +667,6 @@ async function main() {
     }
   }
 
-  // Write outputs. Child stdout/stderr were already streamed live during runAction,
-  // so we don't re-emit them here — the buffers in `result` are only used for parsing.
   if (!success) {
     writeCoreOutputs(result.mode, false);
     if (result.mode === 'gate') {
@@ -710,7 +686,7 @@ async function main() {
   } else if (result.mode === 'standing-pr-update' || result.mode === 'standing-pr-publish') {
     writeStandingPROutputs(structured, verbose);
   } else if (result.mode === 'backfill' || result.mode === 'refresh-after-release') {
-    // These stream their own progress and expose only the core success/mode outputs.
+    // Core success/mode outputs only.
   } else {
     writePreviewOutputs(input, result.stdout ?? '');
   }

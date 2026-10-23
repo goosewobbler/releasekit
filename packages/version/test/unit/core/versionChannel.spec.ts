@@ -7,19 +7,12 @@ import type { Config, VersionOptions } from '../../../src/types.js';
 import * as manifestHelpers from '../../../src/utils/manifestHelpers.js';
 import * as versionUtils from '../../../src/utils/versionUtils.js';
 
-// Per-package release channel: a package's channel is DERIVED from its current version and
-// the default (no explicit channel action) advances it ALONG that channel — a prerelease stays a
-// prerelease, a stable stays stable, and a `-next` package never graduates without an explicit
-// graduate action. These specs drive the real `calculateVersion` with real semver and a real
-// `bumpVersion`; only git tag lookups, manifest reads, and the conventional-commit bumper are stubbed
-// so the asserted version strings are the engine's genuine output, not a mock's echo (the older
-// versionCalculator.spec automocks `versionUtils`, which empties STANDARD_BUMP_TYPES and neuters this
-// exact path — see that file).
+// These specs drive the real calculateVersion, semver and bumpVersion, stubbing only git tag lookups, manifest
+// reads and the conventional-commit bumper, so assertions check genuine output. versionCalculator.spec automocks
+// versionUtils, which empties STANDARD_BUMP_TYPES and neuters this exact path.
 vi.mock('../../../src/git/tagsAndBranches.js');
 vi.mock('../../../src/utils/manifestHelpers.js');
 
-/** Stub the workspace baseline: the package's current version, surfaced both as the git tag source
- *  and the manifest version, so `getBestVersionSource` (real) resolves to it without touching git. */
 function baselineAt(version: string): void {
   vi.spyOn(versionUtils, 'getBestVersionSource').mockResolvedValue({
     source: 'package',
@@ -34,7 +27,6 @@ function baselineAt(version: string): void {
   });
 }
 
-/** Stub the conventional-commit recommendation so the inferred magnitude is deterministic. */
 function inferredBump(releaseType: ReleaseType): void {
   vi.spyOn(Bumper.prototype, 'config').mockReturnThis();
   vi.spyOn(Bumper.prototype, 'commits').mockReturnThis();
@@ -69,7 +61,7 @@ describe('Per-package release channel — advance along the current line (#485)'
     });
 
     it('should increment the counter for a minor-level change, not escalate the base (1.0.0-next.1 -> 1.0.0-next.2)', async () => {
-      // The base is a fixed target until graduation — a minor doesn't move it to 1.1.0-next.0.
+      // The base is a fixed target until graduation.
       baselineAt('1.0.0-next.1');
       inferredBump('minor');
       const next = await calculateVersion(baseConfig as Config, options());
@@ -95,8 +87,7 @@ describe('Per-package release channel — advance along the current line (#485)'
       inferredBump('patch');
       const config = { ...baseConfig, prereleaseIdentifier: 'next' } as Config;
       const next = await calculateVersion(config, options({ latestTag: 'v2.3.0-beta.4' }));
-      // The package walks its OWN line (beta), not the configured default (next) — a line switch is
-      // a deliberate, out-of-scope action.
+      // Switching lines is a deliberate action outside this default.
       expect(next).toBe('2.3.0-beta.5');
     });
 
@@ -127,9 +118,8 @@ describe('Per-package release channel — advance along the current line (#485)'
   });
 
   describe('explicit bump magnitude (release:major/minor/patch) without a channel action', () => {
-    // A bump LABEL is a deliberate magnitude declaration, so it is honoured: on a prerelease it
-    // escalates the base to a fresh line (unlike the commit-inferred default, which increments the
-    // counter — the base is a fixed target until graduation). It still doesn't graduate.
+    // A bump label is a deliberate magnitude declaration, so on a prerelease it escalates the base to a fresh
+    // line. It still doesn't graduate.
     it('should escalate the base under an explicit minor bump (1.0.0-next.1 -> 1.1.0-next.0)', async () => {
       baselineAt('1.0.0-next.1');
       const next = await calculateVersion(baseConfig as Config, options({ type: 'minor' }));
@@ -161,7 +151,6 @@ describe('Per-package release channel — advance along the current line (#485)'
   describe('per-package graduation via graduateScope (#486)', () => {
     it('should graduate a package inside graduateScope to its stable base', async () => {
       baselineAt('1.0.0-next.5');
-      // stableOnly + graduateScope covering this package → graduate (bump ignored).
       const config = { ...baseConfig, stableOnly: true, graduateScope: ['my-pkg'] } as Config;
       const next = await calculateVersion(config, options({ name: 'my-pkg' }));
       expect(next).toBe('1.0.0');
@@ -170,7 +159,6 @@ describe('Per-package release channel — advance along the current line (#485)'
     it('should leave a package outside graduateScope on its prerelease line', async () => {
       baselineAt('1.0.0-next.5');
       inferredBump('patch');
-      // stableOnly is set, but graduateScope excludes this package → it advances its line, not graduates.
       const config = { ...baseConfig, stableOnly: true, graduateScope: ['other-pkg'] } as Config;
       const next = await calculateVersion(config, options({ name: 'my-pkg' }));
       expect(next).toBe('1.0.0-next.6');
@@ -203,12 +191,10 @@ describe('Per-package release channel — advance along the current line (#485)'
 
   describe('a mixed standing PR resolves each package on its own channel', () => {
     it('should advance a prerelease and bump a stable package independently in one run', async () => {
-      // Prerelease member: stays prerelease.
       baselineAt('1.0.0-next.1');
       inferredBump('minor');
       const pre = await calculateVersion(baseConfig as Config, options({ name: 'pre-pkg' }));
 
-      // Stable member: bumps normally.
       baselineAt('10.1.0');
       inferredBump('minor');
       const stable = await calculateVersion(

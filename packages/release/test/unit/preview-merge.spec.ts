@@ -136,7 +136,7 @@ describe('mergeForPreview', () => {
       standing: '1.1.0',
       afterMerge: '1.1.0',
     });
-    // current must not be set to the garbled string — it should be absent so the table shows '—'
+    // Absent (not the garbled string) so the table shows '—'.
     expect(rows[0]?.current).toBeUndefined();
   });
 

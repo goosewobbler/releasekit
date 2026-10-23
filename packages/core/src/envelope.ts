@@ -1,19 +1,15 @@
 import { EXIT_CODES, type ExitCode, ReleaseKitError } from './errors.js';
 
-/**
- * Version of the `--json` envelope contract. Bumped only on a breaking change to the envelope
- * shape, and stable across minor releases, so agents and CI can pin against it.
- */
+/** Bumped only on a breaking change to the envelope shape, so agents and CI can pin against it. */
 export const ENVELOPE_SCHEMA_VERSION = 1;
 
 export type EnvelopeStatus = 'success' | 'error';
 
 export interface EnvelopeError {
-  /** Stable machine code mirroring `ReleaseKitError.code` (e.g. CONFIG_ERROR, LLM_ERROR). */
   code: string;
-  /** The code's exit-code family (e.g. config, llm, github). */
+  /** The code's exit-code family, e.g. `config`. */
   category: string;
-  /** Whether the failure is transient and worth retrying. Only true when known-transient. */
+  /** Only true when the failure is known to be transient. */
   retryable: boolean;
   message: string;
 }
@@ -23,15 +19,10 @@ export interface EnvelopeWarning {
   message: string;
 }
 
-/**
- * The uniform result envelope every command emits in `--json` mode. `data` carries the
- * command-specific payload (VersionOutput, gate result, standing-PR result) verbatim — the
- * envelope wraps it, never replaces it, so the manifest-compat invariant holds.
- */
+/** `data` is the command's payload verbatim, never reshaped, so the manifest-compat invariant holds. */
 export interface Envelope<T = unknown> {
   schemaVersion: number;
   status: EnvelopeStatus;
-  /** Whether the command changed state, vs. found everything already in the desired state. */
   changed: boolean;
   data: T;
   warnings: EnvelopeWarning[];
@@ -110,7 +101,7 @@ export function unwrapEnvelope(value: unknown): unknown {
 
 type ErrorExitCode = Exclude<ExitCode, typeof EXIT_CODES.SUCCESS>;
 
-/** Maps each code to its family's exit code (docs/cli.md); unknown codes exit 1. */
+/** Documented in docs/cli.md. */
 const CODE_TO_EXIT: Record<string, ErrorExitCode> = {
   CONFIG_ERROR: EXIT_CODES.CONFIG_ERROR,
   INPUT_ERROR: EXIT_CODES.INPUT_ERROR,
@@ -139,7 +130,7 @@ const CODE_TO_EXIT: Record<string, ErrorExitCode> = {
   NO_FILES: EXIT_CODES.VERSION_ERROR,
   CARGO_LOCK_SYNC_ERROR: EXIT_CODES.VERSION_ERROR,
 
-  // @releasekit/publish: a malformed manifest is a config error.
+  // @releasekit/publish
   PIPELINE_STAGE_ERROR: EXIT_CODES.PUBLISH_ERROR,
   NPM_AUTH_ERROR: EXIT_CODES.PUBLISH_ERROR,
   NPM_PUBLISH_ERROR: EXIT_CODES.PUBLISH_ERROR,
@@ -149,6 +140,7 @@ const CODE_TO_EXIT: Record<string, ErrorExitCode> = {
   PUB_PUBLISH_ERROR: EXIT_CODES.PUBLISH_ERROR,
   FILE_COPY_ERROR: EXIT_CODES.PUBLISH_ERROR,
   VERIFICATION_FAILED: EXIT_CODES.PUBLISH_ERROR,
+  // A malformed manifest is a config error.
   CARGO_TOML_ERROR: EXIT_CODES.CONFIG_ERROR,
   PUBSPEC_YAML_ERROR: EXIT_CODES.CONFIG_ERROR,
   GIT_COMMIT_ERROR: EXIT_CODES.GIT_ERROR,
@@ -157,7 +149,6 @@ const CODE_TO_EXIT: Record<string, ErrorExitCode> = {
   GITHUB_RELEASE_ERROR: EXIT_CODES.GITHUB_ERROR,
 };
 
-/** Map any thrown value to its process exit code, defaulting to GENERAL_ERROR. */
 export function exitCodeForError(error: unknown): number {
   if (ReleaseKitError.isReleaseKitError(error)) {
     return CODE_TO_EXIT[error.code] ?? EXIT_CODES.GENERAL_ERROR;
@@ -181,14 +172,12 @@ function categoryForCode(code: string): string {
   return CATEGORY_FOR_EXIT[CODE_TO_EXIT[code] ?? EXIT_CODES.GENERAL_ERROR];
 }
 
-/** Convert a thrown value into a structured envelope error. */
 export function toEnvelopeError(error: unknown): EnvelopeError {
   if (ReleaseKitError.isReleaseKitError(error)) {
     return {
       code: error.code,
       category: categoryForCode(error.code),
-      // Only ReleaseKitError subclasses that classify transience (LLMError) carry this; a missing or
-      // undefined flag stays conservatively non-retryable so an agent never retries an unknown failure.
+      // Only ReleaseKitError subclasses that classify transience (LLMError) carry this.
       retryable: (error as { retryable?: boolean }).retryable === true,
       message: error.message,
     };

@@ -79,7 +79,6 @@ describe('AnthropicProvider', () => {
   });
 
   it('should find the text block even when a thinking block precedes it (thinking-model forward-compat)', async () => {
-    // Sonnet 5 / Fable 5 return thinking blocks ahead of the text block; content[0] would be `thinking`.
     replies({
       content: [
         { type: 'thinking', thinking: 'let me reason about this' },

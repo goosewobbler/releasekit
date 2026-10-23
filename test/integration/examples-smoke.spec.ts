@@ -39,8 +39,7 @@ describe('examples smoke-test generator', () => {
   });
 
   it('should extract pnpm/action-setup into every scenario that installs with pnpm', () => {
-    // The whole point: each smoke job must run the example's real pnpm setup, so
-    // a missing pnpm/action-setup would surface as `pnpm: command not found`.
+    // Each smoke job must run the example's real pnpm setup, so a missing one surfaces as `pnpm: command not found`.
     for (const scenario of SCENARIOS) {
       const uses = stepsOf(`smoke-${scenario.id}`).map((s) => s.uses);
       expect(uses.some((u) => typeof u === 'string' && u.startsWith('pnpm/action-setup@'))).toBe(true);
@@ -59,8 +58,8 @@ describe('examples smoke-test generator', () => {
   it('should set up the rust toolchain and probe cargo for the cargo scenario', () => {
     const steps = stepsOf('smoke-monorepo-rust');
     expect(steps.map((s) => s.uses)).toContain('dtolnay/rust-toolchain@stable');
-    // Config-derived probe — catches `cargo: command not found` even though the
-    // dry run short-circuits the real `cargo publish`.
+    // Config-derived probe: catches `cargo: command not found` even though the dry run short-circuits the real
+    // `cargo publish`.
     const cargoProbe = steps.find((s) => s.run === 'cargo --version');
     expect(cargoProbe).toBeDefined();
   });
@@ -84,8 +83,7 @@ describe('examples smoke-test generator', () => {
   });
 
   it('should not leak any secrets/token references into the smoke workflow', () => {
-    // The dry run uses no secrets; the example env that references them is stripped
-    // during extraction. Assert nothing slipped through.
+    // The dry run uses no secrets; the example env that references them is stripped during extraction.
     const yaml = render();
     expect(yaml).not.toMatch(/secrets\./);
     expect(yaml).not.toMatch(/NODE_AUTH_TOKEN|CARGO_REGISTRY_TOKEN|NPM_TOKEN/);

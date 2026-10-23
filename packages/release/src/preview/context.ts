@@ -7,9 +7,6 @@ export interface PreviewContext {
   token: string;
 }
 
-/**
- * Resolve PR context from CLI flags or GitHub Actions environment variables.
- */
 export function resolvePreviewContext(opts: { pr?: string; repo?: string }): PreviewContext {
   const token = process.env.GITHUB_TOKEN;
   if (!token) {
@@ -31,7 +28,6 @@ function resolvePRNumber(cliValue?: string): number {
     return num;
   }
 
-  // Auto-detect from GitHub Actions event payload
   const eventPath = process.env.GITHUB_EVENT_PATH;
   if (eventPath && fs.existsSync(eventPath)) {
     try {

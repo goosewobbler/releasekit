@@ -44,8 +44,6 @@ export function createNotesCommand(): Command {
       try {
         const loadedConfig = loadConfig({ cwd: process.cwd(), configPath: options.config });
         const config: import('./core/types.js').Config = loadedConfig?.notes ?? {};
-        // Inherit top-level monorepo path config so rootPath/packagesPath overrides work
-        // without requiring a (now-removed) duplicate notes.monorepo key.
         if (loadedConfig?.monorepo && !config.monorepo) {
           config.monorepo = loadedConfig.monorepo;
         }
@@ -134,17 +132,14 @@ export function createNotesCommand(): Command {
               };
             }
 
-            // Validate the CLI-assembled LLM config the same way loadConfig validates a config file,
-            // so a bad --llm-provider or a missing --llm-model fails loud here (non-zero exit via
-            // handleError) instead of reaching createProvider and being swallowed by the pipeline's
-            // soft-fail as a silent degradation to non-LLM notes.
+            // Validate so a bad --llm-provider or a missing --llm-model fails loud here instead of being
+            // swallowed by the pipeline's soft-fail as a silent degradation to non-LLM notes.
             let validatedLlm: import('./core/types.js').LLMConfig;
             try {
               validatedLlm = LLMConfigSchema.parse(llm) as import('./core/types.js').LLMConfig;
             } catch (err) {
-              // Surface the Zod issue messages, which name the actual failing field (provider enum,
-              // empty/missing model, or missing baseURL for openai-compatible) — a static message
-              // would misattribute e.g. a missing --llm-base-url to the model.
+              // Zod issue messages name the actual failing field - a static message would misattribute
+              // e.g. a missing --llm-base-url to the model.
               const issues = (err as { issues?: Array<{ message: string }> }).issues;
               const detail =
                 issues?.map((i) => i.message).join('; ') ?? (err instanceof Error ? err.message : String(err));
@@ -191,8 +186,6 @@ export function createNotesCommand(): Command {
 
         if (options.monorepo) {
           const monoMode = options.monorepo as 'root' | 'packages' | 'both';
-          // Wire --monorepo through to the changelog's location mode. Release notes use a per-version
-          // directory rather than location modes, so they're unaffected.
           if (config.changelog !== false && !options.changelogMode) {
             config.changelog = { ...(config.changelog ?? {}), mode: monoMode };
           }

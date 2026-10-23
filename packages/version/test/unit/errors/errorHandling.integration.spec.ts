@@ -36,12 +36,10 @@ describe('Error Handling Integration', () => {
         }
       }
 
-      // Both version errors were logged via console.error
       const errorMessages = errorSpy.mock.calls.map((c) => c[0]);
       expect(errorMessages.some((m: string) => m.includes('Git tag already exists'))).toBe(true);
       expect(errorMessages.some((m: string) => m.includes('Failed to get packages information'))).toBe(true);
 
-      // Suggestions were also logged via console.error (new behavior)
       expect(errorMessages.some((m: string) => m.includes('Suggested solutions'))).toBe(true);
     });
 
@@ -65,7 +63,6 @@ describe('Error Handling Integration', () => {
       gitError.logError();
       versionError.logError();
 
-      // Both errors logged via console.error
       // Each error: 1 error message + 1 header + N suggestions
       // NOT_GIT_REPO: 1 + 1 + 2 = 4, INVALID_CONFIG: 1 + 1 + 3 = 5, total = 9
       expect(errorSpy).toHaveBeenCalledTimes(9);
@@ -110,7 +107,6 @@ describe('Error Handling Integration', () => {
 
       simpleGitError.logError();
 
-      // Just the error message, no suggestions header
       expect(errorSpy).toHaveBeenCalledTimes(1);
       expect(errorSpy.mock.calls[0]?.[0]).toContain('Git operation failed');
     });

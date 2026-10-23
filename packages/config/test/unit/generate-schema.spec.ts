@@ -1,12 +1,5 @@
-/**
- * Tests for scripts/generate-schema.ts.
- *
- * These pin the contract the generated releasekit.schema.json must keep:
- * draft-07 top-level metadata, additionalProperties declared on every object
- * (so editors/ajv reject unknown keys), and the Zod `.describe()` text carried
- * through to the schema. Drift here silently breaks editor autocompletion and
- * the examples-validate ajv workflow.
- */
+// Schema drift silently breaks editor autocompletion and the examples-validate
+// ajv workflow.
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -29,10 +22,8 @@ describe('generate-schema', () => {
     it('should declare additionalProperties on every object node (no silent leniency)', () => {
       const schema = buildSchema();
       const stack: unknown[] = [schema];
-      // Collect violations as we walk the tree, then fail in a single top-level
-      // assertion. `expect` inside an `if` is flagged by vitest/no-conditional-expect
-      // and would also short-circuit on the first failure instead of surfacing all
-      // of them.
+      // Collected rather than asserted inline: vitest/no-conditional-expect flags
+      // `expect` inside an `if`, and this surfaces every violation, not just the first.
       const violations: string[] = [];
       let objectsChecked = 0;
       while (stack.length > 0) {
@@ -43,10 +34,8 @@ describe('generate-schema', () => {
         const obj = node as Record<string, unknown>;
         if (obj.type === 'object') {
           objectsChecked++;
+          // Allowed: `false` (closed object) or an object schema (z.record value type).
           if (obj.additionalProperties === undefined) {
-            // Either `false` (closed object) or an object schema (z.record value type).
-            // A bare `true` or an undeclared key would regress to the old
-            // hand-maintained schema's silent acceptance of unknown keys.
             violations.push(
               `object node missing additionalProperties: ${JSON.stringify(obj.properties ? Object.keys(obj.properties) : obj)}`,
             );
@@ -66,8 +55,6 @@ describe('generate-schema', () => {
       const schema = buildSchema() as {
         properties?: Record<string, { properties?: Record<string, { description?: string }> }>;
       };
-      // ci.scopeLabels must keep its description
-      // (an empty description here is the exact regression this generator prevents).
       const scopeLabels = schema.properties?.ci?.properties?.scopeLabels;
       expect(scopeLabels?.description).toBeDefined();
       expect((scopeLabels?.description ?? '').length).toBeGreaterThan(0);

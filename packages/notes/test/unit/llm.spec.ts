@@ -9,10 +9,6 @@ import { enhanceAndCategorize } from '../../src/llm/tasks/enhance-and-categorize
 import { generateReleaseNotes } from '../../src/llm/tasks/release-notes.js';
 import { summarizeEntries } from '../../src/llm/tasks/summarize.js';
 
-// ---------------------------------------------------------------------------
-// Mock provider
-// ---------------------------------------------------------------------------
-
 function makeMockProvider(
   response: string | ((messages: LLMMessage[]) => string),
 ): LLMProvider & { callCount: number } {
@@ -59,10 +55,6 @@ const sampleEntries: ChangelogEntry[] = [
 
 const llmContext = { packageName: 'my-lib', version: '2.0.0', previousVersion: '1.0.0' };
 
-// ---------------------------------------------------------------------------
-// enhanceEntry
-// ---------------------------------------------------------------------------
-
 describe('enhanceEntry()', () => {
   it('should return the provider response as the new description', async () => {
     const provider = makeMockProvider('Add real-time streaming to the API');
@@ -94,10 +86,6 @@ describe('enhanceEntry()', () => {
     expect(provider.callCount).toBe(1);
   });
 });
-
-// ---------------------------------------------------------------------------
-// enhanceEntries
-// ---------------------------------------------------------------------------
 
 describe('enhanceEntries()', () => {
   it('should enhance all entries', async () => {
@@ -154,14 +142,10 @@ describe('enhanceEntries()', () => {
     const result = await enhanceEntries(provider, sampleEntries, llmContext);
     expect(result).toHaveLength(3);
     expect(result[0]?.description).toBe('ok');
-    expect(result[1]?.description).toBe('Fix null pointer in parser'); // original preserved
+    expect(result[1]?.description).toBe('Fix null pointer in parser');
     expect(result[2]?.description).toBe('ok');
   });
 });
-
-// ---------------------------------------------------------------------------
-// summarizeEntries
-// ---------------------------------------------------------------------------
 
 describe('summarizeEntries()', () => {
   it('should return the provider response as the summary', async () => {
@@ -176,10 +160,6 @@ describe('summarizeEntries()', () => {
     expect(provider.callCount).toBe(1);
   });
 });
-
-// ---------------------------------------------------------------------------
-// categorizeEntries
-// ---------------------------------------------------------------------------
 
 describe('categorizeEntries()', () => {
   it('should parse valid JSON response into categories', async () => {
@@ -224,7 +204,6 @@ describe('categorizeEntries()', () => {
     );
     const result = await categorizeEntries(provider, entriesWithScopes, llmContext);
 
-    // Scopes should be cleared since LLM didn't assign new ones
     expect(result[0]?.entries[0]?.scope).toBeUndefined();
     expect(result[0]?.entries[1]?.scope).toBeUndefined();
   });
@@ -259,18 +238,13 @@ describe('categorizeEntries()', () => {
 
     const dev = result.find((c) => c.category === 'Developer');
     expect(dev?.entries[0]?.scope).toBe('CI');
-    // 'InvalidScope' is dropped per the default invalidScopeAction: 'remove'.
     expect(dev?.entries[1]?.scope).toBeUndefined();
-    // Only one LLM call — scope mismatches are resolved by the configured action, not retried.
     expect(callCount).toBe(1);
   });
 
   it('should strip all scopes when scope mode is none', async () => {
     const entries: ChangelogEntry[] = [{ type: 'added', description: 'Update CI' }];
 
-    // With mode: none, even valid scope causes a validation error; corrective retry
-    // will eventually exhaust since no valid scope exists in empty allowed list.
-    // To test the clean path: use a provider that returns null scope.
     const provider = makeMockProvider(JSON.stringify({ entries: [{ category: 'Developer', scope: null }] }));
 
     const result = await categorizeEntries(provider, entries, {
@@ -337,7 +311,7 @@ describe('categorizeEntries()', () => {
     const result = await categorizeEntries(provider, sampleEntries, llmContext);
     expect(result).toHaveLength(1);
     expect(result[0]?.category).toBe('General');
-    // Scopes are stripped in the fallback path — they were never LLM-validated.
+    // Scopes are stripped in the fallback path - they were never LLM-validated.
     expect(result[0]?.entries[0]?.scope).toBeUndefined();
     expect(result[0]?.entries[0]?.description).toBe('Add streaming support');
   });
@@ -364,10 +338,6 @@ describe('categorizeEntries()', () => {
     expect(systemMsg?.content).toContain('Group into meaningful categories');
   });
 });
-
-// ---------------------------------------------------------------------------
-// enhanceAndCategorize (combined single-call)
-// ---------------------------------------------------------------------------
 
 describe('enhanceAndCategorize()', () => {
   it('should parse valid response into enhanced entries and categories', async () => {
@@ -443,7 +413,6 @@ describe('enhanceAndCategorize()', () => {
     const provider = makeMockProvider(response);
     const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
 
-    // LLM returning null for scope means "no scope" — original scope is not preserved
     expect(result.enhancedEntries[0]?.scope).toBeUndefined();
   });
 
@@ -510,7 +479,7 @@ describe('enhanceAndCategorize()', () => {
   it('should return General fallback when all corrective retry attempts fail', async () => {
     const provider = makeMockProvider('always invalid json');
     const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
-    // Scopes and leadIns are stripped in the fallback path — they were never LLM-validated.
+    // Scopes and leadIns are stripped in the fallback path - they were never LLM-validated.
     expect(result.enhancedEntries[0]?.description).toBe('Add streaming support');
     expect(result.enhancedEntries[0]?.scope).toBeUndefined();
     expect(result.categories).toHaveLength(1);
@@ -710,14 +679,13 @@ describe('enhanceAndCategorize()', () => {
   });
 
   it('should return General fallback when response has fewer entries than input', async () => {
-    // Only 1 entry in response for 3 inputs — count mismatch exhausts corrective retries → fallback.
+    // Count mismatch exhausts corrective retries → fallback.
     const response = JSON.stringify({
       entries: [{ description: 'Only first', category: 'New', scope: null, breaking: null, leadIn: null }],
     });
 
     const provider = makeMockProvider(response);
     const result = await enhanceAndCategorize(provider, sampleEntries, llmContext);
-    // Scopes and leadIns are stripped in the fallback path — they were never LLM-validated.
     expect(result.enhancedEntries[0]?.description).toBe('Add streaming support');
     expect(result.enhancedEntries[0]?.scope).toBeUndefined();
     expect(result.categories[0]?.category).toBe('General');
@@ -748,10 +716,6 @@ describe('enhanceAndCategorize()', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// generateReleaseNotes
-// ---------------------------------------------------------------------------
-
 describe('generateReleaseNotes()', () => {
   it('should return the provider response', async () => {
     const notes = 'This release adds streaming support and fixes a critical bug.';
@@ -767,10 +731,6 @@ describe('generateReleaseNotes()', () => {
     expect(provider.callCount).toBe(1);
   });
 });
-
-// ---------------------------------------------------------------------------
-// capabilities: schema options gating
-// ---------------------------------------------------------------------------
 
 describe('capabilities: schema options gating', () => {
   const threeEntryResponse = JSON.stringify({

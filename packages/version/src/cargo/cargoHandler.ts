@@ -1,7 +1,3 @@
-/**
- * Cargo.toml management utilities for releasekit-version
- */
-
 import fs from 'node:fs';
 import path from 'node:path';
 import type { CargoManifest } from '@releasekit/config';
@@ -13,7 +9,6 @@ import { recordCargoBump } from './cargoLock.js';
 
 export { isCargoToml };
 
-// Define the CargoInfo interface for internal use
 export interface CargoInfo {
   name: string;
   version: string;
@@ -22,9 +17,6 @@ export interface CargoInfo {
   content: CargoManifest;
 }
 
-/**
- * Get cargo info from Cargo.toml
- */
 export function getCargoInfo(cargoPath: string): CargoInfo {
   if (!fs.existsSync(cargoPath)) {
     log(`Cargo.toml file not found at: ${cargoPath}`, 'error');
@@ -57,11 +49,8 @@ export function getCargoInfo(cargoPath: string): CargoInfo {
 }
 
 /**
- * Update a Cargo.toml file with a new version
- * Preserves comments and formatting as much as possible
- *
- * Also records the bump for the end-of-run Cargo.lock sync. Every version-step bump goes through here,
- * so no strategy can skip the sync.
+ * Records the bump for the end-of-run Cargo.lock sync. Every version-step bump goes through here, so no
+ * strategy can skip the sync.
  */
 export function updateCargoVersion(cargoPath: string, version: string, dryRun = false): void {
   try {
@@ -72,15 +61,13 @@ export function updateCargoVersion(cargoPath: string, version: string, dryRun = 
       throw new Error(`No package name found in ${cargoPath}`);
     }
 
-    // Update the version in the manifest
     if (!cargo.package) {
       cargo.package = { name: packageName, version };
     } else {
       cargo.package.version = version;
     }
 
-    // Stringify once — used for either flush or immediate write
-    // Note: TOML.stringify does not preserve original formatting or comments.
+    // TOML.stringify does not preserve original formatting or comments.
     const updatedContent = TOML.stringify(cargo as Record<string, unknown>);
     if (dryRun) {
       recordPendingWrite(cargoPath, updatedContent);
@@ -88,7 +75,6 @@ export function updateCargoVersion(cargoPath: string, version: string, dryRun = 
       fs.writeFileSync(cargoPath, updatedContent);
     }
 
-    // Track update for JSON output
     addPackageUpdate(packageName, version, cargoPath);
     recordCargoBump({ cargoTomlPath: cargoPath, name: packageName, version });
 

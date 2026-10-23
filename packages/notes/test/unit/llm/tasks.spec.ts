@@ -10,10 +10,6 @@ import {
   renderScopeInstruction,
 } from '../../../src/llm/tasks/shared.js';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 const entries: ChangelogEntry[] = [
   { type: 'added', description: 'Add streaming support' },
   { type: 'fixed', description: 'Fix null pointer in parser' },
@@ -22,14 +18,9 @@ const entries: ChangelogEntry[] = [
 
 const ctx = { packageName: 'my-lib', version: '2.0.0', previousVersion: '1.0.0' };
 
-/** Wraps a structured payload as a CompleteResult (structured-output path). */
 function structured(value: unknown): CompleteResult {
   return { content: JSON.stringify(value), structured: value };
 }
-
-// ---------------------------------------------------------------------------
-// createCategorizeValidator
-// ---------------------------------------------------------------------------
 
 describe('createCategorizeValidator()', () => {
   it('should validate a well-formed response and group entries by category', () => {
@@ -129,10 +120,6 @@ describe('createCategorizeValidator()', () => {
     expect(dev?.entries[1]?.scope).toBeUndefined();
   });
 });
-
-// ---------------------------------------------------------------------------
-// createEnhanceAndCategorizeValidator
-// ---------------------------------------------------------------------------
 
 describe('createEnhanceAndCategorizeValidator()', () => {
   function fullEntry(description: string, category: string, scope: string | null = null) {
@@ -249,10 +236,6 @@ describe('createEnhanceAndCategorizeValidator()', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// buildCategorySection
-// ---------------------------------------------------------------------------
-
 describe('buildCategorySection()', () => {
   it('should return the fallback when no categories are configured', () => {
     expect(buildCategorySection(undefined, 'FALLBACK')).toBe('FALLBACK');
@@ -273,10 +256,6 @@ describe('buildCategorySection()', () => {
     );
   });
 });
-
-// ---------------------------------------------------------------------------
-// renderScopeInstruction
-// ---------------------------------------------------------------------------
 
 describe('renderScopeInstruction()', () => {
   it('should return an empty string when there are no pairs', () => {

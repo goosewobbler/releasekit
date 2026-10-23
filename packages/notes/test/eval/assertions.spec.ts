@@ -101,7 +101,7 @@ describe('eval assertions', () => {
     });
 
     it('should catch a drop and a duplicate that cancel out in a total', () => {
-      // Three entries in, three bucketed — a count-only check passes this.
+      // Three entries in, three bucketed - a count-only check passes this.
       expect(checkNoEntryLoss([bucket('New', [a, c]), bucket('Fixed', [c])], [a, b, c], 3)).toEqual([
         'entry 1 was dropped from categorization',
         'entry 2 was categorized 2 times',

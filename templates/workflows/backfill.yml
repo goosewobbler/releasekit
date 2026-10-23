@@ -1,8 +1,6 @@
 name: Backfill Release Notes
 
-# Manually regenerate release notes for already-released versions from git history and update the
-# matching GitHub release bodies. Dry-run by default — review the run logs, then re-run with
-# apply: true. Leave `package` blank to backfill every package in the workspace.
+# Dry-run by default: review the run logs, then re-run with apply: true.
 on:
   workflow_dispatch:
     inputs:
@@ -28,11 +26,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 0 # full history — backfill reads every tag
+          fetch-depth: 0 # backfill reads every tag
       - uses: goosewobbler/releasekit@v0
         with:
           mode: backfill
-          # `all` and `package` are mutually exclusive; pick by whether a package was given.
+          # `all` and `package` are mutually exclusive.
           package: ${{ inputs.package }}
           all: ${{ inputs.package == '' }}
           from: ${{ inputs.from }}

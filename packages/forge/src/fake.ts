@@ -27,43 +27,29 @@ import { isBotComment } from './types.js';
 interface FakeComment {
   id: number;
   body: string;
-  /**
-   * The PR the comment lives on. `createComment` tags it; a seeded comment may set it to scope the
-   * comment to one PR. Left undefined, a seeded comment is "ambient" — visible from any PR's
-   * `findComment` (a convenience for the common single-PR test).
-   */
+  /** Left undefined, a seeded comment is visible from any PR's `findComment`. */
   prNumber?: number;
-  /** The comment's author. Left undefined, a seeded comment reads as bot-authored (the common case).
-   *  Seed `{ type: 'User' }` to simulate a human-authored forgery for author-binding tests. */
+  /** Left undefined, a seeded comment reads as bot-authored. */
   user?: CommentAuthor;
 }
 
-/** Seed state for a {@link FakeForge}. Everything is optional; unseeded reads return empty/null. */
 export interface FakeForgeSeed {
   standingPR?: StandingPullRequest | null;
   recentlyClosedPRs?: AssociatedPullRequest[];
   openPullRequests?: OpenPullRequest[];
   pullRequestsForCommit?: Record<string, AssociatedPullRequest[]>;
   issues?: Record<number, IssueDetails>;
-  /** Open issues (not PRs) discoverable via `findOpenIssueByLabel`. */
   openIssues?: Array<{ number: number; url: string; labels: string[] }>;
   pullRequests?: Record<number, PullRequestDetails>;
   comments?: FakeComment[];
   labelNames?: string[];
   releases?: ReleaseSummary[];
   releasesByTag?: Record<string, ReleaseRef>;
-  /** Per-username repo permission. Unseeded usernames resolve to 'none'. */
   actorPermissions?: Record<string, RepoPermission>;
-  /** Team memberships, keyed by `org/team-slug` → member logins. Unseeded teams have no members. */
+  /** Keyed by `org/team-slug`. */
   teamMemberships?: Record<string, string[]>;
 }
 
-/**
- * In-memory {@link Forge} for tests — the second adapter that justifies the seam. Reads return seeded
- * data; writes mutate in-memory state and are recorded on public arrays for assertions. Comment and
- * label operations behave realistically (marker upsert finds/updates a seeded comment; createLabel is
- * idempotent) so callers can be exercised end-to-end without an Octokit mock.
- */
 export class FakeForge implements Forge {
   standingPR: StandingPullRequest | null;
   private readonly recentlyClosedPRs: AssociatedPullRequest[];
@@ -95,7 +81,7 @@ export class FakeForge implements Forge {
   readonly updatedReleases: Array<{ releaseId: number; release: ReleaseChanges }> = [];
 
   private nextCommentId: number;
-  // Issues and PRs share one number space on GitHub — one counter backs both.
+  // Issues and PRs share one number space on GitHub.
   private nextNumber = 42;
   private nextReleaseId = 1;
 
@@ -106,8 +92,7 @@ export class FakeForge implements Forge {
     this.pullRequestsForCommit = seed.pullRequestsForCommit ?? {};
     this.issues = seed.issues ?? {};
     this.openIssues = [...(seed.openIssues ?? [])];
-    // An issue seeded via the `issues` map (for getIssue) should also be discoverable by
-    // findOpenIssueByLabel, matching GitHub — auto-register the non-PR ones not already listed.
+    // Issues seeded for getIssue are also discoverable by findOpenIssueByLabel, as on GitHub.
     for (const [num, details] of Object.entries(this.issues)) {
       const n = Number(num);
       if (!details.isPullRequest && !this.openIssues.some((i) => i.number === n)) {
@@ -125,7 +110,7 @@ export class FakeForge implements Forge {
   }
 
   async isTeamMember(org: string, teamSlug: string, username: string): Promise<boolean> {
-    // GitHub resolves org/team slugs AND usernames case-insensitively — match the real adapter.
+    // GitHub resolves org/team slugs and usernames case-insensitively.
     const lcUser = username.toLowerCase();
     const lcKey = `${org}/${teamSlug}`.toLowerCase();
     const key = Object.keys(this.teamMemberships).find((k) => k.toLowerCase() === lcKey);
@@ -133,8 +118,6 @@ export class FakeForge implements Forge {
   }
 
   async getActorPermission(username: string): Promise<RepoPermission> {
-    // GitHub resolves usernames case-insensitively (Alice === alice); match the real adapter so the
-    // fake doesn't diverge. Unseeded → 'none'.
     const lc = username.toLowerCase();
     const key = Object.keys(this.actorPermissions).find((k) => k.toLowerCase() === lc);
     return (key !== undefined ? this.actorPermissions[key] : undefined) ?? 'none';
@@ -184,7 +167,6 @@ export class FakeForge implements Forge {
     const url = `https://github.com/fake/fake/issues/${number}`;
     const labels = issue.labels ?? [];
     this.openIssues.push({ number, url, labels });
-    // Reflect the new issue in getIssue, so a draft round-trip (create → read back) works.
     this.issues[number] = { body: issue.body, title: issue.title, labels, isPullRequest: false };
     return { number, url };
   }
@@ -200,15 +182,13 @@ export class FakeForge implements Forge {
         existing.title = changes.title;
       }
     }
-    // Closing drops it from open-issue discovery.
     if (changes.state === 'closed') {
       this.openIssues = this.openIssues.filter((i) => i.number !== issueNumber);
     }
   }
 
   async findOpenIssueByLabel(label: string): Promise<IssueRef | null> {
-    // GitHub returns newest-first; approximate "newest" with the highest number so multiple seeded
-    // matches resolve the way production would.
+    // GitHub returns newest-first; the highest number approximates newest.
     const matches = this.openIssues.filter((i) => i.labels.includes(label)).sort((a, b) => b.number - a.number);
     return matches[0] ? { number: matches[0].number, url: matches[0].url } : null;
   }
@@ -217,8 +197,7 @@ export class FakeForge implements Forge {
     const matches = this.comments.filter(
       (c) => c.body.startsWith(marker) && (c.prNumber === undefined || c.prNumber === prNumber),
     );
-    // Mirror the real adapter: prefer a bot-authored match, falling back to a human-authored one so
-    // the caller can still see (and reject) it when it's the only marker comment present.
+    // Mirrors GitHubForge.findComment.
     return matches.find((c) => isBotComment(c)) ?? matches[0] ?? null;
   }
 
@@ -238,7 +217,6 @@ export class FakeForge implements Forge {
   async upsertMarkerComment(prNumber: number, marker: string, body: string): Promise<void> {
     this.upsertedComments.push({ prNumber, marker, body });
     const existing = await this.findComment(prNumber, marker);
-    // Only adopt a bot-authored comment; a human-authored marker is left alone.
     if (existing && isBotComment(existing)) {
       await this.updateComment(existing.id, body);
     } else {
@@ -287,7 +265,6 @@ export class FakeForge implements Forge {
   }
 }
 
-/** Convenience factory mirroring {@link createGitHubForge}. */
 export function createFakeForge(seed: FakeForgeSeed = {}): FakeForge {
   return new FakeForge(seed);
 }

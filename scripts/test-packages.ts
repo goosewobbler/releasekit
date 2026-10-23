@@ -1,23 +1,4 @@
 #!/usr/bin/env tsx
-/**
- * Script to test each published releasekit package in isolation.
- *
- * For each package it:
- * 1. Packs all packages as tarballs (via pnpm pack)
- * 2. Creates an isolated temp directory with strict pnpm settings
- * 3. Installs only that package (with sibling overrides for internal deps)
- * 4. Runs smoke tests (ESM import + CLI --help)
- * 5. For @releasekit/release: runs a full dry-run in a temp git repo
- *
- * Usage:
- *   pnpm tsx scripts/test-packages.ts [--package=<name>] [--skip-build]
- *
- * Examples:
- *   pnpm tsx scripts/test-packages.ts                    # test all packages
- *   pnpm tsx scripts/test-packages.ts --package=version  # test only @releasekit/version
- *   pnpm tsx scripts/test-packages.ts --skip-build       # reuse existing tarballs
- */
-
 import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -29,7 +10,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const rootDir = normalize(join(__dirname, '..'));
 
-// Packages that get published to npm
 const PUBLISHED_PACKAGES = ['version', 'notes', 'publish', 'release'] as const;
 
 const BIN_NAMES: Record<PackageName, string> = {
@@ -138,10 +118,8 @@ function createIsolatedDir(label: string): string {
 }
 
 function createPackageJson(dir: string, pkg: string, tarballs: Record<PackageName, string>): void {
-  // Only override published sibling packages to use local tarballs.
-  // Internal packages (core, config) must be bundled into each published
-  // package — if they leak as dependencies the install will fail, which is
-  // exactly what we want this test to catch.
+  // Only published siblings get overrides: internal packages (core, config) must be
+  // bundled, so if they leak as dependencies the install fails - which this test catches.
   const overrides: Record<string, string> = {};
   const deps: Record<string, string> = {};
 
@@ -184,7 +162,6 @@ function testCli(dir: string, binName: string): void {
 }
 
 function testReleaseDryRun(dir: string): void {
-  // Create a temp git repo with conventional commits
   const repoDir = join(dir, 'test-repo');
   mkdirSync(repoDir, { recursive: true });
 
@@ -192,7 +169,6 @@ function testReleaseDryRun(dir: string): void {
   execCommand('git config user.email "test@test.com"', repoDir, 'Configuring git email');
   execCommand('git config user.name "Test User"', repoDir, 'Configuring git name');
 
-  // Create a package.json and config
   writeFileSync(join(repoDir, 'package.json'), JSON.stringify({ name: 'test-pkg', version: '0.1.0' }, null, 2));
   writeFileSync(
     join(repoDir, 'releasekit.config.json'),
@@ -208,7 +184,7 @@ function testReleaseDryRun(dir: string): void {
 
   // Run from within the git repo directory to avoid --project-dir which
   // doesn't propagate to all internal git operations. Resolve the binary
-  // via node so this works cross-platform (no symlinks needed).
+  // via node so this works cross-platform.
   const releasekitBin = join(dir, 'node_modules', '@releasekit', 'release', 'dist', 'cli.js');
   const output = execCommand(
     `node "${releasekitBin}" release --dry-run --json`,
@@ -216,8 +192,7 @@ function testReleaseDryRun(dir: string): void {
     'Running releasekit release --dry-run --json',
   );
 
-  // Validate JSON output. Unwrap the uniform CLI envelope ({ schemaVersion, status, data, … }) to its
-  // data payload; tolerate legacy un-enveloped output.
+  // Unwrap the CLI envelope, tolerating legacy un-enveloped output.
   try {
     const parsed = JSON.parse(output.trim());
     const result =
@@ -250,7 +225,6 @@ function testPackage(pkg: PackageName, tarballs: Record<PackageName, string>): v
     testImport(tempDir, pkg);
     testCli(tempDir, BIN_NAMES[pkg]);
 
-    // For release package: test full dry-run
     if (pkg === 'release') {
       testReleaseDryRun(tempDir);
     }

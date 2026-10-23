@@ -31,7 +31,6 @@ runs:
       shell: bash
       run: |
         mkdir -p .artifacts
-        # Convert multiline paths to space-separated for zip
         PATHS=$(echo "${{ inputs.paths }}" | tr '\n' ' ' | xargs)
         zip -r .artifacts/${{ inputs.name }}.zip $PATHS -x "*/node_modules/*"
         echo "Artifact size: $(du -h .artifacts/${{ inputs.name }}.zip | cut -f1)"

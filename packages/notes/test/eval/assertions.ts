@@ -1,21 +1,17 @@
 /**
- * Deterministic quality checks for generated release notes. Each returns the list of violations it
- * found (empty = clean), so the spec can assert `toEqual([])` and surface the offending lines on
- * failure. Kept pure and content-based so they hold for both replayed fixtures and live-model output.
+ * Deterministic quality checks for generated release notes. Kept pure and content-based so they hold
+ * for both replayed fixtures and live-model output.
  */
 
-/** Internal HTML markers (`<!-- releasekit-… -->`) must never leak into user-facing notes. */
 export function findMarkerLeaks(text: string): string[] {
   return text.match(/<!--\s*releasekit-[^>]*-->/g) ?? [];
 }
 
-/** A model that restates "Updated dependencies" per bump produces noisy, duplicated churn lines. */
 export function findDuplicateDependencyChurn(text: string): string[] {
   const lines = text.split('\n').filter((line) => /updated dependencies/i.test(line));
   return lines.length > 1 ? lines : [];
 }
 
-/** Guard against a truncated (empty/near-empty) or runaway generation. */
 export function checkLengthBounds(text: string, min: number, max: number): string[] {
   const n = text.trim().length;
   if (n < min) {
@@ -34,17 +30,14 @@ function looksPastTense(word: string): boolean {
   return w.endsWith('ed') || IRREGULAR_PAST.has(w);
 }
 
-/** Markdown list-item lines — bullets (`- …`, `* …`) and ordered items (`1. …`). */
 export function listItemLines(text: string): string[] {
   return text.split('\n').filter((line) => /^\s*(?:[-*]|\d+\.)\s+\S/.test(line));
 }
 
 /**
- * The style guides all mandate past tense ("Added feature", not "Add feature"). Check that a majority
- * of list items lead with a past-tense verb — a ratio, not all-or-nothing, since an item may
- * legitimately open with a proper noun or an API name. Both bullet and numbered lists are inspected,
- * so a model that switches to a numbered list can't bypass the check. Pure prose (no list items) has
- * no reliable per-change verb to inspect, so it is not tense-checked here.
+ * A ratio, not all-or-nothing, since an item may legitimately open with a proper noun or an API name.
+ * Numbered lists are inspected too, so a model that switches to one can't bypass the check. Pure prose
+ * has no reliable per-change verb to inspect, so it is not tense-checked.
  */
 export function checkPastTenseLeaning(text: string, minRatio = 0.6): string[] {
   const items = listItemLines(text);
@@ -63,10 +56,7 @@ interface CategoryGroup {
   entries: unknown[];
 }
 
-/**
- * Flags a grouping that passes validation but is useless, e.g. everything in one category. The `maxShare`
- * check needs four or more entries.
- */
+/** Flags a grouping that passes validation but is useless, e.g. everything in one category. */
 export function checkCategoryDistribution(
   categories: CategoryGroup[],
   opts: { minCategories?: number; maxShare?: number } = {},
@@ -103,9 +93,8 @@ export function checkCategoryDistribution(
 }
 
 /**
- * Every enhanced entry is in exactly one category, and categories hold nothing else. Compared by
- * identity (categories reuse the enhanced entry objects), since a drop and a duplicate cancel out in a
- * count. `expectedCount` catches entries lost during enhancement.
+ * Compared by identity (categories reuse the enhanced entry objects), since a drop and a duplicate
+ * cancel out in a count.
  */
 export function checkNoEntryLoss(categories: CategoryGroup[], entries: unknown[], expectedCount: number): string[] {
   const violations: string[] = [];

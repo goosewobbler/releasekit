@@ -1,25 +1,3 @@
-/**
- * Action Test Harness
- *
- * Simulates the GitHub Action environment to test the releasekit CLI locally.
- * This harness:
- * - Creates an isolated test project in a temp directory
- * - Simulates the CI environment (NODE_PATH only includes user's project node_modules)
- * - Runs the action's CLI with environment variables passed as INPUT_* vars
- * - Verifies the output matches expected behavior
- *
- * Usage:
- *   pnpm test:harness           # Run preview mode (default)
- *   pnpm test:harness:preview   # Run preview mode explicitly
- *   pnpm test:harness:release   # Run release mode with patch bump
- *   pnpm test:harness:multi     # Run release mode with npm + cargo, verify both manifests bumped
- *   pnpm test:harness:multi-npm-disabled  # As above but version.npm.enabled:false — package.json untouched, Cargo.toml bumped
- *   pnpm test:harness:backfill  # Reconstruct notes from git history (--all + --package), verify files/dates/scoping
- *
- * The harness defaults to running in "CI simulation" mode where:
- * - Only the test project's node_modules are available in NODE_PATH
- * - This mimics the actual CI environment where the action's node_modules aren't available
- */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -51,9 +29,6 @@ console.log('');
 let projectDir;
 try {
   if (mode === 'release-multi' || mode === 'release-multi-npm-disabled') {
-    // release-multi-npm-disabled sets version.npm.enabled: false — package.json manifests are left
-    // untouched while Cargo.toml is still versioned (the "detection enables, config opts out" path,
-    // where sync-strategy bugs previously skipped or abandoned the cargo write).
     const npmEnabled = mode !== 'release-multi-npm-disabled';
     const testProject = createMultiRegistryTestProject({ npmEnabled });
     projectDir = testProject.projectDir;
@@ -90,7 +65,7 @@ try {
     }
 
     // The Cargo.toml write happens before the sync strategy's "nothing updated" early return, so a
-    // manifest check alone can't catch the abandonment regression — assert the run actually released.
+    // manifest check alone can't catch an abandoned cargo-only update.
     const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
     if (!npmEnabled && /No packages were updated/i.test(output)) {
       throw new Error(`${mode}: run reported "No packages were updated" — the cargo-only update was abandoned`);
@@ -98,7 +73,6 @@ try {
 
     console.log('\n--- Verifying Multi-Registry Version Bumps ---');
     const bumpedVersion = '1.0.1';
-    // npm disabled leaves package.json at its original version; cargo is versioned either way.
     const expectedPkgVersion = npmEnabled ? bumpedVersion : '1.0.0';
     for (const pkgSlug of testProject.packages) {
       const pkgDir = path.join(testProject.projectDir, 'packages', pkgSlug);
@@ -155,7 +129,6 @@ try {
       }
     };
 
-    // 1. --all --apply: reconstruct every workspace package from the global tag series, write files.
     const applyResult = runBackfill(['--all', '--apply', '-c', 'releasekit.config.json']);
     if (applyResult.status !== 0) {
       throw new Error(`backfill --all failed with exit code ${applyResult.status}`);
@@ -168,10 +141,8 @@ try {
       const filePath = path.join(notesDir, exp.file);
       assert(fs.existsSync(filePath), `expected file ${exp.file} to exist`);
       const body = fs.readFileSync(filePath, 'utf-8');
-      // Date comes from the tag's commit, not the day the backfill ran.
       assert(body.includes(exp.date), `${exp.file} should be dated ${exp.date}`);
       assert(!body.includes(today), `${exp.file} should not be stamped with today's date (${today})`);
-      // Entries are scoped to the package's own directory.
       for (const s of exp.has) {
         assert(body.includes(s), `${exp.file} should mention "${s}"`);
       }
@@ -181,7 +152,6 @@ try {
       console.log(`✓ ${exp.file}: dated ${exp.date}, scoped correctly`);
     }
 
-    // 2. --package + --path + --from: single package, version-bounded (dry-run). Logs go to stderr.
     const dryResult = runBackfill([
       '--package',
       '@test/alpha',
@@ -195,12 +165,11 @@ try {
     if (dryResult.status !== 0) {
       throw new Error(`backfill --package failed with exit code ${dryResult.status}`);
     }
+    // Dry-run logs go to stderr.
     const dryOut = `${dryResult.stdout ?? ''}${dryResult.stderr ?? ''}`;
     assert(dryOut.includes('@test/alpha'), '--package run should name the package');
-    // --from 1.1.0 drops 1.0.0, leaving exactly one version.
     assert(dryOut.includes('Would backfill 1 version(s)'), '--from 1.1.0 should leave exactly one version');
     assert(dryOut.includes('1.1.0'), 'the remaining version should be 1.1.0');
-    // --path scopes the preview to this package only.
     assert(dryOut.includes('alpha two'), "preview should include this package's commit");
     assert(!dryOut.includes('beta two'), 'preview should be scoped to packages/alpha (no beta commits)');
     console.log('✓ --package @test/alpha --path packages/alpha --from 1.1.0: single package, scoped, version-bounded');

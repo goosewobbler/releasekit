@@ -99,7 +99,6 @@ describe('selection-region', () => {
     });
 
     it('should take package identity from the marker, not the edited display text', () => {
-      // A maintainer mangles the visible label but leaves the marker — identity must follow the marker.
       const body = `<!-- releasekit-selection -->\n\n- [ ] \`whatever the human typed\` <!-- rk-sel:@scope/real -->\n\n<!-- releasekit-selection-end -->`;
       expect(extractSelection(body)).toEqual({ deselected: ['@scope/real'] });
     });
@@ -109,7 +108,6 @@ describe('selection-region', () => {
         { packageName: '@scope/a', newVersion: '1.1.0', filePath: '' },
         { packageName: '@scope/b', newVersion: '2.0.0', filePath: '' },
       ];
-      // First render all-ticked, simulate the human unticking b, then re-render from the extracted set.
       const seeded = renderSelectionRegion(updates, new Set());
       const edited = seeded.replace('[x] `@scope/b`', '[ ] `@scope/b`');
       const extracted = extractSelection(edited);
@@ -170,15 +168,13 @@ describe('selection-region', () => {
         { packageName: '@scope/a', newVersion: '1.1.0', filePath: '', group: 'g' },
         { packageName: '@scope/b', newVersion: '1.1.0', filePath: '', group: 'g' },
       ];
-      // Whole group held (e.g. a primary cascade) is coherent — only a partial hold splits it.
+      // A whole-group hold is coherent - only a partial hold splits it.
       expect(
         selectionWarnings(updates, new Set(['@scope/a', '@scope/b']), { g: { sync: 'independent' } }),
       ).toHaveLength(0);
       expect(selectionWarnings(updates, new Set(['@scope/a']), { g: { sync: 'independent' } })).toHaveLength(1);
     });
   });
-
-  // --- Hierarchical / release-unit selection ---
 
   describe('hierarchical selection', () => {
     const tauriGroups = { tauri: { sync: 'linked' as const, packages: ['@wdio/tauri-*', 'tauri-plugin-*'] } };
@@ -289,9 +285,7 @@ describe('selection-region', () => {
           groups: { core: { sync: 'linked', packages: ['@scope/*'] } },
           allPackageNames: ['@scope/a', '@scope/b', '@scope/shared'],
         });
-        // Only one owner held → shared keeps releasing.
         expect([...cascadeDeselection(h, new Set(['@scope/a']))].sort()).toEqual(['@scope/a']);
-        // Both owners held → shared held too.
         expect([...cascadeDeselection(h, new Set(['@scope/a', '@scope/b']))].sort()).toEqual([
           '@scope/a',
           '@scope/b',
@@ -307,7 +301,7 @@ describe('selection-region', () => {
 
       it('should escalate a legacy directly-held child to holding its whole unit (transition fail-safe)', () => {
         // First run after primaryPackages is enabled, a child unticked in the old flat body arrives
-        // here directly — it must hold its whole unit so the held-back package never silently ships.
+        // here directly - it must hold its whole unit so the held-back package never silently ships.
         const h = computeHierarchy(tauriUpdates, cfg());
         expect([...cascadeDeselection(h, new Set(['@wdio/tauri-plugin']))].sort()).toEqual([
           '@wdio/tauri-plugin',
@@ -325,14 +319,14 @@ describe('selection-region', () => {
         expect(region).toContain('  - `@wdio/tauri-plugin` → 1.4.0 · coupled');
         expect(region).toContain('  - `tauri-plugin-wdio-webdriver` → 1.4.0 · coupled');
         expect(region).toContain('  </details>');
-        // Children are never task items and carry no marker — their state is derived, not toggled.
+        // Children are never task items and carry no marker - their state is derived, not toggled.
         expect(region).not.toContain('[x] `@wdio/tauri-plugin`');
         expect(region).not.toContain('rk-sel:@wdio/tauri-plugin');
       });
 
       it('should label independent-group members "bundled" rather than "coupled"', () => {
         // independent members version on their own commit-driven lines but ship atomically with the
-        // unit — "coupled" implies a shared version they don't have; "bundled" conveys atomic shipping.
+        // unit - "coupled" implies a shared version they don't have; "bundled" conveys atomic shipping.
         const independent = { tauri: { sync: 'independent' as const, packages: ['@wdio/tauri-*', 'tauri-plugin-*'] } };
         const region = renderSelectionRegion(tauriUpdates, new Set(), cfg({ groups: independent }));
         expect(region).toContain('  <details><summary>ships 2 bundled</summary>');
@@ -342,8 +336,7 @@ describe('selection-region', () => {
       });
 
       it('should keep an independent primary’s prerequisite as "coupled", not "bundled"', () => {
-        // A prerequisite ships with the unit but isn't a group member — it has no version-bundle with
-        // the independent group, so it keeps `coupled` even while the true group member shows `bundled`.
+        // A prerequisite ships with the unit but isn't a group member, so it keeps `coupled`.
         const independent = { tauri: { sync: 'independent' as const, packages: ['@wdio/tauri-*', 'tauri-plugin-*'] } };
         const updates: Update[] = [
           { packageName: '@wdio/tauri-service', newVersion: '1.4.0', filePath: '', group: 'tauri' },
@@ -430,8 +423,6 @@ describe('selection-region', () => {
     });
   });
 
-  // --- Channel-grouped sections ---
-
   describe('channel-grouped sections', () => {
     const STABLE = '#### Stable — advancing on `latest`';
     const PRERELEASE = '#### Prereleases — advancing on their pre-release dist-tag';
@@ -445,7 +436,6 @@ describe('selection-region', () => {
 
       expect(region).toContain(STABLE);
       expect(region).toContain(PRERELEASE);
-      // Stable section precedes the prerelease section, and each row sits under its own heading.
       expect(region.indexOf(STABLE)).toBeLessThan(region.indexOf(PRERELEASE));
       expect(region.indexOf(STABLE)).toBeLessThan(region.indexOf('rk-sel:@scope/a'));
       expect(region.indexOf('rk-sel:@scope/a')).toBeLessThan(region.indexOf(PRERELEASE));
@@ -492,7 +482,6 @@ describe('selection-region', () => {
     });
 
     it('should derive the channel from the version when the update carries none (old manifest)', () => {
-      // No `channel` field (old manifest): the section split falls back to deriveReleaseChannel.
       const updates: Update[] = [
         { packageName: '@scope/a', newVersion: '1.1.0', filePath: '' },
         { packageName: '@scope/b', newVersion: '2.0.0-next.1', filePath: '' },
@@ -547,8 +536,6 @@ describe('selection-region', () => {
 
         expect(region).toContain(STABLE);
         expect(region).toContain(PRERELEASE);
-        // The stable primary lands in the Stable section; the prerelease unit (primary + coupled
-        // member) lands whole in the Prereleases section under its primary's channel.
         expect(region.indexOf(STABLE)).toBeLessThan(region.indexOf('rk-sel:@scope/cli'));
         expect(region.indexOf('rk-sel:@scope/cli')).toBeLessThan(region.indexOf(PRERELEASE));
         expect(region).toContain('- [x] **`@scope/ui-core`** → 1.0.0-next.2 · `next` <!-- rk-sel:@scope/ui-core -->');
@@ -643,7 +630,6 @@ describe('selection-region', () => {
         };
         const region = renderSelectionRegion(updates, new Set(), primary, undefined, channel());
         expect(region).toContain('- [ ] ship as prerelease → `2.0.0-next.0` · `next` <!-- rk-pre:@scope/app -->');
-        // The streamlined member is a read-only bullet — it gets no channel toggle of its own.
         expect(region).not.toContain('rk-pre:@scope/lib');
       });
     });
@@ -675,8 +661,7 @@ describe('selection-region', () => {
       });
 
       it('should drop a ticked channel toggle whose row is held back — held back wins', () => {
-        // Hand-crafted adversarial body: rk-sel unticked (held back) but rk-pre ticked. The hold-back
-        // wins, so the channel toggle is moot.
+        // Adversarial body: rk-sel unticked (held back) but rk-pre ticked.
         const region = [
           '<!-- releasekit-selection -->',
           '- [ ] `@scope/a` → 10.2.0 <!-- rk-sel:@scope/a -->',
@@ -705,8 +690,7 @@ describe('selection-region', () => {
       });
 
       it('should treat a graduate glob target that covers a prereleased package as a conflict', () => {
-        // A broad graduate label like `graduate:@scope/*` must not slip past the exact prerelease name
-        // — an exact-string check would miss it and pass both scopes to the engine.
+        // An exact-string check would miss it and pass both scopes to the engine.
         expect(resolveChannelConflicts(['@scope/*'], ['@scope/a'])).toEqual({
           graduate: [],
           conflicts: ['@scope/*'],

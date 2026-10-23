@@ -1,11 +1,6 @@
 /**
- * Build the internal dependency graph for a discovered workspace, bridging the version engine's
- * package list to the ecosystem-agnostic graph in `@releasekit/core`. Edge extraction is per
- * ecosystem; the core graph then filters each package's declared deps to workspace members.
- *
- *  - npm:   `dependencies` + `peerDependencies` keys (devDependencies excluded).
- *  - cargo: `path:` dependencies, resolved from their directory to the crate name.
- *  - pub:   not yet wired (no edges) — deferred.
+ * Edges are each package's declared deps; the core graph filters them to workspace members. Pub has no
+ * edges yet.
  */
 
 import * as fs from 'node:fs';
@@ -33,7 +28,7 @@ function cargoDeps(cargoTomlPath: string, pkgDir: string, nameByDir: Map<string,
     }
     return deps;
   } catch {
-    // Unparseable Cargo.toml — treat as having no internal edges rather than aborting the run.
+    // Unparseable Cargo.toml - treat as having no internal edges rather than aborting the run.
     return [];
   }
 }

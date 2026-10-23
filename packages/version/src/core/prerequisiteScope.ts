@@ -1,15 +1,3 @@
-/**
- * Compose the prerequisite-release target set and override scope for a `--include-prerequisites`
- * run, bridging the discovered workspace to the core `resolvePrerequisites`.
- *
- *  - Explicit targets are expanded to their whole group (any mode) — the bump/prerelease/stable
- *    override applies to the declared coordination set, not just the one package named.
- *  - Their transitive internal dependencies that *also changed* are pulled in as derived
- *    prerequisites, which keep their own commit-driven bump (excluded from the override scope).
- *
- * The graph and changed-detection are injected so this stays a pure, unit-testable composition.
- */
-
 import type { Package } from '@manypkg/get-packages';
 import { resolvePrerequisites, shouldMatchPackageTargets, type WorkspaceDependencyGraph } from '@releasekit/core';
 import type { Config } from '../types.js';
@@ -35,7 +23,7 @@ export function resolvePrerequisiteTargets(
     .map((p) => p.packageJson.name)
     .filter((name) => shouldMatchPackageTargets(name, explicitTargets));
 
-  // Expand each explicit target to its whole group, regardless of sync mode — the override is
+  // Expand each explicit target to its whole group, regardless of sync mode - the override is
   // meant for the declared coordination set, and prerequisite derivation starts from that set.
   const resolution = resolveGroups(config, packages);
   const overrideSet = new Set(explicitNames);
@@ -48,8 +36,6 @@ export function resolvePrerequisiteTargets(
     }
   }
 
-  // Detect which transitive dependencies of the expanded targets actually changed — only those
-  // become prerequisites (an unchanged dependency needs no release).
   const candidateDeps = new Set<string>();
   for (const name of overrideSet) {
     for (const dep of graph.transitiveDependencies(name)) {

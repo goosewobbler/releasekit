@@ -285,7 +285,6 @@ describe('createVersionCommand', () => {
       await createVersionCommand().parseAsync(['node', 'test', '--target', '@scope/package-a']);
 
       expect(captured.runOptions?.targets).toEqual(['@scope/package-a']);
-      // Config should not be mutated
       expect(captured.config?.packages).toEqual(mockConfig.packages);
     });
 

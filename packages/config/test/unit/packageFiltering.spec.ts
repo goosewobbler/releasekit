@@ -1,7 +1,7 @@
 import type { Package } from '@manypkg/get-packages';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Mock the logger + package matcher, but keep the real isPrivatePackageJson (it's under test here).
+// Keep the real isPrivatePackageJson - it's under test here.
 vi.mock('@releasekit/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@releasekit/core')>();
   return {
@@ -11,11 +11,9 @@ vi.mock('@releasekit/core', async (importOriginal) => {
   };
 });
 
-// Import after mocking
 import { log, matchesPackageTarget } from '@releasekit/core';
 import { filterPackagesByConfig } from '../../src/packageFiltering.js';
 
-// Helper to create mock packages
 function createMockPackage(name: string, dir: string, isPrivate = false): Package {
   const relativeDir = dir.replace('/workspace/', '');
   return {
@@ -48,7 +46,7 @@ describe('filterPackagesByConfig', () => {
 
       const result = filterPackagesByConfig(packages, [], workspaceRoot);
 
-      expect(result).toHaveLength(4); // All except the private one
+      expect(result).toHaveLength(4);
       expect(result.map((p) => p.packageJson.name)).toEqual([
         '@scope/pkg-a',
         '@scope/pkg-b',
@@ -89,7 +87,7 @@ describe('filterPackagesByConfig', () => {
 
   describe('when config targets are specified', () => {
     it('should filter packages by directory patterns and exclude private matches', () => {
-      vi.mocked(matchesPackageTarget).mockReturnValue(false); // No name matches
+      vi.mocked(matchesPackageTarget).mockReturnValue(false);
 
       const result = filterPackagesByConfig(mockPackages, ['packages/*'], workspaceRoot);
 
@@ -114,7 +112,7 @@ describe('filterPackagesByConfig', () => {
 
       const result = filterPackagesByConfig(packagesWithPrivate, ['@scope/*'], workspaceRoot);
 
-      // private packages matched by explicit targets are included; npm-publish handles skipping them
+      // npm-publish handles skipping private packages.
       expect(result).toHaveLength(4);
       expect(result.map((p) => p.packageJson.name)).toContain('@scope/private-pkg');
     });
@@ -157,7 +155,7 @@ describe('filterPackagesByConfig', () => {
 
       const result = filterPackagesByConfig(mockPackages, ['packages/*', '@scope/pkg-a'], workspaceRoot);
 
-      expect(result).toHaveLength(3); // All in packages/ plus the explicit name match
+      expect(result).toHaveLength(3);
       expect(result.map((p) => p.packageJson.name).sort()).toEqual(['@scope/pkg-a', '@scope/pkg-b', '@scope/pkg-c']);
     });
 
@@ -168,7 +166,7 @@ describe('filterPackagesByConfig', () => {
 
       const result = filterPackagesByConfig(mockPackages, ['packages/*', '@scope/pkg-a'], workspaceRoot);
 
-      expect(result).toHaveLength(3); // Not 4, because pkg-a is matched by both patterns but deduplicated
+      expect(result).toHaveLength(3);
     });
   });
 });
