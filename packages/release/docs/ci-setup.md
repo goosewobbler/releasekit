@@ -530,6 +530,7 @@ jobs:
 
       - uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.pull_request.base.ref }}
           fetch-depth: 0
           token: ${{ github.token }}
 

@@ -190,10 +190,10 @@ async function getHeadSha(cwd: string): Promise<string> {
  * not by a commit landing: a label added/removed (`labeled`/`unlabeled`) adjusting override labels,
  * or the body `edited` to tick/untick the ad-hoc selection region. The CLI reads the event itself
  * (rather than taking a flag) so it works whether the workflow invokes the action, the reusable
- * workflow, or the CLI directly. Such runs must bypass the initial skip-pattern guard: a
- * pull_request event checks out the standing PR's `chore: release preparation` commit, which matches
- * the skip pattern, so the guard would otherwise no-op every PR-driven update. The body re-render is
- * idempotent and the workflow guards out the bot's own edits, so an `edited` re-trigger is safe.
+ * workflow, or the CLI directly. Such runs bypass the initial skip-pattern guard: a maintainer's action
+ * triggered them, not a commit landing, so the checked-out commit's subject says nothing about them.
+ * The body re-render is idempotent and the workflow guards out the bot's own edits, so an `edited`
+ * re-trigger is safe.
  */
 function isStandingPrEventRun(): boolean {
   if (process.env.GITHUB_EVENT_NAME !== 'pull_request') {
@@ -1220,12 +1220,10 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     return { action: 'noop' };
   }
 
-  // Capture baseSha before switching branches
-  const baseSha = await getHeadSha(cwd);
-
   // Branch management: reset release branch to base
   info(`Resetting release branch '${branch}' to origin/${base}...`);
   await resetReleaseBranch(branch, base, cwd);
+  const baseSha = await getHeadSha(cwd);
 
   // A release merge can land on `base` after this run started — e.g. another PR is merged moments
   // before the standing PR. The reset above pulls that commit in, so its version bump is now on HEAD
