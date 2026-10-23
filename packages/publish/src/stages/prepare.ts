@@ -79,8 +79,10 @@ export async function runPrepareStage(ctx: PipelineContext): Promise<void> {
     }
 
     const lockfiles = await syncCargoLockfiles(cwd, bumps);
-    if (lockfiles.length > 0) {
-      ctx.additionalFiles = [...new Set([...(ctx.additionalFiles ?? []), ...lockfiles])];
+    // A hybrid package's update names only its package.json, so stage its Cargo.toml explicitly.
+    const written = [...bumps.map((bump) => bump.cargoTomlPath), ...lockfiles];
+    if (written.length > 0) {
+      ctx.additionalFiles = [...new Set([...(ctx.additionalFiles ?? []), ...written])];
     }
   }
 }

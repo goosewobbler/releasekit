@@ -62,16 +62,19 @@ export function recordPendingWrite(path: string, content: string): void {
 }
 
 /**
- * Apply all pending writes to disk and clear the buffer.
+ * Apply all pending writes to disk and clear the buffer. Returns the paths written.
  */
-export function flushPendingWrites(): void {
+export function flushPendingWrites(): string[] {
+  const written = new Set<string>();
   try {
     for (const { path, content } of _pendingWrites) {
       fs.writeFileSync(path, content);
+      written.add(path);
     }
   } finally {
     _pendingWrites.length = 0;
   }
+  return [...written];
 }
 
 /**

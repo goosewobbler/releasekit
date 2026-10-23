@@ -305,9 +305,10 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
 
   // All guards passed. For a real (non-dry) run, flush the pending writes captured
   // during the dryRun pass above so version bumps land on disk exactly once.
+  let versionFiles: string[] = [];
   if (!options.dryRun) {
     const { flushPendingWrites } = await import('@releasekit/version');
-    flushPendingWrites();
+    versionFiles = flushPendingWrites();
   }
 
   info(`Found ${versionOutput.updates.length} package update(s)`);
@@ -346,7 +347,8 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   if (!options.skipPublish) {
     info('Publishing...');
     try {
-      publishOutput = await runPublishStep(versionOutput, options, releaseNotes, notesFiles);
+      // Stage what `updates` misses, e.g. a hybrid's Cargo.toml.
+      publishOutput = await runPublishStep(versionOutput, options, releaseNotes, [...versionFiles, ...notesFiles]);
     } catch (err) {
       // On a partial-publish failure the pipeline throws a PipelineError carrying the per-package
       // ledger. Surface a failure report on the release-driving PR (or the step summary), then
