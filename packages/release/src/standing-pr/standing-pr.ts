@@ -1,15 +1,7 @@
 import * as fs from 'node:fs';
 import { type CIConfig, DEFAULT_DEMOTE_SCOPES, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
-import {
-  deriveReleaseChannel,
-  error,
-  info,
-  markerData,
-  shouldMatchPackageTargets,
-  success,
-  warn,
-} from '@releasekit/core';
+import { deriveReleaseChannel, info, markerData, shouldMatchPackageTargets, success, warn } from '@releasekit/core';
 import {
   type Forge,
   type ForgeComment,
