@@ -1191,6 +1191,11 @@ describe('runStandingPRUpdate', () => {
   it.each([
     ['the PR title', undefined, 'chore: release v1.2.3'],
     ['a fixed subject when the PR title matches no skip pattern', 'Next release', 'chore: release preparation'],
+    [
+      'a fixed subject when the PR title carries a CI-skip marker',
+      'chore: release v1.2.3 [skip ci]',
+      'chore: release preparation',
+    ],
   ])('should commit the release branch with %s', async (_label, title, expected) => {
     const { loadConfig } = await import('@releasekit/config');
     vi.mocked(loadConfig).mockReturnValue({

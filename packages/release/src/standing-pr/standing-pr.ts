@@ -195,6 +195,8 @@ async function resetReleaseBranch(branch: string, base: string, cwd: string): Pr
   await git.resetHard(`origin/${base}`, cwd);
 }
 
+const CI_SKIP_MARKER = /\[(?:skip ci|ci skip|no ci|skip actions|actions skip)\]/i;
+
 async function commitAndForcePush(branch: string, subject: string, cwd: string): Promise<void> {
   const git = createGitCli();
   await git.addAll(cwd);
@@ -1185,8 +1187,10 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     .replace(/\$\{tag\}/g, syncVersionDisplay(versionOutput));
 
   // GitHub's default squash title for a single-commit PR is the commit's subject, so the commit carries
-  // the PR title. It must still match a skip pattern so the merge doesn't trigger another update.
-  const commitSubject = matchesSkipPattern(title, skipPatterns) ? title : 'chore: release preparation';
+  // the PR title. It must still match a skip pattern so the merge doesn't trigger another update, and
+  // carry no CI-skip marker, which the merge would inherit and so skip the publish.
+  const commitSubject =
+    matchesSkipPattern(title, skipPatterns) && !CI_SKIP_MARKER.test(title) ? title : 'chore: release preparation';
   info(`Committing and pushing '${branch}'...`);
   await commitAndForcePush(branch, commitSubject, cwd);
 
