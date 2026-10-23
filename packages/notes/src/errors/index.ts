@@ -11,6 +11,14 @@ export class InputParseError extends NotesError {
   ];
 }
 
+export class InputValidationError extends NotesError {
+  readonly code = 'INPUT_VALIDATION_ERROR';
+  readonly suggestions = [
+    'Check that each changelog includes version, revisionRange, repoUrl, and entries',
+    'Pipe the JSON from `releasekit version --json`, not a hand-trimmed fragment',
+  ];
+}
+
 export class TemplateError extends NotesError {
   readonly code = 'TEMPLATE_ERROR';
   readonly suggestions = [
@@ -64,6 +72,7 @@ export function getExitCode(error: NotesError): number {
     case 'CONFIG_ERROR':
       return EXIT_CODES.CONFIG_ERROR;
     case 'INPUT_PARSE_ERROR':
+    case 'INPUT_VALIDATION_ERROR':
       return EXIT_CODES.INPUT_ERROR;
     case 'TEMPLATE_ERROR':
       return EXIT_CODES.TEMPLATE_ERROR;
