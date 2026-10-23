@@ -115,7 +115,7 @@ export function createEnhanceAndCategorizeValidator(
         ...original,
         description: llmEntry.description,
         scope: llmEntry.scope ?? undefined,
-        breaking: llmEntry.breaking ?? original.breaking,
+        breaking: original.breaking || llmEntry.breaking === true,
         leadIn: llmEntry.leadIn ?? undefined,
       };
     });

@@ -232,6 +232,21 @@ describe('createEnhanceAndCategorizeValidator()', () => {
     }
     expect(result.error).toBe('Unknown categories: Mystery. Valid categories: New, Fixed, Changed');
   });
+
+  it.each([
+    ['keep a breaking change breaking when the model says it is not', true, false],
+    ['mark an entry breaking when the model says it is', undefined, true],
+  ])('should %s', (_label, sourceBreaking, modelBreaking) => {
+    const validate = createEnhanceAndCategorizeValidator(
+      [{ type: 'changed', description: 'Rename the preset', breaking: sourceBreaking }],
+      ctx,
+    );
+    const result = validate(
+      structured({ entries: [{ ...fullEntry('Renamed the preset', 'Changed'), breaking: modelBreaking }] }),
+    );
+
+    expect(result.valid && result.value.enhancedEntries[0]?.breaking).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
