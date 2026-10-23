@@ -1,4 +1,3 @@
-// A hybrid package's update records only its package.json; the release commit must still hold every manifest bumped.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { devNull, tmpdir } from 'node:os';

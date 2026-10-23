@@ -305,7 +305,6 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
 
   // All guards passed. For a real (non-dry) run, flush the pending writes captured
   // during the dryRun pass above so version bumps land on disk exactly once.
-  // Staged for the release commit: `updates` holds one manifest per directory, missing e.g. a hybrid's Cargo.toml.
   let versionFiles: string[] = [];
   if (!options.dryRun) {
     const { flushPendingWrites } = await import('@releasekit/version');
@@ -348,6 +347,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   if (!options.skipPublish) {
     info('Publishing...');
     try {
+      // Stage everything the version step wrote: `updates` names one manifest per package, not a hybrid's Cargo.toml.
       publishOutput = await runPublishStep(versionOutput, options, releaseNotes, [...versionFiles, ...notesFiles]);
     } catch (err) {
       // On a partial-publish failure the pipeline throws a PipelineError carrying the per-package

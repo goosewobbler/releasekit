@@ -79,7 +79,7 @@ export async function runPrepareStage(ctx: PipelineContext): Promise<void> {
     }
 
     const lockfiles = await syncCargoLockfiles(cwd, bumps);
-    // A hybrid package's update points at its package.json, so git-commit wouldn't stage its Cargo.toml.
+    // A hybrid package's update names only its package.json, so git-commit wouldn't stage its Cargo.toml.
     const written = [...bumps.map((bump) => bump.cargoTomlPath), ...lockfiles];
     if (written.length > 0) {
       ctx.additionalFiles = [...new Set([...(ctx.additionalFiles ?? []), ...written])];
