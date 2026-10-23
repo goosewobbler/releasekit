@@ -1172,7 +1172,6 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const notesOptions = { ...writeOptions, skipNotes: false, skipReleaseNotes: !generateReleaseNotes };
   const notesResult = await runNotesStep(versionOutput, notesOptions);
 
-  // Both default titles start with `chore: release ` so their squash merge matches the default skip pattern.
   const countableUpdates = publishableUpdates(versionOutput);
   const count = countableUpdates.length;
   const firstUpdate = countableUpdates[0];
