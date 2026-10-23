@@ -1,10 +1,6 @@
 # The standing-PR body is an interface
 
-In standing-PR mode, releasekit keeps one open pull request — the standing release PR — describing the next release. Its body is **not prose**. Parts of it are read back by the bot and decide what ships.
-
-This matters because a pull request body is the one place people (and coding agents) edit freely. Reflowing the markdown, tidying the wording, or stripping HTML comments can change what gets published or break the region entirely, and none of it looks wrong in review — the prose still reads fine.
-
-This page says which parts are inputs, what an edit does, and what is bot-owned.
+In standing-PR mode, releasekit keeps one open pull request describing the next release. Parts of its body are read back by the bot and decide what ships, so reflowing the markdown or stripping HTML comments can change the release without looking wrong in review. This page lists those parts, what an edit to each does, and what is bot-owned.
 
 ## The regions
 
@@ -26,7 +22,7 @@ A tick or untick takes effect only when the next `standing-pr update` run rebuil
 
 - Sync releases have no checklist — they ship as one unit.
 - In the flat and granular lists, a member of a `fixed` or `linked` group can't be held back on its own; its untick is ignored and the row re-ticks.
-- With [`ci.standingPr.primaryPackages`](./configuration.md#cistandingpr) in the default `streamlined` mode, only primaries (and packages outside every unit) have checkboxes; unticking a primary holds back its unit, except members it shares with another selected primary. Streamlined mode can currently split a `fixed` or `linked` group — for example, by unticking one member of a group with no declared primary ([#657](https://github.com/goosewobbler/releasekit/issues/657)).
+- With [`ci.standingPr.primaryPackages`](./configuration.md#cistandingpr) in the default `streamlined` mode, only primaries (and packages outside every unit) have checkboxes; unticking a primary holds back its unit, except members it shares with another selected primary.
 - The `rk-pre` / `rk-grad` toggles appear only with `ci.standingPr.channelToggle: true`. A toggle moves the package's whole group, a held-back row's toggle is ignored, and a package set to both prerelease and graduate (say, `rk-pre` plus a `graduate:` label) goes prerelease.
 
 ### Editable release notes
@@ -41,11 +37,10 @@ Edits can still be lost or bypassed:
 - Removing the label removes the region.
 - An edit saved while an update is rewriting the body can be overwritten.
 - Only the GitHub Release gets your edits; a file written by `notes.releaseNotes.file` gets generated notes.
-- In a `sync` release (the default) whose region is keyed `monorepo`, edits are currently discarded ([#656](https://github.com/goosewobbler/releasekit/issues/656)).
 
 ### The manifest
 
-The manifest comment carries the machine state for the merge: the computed versions, the base SHA the plan was built against, the labels in force, and the selection and channel choices. At publish it is checked against the merged source — the comment must be bot-authored, its base SHA must be an ancestor of `HEAD`, every package and version it lists must match what was merged, and the PR's release-control labels must still match the ones it recorded — so it can't publish anything that isn't in the merged code. It is not tamper-proof, though; treat edits to it as unsupported.
+The manifest comment carries the machine state for the merge: the computed versions, the base SHA the plan was built against, the labels in force, and the selection and channel choices. At publish it's checked against the merged source, so it can't publish anything that isn't in the merged code (see **Manifest integrity** under [Label semantics in standing-pr mode](../packages/release/docs/ci-setup.md#label-semantics-in-standing-pr-mode)). It isn't tamper-proof, though, so treat edits to it as unsupported.
 
 Don't edit it. To regenerate it, re-run the Standing Release PR workflow, or wait for the next push or scheduled run. Don't run `standing-pr update` from a local checkout to do it: the command discards uncommitted changes, commits any untracked files along with the version bumps, and force-pushes the release branch with your credentials — and outside the workflow it can leave the branch and the manifest out of step.
 
@@ -57,7 +52,7 @@ Two different rules, and the difference is worth knowing before you rely on eith
 
 **Release-notes prose is not gated.** Anyone who can edit the PR body can change the text that ships in the GitHub Release. The publish path reads the region from the live body with no author check. That is a deliberate difference in kind — prose doesn't decide what version of what package goes to a registry — but it does mean the notes region inherits whatever your repository's write access already allows.
 
-Neither substitutes for branch rulesets. Merging the standing PR is the publish, so the gate is a review-required ruleset on the base branch (`main`); locking `release/next`, with the bot on its bypass list, only stops commits being pushed into the release. With `authorization` set, `enforceMergeAuthor` (on by default) also refuses to publish when the merge event names an unauthorized merger — defense in depth behind the ruleset. See [Branch rulesets](../packages/release/docs/ci-setup.md#branch-rulesets-the-merge-gate).
+Neither replaces the merge gate: merging the standing PR is the publish, so a review-required ruleset on `main` is what protects it. See [Branch rulesets](../packages/release/docs/ci-setup.md#branch-rulesets-the-merge-gate).
 
 ## For agents
 

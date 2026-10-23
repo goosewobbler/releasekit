@@ -35,8 +35,6 @@ Full detail on the regions: [The standing-PR body is an interface](./standing-pr
 
 ## The safety boundary
 
-releasekit's standing-PR mode already has the shape the post-incident guidance converged on. Stated explicitly:
-
 **Agent proposes → human approves → CI publishes.**
 
 - An agent contributes the way anyone else does: a feeder PR, or an edit to the standing PR's notes region. It should never hold a registry credential.
@@ -53,16 +51,6 @@ In `direct` mode there is no standing PR: merging a feeder PR to `main` is what 
 
 [`ci.standingPr.authorization`](./configuration.md#cistandingpr) doesn't restrain an agent acting through a GitHub App or bot account: every bot actor counts as authorized. Keep such agents off release labels, merge rights and ruleset bypass lists.
 
-**crates.io is the exception on credentials.** crates.io supports trusted publishing, but releasekit doesn't use it yet ([#546](https://github.com/goosewobbler/releasekit/issues/546)) — its cargo publish reads `CARGO_REGISTRY_TOKEN`, which in practice is a long-lived repository secret. That secret outlives any single job, so it wants the handling a long-lived credential always wants — scoped as narrowly as the registry allows, rotated, and restricted to the environment the release job runs in.
+**crates.io is the exception on credentials.** releasekit uses a long-lived `CARGO_REGISTRY_TOKEN` for crates.io until it supports trusted publishing ([#546](https://github.com/goosewobbler/releasekit/issues/546)), so scope that token to the release job's environment and rotate it.
 
 Two supporting checks: the manifest is checked at publish against the merged source, so it can't publish anything that isn't in the merged code ([details](./standing-pr-body.md#the-manifest)); and selection, channel, and release-control label changes are reverted when made by an unauthorized actor, if [`ci.standingPr.authorization`](./configuration.md#cistandingpr) is configured.
-
-## Why not have an AI write your release script?
-
-Because the bespoke release script is the thing that keeps getting attacked, and the one you generate is the one nobody maintains.
-
-Two of the 2024–25 supply-chain incidents that hit publishing pipelines — Ultralytics and s1ngularity (Nx) — landed through flaws in the projects' own hand-written CI workflows, not through a maintained release tool. A generated script has the same exposure with none of the review: it embeds whatever token handling was idiomatic the day it was written, and no one revisits it.
-
-It also rots silently. npm's revocation of classic tokens in late 2025 broke every publish script still authenticating with one, all at once. A maintained tool absorbs that kind of registry policy change as an upgrade; a generated script fails at the worst moment, in a job nobody watches until a release is due.
-
-The argument isn't that an agent can't write the script. It's that a release pipeline is a security boundary with a moving spec, which is precisely the thing you want maintained rather than generated once.
