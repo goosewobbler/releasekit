@@ -16,8 +16,16 @@ async function hasStagedChanges(git: Git, cwd: string): Promise<boolean> {
   }
 }
 
+/** Git's `%s`: the first paragraph, each line's trailing whitespace dropped, joined with spaces. */
+function subjectOf(message: string): string {
+  const lines = message.split('\n').map((line) => line.trimEnd());
+  const paragraph = lines.slice(Math.max(lines.findIndex((line) => line !== ''), 0));
+  const end = paragraph.indexOf('');
+  return (end === -1 ? paragraph : paragraph.slice(0, end)).join(' ').trim();
+}
+
 async function assertHeadIsReleaseCommit(git: Git, commitMessage: string, cwd: string): Promise<void> {
-  const subject = commitMessage.split('\n')[0]?.trim();
+  const subject = subjectOf(commitMessage);
   const headSubject = await git
     .log({ range: 'HEAD', format: '%s', extraArgs: ['-1'], cwd })
     .then((out) => out.trim())

@@ -244,10 +244,13 @@ describe('git-commit stage', () => {
       expect(ctx.releaseCommitReused).toBe(true);
     });
 
-    it('should match a multi-line commit message on its subject line', async () => {
-      seedGit({ stagedChanges: false, commits: { HEAD: 'chore: release foo@1.0.0\n' } });
+    it.each([
+      ['a body after a blank line', 'chore: release foo@1.0.0\n\n[skip ci]', 'chore: release foo@1.0.0'],
+      ['a second subject line', 'chore: release foo@1.0.0\n[skip ci]', 'chore: release foo@1.0.0 [skip ci]'],
+    ])("should match a message with %s on git's subject", async (_label, message, subject) => {
+      seedGit({ stagedChanges: false, commits: { HEAD: `${subject}\n` } });
       const ctx = createContext();
-      ctx.input.commitMessage = 'chore: release foo@1.0.0\n\n[skip ci]';
+      ctx.input.commitMessage = message;
 
       await runGitCommitStage(ctx);
 

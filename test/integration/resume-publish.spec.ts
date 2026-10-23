@@ -29,7 +29,10 @@ describe('resuming a partial publish', () => {
 
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-  it('should reuse the release commit and push the branch and tag after a failed push', () => {
+  it.each([
+    ['a one-line release message', 'chore: release rk-resume v0.2.0'],
+    ['a release message with a second line', 'chore: release rk-resume v0.2.0\n[skip ci]'],
+  ])('should reuse the release commit and push the branch and tag after a failed push, with %s', (_label, commitMessage) => {
     const repo = join(dir, 'repo');
     const remote = join(dir, 'remote.git');
     const input = join(dir, 'version.json');
@@ -56,7 +59,7 @@ describe('resuming a partial publish', () => {
         dryRun: false,
         updates: [{ packageName: 'rk-resume', newVersion: '0.2.0', filePath: 'package.json' }],
         changelogs: [],
-        commitMessage: 'chore: release rk-resume v0.2.0',
+        commitMessage,
         tags: ['v0.2.0'],
       }),
     );
@@ -77,7 +80,7 @@ describe('resuming a partial publish', () => {
     expect(resumed.status, `${resumed.stdout}\n${resumed.stderr}`).toBe(0);
     expect(JSON.parse(readFileSync(result, 'utf-8'))).toMatchObject({ status: 'success', changed: false });
 
-    expect(git(repo, 'log', '--format=%s')).toBe('chore: release rk-resume v0.2.0\nchore: init');
+    expect(git(repo, 'rev-list', '--count', 'HEAD')).toBe('2');
     const head = git(repo, 'rev-parse', 'HEAD');
     expect(git(remote, 'rev-parse', 'refs/heads/main')).toBe(head);
     expect(git(remote, 'rev-parse', 'v0.2.0^{commit}')).toBe(head);
