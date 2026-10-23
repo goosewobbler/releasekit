@@ -20,9 +20,9 @@ on:
     - cron: '0 * * * *' # re-evaluates the minAge status check as time passes
 
 concurrency:
-  # Maintainer checkbox edits cancel in-flight rebuilds per PR. `closed` (publish) gets its own group so
-  # a push/schedule run can't drop a queued merge publish. Everything else shares a non-cancelling group.
-  group: ${{ (github.event_name == 'pull_request' && github.event.action == 'closed') && 'standing-release-pr-closed' || (github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot') && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
+  # One shared group serializes publish (merge closed) against push/schedule updates so branch delete cannot race a new release branch.
+  # Maintainer checkbox edits cancel in-flight rebuilds per PR via a dedicated edit group.
+  group: ${{ github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
 
 permissions:

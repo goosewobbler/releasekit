@@ -18,7 +18,7 @@ on:
     - cron: '0 * * * *' # advances the minAge status check as time passes
 
 concurrency:
-  group: ${{ (github.event_name == 'pull_request' && github.event.action == 'closed') && 'standing-release-pr-closed' || 'standing-release-pr' }}
+  group: standing-release-pr
   cancel-in-progress: false
 
 permissions:

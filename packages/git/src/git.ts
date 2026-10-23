@@ -165,6 +165,12 @@ export class GitCli implements Git {
     });
   }
 
+  async resolveRef(ref: string, cwd?: string): Promise<string> {
+    assertNotOption(ref, 'ref');
+    const { stdout } = await this.exec(['rev-parse', `${ref}^{commit}`], { cwd: this.cwd(cwd) });
+    return stdout.trim();
+  }
+
   async isAncestor(ancestor: string, ref: string, cwd?: string): Promise<boolean> {
     assertNotOption(ancestor, 'ancestor');
     assertNotOption(ref, 'ref');

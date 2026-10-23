@@ -154,6 +154,8 @@ export interface StandingPRManifest {
    * only - `versionOutput` already holds the prerelease versions.
    */
   prereleased?: string[];
+  /** Tip of the release branch when this manifest was written; publish uses it to avoid deleting a newer branch. */
+  releaseBranchSha?: string;
 }
 
 async function getHeadSha(cwd: string): Promise<string> {
@@ -297,10 +299,31 @@ export async function createReleaseTags(tags: string[], cwd: string): Promise<vo
   }
 }
 
-async function deleteReleaseBranch(releaseBranch: string, cwd: string): Promise<void> {
+async function deleteReleaseBranch(releaseBranch: string, cwd: string, expectedTipSha?: string): Promise<void> {
+  const git = createGitCli();
+  if (expectedTipSha) {
+    const remoteRef = `refs/remotes/origin/${releaseBranch}`;
+    try {
+      await git.fetch('origin', { cwd });
+    } catch (err) {
+      warn(
+        `Could not fetch origin before deleting '${releaseBranch}': ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    if (await git.refExists(remoteRef, cwd)) {
+      const tip = await git.resolveRef(remoteRef, cwd);
+      if (tip !== expectedTipSha) {
+        info(
+          `Skipping delete of '${releaseBranch}': remote tip (${tip}) no longer matches the manifest (${expectedTipSha}).`,
+        );
+        return;
+      }
+    }
+  }
+
   try {
     // The `:<branch>` delete refspec, since the git seam's leading-`-` option guard rejects `--delete`.
-    await createGitCli().push({ remote: 'origin', ref: `:${releaseBranch}`, cwd });
+    await git.push({ remote: 'origin', ref: `:${releaseBranch}`, cwd });
     info(`Deleted release branch '${releaseBranch}'`);
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
@@ -1338,6 +1361,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     notesFiles: notesResult.files,
     createdAt: new Date().toISOString(),
     baseSha,
+    releaseBranchSha,
     firstUpdatedAt,
     overrideLabels: extractOverrideLabels(effectiveLabels, ciConfig),
     deselected: effectiveDeselected.size > 0 ? [...effectiveDeselected].sort() : undefined,
@@ -1671,7 +1695,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   await refreshFeederPreviews({ config: options.config, projectDir: cwd });
 
   if (deleteBranchOnMerge) {
-    await deleteReleaseBranch(releaseBranch, cwd);
+    await deleteReleaseBranch(releaseBranch, cwd, manifest.releaseBranchSha);
   }
 
   return {

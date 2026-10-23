@@ -55,6 +55,8 @@ export interface FakeGitSeed {
   status?: string;
   /** Defaults to true. */
   stagedChanges?: boolean;
+  /** Commit SHAs keyed by ref (e.g. `refs/remotes/origin/release/next`). */
+  refShas?: Record<string, string>;
 }
 
 function ancestryHas(ancestors: FakeGitSeed['ancestors'], ancestor: string, ref: string): boolean {
@@ -83,6 +85,7 @@ export class FakeGit implements Git {
   private readonly commitCounts: Record<string, number>;
   private statusText: string;
   private readonly stagedChanges: boolean;
+  private readonly refShas: Record<string, string>;
 
   // Recorded mutations, for assertions.
   readonly added: string[][] = [];
@@ -110,6 +113,7 @@ export class FakeGit implements Git {
     this.commitCounts = seed.commitCounts ?? {};
     this.statusText = seed.status ?? '';
     this.stagedChanges = seed.stagedChanges ?? true;
+    this.refShas = seed.refShas ?? {};
   }
 
   async isRepository(_cwd?: string): Promise<boolean> {
@@ -142,6 +146,21 @@ export class FakeGit implements Git {
 
   async refExists(ref: string, _cwd?: string): Promise<boolean> {
     return this.existingRefs.has(ref);
+  }
+
+  async resolveRef(ref: string, _cwd?: string): Promise<string> {
+    const key = ref.replace(/\^\{commit\}$/, '');
+    if (key === 'HEAD') {
+      return this.head;
+    }
+    const sha = this.refShas[key] ?? this.refShas[ref];
+    if (sha) {
+      return sha;
+    }
+    if (this.existingRefs.has(key) || this.existingRefs.has(ref)) {
+      return this.head;
+    }
+    throw new Error(`FakeGit: unknown ref ${ref}`);
   }
 
   async isAncestor(ancestor: string, ref: string, _cwd?: string): Promise<boolean> {

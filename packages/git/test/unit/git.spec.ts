@@ -110,6 +110,13 @@ describe('GitCli queries', () => {
     expect(await new GitCli(run).refExists('missing')).toBe(false);
   });
 
+  it('should resolve a ref to its commit SHA via rev-parse', async () => {
+    const { run, calls } = makeRunner({ stdout: 'deadbeef\n' });
+    expect(await new GitCli(run).resolveRef('refs/remotes/origin/main', '/r')).toBe('deadbeef');
+    expect(calls[0].args).toEqual(['rev-parse', 'refs/remotes/origin/main^{commit}']);
+    expect(calls[0].options.cwd).toBe('/r');
+  });
+
   it('should answer isAncestor via merge-base --is-ancestor exit code', async () => {
     const ok = makeRunner();
     expect(await new GitCli(ok.run).isAncestor('a', 'b', '/r')).toBe(true);
