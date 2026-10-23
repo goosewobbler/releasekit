@@ -56,3 +56,83 @@ export function checkPastTenseLeaning(text: string, minRatio = 0.6): string[] {
   const ratio = pastCount / items.length;
   return ratio >= minRatio ? [] : [`only ${pastCount}/${items.length} items lead past-tense (< ${minRatio})`];
 }
+
+/** Structural stand-in for the pipeline's `CategorizedEntries`. */
+interface CategoryGroup {
+  category: string;
+  entries: unknown[];
+}
+
+/**
+ * Flags a grouping that passes validation but is useless, e.g. everything in one category. The `maxShare`
+ * check needs four or more entries.
+ */
+export function checkCategoryDistribution(
+  categories: CategoryGroup[],
+  opts: { minCategories?: number; maxShare?: number } = {},
+): string[] {
+  const { minCategories = 2, maxShare = 0.8 } = opts;
+  const total = categories.reduce((n, c) => n + c.entries.length, 0);
+  if (total === 0) {
+    return ['no categorized entries'];
+  }
+
+  const violations: string[] = [];
+  const populated = categories.filter((c) => c.entries.length > 0);
+
+  if (populated.length < minCategories) {
+    violations.push(`only ${populated.length} populated categor(ies), expected >= ${minCategories}`);
+  }
+
+  const empty = categories.filter((c) => c.entries.length === 0).map((c) => c.category);
+  if (empty.length > 0) {
+    violations.push(`empty categories emitted: ${empty.join(', ')}`);
+  }
+
+  if (total >= 4) {
+    const largest = populated.reduce<CategoryGroup | undefined>(
+      (a, b) => (!a || b.entries.length > a.entries.length ? b : a),
+      undefined,
+    );
+    if (largest && largest.entries.length / total > maxShare) {
+      violations.push(`"${largest.category}" holds ${largest.entries.length}/${total} entries (> ${maxShare})`);
+    }
+  }
+
+  return violations;
+}
+
+/**
+ * Every enhanced entry is in exactly one category, and categories hold nothing else. Compared by
+ * identity (categories reuse the enhanced entry objects), since a drop and a duplicate cancel out in a
+ * count. `expectedCount` catches entries lost during enhancement.
+ */
+export function checkNoEntryLoss(categories: CategoryGroup[], entries: unknown[], expectedCount: number): string[] {
+  const violations: string[] = [];
+  if (entries.length !== expectedCount) {
+    violations.push(`enhanced ${entries.length} entries, expected ${expectedCount}`);
+  }
+
+  const occurrences = new Map<unknown, number>();
+  for (const group of categories) {
+    for (const entry of group.entries) {
+      occurrences.set(entry, (occurrences.get(entry) ?? 0) + 1);
+    }
+  }
+
+  entries.forEach((entry, i) => {
+    const n = occurrences.get(entry) ?? 0;
+    if (n === 0) {
+      violations.push(`entry ${i} was dropped from categorization`);
+    } else if (n > 1) {
+      violations.push(`entry ${i} was categorized ${n} times`);
+    }
+  });
+
+  const known = new Set(entries);
+  const strays = [...occurrences.keys()].filter((entry) => !known.has(entry)).length;
+  if (strays > 0) {
+    violations.push(`${strays} categorized entr(ies) are not among the enhanced entries`);
+  }
+  return violations;
+}
