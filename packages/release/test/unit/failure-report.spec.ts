@@ -32,6 +32,7 @@ function versionOutputFor(
 function npmResult(partial: Partial<PublishResult> & { packageName: string; version: string }): PublishResult {
   return {
     registry: 'npm',
+    updatePackageName: partial.packageName,
     success: true,
     skipped: false,
     ...partial,
@@ -99,20 +100,38 @@ describe('buildLedger', () => {
       npmResult({ packageName: '@scope/a', version: '1.0.0', success: true, alreadyPublished: true }),
     ]);
     publishOutput.cargo = [
-      { packageName: '@scope/a', version: '1.0.0', registry: 'cargo', success: false, skipped: false, reason: 'boom' },
+      {
+        packageName: '@scope/a',
+        updatePackageName: '@scope/a',
+        version: '1.0.0',
+        registry: 'cargo',
+        success: false,
+        skipped: false,
+        reason: 'boom',
+      },
     ];
     const ledger = buildLedger(versionOutput, publishOutput);
     expect(ledger[0]?.status).toBe('failed');
   });
 
-  it('should include pub.dev results', () => {
-    const versionOutput = versionOutputFor([{ name: 'my_package', version: '1.0.0' }]);
-    const publishOutput = publishOutputFor([]);
+  it("should match a hybrid package's pub.dev result by its update's name", () => {
+    const versionOutput = versionOutputFor([{ name: 'my-package', version: '1.0.0' }]);
+    const publishOutput = publishOutputFor([npmResult({ packageName: 'my-package', version: '1.0.0' })]);
     publishOutput.pub = [
-      { packageName: 'my_package', version: '1.0.0', registry: 'pub', success: false, skipped: false, reason: 'boom' },
+      {
+        packageName: 'my_package',
+        updatePackageName: 'my-package',
+        version: '1.0.0',
+        registry: 'pub',
+        success: false,
+        skipped: false,
+        reason: 'boom',
+      },
     ];
 
-    expect(buildLedger(versionOutput, publishOutput)[0]).toMatchObject({ status: 'failed', registry: 'pub' });
+    expect(buildLedger(versionOutput, publishOutput)).toEqual([
+      { packageName: 'my-package', version: '1.0.0', status: 'failed', registry: 'pub', detail: 'boom' },
+    ]);
   });
 });
 

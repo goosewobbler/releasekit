@@ -46,6 +46,7 @@ export async function runPublishStage<T extends RegistryTarget, S>(
     for (const target of targets) {
       const result: PublishResult = {
         packageName: target.packageName,
+        updatePackageName: target.updatePackageName,
         version: target.version,
         registry: registry.id,
         success: false,

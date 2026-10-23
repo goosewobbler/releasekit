@@ -90,6 +90,8 @@ export interface PublishCliOptions {
 
 export interface PublishResult {
   packageName: string;
+  /** The `VersionOutput` update this result belongs to; `packageName` is the registry's name for it. */
+  updatePackageName: string;
   version: string;
   registry: 'npm' | 'cargo' | 'pub';
   success: boolean;

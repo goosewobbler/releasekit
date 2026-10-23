@@ -1722,9 +1722,17 @@ describe('runStandingPRUpdate', () => {
           dryRun: false,
           git: { committed: true, tags: [], pushed: false },
           npm: [
-            { packageName: '@scope/core', version: '0.24.0', registry: 'npm', success: true, skipped: false },
+            {
+              packageName: '@scope/core',
+              updatePackageName: '@scope/core',
+              version: '0.24.0',
+              registry: 'npm',
+              success: true,
+              skipped: false,
+            },
             {
               packageName: '@scope/utils',
+              updatePackageName: '@scope/utils',
               version: '0.24.0',
               registry: 'npm',
               success: false,

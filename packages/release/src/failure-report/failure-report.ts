@@ -120,9 +120,9 @@ export function buildLedger(versionOutput: VersionOutput, publishOutput: Publish
       status = 'published';
     }
 
-    const existing = byPackage.get(r.packageName);
+    const existing = byPackage.get(r.updatePackageName);
     const entry: LedgerEntry = {
-      packageName: r.packageName,
+      packageName: r.updatePackageName,
       version: r.version,
       status,
       registry: r.registry,
@@ -131,7 +131,7 @@ export function buildLedger(versionOutput: VersionOutput, publishOutput: Publish
     // Significance order: failed > published > skipped. Keep the more significant outcome.
     const significance: Record<LedgerStatus, number> = { failed: 3, published: 2, skipped: 1, 'not-attempted': 0 };
     if (!existing || significance[status] > significance[existing.status]) {
-      byPackage.set(r.packageName, entry);
+      byPackage.set(r.updatePackageName, entry);
     }
   }
 

@@ -110,6 +110,7 @@ export const npmRegistry: Registry<NpmTarget, NpmSession> = {
   async discover(ctx: PipelineContext): Promise<NpmTarget[]> {
     const targets = ctx.input.updates.map((u) => ({
       packageName: u.packageName,
+      updatePackageName: u.packageName,
       version: u.newVersion,
       filePath: u.filePath,
     }));

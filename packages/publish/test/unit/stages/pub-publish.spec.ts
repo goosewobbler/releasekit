@@ -159,6 +159,25 @@ describe('pub-publish stage', () => {
     expect(ctx.output.pub[0]?.success).toBe(true);
   });
 
+  it("should record a hybrid package's result under its update's name", async () => {
+    const dir = createTmpDir();
+    const pkgDir = path.join(dir, 'packages', 'my-package');
+    fs.mkdirSync(pkgDir, { recursive: true });
+    writePubspec(pkgDir, 'my_package');
+
+    const ctx = createContext(dir, {
+      input: {
+        dryRun: false,
+        updates: [{ packageName: 'my-package', newVersion: '0.5.0', filePath: 'packages/my-package/package.json' }],
+        changelogs: [],
+        tags: [],
+      },
+    });
+    await runPubPublishStage(ctx);
+
+    expect(ctx.output.pub[0]).toMatchObject({ packageName: 'my_package', updatePackageName: 'my-package' });
+  });
+
   it('should publish a package only once when multiple updates share the same dir', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const dir = createTmpDir();

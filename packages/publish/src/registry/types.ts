@@ -6,6 +6,8 @@ export type RegistryId = 'npm' | 'cargo' | 'pub';
 /** The minimum a publishable unit must expose for the shared dispatcher. */
 export interface RegistryTarget {
   packageName: string;
+  /** The `VersionOutput` update's name; a crate or Dart package can have its own `packageName`. */
+  updatePackageName: string;
   version: string;
 }
 
