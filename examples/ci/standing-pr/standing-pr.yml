@@ -107,6 +107,10 @@ jobs:
       - run: pnpm exec releasekit release
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # only if not using OIDC
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
       - run: pnpm exec releasekit refresh-after-release
         env:
