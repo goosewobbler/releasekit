@@ -1,3 +1,4 @@
+import type { VersionPackageUpdate } from '@releasekit/core';
 import { createFakeForge, type FakeForge, type FakeForgeSeed } from '@releasekit/forge';
 import { FakeGit, type FakeGitSeed, type GitLogOptions } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -129,7 +130,9 @@ vi.mock('../../src/preview/refresh.js', () => ({
   runRefreshAfterRelease: vi.fn(),
 }));
 
-function createMockVersionOutput(updates: { packageName: string; newVersion: string }[] = []) {
+function createMockVersionOutput(
+  updates: Pick<VersionPackageUpdate, 'packageName' | 'newVersion' | 'role' | 'prerequisiteOf'>[] = [],
+) {
   return {
     dryRun: false,
     updates: updates.map((u) => ({ ...u, filePath: `packages/${u.packageName}/package.json` })),
@@ -449,8 +452,8 @@ describe('runStandingPRUpdate', () => {
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = {
       ...createMockVersionOutput([
-        { packageName: '@scope/app', newVersion: '2.0.0' },
-        { packageName: '@scope/core', newVersion: '1.1.0' },
+        { packageName: '@scope/app', newVersion: '2.0.0', role: 'target' },
+        { packageName: '@scope/core', newVersion: '1.1.0', role: 'prerequisite', prerequisiteOf: ['@scope/app'] },
       ]),
       strategy: 'async' as const,
       changelogs: [
@@ -472,9 +475,6 @@ describe('runStandingPRUpdate', () => {
         },
       ],
     };
-    versionOutput.updates[0]!.role = 'target';
-    versionOutput.updates[1]!.role = 'prerequisite';
-    versionOutput.updates[1]!.prerequisiteOf = ['@scope/app'];
     vi.mocked(runVersionStep)
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
@@ -498,7 +498,9 @@ describe('runStandingPRUpdate', () => {
     // still publishes — the body must show it, not just the intro line.
     const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
     const versionOutput = {
-      ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.1.0' }]),
+      ...createMockVersionOutput([
+        { packageName: '@scope/core', newVersion: '1.1.0', role: 'prerequisite', prerequisiteOf: ['@scope/app'] },
+      ]),
       strategy: 'async' as const,
       changelogs: [
         {
@@ -511,8 +513,6 @@ describe('runStandingPRUpdate', () => {
         },
       ],
     };
-    versionOutput.updates[0]!.role = 'prerequisite';
-    versionOutput.updates[0]!.prerequisiteOf = ['@scope/app'];
     vi.mocked(runVersionStep)
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
       .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);

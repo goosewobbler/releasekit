@@ -16,9 +16,9 @@ export type ChangelogRefsMode = 'strip' | 'escape' | 'link';
  * github.com only. Returns `null` for any other host or an unparseable input.
  */
 export function parseGitHubOwnerRepo(repoUrl: string): { owner: string; repo: string } | null {
-  const scpMatch = repoUrl.match(/^git@github\.com:([^/]+)\/(.+?)(?:\.git)?$/);
-  if (scpMatch) {
-    return { owner: scpMatch[1]!, repo: scpMatch[2]! };
+  const [, scpOwner, scpRepo] = repoUrl.match(/^git@github\.com:([^/]+)\/(.+?)(?:\.git)?$/) ?? [];
+  if (scpOwner && scpRepo) {
+    return { owner: scpOwner, repo: scpRepo };
   }
 
   try {

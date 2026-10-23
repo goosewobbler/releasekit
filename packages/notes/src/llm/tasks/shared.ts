@@ -72,10 +72,12 @@ export function groupByCategory(
     if (!entry) {
       continue;
     }
-    if (!categoryMap.has(category)) {
-      categoryMap.set(category, []);
+    const bucket = categoryMap.get(category);
+    if (bucket) {
+      bucket.push(entry);
+    } else {
+      categoryMap.set(category, [entry]);
     }
-    categoryMap.get(category)!.push(entry);
   }
   const result: CategorizedEntries[] = [];
   for (const [category, catEntries] of categoryMap) {

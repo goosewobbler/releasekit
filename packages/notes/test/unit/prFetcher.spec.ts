@@ -157,7 +157,7 @@ describe('fetchPullRequestContext()', () => {
 
     await fetchPullRequestContext('owner', 'repo', [1], 'token', cache, forge);
 
-    expect(cache.get(1)!.body.length).toBeLessThanOrEqual(2100);
+    expect(cache.get(1)?.body.length).toBeLessThanOrEqual(2100);
   });
 
   it('should cache plain issues (non-PR) as null to prevent re-fetching', async () => {
