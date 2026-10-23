@@ -345,7 +345,9 @@ Optionally, publish from a deployment **environment** restricted to the default 
 - Move `NPM_TOKEN` (and any other registry token) to an **environment secret**. A repository secret is still readable by a workflow that never names the environment.
 - In each registry's trusted-publisher settings, require that same environment. `id-token: write` on a job with no environment can still mint an OIDC token.
 
-The template's publish job sets no `environment:` until you add one, and it does not move secrets for you.
+Put that environment on **both** publishing jobs: `publish-release` and `immediate-release`. `immediate-release` also runs `releasekit release`. If only `publish-release` names the environment, an immediate release cannot read the environment secret, and a trusted publisher that requires the environment will reject its OIDC token.
+
+The template sets no `environment:` until you add it to both jobs, and it does not move secrets for you.
 
 **Workflow permissions** (in the workflow YAML):
 

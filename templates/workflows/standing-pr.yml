@@ -122,6 +122,8 @@ jobs:
   immediate-release:
     # Bypasses the standing PR queue when a feeder PR carrying `release:immediate`
     # (configurable via `ci.labels.immediate`) merges to main.
+    # If you bind publish credentials to an environment, set the same
+    # `environment:` here. This job publishes too.
     name: Immediate Release (bypass standing PR)
     if: >
       github.event_name == 'pull_request' &&
@@ -178,10 +180,11 @@ jobs:
       github.event.action == 'closed' &&
       github.event.pull_request.merged == true &&
       startsWith(github.event.pull_request.head.ref, 'release/')
-    # Optional: `environment: release` restricted to the default branch. Move
-    # registry tokens to environment secrets, and require that environment on
-    # each trusted publisher. A repo secret or `id-token: write` with no
-    # environment is still available to other workflows.
+    # Optional: `environment: release` restricted to the default branch. Use the
+    # same environment on immediate-release. Move registry tokens to environment
+    # secrets, and require that environment on each trusted publisher. A repo
+    # secret or `id-token: write` with no environment is still available to
+    # other workflows.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
