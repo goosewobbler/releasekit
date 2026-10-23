@@ -1,0 +1,43 @@
+name: Live Tests
+
+on:
+  workflow_call:
+    inputs:
+      cache_key:
+        required: true
+        type: string
+    secrets:
+      OLLAMA_API_KEY:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  live-tests:
+    name: Live Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
+
+      - name: Download build artifacts
+        uses: ./.github/workflows/actions/download-archive
+        with:
+          name: releasekit-build
+          cache_key: ${{ inputs.cache_key }}
+
+      # Not turbo: its strict env mode strips RELEASEKIT_NOTES_LIVE and the suite silently skips.
+      - name: Notes against live Ollama
+        run: |
+          RELEASEKIT_NOTES_LIVE_MODEL=$(jq -er '.notes.releaseNotes.llm.model' releasekit.config.json)
+          OLLAMA_BASE_URL=$(jq -er '.notes.releaseNotes.llm.baseURL' releasekit.config.json)
+          export RELEASEKIT_NOTES_LIVE_MODEL OLLAMA_BASE_URL
+          pnpm --filter @releasekit/notes test ollama-live
+        env:
+          RELEASEKIT_NOTES_LIVE: '1'
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}

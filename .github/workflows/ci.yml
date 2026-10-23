@@ -33,7 +33,7 @@ jobs:
   build:
     name: Build
     needs: [detect-changes]
-    if: needs.detect-changes.outputs.has_changes == 'true'
+    if: needs.detect-changes.outputs.has_changes == 'true' || needs.detect-changes.outputs.run_live == 'true'
     uses: ./.github/workflows/_ci-build.reusable.yml
     with:
       os: ubuntu-latest
@@ -192,6 +192,21 @@ jobs:
       os: ${{ matrix.os }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
+  live-tests:
+    name: Live Tests
+    needs: [detect-changes, build]
+    # Skip forks (no secrets) and the standing release PR (version bumps only).
+    if: >-
+      needs.detect-changes.outputs.run_live == 'true' &&
+      github.head_ref != 'release/next' &&
+      github.repository == 'goosewobbler/releasekit' &&
+      (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
+    uses: ./.github/workflows/_ci-live.reusable.yml
+    with:
+      cache_key: ${{ needs.build.outputs.cache_key }}
+    secrets:
+      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+
   ci-status:
     name: CI Status
     if: always()
@@ -206,6 +221,7 @@ jobs:
       - integration-tests
       - package-tests
       - e2e-tests
+      - live-tests
     runs-on: ubuntu-latest
     steps:
       - name: Check CI results
