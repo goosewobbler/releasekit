@@ -3,14 +3,13 @@ import { LLMError } from '../errors/index.js';
 import { LLM_DEFAULTS } from './defaults.js';
 import type { CompleteResult, LLMMessage } from './messages.js';
 import type { LLMProvider, ProviderCapabilities } from './provider.js';
+import { isRetryableProviderError } from './retryable.js';
 
 export type { LLMProvider };
 
 export interface IdleTimeout {
   readonly signal: AbortSignal;
-  readonly ms: number;
   reset(): void;
-  clear(): void;
 }
 
 export abstract class BaseLLMProvider implements LLMProvider {
@@ -29,26 +28,40 @@ export abstract class BaseLLMProvider implements LLMProvider {
     return Math.min(Math.trunc(timeout), MAX_TIMEOUT_MS);
   }
 
-  protected idleTimeout(options?: CompleteOptions): IdleTimeout {
+  /**
+   * Runs one request under the idle timeout and normalises its errors to LLMError. An abort is a timeout
+   * whatever `request` then threw, because each SDK surfaces an aborted stream differently.
+   */
+  protected async withIdleTimeout<T>(
+    label: string,
+    options: CompleteOptions | undefined,
+    request: (idle: IdleTimeout) => Promise<T>,
+  ): Promise<T> {
     const ms = this.getTimeout(options);
     const controller = new AbortController();
     const timer = setTimeout(
       () => controller.abort(new DOMException(`Nothing received for ${ms}ms`, 'TimeoutError')),
       ms,
     );
-    return {
-      signal: controller.signal,
-      ms,
-      reset: () => timer.refresh(),
-      clear: () => clearTimeout(timer),
-    };
-  }
-
-  protected timeoutError(idle: IdleTimeout, label: string): LLMError {
-    return new LLMError(`${label} request timed out: nothing received for ${idle.ms}ms`, {
-      cause: idle.signal.reason,
-      retryable: true,
-    });
+    try {
+      return await request({ signal: controller.signal, reset: () => timer.refresh() });
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new LLMError(`${label} request timed out: nothing received for ${ms}ms`, {
+          cause: controller.signal.reason,
+          retryable: true,
+        });
+      }
+      if (error instanceof LLMError) {
+        throw error;
+      }
+      throw new LLMError(`${label} error: ${error instanceof Error ? error.message : String(error)}`, {
+        cause: error,
+        retryable: isRetryableProviderError(error),
+      });
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   protected getMaxTokens(options?: CompleteOptions): number {

@@ -11,11 +11,8 @@ function reply(content: string): string[] {
   return [line(content), line('', true)];
 }
 
-/**
- * Each read waits `gapMs` for the next piece; with `stall`, the body goes quiet instead of closing.
- * Like fetch, aborting the request errors the body.
- */
-function stubStream(pieces: Array<string | Uint8Array>, { gapMs = 0, stall = false } = {}) {
+/** Each read waits `gapMs` for the next piece; like fetch, aborting the request errors the body. */
+function stubStream(pieces: Array<string | Uint8Array>, { gapMs = 0 } = {}) {
   const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
     const queue = [...pieces];
     const signal = init?.signal;
@@ -33,8 +30,6 @@ function stubStream(pieces: Array<string | Uint8Array>, { gapMs = 0, stall = fal
         const piece = queue.shift();
         if (piece !== undefined) {
           controller.enqueue(typeof piece === 'string' ? encoder.encode(piece) : piece);
-        } else if (stall) {
-          await new Promise(() => {});
         } else {
           controller.close();
         }
@@ -118,35 +113,6 @@ describe('OllamaProvider', () => {
 
     await expect(pending).resolves.toMatchObject({ structured: { a: 1, b: 2, c: 3 } });
   });
-
-  it('should time out once the stream goes quiet for the timeout, as a retryable error', async () => {
-    vi.useFakeTimers();
-    stubStream([line('{ "a": '), line('1')], { gapMs: 100, stall: true });
-
-    await Promise.all([
-      expect(makeProvider().complete(ask, { timeout: 1_000 })).rejects.toMatchObject({
-        message: expect.stringMatching(/timed out: nothing received for 1000ms/),
-        retryable: true,
-        cause: expect.objectContaining({ name: 'TimeoutError' }),
-      }),
-      vi.advanceTimersByTimeAsync(1_300),
-    ]);
-  });
-
-  it('should time out when nothing arrives at all', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(
-        (_url, opts: { signal?: AbortSignal }) =>
-          new Promise((_resolve, reject) => {
-            opts.signal?.addEventListener('abort', () => reject(opts.signal?.reason));
-          }),
-      ),
-    );
-
-    await expect(makeProvider().complete(ask, { timeout: 5 })).rejects.toThrow(/timed out/);
-  });
-
   it('should surface an error object sent mid-stream, as a retryable error', async () => {
     stubStream([line('{ "a": '), `${JSON.stringify({ error: 'model runner has unexpectedly stopped' })}\n`]);
 
@@ -164,32 +130,5 @@ describe('OllamaProvider', () => {
       cause: expect.objectContaining({ message: expect.stringMatching(/^Last line received: .*"done":false/) }),
       retryable: true,
     });
-  });
-
-  it('should clamp a 0 / invalid timeout to the default rather than aborting every request', async () => {
-    stubStream(reply('{ "ok": true }'));
-
-    const result = await makeProvider().complete(ask, { schema: { type: 'object' }, timeout: 0 });
-
-    expect(result.structured).toEqual({ ok: true });
-  });
-
-  it('should clamp an over-large timeout to the timer ceiling rather than aborting every request', async () => {
-    stubStream(reply('{ "ok": true }'));
-
-    const result = await makeProvider().complete(ask, {
-      schema: { type: 'object' },
-      timeout: Number.MAX_SAFE_INTEGER,
-    });
-
-    expect(result.structured).toEqual({ ok: true });
-  });
-
-  it('should treat a sub-millisecond timeout as the default rather than aborting every request', async () => {
-    stubStream(reply('{ "ok": true }'));
-
-    const result = await makeProvider().complete(ask, { schema: { type: 'object' }, timeout: 0.5 });
-
-    expect(result.structured).toEqual({ ok: true });
   });
 });

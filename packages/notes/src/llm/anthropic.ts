@@ -5,7 +5,6 @@ import { BaseLLMProvider, type IdleTimeout } from './base.js';
 import type { CompleteResult, LLMMessage } from './messages.js';
 import { debugLogMessages } from './messages.js';
 import type { ProviderCapabilities } from './provider.js';
-import { isRetryableProviderError } from './retryable.js';
 
 export interface AnthropicConfig {
   apiKey?: string;
@@ -50,8 +49,7 @@ export class AnthropicProvider extends BaseLLMProvider {
       .filter((m) => m.role !== 'system')
       .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
-    const idle = this.idleTimeout(options);
-    try {
+    return this.withIdleTimeout('Anthropic', options, async (idle) => {
       if (options?.schema) {
         const toolName = options.toolName ?? 'emit_release_notes';
         const response = await this.streamMessage(
@@ -100,20 +98,7 @@ export class AnthropicProvider extends BaseLLMProvider {
       }
 
       return { content: textBlock.text };
-    } catch (error) {
-      if (idle.signal.aborted) {
-        throw this.timeoutError(idle, 'Anthropic');
-      }
-      if (error instanceof LLMError) {
-        throw error;
-      }
-      throw new LLMError(`Anthropic API error: ${error instanceof Error ? error.message : String(error)}`, {
-        cause: error,
-        retryable: isRetryableProviderError(error),
-      });
-    } finally {
-      idle.clear();
-    }
+    });
   }
 
   private async streamMessage(params: Anthropic.MessageStreamParams, idle: IdleTimeout): Promise<Anthropic.Message> {

@@ -6,7 +6,6 @@ import type { CompleteResult, LLMMessage } from './messages.js';
 import { debugLogMessages } from './messages.js';
 import { readChatCompletionStream } from './openai.js';
 import type { ProviderCapabilities } from './provider.js';
-import { isRetryableProviderError } from './retryable.js';
 
 export interface OpenAICompatibleConfig {
   apiKey?: string;
@@ -42,8 +41,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
   async complete(messages: LLMMessage[], options?: CompleteOptions): Promise<CompleteResult> {
     debugLogMessages(this.name, messages);
 
-    const idle = this.idleTimeout(options);
-    try {
+    return this.withIdleTimeout(this.name, options, async (idle) => {
       const openaiMessages = messages.map((m) => ({ role: m.role, content: m.content }));
 
       const requestParams = {
@@ -63,19 +61,6 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
       }
 
       return { content };
-    } catch (error) {
-      if (idle.signal.aborted) {
-        throw this.timeoutError(idle, this.name);
-      }
-      if (error instanceof LLMError) {
-        throw error;
-      }
-      throw new LLMError(`LLM API error: ${error instanceof Error ? error.message : String(error)}`, {
-        cause: error,
-        retryable: isRetryableProviderError(error),
-      });
-    } finally {
-      idle.clear();
-    }
+    });
   }
 }

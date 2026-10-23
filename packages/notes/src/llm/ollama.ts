@@ -6,7 +6,7 @@ import { BaseLLMProvider, type IdleTimeout } from './base.js';
 import type { CompleteResult, LLMMessage } from './messages.js';
 import { debugLogMessages } from './messages.js';
 import type { ProviderCapabilities } from './provider.js';
-import { isRetryableProviderError, isRetryableStatus } from './retryable.js';
+import { isRetryableStatus } from './retryable.js';
 
 export interface OllamaConfig {
   apiKey?: string;
@@ -114,8 +114,7 @@ export class OllamaProvider extends BaseLLMProvider {
       requestBody.format = options.schema as Record<string, unknown>;
     }
 
-    const idle = this.idleTimeout(options);
-    try {
+    return this.withIdleTimeout('Ollama', options, async (idle) => {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
@@ -167,19 +166,6 @@ export class OllamaProvider extends BaseLLMProvider {
       }
 
       return { content };
-    } catch (error) {
-      if (idle.signal.aborted) {
-        throw this.timeoutError(idle, 'Ollama');
-      }
-      if (error instanceof LLMError) {
-        throw error;
-      }
-      throw new LLMError(`Ollama error: ${error instanceof Error ? error.message : String(error)}`, {
-        cause: error,
-        retryable: isRetryableProviderError(error),
-      });
-    } finally {
-      idle.clear();
-    }
+    });
   }
 }

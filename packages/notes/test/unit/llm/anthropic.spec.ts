@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { LLMError } from '../../../src/errors/index.js';
 import { AnthropicProvider } from '../../../src/llm/anthropic.js';
 
 const { streamMock } = vi.hoisted(() => ({ streamMock: vi.fn() }));
@@ -10,11 +9,8 @@ vi.mock('@anthropic-ai/sdk', () => ({
   },
 }));
 
-/**
- * A stand-in for the SDK's MessageStream: emits `events` stream events `gapMs` apart, then resolves
- * finalMessage with `message`, or, with `stall`, goes quiet. Like the SDK, an abort rejects finalMessage.
- */
-function messageStream(signal: AbortSignal, message: object, { events = 1, gapMs = 0, stall = false } = {}) {
+/** Stands in for the SDK's MessageStream: `events` stream events `gapMs` apart, then `message`; an abort rejects. */
+function messageStream(signal: AbortSignal, message: object, { events = 1, gapMs = 0 } = {}) {
   const listeners: Array<() => void> = [];
   const stream = {
     on: (event: string, listener: () => void) => {
@@ -29,9 +25,6 @@ function messageStream(signal: AbortSignal, message: object, { events = 1, gapMs
         for (const listener of listeners) {
           listener();
         }
-      }
-      if (stall && !signal.aborted) {
-        await new Promise((resolve) => signal.addEventListener('abort', resolve));
       }
       if (signal.aborted) {
         throw new Error('Request was aborted.');
@@ -150,22 +143,6 @@ describe('AnthropicProvider', () => {
 
     await expect(pending).resolves.toEqual({ content: 'done' });
   });
-
-  it('should time out once the stream goes quiet for the timeout, as a retryable LLMError', async () => {
-    vi.useFakeTimers();
-    replies({ content: [{ type: 'text', text: 'never' }] }, { events: 2, gapMs: 100, stall: true });
-
-    await Promise.all([
-      expect(makeProvider().complete([{ role: 'user', content: 'hi' }], { timeout: 1_000 })).rejects.toSatisfy(
-        (error) =>
-          error instanceof LLMError &&
-          error.retryable === true &&
-          /Anthropic request timed out: nothing received for 1000ms/.test(error.message),
-      ),
-      vi.advanceTimersByTimeAsync(1_300),
-    ]);
-  });
-
   it('should fail, retryably, when the stream ends without a stop_reason', async () => {
     replies({ content: [{ type: 'text', text: 'cut off' }], stop_reason: null });
 

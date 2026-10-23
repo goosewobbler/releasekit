@@ -30,54 +30,18 @@ const ENTRY_COUNT = CHUNK_SIZE + 5;
 // Room for both chunks to stall through every retry (~3 min each) and still report the provider errors.
 const TEST_TIMEOUT_MS = 600_000;
 
-const AREAS = [
-  'config loader',
-  'changelog writer',
-  'tag resolver',
-  'npm publisher',
-  'cargo publisher',
-  'standing PR updater',
-  'template renderer',
-  'scope validator',
-];
-
 // Real entries carry their PR body (up to BODY_CAP), which makes a full chunk a far larger prompt.
-function prBody(i: number, area: string, fix: boolean): string {
-  const summary = fix
-    ? `The ${area} mishandled behaviour ${i} when a package was added mid-run: it reused a stale workspace read, so the changelog showed the wrong version.`
-    : `This adds behaviour ${i} to the ${area}, so teams releasing several packages together can apply one rule to all of them.`;
-  let body = [
-    '## Summary',
-    '',
-    summary,
-    '',
-    '## Changes',
-    '',
-    `- Moved the ${area} state into one module so behaviour ${i} reads it once per run.`,
-    `- Validated the inputs behaviour ${i} depends on, with an error naming the offending field.`,
-    '- Covered the new path with unit tests and a fixture repository that reproduces the report.',
-    '',
-    '## Testing',
-    '',
-    'Ran the unit suite and the end-to-end harness against a scratch repository with three packages.',
-    '',
-    '## Notes',
-    '',
-  ].join('\n');
-  for (let n = 1; body.length < BODY_CAP; n++) {
-    body += `\n- Follow-up ${n}: check behaviour ${i} under prerelease channels and a dry run of the ${area}.`;
-  }
-  return body.slice(0, BODY_CAP);
-}
-
 function realisticEntry(i: number): ChangelogEntry {
   const fix = i % 2 === 0;
-  const area = AREAS[i % AREAS.length] ?? 'core';
-  const description = `${fix ? 'Fix' : 'Add'} behaviour ${i} in the ${area}`;
+  const description = `${fix ? 'Fix' : 'Add'} behaviour ${i} in the release pipeline`;
+  const body = `## Summary\n\n${description}, so multi-package releases behave consistently.\n\n## Changes\n\n`.padEnd(
+    BODY_CAP,
+    `- Covered behaviour ${i} with unit tests and a fixture repository.\n`,
+  );
   return {
     type: fix ? 'fixed' : 'added',
     description,
-    context: { prs: [{ number: 100 + i, title: description, body: prBody(i, area, fix) }] },
+    context: { prs: [{ number: 100 + i, title: description, body }] },
   };
 }
 

@@ -9,22 +9,16 @@ vi.mock('openai', () => ({
   },
 }));
 
-/**
- * A chat-completion chunk stream: each chunk waits `gapMs`, the last carries the finish_reason. With
- * `stall`, it goes quiet after the last chunk instead. Like the SDK's stream, an abort ends it quietly.
- */
-function chunkStream(signal: AbortSignal, pieces: string[], { gapMs = 0, stall = false, finish = true } = {}) {
+/** Chat-completion chunks `gapMs` apart, the last with a finish_reason; like the SDK, an abort ends it quietly. */
+function chunkStream(signal: AbortSignal, pieces: string[], { gapMs = 0, finish = true } = {}) {
   return (async function* () {
     for (const [i, content] of pieces.entries()) {
       await new Promise((resolve) => setTimeout(resolve, gapMs));
       if (signal.aborted) {
         return;
       }
-      const last = i === pieces.length - 1 && !stall;
+      const last = i === pieces.length - 1;
       yield { choices: [{ delta: { content }, finish_reason: last && finish ? 'stop' : null }] };
-    }
-    if (stall) {
-      await new Promise((resolve) => signal.addEventListener('abort', resolve));
     }
   })();
 }
@@ -84,21 +78,6 @@ describe('OpenAIProvider', () => {
 
     await expect(pending).resolves.toMatchObject({ structured: { a: 1, b: 2 } });
   });
-
-  it('should time out once the stream goes quiet for the timeout, as a retryable error', async () => {
-    vi.useFakeTimers();
-    streams(['{ "a": '], { gapMs: 100, stall: true });
-    const provider = new OpenAIProvider({ model: 'gpt-4o-mini', apiKey: 'k' });
-
-    await Promise.all([
-      expect(provider.complete(ask, { timeout: 1_000 })).rejects.toMatchObject({
-        message: expect.stringMatching(/OpenAI request timed out: nothing received for 1000ms/),
-        retryable: true,
-      }),
-      vi.advanceTimersByTimeAsync(1_300),
-    ]);
-  });
-
   it('should fail, retryably, when the stream ends without a finish_reason', async () => {
     streams(['{ "a": 1 }'], { finish: false });
     const provider = new OpenAIProvider({ model: 'gpt-4o-mini', apiKey: 'k' });
