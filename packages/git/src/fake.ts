@@ -74,7 +74,7 @@ export interface FakeGitSeed {
   commitCounts?: Record<string, number>;
   /** Working-tree status text returned by `status`. Defaults to empty (clean). */
   status?: string;
-  /** Whether `hasStagedChanges` reports staged changes. Defaults to true, as after adding changed files. */
+  /** Whether `hasStagedChanges` reports staged changes. Defaults to true. */
   stagedChanges?: boolean;
 }
 

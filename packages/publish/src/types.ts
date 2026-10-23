@@ -150,7 +150,7 @@ export interface PipelineContext {
   releaseNotes?: Record<string, string>;
   /** Additional files to stage in the git commit (e.g., changelog files from the notes step). */
   additionalFiles?: string[];
-  /** HEAD was already the release commit, so the branch is pushed though `output.git.committed` stays false. */
+  /** HEAD was already the release commit: nothing was committed this run, but the branch still needs pushing. */
   releaseCommitReused?: boolean;
 }
 

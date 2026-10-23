@@ -16,7 +16,7 @@ async function hasStagedChanges(git: Git, cwd: string): Promise<boolean> {
   }
 }
 
-/** Git's `%s`: the first paragraph, each line's trailing whitespace dropped, joined with spaces. */
+/** The subject `git log --format=%s` shows for this message: its first paragraph, with the lines joined by spaces. */
 function subjectOf(message: string): string {
   const lines = message.split('\n').map((line) => line.trimEnd());
   const start = lines.findIndex((line) => line !== '');
@@ -73,7 +73,7 @@ export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
       );
     }
 
-    // A dry run skipped the add, so the index can't say whether there is anything to commit.
+    // A dry run stages nothing, so the index can't be checked; assume there's something to commit.
     if (dryRun || (await hasStagedChanges(git, cwd))) {
       try {
         await runGit(dryRun, `git commit -m "${input.commitMessage}"`, () =>
