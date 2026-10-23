@@ -220,8 +220,11 @@ describe('Version Strategies', () => {
       expect(jsonOutput.setPackageUpdateTag).not.toHaveBeenCalled();
     });
 
-    it('should update pubspec.yaml in sync mode when npm is disabled', async () => {
-      const config: Partial<Config> = { ...defaultConfig, sync: true, npm: { enabled: false } };
+    it('should version a pub-only package and not abandon it', async () => {
+      vi.mocked(fs.existsSync, { partial: true }).mockImplementation((filePath) =>
+        String(filePath).endsWith('pubspec.yaml'),
+      );
+      const config: Partial<Config> = { ...defaultConfig, sync: true };
       await strategies.createSyncStrategy(config as Config)(mockPackages);
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
@@ -229,6 +232,12 @@ describe('Version Strategies', () => {
         '1.1.0',
         false,
       );
+      expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
+        packageAPath,
+        expect.anything(),
+        expect.anything(),
+      );
+      expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
     });
 
     it('should still version Cargo.toml and not abandon it when npm handling is disabled on a hybrid repo', async () => {

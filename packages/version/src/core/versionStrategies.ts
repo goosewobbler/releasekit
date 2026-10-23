@@ -152,6 +152,8 @@ export function createSyncStrategy(config: Config): StrategyFunction {
           files.push(...rootCargoFiles);
           const rootPubFiles = updatePubFiles(packages.root, nextVersion, config.pub, dryRun, repoRoot);
           files.push(...rootPubFiles);
+          // Track a Cargo- or pub-only root bump: the loop skips this path in a single-package repo, so the early
+          // return below would otherwise abandon the written file.
           if ((rootCargoFiles.length > 0 || rootPubFiles.length > 0) && !updatedPackages.includes('root')) {
             updatedPackages.push('root');
           }
@@ -178,7 +180,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
           log(`Skipping package.json update for ${pkg.packageJson.name} - npm version handling disabled`, 'debug');
         } else if (!fs.existsSync(packageJsonPath)) {
           log(
-            `Skipping package.json update for ${pkg.packageJson.name} - no package.json found (Rust-only package)`,
+            `Skipping package.json update for ${pkg.packageJson.name} - no package.json found (Cargo- or pub-only package)`,
             'debug',
           );
         } else {
@@ -193,6 +195,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         const pkgPubFiles = updatePubFiles(pkg.dir, nextVersion, config.pub, dryRun, repoRoot);
         files.push(...pkgPubFiles);
 
+        // Track Cargo- or pub-only updates, or the early return below abandons the written manifests.
         if (
           (!fs.existsSync(packageJsonPath) || config.npm?.enabled === false) &&
           (pkgCargoFiles.length > 0 || pkgPubFiles.length > 0)
@@ -521,7 +524,9 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         updatePackageVersion(packageJsonPath, nextVersion, dryRun);
         filesToCommit.push(packageJsonPath);
       } else {
-        const reason = !npmEnabled ? 'npm version handling disabled' : 'no package.json found (Rust-only package)';
+        const reason = !npmEnabled
+          ? 'npm version handling disabled'
+          : 'no package.json found (Cargo- or pub-only package)';
         log(`Skipping package.json update for ${packageName} - ${reason}`, 'debug');
       }
 
