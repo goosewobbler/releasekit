@@ -1,10 +1,8 @@
 import {
-  errorEnvelope,
   exitCodeForError,
   setJsonMode,
   setLogLevel,
   successEnvelope,
-  toEnvelopeError,
   writeEnvelope,
   writeErrorEnvelope,
 } from '@releasekit/core';
@@ -13,6 +11,7 @@ import { loadConfig } from './config.js';
 import { BasePublishError, PipelineError } from './errors/index.js';
 import { publishDidChange } from './output.js';
 import { runPipeline } from './pipeline/index.js';
+import { pipelineErrorEnvelope } from './pipeline-error-envelope.js';
 import { parseInput } from './stages/input.js';
 import type { PublishCliOptions } from './types.js';
 
@@ -68,15 +67,7 @@ export function createPublishCommand(): Command {
         writeEnvelope(successEnvelope(output, { changed: publishDidChange(output) }), io);
       } catch (err) {
         if (err instanceof PipelineError) {
-          // The envelope has no stage field, so name the failed stage in the message; `data` keeps what landed.
-          const error = toEnvelopeError(err);
-          writeEnvelope(
-            errorEnvelope([{ ...error, message: `publish failed in the ${err.failedStage} stage: ${error.message}` }], {
-              data: err.partialOutput,
-              changed: publishDidChange(err.partialOutput),
-            }),
-            io,
-          );
+          writeEnvelope(pipelineErrorEnvelope(err), io);
           err.logError();
         } else {
           writeErrorEnvelope(err, io);
