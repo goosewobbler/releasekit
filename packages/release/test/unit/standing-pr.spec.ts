@@ -51,11 +51,13 @@ function setupGit(
     subject?: string;
     remoteBranches?: Record<string, string[]>;
     ancestors?: FakeGitSeed['ancestors'];
+    status?: string;
   } = {},
 ) {
   fakeGit = new ControllableGit({
     headSha: seed.headSha ?? 'abc123',
     remoteBranches: seed.remoteBranches,
+    status: seed.status,
     // Default to "is an ancestor" so the manifest baseSha ancestry guard passes on the common publish path.
     ancestors: seed.ancestors ?? (() => true),
   });
@@ -1184,6 +1186,32 @@ describe('runStandingPRUpdate', () => {
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     expect(forge.createdPullRequests[0]).toEqual(expect.objectContaining({ title: 'chore: release v1.2.3' }));
+  });
+
+  it.each([
+    ['the PR title', undefined, 'chore: release v1.2.3'],
+    ['a fixed subject when the PR title matches no skip pattern', 'Next release', 'chore: release preparation'],
+  ])('should commit the release branch with %s', async (_label, title, expected) => {
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValue({
+      ...defaultConfig,
+      ci: { ...defaultConfig.ci, standingPr: { ...defaultConfig.ci.standingPr, title } },
+    } as unknown as ReturnType<typeof loadConfig>);
+    setupGit({ status: ' M package.json' });
+
+    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+    const versionOutput = {
+      ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+      strategy: 'sync',
+      tags: ['v1.2.3'],
+    };
+    vi.mocked(runVersionStep).mockResolvedValue(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    await mockForge({ standingPR: null });
+
+    await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(fakeGit.committed.map((c) => c.message)).toEqual([expected]);
   });
 
   it('should exclude the root lockstep bump from ${count} and the PR body publish table', async () => {

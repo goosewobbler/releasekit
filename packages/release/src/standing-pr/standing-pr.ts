@@ -195,15 +195,14 @@ async function resetReleaseBranch(branch: string, base: string, cwd: string): Pr
   await git.resetHard(`origin/${base}`, cwd);
 }
 
-async function commitAndForcePush(branch: string, cwd: string): Promise<void> {
+async function commitAndForcePush(branch: string, subject: string, cwd: string): Promise<void> {
   const git = createGitCli();
   await git.addAll(cwd);
 
   const status = (await git.status({ porcelain: true, cwd })).trim();
   if (status) {
-    // Subject must match `release.ci.skipPatterns` so a later standing-pr update on this branch noops. No skip-ci
-    // token: a squash merge inherits this message, and on main it would suppress the publish workflow.
-    await git.commit('chore: release preparation', { cwd });
+    // No skip-ci token: a squash merge inherits this message, and on main it would suppress the publish workflow.
+    await git.commit(subject, { cwd });
   }
 
   await git.push({ remote: 'origin', ref: branch, forceWithLease: true, cwd });
@@ -1172,20 +1171,6 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const notesOptions = { ...writeOptions, skipNotes: false, skipReleaseNotes: !generateReleaseNotes };
   const notesResult = await runNotesStep(versionOutput, notesOptions);
 
-  info(`Committing and pushing '${branch}'...`);
-  await commitAndForcePush(branch, cwd);
-
-  const releaseBranchSha = await getHeadSha(cwd);
-
-  success(`Release branch '${branch}' updated`);
-
-  if (!githubContext?.token) {
-    warn('No GitHub context available — skipping PR creation');
-    return { action: 'noop', versionOutput };
-  }
-
-  const forge = forgeFor(githubContext);
-
   // Both default titles start with `chore: release ` so their squash merge matches the default skip pattern.
   const countableUpdates = publishableUpdates(versionOutput);
   const count = countableUpdates.length;
@@ -1198,6 +1183,23 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     .replace(/\$\{count\}/g, String(count))
     .replace(/\$\{version\}/g, firstUpdate?.newVersion ?? '')
     .replace(/\$\{tag\}/g, syncVersionDisplay(versionOutput));
+
+  // GitHub's default squash title for a single-commit PR is the commit's subject, so the commit carries
+  // the PR title. It must still match a skip pattern so the merge doesn't trigger another update.
+  const commitSubject = matchesSkipPattern(title, skipPatterns) ? title : 'chore: release preparation';
+  info(`Committing and pushing '${branch}'...`);
+  await commitAndForcePush(branch, commitSubject, cwd);
+
+  const releaseBranchSha = await getHeadSha(cwd);
+
+  success(`Release branch '${branch}' updated`);
+
+  if (!githubContext?.token) {
+    warn('No GitHub context available — skipping PR creation');
+    return { action: 'noop', versionOutput };
+  }
+
+  const forge = forgeFor(githubContext);
 
   const labels = standingPrConfig?.labels ?? ['release'];
 
