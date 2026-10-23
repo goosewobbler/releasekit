@@ -2794,7 +2794,7 @@ describe('runStandingPRPublish', () => {
     expect(deleteCalls[0]?.ref).toBe(':release/next');
   });
 
-  it('should skip branch delete when releaseBranchSha no longer matches remote tip', async () => {
+  it('should skip branch delete when releaseBranchSha no longer matches the remote tip', async () => {
     setupGit({
       headSha: 'abc123',
       existingRefs: ['refs/remotes/origin/release/next'],
@@ -2819,6 +2819,33 @@ describe('runStandingPRPublish', () => {
     await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     expect(branchDeletePushes()).toHaveLength(0);
+  });
+
+  it('should delete the branch when its remote tip still matches releaseBranchSha', async () => {
+    setupGit({
+      headSha: 'abc123',
+      existingRefs: ['refs/remotes/origin/release/next'],
+      refShas: { 'refs/remotes/origin/release/next': 'abc123' },
+    });
+
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({
+        pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
+      }),
+    );
+
+    const manifest = { ...baseManifest, releaseBranchSha: 'abc123' };
+    await mockForge({ comments: [{ id: 1, body: serializeManifest(manifest) }] });
+
+    const { runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+      ReturnType<typeof runPublishStep>
+    >);
+
+    await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(branchDeletePushes()).toHaveLength(1);
   });
 
   it('should skip branch deletion when deleteBranchOnMerge is false', async () => {

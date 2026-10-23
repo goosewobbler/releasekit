@@ -465,9 +465,12 @@ on:
     - cron: '0 * * * *'  # Hourly — re-evaluates minAge status check as time passes
 
 concurrency:
-  # One shared group serializes publish (merge closed) against push/schedule updates so branch delete cannot race a new release branch.
-  # Maintainer checkbox edits cancel in-flight rebuilds per PR via a dedicated edit group.
-  group: ${{ github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
+  # GitHub keeps one pending run per group and replaces it with any newer one. So events on a closed PR
+  # (the publish on merge, a retry label) get a group per PR that nothing else can replace; publish
+  # deletes the release branch only if no update has moved it since. A maintainer's checkbox edits get
+  # a per-PR cancelling group, so a flurry of ticks collapses to one rebuild. Everything else, including
+  # the bot's own body edits, shares a non-cancelling group.
+  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
 
 permissions:
@@ -548,8 +551,10 @@ jobs:
       - run: pnpm exec releasekit standing-pr update
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # LLM key only when using the release:preview-notes label:
+          # LLM key only needed when using the release:preview-notes label (optional).
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
       # On success the regenerated body already omits the banner; only a run that ended before the
       # rebuild leaves it behind. Strip the marker region so it doesn't linger as a false "in progress".
@@ -756,7 +761,7 @@ Mechanics (all in `standing-pr.yml`, no config):
 - **Self-clearing.** `standing-pr update` regenerates the PR body from scratch, so a successful update drops the banner automatically. A dedicated `if: failure()` step strips it if the run dies before the rebuild, so it never lingers as a false "in progress".
 - **Idempotent.** The step skips if a banner is already present, so rapid re-triggers don't stack it.
 
-Rapid checkbox toggles are also **collapsed**: the workflow's `concurrency` routes a maintainer's `edited` events to a per-PR group with `cancel-in-progress: true`, so ticking several packages in a row cancels the superseded rebuilds and only the latest selection is applied. The group is sender-aware — the bot's *own* body edits (the banner and the rebuilt body are `edited` events too) stay on the stable non-cancelling group, so they never cancel the run doing the work; push/schedule/merge events stay there too (a cancelled publish dispatch could drop a release).
+Rapid checkbox toggles are also **collapsed**: the workflow's `concurrency` routes a maintainer's `edited` events to a per-PR group with `cancel-in-progress: true`, so ticking several packages in a row cancels the superseded rebuilds and only the latest selection is applied. The group is sender-aware — the bot's *own* body edits (the banner and the rebuilt body are `edited` events too) stay on the stable non-cancelling group with push and schedule runs, so they never cancel the run doing the work. Events on a closed PR (the publish on merge, a retry label) get a group per PR, since GitHub replaces a group's pending run with any newer one and would drop a queued publish.
 
 ### Label semantics in standing-pr mode
 
@@ -843,7 +848,7 @@ This is a standing-pr-only feature — it needs a durable pre-publish artifact (
 | Symptom | Cause / fix |
 |---|---|
 | `403 — GitHub Actions is not permitted to create or approve pull requests` | Repo setting not enabled. See [Setup requirements](#setup-requirements). |
-| `OLLAMA_API_KEY is not set. … Returning entries ungrouped.` | LLM secret not passed to the `update-release-pr` job. Add it to the job's `env:` block (or the equivalent for your provider). |
+| `OLLAMA_API_KEY is not set. … Returning entries ungrouped.` | LLM secret not passed to the job generating the notes: `publish-release`, `retry-publish` and `immediate-release`, or `update-release-pr` for `release:preview-notes`. Add it to the job's `env:` block (or the equivalent for your provider). |
 | `error: too many arguments for 'preview'` | Pre-fix releasekit where `standing-pr` was missing from `cli.ts`. Upgrade `@releasekit/release`. |
 | Standing PR never appears despite merges | Check, in order: (1) the GitHub repo setting; (2) the head commit doesn't match `release.ci.skipPatterns`; (3) there are releasable conventional commits (`feat:`, `fix:`) since the last tag; (4) the `update-release-pr` job logs — they print the dry-run version output. |
 | Standing PR keeps closing immediately | `minPackages` is set higher than the current change count. Either lower the threshold or wait for more package changes to accumulate. |

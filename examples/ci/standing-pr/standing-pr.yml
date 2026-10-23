@@ -18,7 +18,10 @@ on:
     - cron: '0 * * * *' # advances the minAge status check as time passes
 
 concurrency:
-  group: standing-release-pr
+  # GitHub keeps one pending run per group and replaces it with any newer one. So events on a closed PR
+  # (the publish on merge, a retry label) get a group per PR that nothing else can replace; publish
+  # deletes the release branch only if no update has moved it since.
+  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
   cancel-in-progress: false
 
 permissions:
