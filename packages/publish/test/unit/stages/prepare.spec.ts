@@ -10,7 +10,9 @@ import type { PipelineContext } from '../../../src/types.js';
 /** A committed lock listing the path crate `foo` at `version`. */
 const fooLock = (version: string): string => `version = 4\n\n[[package]]\nname = "foo"\nversion = "${version}"\n`;
 
-/** A fixture app's committed lock: the app uses `foo` (at `version`) by path. */
+/** A fixture app's manifest and committed lock: the app uses `foo` (at `version`) by path. */
+const appManifestUsingFoo =
+  '[package]\nname = "app"\nversion = "0.1.0"\n\n[workspace]\n\n[dependencies]\nfoo = { path = "../../crates/foo" }\n';
 const appLockUsingFoo = (version: string): string =>
   `${fooLock(version)}\n[[package]]\nname = "app"\nversion = "0.1.0"\ndependencies = [\n "foo",\n]\n`;
 
@@ -183,6 +185,7 @@ describe('prepare stage', () => {
     fs.writeFileSync(ownLock, fooLock('1.0.0'));
     const appLock = path.join(dir, 'fixtures', 'app', 'Cargo.lock');
     fs.mkdirSync(path.dirname(appLock), { recursive: true });
+    fs.writeFileSync(path.join(path.dirname(appLock), 'Cargo.toml'), appManifestUsingFoo);
     fs.writeFileSync(appLock, appLockUsingFoo('1.0.0'));
     execFileSync('git', ['init', '-q'], { cwd: dir });
     execFileSync('git', ['add', '-A'], { cwd: dir });
@@ -205,44 +208,6 @@ describe('prepare stage', () => {
     expect(fs.readFileSync(ownLock, 'utf-8')).toBe(fooLock('1.1.0'));
     expect(fs.readFileSync(appLock, 'utf-8')).toBe(appLockUsingFoo('1.1.0'));
     expect(ctx.additionalFiles).toEqual(expect.arrayContaining([ownLock, appLock]));
-  });
-
-  it('should leave a lock alone that uses a different crate of the same name at another version', async () => {
-    // No own lock records foo's old version, so only the manifest's says which `foo` the bump is.
-    const dir = createTmpDir();
-    const crateDir = path.join(dir, 'crates', 'foo');
-    fs.mkdirSync(crateDir, { recursive: true });
-    fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "foo"\nversion = "1.0.0"\n');
-    const appLock = path.join(dir, 'fixtures', 'app', 'Cargo.lock');
-    const otherLock = path.join(dir, 'fixtures', 'other', 'Cargo.lock');
-    for (const [lockPath, version] of [
-      [appLock, '1.0.0'],
-      [otherLock, '0.9.0'],
-    ]) {
-      fs.mkdirSync(path.dirname(lockPath), { recursive: true });
-      fs.writeFileSync(lockPath, appLockUsingFoo(version));
-    }
-    execFileSync('git', ['init', '-q'], { cwd: dir });
-    execFileSync('git', ['add', '-A'], { cwd: dir });
-
-    const config = getDefaultConfig();
-    config.cargo.enabled = true;
-    const ctx = createContext({
-      cwd: dir,
-      config,
-      input: {
-        dryRun: false,
-        updates: [{ packageName: 'foo', newVersion: '1.1.0', filePath: 'crates/foo/Cargo.toml' }],
-        changelogs: [],
-        tags: [],
-      },
-    });
-
-    await runPrepareStage(ctx);
-
-    expect(fs.readFileSync(appLock, 'utf-8')).toBe(appLockUsingFoo('1.1.0'));
-    expect(fs.readFileSync(otherLock, 'utf-8')).toBe(appLockUsingFoo('0.9.0'));
-    expect(ctx.additionalFiles).toEqual([appLock]);
   });
 
   it('should not fail the publish when a lock cannot be synced', async () => {
@@ -283,6 +248,7 @@ describe('prepare stage', () => {
     fs.writeFileSync(lockPath, fooLock('1.1.0'));
     const appLock = path.join(dir, 'fixtures', 'app', 'Cargo.lock');
     fs.mkdirSync(path.dirname(appLock), { recursive: true });
+    fs.writeFileSync(path.join(path.dirname(appLock), 'Cargo.toml'), appManifestUsingFoo);
     fs.writeFileSync(appLock, appLockUsingFoo('1.1.0'));
     execFileSync('git', ['init', '-q'], { cwd: dir });
     execFileSync('git', ['add', '-A'], { cwd: dir });

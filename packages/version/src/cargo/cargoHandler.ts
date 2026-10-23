@@ -72,8 +72,6 @@ export function updateCargoVersion(cargoPath: string, version: string, dryRun = 
       throw new Error(`No package name found in ${cargoPath}`);
     }
 
-    // Not a string when the crate inherits `version.workspace = true`.
-    const fromVersion = typeof cargo.package?.version === 'string' ? cargo.package.version : undefined;
     // Update the version in the manifest
     if (!cargo.package) {
       cargo.package = { name: packageName, version };
@@ -92,7 +90,7 @@ export function updateCargoVersion(cargoPath: string, version: string, dryRun = 
 
     // Track update for JSON output
     addPackageUpdate(packageName, version, cargoPath);
-    recordCargoBump({ cargoTomlPath: cargoPath, name: packageName, version, fromVersion });
+    recordCargoBump({ cargoTomlPath: cargoPath, name: packageName, version });
 
     log(`${dryRun ? '[DRY RUN] Would update' : 'Updated'} Cargo.toml at ${cargoPath} to version ${version}`, 'success');
   } catch (error) {

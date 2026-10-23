@@ -202,6 +202,49 @@ describe.skipIf(!cargoAvailable())('Cargo.lock sync (real cargo)', () => {
     }
   });
 
+  it('should leave another workspace’s lock alone when it uses its own crate of the same name and version', () => {
+    const repo = join(dir, 'repo');
+    mkdirSync(join(repo, 'crates'), { recursive: true });
+    writeFileSync(join(repo, 'crates', 'Cargo.toml'), '[workspace]\nmembers = ["utils"]\nresolver = "2"\n');
+    writeCrate(join(repo, 'crates', 'utils'), 'utils', '0.1.0');
+    writeCrate(
+      join(repo, 'fixtures', 'app'),
+      'fixture-app',
+      '0.1.0',
+      'publish = false\n\n[workspace]\n\n[dependencies]\nutils = { path = "utils" }\n',
+    );
+    writeCrate(join(repo, 'fixtures', 'app', 'utils'), 'utils', '0.1.0', 'publish = false\n');
+    const manifests = [join(repo, 'crates', 'Cargo.toml'), join(repo, 'fixtures', 'app', 'Cargo.toml')];
+    for (const manifest of manifests) {
+      cargo(repo, emptyCargoHome, 'generate-lockfile', '--offline', '--manifest-path', manifest);
+    }
+    commitWithChange(repo, ['utils'], join(repo, 'crates', 'utils'));
+    const fixtureLock = join(repo, 'fixtures', 'app', 'Cargo.lock');
+    const untouched = readFileSync(fixtureLock, 'utf-8');
+
+    releasekitVersion(repo, {});
+
+    expect(crateVersion(join(repo, 'crates', 'utils', 'Cargo.toml'))).toBe('0.2.0');
+    expect(pathEntryVersions(readFileSync(join(repo, 'crates', 'Cargo.lock'), 'utf-8'), 'utils')).toEqual(['0.2.0']);
+    expect(readFileSync(fixtureLock, 'utf-8')).toBe(untouched);
+    for (const manifest of manifests) {
+      const lockPath = join(manifest, '..', 'Cargo.lock');
+      const lock = readFileSync(lockPath, 'utf-8');
+      cargo(
+        repo,
+        emptyCargoHome,
+        'metadata',
+        '--locked',
+        '--offline',
+        '--format-version',
+        '1',
+        '--manifest-path',
+        manifest,
+      );
+      expect(readFileSync(lockPath, 'utf-8')).toBe(lock);
+    }
+  });
+
   it('should write the same lock cargo writes, also when the bump passes other versions of the crate', () => {
     // Git crates also named `crate-b` make cargo spell out versions in its references. Bumping 0.1.0 to
     // 0.2.0 passes 0.1.5 in entry order (semver) and 0.10.0 in reference order (string), so both re-sort.

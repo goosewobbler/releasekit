@@ -7,13 +7,19 @@ interface CargoWorkspace {
   exclude?: unknown;
 }
 
-function readWorkspace(cargoTomlPath: string): CargoWorkspace | undefined {
+type Table = Record<string, unknown>;
+type ReadManifest = (cargoTomlPath: string) => Table | undefined;
+
+function readManifest(cargoTomlPath: string): Table | undefined {
   try {
-    return (TOML.parse(fs.readFileSync(cargoTomlPath, 'utf8')) as { workspace?: CargoWorkspace }).workspace;
+    return TOML.parse(fs.readFileSync(cargoTomlPath, 'utf8'));
   } catch {
     return undefined;
   }
 }
+
+const asTable = (value: unknown): Table =>
+  typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Table) : {};
 
 // Mirrors cargo's `is_excluded`, which matches `exclude` and `members` as literal path prefixes (no globs).
 function isExcluded(workspace: CargoWorkspace, rootDir: string, manifestPath: string): boolean {
@@ -27,26 +33,68 @@ function isExcluded(workspace: CargoWorkspace, rootDir: string, manifestPath: st
 }
 
 /**
- * The Cargo.lock at the crate's workspace root, by cargo's rule: the crate itself if its manifest has a
- * `[workspace]`, else the nearest ancestor `[workspace]` that doesn't exclude it, else the crate.
- * `package.workspace` pointers aren't followed. Undefined when the root has no lock: a bump syncs a
- * committed lock but never creates one.
+ * The crate's workspace root, by cargo's rule: the crate itself if its manifest has a `[workspace]`, else
+ * the nearest ancestor `[workspace]` that doesn't exclude it, else the crate. `package.workspace`
+ * pointers aren't followed.
  */
-export function findCargoLockfile(crateDir: string): string | undefined {
+function findCargoWorkspaceRoot(crateDir: string, read: ReadManifest = readManifest): string {
   const manifestPath = path.join(path.resolve(crateDir), 'Cargo.toml');
   let root = path.dirname(manifestPath);
-  if (!readWorkspace(manifestPath)) {
+  if (!read(manifestPath)?.workspace) {
     for (let dir = root; path.dirname(dir) !== dir; ) {
       dir = path.dirname(dir);
-      const workspace = readWorkspace(path.join(dir, 'Cargo.toml'));
+      const workspace = read(path.join(dir, 'Cargo.toml'))?.workspace as CargoWorkspace | undefined;
       if (workspace && !isExcluded(workspace, dir, manifestPath)) {
         root = dir;
         break;
       }
     }
   }
-  const lockPath = path.join(root, 'Cargo.lock');
+  return root;
+}
+
+/**
+ * The Cargo.lock at the crate's workspace root. Undefined when the root has no lock: a bump syncs a
+ * committed lock but never creates one.
+ */
+export function findCargoLockfile(crateDir: string): string | undefined {
+  const lockPath = path.join(findCargoWorkspaceRoot(crateDir), 'Cargo.lock');
   return fs.existsSync(lockPath) ? lockPath : undefined;
+}
+
+const DEPENDENCY_KINDS = ['dependencies', 'dev-dependencies', 'build-dependencies'];
+
+/**
+ * Directories of the path crates a lock at `lockRoot` resolves: path dependencies followed transitively,
+ * across workspaces, from the manifests whose workspace root is `lockRoot`.
+ */
+function findPathCrates(lockRoot: string, manifestDirs: string[], read: ReadManifest): Set<string> {
+  const found = new Set<string>();
+  const queue = manifestDirs.filter((dir) => findCargoWorkspaceRoot(dir, read) === lockRoot);
+  for (let dir = queue.pop(); dir !== undefined; dir = queue.pop()) {
+    if (found.has(dir)) {
+      continue;
+    }
+    found.add(dir);
+    const manifest = asTable(read(path.join(dir, 'Cargo.toml')));
+    const root = findCargoWorkspaceRoot(dir, read);
+    const inherited = asTable(asTable(asTable(read(path.join(root, 'Cargo.toml'))).workspace).dependencies);
+    // Cargo resolves dev-dependencies for the lock's own workspace members only.
+    const kinds = root === lockRoot ? DEPENDENCY_KINDS : DEPENDENCY_KINDS.filter((kind) => kind !== 'dev-dependencies');
+    const tables = [manifest, ...Object.values(asTable(manifest.target)).map(asTable)].flatMap((scope) =>
+      kinds.map((kind) => asTable(scope[kind])),
+    );
+    for (const table of [...tables, ...Object.values(asTable(manifest.patch)).map(asTable)]) {
+      for (const [key, value] of Object.entries(table)) {
+        const dependency = asTable(value);
+        const [base, source] = dependency.workspace === true ? [root, asTable(inherited[key])] : [dir, dependency];
+        if (typeof source.path === 'string') {
+          queue.push(path.resolve(base, source.path));
+        }
+      }
+    }
+  }
+  return found;
 }
 
 interface CargoLockEntry {
@@ -237,8 +285,6 @@ export interface CargoLockBump {
   cargoTomlPath: string;
   name: string;
   version: string;
-  /** Absent when the manifest inherits its version (`version.workspace = true`). */
-  fromVersion?: string;
 }
 
 export interface CargoLockUpdate {
@@ -251,10 +297,8 @@ export interface CargoLockUpdate {
  * Plan the content of every Cargo.lock that records a bumped crate, by text edit (no cargo, toolchain or
  * network). Candidates are every tracked lock plus each crate's own lock unless git ignores it.
  *
- * Names repeat across workspaces (every `tauri init` app is `app`), so outside a crate's own lock an
- * entry follows the bump only if something there depends on it at the crate's old or new version (any
- * version when the old one is unknown). A different same-named path crate at a matching version can't
- * be told apart.
+ * A crate's own lock always takes its bump. Names repeat across workspaces (every `tauri init` app is
+ * `app`), so another lock takes it only if the lock's workspace reaches the crate's directory by path.
  *
  * Writes nothing; throws, naming the lock, when any lock can't be edited unambiguously.
  */
@@ -264,29 +308,31 @@ export async function planCargoLockUpdates(
   bumps: CargoLockBump[],
 ): Promise<CargoLockUpdate[]> {
   const lockPaths = new Set<string>();
+  const manifestDirs: string[] = [];
   if (await git.isRepository(cwd)) {
-    for (const lockPath of await git.lsFiles({ paths: [':(top,glob)**/Cargo.lock'], cwd })) {
-      lockPaths.add(path.resolve(cwd, lockPath));
+    for (const file of await git.lsFiles({ paths: [':(top,glob)**/Cargo.lock', ':(top,glob)**/Cargo.toml'], cwd })) {
+      if (path.basename(file) === 'Cargo.lock') {
+        lockPaths.add(path.resolve(cwd, file));
+      } else {
+        manifestDirs.push(path.resolve(cwd, path.dirname(file)));
+      }
     }
   }
   const owners = new Map<string, CargoLockBump[]>();
-  const fromVersions = new Map<CargoLockBump, string | undefined>();
   for (const bump of bumps) {
-    fromVersions.set(bump, bump.fromVersion);
     const ownLock = findCargoLockfile(path.dirname(bump.cargoTomlPath));
     if (ownLock && !(await git.isIgnored(ownLock, cwd))) {
       owners.set(ownLock, [...(owners.get(ownLock) ?? []), bump]);
       lockPaths.add(ownLock);
-      // An inherited version isn't in the manifest; take it from the crate's own lock.
-      fromVersions.set(
-        bump,
-        fromVersions.get(bump) ??
-          readCargoLockEntries(fs.readFileSync(ownLock, 'utf8').split('\n')).find(
-            (entry) => entry.name === bump.name && !entry.hasSource,
-          )?.version,
-      );
     }
   }
+  const manifests = new Map<string, Table | undefined>();
+  const read: ReadManifest = (cargoTomlPath) => {
+    if (!manifests.has(cargoTomlPath)) {
+      manifests.set(cargoTomlPath, readManifest(cargoTomlPath));
+    }
+    return manifests.get(cargoTomlPath);
+  };
 
   const updates: CargoLockUpdate[] = [];
   for (const lockPath of lockPaths) {
@@ -295,39 +341,22 @@ export async function planCargoLockUpdates(
       continue;
     }
     const original = fs.readFileSync(lockPath, 'utf8');
-    const lines = original.split('\n');
-    const pathEntries = readCargoLockEntries(lines).filter((entry) => !entry.hasSource);
-    const references = new Set(lines.map((line) => line.trim().replace(/,$/, '')));
-    const isPathDependency = (bump: CargoLockBump): boolean => {
-      const fromVersion = fromVersions.get(bump);
-      return pathEntries.some(
-        (entry) =>
-          entry.name === bump.name &&
-          (fromVersion === undefined || [fromVersion, bump.version].includes(entry.version)) &&
-          (references.has(`"${entry.name}"`) || references.has(`"${entry.name} ${entry.version}"`)),
-      );
-    };
-
+    let pathCrates: Set<string> | undefined;
     let content = original;
     let listed = false;
-    for (const name of new Set(bumps.map((bump) => bump.name))) {
-      const sameName = bumps.filter((bump) => bump.name === name);
-      const own = sameName.filter((bump) => owners.get(lockPath)?.includes(bump));
-      const matching = own.length > 0 ? own : sameName.filter(isPathDependency);
-      if (matching.length === 0) {
-        continue;
+    for (const bump of bumps) {
+      if (!owners.get(lockPath)?.includes(bump)) {
+        pathCrates ??= findPathCrates(path.dirname(lockPath), manifestDirs, read);
+        if (!pathCrates.has(path.resolve(path.dirname(bump.cargoTomlPath)))) {
+          continue;
+        }
       }
-      if (new Set(matching.map((bump) => bump.version)).size > 1) {
-        const manifests = matching.map((bump) => bump.cargoTomlPath).join(', ');
-        throw new Error(`can't set ${name} in ${lockPath}: it could be the crate at any of ${manifests}`);
-      }
-      const [{ version }] = matching;
       let next: string | undefined;
       try {
-        next = setCargoLockVersion(content, name, version);
+        next = setCargoLockVersion(content, bump.name, bump.version);
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
-        throw new Error(`can't set ${name} to ${version} in ${lockPath}: ${detail}`);
+        throw new Error(`can't set ${bump.name} to ${bump.version} in ${lockPath}: ${detail}`);
       }
       if (next !== undefined) {
         listed = true;

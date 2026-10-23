@@ -73,9 +73,9 @@ export async function runPrepareStage(ctx: PipelineContext): Promise<void> {
         continue;
       }
 
-      const fromVersion = updateCargoVersion(cargoPath, update.newVersion);
+      updateCargoVersion(cargoPath, update.newVersion);
       debug(`Updated ${cargoPath} to version ${update.newVersion}`);
-      bumps.push({ cargoTomlPath: cargoPath, version: update.newVersion, fromVersion });
+      bumps.push({ cargoTomlPath: cargoPath, version: update.newVersion });
     }
 
     const lockfiles = await syncCargoLockfiles(cwd, bumps);

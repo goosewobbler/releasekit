@@ -42,17 +42,13 @@ export async function syncCargoLockfiles(cwd: string, bumps: Array<Omit<CargoLoc
 export const CRATES_IO_USER_AGENT = 'releasekit/publish (https://github.com/goosewobbler/releasekit)';
 export const CRATES_IO_API_TIMEOUT_MS = 30_000;
 
-/** Returns the replaced version, or undefined when it was inherited from the workspace. */
-export function updateCargoVersion(cargoPath: string, newVersion: string): string | undefined {
+export function updateCargoVersion(cargoPath: string, newVersion: string): void {
   try {
     const cargo = parseCargoToml(cargoPath);
-    if (!cargo.package) {
-      return undefined;
+    if (cargo.package) {
+      cargo.package.version = newVersion;
+      fs.writeFileSync(cargoPath, TOML.stringify(cargo as Record<string, unknown>));
     }
-    const previous = cargo.package.version;
-    cargo.package.version = newVersion;
-    fs.writeFileSync(cargoPath, TOML.stringify(cargo as Record<string, unknown>));
-    return typeof previous === 'string' ? previous : undefined;
   } catch (error) {
     throw createPublishError(
       PublishErrorCode.CARGO_TOML_ERROR,
