@@ -1114,6 +1114,29 @@ describe('Version Calculator', () => {
       vi.clearAllMocks();
     });
 
+    it.each([
+      ['missing or unreadable', { version: null, manifestFound: false, manifestPath: '', manifestType: null }],
+      [
+        'versionless',
+        { version: null, manifestFound: true, manifestPath: '/test/path/package.json', manifestType: 'package.json' },
+      ],
+    ] as const)('should bump from the initial version when the manifest is %s', async (_label, manifest) => {
+      vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue(manifest);
+      const actual = await vi.importActual<typeof versionUtils>('../../../src/utils/versionUtils.js');
+      vi.spyOn(versionUtils, 'getBestVersionSource').mockImplementation(actual.getBestVersionSource);
+      vi.spyOn(versionUtils, 'bumpVersion').mockReturnValue('0.2.0');
+
+      const version = await calculateVersion(defaultConfig as Config, {
+        latestTag: '',
+        type: 'minor',
+        versionPrefix: 'v',
+        path: '/test/path',
+      });
+
+      expect(versionUtils.bumpVersion).toHaveBeenCalledWith('0.1.0', 'minor', undefined);
+      expect(version).toBe('0.2.0');
+    });
+
     it('should apply bump to manifest version for first release with explicit bump', async () => {
       vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
         version: '1.0.0-beta.1',
