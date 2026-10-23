@@ -137,8 +137,33 @@ export interface RecoveryContext {
   retryLabelAvailable?: boolean;
 }
 
-function renderRecovery(ctx: RecoveryContext): string[] {
+function pushesPerPackage(versionOutput: VersionOutput): boolean {
+  return versionOutput.updates.some((update) => !!update.tag);
+}
+
+function partialFailureState(versionOutput: VersionOutput, mode: FailureReportMode): string {
+  const perPackage = pushesPerPackage(versionOutput);
+  if (mode === 'standing-pr') {
+    if (perPackage) {
+      return (
+        'Versions are on `main` from the merge. Tags for packages that published may already be on the remote; ' +
+        'GitHub releases are created only after every package succeeds. Do not delete those tags.'
+      );
+    }
+    return 'Versions are on `main` from the merge. Nothing was pushed, so there are no tags or GitHub releases yet.';
+  }
+  if (perPackage) {
+    return (
+      'The release commit and the tags for packages that published are already on the remote. ' +
+      'GitHub releases were not created. Do not delete those tags — roll forward with the next release.'
+    );
+  }
+  return 'Nothing was pushed. The version commit and tags exist only locally. Packages that reached the registry stay published.';
+}
+
+function renderRecovery(ctx: RecoveryContext, versionOutput: VersionOutput): string[] {
   const lines: string[] = ['### How to recover', ''];
+  const perPackage = pushesPerPackage(versionOutput);
   if (ctx.mode === 'standing-pr') {
     const prRef = ctx.standingPrNumber ? `#${ctx.standingPrNumber}` : 'the merged standing PR';
     lines.push(
@@ -155,20 +180,24 @@ function renderRecovery(ctx: RecoveryContext): string[] {
         `- **Dispatch the release workflow** targeting the merged standing PR (\`--pr ${ctx.standingPrNumber ?? '<number>'}\`).`,
       );
     }
+  } else if (perPackage) {
+    lines.push(
+      'Roll forward with the next release. The release commit and tags for packages that published are already on the remote — do not delete them.',
+    );
   } else if (ctx.mode === 'direct') {
     lines.push(
-      'Use GitHub’s **"Re-run failed jobs"** on the failed workflow run. Versions are already on `main`; the re-run re-publishes only the packages that did not land.',
+      'Use GitHub’s **"Re-run failed jobs"** on the failed workflow run. Nothing was pushed; the re-run skips versions already on the registry.',
     );
   } else {
     lines.push(
-      'Re-run the release workflow (manual dispatch). Versions are already on `main`; the re-run re-publishes only the packages that did not land.',
+      'Re-run the release workflow (manual dispatch). Nothing was pushed; the re-run skips versions already on the registry.',
     );
   }
   return lines;
 }
 
 const SAFE_RETRY_NOTE =
-  '> **Retrying is safe.** The publish path skips versions that are already on the registry, and tags / GitHub releases are only created after the publish succeeds — so a partial failure never leaves a half-created release to clean up.';
+  '> **Retrying is safe.** Versions already on the registry are skipped. Do not delete a tag for a version that was published.';
 
 export interface FailureReportInput {
   versionOutput: VersionOutput;
@@ -191,7 +220,7 @@ export function renderFailureReport(input: FailureReportInput): string {
     '',
     `## ❌ Release of ${label} did not complete`,
     '',
-    `**${published}/${total} package(s) published.** Versions are already committed on \`main\` (roll-forward model) and no tags or GitHub releases were created. The release is not finished.`,
+    `**${published}/${total} package(s) published.** ${partialFailureState(versionOutput, recovery.mode)} The release is not finished.`,
     '',
     '### Package ledger',
     '',
@@ -215,7 +244,7 @@ export function renderFailureReport(input: FailureReportInput): string {
     errorMessage,
     '```',
     '',
-    ...renderRecovery(recovery),
+    ...renderRecovery(recovery, versionOutput),
     '',
     SAFE_RETRY_NOTE,
     '',
@@ -271,8 +300,8 @@ export function renderSupersedeWarning(input: SupersedeWarningInput): string[] {
     ? `Retry it via \`release:retry\` on ${prRef}`
     : `Retry it by dispatching the release workflow against ${prRef}`;
   return [
-    `> ⚠️ **Previous release ${previousLabel} is partially published** (${published}/${total} packages on the registry; no tags/GitHub release created).`,
-    `> ${retryHint}, **or** merging this PR supersedes it — the next release re-publishes everything at the new version.`,
+    `> ⚠️ **Previous release ${previousLabel} is partially published** (${published}/${total} packages on the registry).`,
+    `> ${retryHint}, **or** merging this PR supersedes it — the next release publishes the rest at the new version. Do not delete tags for versions that were published.`,
     '',
   ];
 }

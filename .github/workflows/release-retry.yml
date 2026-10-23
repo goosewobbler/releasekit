@@ -1,8 +1,9 @@
 name: Release Retry
 
 # Applying `release:retry` to a MERGED standing PR re-dispatches its publish via release.yml. The
-# publish is idempotent (already-published versions are skipped; tags and GitHub releases only
-# follow a clean publish), so a retry after a partial failure publishes only the missing packages.
+# publish skips versions already on the registry. Batch mode pushes tags and GitHub releases only
+# after every package succeeds. Per-package mode may already have pushed tags for packages that
+# published — do not delete those. A retry publishes only the packages that did not land.
 #
 # Listens for `labeled` because label events fire even on merged PRs. Only users with triage
 # rights can apply labels, so permission gating comes free.
