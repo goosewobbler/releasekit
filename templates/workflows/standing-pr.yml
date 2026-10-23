@@ -20,10 +20,9 @@ on:
     - cron: '0 * * * *' # re-evaluates the minAge status check as time passes
 
 concurrency:
-  # A maintainer's checkbox edits go to a per-PR cancelling group so a flurry of ticks collapses to one
-  # rebuild. Everything else, including the bot's own body edits, shares a non-cancelling group so a
-  # bot edit never cancels the run doing the work and a queued publish is never dropped.
-  group: ${{ (github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot') && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
+  # Maintainer checkbox edits cancel in-flight rebuilds per PR. `closed` (publish) gets its own group so
+  # a push/schedule run can't drop a queued merge publish. Everything else shares a non-cancelling group.
+  group: ${{ (github.event_name == 'pull_request' && github.event.action == 'closed') && 'standing-release-pr-closed' || (github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot') && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
 
 permissions:
@@ -80,9 +79,12 @@ jobs:
           fetch-depth: 0
           token: ${{ github.token }}
 
+      - uses: pnpm/action-setup@v6
+
       - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
@@ -97,8 +99,7 @@ jobs:
         run: pnpm exec releasekit standing-pr update
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # Uncomment the env var matching your notes.releaseNotes.llm.provider.
-          # Without it, LLM enhancement falls back to ungrouped output.
+          # LLM key only needed when using the release:preview-notes label (optional).
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
@@ -132,9 +133,12 @@ jobs:
           fetch-depth: 0
           token: ${{ github.token }}
 
+      - uses: pnpm/action-setup@v6
+
       - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
@@ -182,9 +186,12 @@ jobs:
           fetch-depth: 0
           token: ${{ github.token }}
 
+      - uses: pnpm/action-setup@v6
+
       - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
@@ -202,3 +209,7 @@ jobs:
           # NODE_AUTH_TOKEN unnecessary with OIDC trusted publishing. With token-based
           # npm auth, uncomment the next line:
           # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # Provider key for LLM-enhanced release notes (uncomment your provider):
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}

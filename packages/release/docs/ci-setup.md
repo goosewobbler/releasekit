@@ -345,7 +345,7 @@ permissions:
 |---|---|---|
 | `GITHUB_TOKEN` | both jobs | Always (auto-provided). |
 | `NPM_TOKEN` | `publish-release` | Only if not using OIDC. With OIDC, omit it entirely. |
-| `OLLAMA_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | `update-release-pr` | If `notes.releaseNotes.llm` is configured. Without it, LLM enhancement falls back to ungrouped output (logged as a warning, not a failure). |
+| `OLLAMA_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | `publish-release` (and `retry-publish`) | Required for LLM-enhanced notes at publish time. Also pass to `update-release-pr` only if you use the `release:preview-notes` label. Without a key, enhancement falls back to ungrouped output (warning, not a failure). |
 
 **Branch protection:** if `release/next` is protected, the bot's force-push will fail. Either leave the release branch unprotected or grant the bot bypass permissions.
 
@@ -465,13 +465,9 @@ on:
     - cron: '0 * * * *'  # Hourly — re-evaluates minAge status check as time passes
 
 concurrency:
-  # Rapid checkbox toggles each fire a separate `edited` event — route a maintainer's edits to a
-  # per-PR group that cancels in-progress runs, so a flurry of ticks collapses to one rebuild of the
-  # latest selection. Everything else — push / schedule / merge, AND the bot's own body edits (the
-  # processing banner + the rebuilt body, which are `edited` from a Bot sender) — stays on the stable
-  # shared group with cancelling OFF, so a bot edit never cancels the run doing the work and a queued
-  # publish dispatch is never dropped. The `sender.type != 'Bot'` guard is what keeps the two apart.
-  group: ${{ (github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot') && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
+  # Maintainer checkbox edits cancel in-flight rebuilds per PR. `closed` (publish) gets its own group so
+  # a push/schedule run can't drop a queued merge publish. Everything else shares a non-cancelling group.
+  group: ${{ (github.event_name == 'pull_request' && github.event.action == 'closed') && 'standing-release-pr-closed' || (github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot') && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
 
 permissions:
@@ -552,11 +548,8 @@ jobs:
       - run: pnpm exec releasekit standing-pr update
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # Uncomment the env var matching your notes.releaseNotes.llm.provider.
-          # Without it, LLM enhancement falls back to ungrouped output.
+          # LLM key only when using the release:preview-notes label:
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
       # On success the regenerated body already omits the banner; only a run that ended before the
       # rebuild leaves it behind. Strip the marker region so it doesn't linger as a false "in progress".
@@ -572,6 +565,43 @@ jobs:
           BODY=$(gh api "repos/$REPO/pulls/$PR" --jq '.body // ""')
           CLEANED=$(printf '%s' "$BODY" | sed '/<!-- releasekit-processing -->/,/<!-- releasekit-processing-end -->/d')
           gh api --method PATCH "repos/$REPO/pulls/$PR" -f body="$CLEANED" >/dev/null
+
+  immediate-release:
+    name: Immediate Release (bypass standing PR)
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.labels.*.name, 'release:immediate')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - run: pnpm exec releasekit release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - run: pnpm exec releasekit refresh-after-release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
   publish-release:
     name: Publish Release
@@ -610,6 +640,9 @@ jobs:
           # With OIDC trusted publishing (recommended) NODE_AUTH_TOKEN is
           # unnecessary. With token-based npm auth, uncomment the next line:
           # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
   # Maintainer-invoked retry after a partial-publish failure: apply `release:retry` to the
   # MERGED standing PR (label events fire on closed PRs). Publishing is idempotent — versions
@@ -827,7 +860,7 @@ Standing-pr mode handles both batched and one-off releases through a single work
 **How it works:**
 
 - A PR merged **without** `release:immediate` → `standing-pr update` accumulates the change into the standing PR. Any `bump:*` / `scope:*` / `channel:*` labels on the feeder PR are advisory only (see [Label semantics](#label-semantics-in-standing-pr-mode) above).
-- A PR merged **with** `release:immediate` → the `immediate-release` job in `standing-pr.yml` runs `releasekit release` directly (honouring companion `bump:*` / `scope:*` / `channel:*` labels), then chains `standing-pr update` to reconcile the standing PR.
+- A PR merged **with** `release:immediate` → the `immediate-release` job in `standing-pr.yml` runs `releasekit release` directly (honouring companion `bump:*` / `scope:*` / `channel:*` labels), then `refresh-after-release` to reconcile the standing PR.
 - The standing PR itself only publishes when its own branch (`release/next`) is merged by a maintainer — there's no double-publish risk.
 
 **Decision guide:**

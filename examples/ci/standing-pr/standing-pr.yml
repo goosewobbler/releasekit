@@ -18,7 +18,7 @@ on:
     - cron: '0 * * * *' # advances the minAge status check as time passes
 
 concurrency:
-  group: standing-release-pr
+  group: ${{ (github.event_name == 'pull_request' && github.event.action == 'closed') && 'standing-release-pr-closed' || 'standing-release-pr' }}
   cancel-in-progress: false
 
 permissions:
@@ -74,12 +74,43 @@ jobs:
       - run: pnpm exec releasekit standing-pr update
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # Uncomment the key matching notes.releaseNotes.llm.provider, if set.
-          # Without it, LLM enhancement falls back to ungrouped output (a warning,
-          # not a failure).
-          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+
+  immediate-release:
+    name: Immediate Release (bypass standing PR)
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.labels.*.name, 'release:immediate')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - run: pnpm exec releasekit release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - run: pnpm exec releasekit refresh-after-release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
   publish:
     name: Publish Release
@@ -122,6 +153,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # only if not using OIDC
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
   retry-publish:
     name: Retry Publish
@@ -166,6 +200,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # only if not using OIDC
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
       - name: Remove retry label
         # Each application is exactly one retry; re-apply the label to retry again.
