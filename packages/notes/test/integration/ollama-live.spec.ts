@@ -1,6 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, type TestContext } from 'vitest';
 import type { ChangelogEntry } from '../../src/core/types.js';
 import { LLMError } from '../../src/errors/index.js';
+import { BODY_CAP } from '../../src/llm/context/prFetcher.js';
 import { LLM_DEFAULTS } from '../../src/llm/defaults.js';
 import { OllamaProvider } from '../../src/llm/ollama.js';
 import type { LLMProvider } from '../../src/llm/provider.js';
@@ -26,9 +27,59 @@ const context = { packageName: 'my-lib', version: '2.0.0', previousVersion: '1.0
 const CHUNK_SIZE = LLM_DEFAULTS.enhanceCategorizeChunkSize;
 const ENTRY_COUNT = CHUNK_SIZE + 5;
 
-// Room for both chunks to exhaust their retries on a hung host (~140s each) and still skip.
-const CALL_TIMEOUT_MS = 45_000;
-const TEST_TIMEOUT_MS = 330_000;
+// Room for both chunks to stall through every retry (~3 min each) and still report the provider errors.
+const TEST_TIMEOUT_MS = 600_000;
+
+const AREAS = [
+  'config loader',
+  'changelog writer',
+  'tag resolver',
+  'npm publisher',
+  'cargo publisher',
+  'standing PR updater',
+  'template renderer',
+  'scope validator',
+];
+
+// Real entries carry their PR body (up to BODY_CAP), which makes a full chunk a far larger prompt.
+function prBody(i: number, area: string, fix: boolean): string {
+  const summary = fix
+    ? `The ${area} mishandled behaviour ${i} when a package was added mid-run: it reused a stale workspace read, so the changelog showed the wrong version.`
+    : `This adds behaviour ${i} to the ${area}, so teams releasing several packages together can apply one rule to all of them.`;
+  let body = [
+    '## Summary',
+    '',
+    summary,
+    '',
+    '## Changes',
+    '',
+    `- Moved the ${area} state into one module so behaviour ${i} reads it once per run.`,
+    `- Validated the inputs behaviour ${i} depends on, with an error naming the offending field.`,
+    '- Covered the new path with unit tests and a fixture repository that reproduces the report.',
+    '',
+    '## Testing',
+    '',
+    'Ran the unit suite and the end-to-end harness against a scratch repository with three packages.',
+    '',
+    '## Notes',
+    '',
+  ].join('\n');
+  for (let n = 1; body.length < BODY_CAP; n++) {
+    body += `\n- Follow-up ${n}: check behaviour ${i} under prerelease channels and a dry run of the ${area}.`;
+  }
+  return body.slice(0, BODY_CAP);
+}
+
+function realisticEntry(i: number): ChangelogEntry {
+  const fix = i % 2 === 0;
+  const area = AREAS[i % AREAS.length] ?? 'core';
+  const description = `${fix ? 'Fix' : 'Add'} behaviour ${i} in the ${area}`;
+  return {
+    type: fix ? 'fixed' : 'added',
+    description,
+    context: { prs: [{ number: 100 + i, title: description, body: prBody(i, area, fix) }] },
+  };
+}
 
 // NETWORK_ERROR_CODES from src/llm/retryable.ts, plus undici's.
 const TRANSPORT_ERROR_CODES = new Set([
@@ -55,7 +106,7 @@ function isTransportFailure(error: object): boolean {
  * `retryable: true` LLMError with either no cause (the Ollama provider classified it) or a socket error
  * code in its cause chain. `retryable` alone isn't enough: the provider flags any unknown error retryable.
  *
- * Known gap: a 5xx that Ollama returns for a bad request, or a prompt that times out, skips.
+ * Known gap: a server error that Ollama returns for a bad request skips.
  */
 function isOllamaUnreachable(error: unknown): boolean {
   if (!(error instanceof LLMError) || error.retryable !== true) {
@@ -112,8 +163,16 @@ describe('isOllamaUnreachable', () => {
   it.each([
     {
       label: 'a retryable error Ollama classified itself',
-      error: new LLMError('Ollama request timed out after 120000ms', { retryable: true }),
+      error: new LLMError('Ollama request failed: 503 Service Unavailable', { retryable: true }),
       expected: true,
+    },
+    {
+      label: 'a request that stalled',
+      error: new LLMError('Ollama request timed out: nothing received for 60000ms', {
+        cause: new DOMException('Nothing received for 60000ms', 'TimeoutError'),
+        retryable: true,
+      }),
+      expected: false,
     },
     {
       label: 'a socket error under fetch failed',
@@ -149,7 +208,7 @@ describe.skipIf(!LIVE_ENABLED)('notes LLM against live Ollama', () => {
     capabilities: ollama.capabilities,
     async complete(messages, options) {
       try {
-        return await withRetry(() => ollama.complete(messages, { ...options, timeout: CALL_TIMEOUT_MS }), {
+        return await withRetry(() => ollama.complete(messages, options), {
           ...LLM_DEFAULTS.retry,
           shouldRetry: isRetryableLLMError,
         });
@@ -167,10 +226,7 @@ describe.skipIf(!LIVE_ENABLED)('notes LLM against live Ollama', () => {
   it(
     'should enhance and categorize a large release across chunk boundaries',
     async (ctx) => {
-      const entries: ChangelogEntry[] = Array.from({ length: ENTRY_COUNT }, (_, i) => ({
-        type: i % 2 === 0 ? 'fixed' : 'added',
-        description: `${i % 2 === 0 ? 'Fix' : 'Add'} behaviour ${i} in the widget subsystem`,
-      }));
+      const entries = Array.from({ length: ENTRY_COUNT }, (_, i) => realisticEntry(i));
 
       const result = await enhanceAndCategorize(provider, entries, context);
 

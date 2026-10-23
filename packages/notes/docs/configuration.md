@@ -233,7 +233,7 @@ How existing changelog files are updated when new entries are generated.
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `timeout` | `integer` (ms) | `60000` | Request timeout |
+| `timeout` | `integer` (ms) | `60000` | Idle timeout: a streamed response fails only when nothing arrives for this long |
 | `maxTokens` | `integer` | `16384` | Maximum tokens to generate |
 | `temperature` | `number` | `0.7` | Sampling temperature (0–2) |
 

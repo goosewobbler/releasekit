@@ -734,7 +734,7 @@
                       "properties": {
                         "timeout": {
                           "type": "integer",
-                          "description": "Request timeout in ms"
+                          "description": "Idle timeout in ms: a streamed response fails only when nothing arrives for this long"
                         },
                         "maxTokens": {
                           "type": "integer",

@@ -314,7 +314,7 @@ LLM configuration for release notes.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `timeout` | integer | — | Request timeout in ms |
+| `timeout` | integer | — | Idle timeout in ms: a streamed response fails only when nothing arrives for this long |
 | `maxTokens` | integer | — | Max tokens to generate |
 | `temperature` | number | — | Sampling temperature |
 

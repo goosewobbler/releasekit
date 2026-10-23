@@ -2,7 +2,7 @@ import { debug, warn } from '@releasekit/core';
 import { createGitHubForge, type Forge, forgeErrorStatus } from '@releasekit/forge';
 import type { PRContext } from '../../core/types.js';
 
-const BODY_CAP = 2048;
+export const BODY_CAP = 2048;
 
 function stripHtmlComments(input: string): string {
   let result = '';

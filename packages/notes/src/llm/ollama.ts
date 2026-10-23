@@ -2,7 +2,7 @@ import { debug } from '@releasekit/core';
 import type { CompleteOptions } from '../core/types.js';
 import { LLMError } from '../errors/index.js';
 import { extractJsonFromResponse } from '../utils/json.js';
-import { BaseLLMProvider } from './base.js';
+import { BaseLLMProvider, type IdleTimeout } from './base.js';
 import type { CompleteResult, LLMMessage } from './messages.js';
 import { debugLogMessages } from './messages.js';
 import type { ProviderCapabilities } from './provider.js';
@@ -20,7 +20,7 @@ interface OllamaChatRequest {
     role: 'user' | 'assistant' | 'system';
     content: string;
   }>;
-  stream?: boolean;
+  stream: true;
   format?: Record<string, unknown>;
   options?: {
     num_predict?: number;
@@ -28,12 +28,47 @@ interface OllamaChatRequest {
   };
 }
 
-interface OllamaChatResponse {
-  message: {
-    role: string;
-    content: string;
+interface OllamaChatChunk {
+  message?: {
+    content?: string;
   };
-  done: boolean;
+  done?: boolean;
+  error?: string;
+}
+
+async function* ndjsonLines(body: ReadableStream<Uint8Array>, onData: () => void): AsyncGenerator<string> {
+  const decoder = new TextDecoder();
+  let pending = '';
+  for await (const bytes of body) {
+    onData();
+    pending += decoder.decode(bytes, { stream: true });
+    const lines = pending.split('\n');
+    pending = lines.pop() ?? '';
+    for (const line of lines) {
+      if (line.trim()) {
+        yield line;
+      }
+    }
+  }
+  pending += decoder.decode();
+  if (pending.trim()) {
+    yield pending;
+  }
+}
+
+async function readChatStream(body: ReadableStream<Uint8Array>, idle: IdleTimeout): Promise<string> {
+  let content = '';
+  for await (const line of ndjsonLines(body, idle.reset)) {
+    const chunk = JSON.parse(line) as OllamaChatChunk;
+    if (chunk.error) {
+      throw new LLMError(`Ollama error: ${chunk.error}`, { retryable: true });
+    }
+    content += chunk.message?.content ?? '';
+    if (chunk.done) {
+      return content;
+    }
+  }
+  throw new LLMError('Ollama stream ended before the response was complete', { retryable: true });
 }
 
 export class OllamaProvider extends BaseLLMProvider {
@@ -63,7 +98,7 @@ export class OllamaProvider extends BaseLLMProvider {
     const requestBody: OllamaChatRequest = {
       model: this.model,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
-      stream: false,
+      stream: true,
       options: {
         num_predict: this.getMaxTokens(options),
         temperature: this.getTemperature(options),
@@ -74,7 +109,7 @@ export class OllamaProvider extends BaseLLMProvider {
       requestBody.format = options.schema as Record<string, unknown>;
     }
 
-    const signal = this.timeoutSignal(options);
+    const idle = this.idleTimeout(options);
     try {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -87,8 +122,9 @@ export class OllamaProvider extends BaseLLMProvider {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody),
-        signal,
+        signal: idle.signal,
       });
+      idle.reset();
 
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
@@ -107,13 +143,11 @@ export class OllamaProvider extends BaseLLMProvider {
         });
       }
 
-      const data = (await response.json()) as OllamaChatResponse;
+      const content = response.body ? await readChatStream(response.body, idle) : '';
 
-      if (!data.message?.content) {
+      if (!content) {
         throw new LLMError('Empty response from Ollama');
       }
-
-      const content = data.message.content;
 
       if (options?.schema) {
         try {
@@ -129,16 +163,18 @@ export class OllamaProvider extends BaseLLMProvider {
 
       return { content };
     } catch (error) {
+      if (idle.signal.aborted) {
+        throw this.timeoutError(idle, 'Ollama');
+      }
       if (error instanceof LLMError) {
         throw error;
-      }
-      if (signal.aborted) {
-        throw new LLMError(`Ollama request timed out after ${this.getTimeout(options)}ms`, { retryable: true });
       }
       throw new LLMError(`Ollama error: ${error instanceof Error ? error.message : String(error)}`, {
         cause: error,
         retryable: isRetryableProviderError(error),
       });
+    } finally {
+      idle.clear();
     }
   }
 }

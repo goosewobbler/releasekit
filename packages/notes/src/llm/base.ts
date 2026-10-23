@@ -1,9 +1,17 @@
 import type { CompleteOptions } from '../core/types.js';
+import { LLMError } from '../errors/index.js';
 import { LLM_DEFAULTS } from './defaults.js';
 import type { CompleteResult, LLMMessage } from './messages.js';
 import type { LLMProvider, ProviderCapabilities } from './provider.js';
 
 export type { LLMProvider };
+
+export interface IdleTimeout {
+  readonly signal: AbortSignal;
+  readonly ms: number;
+  reset(): void;
+  clear(): void;
+}
 
 export abstract class BaseLLMProvider implements LLMProvider {
   abstract readonly name: string;
@@ -13,12 +21,7 @@ export abstract class BaseLLMProvider implements LLMProvider {
 
   protected getTimeout(options?: CompleteOptions): number {
     const timeout = options?.timeout ?? LLM_DEFAULTS.timeout;
-    // Guard the value passed to `AbortSignal.timeout()`, which runs while building the signal —
-    // *before* the provider's try block, so a bad value would throw past the best-effort fallback.
-    //   - below 1ms → use the default. Covers 0 / negative / non-finite *and* sub-millisecond
-    //     fractions (e.g. 0.5) that floor to a 0ms — already-expired — signal that aborts every call.
-    //   - above the timer ceiling (2^31-1 ms ≈ 24.8 days) → clamp, not throw/overflow. A huge value
-    //     means "effectively no timeout", so clamping preserves intent rather than dropping to 60s.
+    // setTimeout runs any delay outside [1, 2^31-1] after 1ms, which would abort every call.
     const MAX_TIMEOUT_MS = 2_147_483_647;
     if (!Number.isFinite(timeout) || timeout < 1) {
       return LLM_DEFAULTS.timeout;
@@ -26,13 +29,26 @@ export abstract class BaseLLMProvider implements LLMProvider {
     return Math.min(Math.trunc(timeout), MAX_TIMEOUT_MS);
   }
 
-  /**
-   * An AbortSignal that fires after the configured request timeout. Pass it to the provider's
-   * request (SDK `{ signal }` request option, or fetch's `signal`). When it fires the request
-   * aborts; providers check `signal.aborted` in their catch to surface a clear timeout error.
-   */
-  protected timeoutSignal(options?: CompleteOptions): AbortSignal {
-    return AbortSignal.timeout(this.getTimeout(options));
+  protected idleTimeout(options?: CompleteOptions): IdleTimeout {
+    const ms = this.getTimeout(options);
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () => controller.abort(new DOMException(`Nothing received for ${ms}ms`, 'TimeoutError')),
+      ms,
+    );
+    return {
+      signal: controller.signal,
+      ms,
+      reset: () => timer.refresh(),
+      clear: () => clearTimeout(timer),
+    };
+  }
+
+  protected timeoutError(idle: IdleTimeout, label: string): LLMError {
+    return new LLMError(`${label} request timed out: nothing received for ${idle.ms}ms`, {
+      cause: idle.signal.reason,
+      retryable: true,
+    });
   }
 
   protected getMaxTokens(options?: CompleteOptions): number {
