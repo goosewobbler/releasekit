@@ -5,6 +5,7 @@ import {
   GitHubError,
   getExitCode,
   InputParseError,
+  InputValidationError,
   LLMError,
   NotesError,
   TemplateError,
@@ -13,6 +14,7 @@ import {
 describe('Error classes', () => {
   it('should have the expected code for each error type', () => {
     expect(new InputParseError('x').code).toBe('INPUT_PARSE_ERROR');
+    expect(new InputValidationError('x').code).toBe('INPUT_VALIDATION_ERROR');
     expect(new TemplateError('x').code).toBe('TEMPLATE_ERROR');
     expect(new LLMError('x').code).toBe('LLM_ERROR');
     expect(new GitHubError('x').code).toBe('GITHUB_ERROR');
@@ -65,6 +67,7 @@ describe('getExitCode()', () => {
   it('should map each error type to the correct exit code', () => {
     expect(getExitCode(new ConfigError('x'))).toBe(EXIT_CODES.CONFIG_ERROR);
     expect(getExitCode(new InputParseError('x'))).toBe(EXIT_CODES.INPUT_ERROR);
+    expect(getExitCode(new InputValidationError('x'))).toBe(EXIT_CODES.INPUT_ERROR);
     expect(getExitCode(new TemplateError('x'))).toBe(EXIT_CODES.TEMPLATE_ERROR);
     expect(getExitCode(new LLMError('x'))).toBe(EXIT_CODES.LLM_ERROR);
     expect(getExitCode(new GitHubError('x'))).toBe(EXIT_CODES.GITHUB_ERROR);

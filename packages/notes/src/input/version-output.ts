@@ -29,7 +29,7 @@ function normalizeEntryType(type: string): ChangelogEntry['type'] {
   return typeMap[type.toLowerCase()] ?? 'changed';
 }
 
-export function versionOutputToChangelogInput(data: VersionOutput): ChangelogInput {
+export function versionOutputToChangelogInput(data: Pick<VersionOutput, 'changelogs'>): ChangelogInput {
   if (!data.changelogs || !Array.isArray(data.changelogs)) {
     throw new InputParseError('Input must contain a "changelogs" array');
   }
@@ -86,8 +86,7 @@ export function parseVersionOutput(json: string): ChangelogInput {
     throw new InputValidationError(`Version output failed schema validation:\n${issues}`);
   }
 
-  // Validated above. The schema is only the changelog slice, so it is not a VersionOutput.
-  return versionOutputToChangelogInput(result.data as unknown as VersionOutput);
+  return versionOutputToChangelogInput(result.data);
 }
 
 export function parseVersionOutputFile(filePath: string): ChangelogInput {

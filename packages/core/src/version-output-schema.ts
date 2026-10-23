@@ -1,3 +1,4 @@
+// A separate entry point from the package index, so packages that bundle core without validating needn't depend on zod.
 import { z } from 'zod';
 
 /** Changelog entry as `version --json` emits it. Extra fields are kept (`looseObject`). */
