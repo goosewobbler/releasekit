@@ -115,7 +115,9 @@ export const cargoRegistry: Registry<CargoTarget, CargoSession> = {
   },
 };
 
-function findCrates(updates: Array<{ newVersion: string; filePath: string; dir: string }>): CargoTarget[] {
+function findCrates(
+  updates: Array<{ packageName: string; newVersion: string; filePath: string; dir: string }>,
+): CargoTarget[] {
   const crates: CargoTarget[] = [];
 
   for (const update of updates) {
@@ -137,6 +139,7 @@ function findCrates(updates: Array<{ newVersion: string; filePath: string; dir: 
 
       crates.push({
         packageName: cargo.package.name,
+        updatePackageName: update.packageName,
         version: update.newVersion,
         dir: update.dir,
         manifestPath: cargoPath,

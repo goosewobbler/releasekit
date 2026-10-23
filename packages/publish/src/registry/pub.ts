@@ -87,7 +87,9 @@ export const pubRegistry: Registry<PubTarget, void> = {
   },
 };
 
-function findPubPackages(updates: Array<{ newVersion: string; filePath: string; dir: string }>): PubTarget[] {
+function findPubPackages(
+  updates: Array<{ packageName: string; newVersion: string; filePath: string; dir: string }>,
+): PubTarget[] {
   const packages: PubTarget[] = [];
   const seen = new Set<string>();
 
@@ -106,6 +108,7 @@ function findPubPackages(updates: Array<{ newVersion: string; filePath: string; 
 
       packages.push({
         packageName: pubspec.name,
+        updatePackageName: update.packageName,
         version: update.newVersion,
         dir: update.dir,
         command: detectPubCommand(pubspec.environment as Record<string, unknown> | undefined),

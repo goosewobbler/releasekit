@@ -37,8 +37,23 @@ function publishOutputFor(npm: PublishResult[]): PublishOutput {
 
 function pipelineErrorFor(versionOutput: VersionOutput): PipelineError {
   const publishOutput = publishOutputFor([
-    { packageName: '@scope/a', version: '0.24.0', registry: 'npm', success: true, skipped: false },
-    { packageName: '@scope/b', version: '0.24.0', registry: 'npm', success: false, skipped: false, reason: 'npm 403' },
+    {
+      packageName: '@scope/a',
+      updatePackageName: '@scope/a',
+      version: '0.24.0',
+      registry: 'npm',
+      success: true,
+      skipped: false,
+    },
+    {
+      packageName: '@scope/b',
+      updatePackageName: '@scope/b',
+      version: '0.24.0',
+      registry: 'npm',
+      success: false,
+      skipped: false,
+      reason: 'npm 403',
+    },
   ]);
   void versionOutput;
   return new PipelineError('Failed to publish to npm: npm 403', 'npm-publish', publishOutput);
@@ -135,9 +150,17 @@ describe('detectUnresolvedFailure', () => {
     const report = renderFailureReport({
       versionOutput,
       publishOutput: publishOutputFor([
-        { packageName: '@scope/a', version: '0.24.0', registry: 'npm', success: true, skipped: false },
+        {
+          packageName: '@scope/a',
+          updatePackageName: '@scope/a',
+          version: '0.24.0',
+          registry: 'npm',
+          success: true,
+          skipped: false,
+        },
         {
           packageName: '@scope/b',
+          updatePackageName: '@scope/b',
           version: '0.24.0',
           registry: 'npm',
           success: false,
