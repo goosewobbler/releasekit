@@ -20,7 +20,7 @@ describe('createStandingPRCommand', () => {
     expect(cmd.name()).toBe('standing-pr');
   });
 
-  it('should have update and publish subcommands', () => {
+  it('should have update, publish and merge subcommands', () => {
     const cmd = createStandingPRCommand();
     const names = cmd.commands.map((c) => c.name());
     expect(names).toContain('update');

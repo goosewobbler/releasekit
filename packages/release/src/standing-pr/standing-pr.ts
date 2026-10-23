@@ -1781,7 +1781,7 @@ export async function runStandingPRMerge(
   const githubContext = getGitHubContext();
   if (!githubContext?.token) {
     throw new Error(
-      'No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available — set GITHUB_REPOSITORY and GITHUB_TOKEN.',
+      'No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available, so the standing PR cannot be merged.',
     );
   }
 
