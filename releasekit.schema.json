@@ -21,8 +21,7 @@
         },
         "branch": {
           "type": "string",
-          "default": "main",
-          "description": "Default branch name"
+          "description": "Branch that releases land on: a direct release pushes its commit here, and the standing release PR targets it. When unset, a direct release pushes the current branch and the standing PR targets main."
         },
         "pushMethod": {
           "type": "string",
