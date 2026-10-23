@@ -114,7 +114,7 @@ export function createStandingPRCommand(): Command {
 
     try {
       const result = await runStandingPRMerge(options, { publish: opts.publish });
-      emitResult(result, { json: opts.json, output: opts.output, changed: result != null });
+      emitResult(result, { json: opts.json, output: opts.output, changed: result.action === 'merged' });
     } catch (err) {
       emitError(err, { json: opts.json, output: opts.output });
       console.error(err instanceof Error ? err.message : String(err));

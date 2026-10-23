@@ -25,7 +25,12 @@ export { runGate } from './gate/gate.js';
 export type { PreviewOptions } from './preview/preview.js';
 export { runPreview } from './preview/preview.js';
 export { resolveScopeToTarget, runRelease } from './release.js';
-export type { StandingPRManifest, StandingPROptions, StandingPRResult } from './standing-pr/standing-pr.js';
+export type {
+  StandingPRManifest,
+  StandingPRMergeResult,
+  StandingPROptions,
+  StandingPRResult,
+} from './standing-pr/standing-pr.js';
 export {
   publishFromManifest,
   runStandingPRMerge,

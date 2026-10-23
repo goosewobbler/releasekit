@@ -1,7 +1,8 @@
-import type { VersionPackageUpdate } from '@releasekit/core';
+import { EXIT_CODES, type VersionPackageUpdate } from '@releasekit/core';
 import { createFakeForge, type FakeForge, type FakeForgeSeed } from '@releasekit/forge';
 import { FakeGit, type FakeGitSeed, type GitLogOptions } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createStandingPRCommand } from '../../src/commands/standing-pr-command.js';
 import { renderFailureReport, renderResolvedReport } from '../../src/failure-report/failure-report.js';
 import { renderNotesRegion } from '../../src/standing-pr/notes-region.js';
 import type { StandingPRManifest } from '../../src/standing-pr/standing-pr.js';
@@ -3130,27 +3131,56 @@ describe('runStandingPRMerge', () => {
     process.env = { ...originalEnv };
   });
 
-  it('should return null when no GitHub context available', async () => {
-    delete process.env.GITHUB_REPOSITORY;
-    delete process.env.GITHUB_TOKEN;
+  async function runMergeCommand() {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+    try {
+      await createStandingPRCommand().parseAsync(['merge', '--project-dir', '/test', '--json'], { from: 'user' });
+      return { envelope: JSON.parse(logSpy.mock.calls[0]?.[0] as string), exitCode: exitSpy.mock.calls[0]?.[0] };
+    } finally {
+      logSpy.mockRestore();
+      errSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  }
 
-    const result = await runStandingPRMerge(
-      { projectDir: '/test', verbose: false, quiet: false, json: false },
-      { publish: false },
-    );
+  it('should report changed:true with the merged PR when merging without --publish', async () => {
+    await mockForge({ standingPR: openStandingPR(42) });
 
-    expect(result).toBeNull();
+    const { envelope, exitCode } = await runMergeCommand();
+
+    expect(exitCode).toBeUndefined();
+    expect(envelope).toMatchObject({
+      status: 'success',
+      changed: true,
+      data: { action: 'merged', prNumber: 42, prUrl: 'https://github.com/owner/repo/pull/42' },
+    });
   });
 
-  it('should return null when no open standing PR found', async () => {
+  it('should report changed:false with a noop result when no open standing PR is found', async () => {
     const forge = await mockForge({ standingPR: null });
 
-    const result = await runStandingPRMerge(
-      { projectDir: '/test', verbose: false, quiet: false, json: false },
-      { publish: false },
-    );
+    const { envelope, exitCode } = await runMergeCommand();
 
-    expect(result).toBeNull();
+    expect(exitCode).toBeUndefined();
+    expect(envelope).toMatchObject({ status: 'success', changed: false, data: { action: 'noop' } });
+    expect(forge.mergedPullRequests).toHaveLength(0);
+  });
+
+  it('should fail with a general error when no GitHub context is available', async () => {
+    delete process.env.GITHUB_REPOSITORY;
+    delete process.env.GITHUB_TOKEN;
+    const forge = await mockForge({ standingPR: openStandingPR(42) });
+
+    const { envelope, exitCode } = await runMergeCommand();
+
+    expect(exitCode).toBe(EXIT_CODES.GENERAL_ERROR);
+    expect(envelope).toMatchObject({
+      status: 'error',
+      changed: false,
+      errors: [{ code: 'GENERAL_ERROR', message: expect.stringContaining('No GitHub context') }],
+    });
     expect(forge.mergedPullRequests).toHaveLength(0);
   });
 
@@ -3212,17 +3242,6 @@ describe('runStandingPRMerge', () => {
     ).rejects.toThrow('Network error');
   });
 
-  it('should return null without publishing when publish flag is false', async () => {
-    await mockForge({ standingPR: openStandingPR(42) });
-
-    const result = await runStandingPRMerge(
-      { projectDir: '/test', verbose: false, quiet: false, json: false },
-      { publish: false },
-    );
-
-    expect(result).toBeNull();
-  });
-
   it('should call publishFromManifest when publish flag is true and manifest exists', async () => {
     await mockForge({
       standingPR: openStandingPR(42),
@@ -3244,7 +3263,11 @@ describe('runStandingPRMerge', () => {
       { publish: true },
     );
 
-    expect(result).not.toBeNull();
+    expect(result).toMatchObject({
+      action: 'merged',
+      prNumber: 42,
+      releaseOutput: { publishOutput: { publishSucceeded: true } },
+    });
     expect(vi.mocked(runPublishStep)).toHaveBeenCalledWith(
       expect.objectContaining({ updates: baseManifest.versionOutput.updates }),
       expect.objectContaining({ skipGitCommit: true }),

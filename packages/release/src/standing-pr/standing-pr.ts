@@ -1,15 +1,7 @@
 import * as fs from 'node:fs';
 import { type CIConfig, DEFAULT_DEMOTE_SCOPES, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
-import {
-  deriveReleaseChannel,
-  error,
-  info,
-  markerData,
-  shouldMatchPackageTargets,
-  success,
-  warn,
-} from '@releasekit/core';
+import { deriveReleaseChannel, info, markerData, shouldMatchPackageTargets, success, warn } from '@releasekit/core';
 import {
   type Forge,
   type ForgeComment,
@@ -125,6 +117,13 @@ export interface StandingPRResult {
   prNumber?: number;
   prUrl?: string;
   versionOutput?: VersionOutput;
+}
+
+export interface StandingPRMergeResult {
+  action: 'merged' | 'noop';
+  prNumber?: number;
+  prUrl?: string;
+  releaseOutput?: ReleaseOutput;
 }
 
 /** Old manifests live in open PRs: fields added after v1 must stay optional and be tolerated when absent. */
@@ -1777,7 +1776,7 @@ export async function runStandingPRPublish(
 export async function runStandingPRMerge(
   options: StandingPROptions,
   flags: { publish: boolean },
-): Promise<ReleaseOutput | null> {
+): Promise<StandingPRMergeResult> {
   const cwd = options.projectDir;
 
   const releaseKitConfig = loadReleaseKitConfig({ cwd, configPath: options.config });
@@ -1788,8 +1787,9 @@ export async function runStandingPRMerge(
 
   const githubContext = getGitHubContext();
   if (!githubContext?.token) {
-    error('No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available');
-    return null;
+    throw new Error(
+      'No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available, so the standing PR cannot be merged.',
+    );
   }
 
   const forge = forgeFor(githubContext);
@@ -1797,7 +1797,7 @@ export async function runStandingPRMerge(
   const pr = await forge.findStandingPR(branch);
   if (!pr) {
     info(`No open standing PR found for branch '${branch}'`);
-    return null;
+    return { action: 'noop' };
   }
 
   info(`Merging standing PR #${pr.number} via ${mergeMethod}...`);
@@ -1819,9 +1819,10 @@ export async function runStandingPRMerge(
     await deleteReleaseBranch(branch, cwd);
   }
 
+  const merged: StandingPRMergeResult = { action: 'merged', prNumber: pr.number, prUrl: pr.url };
   if (!flags.publish) {
-    return null;
+    return merged;
   }
 
-  return publishFromManifest(pr.number, options);
+  return { ...merged, releaseOutput: await publishFromManifest(pr.number, options) };
 }
