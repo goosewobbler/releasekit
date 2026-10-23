@@ -340,7 +340,12 @@ Pair the ruleset with a check a workflow token cannot satisfy:
 - **Required code owners review**, or **required reviewers** from a team. A `GITHUB_TOKEN` approval does not meet either.
 - Or create and update the standing PR with a **GitHub App** token (`actions/create-github-app-token`) and leave the toggle off. Pass that token as `GITHUB_TOKEN` on the update job only. The default `GITHUB_TOKEN` then cannot open pull requests, so the repo setting stays disabled.
 
-Optionally, give the publish job a deployment **environment** restricted to the default branch (and required reviewers, if you want a second gate). Registry credentials and `id-token` trusted-publishing permissions then are not available to a workflow running from another branch. The template's publish job sets no `environment:` until you add one.
+Optionally, publish from a deployment **environment** restricted to the default branch (and required reviewers, if you want a second gate). That only helps if the credentials live on the environment, not the repository:
+
+- Move `NPM_TOKEN` (and any other registry token) to an **environment secret**. A repository secret is still readable by a workflow that never names the environment.
+- In each registry's trusted-publisher settings, require that same environment. `id-token: write` on a job with no environment can still mint an OIDC token.
+
+The template's publish job sets no `environment:` until you add one, and it does not move secrets for you.
 
 **Workflow permissions** (in the workflow YAML):
 

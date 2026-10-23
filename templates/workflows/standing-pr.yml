@@ -178,8 +178,10 @@ jobs:
       github.event.action == 'closed' &&
       github.event.pull_request.merged == true &&
       startsWith(github.event.pull_request.head.ref, 'release/')
-    # Optional: `environment: release` restricted to the default branch, so
-    # registry credentials are not available to workflows on other branches.
+    # Optional: `environment: release` restricted to the default branch. Move
+    # registry tokens to environment secrets, and require that environment on
+    # each trusted publisher. A repo secret or `id-token: write` with no
+    # environment is still available to other workflows.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
