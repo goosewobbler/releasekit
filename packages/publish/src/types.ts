@@ -163,7 +163,7 @@ export function toPublishConfig(config: BasePublishConfig): PublishConfig {
     npm,
     cargo,
     pub,
-    // publish.git has no schema defaults: unset keys inherit the top-level git config.
+    // publish.git has no schema defaults (it inherits the top-level git at load), so its fallbacks live here.
     git: {
       push: git?.push ?? true,
       pushMethod: git?.pushMethod ?? 'auto',
