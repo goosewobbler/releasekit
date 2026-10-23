@@ -10,11 +10,6 @@ export function orderVersionUpdates(
   cwd: string,
 ): VersionPackageUpdate[] {
   const npmOrdered = orderNpmUpdates(updates, config.npm.publishOrder, cwd);
-  const firstNonNpm = npmOrdered.findIndex((u) => !u.filePath.endsWith('package.json'));
-  if (firstNonNpm === -1) {
-    return npmOrdered;
-  }
-  const npmPart = npmOrdered.slice(0, firstNonNpm);
-  const rest = npmOrdered.slice(firstNonNpm);
-  return [...npmPart, ...orderCargoVersionUpdates(rest, config.cargo.publishOrder, cwd)];
+  // Hybrids use package.json paths but still need cargo dependency order across the full set.
+  return orderCargoVersionUpdates(npmOrdered, config.cargo.publishOrder, cwd);
 }
