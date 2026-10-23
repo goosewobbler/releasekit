@@ -1,5 +1,6 @@
 import { errorEnvelope, successEnvelope, type VersionOutput } from '@releasekit/core';
 import { describe, expect, it } from 'vitest';
+import { InputValidationError } from '../../../src/errors/index.js';
 import { parseVersionOutput, versionOutputToChangelogInput } from '../../../src/input/version-output.js';
 
 const baseVersionOutput: VersionOutput = {
@@ -205,5 +206,10 @@ describe('parseVersionOutput', () => {
   it('should surface an upstream failure rather than a shape complaint', () => {
     const failed = errorEnvelope([{ code: 'GIT_ERROR', category: 'git', retryable: false, message: 'no such ref' }]);
     expect(() => parseVersionOutput(JSON.stringify(failed))).toThrow(/GIT_ERROR.*no such ref/);
+  });
+
+  it('should reject a changelog that is missing entries', () => {
+    expect(() => parseVersionOutput('{"changelogs":[{"packageName":"a"}]}')).toThrow(InputValidationError);
+    expect(() => parseVersionOutput('{"changelogs":[{"packageName":"a"}]}')).toThrow(/changelogs\.0\.entries/);
   });
 });
