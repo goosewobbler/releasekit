@@ -103,8 +103,11 @@ describe('cargo-publish stage', () => {
   it('should skip when cargo disabled', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const dir = createTmpDir();
+    const crateDir = path.join(dir, 'crates', 'my-crate');
+    fs.mkdirSync(crateDir, { recursive: true });
+    fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "my-crate"\nversion = "0.5.0"\n');
     const config = getDefaultConfig();
-    // cargo.enabled defaults to false
+    config.cargo.enabled = false;
     const ctx = createContext(dir, { config });
 
     await runCargoPublishStage(ctx);

@@ -35,6 +35,7 @@ export {
   type NpmConfig,
   type Preset,
   type PublishConfig,
+  PublishConfigSchema,
   type PublishGitConfig,
   type PubPublishConfig,
   type ReleaseCIConfig,

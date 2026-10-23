@@ -94,8 +94,11 @@ describe('pub-publish stage', () => {
   it('should skip when pub disabled', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const dir = createTmpDir();
+    const pkgDir = path.join(dir, 'packages', 'my_package');
+    fs.mkdirSync(pkgDir, { recursive: true });
+    writePubspec(pkgDir, 'my_package');
     const config = getDefaultConfig();
-    // pub.enabled defaults to false
+    config.pub.enabled = false;
     const ctx = createContext(dir, { config });
 
     await runPubPublishStage(ctx);

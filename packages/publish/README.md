@@ -140,7 +140,7 @@ Configure via `releasekit.config.json`:
       "httpsTokenEnv": "GITHUB_TOKEN"
     },
     "cargo": {
-      "enabled": false,
+      "enabled": true,
       "noVerify": false
     },
     "githubRelease": {

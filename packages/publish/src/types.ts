@@ -1,4 +1,4 @@
-import type { PublishConfig as BasePublishConfig } from '@releasekit/config';
+import { type PublishConfig as BasePublishConfig, PublishConfigSchema } from '@releasekit/config';
 import type { VersionOutput } from '@releasekit/core';
 import type { PackageManager } from './utils/package-manager.js';
 
@@ -153,134 +153,26 @@ export interface PipelineContext {
 }
 
 export function getDefaultConfig(): PublishConfig {
-  return {
-    npm: {
-      enabled: true,
-      auth: 'auto',
-      provenance: true,
-      access: 'public',
-      registry: 'https://registry.npmjs.org',
-      copyFiles: ['LICENSE'],
-      tag: 'latest',
-      publishOrder: [],
-    },
-    cargo: {
-      enabled: false,
-      noVerify: false,
-      publishOrder: [],
-      clean: false,
-    },
-    pub: {
-      enabled: false,
-      publishOrder: [],
-    },
-    git: {
-      push: true,
-      pushMethod: 'auto',
-      remote: 'origin',
-      branch: undefined,
-      httpsTokenEnv: undefined,
-      skipHooks: false,
-    },
-    githubRelease: {
-      enabled: true,
-      draft: true,
-      perPackage: true,
-      prerelease: 'auto',
-      body: 'auto',
-      /* biome-ignore lint/suspicious/noTemplateCurlyInString: default template value */
-      titleTemplate: '${packageName}: ${version}',
-      skipPackages: [],
-    },
-    verify: {
-      npm: {
-        enabled: true,
-        maxAttempts: 5,
-        initialDelay: 15000,
-        backoffMultiplier: 2,
-      },
-      cargo: {
-        enabled: true,
-        maxAttempts: 10,
-        initialDelay: 30000,
-        backoffMultiplier: 2,
-      },
-      pub: {
-        enabled: true,
-        maxAttempts: 10,
-        initialDelay: 30000,
-        backoffMultiplier: 2,
-      },
-    },
-  };
+  return toPublishConfig(PublishConfigSchema.parse({}));
 }
 
-export function toPublishConfig(config: BasePublishConfig | undefined): PublishConfig {
-  const defaults = getDefaultConfig();
-
-  if (!config) {
-    return defaults;
-  }
-
+export function toPublishConfig(config: BasePublishConfig): PublishConfig {
+  // Zod shallow-clones defaults, so nested default objects would otherwise be shared between configs.
+  const { npm, cargo, pub, git, githubRelease, verify } = structuredClone(config);
   return {
-    npm: {
-      enabled: config.npm?.enabled ?? defaults.npm.enabled,
-      auth: config.npm?.auth ?? defaults.npm.auth,
-      provenance: config.npm?.provenance ?? defaults.npm.provenance,
-      access: config.npm?.access ?? defaults.npm.access,
-      registry: config.npm?.registry ?? defaults.npm.registry,
-      copyFiles: config.npm?.copyFiles ?? defaults.npm.copyFiles,
-      tag: config.npm?.tag ?? defaults.npm.tag,
-      publishOrder: config.npm?.publishOrder ?? defaults.npm.publishOrder,
+    npm,
+    cargo,
+    pub,
+    // publish.git has no schema defaults (it inherits the top-level git at load), so its fallbacks live here.
+    git: {
+      push: git?.push ?? true,
+      pushMethod: git?.pushMethod ?? 'auto',
+      remote: git?.remote ?? 'origin',
+      branch: git?.branch,
+      httpsTokenEnv: git?.httpsTokenEnv,
+      skipHooks: git?.skipHooks ?? false,
     },
-    cargo: {
-      enabled: config.cargo?.enabled ?? defaults.cargo.enabled,
-      noVerify: config.cargo?.noVerify ?? defaults.cargo.noVerify,
-      publishOrder: config.cargo?.publishOrder ?? defaults.cargo.publishOrder,
-      clean: config.cargo?.clean ?? defaults.cargo.clean,
-    },
-    pub: {
-      enabled: config.pub?.enabled ?? defaults.pub.enabled,
-      publishOrder: config.pub?.publishOrder ?? defaults.pub.publishOrder,
-    },
-    git: config.git
-      ? {
-          push: config.git.push ?? defaults.git.push,
-          pushMethod: config.git.pushMethod ?? defaults.git.pushMethod,
-          remote: config.git.remote ?? defaults.git.remote,
-          branch: config.git.branch ?? defaults.git.branch,
-          httpsTokenEnv: config.git.httpsTokenEnv ?? defaults.git.httpsTokenEnv,
-          skipHooks: config.git.skipHooks ?? defaults.git.skipHooks,
-        }
-      : defaults.git,
-    githubRelease: {
-      enabled: config.githubRelease?.enabled ?? defaults.githubRelease.enabled,
-      draft: config.githubRelease?.draft ?? defaults.githubRelease.draft,
-      perPackage: config.githubRelease?.perPackage ?? defaults.githubRelease.perPackage,
-      prerelease: config.githubRelease?.prerelease ?? defaults.githubRelease.prerelease,
-      body: config.githubRelease?.body ?? defaults.githubRelease.body,
-      titleTemplate: config.githubRelease?.titleTemplate ?? defaults.githubRelease.titleTemplate,
-      skipPackages: config.githubRelease?.skipPackages ?? defaults.githubRelease.skipPackages,
-    },
-    verify: {
-      npm: {
-        enabled: config.verify?.npm?.enabled ?? defaults.verify.npm.enabled,
-        maxAttempts: config.verify?.npm?.maxAttempts ?? defaults.verify.npm.maxAttempts,
-        initialDelay: config.verify?.npm?.initialDelay ?? defaults.verify.npm.initialDelay,
-        backoffMultiplier: config.verify?.npm?.backoffMultiplier ?? defaults.verify.npm.backoffMultiplier,
-      },
-      cargo: {
-        enabled: config.verify?.cargo?.enabled ?? defaults.verify.cargo.enabled,
-        maxAttempts: config.verify?.cargo?.maxAttempts ?? defaults.verify.cargo.maxAttempts,
-        initialDelay: config.verify?.cargo?.initialDelay ?? defaults.verify.cargo.initialDelay,
-        backoffMultiplier: config.verify?.cargo?.backoffMultiplier ?? defaults.verify.cargo.backoffMultiplier,
-      },
-      pub: {
-        enabled: config.verify?.pub?.enabled ?? defaults.verify.pub.enabled,
-        maxAttempts: config.verify?.pub?.maxAttempts ?? defaults.verify.pub.maxAttempts,
-        initialDelay: config.verify?.pub?.initialDelay ?? defaults.verify.pub.initialDelay,
-        backoffMultiplier: config.verify?.pub?.backoffMultiplier ?? defaults.verify.pub.backoffMultiplier,
-      },
-    },
+    githubRelease,
+    verify,
   };
 }

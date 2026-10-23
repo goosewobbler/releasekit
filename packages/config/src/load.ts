@@ -9,6 +9,7 @@ import {
   type GitConfig,
   type NotesConfig,
   type PublishConfig,
+  PublishConfigSchema,
   type ReleaseConfig,
   type ReleaseKitConfig,
   ReleaseKitConfigSchema,
@@ -167,17 +168,13 @@ export function loadVersionConfig(options?: LoadOptions): VersionConfig | undefi
   return config.version;
 }
 
-export function loadPublishConfig(options?: LoadOptions): PublishConfig | undefined {
+export function loadPublishConfig(options?: LoadOptions): PublishConfig {
   const config = loadConfig(options);
-
-  if (!config.publish) {
-    return undefined;
-  }
-
-  const mergedGit = mergeGitConfig(config.git, config.publish.git);
+  const publish = config.publish ?? PublishConfigSchema.parse({});
+  const mergedGit = mergeGitConfig(config.git, publish.git);
 
   return {
-    ...config.publish,
+    ...publish,
     git: mergedGit
       ? {
           push: mergedGit.push ?? true,

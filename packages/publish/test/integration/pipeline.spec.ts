@@ -34,7 +34,8 @@ describe('Pipeline integration (dry-run)', () => {
     const config = getDefaultConfig();
 
     expect(config.npm.enabled).toBe(true);
-    expect(config.cargo.enabled).toBe(false);
+    expect(config.cargo.enabled).toBe(true);
+    expect(config.pub.enabled).toBe(true);
     expect(config.git.push).toBe(true);
     expect(config.githubRelease.enabled).toBe(true);
     expect(config.verify.npm.enabled).toBe(true);

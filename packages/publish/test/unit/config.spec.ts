@@ -32,9 +32,12 @@ describe('config', () => {
       expect(config.npm.copyFiles).toEqual(['LICENSE']);
       expect(config.npm.tag).toBe('latest');
 
-      expect(config.cargo.enabled).toBe(false);
+      expect(config.cargo.enabled).toBe(true);
       expect(config.cargo.noVerify).toBe(false);
       expect(config.cargo.publishOrder).toEqual([]);
+
+      expect(config.pub.enabled).toBe(true);
+      expect(config.pub.publishOrder).toEqual([]);
 
       expect(config.git.push).toBe(true);
       expect(config.git.pushMethod).toBe('auto');
@@ -51,13 +54,44 @@ describe('config', () => {
       expect(config.verify.cargo.maxAttempts).toBe(10);
       expect(config.verify.cargo.initialDelay).toBe(30000);
     });
+
+    it('should not share nested objects between calls', () => {
+      const first = getDefaultConfig();
+      first.verify.pub.enabled = false;
+      first.npm.copyFiles.push('README.md');
+
+      const second = getDefaultConfig();
+      expect(second.verify.pub.enabled).toBe(true);
+      expect(second.npm.copyFiles).toEqual(['LICENSE']);
+    });
   });
 
   describe('loadConfig', () => {
-    it('should return defaults when no config file exists', () => {
+    it.each([
+      ['no config file', undefined],
+      ['no publish block', { version: {} }],
+      ['an empty publish block', { publish: {} }],
+    ])('should return the defaults with %s', (_label, fileConfig) => {
       const dir = createTmpDir();
+      if (fileConfig) {
+        fs.writeFileSync(path.join(dir, 'releasekit.config.json'), JSON.stringify(fileConfig));
+      }
+
       const config = loadConfig({ cwd: dir });
       expect(config).toEqual(getDefaultConfig());
+      expect([config.npm.enabled, config.cargo.enabled, config.pub.enabled]).toEqual([true, true, true]);
+    });
+
+    it('should inherit the top-level git config without a publish block', () => {
+      const dir = createTmpDir();
+      fs.writeFileSync(
+        path.join(dir, 'releasekit.config.json'),
+        JSON.stringify({ git: { push: false, remote: 'upstream' } }),
+      );
+
+      const config = loadConfig({ cwd: dir });
+      expect(config.git.push).toBe(false);
+      expect(config.git.remote).toBe('upstream');
     });
 
     it('should load and parse config file', () => {

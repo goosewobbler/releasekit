@@ -47,9 +47,7 @@ Minimum `releasekit.config.json`:
 }
 ```
 
-`version.pub.enabled` defaults to `true`, so that key is optional but makes intent explicit.
-
-**Important**: `publish.pub.enabled` defaults to `false`. You must set it to `true` explicitly — nothing is published to pub.dev unless you opt in.
+`version.pub.enabled` and `publish.pub.enabled` both default to `true`, so those keys are optional but make intent explicit. Set `publish.pub.enabled` to `false` to version and tag without publishing to pub.dev.
 
 Configure authentication via OIDC or `PUB_TOKEN`. See [Auth](#auth) below.
 
@@ -97,7 +95,7 @@ When `version.pub.paths` is omitted, releasekit looks for `pubspec.yaml` files a
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `enabled` | boolean | `false` | Enable publishing to pub.dev. Must be set to `true` explicitly. |
+| `enabled` | boolean | `true` | Publish detected packages to pub.dev. Set `false` to version and tag only. |
 | `publishOrder` | string[] | `[]` | Explicit package publish order by package name. Packages not listed are appended at the end in discovery order. |
 
 ### `publish.verify.pub`
