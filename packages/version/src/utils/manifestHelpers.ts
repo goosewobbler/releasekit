@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { parsePubspec } from '@releasekit/config';
 import { getCargoInfo } from '../cargo/cargoHandler.js';
 import { log } from './logging.js';
 
@@ -7,12 +8,13 @@ export interface ManifestVersionResult {
   version: string | null;
   manifestFound: boolean;
   manifestPath: string;
-  manifestType: 'package.json' | 'Cargo.toml' | null;
+  manifestType: 'package.json' | 'Cargo.toml' | 'pubspec.yaml' | null;
 }
 
 export function getVersionFromManifests(packageDir: string): ManifestVersionResult {
   const packageJsonPath = path.join(packageDir, 'package.json');
   const cargoTomlPath = path.join(packageDir, 'Cargo.toml');
+  const pubspecPath = path.join(packageDir, 'pubspec.yaml');
 
   if (fs.existsSync(packageJsonPath)) {
     try {
@@ -52,6 +54,25 @@ export function getVersionFromManifests(packageDir: string): ManifestVersionResu
     }
   }
 
+  if (fs.existsSync(pubspecPath)) {
+    try {
+      const pubspec = parsePubspec(pubspecPath);
+      if (pubspec.version) {
+        log(`Found version ${pubspec.version} in pubspec.yaml`, 'debug');
+        return {
+          version: pubspec.version,
+          manifestFound: true,
+          manifestPath: pubspecPath,
+          manifestType: 'pubspec.yaml',
+        };
+      }
+      log('No version field found in pubspec.yaml', 'debug');
+    } catch (pubspecError) {
+      const errMsg = pubspecError instanceof Error ? pubspecError.message : String(pubspecError);
+      log(`Error reading pubspec.yaml: ${errMsg}`, 'warning');
+    }
+  }
+
   return {
     version: null,
     manifestFound: false,
@@ -63,8 +84,9 @@ export function getVersionFromManifests(packageDir: string): ManifestVersionResu
 export function throwIfNoManifestsFound(packageDir: string): never {
   const packageJsonPath = path.join(packageDir, 'package.json');
   const cargoTomlPath = path.join(packageDir, 'Cargo.toml');
+  const pubspecPath = path.join(packageDir, 'pubspec.yaml');
 
   throw new Error(
-    `Neither package.json nor Cargo.toml found at ${packageDir}. Checked paths: ${packageJsonPath}, ${cargoTomlPath}. Cannot determine version.`,
+    `Neither package.json, Cargo.toml, nor pubspec.yaml found at ${packageDir}. Checked paths: ${packageJsonPath}, ${cargoTomlPath}, ${pubspecPath}. Cannot determine version.`,
   );
 }
