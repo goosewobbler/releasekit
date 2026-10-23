@@ -395,7 +395,7 @@ When `releaseStrategy: "standing-pr"`, the `ci.standingPr` block tunes the bot-m
 | Key | Default | Purpose |
 |---|---|---|
 | `branch` | `release/next` | Bot-maintained release branch name. Force-reset to `main` on every update. |
-| `title` | `chore: release ${count} package(s)` | PR title template. Variables: `${count}`, `${version}`. Must start with a string matching `release.ci.skipPatterns` (default `chore: release `). |
+| `title` | `chore: release ${tag}` (sync), `chore: release ${count} package(s)` | PR title template, also used as the release commit's subject. Variables: `${count}`, `${version}`, `${tag}`. Must match `release.ci.skipPatterns` (default `chore: release `) and carry no CI-skip marker, or `chore: release preparation` is used instead. |
 | `labels` | `["release"]` | Labels applied to the PR. Maintainer-added `bump:*` / `scope:*` / `channel:*` labels on the standing PR are preserved across updates and drive the next release as overrides — see [Label semantics in standing-pr mode](./docs/ci-setup.md#label-semantics-in-standing-pr-mode). |
 | `deleteBranchOnMerge` | `true` | Delete the release branch after publish completes. |
 | `mergeMethod` | `merge` | `merge` \| `squash` \| `rebase`. |

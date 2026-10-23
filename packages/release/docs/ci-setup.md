@@ -368,7 +368,7 @@ All `ci.standingPr.*` options:
 | Field | Default | Purpose |
 |---|---|---|
 | `branch` | `release/next` | Bot-maintained release branch name. Force-reset to main on every update. |
-| `title` | `chore: release ${count} package(s)` | PR title template. Variables: `${count}` (package count), `${version}` (first updated package version). **Must start with a string that matches `release.ci.skipPatterns`** (default `chore: release `) — otherwise the squash-merge commit will trigger another standing-pr update on itself. |
+| `title` | `chore: release ${tag}` (sync), `chore: release ${count} package(s)` | PR title template, also used as the release commit's subject. Variables: `${count}` (package count), `${version}` (first updated package version), `${tag}` (version with tag prefix). **Must match `release.ci.skipPatterns`** (default `chore: release `) and carry no CI-skip marker, or `chore: release preparation` is used instead when the skip patterns match it. |
 | `labels` | `["release"]` | Labels applied to the standing PR. Do not overlap with `bump:*` or `release:*` labels — those would cause the label-driven release flow to fire on the standing PR's merge. |
 | `deleteBranchOnMerge` | `true` | Delete `release/next` after publish completes. |
 | `mergeMethod` | `merge` | `merge` \| `squash` \| `rebase`. Squash recommended — produces a single `chore: release …` commit on main that the skip-pattern guard recognises. |

@@ -425,7 +425,7 @@ Configuration for the standing release PR feature (ci.releaseStrategy: 'standing
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `branch` | string | `"release/next"` | Branch name for the standing release PR. |
-| `title` | string | — | PR title template. Variables: ${count} (publishable package count), ${version} (raw version), ${tag} (version with tag prefix). Must match a release.ci.skipPatterns entry and carry no CI-skip marker, or 'chore: release preparation' is used instead. Default depends on the versioning strategy: 'chore: release ${tag}' in sync mode, 'chore: release ${count} package(s)' otherwise. |
+| `title` | string | — | PR title template. Variables: ${count} (publishable package count), ${version} (raw version), ${tag} (version with tag prefix). Also the release commit's subject, so it must match a release.ci.skipPatterns entry and carry no CI-skip marker. 'chore: release preparation' replaces a title with a marker, and one the skip patterns miss when they match the replacement. Default depends on the versioning strategy: 'chore: release ${tag}' in sync mode, 'chore: release ${count} package(s)' otherwise. |
 | `labels` | `string[]` | `["release"]` | Labels to apply to the standing release PR. |
 | `deleteBranchOnMerge` | boolean | `true` | Whether to auto-delete the release branch after the PR is merged. |
 | `mergeMethod` | `"merge"` \| `"squash"` \| `"rebase"` | `"merge"` | Merge method to use when merging the standing release PR via CLI. |

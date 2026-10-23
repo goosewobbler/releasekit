@@ -196,6 +196,28 @@ async function resetReleaseBranch(branch: string, base: string, cwd: string): Pr
 }
 
 const CI_SKIP_MARKER = /\[(?:skip ci|ci skip|no ci|skip actions|actions skip)\]/i;
+const FALLBACK_TITLE = 'chore: release preparation';
+
+// The squash merge on main takes this title, from the PR or the commit depending on the repo's settings.
+// Without a skip pattern the merge triggers another standing-PR update; with a CI-skip marker it skips the publish.
+function safeStandingPrTitle(rendered: string, skipPatterns: string[]): string {
+  let title = rendered;
+  if (CI_SKIP_MARKER.test(title)) {
+    warn(
+      `Standing PR title '${title}' carries a CI-skip marker, which would skip the publish; using '${FALLBACK_TITLE}'`,
+    );
+    title = FALLBACK_TITLE;
+  }
+  if (matchesSkipPattern(title, skipPatterns)) {
+    return title;
+  }
+  if (title !== FALLBACK_TITLE && matchesSkipPattern(FALLBACK_TITLE, skipPatterns)) {
+    warn(`Standing PR title '${title}' matches no release.ci.skipPatterns entry; using '${FALLBACK_TITLE}'`);
+    return FALLBACK_TITLE;
+  }
+  warn(`No release.ci.skipPatterns entry matches '${title}', so merging the standing PR triggers another update`);
+  return title;
+}
 
 async function commitAndForcePush(branch: string, subject: string, cwd: string): Promise<void> {
   const git = createGitCli();
@@ -1184,15 +1206,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     .replace(/\$\{version\}/g, firstUpdate?.newVersion ?? '')
     .replace(/\$\{tag\}/g, syncVersionDisplay(versionOutput));
 
-  // The squash merge on main takes this title, from the PR or the commit depending on the repo's settings.
-  // Without a skip pattern the merge triggers another standing-PR update; with a CI-skip marker it skips the publish.
-  const titleIsSafe = matchesSkipPattern(renderedTitle, skipPatterns) && !CI_SKIP_MARKER.test(renderedTitle);
-  const title = titleIsSafe ? renderedTitle : 'chore: release preparation';
-  if (!titleIsSafe) {
-    warn(
-      `Standing PR title '${renderedTitle}' must match release.ci.skipPatterns and carry no CI-skip marker; using '${title}'`,
-    );
-  }
+  const title = safeStandingPrTitle(renderedTitle, skipPatterns);
   info(`Committing and pushing '${branch}'...`);
   await commitAndForcePush(branch, title, cwd);
 
