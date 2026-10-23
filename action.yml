@@ -65,7 +65,11 @@ inputs:
   node-version:
     description: Node.js version
     required: false
-    default: '20'
+    default: '22'
+  github-token:
+    description: GitHub token for API calls (defaults to the workflow token)
+    required: false
+    default: ${{ github.token }}
   npm-auth:
     description: NPM auth method (auto|oidc|token)
     required: false
@@ -335,7 +339,7 @@ runs:
         INPUT_UPDATE_RELEASES: ${{ inputs.update-releases }}
         INPUT_ONLY_MISSING: ${{ inputs.only-missing }}
         INPUT_APPLY: ${{ inputs.apply }}
-        GITHUB_TOKEN: ${{ github.token }}
-        NPM_TOKEN: ${{ inputs.npm-token }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        NPM_TOKEN: ${{ inputs.npm-token != '' && inputs.npm-token || env.NPM_TOKEN }}
         VERBOSE: ${{ inputs.verbose }}
         OLLAMA_API_KEY: ${{ env.OLLAMA_API_KEY }}

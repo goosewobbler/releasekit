@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  assertDryRunSupported,
   buildBackfillArgs,
   buildGateArgs,
   buildGateSummary,
@@ -26,6 +27,10 @@ describe('action runner', () => {
       fs.rmSync(dir, { recursive: true, force: true });
     }
     tempDirs.length = 0;
+  });
+
+  it('should reject dry-run for standing-pr-publish', () => {
+    expect(() => assertDryRunSupported('standing-pr-publish', 'true')).toThrow(/dry-run is not supported/);
   });
 
   it('should build release args from inputs', () => {

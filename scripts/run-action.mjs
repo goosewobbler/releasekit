@@ -137,7 +137,9 @@ export function buildBackfillArgs(input) {
   pushBooleanFlag(args, '--all', input.backfillAll);
   pushBooleanFlag(args, '--update-releases', input.backfillUpdateReleases);
   pushBooleanFlag(args, '--only-missing', input.backfillOnlyMissing);
-  pushBooleanFlag(args, '--apply', input.backfillApply);
+  if (!normalizeBoolean(input.dryRun)) {
+    pushBooleanFlag(args, '--apply', input.backfillApply);
+  }
 
   return args;
 }
@@ -224,6 +226,16 @@ function setFailure(errorMessage) {
   process.exit(1);
 }
 
+export function assertDryRunSupported(mode, dryRun) {
+  if (!normalizeBoolean(dryRun)) {
+    return;
+  }
+  const unsupported = new Set(['standing-pr-update', 'standing-pr-publish', 'gate', 'refresh-after-release']);
+  if (unsupported.has(mode)) {
+    throw new Error(`dry-run is not supported for mode "${mode}"`);
+  }
+}
+
 export function parseInputs(env = process.env) {
   const input = {
     mode: normalizeString(env.INPUT_MODE) ?? 'preview',
@@ -279,6 +291,8 @@ export function parseInputs(env = process.env) {
   if (!validModes.includes(input.mode)) {
     throw new Error(`Invalid mode: ${input.mode}. Must be one of: ${validModes.join(', ')}`);
   }
+
+  assertDryRunSupported(input.mode, input.dryRun);
 
   return input;
 }

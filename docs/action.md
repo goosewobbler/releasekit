@@ -12,16 +12,17 @@ uses: goosewobbler/releasekit@v0
 
 ## Modes
 
-- `release` (default): runs the full unified release pipeline.
-- `preview`: runs PR preview comment generation.
+- `release`: runs the full unified release pipeline.
+- `preview` (default): runs PR preview comment generation.
 - `gate`: evaluates merged-PR labels and emits should-release/bump/scope outputs.
 - `standing-pr-update`: creates or refreshes the standing release PR.
 - `standing-pr-publish`: publishes from a merged standing release PR's manifest. Resolution order for which PR: the `pr` input, then the `pull_request` event payload, then the most recently merged standing PR via the GitHub API. Pass `pr` explicitly in dispatch funnels (e.g. `workflow_dispatch` routing for npm OIDC trusted publishing) — re-runs of a stale dispatch can otherwise infer a newer standing PR.
 - `backfill`: regenerates release notes for already-released versions from git history, writing per-version files and/or updating GitHub release bodies. Dry-run unless `apply: true`. Best driven by `workflow_dispatch` for one-off backfills.
+- `refresh-after-release`: refreshes the standing release PR after a direct release on `main`.
 
 ## Requirements
 
-- Node.js 20+ must be available in the job. All GitHub-hosted runners include a compatible version by default. If you need a specific version, add `actions/setup-node` before this action.
+- Node.js **22.12+** (matches ReleaseKit's `engines`). The action runs `actions/setup-node` with `node-version` (default `22`) unless you skip checkout and provide your own Node setup.
 - For npm publishing, run `actions/setup-node` with `registry-url: https://registry.npmjs.org` before this action so that `NODE_AUTH_TOKEN` is wired up correctly.
 
 ## Required permissions and env
@@ -49,10 +50,15 @@ uses: goosewobbler/releasekit@v0
 
 | Input | Default | Description |
 |---|---|---|
-| `mode` | `release` | `release`, `preview`, `gate`, `standing-pr-update`, `standing-pr-publish`, or `backfill` |
+| `mode` | `preview` | `release`, `preview`, `gate`, `standing-pr-update`, `standing-pr-publish`, `backfill`, or `refresh-after-release` |
 | `config` | - | Path to `releasekit.config.json` |
 | `project-dir` | `.` | Project directory |
-| `dry-run` | `false` | Global dry-run toggle |
+| `dry-run` | `false` | Dry-run for `release`, `preview`, and `backfill` only; other modes fail fast if set |
+| `github-token` | workflow token | Token for GitHub API calls (override with a PAT/App token when rulesets require it) |
+| `node-version` | `22` | Node.js version for the action's setup-node step |
+| `npm-token` | - | NPM token when not using OIDC; when unset, the job's `NPM_TOKEN` env is preserved |
+| `summary` | `true` | Write a job summary for `release` and `gate` |
+| `skip-checkout` | `false` | Skip the action's checkout/setup-node/pnpm steps (repo must already be on disk) |
 | `json` | `false` | JSON output (release mode) |
 | `verbose` | `false` | Verbose logs |
 | `quiet` | `false` | Suppress non-error logs |

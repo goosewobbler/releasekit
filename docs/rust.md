@@ -195,7 +195,9 @@ jobs:
       # its own runtime, and a Rust-only repo has no pnpm-lock.yaml (setting cache: pnpm
       # would fail with "Dependencies lock file is not found").
       - name: Run releasekit
-        uses: goosewobbler/releasekit@v1
+        uses: goosewobbler/releasekit@v0
+        with:
+          mode: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
