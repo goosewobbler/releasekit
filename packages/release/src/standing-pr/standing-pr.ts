@@ -1191,6 +1191,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // carry no CI-skip marker, which the merge would inherit and so skip the publish.
   const commitSubject =
     matchesSkipPattern(title, skipPatterns) && !CI_SKIP_MARKER.test(title) ? title : 'chore: release preparation';
+  const prTitle = commitSubject;
   info(`Committing and pushing '${branch}'...`);
   await commitAndForcePush(branch, commitSubject, cwd);
 
@@ -1297,13 +1298,13 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   let action: StandingPRResult['action'];
 
   if (existing) {
-    await forge.updatePullRequest(existing.number, { title, body });
+    await forge.updatePullRequest(existing.number, { title: prTitle, body });
     prNumber = existing.number;
     prUrl = existing.url;
     action = 'updated';
     info(`Updated standing PR #${prNumber}`);
   } else {
-    const newPr = await forge.createPullRequest({ title, body, head: branch, base });
+    const newPr = await forge.createPullRequest({ title: prTitle, body, head: branch, base });
     prNumber = newPr.number;
     prUrl = newPr.url;
     action = 'created';
