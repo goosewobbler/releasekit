@@ -1,6 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, type TestContext } from 'vitest';
 import type { ChangelogEntry } from '../../src/core/types.js';
 import { LLMError } from '../../src/errors/index.js';
+import { BODY_CAP } from '../../src/llm/context/prFetcher.js';
 import { LLM_DEFAULTS } from '../../src/llm/defaults.js';
 import { OllamaProvider } from '../../src/llm/ollama.js';
 import type { LLMProvider } from '../../src/llm/provider.js';
@@ -26,9 +27,23 @@ const context = { packageName: 'my-lib', version: '2.0.0', previousVersion: '1.0
 const CHUNK_SIZE = LLM_DEFAULTS.enhanceCategorizeChunkSize;
 const ENTRY_COUNT = CHUNK_SIZE + 5;
 
-// Room for both chunks to exhaust their retries on a hung host (~140s each) and still skip.
-const CALL_TIMEOUT_MS = 45_000;
-const TEST_TIMEOUT_MS = 330_000;
+// Room for both chunks to stall through every retry (~3 min each) and still report the provider errors.
+const TEST_TIMEOUT_MS = 600_000;
+
+// Real entries carry their PR body (up to BODY_CAP), which makes a full chunk a far larger prompt.
+function realisticEntry(i: number): ChangelogEntry {
+  const fix = i % 2 === 0;
+  const description = `${fix ? 'Fix' : 'Add'} behaviour ${i} in the release pipeline`;
+  const body = `## Summary\n\n${description}, so multi-package releases behave consistently.\n\n## Changes\n\n`.padEnd(
+    BODY_CAP,
+    `- Covered behaviour ${i} with unit tests and a fixture repository.\n`,
+  );
+  return {
+    type: fix ? 'fixed' : 'added',
+    description,
+    context: { prs: [{ number: 100 + i, title: description, body }] },
+  };
+}
 
 // NETWORK_ERROR_CODES from src/llm/retryable.ts, plus undici's.
 const TRANSPORT_ERROR_CODES = new Set([
@@ -55,7 +70,7 @@ function isTransportFailure(error: object): boolean {
  * `retryable: true` LLMError with either no cause (the Ollama provider classified it) or a socket error
  * code in its cause chain. `retryable` alone isn't enough: the provider flags any unknown error retryable.
  *
- * Known gap: a 5xx that Ollama returns for a bad request, or a prompt that times out, skips.
+ * Known gap: a server error that Ollama returns for a bad request skips.
  */
 function isOllamaUnreachable(error: unknown): boolean {
   if (!(error instanceof LLMError) || error.retryable !== true) {
@@ -112,8 +127,24 @@ describe('isOllamaUnreachable', () => {
   it.each([
     {
       label: 'a retryable error Ollama classified itself',
-      error: new LLMError('Ollama request timed out after 120000ms', { retryable: true }),
+      error: new LLMError('Ollama request failed: 503 Service Unavailable', { retryable: true }),
       expected: true,
+    },
+    {
+      label: 'a request that stalled',
+      error: new LLMError('Ollama request timed out: nothing received for 60000ms', {
+        cause: new DOMException('Nothing received for 60000ms', 'TimeoutError'),
+        retryable: true,
+      }),
+      expected: false,
+    },
+    {
+      label: 'a stream that ended without done',
+      error: new LLMError('Ollama stream ended before the response was complete', {
+        cause: new Error('Last line received: {}'),
+        retryable: true,
+      }),
+      expected: false,
     },
     {
       label: 'a socket error under fetch failed',
@@ -149,7 +180,7 @@ describe.skipIf(!LIVE_ENABLED)('notes LLM against live Ollama', () => {
     capabilities: ollama.capabilities,
     async complete(messages, options) {
       try {
-        return await withRetry(() => ollama.complete(messages, { ...options, timeout: CALL_TIMEOUT_MS }), {
+        return await withRetry(() => ollama.complete(messages, options), {
           ...LLM_DEFAULTS.retry,
           shouldRetry: isRetryableLLMError,
         });
@@ -167,10 +198,7 @@ describe.skipIf(!LIVE_ENABLED)('notes LLM against live Ollama', () => {
   it(
     'should enhance and categorize a large release across chunk boundaries',
     async (ctx) => {
-      const entries: ChangelogEntry[] = Array.from({ length: ENTRY_COUNT }, (_, i) => ({
-        type: i % 2 === 0 ? 'fixed' : 'added',
-        description: `${i % 2 === 0 ? 'Fix' : 'Add'} behaviour ${i} in the widget subsystem`,
-      }));
+      const entries = Array.from({ length: ENTRY_COUNT }, (_, i) => realisticEntry(i));
 
       const result = await enhanceAndCategorize(provider, entries, context);
 

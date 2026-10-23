@@ -59,7 +59,7 @@ describe('Pipeline: per-task soft-fail', () => {
     createMock.mockImplementation((params: { response_format?: unknown }) => {
       // enhance+categorize uses the structured-output (response_format) path; summarize is plain text.
       if (params.response_format) {
-        return Promise.resolve({ choices: [{ message: { content: enhancedPayload } }] });
+        return Promise.resolve([{ choices: [{ delta: { content: enhancedPayload }, finish_reason: 'stop' }] }]);
       }
       return Promise.reject(Object.assign(new Error('summarize boom'), { status: 400 }));
     });

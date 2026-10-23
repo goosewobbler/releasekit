@@ -80,11 +80,11 @@ See [ci-setup.md — Standing Release PR](../packages/release/docs/ci-setup.md#s
 
 ### LLM provider request timed out
 
-**Symptom:** The notes stage throws `LLM provider request timed out` or a similar deadline-exceeded error.
+**Symptom:** The notes stage warns `<provider> request timed out: nothing received for 60000ms` and falls back to unenhanced entries.
 
-**Cause:** The LLM API did not respond within `notes.releaseNotes.llm.options.timeout` (default 60 000 ms). Large releases with many entries or slow provider endpoints are common triggers.
+**Cause:** The provider sent nothing for `notes.releaseNotes.llm.options.timeout` (default 60 000 ms) on every retry: it stalled before its first token or mid-response. A slow response that keeps streaming never times out. Common triggers are an overloaded or unreachable endpoint, or a local model that takes longer than the timeout to load or to read a large prompt.
 
-**Fix:** Increase the timeout in config:
+**Fix:** Check the provider's status. If it is healthy but slow to start responding, increase the timeout in config:
 
 ```json
 {

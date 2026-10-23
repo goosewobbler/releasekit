@@ -1,11 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { CompleteOptions } from '../core/types.js';
 import { LLMError } from '../errors/index.js';
-import { BaseLLMProvider } from './base.js';
+import { BaseLLMProvider, type IdleTimeout } from './base.js';
 import type { CompleteResult, LLMMessage } from './messages.js';
 import { debugLogMessages } from './messages.js';
 import type { ProviderCapabilities } from './provider.js';
-import { isRetryableProviderError } from './retryable.js';
 
 export interface AnthropicConfig {
   apiKey?: string;
@@ -50,11 +49,10 @@ export class AnthropicProvider extends BaseLLMProvider {
       .filter((m) => m.role !== 'system')
       .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
-    const signal = this.timeoutSignal(options);
-    try {
+    return this.withIdleTimeout('Anthropic', options, async (idle) => {
       if (options?.schema) {
         const toolName = options.toolName ?? 'emit_release_notes';
-        const response = await this.client.messages.create(
+        const response = await this.streamMessage(
           {
             model: this.model,
             max_tokens: this.getMaxTokens(options),
@@ -69,7 +67,7 @@ export class AnthropicProvider extends BaseLLMProvider {
             tool_choice: { type: 'tool', name: toolName },
             messages: nonSystemMessages,
           },
-          { signal },
+          idle,
         );
 
         const toolBlock = response.content.find((b) => b.type === 'tool_use');
@@ -81,14 +79,14 @@ export class AnthropicProvider extends BaseLLMProvider {
         throw new LLMError('Expected tool_use block in Anthropic response');
       }
 
-      const response = await this.client.messages.create(
+      const response = await this.streamMessage(
         {
           model: this.model,
           max_tokens: this.getMaxTokens(options),
           system: systemMsg?.content,
           messages: nonSystemMessages,
         },
-        { signal },
+        idle,
       );
 
       // Find the text block rather than assuming content[0]: thinking-enabled models (Sonnet 5,
@@ -100,17 +98,16 @@ export class AnthropicProvider extends BaseLLMProvider {
       }
 
       return { content: textBlock.text };
-    } catch (error) {
-      if (error instanceof LLMError) {
-        throw error;
-      }
-      if (signal.aborted) {
-        throw new LLMError(`Anthropic request timed out after ${this.getTimeout(options)}ms`, { retryable: true });
-      }
-      throw new LLMError(`Anthropic API error: ${error instanceof Error ? error.message : String(error)}`, {
-        cause: error,
-        retryable: isRetryableProviderError(error),
-      });
+    });
+  }
+
+  private async streamMessage(params: Anthropic.MessageStreamParams, idle: IdleTimeout): Promise<Anthropic.Message> {
+    const stream = this.client.messages.stream(params, { signal: idle.signal });
+    stream.on('connect', idle.reset).on('streamEvent', idle.reset);
+    const message = await stream.finalMessage();
+    if (!message.stop_reason) {
+      throw new LLMError('Anthropic stream ended before the response was complete', { retryable: true });
     }
+    return message;
   }
 }

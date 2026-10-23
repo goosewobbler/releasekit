@@ -372,7 +372,11 @@ export const ChangelogConfigSchema = z
   .describe('Changelog file configuration');
 
 export const LLMOptionsSchema = z.object({
-  timeout: z.number().int().optional().describe('Request timeout in ms'),
+  timeout: z
+    .number()
+    .int()
+    .optional()
+    .describe('Idle timeout in ms: a streamed response fails only when nothing arrives for this long'),
   maxTokens: z.number().int().optional().describe('Max tokens to generate'),
   temperature: z.number().optional().describe('Sampling temperature'),
 });

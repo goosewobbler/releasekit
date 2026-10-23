@@ -4,8 +4,8 @@ import { LLMError } from '../errors/index.js';
 import { BaseLLMProvider } from './base.js';
 import type { CompleteResult, LLMMessage } from './messages.js';
 import { debugLogMessages } from './messages.js';
+import { readChatCompletionStream } from './openai.js';
 import type { ProviderCapabilities } from './provider.js';
-import { isRetryableProviderError } from './retryable.js';
 
 export interface OpenAICompatibleConfig {
   apiKey?: string;
@@ -41,8 +41,7 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
   async complete(messages: LLMMessage[], options?: CompleteOptions): Promise<CompleteResult> {
     debugLogMessages(this.name, messages);
 
-    const signal = this.timeoutSignal(options);
-    try {
+    return this.withIdleTimeout(this.name, options, async (idle) => {
       const openaiMessages = messages.map((m) => ({ role: m.role, content: m.content }));
 
       const requestParams = {
@@ -50,29 +49,18 @@ export class OpenAICompatibleProvider extends BaseLLMProvider {
         messages: openaiMessages,
         max_tokens: this.getMaxTokens(options),
         temperature: this.getTemperature(options),
-        stream: false as const,
+        stream: true as const,
       };
 
-      const response = await this.client.chat.completions.create(requestParams, { signal });
-
-      const content = response.choices[0]?.message?.content;
+      const stream = await this.client.chat.completions.create(requestParams, { signal: idle.signal });
+      idle.reset();
+      const content = await readChatCompletionStream(stream, idle, this.name);
 
       if (!content) {
         throw new LLMError('Empty response from LLM');
       }
 
       return { content };
-    } catch (error) {
-      if (error instanceof LLMError) {
-        throw error;
-      }
-      if (signal.aborted) {
-        throw new LLMError(`${this.name} request timed out after ${this.getTimeout(options)}ms`, { retryable: true });
-      }
-      throw new LLMError(`LLM API error: ${error instanceof Error ? error.message : String(error)}`, {
-        cause: error,
-        retryable: isRetryableProviderError(error),
-      });
-    }
+    });
   }
 }

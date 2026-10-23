@@ -3,16 +3,34 @@ import OpenAI from 'openai';
 import type { CompleteOptions } from '../core/types.js';
 import { LLMError } from '../errors/index.js';
 import { extractJsonFromResponse } from '../utils/json.js';
-import { BaseLLMProvider } from './base.js';
+import { BaseLLMProvider, type IdleTimeout } from './base.js';
 import type { CompleteResult, LLMMessage } from './messages.js';
 import { debugLogMessages } from './messages.js';
 import type { ProviderCapabilities } from './provider.js';
-import { isRetryableProviderError } from './retryable.js';
 
 export interface OpenAIConfig {
   apiKey?: string;
   baseURL?: string;
   model: string;
+}
+
+export async function readChatCompletionStream(
+  stream: AsyncIterable<OpenAI.ChatCompletionChunk>,
+  idle: IdleTimeout,
+  label: string,
+): Promise<string> {
+  let content = '';
+  let finished = false;
+  for await (const chunk of stream) {
+    idle.reset();
+    const choice = chunk.choices[0];
+    content += choice?.delta?.content ?? '';
+    finished ||= Boolean(choice?.finish_reason);
+  }
+  if (!finished) {
+    throw new LLMError(`${label} stream ended before the response was complete`, { retryable: true });
+  }
+  return content;
 }
 
 export class OpenAIProvider extends BaseLLMProvider {
@@ -47,8 +65,7 @@ export class OpenAIProvider extends BaseLLMProvider {
   async complete(messages: LLMMessage[], options?: CompleteOptions): Promise<CompleteResult> {
     debugLogMessages(this.name, messages);
 
-    const signal = this.timeoutSignal(options);
-    try {
+    return this.withIdleTimeout('OpenAI', options, async (idle) => {
       const openaiMessages = messages.map((m) => ({ role: m.role, content: m.content }));
 
       const requestParams = {
@@ -56,7 +73,7 @@ export class OpenAIProvider extends BaseLLMProvider {
         messages: openaiMessages,
         max_tokens: this.getMaxTokens(options),
         temperature: this.getTemperature(options),
-        stream: false as const,
+        stream: true as const,
         ...(options?.schema && {
           response_format: {
             type: 'json_schema' as const,
@@ -69,9 +86,9 @@ export class OpenAIProvider extends BaseLLMProvider {
         }),
       };
 
-      const response = await this.client.chat.completions.create(requestParams, { signal });
-
-      const content = response.choices[0]?.message?.content;
+      const stream = await this.client.chat.completions.create(requestParams, { signal: idle.signal });
+      idle.reset();
+      const content = await readChatCompletionStream(stream, idle, 'OpenAI');
 
       if (!content) {
         throw new LLMError('Empty response from OpenAI');
@@ -90,17 +107,6 @@ export class OpenAIProvider extends BaseLLMProvider {
       }
 
       return { content };
-    } catch (error) {
-      if (error instanceof LLMError) {
-        throw error;
-      }
-      if (signal.aborted) {
-        throw new LLMError(`OpenAI request timed out after ${this.getTimeout(options)}ms`, { retryable: true });
-      }
-      throw new LLMError(`OpenAI API error: ${error instanceof Error ? error.message : String(error)}`, {
-        cause: error,
-        retryable: isRetryableProviderError(error),
-      });
-    }
+    });
   }
 }
