@@ -126,7 +126,7 @@ export class GitHubForge implements Forge {
 
   async getPullRequest(prNumber: number): Promise<PullRequestDetails> {
     const { data } = await this.octokit.rest.pulls.get({ ...this.base, pull_number: prNumber });
-    return { body: data.body ?? '', labels: labelNames(data.labels), headSha: data.head?.sha };
+    return { body: data.body ?? '', labels: labelNames(data.labels), headSha: data.head?.sha, headRef: data.head?.ref };
   }
 
   async createPullRequest(pr: NewPullRequest): Promise<PullRequestRef> {

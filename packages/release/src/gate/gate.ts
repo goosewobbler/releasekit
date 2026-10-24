@@ -78,12 +78,19 @@ export async function runGate(options: GateOptions): Promise<GateOutput> {
   }
 
   const labelConfig = ciConfig?.labels ?? DEFAULT_LABELS;
+  const inStandingPr = (ciConfig?.releaseStrategy ?? 'direct') === 'standing-pr';
 
   // Labels are never unioned across PRs, so one PR's labels can't change another's verdict.
   const evaluations = await Promise.all(
-    prNumbers.map((prNumber) =>
-      fetchPRLabels(forge, prNumber).then((labels) => evaluatePR(prNumber, labels, labelConfig, ciConfig)),
-    ),
+    prNumbers.map(async (prNumber) => {
+      const labels = await fetchPRLabels(forge, prNumber);
+      // Only standing-pr's immediate path reads the head ref, so other PRs skip the extra lookup.
+      const headRef =
+        inStandingPr && labels.includes(labelConfig.immediate)
+          ? (await forge.getPullRequest(prNumber)).headRef
+          : undefined;
+      return evaluatePR(prNumber, labels, labelConfig, ciConfig, headRef);
+    }),
   );
 
   const trigger = ciConfig?.releaseTrigger ?? 'label';
