@@ -16,12 +16,11 @@ export interface AssociatedPullRequest {
   mergedAt: string | null;
 }
 
-/** Enough to refresh a PR's preview without its event payload. */
+/** Enough to mark a PR's preview stale without its event payload. */
 export interface OpenPullRequest {
   number: number;
   headRef: string;
   draft: boolean;
-  baseSha: string;
 }
 
 export interface IssueDetails {

@@ -178,6 +178,20 @@ export class GitCli implements Git {
     return this.execSoft(['merge-base', '--is-ancestor', ancestor, ref], { cwd: this.cwd(cwd), ignoreOutput: true });
   }
 
+  async mergeBase(a: string, b: string, cwd?: string): Promise<string | null> {
+    assertNotOption(a, 'ref');
+    assertNotOption(b, 'ref');
+    try {
+      const { stdout } = await this.run(['merge-base', a, b], { cwd: this.cwd(cwd) });
+      return stdout.trim() || null;
+    } catch (error) {
+      if (isCommandNotFound(error)) {
+        throw new GitError('git binary not found (running: git merge-base)', ['merge-base', a, b], undefined, '');
+      }
+      return null;
+    }
+  }
+
   async countCommits(range: string, opts: GitCountCommitsOptions = {}): Promise<number> {
     assertNotOption(range, 'range');
     const args = ['rev-list', '--count', range];

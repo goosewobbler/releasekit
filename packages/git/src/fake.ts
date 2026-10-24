@@ -45,6 +45,8 @@ export interface FakeGitSeed {
   existingRefs?: string[];
   /** A record maps a `ref` to its ancestors. */
   ancestors?: Record<string, string[]> | ((ancestor: string, ref: string) => boolean);
+  /** Keyed by `<a>...<b>`. */
+  mergeBases?: Record<string, string>;
   remoteBranches?: Record<string, string[]>;
   /** `git log` responses keyed by range; `'*'` is a catch-all when no range matches. */
   commits?: FakeLog;
@@ -76,6 +78,7 @@ export class FakeGit implements Git {
   private readonly remoteUrls: Record<string, string>;
   private readonly existingRefs: Set<string>;
   private readonly ancestors: FakeGitSeed['ancestors'];
+  private readonly mergeBases: Record<string, string>;
   private readonly remoteBranches: Record<string, string[]>;
   private readonly commits: FakeLog;
   private readonly diffNames: Record<string, string[]>;
@@ -103,6 +106,7 @@ export class FakeGit implements Git {
     this.remoteUrls = seed.remoteUrls ?? {};
     this.existingRefs = new Set(seed.existingRefs ?? []);
     this.ancestors = seed.ancestors;
+    this.mergeBases = seed.mergeBases ?? {};
     this.remoteBranches = seed.remoteBranches ?? {};
     this.commits = seed.commits ?? {};
     this.diffNames = seed.diffNames ?? {};
@@ -146,6 +150,10 @@ export class FakeGit implements Git {
 
   async isAncestor(ancestor: string, ref: string, _cwd?: string): Promise<boolean> {
     return ancestryHas(this.ancestors, ancestor, ref);
+  }
+
+  async mergeBase(a: string, b: string, _cwd?: string): Promise<string | null> {
+    return this.mergeBases[`${a}...${b}`] ?? null;
   }
 
   async countCommits(range: string, _opts: GitCountCommitsOptions = {}): Promise<number> {

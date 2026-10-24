@@ -3,6 +3,7 @@ import type { CIConfig } from '@releasekit/config';
 import { loadCIConfig, loadConfig } from '@releasekit/config';
 import { type ChangelogRefsMode, info, success, warn } from '@releasekit/core';
 import type { Forge } from '@releasekit/forge';
+import { createGitCli } from '@releasekit/git';
 import { renderSupersedeWarning } from '../failure-report/failure-report.js';
 import { detectUnresolvedFailure } from '../failure-report/post.js';
 import { evaluatePR } from '../gate/evaluate-pr.js';
@@ -31,8 +32,6 @@ export interface PreviewOptions {
   stable?: boolean;
   bump?: string;
   target?: string;
-  /** Overrides the event payload's base SHA: a post-release refresh runs on a push/dispatch event without one. */
-  baseSha?: string;
 }
 
 interface LabelOverrideResult {
@@ -41,7 +40,7 @@ interface LabelOverrideResult {
 }
 
 interface PullRequestEvent {
-  pull_request?: { head?: { ref?: string }; base?: { sha?: string } };
+  pull_request?: { head?: { ref?: string }; base?: { ref?: string; sha?: string } };
 }
 
 function readEventPayload(): PullRequestEvent | undefined {
@@ -121,7 +120,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   // Advisory mode scopes the analysis to this PR's commits.
   let prBaseSha: string | undefined;
   if (labelContext.advisoryInStandingPr) {
-    prBaseSha = options.baseSha ?? event?.pull_request?.base?.sha;
+    prBaseSha = await resolvePRBase(event, effectiveOptions.projectDir);
   }
 
   let result = null;
@@ -190,6 +189,18 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   info(`Posting preview comment on PR #${context.prNumber}...`);
   await postOrUpdateComment(forge, context.prNumber, commentBody);
   success(`Preview comment posted on PR #${context.prNumber}`);
+}
+
+/** `pull_request.base.sha` can lag the base branch, which would count commits merged there since as this PR's. */
+async function resolvePRBase(event: PullRequestEvent | undefined, projectDir: string): Promise<string | undefined> {
+  const baseRef = event?.pull_request?.base?.ref;
+  if (baseRef) {
+    const base = await createGitCli().mergeBase('HEAD', `origin/${baseRef}`, projectDir);
+    if (base) {
+      return base;
+    }
+  }
+  return event?.pull_request?.base?.sha;
 }
 
 function resolvePrerelease(
