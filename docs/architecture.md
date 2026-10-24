@@ -94,7 +94,7 @@ How and when releases are delivered. Configure under `ci.releaseStrategy`.
 | `manual` | Human-triggered only (`workflow_dispatch`) |
 | `standing-pr` | Changes accumulate in a bot-maintained release PR; merged when ready |
 
-See [CI setup](../packages/release/docs/ci-setup.md) for full workflow YAML, prerequisites, and the standing-PR lifecycle.
+See [CI setup](../packages/release/docs/ci-setup.md) for prerequisites and the standing-PR lifecycle, and [`examples/`](../examples/README.md) for the workflows.
 
 ---
 
@@ -195,7 +195,8 @@ If the head commit message matches a skip pattern (default: `chore: release `), 
 ## Further reading
 
 - [docs/configuration.md](./configuration.md) — full config reference
-- [CI setup](../packages/release/docs/ci-setup.md) — workflow YAML, label setup, OIDC, standing PR
+- [CI setup](../packages/release/docs/ci-setup.md) — label setup, OIDC, standing PR
+- [CI examples](../examples/README.md) — the workflows, validated in CI
 - [@releasekit/version README](../packages/version/README.md) — versioning strategies, JSON output schema
 - [@releasekit/notes README](../packages/notes/README.md) — changelog modes, templates, LLM tasks
 - [@releasekit/publish README](../packages/publish/README.md) — npm/cargo/GitHub Release config

@@ -14,10 +14,12 @@ markdown snippets they cannot rot silently.
 |----------|---------------|
 | [`ci/minimal`](./ci/minimal) | Push-to-main direct release driven by Conventional Commits. |
 | [`ci/label-driven`](./ci/label-driven) | Release only when a merged PR carries a `bump:*` label (trigger + gate). |
-| [`ci/standing-pr`](./ci/standing-pr) | Standing release PR: `update` + `publish` + `retry-publish` jobs. |
+| [`ci/standing-pr`](./ci/standing-pr) | Standing release PR: `update`, `immediate-release`, `publish` and `retry-publish` jobs. |
 | [`ci/oidc`](./ci/oidc) | npm OIDC trusted publishing — no `NPM_TOKEN`. |
 | [`ci/monorepo-rust`](./ci/monorepo-rust) | Mixed npm + Cargo monorepo (npm OIDC + crates.io token). |
 | [`ci/prerelease`](./ci/prerelease) | Manual `workflow_dispatch` prerelease with a chosen identifier. |
+| [`ci/release-preview`](./ci/release-preview) | PR comment showing what would release if the PR merged. |
+| [`ci/backfill`](./ci/backfill) | Manual `workflow_dispatch` that regenerates notes for past GitHub Releases. |
 
 ## Cross-cutting correctness rules
 
@@ -28,6 +30,8 @@ wrong in hand-written workflows:
   ship pnpm. Add `pnpm/action-setup@v6` *before* `actions/setup-node`, so that
   `setup-node`'s `cache: pnpm` can find the binary. Omitting this is the single
   most common failure — and `actionlint` will **not** catch it (see below).
+  `pnpm/action-setup` reads the pnpm version from `packageManager` in
+  `package.json`; without that field, give it a `version`.
 - **Node 24** in `actions/setup-node`.
 - **`fetch-depth: 0`** on `actions/checkout` — releasekit walks full git history
   to compute the bump.
@@ -37,6 +41,8 @@ wrong in hand-written workflows:
 - **OIDC needs `.npmrc` removed.** `setup-node` with `registry-url` writes an
   `.npmrc` with `_authToken=${NODE_AUTH_TOKEN}`; with OIDC that token is empty
   and npm fails `ENEEDAUTH`. The OIDC-publishing examples `rm -f .npmrc` first.
+
+> **Using npm?** Drop the `pnpm/action-setup` step, set `cache: npm` on `setup-node`, and replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
 
 ## Validation
 
@@ -60,7 +66,8 @@ Two workflows guard these examples on every change under `examples/`:
 4. **Execution smoke-test** — for each scenario, runs that example's **real
    setup steps** (extracted from the example workflow, not hand-copied) on a
    hosted `ubuntu-latest` runner against a throwaway fixture repo, then a
-   `releasekit release --dry-run`. This catches the missing-runtime-tool class
+   `releasekit release --dry-run` (`preview --dry-run` for `release-preview`).
+   This catches the missing-runtime-tool class
    and install failures (`pnpm`/`cargo: command not found`, wrong Node version,
    `cache: pnpm` with no lockfile, `pnpm install` errors, the CLI not
    resolving). Publish never runs for real — every release is `--dry-run`.

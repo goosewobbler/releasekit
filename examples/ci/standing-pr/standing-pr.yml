@@ -7,6 +7,10 @@
 # The toggle also lets any workflow token approve PRs. Before relying on a
 # "≥ 1 approval" ruleset, see
 # https://github.com/goosewobbler/releasekit/blob/main/packages/release/docs/ci-setup.md#workflow-token-approvals
+#
+# Exempt the release branch (release/*) from your build/test CI, or every update
+# re-runs your whole matrix. See
+# https://github.com/goosewobbler/releasekit/blob/main/packages/release/docs/ci-setup.md#keeping-ci-off-the-standing-pr
 name: Standing Release PR
 
 on:
@@ -22,13 +26,15 @@ on:
 
 concurrency:
   # GitHub keeps one pending run per group and replaces it with any newer one. So the standing PR's
-  # publish on merge and its retry label get a group per PR that nothing else can replace. A merged
-  # `release:immediate` PR queues with the updates, so the two don't write release/next at once. Other
-  # events on a closed PR run no job, so each gets a group of its own. The label names and the
-  # `release/next` branch are hardcoded: update them here if you rename them in `ci.labels` or
-  # `ci.standingPr.branch`.
-  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (github.event.pull_request.head.ref == 'release/next' && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event.action == 'closed' && github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release:immediate') && 'standing-release-pr' || format('standing-release-pr-noop-{0}', github.run_id)) || 'standing-release-pr' }}
-  cancel-in-progress: false
+  # publish on merge and its retry label get a group per PR that nothing else can replace or cancel.
+  # A merged `release:immediate` PR queues with the updates, so the two don't write release/next at
+  # once. Other events on a closed PR run no job, so each gets a group of its own. A maintainer's
+  # checkbox edits on the open PR get a per-PR cancelling group, so a flurry of ticks collapses to one
+  # rebuild. Everything else, including the bot's own body edits, shares a non-cancelling group. The
+  # label names and the `release/next` branch are hardcoded: update them here if you rename them in
+  # `ci.labels` or `ci.standingPr.branch`.
+  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (github.event.pull_request.head.ref == 'release/next' && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event.action == 'closed' && github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release:immediate') && 'standing-release-pr' || format('standing-release-pr-noop-{0}', github.run_id)) || github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'open' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
 
 permissions:
   contents: write # push to release/next, create tags
@@ -59,6 +65,25 @@ jobs:
       )
     runs-on: ubuntu-latest
     steps:
+      # Instant banner so a maintainer knows their tick or label change was received while the slower
+      # rebuild runs. Before checkout so it lands within seconds of the runner starting.
+      - name: Acknowledge the update in progress
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          BODY=$(gh api "repos/$REPO/pulls/$PR" --jq '.body // ""')
+          case "$BODY" in
+            *'<!-- releasekit-processing -->'*) echo "Banner already present - skipping"; exit 0 ;;
+          esac
+          BANNER=$'<!-- releasekit-processing -->\n> 🔄 **Updating the release PR** to reflect your change… ([run details]('"$RUN_URL"$'))\n<!-- releasekit-processing-end -->'
+          NEWBODY=$(printf '%s\n\n%s' "$BANNER" "$BODY")
+          gh api --method PATCH "repos/$REPO/pulls/$PR" -f body="$NEWBODY" >/dev/null
+
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.base.ref }}
@@ -80,15 +105,31 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - run: pnpm exec releasekit standing-pr update
+      - name: Update standing release PR
+        run: pnpm exec releasekit standing-pr update
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # LLM key only needed when using the release:preview-notes label (optional).
+          # LLM key for an LLM-enhanced CHANGELOG.md and the release:preview-notes label (optional).
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
+      - name: Clear the in-progress banner if the update didn't finish
+        # Only a run that ended before the rebuild leaves the banner behind. `cancelled()` covers a
+        # manual cancel or a superseded reactive run.
+        if: (failure() || cancelled()) && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          BODY=$(gh api "repos/$REPO/pulls/$PR" --jq '.body // ""')
+          CLEANED=$(printf '%s' "$BODY" | sed '/<!-- releasekit-processing -->/,/<!-- releasekit-processing-end -->/d')
+          gh api --method PATCH "repos/$REPO/pulls/$PR" -f body="$CLEANED" >/dev/null
+
   immediate-release:
+    # Bypasses the standing PR queue when a feeder PR carrying `release:immediate` merges to main.
     name: Immediate Release (bypass standing PR)
     if: >
       github.event_name == 'pull_request' &&
@@ -122,7 +163,8 @@ jobs:
       - name: Remove token-based .npmrc so OIDC can take over
         run: rm -f .npmrc
 
-      - run: pnpm exec releasekit release
+      - name: Direct release (bypassing standing PR)
+        run: pnpm exec releasekit release
         env:
           GITHUB_TOKEN: ${{ github.token }}
           # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # only if not using OIDC
@@ -130,10 +172,14 @@ jobs:
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
-      - run: pnpm exec releasekit refresh-after-release
+      - name: Reconcile standing PR
+        # Not `standing-pr update`: HEAD is now a `chore: release …` commit, which the skip-pattern
+        # guard matches, so a plain update no-ops. refresh-after-release bypasses the guard and also
+        # marks feeder-PR previews stale.
+        run: pnpm exec releasekit refresh-after-release
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # LLM key only needed when using the release:preview-notes label (optional).
+          # LLM key for an LLM-enhanced CHANGELOG.md and the release:preview-notes label (optional).
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
@@ -175,7 +221,8 @@ jobs:
       - name: Remove token-based .npmrc so OIDC can take over
         run: rm -f .npmrc
 
-      - run: pnpm exec releasekit standing-pr publish
+      - name: Publish from release PR
+        run: pnpm exec releasekit standing-pr publish
         env:
           GITHUB_TOKEN: ${{ github.token }}
           # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # only if not using OIDC
@@ -223,7 +270,8 @@ jobs:
       - name: Remove token-based .npmrc so OIDC can take over
         run: rm -f .npmrc
 
-      - run: pnpm exec releasekit standing-pr publish --pr ${{ github.event.pull_request.number }}
+      - name: Retry publish from release PR
+        run: pnpm exec releasekit standing-pr publish --pr ${{ github.event.pull_request.number }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
           # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # only if not using OIDC
