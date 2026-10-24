@@ -282,7 +282,7 @@ This gives you an honest choice between the two recovery paths. The warning is k
 
 **Cause:** The branch has protection rules that block direct pushes. This can affect both the version commit push and the tag push.
 
-**Fix:** Check whether the configured `publish.git.pushMethod` matches the protection ruleset. For GitHub Actions with a bot token, `pushMethod: "https"` is usually required (not SSH). If a bypass is needed, configure the `github-actions[bot]` app as a bypass actor in the branch protection settings rather than disabling protection. Note: `git.skipHooks: true` bypasses local git hooks but has no effect on remote branch protection — these are independent concerns.
+**Fix:** Check whether the configured `publish.git.pushMethod` matches the protection ruleset. For GitHub Actions with a bot token, `pushMethod: "https"` is usually required (not SSH). If a bypass is needed, configure the `github-actions[bot]` app as a bypass actor in the branch protection settings rather than disabling protection. That bypass applies to every workflow in the repo, not just the release job: see [Workflow token approvals](../packages/release/docs/ci-setup.md#workflow-token-approvals). Note: `git.skipHooks: true` bypasses local git hooks but has no effect on remote branch protection — these are independent concerns.
 
 ---
 

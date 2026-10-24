@@ -31,7 +31,8 @@ Needs `notes.releaseNotes.llm` configured and the matching LLM secret uncommente
   permissions -> enable **"Allow GitHub Actions to create and approve pull
   requests"**. Without it the first `update` run fails with HTTP 403. The
   `pull-requests: write` workflow permission is necessary but **not** sufficient
-  — this toggle is separate.
+  — this toggle is separate. It also lets any workflow token approve pull
+  requests: see [Workflow token approvals](../../../packages/release/docs/ci-setup.md#workflow-token-approvals).
 - `release/next` is **not** branch-protected (the bot force-pushes it), or the
   bot has bypass.
 - Squash merge produces a single `chore: release ...` commit on `main`, which
