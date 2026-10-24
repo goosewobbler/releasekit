@@ -162,7 +162,7 @@ Only `[dependencies]` / `[dev-dependencies]` / `[build-dependencies]` entries wi
 }
 ```
 
-`publishOrder` replaces the automatic sort; it doesn't add to it. Listed crates publish first, in the order given. The rest follow unsorted, so list every crate that's part of a path dependency, dependencies first.
+Setting `publishOrder` turns off the automatic sort, so list every crate in a path dependency, dependencies first.
 
 ---
 
