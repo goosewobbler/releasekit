@@ -22,7 +22,7 @@ uses: goosewobbler/releasekit@v0
 
 ## Requirements
 
-- The action checks out the repo (unless `skip-checkout`), then runs its own `pnpm/action-setup` and `actions/setup-node` (`node-version`, default `22`; ReleaseKit needs Node 22.12+). That replaces any Node version an earlier step set up.
+- The action checks out the repo (unless `skip-checkout`), then runs its own `pnpm/action-setup` and `actions/setup-node` (`node-version`, default `24`, whose npm supports OIDC trusted publishing; ReleaseKit needs Node 22.12+). That replaces any Node version an earlier step set up.
 - For npm publishing, run `actions/setup-node` with `registry-url: https://registry.npmjs.org` before this action so that `NODE_AUTH_TOKEN` is wired up correctly.
 
 ## Required permissions and env
@@ -63,7 +63,7 @@ The action passes `github-token` (default: the workflow token) to ReleaseKit as 
 | `project-dir` | `.` | Project directory |
 | `dry-run` | `false` | Dry-run for `release`, `preview` and `backfill`. `gate` is read-only; other modes fail if it's set |
 | `github-token` | workflow token | Token for GitHub API calls (override with a PAT/App token when rulesets require it) |
-| `node-version` | `22` | Node.js version for the action's setup-node step |
+| `node-version` | `24` | Node.js version for the action's setup-node step |
 | `npm-token` | - | NPM token when not using OIDC; when unset, the job's `NPM_TOKEN` env is preserved |
 | `summary` | `true` | Write a job summary for `release` and `gate` |
 | `skip-checkout` | `false` | Skip the action's checkout steps only; setup-node, pnpm, and install still run. The repo must already be on disk (e.g. a prior checkout step). |

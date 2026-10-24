@@ -65,7 +65,7 @@ inputs:
   node-version:
     description: Node.js version
     required: false
-    default: '22'
+    default: '24'
   github-token:
     description: GitHub token for API calls (defaults to the workflow token)
     required: false
