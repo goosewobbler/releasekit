@@ -428,7 +428,7 @@ The in-code gates keep the *manifest* clean, but the merge itself is a GitHub ac
 
 > **Rulesets require the right plan.** They're available on **public** repositories on any plan, and on **private** repositories only with **GitHub Pro / Team / Enterprise** — a private repo on Free has no rulesets at all. The **evaluate** (dry-run) enforcement mode mentioned below is **Enterprise-only**.
 
-**1. Lock the release branch** — target `release/next` (your `ci.standingPr.branch`). Enable **Restrict creations**, **Restrict updates**, and **Restrict deletions** so only bypass actors can write the branch — no one can inject a commit that would then be published.
+**1. Lock the release branch** — target `release/next` (your `ci.standingPr.branch`). Enable **Restrict creations**, **Restrict updates**, and **Restrict deletions** so only bypass actors can write the branch — no one else can inject a commit that would then be published. If the bypass actor is the Actions bot, that includes every workflow: see [Workflow token approvals](#workflow-token-approvals).
 
 > ⚠️ The release bot pushes (and force-pushes) this branch, so it **must** be on the ruleset's *Bypass list* or releases break — ReleaseKit can't infer the bot's identity for you. **Add the bot as a bypass actor before the ruleset goes `active`.** On **GitHub Enterprise** you can instead create it in **evaluate** (dry-run) mode first and confirm in the repo's *rule insights* that the bot isn't tripped, then switch to active — but **evaluate mode is Enterprise-only**, so on every other plan add the bypass actor first and create the ruleset directly as `active`. (A bypass actor's force-push is not blocked by the lock, so the standing-PR refresh keeps working.)
 
@@ -443,11 +443,11 @@ The template creates the standing PR with `GITHUB_TOKEN`, which needs **Allow Gi
 So in ruleset 2, also enable:
 
 - **Require review from Code Owners.** A workflow token isn't a code owner. The rule only covers paths in `CODEOWNERS`, so give it a `*` rule naming an owner with write access, such as `* @acme/maintainers`. A later pattern overrides `*` for its paths, so every pattern needs such an owner.
-- **Dismiss stale pull request approvals when new commits are pushed**, so a code owner's approval doesn't carry over to commits pushed after it.
+- **Dismiss stale pull request approvals when new commits are pushed**, so a code owner's approval doesn't carry over to commits pushed after it. Each standing-PR update, including the hourly scheduled run, pushes a new commit and can dismiss the standing PR's approval too, so approve it just before merging.
 
-None of this applies to a ruleset's bypass actors. A bypass given to the Actions bot, such as ruleset 1's for the release branch or one that lets `release:immediate` push to `main`, is open to every workflow.
+None of this applies to a ruleset's bypass actors. With the template's `GITHUB_TOKEN`, the release bot is the Actions bot, and a bypass for it is open to every workflow. Ruleset 1 needs one for the release branch. The template's `immediate-release` job pushes straight to `main`, so it needs one on ruleset 2 as well, which voids the settings above. Remove that job if you rely on them.
 
-Don't put the publish jobs behind a deployment environment restricted to the default branch: they run on `pull_request`, whose ref is `refs/pull/N/merge`, so the environment rejects them.
+To keep registry credentials away from workflows on other branches, publish from a deployment environment restricted to the default branch. A merged PR's `closed` run has the branch it merged into as its ref, so the publish jobs it triggers pass the restriction. Name the environment on each of them, move registry tokens such as `NPM_TOKEN` to environment secrets, and require the environment in each registry's trusted-publisher settings. GitHub documents that ref only for the `closed` run, so a label-triggered job such as the example's `retry-publish` may be rejected.
 
 #### Token caveats
 
