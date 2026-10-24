@@ -478,13 +478,14 @@ on:
     - cron: '0 * * * *'  # Hourly — re-evaluates minAge status check as time passes
 
 concurrency:
-  # GitHub keeps one pending run per group and replaces it with any newer one. So on a closed PR, the
-  # publish on merge and a retry label get a group per PR that nothing else can replace or cancel;
-  # other events on a closed PR run no job, so each gets a group of its own. A maintainer's checkbox
-  # edits on the open PR get a per-PR cancelling group, so a flurry of ticks collapses to one rebuild.
-  # Everything else, including the bot's own body edits, shares a non-cancelling group. Publish deletes
-  # the release branch only if no update has moved it since.
-  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && format('standing-release-pr-noop-{0}', github.run_id) || github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
+  # GitHub keeps one pending run per group and replaces it with any newer one. So the standing PR's
+  # publish on merge and its retry label get a group per PR that nothing else can replace or cancel.
+  # A merged `release:immediate` PR queues with the updates, so the two don't write release/next at
+  # once. Other events on a closed PR run no job, so each gets a group of its own. A maintainer's
+  # checkbox edits on the open PR get a per-PR cancelling group, so a flurry of ticks collapses to one
+  # rebuild. Everything else, including the bot's own body edits, shares a non-cancelling group. The
+  # label names are hardcoded: update them here if you rename them in `ci.labels`.
+  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (startsWith(github.event.pull_request.head.ref, 'release/') && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event.action == 'closed' && github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release:immediate') && 'standing-release-pr' || format('standing-release-pr-noop-{0}', github.run_id)) || github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'open' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
 
 permissions:
@@ -625,6 +626,10 @@ jobs:
       - run: pnpm exec releasekit refresh-after-release
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # LLM key only needed when using the release:preview-notes label (optional).
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
   publish-release:
     name: Publish Release
@@ -666,13 +671,6 @@ jobs:
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-
-      - name: Reconcile standing PR
-        # An update can run during this publish and compute versions before the tags exist.
-        # Rebuild the standing PR now that they do.
-        run: pnpm exec releasekit refresh-after-release
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
 
   # Maintainer-invoked retry after a partial-publish failure: apply `release:retry` to the
   # MERGED standing PR (label events fire on closed PRs). Publishing is idempotent — versions
@@ -717,10 +715,6 @@ jobs:
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-
-      - run: pnpm exec releasekit refresh-after-release
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
 
       # Remove the label so each application is exactly one retry; re-apply to retry again.
       - name: Remove retry label
@@ -848,7 +842,7 @@ The `immediate-release` job in `standing-pr.yml` handles this:
 
 If a standing-PR publish fails partway through, add the **`release:retry`** label to the **merged** standing PR. The version commit is already on `main`. GitHub Releases are created only after every package succeeds. In per-package mode, tags for packages that published may already be on the remote — do not delete them. The `retry-publish` job in the workflow template above:
 
-1. Validates via its `if` guard that the PR is a merged standing PR and the label is `release:retry` — note the guard hardcodes the label name (workflow `if` expressions can't read releasekit config), so renaming the label via `ci.labels.retry` requires updating the guard to match.
+1. Validates via its `if` guard that the PR is a merged standing PR and the label is `release:retry` — note the guard hardcodes the label name (workflow `if` expressions can't read releasekit config), so renaming the label via `ci.labels.retry` requires updating the guard and the `concurrency` group to match.
 2. Re-runs the manifest-driven publish for that PR (`standing-pr publish --pr <n>`) — idempotent, so it re-publishes only the packages that did not land, then pushes tags and creates GitHub releases.
 3. Removes the label, so each application is exactly one retry; re-apply it to retry again.
 

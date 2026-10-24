@@ -23,13 +23,14 @@ on:
     - cron: '0 * * * *' # re-evaluates the minAge status check as time passes
 
 concurrency:
-  # GitHub keeps one pending run per group and replaces it with any newer one. So on a closed PR, the
-  # publish on merge and a retry label get a group per PR that nothing else can replace or cancel;
-  # other events on a closed PR run no job, so each gets a group of its own. A maintainer's checkbox
-  # edits on the open PR get a per-PR cancelling group, so a flurry of ticks collapses to one rebuild.
-  # Everything else, including the bot's own body edits, shares a non-cancelling group. Publish deletes
-  # the release branch only if no update has moved it since.
-  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && format('standing-release-pr-noop-{0}', github.run_id) || github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
+  # GitHub keeps one pending run per group and replaces it with any newer one. So the standing PR's
+  # publish on merge and its retry label get a group per PR that nothing else can replace or cancel.
+  # A merged `release:immediate` PR queues with the updates, so the two don't write release/next at
+  # once. Other events on a closed PR run no job, so each gets a group of its own. A maintainer's
+  # checkbox edits on the open PR get a per-PR cancelling group, so a flurry of ticks collapses to one
+  # rebuild. Everything else, including the bot's own body edits, shares a non-cancelling group. The
+  # label names are hardcoded: update them here if you rename them in `ci.labels`.
+  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (startsWith(github.event.pull_request.head.ref, 'release/') && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event.action == 'closed' && github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release:immediate') && 'standing-release-pr' || format('standing-release-pr-noop-{0}', github.run_id)) || github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'open' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
 
 permissions:
@@ -90,12 +91,12 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '24'
           cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
-      # Using npm? Replace the line above with: npm ci
+      # Using npm? Drop pnpm/action-setup, set `cache: npm` and replace the line above with: npm ci
 
       - name: Configure git
         run: |
@@ -144,12 +145,12 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '24'
           cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
-      # Using npm? Replace the line above with: npm ci
+      # Using npm? Drop pnpm/action-setup, set `cache: npm` and replace the line above with: npm ci
 
       - name: Configure git
         run: |
@@ -197,12 +198,12 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '24'
           cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
-      # Using npm? Replace the line above with: npm ci
+      # Using npm? Drop pnpm/action-setup, set `cache: npm` and replace the line above with: npm ci
 
       - name: Configure git
         run: |
@@ -220,10 +221,3 @@ jobs:
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-
-      - name: Reconcile standing PR
-        # An update can run while this job publishes and compute versions before the tags exist.
-        # Rebuild the standing PR now that they do.
-        run: pnpm exec releasekit refresh-after-release
-        env:
-          GITHUB_TOKEN: ${{ github.token }}

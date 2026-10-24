@@ -28,11 +28,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '24'
           cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # Using npm? Drop pnpm/action-setup, set `cache: npm` and replace the line above with: npm ci
 
       - name: Release preview
         run: pnpm exec releasekit preview
