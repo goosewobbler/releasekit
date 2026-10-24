@@ -119,6 +119,22 @@ describe('GitCli queries', () => {
     expect(await new GitCli(no.run).isAncestor('a', 'b')).toBe(false);
   });
 
+  it('should return the merge base, trimmed', async () => {
+    const { run, calls } = makeRunner({ stdout: 'abc123\n' });
+    expect(await new GitCli(run).mergeBase('HEAD', 'origin/main', '/r')).toBe('abc123');
+    expect(calls[0].args).toEqual(['merge-base', 'HEAD', 'origin/main']);
+  });
+
+  it('should return null from mergeBase when the refs share no history or one does not resolve', async () => {
+    const { run } = makeRunner({ reject: exitError(1) });
+    expect(await new GitCli(run).mergeBase('HEAD', 'origin/missing')).toBeNull();
+  });
+
+  it('should throw from mergeBase when the git binary is missing', async () => {
+    const { run } = makeRunner({ reject: enoent() });
+    await expect(new GitCli(run).mergeBase('HEAD', 'origin/main')).rejects.toBeInstanceOf(GitError);
+  });
+
   it('should count commits, appending the path after -- when given', async () => {
     const { run, calls } = makeRunner({ stdout: '7\n' });
     expect(await new GitCli(run).countCommits('v1..HEAD', { path: 'packages/git' })).toBe(7);
@@ -372,6 +388,12 @@ describe('GitCli option-injection guard', () => {
   it('should refuse a leading-dash remote in fetch and never call the runner', async () => {
     const { run } = makeRunner();
     await expect(new GitCli(run).fetch('--upload-pack=evil')).rejects.toBeInstanceOf(GitError);
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('should refuse a leading-dash ref in mergeBase and never call the runner', async () => {
+    const { run } = makeRunner();
+    await expect(new GitCli(run).mergeBase('HEAD', '--output=evil')).rejects.toThrow(/looks like an option/);
     expect(run).not.toHaveBeenCalled();
   });
 

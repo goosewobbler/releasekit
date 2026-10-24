@@ -1,5 +1,9 @@
-import type { OpenPullRequest } from '@releasekit/forge';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createFakeForge, type FakeForge, type OpenPullRequest } from '@releasekit/forge';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MARKER } from '../../src/github.js';
 
 const mockLoadCIConfig = vi.fn();
 
@@ -20,8 +24,8 @@ vi.mock('../../src/git.js', () => ({
 
 const mockForgeFor = vi.fn();
 
-vi.mock('../../src/github.js', () => ({
-  MARKER: '<!-- releasekit-preview -->',
+vi.mock('../../src/github.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/github.js')>()),
   forgeFor: (...args: unknown[]) => mockForgeFor(...args),
 }));
 
@@ -31,25 +35,26 @@ vi.mock('../../src/standing-pr/standing-pr.js', () => ({
   runStandingPRUpdate: (...args: unknown[]) => mockRunStandingPRUpdate(...args),
 }));
 
-const mockRunPreview = vi.fn();
-
-vi.mock('../../src/preview/preview.js', () => ({
-  runPreview: (...args: unknown[]) => mockRunPreview(...args),
-}));
+const STALE_MARKER = '<!-- releasekit-preview-stale -->';
 
 function pr(number: number, overrides: Partial<OpenPullRequest> = {}): OpenPullRequest {
-  return { number, headRef: `feat/pr-${number}`, draft: false, baseSha: `sha-${number}`, ...overrides };
+  return { number, headRef: `feat/pr-${number}`, draft: false, ...overrides };
 }
 
-/** `commentsOn` lists PRs that already have a preview comment. */
-function fakeForge(openPullRequests: OpenPullRequest[], commentsOn: number[] = openPullRequests.map((p) => p.number)) {
-  const present = new Set(commentsOn);
-  return {
-    listOpenPullRequests: vi.fn().mockResolvedValue(openPullRequests),
-    findComment: vi.fn(async (prNumber: number, marker: string) =>
-      present.has(prNumber) ? { id: prNumber, body: `${marker}\nbody` } : null,
-    ),
-  };
+function previewBody(number: number): string {
+  return `${MARKER}\n\n<details>\n<summary>Release Preview for #${number}</summary>\n</details>`;
+}
+
+/** `previewsOn` lists PRs that already have a bot-authored preview comment, whose id is the PR number. */
+function seedForge(openPullRequests: OpenPullRequest[], previewsOn = openPullRequests.map((p) => p.number)): FakeForge {
+  return createFakeForge({
+    openPullRequests,
+    comments: previewsOn.map((n) => ({ id: n, prNumber: n, body: previewBody(n) })),
+  });
+}
+
+function markedStale(forge: FakeForge): number[] {
+  return forge.updatedComments.filter((c) => c.body.includes(STALE_MARKER)).map((c) => c.commentId);
 }
 
 const context = { owner: 'owner', repo: 'repo', token: 'tok', sha: null };
@@ -65,86 +70,112 @@ describe('runRefreshAfterRelease', () => {
     });
     mockGetGitHubContext.mockReturnValue(context);
     mockRunStandingPRUpdate.mockResolvedValue({ action: 'noop' });
-    mockRunPreview.mockResolvedValue(undefined);
 
     const mod = await import('../../src/preview/refresh.js');
     runRefreshAfterRelease = mod.runRefreshAfterRelease;
   });
 
   describe('feeder-PR preview refresh', () => {
-    it('should refresh eligible PRs, passing each PR base SHA', async () => {
-      mockForgeFor.mockReturnValue(fakeForge([pr(10), pr(11)]));
-
-      await runRefreshAfterRelease({ projectDir: '/p' });
-
-      expect(mockRunPreview).toHaveBeenCalledTimes(2);
-      expect(mockRunPreview).toHaveBeenCalledWith(
-        expect.objectContaining({ pr: '10', repo: 'owner/repo', baseSha: 'sha-10' }),
-      );
-      expect(mockRunPreview).toHaveBeenCalledWith(
-        expect.objectContaining({ pr: '11', repo: 'owner/repo', baseSha: 'sha-11' }),
-      );
-    });
-
-    it('should skip draft PRs', async () => {
-      mockForgeFor.mockReturnValue(fakeForge([pr(10, { draft: true }), pr(11)]));
-
-      await runRefreshAfterRelease({ projectDir: '/p' });
-
-      expect(mockRunPreview).toHaveBeenCalledTimes(1);
-      expect(mockRunPreview).toHaveBeenCalledWith(expect.objectContaining({ pr: '11' }));
-    });
-
-    it('should skip the standing PR by head ref', async () => {
-      mockForgeFor.mockReturnValue(fakeForge([pr(10, { headRef: 'release/next' }), pr(11)]));
-
-      await runRefreshAfterRelease({ projectDir: '/p' });
-
-      expect(mockRunPreview).toHaveBeenCalledTimes(1);
-      expect(mockRunPreview).toHaveBeenCalledWith(expect.objectContaining({ pr: '11' }));
-    });
-
-    it('should skip PRs without an existing preview comment', async () => {
-      mockForgeFor.mockReturnValue(fakeForge([pr(10), pr(11)], [11]));
-
-      await runRefreshAfterRelease({ projectDir: '/p' });
-
-      expect(mockRunPreview).toHaveBeenCalledTimes(1);
-      expect(mockRunPreview).toHaveBeenCalledWith(expect.objectContaining({ pr: '11' }));
-    });
-
-    it('should cap the number of refreshed PRs at 50 and warn', async () => {
-      const { warn } = await import('@releasekit/core');
-      const many = Array.from({ length: 55 }, (_, i) => pr(i + 1));
-      const forge = fakeForge(many);
+    it('should mark each eligible preview stale in place, keeping the marker first and the preview below', async () => {
+      const forge = seedForge([pr(10), pr(11)]);
       mockForgeFor.mockReturnValue(forge);
 
       await runRefreshAfterRelease({ projectDir: '/p' });
 
-      expect(mockRunPreview).toHaveBeenCalledTimes(50);
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('More than 50'));
-      // Probing stops one past the cap rather than checking every open PR's comments.
-      expect(forge.findComment).toHaveBeenCalledTimes(51);
+      expect(forge.createdComments).toEqual([]);
+      expect(markedStale(forge)).toEqual([10, 11]);
+      const body = forge.comments.find((c) => c.id === 10)?.body ?? '';
+      expect(body.startsWith(`${MARKER}\n`)).toBe(true);
+      expect(body).toContain('> **Stale:**');
+      expect(body.endsWith(previewBody(10).slice(MARKER.length))).toBe(true);
     });
 
-    it('should continue refreshing remaining PRs when one runPreview throws', async () => {
-      mockForgeFor.mockReturnValue(fakeForge([pr(10), pr(11), pr(12)]));
-      mockRunPreview.mockImplementation(async (opts: { pr: string }) => {
-        if (opts.pr === '11') {
-          throw new Error('boom');
-        }
-      });
+    it('should skip draft PRs', async () => {
+      const forge = seedForge([pr(10, { draft: true }), pr(11)]);
+      mockForgeFor.mockReturnValue(forge);
 
       await runRefreshAfterRelease({ projectDir: '/p' });
 
-      expect(mockRunPreview).toHaveBeenCalledTimes(3);
+      expect(markedStale(forge)).toEqual([11]);
+    });
+
+    it('should skip the standing PR by head ref', async () => {
+      const forge = seedForge([pr(10, { headRef: 'release/next' }), pr(11)]);
+      mockForgeFor.mockReturnValue(forge);
+
+      await runRefreshAfterRelease({ projectDir: '/p' });
+
+      expect(markedStale(forge)).toEqual([11]);
+    });
+
+    it('should skip PRs without an existing preview comment', async () => {
+      const forge = seedForge([pr(10), pr(11)], [11]);
+      mockForgeFor.mockReturnValue(forge);
+
+      await runRefreshAfterRelease({ projectDir: '/p' });
+
+      expect(markedStale(forge)).toEqual([11]);
+      expect(forge.createdComments).toEqual([]);
+    });
+
+    it('should not edit a marker comment a human wrote', async () => {
+      const forge = createFakeForge({
+        openPullRequests: [pr(10)],
+        comments: [{ id: 10, prNumber: 10, body: previewBody(10), user: { login: 'alice', type: 'User' } }],
+      });
+      mockForgeFor.mockReturnValue(forge);
+
+      await runRefreshAfterRelease({ projectDir: '/p' });
+
+      expect(forge.updatedComments).toEqual([]);
+    });
+
+    it('should leave a preview that is already marked stale untouched', async () => {
+      const forge = seedForge([pr(10)]);
+      mockForgeFor.mockReturnValue(forge);
+
+      await runRefreshAfterRelease({ projectDir: '/p' });
+      await runRefreshAfterRelease({ projectDir: '/p' });
+
+      expect(forge.updatedComments).toHaveLength(1);
+    });
+
+    it('should cap the number of marked PRs at 50 and warn', async () => {
+      const { warn } = await import('@releasekit/core');
+      const forge = seedForge(Array.from({ length: 55 }, (_, i) => pr(i + 1)));
+      const findComment = vi.spyOn(forge, 'findComment');
+      mockForgeFor.mockReturnValue(forge);
+
+      await runRefreshAfterRelease({ projectDir: '/p' });
+
+      expect(markedStale(forge)).toHaveLength(50);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('More than 50'));
+      // Probing stops one past the cap rather than checking every open PR's comments.
+      expect(findComment).toHaveBeenCalledTimes(51);
+    });
+
+    it('should continue marking the remaining PRs when one update throws', async () => {
+      const { warn } = await import('@releasekit/core');
+      const forge = seedForge([pr(10), pr(11), pr(12)]);
+      const update = forge.updateComment.bind(forge);
+      vi.spyOn(forge, 'updateComment').mockImplementation(async (id, body) => {
+        if (id === 11) {
+          throw new Error('boom');
+        }
+        await update(id, body);
+      });
+      mockForgeFor.mockReturnValue(forge);
+
+      await runRefreshAfterRelease({ projectDir: '/p' });
+
+      expect(markedStale(forge)).toEqual([10, 12]);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('PR #11'));
     });
 
     it('should not throw when the entire feeder refresh fails', async () => {
-      mockForgeFor.mockReturnValue({
-        listOpenPullRequests: vi.fn().mockRejectedValue(new Error('rate limited')),
-        findComment: vi.fn(),
-      });
+      const forge = seedForge([pr(10)]);
+      vi.spyOn(forge, 'listOpenPullRequests').mockRejectedValue(new Error('rate limited'));
+      mockForgeFor.mockReturnValue(forge);
 
       await expect(runRefreshAfterRelease({ projectDir: '/p' })).resolves.toBeUndefined();
     });
@@ -154,13 +185,11 @@ describe('runRefreshAfterRelease', () => {
         releaseStrategy: 'direct',
         prPreview: { enabled: true, refreshAfterRelease: false },
       });
-      const forge = fakeForge([pr(10)]);
-      mockForgeFor.mockReturnValue(forge);
+      mockForgeFor.mockReturnValue(seedForge([pr(10)]));
 
       await runRefreshAfterRelease({ projectDir: '/p' });
 
-      expect(forge.listOpenPullRequests).not.toHaveBeenCalled();
-      expect(mockRunPreview).not.toHaveBeenCalled();
+      expect(mockForgeFor).not.toHaveBeenCalled();
     });
 
     it('should skip the feeder refresh when previews are disabled', async () => {
@@ -168,79 +197,109 @@ describe('runRefreshAfterRelease', () => {
         releaseStrategy: 'direct',
         prPreview: { enabled: false, refreshAfterRelease: true },
       });
-      const forge = fakeForge([pr(10)]);
-      mockForgeFor.mockReturnValue(forge);
+      mockForgeFor.mockReturnValue(seedForge([pr(10)]));
 
       await runRefreshAfterRelease({ projectDir: '/p' });
 
-      expect(forge.listOpenPullRequests).not.toHaveBeenCalled();
+      expect(mockForgeFor).not.toHaveBeenCalled();
     });
 
     it('should warn and skip the feeder refresh when no token is present', async () => {
+      const { warn } = await import('@releasekit/core');
       mockGetGitHubContext.mockReturnValue({ ...context, token: null });
 
       await runRefreshAfterRelease({ projectDir: '/p' });
 
       expect(mockForgeFor).not.toHaveBeenCalled();
-      expect(mockRunPreview).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('no GitHub token'));
     });
   });
 
   describe('standing-PR reconcile', () => {
     it('should not reconcile in direct mode', async () => {
-      mockForgeFor.mockReturnValue(fakeForge([pr(10)]));
+      const forge = seedForge([pr(10)]);
+      mockForgeFor.mockReturnValue(forge);
 
       await runRefreshAfterRelease({ projectDir: '/p' });
 
       expect(mockRunStandingPRUpdate).not.toHaveBeenCalled();
-      expect(mockRunPreview).toHaveBeenCalledTimes(1); // feeders still refresh
+      expect(markedStale(forge)).toEqual([10]); // feeders are still marked
     });
 
-    it('should reconcile the standing PR before refreshing previews in standing-pr mode', async () => {
+    it('should reconcile the standing PR before marking previews in standing-pr mode', async () => {
       mockLoadCIConfig.mockReturnValue({
         releaseStrategy: 'standing-pr',
         prPreview: { enabled: true, refreshAfterRelease: true },
       });
-      mockForgeFor.mockReturnValue(fakeForge([pr(10)]));
+      const forge = seedForge([pr(10)]);
+      const update = vi.spyOn(forge, 'updateComment');
+      mockForgeFor.mockReturnValue(forge);
 
       await runRefreshAfterRelease({ projectDir: '/p' });
 
       expect(mockRunStandingPRUpdate).toHaveBeenCalledWith(expect.objectContaining({ reconcile: true }));
-      expect(mockRunStandingPRUpdate.mock.invocationCallOrder[0]).toBeLessThan(
-        mockRunPreview.mock.invocationCallOrder[0],
-      );
+      expect(mockRunStandingPRUpdate.mock.invocationCallOrder[0]).toBeLessThan(update.mock.invocationCallOrder[0]);
     });
 
-    it('should propagate a reconcile failure and not refresh previews', async () => {
+    it('should propagate a reconcile failure and not mark previews', async () => {
       mockLoadCIConfig.mockReturnValue({
         releaseStrategy: 'standing-pr',
         prPreview: { enabled: true, refreshAfterRelease: true },
       });
-      mockForgeFor.mockReturnValue(fakeForge([pr(10)]));
+      const forge = seedForge([pr(10)]);
+      mockForgeFor.mockReturnValue(forge);
       mockRunStandingPRUpdate.mockRejectedValue(new Error('reconcile failed'));
 
       await expect(runRefreshAfterRelease({ projectDir: '/p' })).rejects.toThrow('reconcile failed');
-      expect(mockRunPreview).not.toHaveBeenCalled();
+      expect(forge.updatedComments).toEqual([]);
     });
   });
+});
 
-  describe('refreshFeederPreviews (direct)', () => {
-    it('should refresh eligible feeder PRs when called directly', async () => {
-      mockForgeFor.mockReturnValue(fakeForge([pr(10)]));
-      const { refreshFeederPreviews } = await import('../../src/preview/refresh.js');
+describe('refreshFeederPreviews', () => {
+  let dir: string;
 
-      await refreshFeederPreviews({ projectDir: '/p' });
-
-      expect(mockRunPreview).toHaveBeenCalledWith(expect.objectContaining({ pr: '10' }));
+  beforeEach(() => {
+    vi.clearAllMocks();
+    dir = mkdtempSync(join(tmpdir(), 'rk-refresh-'));
+    mockLoadCIConfig.mockReturnValue({
+      releaseStrategy: 'standing-pr',
+      prPreview: { enabled: true, refreshAfterRelease: true },
     });
+    mockGetGitHubContext.mockReturnValue(context);
+  });
 
-    it('should never throw, so the orchestrator can call it without a guard', async () => {
-      mockLoadCIConfig.mockImplementation(() => {
-        throw new Error('config parse error');
-      });
-      const { refreshFeederPreviews } = await import('../../src/preview/refresh.js');
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    rmSync(dir, { recursive: true, force: true });
+  });
 
-      await expect(refreshFeederPreviews({ projectDir: '/p' })).resolves.toBeUndefined();
+  it("should mark a feeder PR's preview stale inside a standing-PR publish job", async () => {
+    const eventPath = join(dir, 'event.json');
+    writeFileSync(
+      eventPath,
+      JSON.stringify({
+        action: 'closed',
+        pull_request: { number: 99, merged: true, head: { ref: 'release/next' }, base: { ref: 'main' } },
+      }),
+    );
+    vi.stubEnv('GITHUB_EVENT_NAME', 'pull_request');
+    vi.stubEnv('GITHUB_EVENT_PATH', eventPath);
+    const forge = seedForge([pr(99, { headRef: 'release/next' }), pr(10)], [10]);
+    mockForgeFor.mockReturnValue(forge);
+    const { refreshFeederPreviews } = await import('../../src/preview/refresh.js');
+
+    await refreshFeederPreviews({ projectDir: dir });
+
+    expect(markedStale(forge)).toEqual([10]);
+  });
+
+  it('should never throw, so the orchestrator can call it without a guard', async () => {
+    mockLoadCIConfig.mockImplementation(() => {
+      throw new Error('config parse error');
     });
+    const { refreshFeederPreviews } = await import('../../src/preview/refresh.js');
+
+    await expect(refreshFeederPreviews({ projectDir: dir })).resolves.toBeUndefined();
   });
 });

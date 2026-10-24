@@ -66,6 +66,12 @@ describe('FakeGit queries', () => {
     expect(await git.isAncestor('base', 'other')).toBe(false);
   });
 
+  it('should return seeded merge bases keyed by a...b, null otherwise', async () => {
+    const git = createFakeGit({ mergeBases: { 'HEAD...origin/main': 'base' } });
+    expect(await git.mergeBase('HEAD', 'origin/main')).toBe('base');
+    expect(await git.mergeBase('HEAD', 'origin/other')).toBeNull();
+  });
+
   it('should match log by range, falling back to the * catch-all', async () => {
     const git = createFakeGit({ commits: { 'v1..HEAD': 'ranged log', '*': 'all log' } });
     expect(await git.log({ range: 'v1..HEAD' })).toBe('ranged log');

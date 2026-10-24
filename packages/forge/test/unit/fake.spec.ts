@@ -17,7 +17,7 @@ describe('FakeForge', () => {
   });
 
   it('should return seeded open pull requests', async () => {
-    const open = [{ number: 7, headRef: 'feat/x', draft: false, baseSha: 'abc123' }];
+    const open = [{ number: 7, headRef: 'feat/x', draft: false }];
     const forge = createFakeForge({ openPullRequests: open });
 
     expect(await forge.listOpenPullRequests()).toEqual(open);

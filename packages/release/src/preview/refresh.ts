@@ -1,10 +1,9 @@
 import { loadCIConfig } from '@releasekit/config';
 import { info, warn } from '@releasekit/core';
-import type { OpenPullRequest } from '@releasekit/forge';
+import { type ForgeComment, isBotComment } from '@releasekit/forge';
 import { getGitHubContext } from '../git.js';
 import { forgeFor, MARKER } from '../github.js';
 import { runStandingPRUpdate } from '../standing-pr/standing-pr.js';
-import { runPreview } from './preview.js';
 
 export interface RefreshAfterReleaseOptions {
   config?: string;
@@ -12,6 +11,10 @@ export interface RefreshAfterReleaseOptions {
 }
 
 const MAX_FEEDER_PR_REFRESH = 50;
+
+const STALE_MARKER = '<!-- releasekit-preview-stale -->';
+const STALE_NOTICE =
+  "> **Stale:** a release has moved the base branch since this preview was posted. It updates on this PR's next push.";
 
 /**
  * A release that bypasses the standing PR leaves its manifest on the old baseline, and the release commit suppresses
@@ -53,15 +56,15 @@ export async function refreshFeederPreviews(options: RefreshAfterReleaseOptions)
 
     const context = getGitHubContext();
     if (!context?.token) {
-      warn('Cannot refresh feeder-PR previews: no GitHub token in the environment.');
+      warn('Cannot mark feeder-PR previews stale: no GitHub token in the environment.');
       return;
     }
 
     const forge = forgeFor(context);
-    const repo = `${context.owner}/${context.repo}`;
+    // Not the job's event: in a standing-PR publish, that's the standing PR's.
     const open = await forge.listOpenPullRequests();
 
-    const eligible: OpenPullRequest[] = [];
+    const eligible: Array<{ number: number; comment: ForgeComment }> = [];
     for (const pr of open) {
       if (pr.draft) {
         continue; // drafts don't carry previews
@@ -69,47 +72,46 @@ export async function refreshFeederPreviews(options: RefreshAfterReleaseOptions)
       if (pr.headRef === branch) {
         continue; // the standing PR's manifest is authoritative, never previewed
       }
-      // Only PRs that already have a preview: never manufacture one on a PR that opted out.
-      if (!(await forge.findComment(pr.number, MARKER))) {
+      const comment = await forge.findComment(pr.number, MARKER);
+      if (!comment || !isBotComment(comment) || comment.body.includes(STALE_MARKER)) {
         continue;
       }
-      eligible.push(pr);
+      eligible.push({ number: pr.number, comment });
       // Open PRs come most-recently-updated first, so stop probing one past the cap (enough to know to warn).
       if (eligible.length > MAX_FEEDER_PR_REFRESH) {
         break;
       }
     }
 
-    let toRefresh = eligible;
+    let toMark = eligible;
     if (eligible.length > MAX_FEEDER_PR_REFRESH) {
       warn(
-        `More than ${MAX_FEEDER_PR_REFRESH} open PRs have a preview; refreshing the ${MAX_FEEDER_PR_REFRESH} most recently updated and skipping the rest.`,
+        `More than ${MAX_FEEDER_PR_REFRESH} open PRs have a current preview; marking the ${MAX_FEEDER_PR_REFRESH} most recently updated stale and skipping the rest.`,
       );
-      toRefresh = eligible.slice(0, MAX_FEEDER_PR_REFRESH);
+      toMark = eligible.slice(0, MAX_FEEDER_PR_REFRESH);
     }
 
-    if (toRefresh.length === 0) {
-      info('No open feeder PRs with a preview comment to refresh.');
+    if (toMark.length === 0) {
+      info('No open feeder PRs with a current preview to mark stale.');
       return;
     }
 
-    info(`Refreshing previews on ${toRefresh.length} open PR(s)...`);
-    for (const pr of toRefresh) {
+    // Marked, not recomputed: this job's checkout doesn't have the PRs' trees.
+    info(`Marking previews stale on ${toMark.length} open PR(s)...`);
+    for (const { number, comment } of toMark) {
       try {
-        await runPreview({
-          config: options.config,
-          projectDir: options.projectDir,
-          pr: String(pr.number),
-          repo,
-          dryRun: false,
-          baseSha: pr.baseSha,
-        });
+        await forge.updateComment(comment.id, markStale(comment.body));
       } catch (err) {
         // One PR's failure must not abort the sweep or fail the release.
-        warn(`Could not refresh preview on PR #${pr.number}: ${err instanceof Error ? err.message : String(err)}`);
+        warn(`Could not mark the preview on PR #${number} stale: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
   } catch (err) {
     warn(`Feeder-PR preview refresh failed: ${err instanceof Error ? err.message : String(err)}`);
   }
+}
+
+function markStale(body: string): string {
+  const end = body.indexOf(MARKER) + MARKER.length;
+  return `${body.slice(0, end)}\n\n${STALE_MARKER}\n${STALE_NOTICE}${body.slice(end)}`;
 }
