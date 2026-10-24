@@ -43,6 +43,8 @@ const execFileAsync = promisify(execFile);
  * is argument injection (RCE). No legitimate ref/remote/branch/tag starts with `-`; refusing it before it reaches the
  * argv also clears CodeQL's second-order alert.
  */
+const COMMIT_SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
+
 function assertNotOption(value: string, kind: string): void {
   if (value.startsWith('-')) {
     throw new GitError(
@@ -321,7 +323,13 @@ export class GitCli implements Git {
     }
     const args = ['push'];
     if (opts.forceWithLease && typeof opts.forceWithLease === 'object') {
-      args.push(`--force-with-lease=${opts.forceWithLease.ref}:${opts.forceWithLease.expect}`);
+      const { ref, expect } = opts.forceWithLease;
+      assertNotOption(ref, 'lease ref');
+      // An empty or symbolic `expect` changes what git checks (an empty one means "only if absent").
+      if (!COMMIT_SHA.test(expect)) {
+        throw new GitError(`Refusing to run git: lease expect '${expect}' is not a commit SHA`, [], undefined, '');
+      }
+      args.push(`--force-with-lease=${ref}:${expect}`);
     } else if (opts.forceWithLease) {
       args.push('--force-with-lease');
     } else if (opts.force) {

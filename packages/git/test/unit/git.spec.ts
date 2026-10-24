@@ -324,16 +324,31 @@ describe('GitCli.push', () => {
     await new GitCli(run).push({
       remote: 'origin',
       ref: ':release/next',
-      forceWithLease: { ref: 'release/next', expect: 'abc123' },
+      forceWithLease: { ref: 'release/next', expect: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
     });
     expect(calls[0].args).toEqual([
       'push',
-      '--force-with-lease=release/next:abc123',
+      '--force-with-lease=release/next:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       '--end-of-options',
       'origin',
       ':release/next',
     ]);
   });
+
+  it.each(['', 'main', 'abc123'])(
+    'should refuse a lease whose expect is %j rather than a commit SHA',
+    async (expect_) => {
+      const { run, calls } = makeRunner();
+      await expect(
+        new GitCli(run).push({
+          remote: 'origin',
+          ref: ':release/next',
+          forceWithLease: { ref: 'release/next', expect: expect_ },
+        }),
+      ).rejects.toBeInstanceOf(GitError);
+      expect(calls).toHaveLength(0);
+    },
+  );
 
   it('should prefer --force-with-lease over --force and include --tags', async () => {
     const { run, calls } = makeRunner();
