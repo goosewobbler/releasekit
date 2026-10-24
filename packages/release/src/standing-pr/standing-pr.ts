@@ -16,7 +16,7 @@ import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration, parseDuration } from '../duration.js';
 import { renderSupersedeWarning } from '../failure-report/failure-report.js';
 import { detectUnresolvedFailure, postFailureReport, resolveFailureReportIfPresent } from '../failure-report/post.js';
-import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from '../git.js';
+import { getHeadCommitMessage, matchesSkipPattern, requireGitHubContext } from '../git.js';
 import { forgeFor } from '../github.js';
 import { deriveLabelDefinitions, syncLabels } from '../label-definitions.js';
 import { DEFAULT_LABELS, graduatedPackageFromLabel, isGraduatePackageLabel } from '../label-utils.js';
@@ -825,11 +825,10 @@ function buildBaseReleaseOptions(
 
 async function closeEmptyQueue(
   existingStandingPr: { number: number; url: string } | null,
-  githubContext: ReturnType<typeof getGitHubContext>,
+  forge: Forge,
 ): Promise<StandingPRResult> {
   info('No releasable changes found');
-  if (githubContext?.token && existingStandingPr) {
-    const forge = forgeFor(githubContext);
+  if (existingStandingPr) {
     await forge.createComment(
       existingStandingPr.number,
       'No releasable changes found. Closing this PR as the release queue is empty.',
@@ -892,22 +891,20 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     }
   }
 
-  const githubContext = getGitHubContext();
+  const forge = forgeFor(requireGitHubContext('the standing PR cannot be updated'));
 
   let existingStandingPr: { number: number; url: string; labels: string[] } | null = null;
-  if (githubContext?.token) {
-    try {
-      existingStandingPr = await forgeFor(githubContext).findStandingPR(branch);
-    } catch (err) {
-      warn(`Could not look up standing PR for label overrides: ${err instanceof Error ? err.message : String(err)}`);
-    }
+  try {
+    existingStandingPr = await forge.findStandingPR(branch);
+  } catch (err) {
+    warn(`Could not look up standing PR for label overrides: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   let existingManifestComment: Awaited<ReturnType<typeof findManifestComment>> = null;
   let existingManifest: StandingPRManifest | undefined;
-  if (existingStandingPr && githubContext?.token) {
+  if (existingStandingPr) {
     try {
-      existingManifestComment = await findManifestComment(forgeFor(githubContext), existingStandingPr.number);
+      existingManifestComment = await findManifestComment(forge, existingStandingPr.number);
       if (existingManifestComment) {
         existingManifest = parseManifest(existingManifestComment.body);
       }
@@ -919,9 +916,9 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // Maintainer ticks and note edits live in the body; read them back so they survive this run's regenerate &
   // force-push.
   let liveBody: string | undefined;
-  if (existingStandingPr && githubContext?.token) {
+  if (existingStandingPr) {
     try {
-      liveBody = (await forgeFor(githubContext).getPullRequest(existingStandingPr.number)).body;
+      liveBody = (await forge.getPullRequest(existingStandingPr.number)).body;
     } catch (err) {
       warn(`Could not read current PR body to preserve selection: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -936,20 +933,19 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // Resolved once so the selection gate and the channel-toggle gate share one permission lookup.
   let eventActor: EventActor | undefined;
   let authorizedBodyEdit = false;
-  if (authz && existingStandingPr && githubContext?.token) {
+  if (authz && existingStandingPr) {
     eventActor = getEventActor();
-    authorizedBodyEdit =
-      eventActor.action === 'edited' && (await authorizedOrWarn(forgeFor(githubContext), eventActor, authz));
+    authorizedBodyEdit = eventActor.action === 'edited' && (await authorizedOrWarn(forge, eventActor, authz));
   }
   // With an authorization policy the manifest's selection is authoritative: the body is trusted only after an
   // authorized `edited` event, and otherwise the re-render reverts it.
   let priorDeselected = bodyDeselected;
-  if (authz && existingStandingPr && githubContext?.token && eventActor && !authorizedBodyEdit) {
+  if (authz && existingStandingPr && eventActor && !authorizedBodyEdit) {
     const manifestDeselected = new Set<string>(existingManifest?.deselected ?? []);
     priorDeselected = manifestDeselected;
     if (eventActor.action === 'edited' && !setsEqual(bodyDeselected, manifestDeselected)) {
       const allowClause = authz.allowedActors?.length ? ', or an allow-listed actor' : '';
-      await forgeFor(githubContext)
+      await forge
         .upsertMarkerComment(
           existingStandingPr.number,
           SELECTION_DENIED_MARKER,
@@ -965,16 +961,16 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // authoritative: an unauthorized label event's release labels are reset to them (other labels kept). Everything
   // below reads `effectiveLabels`, so the bot's own re-apply can't restore the rogue label.
   let effectiveLabels = existingStandingPr?.labels ?? [];
-  if (authz && existingStandingPr && githubContext?.token && eventActor) {
+  if (authz && existingStandingPr && eventActor) {
     // `authorizedBodyEdit` is false for any non-`edited` trigger, so label events need their own lookup.
     const isLabelEvent = eventActor.action === 'labeled' || eventActor.action === 'unlabeled';
-    if (isLabelEvent && !(await authorizedOrWarn(forgeFor(githubContext), eventActor, authz))) {
+    if (isLabelEvent && !(await authorizedOrWarn(forge, eventActor, authz))) {
       const isRelevant = (l: string) => isRelevantOverrideLabel(l, ciConfig);
       const authorizedOverrides = (existingManifest?.overrideLabels ?? []).filter(isRelevant);
       const reconciled = [...new Set([...effectiveLabels.filter((l) => !isRelevant(l)), ...authorizedOverrides])];
       if (!setsEqual(new Set(effectiveLabels), new Set(reconciled))) {
         const allowClause = authz.allowedActors?.length ? ', or an allow-listed actor' : '';
-        await forgeFor(githubContext)
+        await forge
           .upsertMarkerComment(
             existingStandingPr.number,
             LABEL_DENIED_MARKER,
@@ -1036,15 +1032,14 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const versionOutputDry = await runVersionStep(dryRunOptions);
 
   if (versionOutputDry.updates.length === 0) {
-    return closeEmptyQueue(existingStandingPr, githubContext);
+    return closeEmptyQueue(existingStandingPr, forge);
   }
 
   const minPackages = standingPrConfig?.minPackages;
   const publishableCount = publishableUpdates(versionOutputDry).length;
   if (minPackages !== undefined && publishableCount < minPackages) {
     info(`Package count (${publishableCount}) is below minPackages threshold (${minPackages}), skipping`);
-    if (githubContext?.token && existingStandingPr) {
-      const forge = forgeFor(githubContext);
+    if (existingStandingPr) {
       await forge.createComment(
         existingStandingPr.number,
         `Not enough packages with releasable changes (${publishableCount} of ${minPackages} required). Closing until the threshold is reached.`,
@@ -1138,14 +1133,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // As with the selection gate, only an authorized edit may change channels; otherwise reset to the manifest's.
   // The manifest stores group-expanded sets but the body holds raw ticks, so expand the body before comparing or
   // untoggled group-mates misfire the notice.
-  if (
-    channelToggleEnabled &&
-    authz &&
-    existingStandingPr &&
-    githubContext?.token &&
-    eventActor &&
-    !authorizedBodyEdit
-  ) {
+  if (channelToggleEnabled && authz && existingStandingPr && eventActor && !authorizedBodyEdit) {
     const manifestPrereleased = existingManifest?.prereleased ?? [];
     const manifestGraduated = existingManifest?.graduated ?? [];
     const bodyPrereleased = new Set(expandToGroup(channelSelection.prereleased));
@@ -1157,7 +1145,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     channelSelection = { prereleased: manifestPrereleased, graduated: manifestGraduated };
     if (eventActor.action === 'edited' && (prereleaseChanged || graduateAdded)) {
       const allowClause = authz.allowedActors?.length ? ', or an allow-listed actor' : '';
-      await forgeFor(githubContext)
+      await forge
         .upsertMarkerComment(
           existingStandingPr.number,
           CHANNEL_DENIED_MARKER,
@@ -1202,7 +1190,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   // The write can come back empty when a release landed on `base` mid-run (a reconcile race the skip-pattern bail
   // exempts), which would render a degenerate body. Publishable-only so a sync root-only bump is caught too.
   if (publishableUpdates(versionOutput).length === 0) {
-    return closeEmptyQueue(existingStandingPr, githubContext);
+    return closeEmptyQueue(existingStandingPr, forge);
   }
 
   const notesKeys = notesRegionKeys(versionOutput);
@@ -1237,13 +1225,6 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const releaseBranchSha = await getHeadSha(cwd);
 
   success(`Release branch '${branch}' updated`);
-
-  if (!githubContext?.token) {
-    warn('No GitHub context available — skipping PR creation');
-    return { action: 'noop', versionOutput };
-  }
-
-  const forge = forgeFor(githubContext);
 
   const labels = standingPrConfig?.labels ?? ['release'];
 
@@ -1498,15 +1479,7 @@ async function assertManifestMatchesSource(
 export async function publishFromManifest(prNumber: number, options: StandingPROptions): Promise<ReleaseOutput> {
   const cwd = options.projectDir;
 
-  const githubContext = getGitHubContext();
-  if (!githubContext?.token) {
-    throw new Error(
-      `No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available — cannot read the release manifest from ` +
-        `PR #${prNumber}.`,
-    );
-  }
-
-  const forge = forgeFor(githubContext);
+  const forge = forgeFor(requireGitHubContext(`the release manifest cannot be read from PR #${prNumber}`));
 
   const releaseKitConfig = loadReleaseKitConfig({ cwd, configPath: options.config });
   const standingPrConfig = releaseKitConfig.ci?.standingPr;
@@ -1808,15 +1781,8 @@ export async function runStandingPRPublish(
     return publishFromManifest(prNumber, options);
   }
 
-  const githubContext = getGitHubContext();
-  if (!githubContext?.token) {
-    throw new Error(
-      'No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available, so the merged standing PR cannot be ' +
-        'inferred — pass --pr explicitly.',
-    );
-  }
-
-  const inferred = await findLatestMergedStandingPR(forgeFor(githubContext), releaseBranch);
+  const forge = forgeFor(requireGitHubContext('the merged standing PR cannot be inferred'));
+  const inferred = await findLatestMergedStandingPR(forge, releaseBranch);
   if (inferred === null) {
     throw new Error(`No merged standing release PR found for branch '${releaseBranch}' — pass --pr explicitly.`);
   }
@@ -1839,14 +1805,7 @@ export async function runStandingPRMerge(
   const mergeMethod = (standingPrConfig?.mergeMethod ?? 'merge') as 'merge' | 'squash' | 'rebase';
   const deleteBranchOnMerge = standingPrConfig?.deleteBranchOnMerge !== false;
 
-  const githubContext = getGitHubContext();
-  if (!githubContext?.token) {
-    throw new Error(
-      'No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available, so the standing PR cannot be merged.',
-    );
-  }
-
-  const forge = forgeFor(githubContext);
+  const forge = forgeFor(requireGitHubContext('the standing PR cannot be merged'));
 
   const pr = await forge.findStandingPR(branch);
   if (!pr) {

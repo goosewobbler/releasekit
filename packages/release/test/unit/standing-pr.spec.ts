@@ -1925,24 +1925,6 @@ describe('runStandingPRUpdate', () => {
     expect(forge.createdComments.some((c) => c.body.includes(MANIFEST_MARKER))).toBe(false);
   });
 
-  it('should return noop with versionOutput when no GitHub context is available but changes exist', async () => {
-    delete process.env.GITHUB_REPOSITORY;
-    delete process.env.GITHUB_TOKEN;
-
-    const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
-    const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
-    vi.mocked(runVersionStep)
-      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
-      .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
-    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
-
-    const result = await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
-
-    expect(result.action).toBe('noop');
-    expect(result.versionOutput).toBeDefined();
-    expect(result.versionOutput?.updates).toHaveLength(1);
-  });
-
   it('should return noop when package count is below minPackages threshold', async () => {
     const { loadConfig } = await import('@releasekit/config');
     vi.mocked(loadConfig).mockReturnValue({

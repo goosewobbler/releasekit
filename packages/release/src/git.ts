@@ -1,3 +1,4 @@
+import { ReleaseKitError } from '@releasekit/core';
 import { createGitCli } from '@releasekit/git';
 
 export async function getHeadCommitMessage(cwd?: string): Promise<string | null> {
@@ -32,6 +33,21 @@ export function getGitHubContext(): GitHubContext | null {
     sha: process.env.GITHUB_SHA ?? null,
     token: process.env.GITHUB_TOKEN ?? null,
   };
+}
+
+class GitHubContextError extends ReleaseKitError {
+  readonly code = 'GITHUB_ERROR';
+  readonly suggestions: string[] = [];
+}
+
+export function requireGitHubContext(consequence: string): GitHubContext {
+  const context = getGitHubContext();
+  if (!context?.token) {
+    throw new GitHubContextError(
+      `No GitHub context (GITHUB_TOKEN unset, or GITHUB_REPOSITORY unset or not owner/repo), so ${consequence}.`,
+    );
+  }
+  return context;
 }
 
 export function matchesSkipPattern(commitMessage: string, patterns: string[]): string | undefined {
