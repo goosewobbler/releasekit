@@ -327,24 +327,7 @@ POST /repos/owner/repo/pulls - 403
 GitHub Actions is not permitted to create or approve pull requests.
 ```
 
-The `pull-requests: write` permission in the workflow is necessary but not sufficient — this is a separate org/repo-level toggle.
-
-#### Workflow token approvals
-
-GitHub ties creating and approving pull requests to that one toggle. With it on, **any** workflow's `GITHUB_TOKEN` can approve a pull request, and that approval counts toward a "Require a pull request before merging (≥ 1 approval)" ruleset for any PR that `github-actions[bot]` didn't author. A write collaborator could add a workflow on their own branch that approves their feeder PR. Once it merges, it ships in the next standing release, whose diff shows only version and changelog updates.
-
-Pair the ruleset with a check a workflow token can't satisfy:
-
-- **Required code owners review**, or **required reviewers** from a team.
-- Or create and update the standing PR with a **GitHub App** token (`actions/create-github-app-token`) and leave the toggle off. Pass it as `GITHUB_TOKEN` to the steps that run `standing-pr update` or `refresh-after-release`, since either can open the standing PR.
-
-Optionally, publish from a deployment **environment** restricted to the default branch. It only protects credentials that live on the environment:
-
-- Move registry tokens such as `NPM_TOKEN` to **environment secrets**. Any workflow can read a repository secret.
-- Require the environment in each registry's trusted-publisher settings. Any job with `id-token: write` can mint an OIDC token.
-- Name the environment on every job that publishes: `publish-release`, `retry-publish` and `immediate-release`. A job without it can't read the secrets, and a trusted publisher that requires it rejects the job's token.
-
-The templates set no `environment:`.
+The `pull-requests: write` permission in the workflow is necessary but not sufficient — this is a separate org/repo-level toggle. The same toggle also lets workflow tokens approve pull requests: see [Workflow token approvals](#workflow-token-approvals).
 
 **Workflow permissions** (in the workflow YAML):
 
@@ -449,9 +432,17 @@ The in-code gates keep the *manifest* clean, but the merge itself is a GitHub ac
 
 > ⚠️ The release bot pushes (and force-pushes) this branch, so it **must** be on the ruleset's *Bypass list* or releases break — ReleaseKit can't infer the bot's identity for you. **Add the bot as a bypass actor before the ruleset goes `active`.** On **GitHub Enterprise** you can instead create it in **evaluate** (dry-run) mode first and confirm in the repo's *rule insights* that the bot isn't tripped, then switch to active — but **evaluate mode is Enterprise-only**, so on every other plan add the bypass actor first and create the ruleset directly as `active`. (A bypass actor's force-push is not blocked by the lock, so the standing-PR refresh keeps working.)
 
-**2. Require review on the default branch** — target `main` (or `~DEFAULT_BRANCH`). Enable **Require a pull request before merging** (≥ 1 approval), **Block force pushes**, and **Restrict deletions**. Since merging the standing PR is the publish, this gates the publish behind review. The standing-PR template needs the create-and-approve toggle, which also lets workflow tokens approve pull requests — require code-owner or team review rather than relying on "≥ 1 approval" alone ([Workflow token approvals](#workflow-token-approvals)).
+**2. Require review on the default branch** — target `main` (or `~DEFAULT_BRANCH`). Enable **Require a pull request before merging** (≥ 1 approval), **Block force pushes**, and **Restrict deletions**. Since merging the standing PR is the publish, this gates the publish behind review. Also enable **Require review from Code Owners**, since a workflow token can supply the one approval (see [Workflow token approvals](#workflow-token-approvals)).
 
 **Mapping `allowedActors` to ruleset bypass actors:** a `@org/team-slug` entry maps to a **Team** bypass actor and a plain **username** maps to a **User** bypass actor — add either to the ruleset's *Bypass list*. (GitHub also exposes repository **roles** and **Apps**, which is how a bot running as a GitHub App or the Actions bot is exempted.) Always keep org/repo admins on the bypass list so you can't lock yourself out.
+
+#### Workflow token approvals
+
+The standing PR needs **Allow GitHub Actions to create and approve pull requests**, and GitHub ties both actions to that one toggle. With it on, **any** workflow's `GITHUB_TOKEN` can approve a pull request, and that approval counts toward ruleset 2's "≥ 1 approval" for any PR that `github-actions[bot]` didn't author. A write collaborator could push a branch whose workflow approves their own feeder PR. Once it merges, it ships in the next standing release, whose diff shows only version and changelog updates.
+
+That's why ruleset 2 also requires Code Owners review: a workflow token isn't a code owner, so its approval can't merge a PR on its own. The rule only covers paths in `CODEOWNERS`, so give it a `*` rule. It can name a team, such as `* @acme/maintainers`.
+
+A deployment environment restricted to the default branch can't protect the publish jobs: they run on `pull_request`, whose ref is `refs/pull/N/merge`, so the environment rejects them. Required reviewers on the environment do work, at the cost of approving every publish. An environment protects only what's bound to it, so also move registry tokens to environment secrets, require the environment in each registry's trusted-publisher settings, and name it on every job that publishes.
 
 #### Token caveats
 
