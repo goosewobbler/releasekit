@@ -23,7 +23,7 @@ vi.mock('node:fs');
 
 describe('JSON Output Utilities', () => {
   beforeEach(() => {
-    // enableJsonOutput resets all state.
+    // Resets all state. It also turns JSON mode on, so the disabled-mode test imports a fresh module.
     enableJsonOutput(false);
     vi.clearAllMocks();
   });
@@ -260,20 +260,44 @@ describe('JSON Output Utilities', () => {
 
       expect(getJsonData().changelogs).toEqual([]);
     });
+  });
 
-    it('should not add data when JSON output is not enabled', () => {
-      // beforeEach's enableJsonOutput(false) still turns JSON mode on, so data accumulates.
-      addChangelogData({
-        packageName: 'my-package',
-        version: '1.0.0',
-        previousVersion: null,
-        revisionRange: 'HEAD',
-        repoUrl: null,
-        entries: [],
-      });
+  it('should record and print nothing while JSON output is off', async () => {
+    vi.resetModules();
+    const fresh = await import('../../../src/utils/jsonOutput.js');
+    const initial = fresh.getJsonData();
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-      expect(getJsonData().changelogs).toHaveLength(1);
+    fresh.recordPendingWrite('/tmp/file', 'content');
+    fresh.setVersioningStrategy('sync');
+    fresh.addPackageUpdate('my-package', '1.0.0', 'package.json');
+    fresh.setPackageUpdateTag('my-package', 'v1.0.0');
+    fresh.setPackageUpdateGroup('my-package', 'group');
+    fresh.setPackageUpdateAction('my-package', 'release', 'reason');
+    fresh.setPackageUpdatePreviousVersion('my-package', '0.9.0');
+    fresh.setAllPackageUpdateActions('release', 'reason');
+    fresh.setAllPackageUpdatePreviousVersions('0.9.0');
+    fresh.tagPrerequisiteRoles(['my-package'], { dep: ['my-package'] });
+    fresh.addChangelogData({
+      packageName: 'my-package',
+      version: '1.0.0',
+      previousVersion: null,
+      revisionRange: 'HEAD',
+      repoUrl: null,
+      entries: [],
     });
+    fresh.setSharedEntries([]);
+    fresh.addTag('v1.0.0');
+    fresh.addBaselineTag('baseline-v1.0.0');
+    fresh.setCommitMessage('chore: release');
+    fresh.printJsonOutput();
+
+    expect(fresh.isJsonOutputMode()).toBe(false);
+    expect(fresh.getJsonData()).toEqual(initial);
+    expect(fresh.getPendingWriteCount()).toBe(0);
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(fs.writeFileSync).not.toHaveBeenCalled();
+    logSpy.mockRestore();
   });
 
   describe('pending writes', () => {

@@ -1,15 +1,7 @@
 import * as fs from 'node:fs';
 import { type CIConfig, DEFAULT_DEMOTE_SCOPES, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
-import {
-  deriveReleaseChannel,
-  error,
-  info,
-  markerData,
-  shouldMatchPackageTargets,
-  success,
-  warn,
-} from '@releasekit/core';
+import { deriveReleaseChannel, info, markerData, shouldMatchPackageTargets, success, warn } from '@releasekit/core';
 import {
   type Forge,
   type ForgeComment,
@@ -128,6 +120,13 @@ export interface StandingPRResult {
   versionOutput?: VersionOutput;
 }
 
+export interface StandingPRMergeOutput {
+  merged: true;
+  prNumber: number;
+}
+
+export type StandingPRMergeResult = ReleaseOutput | StandingPRMergeOutput | null;
+
 /** Old manifests live in open PRs: fields added after v1 must stay optional and be tolerated when absent. */
 export interface StandingPRManifest {
   schemaVersion: 1 | 2;
@@ -196,15 +195,36 @@ async function resetReleaseBranch(branch: string, base: string, cwd: string): Pr
   await git.resetHard(`origin/${base}`, cwd);
 }
 
-async function commitAndForcePush(branch: string, cwd: string): Promise<void> {
+const CI_SKIP_MARKER = /\[(?:skip ci|ci skip|no ci|skip actions|actions skip)\]/i;
+const FALLBACK_TITLE = 'chore: release preparation';
+
+// The squash merge on main takes the standing PR's title, from the PR or the commit depending on the repo's settings.
+function safeStandingPrTitle(rendered: string, skipPatterns: string[]): string {
+  let title = rendered;
+  if (CI_SKIP_MARKER.test(title)) {
+    warn(
+      `Standing PR title '${title}' carries a CI-skip marker, which would skip the publish; using '${FALLBACK_TITLE}'`,
+    );
+    title = FALLBACK_TITLE;
+  }
+  if (matchesSkipPattern(title, skipPatterns)) {
+    return title;
+  }
+  if (title !== FALLBACK_TITLE && matchesSkipPattern(FALLBACK_TITLE, skipPatterns)) {
+    warn(`Standing PR title '${title}' matches no release.ci.skipPatterns entry; using '${FALLBACK_TITLE}'`);
+    return FALLBACK_TITLE;
+  }
+  warn(`No release.ci.skipPatterns entry matches '${title}', so merging the standing PR triggers another update`);
+  return title;
+}
+
+async function commitAndForcePush(branch: string, subject: string, cwd: string, skipHooks: boolean): Promise<void> {
   const git = createGitCli();
   await git.addAll(cwd);
 
   const status = (await git.status({ porcelain: true, cwd })).trim();
   if (status) {
-    // Subject must match `release.ci.skipPatterns` so a later standing-pr update on this branch noops. No skip-ci
-    // token: a squash merge inherits this message, and on main it would suppress the publish workflow.
-    await git.commit('chore: release preparation', { cwd });
+    await git.commit(subject, { cwd, skipHooks });
   }
 
   await git.push({ remote: 'origin', ref: branch, forceWithLease: true, cwd });
@@ -1173,8 +1193,21 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const notesOptions = { ...writeOptions, skipNotes: false, skipReleaseNotes: !generateReleaseNotes };
   const notesResult = await runNotesStep(versionOutput, notesOptions);
 
+  const countableUpdates = publishableUpdates(versionOutput);
+  const count = countableUpdates.length;
+  const firstUpdate = countableUpdates[0];
+  const isSync = versionOutput.strategy === 'sync';
+  /* biome-ignore lint/suspicious/noTemplateCurlyInString: template string uses config variable */
+  const defaultTitle = isSync ? 'chore: release ${tag}' : 'chore: release ${count} package(s)';
+  const titleTemplate = standingPrConfig?.title ?? defaultTitle;
+  const renderedTitle = titleTemplate
+    .replace(/\$\{count\}/g, String(count))
+    .replace(/\$\{version\}/g, firstUpdate?.newVersion ?? '')
+    .replace(/\$\{tag\}/g, syncVersionDisplay(versionOutput));
+
+  const title = safeStandingPrTitle(renderedTitle, skipPatterns);
   info(`Committing and pushing '${branch}'...`);
-  await commitAndForcePush(branch, cwd);
+  await commitAndForcePush(branch, title, cwd, releaseKitConfig.git?.skipHooks ?? false);
 
   const releaseBranchSha = await getHeadSha(cwd);
 
@@ -1186,19 +1219,6 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   }
 
   const forge = forgeFor(githubContext);
-
-  // Both default titles start with `chore: release ` so their squash merge matches the default skip pattern.
-  const countableUpdates = publishableUpdates(versionOutput);
-  const count = countableUpdates.length;
-  const firstUpdate = countableUpdates[0];
-  const isSync = versionOutput.strategy === 'sync';
-  /* biome-ignore lint/suspicious/noTemplateCurlyInString: template string uses config variable */
-  const defaultTitle = isSync ? 'chore: release ${tag}' : 'chore: release ${count} package(s)';
-  const titleTemplate = standingPrConfig?.title ?? defaultTitle;
-  const title = titleTemplate
-    .replace(/\$\{count\}/g, String(count))
-    .replace(/\$\{version\}/g, firstUpdate?.newVersion ?? '')
-    .replace(/\$\{tag\}/g, syncVersionDisplay(versionOutput));
 
   const labels = standingPrConfig?.labels ?? ['release'];
 
@@ -1775,7 +1795,7 @@ export async function runStandingPRPublish(
 export async function runStandingPRMerge(
   options: StandingPROptions,
   flags: { publish: boolean },
-): Promise<ReleaseOutput | null> {
+): Promise<StandingPRMergeResult> {
   const cwd = options.projectDir;
 
   const releaseKitConfig = loadReleaseKitConfig({ cwd, configPath: options.config });
@@ -1786,8 +1806,9 @@ export async function runStandingPRMerge(
 
   const githubContext = getGitHubContext();
   if (!githubContext?.token) {
-    error('No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available');
-    return null;
+    throw new Error(
+      'No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available, so the standing PR cannot be merged.',
+    );
   }
 
   const forge = forgeFor(githubContext);
@@ -1812,14 +1833,13 @@ export async function runStandingPRMerge(
   }
   success(`Standing PR #${pr.number} merged`);
 
-  // When publishing, publishFromManifest deletes it.
-  if (!flags.publish && deleteBranchOnMerge) {
-    await deleteReleaseBranch(branch, cwd);
-  }
-
   if (!flags.publish) {
-    return null;
+    if (deleteBranchOnMerge) {
+      await deleteReleaseBranch(branch, cwd);
+    }
+    return { merged: true, prNumber: pr.number };
   }
 
+  // publishFromManifest deletes the branch only after a clean publish.
   return publishFromManifest(pr.number, options);
 }
