@@ -10,8 +10,7 @@ const REGION_HINT =
  * past GitHub's limit and wedge every update.
  */
 export const MAX_NOTES_CHARS_PER_PACKAGE = 8000;
-const TRUNCATION_NOTE = '…(truncated)';
-const NOTES_TRUNCATION_MARKER = `\n\n${TRUNCATION_NOTE}`;
+const NOTES_TRUNCATION_MARKER = '\n\n…(truncated)';
 
 export function truncatePackageNotes(notes: string): string {
   if (notes.length <= MAX_NOTES_CHARS_PER_PACKAGE) {
@@ -37,7 +36,7 @@ export function renderNotesRegion(notesByPackage: Record<string, string>): strin
   return lines.join('\n').trimEnd();
 }
 
-/** Notes are keyed by changelog packageName, which is `monorepo` for a sync release without `mainPackage`. */
+/** Notes are keyed by changelog packageName: `monorepo` for a sync release with neither `mainPackage` nor package-specific tags. */
 export function notesRegionKeys(versionOutput: VersionOutput): string[] {
   return versionOutput.changelogs.map((changelog) => changelog.packageName).filter((name) => name.length > 0);
 }
@@ -46,8 +45,7 @@ export function extractNotesRegions(body: string, versionOutput: VersionOutput):
   const result: Record<string, string> = {};
   for (const pkg of notesRegionKeys(versionOutput)) {
     const region = extractNotesRegion(body, pkg);
-    // Still ending in the truncation note means nobody edited it, so the full fresh notes should win.
-    if (region !== undefined && region.length > 0 && !region.trimEnd().endsWith(TRUNCATION_NOTE)) {
+    if (region !== undefined && region.length > 0) {
       result[pkg] = region;
     }
   }

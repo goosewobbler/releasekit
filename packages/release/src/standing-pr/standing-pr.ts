@@ -18,7 +18,7 @@ import {
   type PullRequestDetails,
 } from '@releasekit/forge';
 import { createGitCli } from '@releasekit/git';
-import { PipelineError } from '@releasekit/publish';
+import { PipelineError, VersionPackageChangelogSchema } from '@releasekit/publish';
 import { z } from 'zod';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration, parseDuration } from '../duration.js';
@@ -82,15 +82,7 @@ const ManifestVersionOutputSchema = z
         })
         .passthrough(),
     ),
-    changelogs: z.array(
-      z
-        .object({
-          packageName: z.string(),
-          version: z.string(),
-          entries: z.array(z.object({ type: z.string(), description: z.string() }).passthrough()),
-        })
-        .passthrough(),
-    ),
+    changelogs: z.array(VersionPackageChangelogSchema),
     tags: z.array(z.string()),
     baselineTags: z.array(z.string()).optional(),
   })
@@ -526,8 +518,8 @@ export function parseManifest(commentBody: string): StandingPRManifest {
     throw new Error(`Release manifest failed validation: ${detail}. Re-run 'standing-pr update' to regenerate.`);
   }
 
-  // Passthrough keeps every field at runtime, so the cast back to the full manifest type is sound.
-  return result.data as unknown as StandingPRManifest;
+  // The validated input, not zod's copy: zod lists schema keys first, which breaks order-sensitive comparisons.
+  return parsed as StandingPRManifest;
 }
 
 export async function findManifestComment(forge: Forge, prNumber: number): Promise<ForgeComment | null> {

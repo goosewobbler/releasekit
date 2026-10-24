@@ -3,7 +3,7 @@ import { createFakeForge, type FakeForge, type FakeForgeSeed } from '@releasekit
 import { FakeGit, type FakeGitSeed, type GitLogOptions } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderFailureReport, renderResolvedReport } from '../../src/failure-report/failure-report.js';
-import { MAX_NOTES_CHARS_PER_PACKAGE, renderNotesRegion } from '../../src/standing-pr/notes-region.js';
+import { renderNotesRegion } from '../../src/standing-pr/notes-region.js';
 import type { StandingPRManifest } from '../../src/standing-pr/standing-pr.js';
 import {
   createReleaseTags,
@@ -233,6 +233,22 @@ describe('serializeManifest / parseManifest', () => {
     expect(parsed.versionOutput.updates).toHaveLength(1);
     expect(parsed.releaseNotes['@scope/core']).toBe('- added new feature');
     expect(parsed.baseSha).toBe('abc123');
+  });
+
+  it('should keep field order from the serialized manifest', () => {
+    const changelog = {
+      entries: [{ description: 'fix', type: 'fixed' }],
+      repoUrl: null,
+      revisionRange: 'HEAD',
+      previousVersion: null,
+      version: '1.2.3',
+      packageName: '@scope/core',
+    };
+    const manifest = { ...baseManifest, versionOutput: { ...baseManifest.versionOutput, changelogs: [changelog] } };
+
+    const parsed = parseManifest(serializeManifest(manifest));
+
+    expect(JSON.stringify(parsed.versionOutput.changelogs[0])).toBe(JSON.stringify(changelog));
   });
 
   it('should throw when manifest comment is missing', () => {
@@ -2968,32 +2984,6 @@ describe('publishFromManifest', () => {
     await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
 
     expect(vi.mocked(runPublishStep).mock.calls[0]?.[2]).toMatchObject({ '@scope/core': 'EDITED AT MERGE' });
-  });
-
-  it('should publish the full regenerated notes when the region still ends in the truncation note', async () => {
-    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
-    vi.mocked(runNotesStep).mockResolvedValue({
-      packageNotes: {},
-      releaseNotes: { '@scope/core': 'FULL REGENERATED notes' },
-      files: [],
-    });
-    vi.mocked(runPublishStep).mockResolvedValue({
-      npm: [],
-      cargo: [],
-      githubReleases: [],
-      git: { committed: true, tags: [], pushed: true },
-    } as unknown as Awaited<ReturnType<typeof runPublishStep>>);
-
-    const manifest = { ...baseManifest, versionOutput: withPackageChangelogs(baseManifest.versionOutput) };
-    const oversized = 'x'.repeat(MAX_NOTES_CHARS_PER_PACKAGE + 100);
-    await mockForge({
-      comments: [{ id: 77, body: serializeManifest(manifest) }],
-      pullRequests: { 99: { body: renderNotesRegion({ '@scope/core': oversized }), labels: [] } },
-    });
-
-    await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
-
-    expect(vi.mocked(runPublishStep).mock.calls[0]?.[2]).toEqual({ '@scope/core': 'FULL REGENERATED notes' });
   });
 
   it('should publish a sync monorepo notes edit from the PR body', async () => {
