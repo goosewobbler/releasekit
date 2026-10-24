@@ -1,5 +1,6 @@
 import type { VersionOutput } from '@releasekit/core';
 import { info, success, warn } from '@releasekit/core';
+import { isBotComment } from '@releasekit/forge';
 import { createGitCli } from '@releasekit/git';
 import { getGitHubContext } from '../git.js';
 import { forgeFor } from '../github.js';
@@ -110,10 +111,13 @@ export async function runReleaseDraft(options: ReleaseOptions): Promise<ReleaseO
   const body = renderDraftBody(versionOutput, releaseNotes ?? {});
   const manifestComment = serializeManifest(manifest);
 
-  // Only reuse an issue whose manifest comment really decodes: a hand-labelled unrelated issue must not be overwritten.
+  // Only reuse an issue with a bot-authored manifest comment that decodes: a hand-labelled issue must not be adopted.
   const existing = await forge.findOpenIssueByLabel(DRAFT_LABEL);
   const existingManifest = existing ? await forge.findComment(existing.number, MANIFEST_MARKER) : undefined;
-  const reusable = existing && existingManifest && isReleaseManifestComment(existingManifest.body) ? existing : null;
+  const reusable =
+    existing && existingManifest && isBotComment(existingManifest) && isReleaseManifestComment(existingManifest.body)
+      ? existing
+      : null;
   let issueNumber: number;
   if (reusable) {
     await forge.updateIssue(reusable.number, { title, body });
@@ -138,6 +142,14 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
   const manifestComment = await forge.findComment(issueNumber, MANIFEST_MARKER);
   if (!manifestComment) {
     throw new Error(`No release-draft manifest found on issue #${issueNumber}.`);
+  }
+  if (!isBotComment(manifestComment)) {
+    throw new Error(
+      `Refusing to publish from release draft #${issueNumber}: the release manifest comment was authored by ` +
+        `'${manifestComment.user?.login ?? 'an unknown user'}', not the release bot. A manifest that did not come ` +
+        "from 'releasekit release --draft' cannot be trusted. Re-run 'releasekit release --draft' and dispatch the " +
+        'draft issue it reports.',
+    );
   }
   const manifest = parseManifest(manifestComment.body);
 
