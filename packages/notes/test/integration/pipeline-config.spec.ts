@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChangelogInput, CompleteOptions, Config } from '../../src/core/types.js';
 import type { CompleteResult, LLMMessage } from '../../src/llm/messages.js';
 import type { LLMProvider } from '../../src/llm/provider.js';
+import { DEFAULT_SYSTEM_PROMPT as RELEASE_NOTES_SYSTEM_PROMPT } from '../../src/llm/tasks/release-notes.js';
 
 vi.mock('../../src/llm/index.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/llm/index.js')>();
@@ -283,6 +284,45 @@ describe('Pipeline: skipReleaseNotes / skipChangelogs flags', () => {
 
     expect(createProvider).not.toHaveBeenCalled();
     expect(result.files).toContain('CHANGELOG.md');
+    expect(result.files.some((f) => f.includes('release-notes'))).toBe(false);
+    expect(result.releaseNotes).toBeUndefined();
+  });
+
+  it('should still categorize the changelog but not run the release-notes task when skipReleaseNotes:true', async () => {
+    vi.mocked(fs.writeFileSync).mockClear();
+    const systemPrompts: string[] = [];
+    const { createProvider } = await import('../../src/llm/index.js');
+    vi.mocked(createProvider).mockReturnValue({
+      name: 'stub',
+      capabilities: { systemRole: true, structuredOutputs: false, toolUse: false },
+      async complete(messages: LLMMessage[]): Promise<CompleteResult> {
+        systemPrompts.push(messages[0]?.content ?? '');
+        const content = JSON.stringify({
+          entries: [
+            { category: 'New Features', scope: null },
+            { category: 'Bug Fixes', scope: null },
+            { category: 'Bug Fixes', scope: null },
+          ],
+        });
+        return { content, structured: JSON.parse(content) };
+      },
+    });
+
+    const { runPipeline } = await import('../../src/core/pipeline.js');
+    const config: Config = {
+      changelog: { mode: 'root', file: 'CHANGELOG.md' },
+      releaseNotes: {
+        file: { dir: 'release-notes' },
+        llm: { provider: 'openai-compatible', model: 'gpt-4o', tasks: { categorize: true, releaseNotes: true } },
+      },
+    };
+    const result = await runPipeline(sampleInput, config, false, { skipReleaseNotes: true });
+
+    const changelog = vi.mocked(fs.writeFileSync).mock.calls.find(([p]) => p === 'CHANGELOG.md')?.[1];
+    expect(changelog).toContain('### New Features');
+    expect(changelog).toContain('### Bug Fixes');
+    expect(systemPrompts.length).toBeGreaterThan(0);
+    expect(systemPrompts).not.toContain(RELEASE_NOTES_SYSTEM_PROMPT);
     expect(result.files.some((f) => f.includes('release-notes'))).toBe(false);
     expect(result.releaseNotes).toBeUndefined();
   });

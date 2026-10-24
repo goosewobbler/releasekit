@@ -1211,7 +1211,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     editedNotes = extractNotesRegions(liveBody, versionOutput);
   }
 
-  // Notes are seeded once when the label is applied, then preserved, so skip the LLM when every notes key has a region.
+  // Notes are seeded once when the label is applied, then preserved, so skip release notes when every key has a region.
   info('Generating changelog...');
   const allNotesKeysHaveRegions = notesKeys.length > 0 && notesKeys.every((key) => Object.hasOwn(editedNotes, key));
   const generateReleaseNotes = previewNotesEnabled && !allNotesKeysHaveRegions;
