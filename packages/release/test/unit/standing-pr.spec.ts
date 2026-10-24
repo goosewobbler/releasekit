@@ -1,7 +1,7 @@
 import type { VersionPackageUpdate } from '@releasekit/core';
 import { createFakeForge, type FakeForge, type FakeForgeSeed } from '@releasekit/forge';
 import { FakeGit, type FakeGitSeed, type GitLogOptions } from '@releasekit/git';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { renderFailureReport, renderResolvedReport } from '../../src/failure-report/failure-report.js';
 import { renderNotesRegion } from '../../src/standing-pr/notes-region.js';
 import type { StandingPRManifest } from '../../src/standing-pr/standing-pr.js';
@@ -51,11 +51,13 @@ function setupGit(
     subject?: string;
     remoteBranches?: Record<string, string[]>;
     ancestors?: FakeGitSeed['ancestors'];
+    status?: string;
   } = {},
 ) {
   fakeGit = new ControllableGit({
     headSha: seed.headSha ?? 'abc123',
     remoteBranches: seed.remoteBranches,
+    status: seed.status,
     // Default to "is an ancestor" so the manifest baseSha ancestry guard passes on the common publish path.
     ancestors: seed.ancestors ?? (() => true),
   });
@@ -1184,6 +1186,119 @@ describe('runStandingPRUpdate', () => {
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     expect(forge.createdPullRequests[0]).toEqual(expect.objectContaining({ title: 'chore: release v1.2.3' }));
+  });
+
+  describe('release commit and PR title', () => {
+    async function runWithTitle(
+      title: string | undefined,
+      skipPatterns: string[],
+      standingPR: ReturnType<typeof openStandingPR> | null = null,
+      git: Record<string, unknown> = {},
+    ) {
+      const { loadConfig } = await import('@releasekit/config');
+      vi.mocked(loadConfig).mockReturnValue({
+        ...defaultConfig,
+        git: { ...defaultConfig.git, ...git },
+        ci: { ...defaultConfig.ci, standingPr: { ...defaultConfig.ci.standingPr, title } },
+        release: { ci: { skipPatterns } },
+      } as unknown as ReturnType<typeof loadConfig>);
+      setupGit({ status: ' M package.json' });
+
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      const versionOutput = {
+        ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+        strategy: 'sync',
+        tags: ['v1.2.3'],
+      };
+      vi.mocked(runVersionStep).mockResolvedValue(
+        versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>,
+      );
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+      const forge = await mockForge({ standingPR });
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+      onTestFinished(() => logged.mockRestore());
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const warnings = logged.mock.calls
+        .map(([line]) => String(line))
+        .filter((line) => line.includes('Standing PR') || line.includes('skipPatterns'));
+      return { forge, warnings };
+    }
+
+    it('should commit with the PR title when the skip patterns match it, without a warning', async () => {
+      const { warnings } = await runWithTitle(undefined, ['chore: release ']);
+
+      expect(fakeGit.committed.map((c) => c.message)).toEqual(['chore: release v1.2.3']);
+      expect(warnings).toEqual([]);
+    });
+
+    it.each([
+      [
+        'a fixed subject when the PR title matches no skip pattern',
+        'Next release',
+        ['chore: release '],
+        'chore: release preparation',
+        'matches no release.ci.skipPatterns entry',
+      ],
+      [
+        'a fixed subject when the PR title carries a CI-skip marker',
+        'chore: release v1.2.3 [skip ci]',
+        ['chore: release '],
+        'chore: release preparation',
+        'carries a CI-skip marker',
+      ],
+      [
+        'the PR title when the skip patterns match neither it nor the fixed subject',
+        undefined,
+        ['ci:'],
+        'chore: release v1.2.3',
+        'triggers another update',
+      ],
+      [
+        'the PR title when there are no skip patterns',
+        undefined,
+        [],
+        'chore: release v1.2.3',
+        'triggers another update',
+      ],
+      [
+        'a fixed subject when a custom title carries a CI-skip marker',
+        'Release v1.2.3 [skip ci]',
+        ['Release '],
+        'chore: release preparation',
+        'carries a CI-skip marker',
+      ],
+    ])('should title the release commit and PR with %s', async (_label, title, skipPatterns, expected, warning) => {
+      const { forge, warnings } = await runWithTitle(title, skipPatterns);
+
+      expect(fakeGit.committed.map((c) => c.message)).toEqual([expected]);
+      expect(forge.createdPullRequests[0]?.title).toBe(expected);
+      expect(warnings).toEqual(expect.arrayContaining([expect.stringContaining(warning)]));
+    });
+
+    it('should retitle an existing standing PR with the same subject as the commit', async () => {
+      const { forge } = await runWithTitle('Next release', ['chore: release '], openStandingPR(99));
+
+      expect(fakeGit.committed.map((c) => c.message)).toEqual(['chore: release preparation']);
+      expect(forge.updatedPullRequests).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            prNumber: 99,
+            changes: expect.objectContaining({ title: 'chore: release preparation' }),
+          }),
+        ]),
+      );
+    });
+
+    it.each([
+      [true, { skipHooks: true }],
+      [false, {}],
+    ])('should pass skipHooks %s from git config to the release commit', async (expected, git) => {
+      await runWithTitle(undefined, ['chore: release '], null, git);
+
+      expect(fakeGit.committed.map((c) => c.skipHooks)).toEqual([expected]);
+    });
   });
 
   it('should exclude the root lockstep bump from ${count} and the PR body publish table', async () => {
