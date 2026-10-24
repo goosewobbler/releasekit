@@ -126,6 +126,20 @@ function createMockVersionOutput(
   };
 }
 
+function withPackageChangelogs<T extends ReturnType<typeof createMockVersionOutput>>(versionOutput: T) {
+  return {
+    ...versionOutput,
+    changelogs: versionOutput.updates.map((u) => ({
+      packageName: u.packageName,
+      version: u.newVersion,
+      previousVersion: null,
+      revisionRange: 'HEAD',
+      repoUrl: null,
+      entries: [],
+    })),
+  };
+}
+
 const MANIFEST_MARKER = '<!-- releasekit-manifest -->';
 
 async function mockForge(seed: FakeForgeSeed = {}): Promise<FakeForge> {
@@ -221,6 +235,22 @@ describe('serializeManifest / parseManifest', () => {
     expect(parsed.versionOutput.updates).toHaveLength(1);
     expect(parsed.releaseNotes['@scope/core']).toBe('- added new feature');
     expect(parsed.baseSha).toBe('abc123');
+  });
+
+  it('should keep field order from the serialized manifest', () => {
+    const changelog = {
+      entries: [{ description: 'fix', type: 'fixed' }],
+      repoUrl: null,
+      revisionRange: 'HEAD',
+      previousVersion: null,
+      version: '1.2.3',
+      packageName: '@scope/core',
+    };
+    const manifest = { ...baseManifest, versionOutput: { ...baseManifest.versionOutput, changelogs: [changelog] } };
+
+    const parsed = parseManifest(serializeManifest(manifest));
+
+    expect(JSON.stringify(parsed.versionOutput.changelogs[0])).toBe(JSON.stringify(changelog));
   });
 
   it('should throw when manifest comment is missing', () => {
@@ -2362,7 +2392,9 @@ describe('runStandingPRUpdate', () => {
   describe('preview-notes editable region', () => {
     async function setupPreviewPR(opts: { labels: string[]; liveBody?: string; freshNotes?: Record<string, string> }) {
       const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
-      const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+      const versionOutput = withPackageChangelogs(
+        createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+      );
       vi.mocked(runVersionStep)
         .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
         .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
@@ -2411,6 +2443,44 @@ describe('runStandingPRUpdate', () => {
       expect(runNotesStepMock.mock.calls.at(-1)?.[1]).toMatchObject({ skipReleaseNotes: true });
       const body = forge.updatedPullRequests.at(-1)?.changes.body as string;
       expect(body).toContain('HUMAN EDITED notes');
+      expect(body).not.toContain('REGENERATED notes');
+    });
+
+    it('should preserve a sync monorepo notes region across an update', async () => {
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      const versionOutput = {
+        ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+        strategy: 'sync' as const,
+        tags: ['v1.2.3'],
+        changelogs: [
+          {
+            packageName: 'monorepo',
+            version: '1.2.3',
+            previousVersion: '1.2.2',
+            revisionRange: 'v1.2.2..v1.2.3',
+            repoUrl: null,
+            entries: [],
+          },
+        ],
+      };
+      vi.mocked(runVersionStep).mockResolvedValue(
+        versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>,
+      );
+      vi.mocked(runNotesStep).mockResolvedValue({
+        packageNotes: {},
+        releaseNotes: { monorepo: 'REGENERATED notes' },
+        files: [],
+      });
+      const forge = await mockForge({
+        standingPR: openStandingPR(99, ['release', 'release:preview-notes']),
+        pullRequests: { 99: { body: renderNotesRegion({ monorepo: 'HUMAN SYNC NOTES' }), labels: [] } },
+      });
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      expect(vi.mocked(runNotesStep).mock.calls.at(-1)?.[1]).toMatchObject({ skipReleaseNotes: true });
+      const body = forge.updatedPullRequests.at(-1)?.changes.body as string;
+      expect(body).toContain('HUMAN SYNC NOTES');
       expect(body).not.toContain('REGENERATED notes');
     });
 
@@ -3020,14 +3090,72 @@ describe('publishFromManifest', () => {
       git: { committed: true, tags: [], pushed: true },
     } as unknown as Awaited<ReturnType<typeof runPublishStep>>);
 
+    const manifest = { ...baseManifest, versionOutput: withPackageChangelogs(baseManifest.versionOutput) };
     await mockForge({
-      comments: [{ id: 77, body: serializeManifest(baseManifest) }],
+      comments: [{ id: 77, body: serializeManifest(manifest) }],
       pullRequests: { 99: { body: renderNotesRegion({ '@scope/core': 'EDITED AT MERGE' }), labels: [] } },
     });
 
     await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
 
     expect(vi.mocked(runPublishStep).mock.calls[0]?.[2]).toMatchObject({ '@scope/core': 'EDITED AT MERGE' });
+  });
+
+  it('should publish a sync monorepo notes edit from the PR body', async () => {
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({
+      packageNotes: {},
+      releaseNotes: { monorepo: 'REGENERATED at merge' },
+      files: [],
+    });
+    vi.mocked(runPublishStep).mockResolvedValue({
+      npm: [],
+      cargo: [],
+      githubReleases: [],
+      git: { committed: true, tags: [], pushed: true },
+    } as unknown as Awaited<ReturnType<typeof runPublishStep>>);
+
+    const manifest = {
+      ...baseManifest,
+      versionOutput: {
+        ...baseManifest.versionOutput,
+        strategy: 'sync' as const,
+        tags: ['v1.2.3'],
+        changelogs: [
+          {
+            packageName: 'monorepo',
+            version: '1.2.3',
+            previousVersion: '1.2.2',
+            revisionRange: 'v1.2.2..v1.2.3',
+            repoUrl: null,
+            entries: [],
+          },
+        ],
+      },
+    };
+    await mockForge({
+      comments: [{ id: 77, body: serializeManifest(manifest) }],
+      pullRequests: { 99: { body: renderNotesRegion({ monorepo: 'EDITED SYNC NOTES' }), labels: [] } },
+    });
+
+    await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(vi.mocked(runPublishStep).mock.calls[0]?.[2]).toEqual({ monorepo: 'EDITED SYNC NOTES' });
+  });
+
+  it('should refuse a manifest without changelogs before tagging or publishing anything', async () => {
+    const { runPublishStep } = await import('../../src/steps.js');
+    const { changelogs: _changelogs, ...versionOutput } = baseManifest.versionOutput;
+    await mockForge({
+      comments: [{ id: 77, body: serializeManifest({ ...baseManifest, versionOutput } as StandingPRManifest) }],
+      pullRequests: { 99: { body: renderNotesRegion({ '@scope/core': 'EDITED AT MERGE' }), labels: [] } },
+    });
+
+    await expect(
+      publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow('is invalid or incompatible');
+    expect(runPublishStep).not.toHaveBeenCalled();
+    expect(fakeGit.tagged).toHaveLength(0);
   });
 
   it('should refuse to publish when a forged manifest bumps a version beyond the merged source', async () => {

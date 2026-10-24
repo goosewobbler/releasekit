@@ -33,7 +33,16 @@ const context = { owner: 'o', repo: 'r', token: 'tok', sha: null };
 const versionOutput: VersionOutput = {
   dryRun: false,
   updates: [{ packageName: '@scope/core', newVersion: '1.2.0', filePath: 'packages/core/package.json' }],
-  changelogs: [],
+  changelogs: [
+    {
+      packageName: '@scope/core',
+      version: '1.2.0',
+      previousVersion: '1.1.0',
+      revisionRange: 'v1.1.0..HEAD',
+      repoUrl: null,
+      entries: [],
+    },
+  ],
   commitMessage: 'chore: release 1.2.0',
   tags: ['v1.2.0'],
 };
@@ -184,6 +193,103 @@ describe('publishFromDraft', () => {
       expect.objectContaining({ dryRun: false, editedNotes: { '@scope/core': '- EDITED BY HUMAN' } }),
     );
     expect(forge.updatedIssues).toContainEqual({ issueNumber: 9, changes: { state: 'closed' } });
+  });
+
+  it('should read a sync draft edit from the region keyed by the changelog', async () => {
+    const { warn, wrapNotesRegion } = await import('@releasekit/core');
+    const syncOutput: VersionOutput = {
+      ...versionOutput,
+      strategy: 'sync',
+      changelogs: [
+        {
+          packageName: 'monorepo',
+          version: '1.2.0',
+          previousVersion: '1.1.0',
+          revisionRange: 'v1.1.0..HEAD',
+          repoUrl: null,
+          entries: [],
+        },
+      ],
+    };
+    mockRunRelease.mockResolvedValue({ versionOutput: syncOutput, notesGenerated: true });
+    const syncManifest = { ...manifest, versionOutput: syncOutput, releaseNotes: { monorepo: '- drafted' } };
+    const forge = createFakeForge({
+      issues: {
+        9: {
+          body: `## Release Notes\n${wrapNotesRegion('- EDITED SYNC NOTES', 'monorepo')}`,
+          title: 'Release draft',
+          labels: ['release:draft'],
+          isPullRequest: false,
+        },
+      },
+      comments: [{ id: 1, body: serializeManifest(syncManifest), prNumber: 9 }],
+      openIssues: [{ number: 9, url: 'u', labels: ['release:draft'] }],
+    });
+    mockForgeFor.mockReturnValue(forge);
+
+    await publishFromDraft(9, baseOptions);
+
+    expect(mockRunRelease).toHaveBeenCalledWith(
+      expect.objectContaining({ editedNotes: { monorepo: '- EDITED SYNC NOTES' } }),
+    );
+    expect(vi.mocked(warn)).not.toHaveBeenCalledWith(expect.stringContaining('markers may have been removed'));
+  });
+
+  async function dispatchOversizedSyncDraft(editRegion: boolean): Promise<{ full: string; published: string }> {
+    const { renderNotesRegion } = await import('../../src/standing-pr/notes-region.js');
+    const full = `- ${'x'.repeat(9000)}`;
+    const syncOutput: VersionOutput = {
+      ...versionOutput,
+      strategy: 'sync',
+      changelogs: [
+        {
+          packageName: 'monorepo',
+          version: '1.2.0',
+          previousVersion: '1.1.0',
+          revisionRange: 'v1.1.0..HEAD',
+          repoUrl: null,
+          entries: [],
+        },
+      ],
+    };
+    mockRunRelease.mockResolvedValue({ versionOutput: syncOutput, notesGenerated: true });
+    const rendered = renderNotesRegion({ monorepo: full });
+    const forge = createFakeForge({
+      issues: {
+        9: {
+          body: editRegion ? rendered.replace('- x', '- EDITED x') : rendered,
+          title: 'Release draft',
+          labels: ['release:draft'],
+          isPullRequest: false,
+        },
+      },
+      comments: [
+        {
+          id: 1,
+          body: serializeManifest({ ...manifest, versionOutput: syncOutput, releaseNotes: { monorepo: full } }),
+          prNumber: 9,
+        },
+      ],
+      openIssues: [{ number: 9, url: 'u', labels: ['release:draft'] }],
+    });
+    mockForgeFor.mockReturnValue(forge);
+
+    await publishFromDraft(9, baseOptions);
+
+    return { full, published: mockRunRelease.mock.calls.at(-1)?.[0].editedNotes.monorepo };
+  }
+
+  it('should publish the full drafted notes when a truncated region is untouched', async () => {
+    const { full, published } = await dispatchOversizedSyncDraft(false);
+
+    expect(published).toBe(full);
+  });
+
+  it('should publish the edit when a truncated region was changed', async () => {
+    const { full, published } = await dispatchOversizedSyncDraft(true);
+
+    expect(published).not.toBe(full);
+    expect(published.startsWith('- EDITED x')).toBe(true);
   });
 
   it('should refuse to publish when HEAD has drifted from the draft baseSha', async () => {
