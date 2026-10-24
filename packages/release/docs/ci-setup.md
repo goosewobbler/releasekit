@@ -432,17 +432,22 @@ The in-code gates keep the *manifest* clean, but the merge itself is a GitHub ac
 
 > ⚠️ The release bot pushes (and force-pushes) this branch, so it **must** be on the ruleset's *Bypass list* or releases break — ReleaseKit can't infer the bot's identity for you. **Add the bot as a bypass actor before the ruleset goes `active`.** On **GitHub Enterprise** you can instead create it in **evaluate** (dry-run) mode first and confirm in the repo's *rule insights* that the bot isn't tripped, then switch to active — but **evaluate mode is Enterprise-only**, so on every other plan add the bypass actor first and create the ruleset directly as `active`. (A bypass actor's force-push is not blocked by the lock, so the standing-PR refresh keeps working.)
 
-**2. Require review on the default branch** — target `main` (or `~DEFAULT_BRANCH`). Enable **Require a pull request before merging** (≥ 1 approval), **Block force pushes**, and **Restrict deletions**. Since merging the standing PR is the publish, this gates the publish behind review. Also enable **Require review from Code Owners**, since a workflow token can supply the one approval (see [Workflow token approvals](#workflow-token-approvals)).
+**2. Require review on the default branch** — target `main` (or `~DEFAULT_BRANCH`). Enable **Require a pull request before merging** (≥ 1 approval), **Block force pushes**, and **Restrict deletions**. Since merging the standing PR is the publish, this gates the publish behind review. Don't rely on "≥ 1 approval" alone: see [Workflow token approvals](#workflow-token-approvals) for the settings to add.
 
 **Mapping `allowedActors` to ruleset bypass actors:** a `@org/team-slug` entry maps to a **Team** bypass actor and a plain **username** maps to a **User** bypass actor — add either to the ruleset's *Bypass list*. (GitHub also exposes repository **roles** and **Apps**, which is how a bot running as a GitHub App or the Actions bot is exempted.) Always keep org/repo admins on the bypass list so you can't lock yourself out.
 
 #### Workflow token approvals
 
-The standing PR needs **Allow GitHub Actions to create and approve pull requests**, and GitHub ties both actions to that one toggle. With it on, **any** workflow's `GITHUB_TOKEN` can approve a pull request, and that approval counts toward ruleset 2's "≥ 1 approval" for any PR that `github-actions[bot]` didn't author. A write collaborator could push a branch whose workflow approves their own feeder PR. Once it merges, it ships in the next standing release, whose diff shows only version and changelog updates.
+The template creates the standing PR with `GITHUB_TOKEN`, which needs **Allow GitHub Actions to create and approve pull requests**, and that one toggle covers approving too. With it on, **any** workflow's `GITHUB_TOKEN` can approve a pull request, and that approval counts toward ruleset 2's "≥ 1 approval" for any PR that `github-actions[bot]` didn't author. A write collaborator could push a branch whose workflow approves their own feeder PR. Once it merges, it ships in the next standing release, whose diff shows only version and changelog updates, or straight away if it carries `release:immediate`.
 
-That's why ruleset 2 also requires Code Owners review: a workflow token isn't a code owner, so its approval can't merge a PR on its own. The rule only covers paths in `CODEOWNERS`, so give it a `*` rule. It can name a team, such as `* @acme/maintainers`.
+So in ruleset 2, also enable:
 
-A deployment environment restricted to the default branch can't protect the publish jobs: they run on `pull_request`, whose ref is `refs/pull/N/merge`, so the environment rejects them. Required reviewers on the environment do work, at the cost of approving every publish. An environment protects only what's bound to it, so also move registry tokens to environment secrets, require the environment in each registry's trusted-publisher settings, and name it on every job that publishes.
+- **Require review from Code Owners.** A workflow token isn't a code owner. The rule only covers paths in `CODEOWNERS`, so give it a `*` rule naming an owner with write access, such as `* @acme/maintainers`. A later pattern overrides `*` for its paths, so every pattern needs such an owner.
+- **Dismiss stale pull request approvals when new commits are pushed**, so a code owner's approval doesn't carry over to commits pushed after it.
+
+None of this applies to a ruleset's bypass actors. A bypass given to the Actions bot, such as ruleset 1's for the release branch or one that lets `release:immediate` push to `main`, is open to every workflow.
+
+Don't put the publish jobs behind a deployment environment restricted to the default branch: they run on `pull_request`, whose ref is `refs/pull/N/merge`, so the environment rejects them.
 
 #### Token caveats
 
