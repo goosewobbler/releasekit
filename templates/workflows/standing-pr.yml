@@ -23,13 +23,14 @@ on:
     - cron: '0 * * * *' # re-evaluates the minAge status check as time passes
 
 concurrency:
-  # GitHub keeps one pending run per group and replaces it with any newer one. So events on a closed PR
-  # (the publish on merge, a retry label) get a group per PR that nothing else can replace; publish
-  # deletes the release branch only if no update has moved it since. A maintainer's checkbox edits get
-  # a per-PR cancelling group, so a flurry of ticks collapses to one rebuild. Everything else, including
-  # the bot's own body edits, shares a non-cancelling group.
-  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
+  # GitHub keeps one pending run per group and replaces it with any newer one. So on a closed PR, the
+  # publish on merge and a retry label get a group per PR that nothing else can replace or cancel;
+  # other events on a closed PR run no job, so each gets a group of its own. A maintainer's checkbox
+  # edits on the open PR get a per-PR cancelling group, so a flurry of ticks collapses to one rebuild.
+  # Everything else, including the bot's own body edits, shares a non-cancelling group. Publish deletes
+  # the release branch only if no update has moved it since.
+  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && format('standing-release-pr-noop-{0}', github.run_id) || github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'open' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
 
 permissions:
   contents: write
@@ -219,3 +220,10 @@ jobs:
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+
+      - name: Reconcile standing PR
+        # An update can run while this job publishes and compute versions before the tags exist.
+        # Rebuild the standing PR now that they do.
+        run: pnpm exec releasekit refresh-after-release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

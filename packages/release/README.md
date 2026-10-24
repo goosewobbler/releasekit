@@ -448,9 +448,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: pnpm/action-setup@v6
+
       - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

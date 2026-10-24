@@ -21,10 +21,11 @@ on:
     - cron: '0 * * * *' # advances the minAge status check as time passes
 
 concurrency:
-  # GitHub keeps one pending run per group and replaces it with any newer one. So events on a closed PR
-  # (the publish on merge, a retry label) get a group per PR that nothing else can replace; publish
-  # deletes the release branch only if no update has moved it since.
-  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
+  # GitHub keeps one pending run per group and replaces it with any newer one. So on a closed PR, the
+  # publish on merge and a retry label get a group per PR that nothing else can replace; other events on
+  # a closed PR run no job, so each gets a group of its own. Publish deletes the release branch only if
+  # no update has moved it since.
+  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && format('standing-release-pr-noop-{0}', github.run_id) || 'standing-release-pr' }}
   cancel-in-progress: false
 
 permissions:
@@ -80,6 +81,10 @@ jobs:
       - run: pnpm exec releasekit standing-pr update
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # LLM key only needed when using the release:preview-notes label (optional).
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
   immediate-release:
     name: Immediate Release (bypass standing PR)
@@ -109,6 +114,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # See the publish job. (Drop this step if you publish with NODE_AUTH_TOKEN.)
+      - name: Remove token-based .npmrc so OIDC can take over
+        run: rm -f .npmrc
 
       - run: pnpm exec releasekit release
         env:
@@ -167,6 +176,13 @@ jobs:
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
+      - name: Reconcile standing PR
+        # An update can run during this publish and compute versions before the tags exist.
+        # Rebuild the standing PR now that they do.
+        run: pnpm exec releasekit refresh-after-release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
   retry-publish:
     name: Retry Publish
     # After a partial-publish failure, apply `release:retry` to the MERGED standing
@@ -213,6 +229,10 @@ jobs:
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+
+      - run: pnpm exec releasekit refresh-after-release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Remove retry label
         # Each application is exactly one retry; re-apply the label to retry again.

@@ -478,13 +478,14 @@ on:
     - cron: '0 * * * *'  # Hourly — re-evaluates minAge status check as time passes
 
 concurrency:
-  # GitHub keeps one pending run per group and replaces it with any newer one. So events on a closed PR
-  # (the publish on merge, a retry label) get a group per PR that nothing else can replace; publish
-  # deletes the release branch only if no update has moved it since. A maintainer's checkbox edits get
-  # a per-PR cancelling group, so a flurry of ticks collapses to one rebuild. Everything else, including
-  # the bot's own body edits, shares a non-cancelling group.
-  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
+  # GitHub keeps one pending run per group and replaces it with any newer one. So on a closed PR, the
+  # publish on merge and a retry label get a group per PR that nothing else can replace or cancel;
+  # other events on a closed PR run no job, so each gets a group of its own. A maintainer's checkbox
+  # edits on the open PR get a per-PR cancelling group, so a flurry of ticks collapses to one rebuild.
+  # Everything else, including the bot's own body edits, shares a non-cancelling group. Publish deletes
+  # the release branch only if no update has moved it since.
+  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && format('standing-release-pr-noop-{0}', github.run_id) || github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'open' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
 
 permissions:
   contents: write
@@ -666,6 +667,13 @@ jobs:
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
+      - name: Reconcile standing PR
+        # An update can run during this publish and compute versions before the tags exist.
+        # Rebuild the standing PR now that they do.
+        run: pnpm exec releasekit refresh-after-release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
   # Maintainer-invoked retry after a partial-publish failure: apply `release:retry` to the
   # MERGED standing PR (label events fire on closed PRs). Publishing is idempotent — versions
   # already on the registry are skipped, and tags / GitHub releases are only created once the
@@ -706,6 +714,13 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           # Same auth note as publish-release above.
           # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+
+      - run: pnpm exec releasekit refresh-after-release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       # Remove the label so each application is exactly one retry; re-apply to retry again.
       - name: Remove retry label
@@ -827,9 +842,7 @@ To ship a single PR directly without queueing it, label it **`release:immediate`
 
 The `immediate-release` job in `standing-pr.yml` handles this:
 1. Runs `releasekit release` (versioning + notes + publish).
-2. Runs `releasekit standing-pr update` to reconcile the standing PR — released packages drop out of the queue, anything still queued stays.
-
-Result: the standing PR is up-to-date by the time the workflow exits — no staleness window.
+2. Runs `releasekit refresh-after-release` to reconcile the standing PR — released packages drop out of the queue, anything still queued stays. A plain `standing-pr update` would do nothing here, because HEAD is now a release commit.
 
 #### Retrying a failed publish
 
