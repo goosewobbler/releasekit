@@ -22,7 +22,7 @@ import { deriveLabelDefinitions, syncLabels } from '../label-definitions.js';
 import { DEFAULT_LABELS, graduatedPackageFromLabel, isGraduatePackageLabel } from '../label-utils.js';
 import { refreshFeederPreviews } from '../preview/refresh.js';
 import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
-import type { ReleaseOptions, ReleaseOutput, StandingPRMergeResult } from '../types.js';
+import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
 import { type EventActor, getEventActor, isAuthorizedActor, type StandingPrAuthorization } from './authorization.js';
 import { makeRowChangelogRenderer, renderCombinedFooter } from './changelog-region.js';
@@ -118,6 +118,13 @@ export interface StandingPRResult {
   prUrl?: string;
   versionOutput?: VersionOutput;
 }
+
+export interface StandingPRMergeOutput {
+  merged: true;
+  prNumber: number;
+}
+
+export type StandingPRMergeResult = ReleaseOutput | StandingPRMergeOutput | null;
 
 /** Old manifests live in open PRs: fields added after v1 must stay optional and be tolerated when absent. */
 export interface StandingPRManifest {
@@ -1814,6 +1821,6 @@ export async function runStandingPRMerge(
     return { merged: true, prNumber: pr.number };
   }
 
-  // Deletes the branch itself.
+  // publishFromManifest deletes the branch only after a clean publish.
   return publishFromManifest(pr.number, options);
 }
