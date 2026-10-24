@@ -186,6 +186,22 @@ function isStandingPrEventRun(): boolean {
   }
 }
 
+/** The head commit in this run's event payload, when the event is about PR `prNumber`. */
+function eventPrHeadSha(prNumber: number): string | undefined {
+  const eventPath = process.env.GITHUB_EVENT_PATH;
+  if (!eventPath) {
+    return undefined;
+  }
+  try {
+    const event = JSON.parse(fs.readFileSync(eventPath, 'utf-8')) as {
+      pull_request?: { number?: number; head?: { sha?: string } };
+    };
+    return event.pull_request?.number === prNumber ? event.pull_request.head?.sha : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function resetReleaseBranch(branch: string, base: string, cwd: string): Promise<void> {
   const git = createGitCli();
   await git.fetch('origin', { cwd });
@@ -331,8 +347,8 @@ async function deleteReleaseBranch(releaseBranch: string, cwd: string, expectedT
     info(`Deleted release branch '${releaseBranch}'`);
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    // `stale info` when git sees the move before pushing; `cannot lock ref` when the remote refuses it mid-update.
-    if (errorMsg.includes('stale info') || /cannot lock ref .*but expected/.test(errorMsg)) {
+    // `stale info` when git sees the move before pushing; the others when the remote refuses it mid-update.
+    if (/stale info|cannot lock ref .*but expected|incorrect old value provided/.test(errorMsg)) {
       info(`Kept release branch '${releaseBranch}': it has moved since the merge.`);
     } else if (errorMsg.includes('not found') || errorMsg.includes('does not exist')) {
       info(`Release branch '${releaseBranch}' already deleted`);
@@ -1698,7 +1714,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   await refreshFeederPreviews({ config: options.config, projectDir: cwd });
 
   if (deleteBranchOnMerge) {
-    const mergedHead = livePr?.headSha;
+    const mergedHead = livePr?.headSha ?? eventPrHeadSha(prNumber);
     if (mergedHead && isCommitSha(mergedHead)) {
       await deleteReleaseBranch(releaseBranch, cwd, mergedHead);
     } else {

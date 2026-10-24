@@ -3016,6 +3016,7 @@ describe('runStandingPRPublish', () => {
         'the remote refuses it',
         " ! [remote rejected] (delete) -> release/next (cannot lock ref 'refs/heads/release/next': is at 1111 but expected aaaa)",
       ],
+      ['GitHub refuses it', ' ! [remote rejected] (delete) -> release/next (incorrect old value provided)'],
     ])('should keep a branch an update has moved and still finish the publish when %s', async (_case, message) => {
       const push = vi.spyOn(fakeGit, 'push').mockImplementation(async ({ ref }) => {
         if (ref?.startsWith(':')) {
@@ -3040,6 +3041,27 @@ describe('runStandingPRPublish', () => {
 
       expect(branchDeletePushes()).toHaveLength(0);
       expect(logs.some((l) => l.includes("couldn't read PR #42's head commit"))).toBe(true);
+    });
+
+    it("should fall back to the event's head commit when the PR can't be read", async () => {
+      const { readFileSync } = await import('node:fs');
+      vi.mocked(readFileSync).mockReturnValue(
+        JSON.stringify({
+          pull_request: { head: { ref: 'release/next', sha: MERGED_HEAD }, number: 42, merged: true },
+        }),
+      );
+      const forge = await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+      vi.spyOn(forge, 'getPullRequest').mockRejectedValue(new Error('502 Bad Gateway'));
+      const { runPublishStep } = await import('../../src/steps.js');
+      vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+        ReturnType<typeof runPublishStep>
+      >);
+
+      await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      expect(branchDeletePushes()).toEqual([
+        expect.objectContaining({ ref: ':release/next', forceWithLease: { ref: 'release/next', expect: MERGED_HEAD } }),
+      ]);
     });
 
     it('should keep the branch when the head commit is not a commit SHA', async () => {
