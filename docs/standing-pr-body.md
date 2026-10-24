@@ -29,7 +29,7 @@ A tick or untick takes effect only when the next `standing-pr update` run rebuil
 
 Only present when the standing PR carries the preview-notes label (`release:preview-notes` by default — see [`ci.labels`](./configuration.md#cilabels)). With the label on, releasekit generates notes into the region once; edits made there survive the branch being regenerated and force-pushed, and are what lands in the GitHub Release (with the default `publish.githubRelease.body: "auto"`).
 
-Write inside the markers. Content outside them is regenerated. Each package's notes are capped at 8,000 characters in the region; longer notes are cut, and the cut text is what publishes unless you edit it.
+Write inside the markers. Content outside them is regenerated. Each package's notes, edits included, are capped at 8,000 characters in the region; anything longer is cut, and the cut text is what publishes.
 
 Edits can still be lost or bypassed:
 

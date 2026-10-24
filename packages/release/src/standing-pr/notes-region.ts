@@ -41,6 +41,11 @@ export function notesRegionKeys(versionOutput: VersionOutput): string[] {
   return versionOutput.changelogs.map((changelog) => changelog.packageName).filter((name) => name.length > 0);
 }
 
+/** The text a region holds right after `notes` are rendered into it, to tell an untouched region from an edit. */
+export function renderedRegionText(key: string, notes: string): string | undefined {
+  return extractNotesRegion(renderNotesRegion({ [key]: notes }), key);
+}
+
 export function extractNotesRegions(body: string, versionOutput: VersionOutput): Record<string, string> {
   const result: Record<string, string> = {};
   for (const pkg of notesRegionKeys(versionOutput)) {
