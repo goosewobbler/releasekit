@@ -38,6 +38,7 @@ Every command that produces a JSON result — `release`, `gate`, `standing-pr`, 
   - A dry run is never `changed`.
   - `publish`: a registry publish or a new release commit.
   - `standing-pr publish`: registry publishes only, since the merge already made the commit. A re-run where every version was already published reports `false`.
+  - `standing-pr merge`: the merge, with or without `--publish`. No open standing PR reports `false`. A missing `GITHUB_REPOSITORY` or `GITHUB_TOKEN` is an error.
   - `gate` is read-only, so always `false`.
 - **`errors[]`** replaces prose-only failures in JSON mode. Each carries a stable machine `code`, a coarse `category` (its family in the table below), a `retryable` flag (only `true` for known-transient failures — a timeout, 429, or 5xx from a provider — so an agent never retries an unknown failure), and a human `message`.
 - **Stream discipline:** the envelope is the only thing on stdout; all diagnostics (progress, warnings, error text) go to stderr. Parsing stdout as JSON is always safe, and no command prompts interactively on a CI path.

@@ -34,4 +34,4 @@ export {
 } from './standing-pr/standing-pr.js';
 export type { NotesStepResult } from './steps.js';
 export { runNotesStep, runPublishStep, runVersionStep } from './steps.js';
-export type { ReleaseOptions, ReleaseOutput } from './types.js';
+export type { ReleaseOptions, ReleaseOutput, StandingPRMergeOutput, StandingPRMergeResult } from './types.js';
