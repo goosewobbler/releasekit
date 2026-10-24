@@ -24,11 +24,9 @@ interface SchemaProperty {
   minItems?: number;
 }
 
-interface Schema {
+export interface Schema {
   properties: Record<string, SchemaProperty>;
 }
-
-const schema = JSON.parse(readFileSync(SCHEMA_PATH, 'utf8')) as Schema;
 
 function ensurePeriod(str: string | undefined): string {
   if (!str) {
@@ -121,6 +119,33 @@ function emit(...strs: string[]): void {
 
 function emitBlank(): void {
   lines.push('');
+}
+
+function objectSchema(prop: SchemaProperty): SchemaProperty | undefined {
+  if (prop.type === 'object' && prop.properties) {
+    return prop;
+  }
+  return prop.oneOf?.find((s) => s.type === 'object' && s.properties);
+}
+
+/** Scalar keys go in one table; each object-valued key gets its own section rather than an opaque `object` row. */
+function renderProps(path: string, properties: Record<string, SchemaProperty>, level: number): void {
+  const scalars = Object.fromEntries(Object.entries(properties).filter(([, p]) => !objectSchema(p)));
+  if (Object.keys(scalars).length > 0) {
+    emit(propsTable(scalars));
+    emitBlank();
+  }
+  for (const [key, prop] of Object.entries(properties)) {
+    const obj = objectSchema(prop);
+    if (!obj) {
+      continue;
+    }
+    emit(`${'#'.repeat(level)} \`${path}.${key}\``, '');
+    if (prop.description) {
+      emit(ensurePeriod(prop.description), '');
+    }
+    renderProps(`${path}.${key}`, obj.properties ?? {}, Math.min(level + 1, 6));
+  }
 }
 
 function renderGit(prop: SchemaProperty): void {
@@ -233,6 +258,14 @@ function renderVersion(prop: SchemaProperty): void {
     emit(propsTable(cargo.properties ?? {}));
     emitBlank();
   }
+
+  const pub = prop.properties?.pub;
+  if (pub) {
+    emit('### `version.pub`', '');
+    emit(ensurePeriod(pub.description), '');
+    emit(propsTable(pub.properties ?? {}));
+    emitBlank();
+  }
 }
 
 function renderPublish(prop: SchemaProperty): void {
@@ -315,86 +348,25 @@ function renderOneOfBooleanObject(key: string, schemaProp: SchemaProperty): void
     return;
   }
 
-  emit('Set to `false` to disable.', '');
-
-  const topProps = Object.fromEntries(
-    Object.entries(objSchema.properties ?? {}).filter(([k]) => k !== 'templates' && k !== 'llm'),
-  );
-  if (Object.keys(topProps).length > 0) {
-    emit(propsTable(topProps));
-    emitBlank();
+  if (schemaProp.description) {
+    emit(ensurePeriod(schemaProp.description), '');
   }
 
-  const tpl = objSchema.properties?.templates;
-  if (tpl) {
-    emit(`**\`${key}.templates\`** — ${ensurePeriod(tpl.description)}`, '');
-    emit(propsTable(tpl.properties ?? {}));
-    emitBlank();
-  }
+  const props = Object.fromEntries(Object.entries(objSchema.properties ?? {}).filter(([k]) => k !== 'llm'));
+  renderProps(key, props, 4);
 }
 
 function renderLlm(llm: SchemaProperty): void {
   emit('### `notes.releaseNotes.llm`', '');
   emit(ensurePeriod(llm.description), '');
-  emitBlank();
 
-  const skip = new Set(['options', 'tasks', 'categories', 'scopes', 'retry', 'prompts']);
-  const topProps = Object.fromEntries(Object.entries(llm.properties ?? {}).filter(([k]) => !skip.has(k)));
-  emit(propsTable(topProps));
-  emitBlank();
+  const { categories, ...props } = llm.properties ?? {};
+  renderProps('notes.releaseNotes.llm', props, 4);
 
-  const options = llm.properties?.options;
-  if (options) {
-    emit('#### `notes.releaseNotes.llm.options`', '');
-    emit(propsTable(options.properties ?? {}));
-    emitBlank();
-  }
-
-  const tasks = llm.properties?.tasks;
-  if (tasks) {
-    emit('#### `notes.releaseNotes.llm.tasks`', '');
-    emit('Enable or disable individual LLM processing tasks.', '');
-    emit(propsTable(tasks.properties ?? {}));
-    emitBlank();
-  }
-
-  const categories = llm.properties?.categories;
   if (categories?.items?.properties) {
     emit('#### `notes.releaseNotes.llm.categories`', '');
-    emit('Array of category objects used for commit categorization. Each item has:', '');
+    emit(`${ensurePeriod(categories.description)} Each item has:`, '');
     emit(propsTable(categories.items.properties));
-    emitBlank();
-  }
-
-  const scopes = llm.properties?.scopes;
-  if (scopes) {
-    emit('#### `notes.releaseNotes.llm.scopes`', '');
-    emit('Scope validation configuration.', '');
-    const scopesTopProps = Object.fromEntries(Object.entries(scopes.properties ?? {}).filter(([k]) => k !== 'rules'));
-    emit(propsTable(scopesTopProps));
-    emitBlank();
-
-    const rules = scopes.properties?.rules;
-    if (rules) {
-      emit('**`notes.releaseNotes.llm.scopes.rules`**', '');
-      emit(propsTable(rules.properties ?? {}));
-      emitBlank();
-    }
-  }
-
-  const retry = llm.properties?.retry;
-  if (retry) {
-    emit('#### `notes.releaseNotes.llm.retry`', '');
-    emit('Retry behaviour for failed LLM requests.', '');
-    emit(propsTable(retry.properties ?? {}));
-    emitBlank();
-  }
-
-  const prompts = llm.properties?.prompts;
-  if (prompts) {
-    emit('#### `notes.releaseNotes.llm.prompts`', '');
-    emit('Override built-in prompt instructions per task.', '');
-    emit(propsTable(prompts.properties ?? {}));
     emitBlank();
   }
 }
@@ -444,9 +416,7 @@ function renderCi(prop: SchemaProperty): void {
   const prPreview = prop.properties?.prPreview;
   if (prPreview?.oneOf) {
     emit('### `ci.prPreview`', '');
-    emit(ensurePeriod(prPreview.description), '');
     renderOneOfBooleanObject('ci.prPreview', prPreview);
-    emitBlank();
   }
 
   const labels = prop.properties?.labels;
@@ -461,8 +431,7 @@ function renderCi(prop: SchemaProperty): void {
   if (standingPr) {
     emit('### `ci.standingPr`', '');
     emit(ensurePeriod(standingPr.description), '');
-    emit(propsTable(standingPr.properties ?? {}));
-    emitBlank();
+    renderProps('ci.standingPr', standingPr.properties ?? {}, 4);
   }
 }
 
@@ -492,73 +461,85 @@ function renderRelease(prop: SchemaProperty): void {
   }
 }
 
-emit(
-  '<!-- AUTO-GENERATED FROM releasekit.schema.json — DO NOT EDIT DIRECTLY -->',
-  '<!-- Run `pnpm docs:config` to regenerate -->',
-  '',
-  '# Configuration Reference',
-  '',
-  'ReleaseKit is configured via a `releasekit.config.json` file in the root of your repository. Add a `$schema` reference for editor autocompletion:',
-  '',
-  '```json',
-  '{',
-  '  "$schema": "https://goosewobbler.github.io/releasekit/schema.json"',
-  '}',
-  '```',
-  '',
-  'Comments are supported. You can use `//` line comments and `/* … */` block comments, and trailing commas are allowed. To stop your editor from flagging comments as JSON errors, name the file `releasekit.config.jsonc` instead — both filenames are discovered automatically, with `.json` taking precedence when both are present.',
-  '',
-  '```jsonc',
-  '{',
-  '  // editor autocompletion + comment support',
-  '  "$schema": "https://goosewobbler.github.io/releasekit/schema.json",',
-  '  "publish": {',
-  '    "npm": { "enabled": true } // publish to npm',
-  '  }',
-  '}',
-  '```',
-  '',
-  '---',
-  '',
-);
+export function renderConfigDocs(schema: Schema): string {
+  lines.length = 0;
 
-const props = schema.properties;
+  emit(
+    '<!-- AUTO-GENERATED FROM releasekit.schema.json — DO NOT EDIT DIRECTLY -->',
+    '<!-- Run `pnpm docs:config` to regenerate -->',
+    '',
+    '# Configuration Reference',
+    '',
+    'ReleaseKit is configured via a `releasekit.config.json` file in the root of your repository. Add a `$schema` reference for editor autocompletion:',
+    '',
+    '```json',
+    '{',
+    '  "$schema": "https://goosewobbler.github.io/releasekit/schema.json"',
+    '}',
+    '```',
+    '',
+    'Comments are supported. You can use `//` line comments and `/* … */` block comments, and trailing commas are allowed. To stop your editor from flagging comments as JSON errors, name the file `releasekit.config.jsonc` instead — both filenames are discovered automatically, with `.json` taking precedence when both are present.',
+    '',
+    '```jsonc',
+    '{',
+    '  // editor autocompletion + comment support',
+    '  "$schema": "https://goosewobbler.github.io/releasekit/schema.json",',
+    '  "publish": {',
+    '    "npm": { "enabled": true } // publish to npm',
+    '  }',
+    '}',
+    '```',
+    '',
+    '---',
+    '',
+  );
 
-renderGit(props.git);
-emit('---', '');
-renderMonorepo(props.monorepo);
-emit('---', '');
-renderVersion(props.version);
-emit('---', '');
-renderPublish(props.publish);
-emit('---', '');
-renderNotes(props.notes);
-emit('---', '');
-renderCi(props.ci);
-emit('---', '');
-renderRelease(props.release);
-emit('---', '');
+  const props = schema.properties;
 
-emit(
-  'For the canonical machine-readable schema, see [releasekit.schema.json](https://goosewobbler.github.io/releasekit/schema.json).',
-);
+  renderGit(props.git);
+  emit('---', '');
+  renderMonorepo(props.monorepo);
+  emit('---', '');
+  renderVersion(props.version);
+  emit('---', '');
+  renderPublish(props.publish);
+  emit('---', '');
+  renderNotes(props.notes);
+  emit('---', '');
+  renderCi(props.ci);
+  emit('---', '');
+  renderRelease(props.release);
+  emit('---', '');
 
-const output = `${lines.join('\n')}\n`;
+  emit(
+    'For the canonical machine-readable schema, see [releasekit.schema.json](https://goosewobbler.github.io/releasekit/schema.json).',
+  );
 
-if (process.argv.includes('--check')) {
-  let current = '';
-  try {
-    current = readFileSync(OUT_PATH, 'utf8');
-  } catch {
-    current = '';
+  return `${lines.join('\n')}\n`;
+}
+
+function main(): void {
+  const output = renderConfigDocs(JSON.parse(readFileSync(SCHEMA_PATH, 'utf8')) as Schema);
+
+  if (process.argv.includes('--check')) {
+    let current = '';
+    try {
+      current = readFileSync(OUT_PATH, 'utf8');
+    } catch {
+      current = '';
+    }
+    if (current !== output) {
+      console.error(`${OUT_PATH} is out of date with the schema.\nRun \`pnpm docs:config\` and commit the result.`);
+      process.exit(1);
+    }
+    console.log(`${OUT_PATH} is up to date.`);
+  } else {
+    mkdirSync(dirname(OUT_PATH), { recursive: true });
+    writeFileSync(OUT_PATH, output, 'utf8');
+    console.log(`Generated: ${OUT_PATH}`);
   }
-  if (current !== output) {
-    console.error(`${OUT_PATH} is out of date with the schema.\nRun \`pnpm docs:config\` and commit the result.`);
-    process.exit(1);
-  }
-  console.log(`${OUT_PATH} is up to date.`);
-} else {
-  mkdirSync(dirname(OUT_PATH), { recursive: true });
-  writeFileSync(OUT_PATH, output, 'utf8');
-  console.log(`Generated: ${OUT_PATH}`);
+}
+
+if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
+  main();
 }

@@ -86,32 +86,7 @@ When `version.cargo.paths` is omitted, releasekit looks for `Cargo.toml` files a
 
 ## Config reference
 
-### `version.cargo`
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Enable `Cargo.toml` version bumping |
-| `paths` | string[] | — | Directories to search for `Cargo.toml` files. When omitted, crate dirs are inferred from `version.packages` entries that contain a `Cargo.toml`. |
-
-### `publish.cargo`
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Publish detected crates to crates.io. Set `false` to version and tag only. |
-| `noVerify` | boolean | `false` | Pass `--no-verify` to `cargo publish`, skipping pre-publish tarball verification. Use only as a workaround — see [Edge cases](#edge-cases-and-troubleshooting). |
-| `publishOrder` | string[] | `[]` | Explicit crate publish order by crate name. When set, this overrides the automatic topological sort. Crates not listed are appended at the end. |
-| `clean` | boolean | `false` | Run `cargo clean` in the crate directory before publishing. |
-
-### `publish.verify.cargo`
-
-Controls how releasekit polls crates.io after each publish to confirm the version is visible. crates.io index propagation is slower than npm, so the defaults are more conservative.
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Poll crates.io after publish to verify the version appears. |
-| `maxAttempts` | integer | `10` | Maximum number of polling attempts. |
-| `initialDelay` | integer (ms) | `30000` | Delay before the first check (30 seconds). |
-| `backoffMultiplier` | number | `2` | Exponential backoff multiplier applied between attempts. |
+The Rust keys are [`version.cargo`](./configuration.md#versioncargo), [`publish.cargo`](./configuration.md#publishcargo) and [`publish.verify.cargo`](./configuration.md#publishverifycargo) in the configuration reference.
 
 ---
 

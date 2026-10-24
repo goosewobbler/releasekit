@@ -84,30 +84,7 @@ When `version.pub.paths` is omitted, releasekit looks for `pubspec.yaml` files a
 
 ## Config reference
 
-### `version.pub`
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Enable `pubspec.yaml` version bumping |
-| `paths` | string[] | — | Directories to search for `pubspec.yaml` files. When omitted, package dirs are inferred from `version.packages` entries that contain a `pubspec.yaml`. |
-
-### `publish.pub`
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Publish detected packages to pub.dev. Set `false` to version and tag only. |
-| `publishOrder` | string[] | `[]` | Explicit package publish order by package name. Packages not listed are appended at the end in discovery order. |
-
-### `publish.verify.pub`
-
-Controls how releasekit polls pub.dev after each publish to confirm the version is visible.
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Poll pub.dev after publish to verify the version appears. |
-| `maxAttempts` | integer | `10` | Maximum number of polling attempts. |
-| `initialDelay` | integer (ms) | `30000` | Delay before the first check (30 seconds). |
-| `backoffMultiplier` | number | `2` | Exponential backoff multiplier applied between attempts. |
+The Dart keys are [`version.pub`](./configuration.md#versionpub), [`publish.pub`](./configuration.md#publishpub) and [`publish.verify.pub`](./configuration.md#publishverifypub) in the configuration reference.
 
 ---
 

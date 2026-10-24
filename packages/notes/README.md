@@ -242,7 +242,7 @@ const result = await runPipeline(input, config, false);
 ## Documentation
 
 **Getting Started**
-- [Configuration reference](./docs/configuration.md) — all `notes.*` options
+- [Configuration reference](../../docs/configuration.md#notes) — all `notes.*` options
 - [LLM providers](./docs/llm-providers.md) — provider setup, auth, tasks, prompt customisation
 
 **Guides**

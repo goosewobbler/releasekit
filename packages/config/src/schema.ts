@@ -45,7 +45,12 @@ export const VersionCargoConfigSchema = z.object({
     .describe(
       'Version Cargo.toml manifests. Detected Rust packages are versioned by default; set false to opt out (e.g. a vendored crate, or Rust versioning handled elsewhere).',
     ),
-  paths: z.array(z.string()).optional().describe('Directories to search for Cargo.toml files'),
+  paths: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Directories, relative to each package, whose Cargo.toml is bumped instead of the package's own. Each entry resolves to <package dir>/<entry>/Cargo.toml, with no recursive search; version.groups members ignore it.",
+    ),
 });
 
 export const VersionPubConfigSchema = z.object({
@@ -55,7 +60,12 @@ export const VersionPubConfigSchema = z.object({
     .describe(
       'Version pubspec.yaml manifests. Detected Dart/Flutter packages are versioned by default; set false to opt out.',
     ),
-  paths: z.array(z.string()).optional().describe('Directories to search for pubspec.yaml files'),
+  paths: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Directories, relative to each package, whose pubspec.yaml is bumped instead of the package's own. Each entry resolves to <package dir>/<entry>/pubspec.yaml, with no recursive search.",
+    ),
 });
 
 export const VersionGroupSchema = z.object({
@@ -108,7 +118,10 @@ export const VersionConfigSchema = z.object({
     .describe(
       'Named version groups. Each group binds a set of package patterns to a fixed, linked, or independent sync mode. fixed: any releasable change in any member releases ALL members at the shared group version (bump(max(member baselines))). linked: only members with releasable changes release, but every releasing member shares the same computed version. independent: only members with releasable changes release, each on its own commit-driven version line (no shared version), but the set is atomic — targeting any member pulls in the whole group. Packages not matched by any group version independently. A package may belong to at most one group. Set version.sync to false when using groups.',
     ),
-  packages: z.array(z.string()).default([]).describe('Packages to include in versioning'),
+  packages: z
+    .array(z.string())
+    .default([])
+    .describe('Packages to include in versioning. Empty includes every discovered package.'),
   sharedPackages: z
     .array(z.string())
     .optional()
@@ -134,7 +147,10 @@ export const VersionConfigSchema = z.object({
     .describe(
       'Include npm packages marked "private": true (in package.json) in the release flow. Default false: private packages are skipped at discovery — they cannot be published to any registry, mirroring the Cargo `publish = false` and pub `publish_to: none` skips already applied during discovery. Set true to version a private package for internal tracking. Packages explicitly named in version.packages are always included regardless of this setting.',
     ),
-  commitMessage: z.string().optional().describe('Template for release commit messages'),
+  commitMessage: z.string().optional().describe(
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting placeholder syntax to the user
+    "Template for the release commit message, with ${version} and ${packageName}. Default: 'chore: release ${packageName} v${version}' for sync and single-package releases; otherwise 'chore: release' followed by each released package and version.",
+  ),
   mismatchStrategy: z
     .enum(['error', 'warn', 'ignore', 'prefer-package', 'prefer-git'])
     .default('warn')
@@ -185,9 +201,17 @@ export const CargoPublishConfigSchema = z.object({
     .describe(
       'Publish to crates.io. Detected Rust packages are published by default; set false to opt out (version and tag only).',
     ),
-  noVerify: z.boolean().default(false).describe('Skip verification before publish'),
-  publishOrder: z.array(z.string()).default([]).describe('Order in which to publish packages'),
-  clean: z.boolean().default(false).describe('Clean before publishing'),
+  noVerify: z
+    .boolean()
+    .default(false)
+    .describe("Pass --no-verify to cargo publish, skipping cargo's pre-publish build of the packaged crate."),
+  publishOrder: z
+    .array(z.string())
+    .default([])
+    .describe(
+      'Crate names to publish first, in this order; the rest follow in discovery order. Empty sorts crates by their path dependencies.',
+    ),
+  clean: z.boolean().default(false).describe("Run cargo clean in each crate's directory before publishing."),
 });
 
 export const PubPublishConfigSchema = z.object({
@@ -197,7 +221,12 @@ export const PubPublishConfigSchema = z.object({
     .describe(
       'Publish to pub.dev. Detected Dart/Flutter packages are published by default; set false to opt out (version and tag only).',
     ),
-  publishOrder: z.array(z.string()).default([]).describe('Order in which to publish packages'),
+  publishOrder: z
+    .array(z.string())
+    .default([])
+    .describe(
+      'Package names to publish first, in this order; the rest follow in discovery order, which is also the order when empty.',
+    ),
 });
 
 export const PublishGitConfigSchema = z.object({
@@ -237,21 +266,36 @@ export const GitHubReleaseConfigSchema = z.object({
 export const VerifyRegistryNpmConfigSchema = z.object({
   enabled: z.boolean().default(true).describe('Verify NPM publish'),
   maxAttempts: z.number().int().positive().default(5).describe('Maximum verification attempts'),
-  initialDelay: z.number().int().positive().default(15000).describe('Initial delay in milliseconds'),
+  initialDelay: z
+    .number()
+    .int()
+    .positive()
+    .default(15000)
+    .describe('Wait in ms after the first failed check; each later wait is multiplied by backoffMultiplier.'),
   backoffMultiplier: z.number().positive().default(2).describe('Exponential backoff multiplier'),
 });
 
 export const VerifyRegistryCargoConfigSchema = z.object({
   enabled: z.boolean().default(true).describe('Verify Cargo publish'),
   maxAttempts: z.number().int().positive().default(10).describe('Maximum verification attempts'),
-  initialDelay: z.number().int().positive().default(30000).describe('Initial delay in milliseconds'),
+  initialDelay: z
+    .number()
+    .int()
+    .positive()
+    .default(30000)
+    .describe('Wait in ms after the first failed check; each later wait is multiplied by backoffMultiplier.'),
   backoffMultiplier: z.number().positive().default(2).describe('Exponential backoff multiplier'),
 });
 
 export const VerifyRegistryPubConfigSchema = z.object({
   enabled: z.boolean().default(true).describe('Verify Dart pub publish'),
   maxAttempts: z.number().int().positive().default(10).describe('Maximum verification attempts'),
-  initialDelay: z.number().int().positive().default(30000).describe('Initial delay in milliseconds'),
+  initialDelay: z
+    .number()
+    .int()
+    .positive()
+    .default(30000)
+    .describe('Wait in ms after the first failed check; each later wait is multiplied by backoffMultiplier.'),
   backoffMultiplier: z.number().positive().default(2).describe('Exponential backoff multiplier'),
 });
 
@@ -331,8 +375,11 @@ export const PublishConfigSchema = z.object({
 });
 
 export const TemplateConfigSchema = z.object({
-  path: z.string().optional().describe('Path to custom template'),
-  engine: z.enum(['handlebars', 'liquid', 'ejs']).optional().describe('Template engine'),
+  path: z.string().optional().describe('Template file, or a directory of composable templates.'),
+  engine: z
+    .enum(['handlebars', 'liquid', 'ejs'])
+    .optional()
+    .describe('Template engine. Detected from the template files when omitted; ignored without path.'),
 });
 
 export const LocationModeSchema = z.enum(['root', 'packages', 'both']);
@@ -345,7 +392,7 @@ export const ReleaseNotesFileConfigSchema = z.object({
 export const ChangelogConfigSchema = z
   .object({
     mode: LocationModeSchema.optional().describe(
-      'Where to write changelog files. root: repo root only. packages: per-package (monorepos). both: repo root and per-package. When omitted entirely (no changelog config), defaults to root.',
+      "Where to write changelog files: 'root' (the default) at the repo root, 'packages' in each package (monorepos only), or 'both'.",
     ),
     file: z.string().optional().describe('Changelog file name override (default: CHANGELOG.md)'),
     templates: TemplateConfigSchema.optional().describe('Template configuration for changelog'),
@@ -369,23 +416,36 @@ export const LLMOptionsSchema = z.object({
     .number()
     .int()
     .optional()
-    .describe('Idle timeout in ms: a streamed response fails only when nothing arrives for this long'),
-  maxTokens: z.number().int().optional().describe('Max tokens to generate'),
-  temperature: z.number().optional().describe('Sampling temperature'),
+    .describe('Idle timeout in ms: a streamed response fails only when nothing arrives for this long. Default: 60000.'),
+  maxTokens: z.number().int().optional().describe('Max tokens to generate. Default: 16384.'),
+  temperature: z.number().optional().describe('Sampling temperature. Default: 0.7; the anthropic provider ignores it.'),
 });
 
 export const LLMRetryConfigSchema = z.object({
-  maxAttempts: z.number().int().positive().optional().describe('Maximum number of attempts'),
-  initialDelay: z.number().int().nonnegative().optional().describe('Initial delay in ms'),
-  maxDelay: z.number().int().positive().optional().describe('Maximum delay in ms'),
-  backoffFactor: z.number().positive().optional().describe('Delay multiplier per attempt'),
+  maxAttempts: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Maximum number of attempts, including the first. Default: 3.'),
+  initialDelay: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe('Delay in ms before the first retry. Default: 1000.'),
+  maxDelay: z.number().int().positive().optional().describe('Maximum delay in ms between attempts. Default: 30000.'),
+  backoffFactor: z.number().positive().optional().describe('Delay multiplier per attempt. Default: 2.'),
 });
 
 export const LLMTasksConfigSchema = z.object({
-  summarize: z.boolean().optional().describe('Enable summarization'),
-  enhance: z.boolean().optional().describe('Enable entry enhancement'),
-  categorize: z.boolean().optional().describe('Enable categorization'),
-  releaseNotes: z.boolean().optional().describe('Enable release note generation'),
+  summarize: z.boolean().optional().describe('Write a 2–3 sentence summary of the release.'),
+  enhance: z.boolean().optional().describe("Rewrite each entry's description to be clearer for users."),
+  categorize: z.boolean().optional().describe('Group entries into the configured categories.'),
+  releaseNotes: z
+    .boolean()
+    .optional()
+    .describe('Write prose release notes for the GitHub Release body and any release-notes files.'),
 });
 
 export const LLMCategorySchema = z.object({
@@ -420,19 +480,19 @@ export const ScopeConfigSchema = z.object({
 });
 
 export const LLMPromptOverridesSchema = z.object({
-  enhance: z.string().optional().describe('Instruction override for the enhance task'),
-  categorize: z.string().optional().describe('Instruction override for the categorize task'),
+  enhance: z.string().optional().describe('For the enhance task when categorize is off.'),
+  categorize: z.string().optional().describe('For the categorize task when enhance is off.'),
   enhanceAndCategorize: z
     .string()
     .optional()
-    .describe('Instruction override for the combined enhance + categorize task'),
-  summarize: z.string().optional().describe('Instruction override for the summarize task'),
-  releaseNotes: z.string().optional().describe('Instruction override for the release-notes task'),
+    .describe('For the combined task that replaces enhance and categorize when both are on.'),
+  summarize: z.string().optional().describe('For the summarize task.'),
+  releaseNotes: z.string().optional().describe('For the releaseNotes task.'),
 });
 
 export const LLMPromptsConfigSchema = z.object({
   instructions: LLMPromptOverridesSchema.optional().describe(
-    'Per-task instruction overrides appended to the built-in prompts.',
+    "Extra instructions appended to a task's built-in system prompt. The task's output format is unchanged.",
   ),
 });
 
@@ -446,36 +506,60 @@ const LLMConfigBaseSchema = z.object({
       'Model identifier for the selected provider. Required — releasekit ships no default, so enabling LLM enhancement needs an explicit, current model (a missing model fails config validation).',
     ),
   baseURL: z.string().optional().describe('Custom API base URL. Required for the openai-compatible provider.'),
-  apiKey: z.string().optional().describe('API key'),
-  options: LLMOptionsSchema.optional(),
-  concurrency: z.number().int().positive().optional().describe('Concurrent LLM requests'),
-  retry: LLMRetryConfigSchema.optional(),
-  tasks: LLMTasksConfigSchema.optional(),
-  categories: z.array(LLMCategorySchema).default(() => [
-    { name: 'Breaking', description: 'Breaking changes that require user action to upgrade' },
-    { name: 'New', description: 'New features and capabilities' },
-    { name: 'Changed', description: 'Changes to existing functionality' },
-    { name: 'Fixed', description: 'Bug fixes' },
-    { name: 'Developer', description: 'Internal changes: CI, tooling, dependencies, refactoring' },
-  ]),
+  apiKey: z
+    .string()
+    .optional()
+    .describe(
+      "API key. When unset, releasekit uses the key saved by releasekit-notes auth, then the provider's environment variable (e.g. OPENAI_API_KEY); prefer either to an inline key.",
+    ),
+  options: LLMOptionsSchema.optional().describe('Options for each request to the provider.'),
+  concurrency: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      "Parallelism limit, default 5. It caps the packages processed at once and, separately, the entries each package's standalone enhance task rewrites at once.",
+    ),
+  retry: LLMRetryConfigSchema.optional().describe('Retries for LLM requests that fail with a retryable error.'),
+  tasks: LLMTasksConfigSchema.optional().describe('LLM tasks to run. Each is off unless set to true.'),
+  categories: z
+    .array(LLMCategorySchema)
+    .default(() => [
+      { name: 'Breaking', description: 'Breaking changes that require user action to upgrade' },
+      { name: 'New', description: 'New features and capabilities' },
+      { name: 'Changed', description: 'Changes to existing functionality' },
+      { name: 'Fixed', description: 'Bug fixes' },
+      { name: 'Developer', description: 'Internal changes: CI, tooling, dependencies, refactoring' },
+    ])
+    .describe(
+      'Categories the categorize task sorts entries into. Default: Breaking, New, Changed, Fixed and Developer, each with a built-in description.',
+    ),
   style: z
     .string()
     .default(
       'Write in past tense ("Added feature", not "Add feature"). Be concise and user-focused. Lead with the impact, not the implementation detail.',
     )
-    .describe('Writing style for LLM'),
-  scopes: ScopeConfigSchema.optional(),
-  prompts: LLMPromptsConfigSchema.optional(),
+    .describe(
+      'Writing-style instruction for the enhance and combined enhance+categorize prompts. Default: past tense, concise and user-focused, leading with the impact.',
+    ),
+  scopes: ScopeConfigSchema.optional().describe('Validation of the scopes the LLM assigns to entries.'),
+  prompts: LLMPromptsConfigSchema.optional().describe('Per-task prompt additions.'),
   examples: z
     .number()
     .int()
     .min(0)
     .max(5)
     .default(3)
-    .describe('Number of few-shot examples to include in LLM prompts (0–5).'),
+    .describe(
+      "Number of the project's past GitHub Releases (0–5) used as style examples in the enhance+categorize and releaseNotes prompts. Needs GITHUB_TOKEN or GH_TOKEN.",
+    ),
   context: z
     .object({
-      pullRequests: z.boolean().default(true).describe('Include linked pull request titles/bodies as context.'),
+      pullRequests: z
+        .boolean()
+        .default(true)
+        .describe("Fetch the title and body of each entry's linked PR as LLM context. Needs GITHUB_TOKEN or GH_TOKEN."),
     })
     .default({ pullRequests: true })
     .describe('Additional context sources for the LLM.'),
@@ -483,7 +567,7 @@ const LLMConfigBaseSchema = z.object({
     .array(z.string())
     .optional()
     .describe(
-      'Explicit ordering of categories in the output. Categories not listed retain their configured order after the listed ones.',
+      'Order of the rendered categories. Listed ones come first; the rest keep their categories order, except Breaking, which stays first unless listed.',
     ),
   cache: z
     .boolean()
@@ -524,22 +608,26 @@ export const ReleaseNotesConfigSchema = z
             }),
           )
           .optional()
-          .describe('Static list of links to append.'),
+          .describe('Static links, each { label, url }, listed first.'),
         fromPRBodyMarker: z
           .string()
           .optional()
-          .describe('Marker string in PR bodies; content after it is extracted and appended as links.'),
-        title: z.string().optional().describe('Heading for the links section.'),
+          .describe(
+            'Also collect links from linked PR bodies: each line starting with this marker adds its markdown link or bare URL, skipping URLs already listed. Needs llm.context.pullRequests.',
+          ),
+        title: z.string().optional().describe('Heading for the links section. Default: Links.'),
       })
       .optional()
-      .describe('Extra links to append to the release notes.'),
+      .describe(
+        'Links section the built-in renderer appends to each version. Rendered only when the categorize task produced categories.',
+      ),
     firstRelease: z
       .union([
         z.literal(false).describe('Set to false to disable the first-release placeholder intro.'),
         z.object({
           text: z.string().optional().describe(
             // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting placeholder syntax to the user
-            "Placeholder intro line for a package's first release. Supports ${packageName} and ${version}. Defaults to a factual line so it reads cleanly even when published unedited.",
+            "Placeholder intro line for a package's first release. Supports ${packageName} and ${version}. Default: '_First release of ${packageName}._'.",
           ),
         }),
       ])
@@ -558,15 +646,19 @@ export const NotesInputConfigSchema = z.object({
 export const NotesConfigSchema = z.object({
   changelog: z
     .union([z.literal(false).describe('Set to false to disable changelog generation'), ChangelogConfigSchema])
-    .optional(),
+    .optional()
+    .describe('Changelog files. On by default, writing CHANGELOG.md at the repo root; set to false to disable.'),
   releaseNotes: z
     .union([z.literal(false).describe('Set to false to disable release notes'), ReleaseNotesConfigSchema])
-    .optional(),
+    .optional()
+    .describe(
+      "Release notes for the GitHub Release body and optional per-version files. Off unless set: {} turns them on with each version's changelog section as the content, and llm or templates change it.",
+    ),
   updateStrategy: z
     .enum(['prepend', 'regenerate'])
     .optional()
     .describe(
-      "How to update existing changelog files. 'prepend' adds new entries to the top; 'regenerate' rewrites the file from scratch.",
+      "How to update existing changelog files. 'prepend' (the default) adds the new entries at the top; 'regenerate' overwrites the file with this run's output.",
     ),
 });
 
@@ -583,8 +675,16 @@ export const CILabelsConfigSchema = z.object({
     .describe(
       'Prefix for per-package graduate labels on the standing PR. A `graduate:<package>` label graduates just that prerelease package (and, atomically, any fixed/linked group it belongs to) to its stable base version on the next update, while other prerelease packages stay on their line. The whole-batch `graduate` label still graduates everything. Standing-pr mode only.',
     ),
-  prerelease: z.string().default('channel:prerelease').describe('Label to create a prerelease'),
-  skip: z.string().default('release:skip').describe('Label to suppress a release on this PR'),
+  prerelease: z
+    .string()
+    .default('channel:prerelease')
+    .describe('Label that makes the release a prerelease. In label-trigger mode it needs a bump label too.'),
+  skip: z
+    .string()
+    .default('release:skip')
+    .describe(
+      'Label that stops a merged PR from releasing. Commit-trigger mode only; in label mode, leave off the bump label instead.',
+    ),
   immediate: z
     .string()
     .default('release:immediate')
@@ -611,12 +711,22 @@ export const CILabelsConfigSchema = z.object({
 });
 
 export const StandingPrConfigSchema = z.object({
-  branch: z.string().default('release/next').describe('Branch name for the standing release PR.'),
+  branch: z
+    .string()
+    .default('release/next')
+    .describe(
+      "Branch name for the standing release PR. Each update resets it to the base branch and force-pushes it, so don't commit to it.",
+    ),
   title: z.string().optional().describe(
     // biome-ignore lint/suspicious/noTemplateCurlyInString: documenting placeholder syntax to the user
-    "PR title template. Variables: ${count} (publishable package count), ${version} (raw version), ${tag} (version with tag prefix). Also the release commit's subject, so it must match a release.ci.skipPatterns entry and carry no CI-skip marker. A title with a CI-skip marker is replaced by 'chore: release preparation'. So is one the skip patterns miss, if they match 'chore: release preparation'. The run warns either way. Default depends on the versioning strategy: 'chore: release ${tag}' in sync mode, 'chore: release ${count} package(s)' otherwise.",
+    "PR title template. Variables: ${count} (publishable package count), ${version} (the first publishable package's new version), ${tag} (version with tag prefix). Also the release commit's subject, so it must match a release.ci.skipPatterns entry and carry no CI-skip marker. A title with a CI-skip marker is replaced by 'chore: release preparation'. So is one the skip patterns miss, if they match 'chore: release preparation'. The run warns either way. Default depends on the versioning strategy: 'chore: release ${tag}' in sync mode, 'chore: release ${count} package(s)' otherwise.",
   ),
-  labels: z.array(z.string()).default(['release']).describe('Labels to apply to the standing release PR.'),
+  labels: z
+    .array(z.string())
+    .default(['release'])
+    .describe(
+      'Labels to apply to the standing release PR. Leave out the ci.labels release-control labels: the standing PR reads its own labels as overrides.',
+    ),
   deleteBranchOnMerge: z
     .boolean()
     .default(true)
@@ -626,12 +736,14 @@ export const StandingPrConfigSchema = z.object({
   mergeMethod: z
     .enum(['merge', 'squash', 'rebase'])
     .default('merge')
-    .describe('Merge method to use when merging the standing release PR via CLI.'),
+    .describe(
+      "Merge method for releasekit standing-pr merge. Use 'squash' or 'rebase' so the release commit's subject reaches the base branch, where release.ci.skipPatterns can match it.",
+    ),
   minAge: z
     .string()
     .optional()
     .describe(
-      "Minimum age of the standing PR before it can be merged. Duration string, e.g. '6h', '30m', '1d'. Gate enforced via the releasekit/standing-pr commit status check; configure it as a required status check in branch protection to block merges.",
+      "Minimum age of the standing PR, counted from when it was first opened, before it can be merged. Duration string, e.g. '6h', '30m', '1d'. Gate enforced via the releasekit/standing-pr commit status check; configure it as a required status check in branch protection to block merges.",
     ),
   minPackages: z
     .number()
@@ -670,7 +782,7 @@ export const StandingPrConfigSchema = z.object({
     })
     .optional()
     .describe(
-      'Restrict who can steer the standing PR — its selection checkboxes, per-row channel toggles, release labels, and merge. Omit to allow anyone with the GitHub permission GitHub itself requires for each action (today’s behavior).',
+      'Restrict who can steer the standing PR — its selection checkboxes, per-row channel toggles, release labels, and merge. Omit to allow anyone with the GitHub permission GitHub itself requires for each action.',
     ),
   primaryPackages: z
     .array(z.string())
@@ -767,7 +879,9 @@ export const ReleaseCIConfigSchema = z.object({
   skipPatterns: z
     .array(z.string().min(1))
     .optional()
-    .describe("Commit message prefixes that prevent a release (e.g. 'chore(deps):', 'ci:')"),
+    .describe(
+      "Strings that skip a release, gate run or standing-PR update when found anywhere in the HEAD commit's subject. When unset, only standing-PR updates skip, and only on 'chore: release '.",
+    ),
   minChanges: z
     .number()
     .int()

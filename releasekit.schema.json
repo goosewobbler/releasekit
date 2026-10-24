@@ -136,7 +136,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Packages to include in versioning"
+          "description": "Packages to include in versioning. Empty includes every discovered package."
         },
         "sharedPackages": {
           "type": "array",
@@ -172,7 +172,7 @@
         },
         "commitMessage": {
           "type": "string",
-          "description": "Template for release commit messages"
+          "description": "Template for the release commit message, with ${version} and ${packageName}. Default: 'chore: release ${packageName} v${version}' for sync and single-package releases; otherwise 'chore: release' followed by each released package and version."
         },
         "mismatchStrategy": {
           "type": "string",
@@ -240,7 +240,7 @@
               "items": {
                 "type": "string"
               },
-              "description": "Directories to search for Cargo.toml files"
+              "description": "Directories, relative to each package, whose Cargo.toml is bumped instead of the package's own. Each entry resolves to <package dir>/<entry>/Cargo.toml, with no recursive search; version.groups members ignore it."
             }
           },
           "description": "Cargo/Rust configuration"
@@ -259,7 +259,7 @@
               "items": {
                 "type": "string"
               },
-              "description": "Directories to search for pubspec.yaml files"
+              "description": "Directories, relative to each package, whose pubspec.yaml is bumped instead of the package's own. Each entry resolves to <package dir>/<entry>/pubspec.yaml, with no recursive search."
             }
           },
           "description": "Dart/Flutter pub configuration"
@@ -383,7 +383,7 @@
             "noVerify": {
               "type": "boolean",
               "default": false,
-              "description": "Skip verification before publish"
+              "description": "Pass --no-verify to cargo publish, skipping cargo's pre-publish build of the packaged crate."
             },
             "publishOrder": {
               "type": "array",
@@ -391,12 +391,12 @@
               "items": {
                 "type": "string"
               },
-              "description": "Order in which to publish packages"
+              "description": "Crate names to publish first, in this order; the rest follow in discovery order. Empty sorts crates by their path dependencies."
             },
             "clean": {
               "type": "boolean",
               "default": false,
-              "description": "Clean before publishing"
+              "description": "Run cargo clean in each crate's directory before publishing."
             }
           },
           "description": "Cargo publishing configuration"
@@ -416,7 +416,7 @@
               "items": {
                 "type": "string"
               },
-              "description": "Order in which to publish packages"
+              "description": "Package names to publish first, in this order; the rest follow in discovery order, which is also the order when empty."
             }
           },
           "description": "Dart/Flutter publishing configuration via pub"
@@ -506,7 +506,7 @@
                   "type": "integer",
                   "minimum": 1,
                   "default": 15000,
-                  "description": "Initial delay in milliseconds"
+                  "description": "Wait in ms after the first failed check; each later wait is multiplied by backoffMultiplier."
                 },
                 "backoffMultiplier": {
                   "type": "number",
@@ -535,7 +535,7 @@
                   "type": "integer",
                   "minimum": 1,
                   "default": 30000,
-                  "description": "Initial delay in milliseconds"
+                  "description": "Wait in ms after the first failed check; each later wait is multiplied by backoffMultiplier."
                 },
                 "backoffMultiplier": {
                   "type": "number",
@@ -564,7 +564,7 @@
                   "type": "integer",
                   "minimum": 1,
                   "default": 30000,
-                  "description": "Initial delay in milliseconds"
+                  "description": "Wait in ms after the first failed check; each later wait is multiplied by backoffMultiplier."
                 },
                 "backoffMultiplier": {
                   "type": "number",
@@ -604,7 +604,7 @@
                     "packages",
                     "both"
                   ],
-                  "description": "Where to write changelog files. root: repo root only. packages: per-package (monorepos). both: repo root and per-package. When omitted entirely (no changelog config), defaults to root."
+                  "description": "Where to write changelog files: 'root' (the default) at the repo root, 'packages' in each package (monorepos only), or 'both'."
                 },
                 "file": {
                   "type": "string",
@@ -616,7 +616,7 @@
                   "properties": {
                     "path": {
                       "type": "string",
-                      "description": "Path to custom template"
+                      "description": "Template file, or a directory of composable templates."
                     },
                     "engine": {
                       "type": "string",
@@ -625,7 +625,7 @@
                         "liquid",
                         "ejs"
                       ],
-                      "description": "Template engine"
+                      "description": "Template engine. Detected from the template files when omitted; ignored without path."
                     }
                   },
                   "description": "Template configuration for changelog"
@@ -654,7 +654,8 @@
               },
               "description": "Changelog file configuration"
             }
-          ]
+          ],
+          "description": "Changelog files. On by default, writing CHANGELOG.md at the repo root; set to false to disable."
         },
         "releaseNotes": {
           "oneOf": [
@@ -687,7 +688,7 @@
                   "properties": {
                     "path": {
                       "type": "string",
-                      "description": "Path to custom template"
+                      "description": "Template file, or a directory of composable templates."
                     },
                     "engine": {
                       "type": "string",
@@ -696,7 +697,7 @@
                         "liquid",
                         "ejs"
                       ],
-                      "description": "Template engine"
+                      "description": "Template engine. Detected from the template files when omitted; ignored without path."
                     }
                   },
                   "description": "Template for rendering release notes (e.g. to add docs-site frontmatter). Takes precedence over LLM prose and the default formatted section."
@@ -726,7 +727,7 @@
                     },
                     "apiKey": {
                       "type": "string",
-                      "description": "API key"
+                      "description": "API key. When unset, releasekit uses the key saved by releasekit-notes auth, then the provider's environment variable (e.g. OPENAI_API_KEY); prefer either to an inline key."
                     },
                     "options": {
                       "type": "object",
@@ -734,22 +735,23 @@
                       "properties": {
                         "timeout": {
                           "type": "integer",
-                          "description": "Idle timeout in ms: a streamed response fails only when nothing arrives for this long"
+                          "description": "Idle timeout in ms: a streamed response fails only when nothing arrives for this long. Default: 60000."
                         },
                         "maxTokens": {
                           "type": "integer",
-                          "description": "Max tokens to generate"
+                          "description": "Max tokens to generate. Default: 16384."
                         },
                         "temperature": {
                           "type": "number",
-                          "description": "Sampling temperature"
+                          "description": "Sampling temperature. Default: 0.7; the anthropic provider ignores it."
                         }
-                      }
+                      },
+                      "description": "Options for each request to the provider."
                     },
                     "concurrency": {
                       "type": "integer",
                       "minimum": 1,
-                      "description": "Concurrent LLM requests"
+                      "description": "Parallelism limit, default 5. It caps the packages processed at once and, separately, the entries each package's standalone enhance task rewrites at once."
                     },
                     "retry": {
                       "type": "object",
@@ -758,24 +760,25 @@
                         "maxAttempts": {
                           "type": "integer",
                           "minimum": 1,
-                          "description": "Maximum number of attempts"
+                          "description": "Maximum number of attempts, including the first. Default: 3."
                         },
                         "initialDelay": {
                           "type": "integer",
                           "minimum": 0,
-                          "description": "Initial delay in ms"
+                          "description": "Delay in ms before the first retry. Default: 1000."
                         },
                         "maxDelay": {
                           "type": "integer",
                           "minimum": 1,
-                          "description": "Maximum delay in ms"
+                          "description": "Maximum delay in ms between attempts. Default: 30000."
                         },
                         "backoffFactor": {
                           "type": "number",
                           "minimum": 1,
-                          "description": "Delay multiplier per attempt"
+                          "description": "Delay multiplier per attempt. Default: 2."
                         }
-                      }
+                      },
+                      "description": "Retries for LLM requests that fail with a retryable error."
                     },
                     "tasks": {
                       "type": "object",
@@ -783,21 +786,22 @@
                       "properties": {
                         "summarize": {
                           "type": "boolean",
-                          "description": "Enable summarization"
+                          "description": "Write a 2–3 sentence summary of the release."
                         },
                         "enhance": {
                           "type": "boolean",
-                          "description": "Enable entry enhancement"
+                          "description": "Rewrite each entry's description to be clearer for users."
                         },
                         "categorize": {
                           "type": "boolean",
-                          "description": "Enable categorization"
+                          "description": "Group entries into the configured categories."
                         },
                         "releaseNotes": {
                           "type": "boolean",
-                          "description": "Enable release note generation"
+                          "description": "Write prose release notes for the GitHub Release body and any release-notes files."
                         }
-                      }
+                      },
+                      "description": "LLM tasks to run. Each is off unless set to true."
                     },
                     "categories": {
                       "type": "array",
@@ -847,11 +851,12 @@
                           "name",
                           "description"
                         ]
-                      }
+                      },
+                      "description": "Categories the categorize task sorts entries into. Default: Breaking, New, Changed, Fixed and Developer, each with a built-in description."
                     },
                     "style": {
                       "type": "string",
-                      "description": "Writing style for LLM"
+                      "description": "Writing-style instruction for the enhance and combined enhance+categorize prompts. Default: past tense, concise and user-focused, leading with the impact."
                     },
                     "scopes": {
                       "type": "object",
@@ -901,7 +906,8 @@
                           },
                           "description": "Scope validation and transformation rules"
                         }
-                      }
+                      },
+                      "description": "Validation of the scopes the LLM assigns to entries."
                     },
                     "prompts": {
                       "type": "object",
@@ -913,35 +919,36 @@
                           "properties": {
                             "enhance": {
                               "type": "string",
-                              "description": "Instruction override for the enhance task"
+                              "description": "For the enhance task when categorize is off."
                             },
                             "categorize": {
                               "type": "string",
-                              "description": "Instruction override for the categorize task"
+                              "description": "For the categorize task when enhance is off."
                             },
                             "enhanceAndCategorize": {
                               "type": "string",
-                              "description": "Instruction override for the combined enhance + categorize task"
+                              "description": "For the combined task that replaces enhance and categorize when both are on."
                             },
                             "summarize": {
                               "type": "string",
-                              "description": "Instruction override for the summarize task"
+                              "description": "For the summarize task."
                             },
                             "releaseNotes": {
                               "type": "string",
-                              "description": "Instruction override for the release-notes task"
+                              "description": "For the releaseNotes task."
                             }
                           },
-                          "description": "Per-task instruction overrides appended to the built-in prompts."
+                          "description": "Extra instructions appended to a task's built-in system prompt. The task's output format is unchanged."
                         }
-                      }
+                      },
+                      "description": "Per-task prompt additions."
                     },
                     "examples": {
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 5,
                       "default": 3,
-                      "description": "Number of few-shot examples to include in LLM prompts (0–5)."
+                      "description": "Number of the project's past GitHub Releases (0–5) used as style examples in the enhance+categorize and releaseNotes prompts. Needs GITHUB_TOKEN or GH_TOKEN."
                     },
                     "context": {
                       "type": "object",
@@ -950,7 +957,7 @@
                         "pullRequests": {
                           "type": "boolean",
                           "default": true,
-                          "description": "Include linked pull request titles/bodies as context."
+                          "description": "Fetch the title and body of each entry's linked PR as LLM context. Needs GITHUB_TOKEN or GH_TOKEN."
                         }
                       },
                       "description": "Additional context sources for the LLM."
@@ -960,7 +967,7 @@
                       "items": {
                         "type": "string"
                       },
-                      "description": "Explicit ordering of categories in the output. Categories not listed retain their configured order after the listed ones."
+                      "description": "Order of the rendered categories. Listed ones come first; the rest keep their categories order, except Breaking, which stays first unless listed."
                     },
                     "cache": {
                       "type": "boolean",
@@ -999,18 +1006,18 @@
                           "url"
                         ]
                       },
-                      "description": "Static list of links to append."
+                      "description": "Static links, each { label, url }, listed first."
                     },
                     "fromPRBodyMarker": {
                       "type": "string",
-                      "description": "Marker string in PR bodies; content after it is extracted and appended as links."
+                      "description": "Also collect links from linked PR bodies: each line starting with this marker adds its markdown link or bare URL, skipping URLs already listed. Needs llm.context.pullRequests."
                     },
                     "title": {
                       "type": "string",
-                      "description": "Heading for the links section."
+                      "description": "Heading for the links section. Default: Links."
                     }
                   },
-                  "description": "Extra links to append to the release notes."
+                  "description": "Links section the built-in renderer appends to each version. Rendered only when the categorize task produced categories."
                 },
                 "firstRelease": {
                   "oneOf": [
@@ -1027,7 +1034,7 @@
                       "properties": {
                         "text": {
                           "type": "string",
-                          "description": "Placeholder intro line for a package's first release. Supports ${packageName} and ${version}. Defaults to a factual line so it reads cleanly even when published unedited."
+                          "description": "Placeholder intro line for a package's first release. Supports ${packageName} and ${version}. Default: '_First release of ${packageName}._'."
                         }
                       }
                     }
@@ -1037,7 +1044,8 @@
               },
               "description": "Release notes configuration"
             }
-          ]
+          ],
+          "description": "Release notes for the GitHub Release body and optional per-version files. Off unless set: {} turns them on with each version's changelog section as the content, and llm or templates change it."
         },
         "updateStrategy": {
           "type": "string",
@@ -1045,7 +1053,7 @@
             "prepend",
             "regenerate"
           ],
-          "description": "How to update existing changelog files. 'prepend' adds new entries to the top; 'regenerate' rewrites the file from scratch."
+          "description": "How to update existing changelog files. 'prepend' (the default) adds the new entries at the top; 'regenerate' overwrites the file with this run's output."
         }
       },
       "description": "Changelog and release notes configuration"
@@ -1115,12 +1123,12 @@
             "prerelease": {
               "type": "string",
               "default": "channel:prerelease",
-              "description": "Label to create a prerelease"
+              "description": "Label that makes the release a prerelease. In label-trigger mode it needs a bump label too."
             },
             "skip": {
               "type": "string",
               "default": "release:skip",
-              "description": "Label to suppress a release on this PR"
+              "description": "Label that stops a merged PR from releasing. Commit-trigger mode only; in label mode, leave off the bump label instead."
             },
             "immediate": {
               "type": "string",
@@ -1177,11 +1185,11 @@
             "branch": {
               "type": "string",
               "default": "release/next",
-              "description": "Branch name for the standing release PR."
+              "description": "Branch name for the standing release PR. Each update resets it to the base branch and force-pushes it, so don't commit to it."
             },
             "title": {
               "type": "string",
-              "description": "PR title template. Variables: ${count} (publishable package count), ${version} (raw version), ${tag} (version with tag prefix). Also the release commit's subject, so it must match a release.ci.skipPatterns entry and carry no CI-skip marker. A title with a CI-skip marker is replaced by 'chore: release preparation'. So is one the skip patterns miss, if they match 'chore: release preparation'. The run warns either way. Default depends on the versioning strategy: 'chore: release ${tag}' in sync mode, 'chore: release ${count} package(s)' otherwise."
+              "description": "PR title template. Variables: ${count} (publishable package count), ${version} (the first publishable package's new version), ${tag} (version with tag prefix). Also the release commit's subject, so it must match a release.ci.skipPatterns entry and carry no CI-skip marker. A title with a CI-skip marker is replaced by 'chore: release preparation'. So is one the skip patterns miss, if they match 'chore: release preparation'. The run warns either way. Default depends on the versioning strategy: 'chore: release ${tag}' in sync mode, 'chore: release ${count} package(s)' otherwise."
             },
             "labels": {
               "type": "array",
@@ -1191,7 +1199,7 @@
               "items": {
                 "type": "string"
               },
-              "description": "Labels to apply to the standing release PR."
+              "description": "Labels to apply to the standing release PR. Leave out the ci.labels release-control labels: the standing PR reads its own labels as overrides."
             },
             "deleteBranchOnMerge": {
               "type": "boolean",
@@ -1206,11 +1214,11 @@
                 "rebase"
               ],
               "default": "merge",
-              "description": "Merge method to use when merging the standing release PR via CLI."
+              "description": "Merge method for releasekit standing-pr merge. Use 'squash' or 'rebase' so the release commit's subject reaches the base branch, where release.ci.skipPatterns can match it."
             },
             "minAge": {
               "type": "string",
-              "description": "Minimum age of the standing PR before it can be merged. Duration string, e.g. '6h', '30m', '1d'. Gate enforced via the releasekit/standing-pr commit status check; configure it as a required status check in branch protection to block merges."
+              "description": "Minimum age of the standing PR, counted from when it was first opened, before it can be merged. Duration string, e.g. '6h', '30m', '1d'. Gate enforced via the releasekit/standing-pr commit status check; configure it as a required status check in branch protection to block merges."
             },
             "minPackages": {
               "type": "integer",
@@ -1245,7 +1253,7 @@
                   "description": "Refuse to publish the standing PR when the actor who merged it is not authorized (defense-in-depth behind a branch-protection ruleset, which is the primary merge gate). Set false to rely on branch protection alone."
                 }
               },
-              "description": "Restrict who can steer the standing PR — its selection checkboxes, per-row channel toggles, release labels, and merge. Omit to allow anyone with the GitHub permission GitHub itself requires for each action (today’s behavior)."
+              "description": "Restrict who can steer the standing PR — its selection checkboxes, per-row channel toggles, release labels, and merge. Omit to allow anyone with the GitHub permission GitHub itself requires for each action."
             },
             "primaryPackages": {
               "type": "array",
@@ -1311,7 +1319,7 @@
                 "type": "string",
                 "minLength": 1
               },
-              "description": "Commit message prefixes that prevent a release (e.g. 'chore(deps):', 'ci:')"
+              "description": "Strings that skip a release, gate run or standing-PR update when found anywhere in the HEAD commit's subject. When unset, only standing-PR updates skip, and only on 'chore: release '."
             },
             "minChanges": {
               "type": "integer",
