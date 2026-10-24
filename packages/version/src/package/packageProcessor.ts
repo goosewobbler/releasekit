@@ -201,8 +201,7 @@ export class PackageProcessor {
         revisionRange = baseline.revisionRange;
         previousVersion = baseline.previousVersion;
 
-        // An untagged package's changelog can push the standing-PR body past GitHub's 65,536-char limit (an
-        // opaque 422). baseRef-scoped runs are bounded to the PR.
+        // A baseRef (as in PR previews) bounds the range itself, so a missing tag can't widen it.
         if (!hasRealTag && !this.fullConfig.baseRef) {
           const currentVersion = pkg.packageJson.version;
           const suggestedTag = currentVersion

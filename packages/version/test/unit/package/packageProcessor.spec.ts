@@ -520,8 +520,9 @@ describe('Package Processor', () => {
     });
 
     it('should warn about full git history when a package has no prior tag and no reachable baseline', async () => {
-      // Manifest-only baseline (hasRealTag false); the warning heads off the opaque oversized-PR-body 422.
+      // Manifest-only baseline (hasRealTag false).
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
+      vi.spyOn(gitTags, 'getNearestReachableTag').mockResolvedValue('');
       vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
         version: '0.1.0',
         manifestFound: true,
