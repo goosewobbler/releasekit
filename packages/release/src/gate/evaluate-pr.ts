@@ -15,11 +15,27 @@ export interface PREvaluation {
   hasReleaseIntent: boolean;
 }
 
+export function standingPRImmediateRefusal(
+  prNumber: number,
+  headRef: string | undefined,
+  labelConfig: LabelConfig,
+  ciConfig: CIConfig | undefined,
+): string | undefined {
+  if ((ciConfig?.releaseStrategy ?? 'direct') !== 'standing-pr') {
+    return undefined;
+  }
+  if (headRef !== (ciConfig?.standingPr?.branch ?? 'release/next')) {
+    return undefined;
+  }
+  return `PR #${prNumber} is the standing release PR, which publishes from its manifest; ${labelConfig.immediate} doesn't apply to it`;
+}
+
 export function evaluatePR(
   prNumber: number,
   labels: string[],
   labelConfig: LabelConfig,
   ciConfig: CIConfig | undefined,
+  headRef?: string,
 ): PREvaluation {
   const trigger = ciConfig?.releaseTrigger ?? 'label';
   const scopeLabels = ciConfig?.scopeLabels ?? {};
@@ -57,6 +73,21 @@ export function evaluatePR(
       stable: false,
       reason: `standing-pr strategy: no ${labelConfig.immediate} label — changes accumulate in the standing release PR`,
       // Forced false even with bump/scope labels: a feeder PR's advisory labels aren't release intent.
+      hasReleaseIntent: false,
+    };
+  }
+
+  const standingRefusal = standingPRImmediateRefusal(prNumber, headRef, labelConfig, ciConfig);
+  if (standingRefusal) {
+    return {
+      prNumber,
+      labels,
+      shouldRelease: false,
+      scope,
+      target,
+      stable: false,
+      reason: standingRefusal,
+      // The notify comment asks for a bump label, which wouldn't help: the standing PR still publishes on its own.
       hasReleaseIntent: false,
     };
   }
