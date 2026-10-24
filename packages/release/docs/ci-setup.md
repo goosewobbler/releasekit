@@ -370,7 +370,7 @@ All `ci.standingPr.*` options:
 | `branch` | `release/next` | Bot-maintained release branch name. Force-reset to main on every update. |
 | `title` | `chore: release ${tag}` (sync), `chore: release ${count} package(s)` (otherwise) | PR title template, also used as the release commit's subject. Variables: `${count}` (package count), `${version}` (first updated package version), `${tag}` (version with tag prefix). **Must match `release.ci.skipPatterns`** (default `chore: release `) and carry no CI-skip marker, or `chore: release preparation` is used instead. |
 | `labels` | `["release"]` | Labels applied to the standing PR. Do not overlap with `bump:*` or `release:*` labels — those would cause the label-driven release flow to fire on the standing PR's merge. |
-| `deleteBranchOnMerge` | `true` | Delete `release/next` after publish completes. |
+| `deleteBranchOnMerge` | `true` | Delete `release/next` after publish completes, unless an update has moved it since the merge. |
 | `mergeMethod` | `merge` | `merge` \| `squash` \| `rebase`. Squash recommended — produces a single `chore: release …` commit on main that the skip-pattern guard recognises. |
 | `minAge` | (unset) | Duration string (`6h`, `30m`, `1d`). Until elapsed, the `releasekit/standing-pr` status check reports `pending` with a countdown. Combined with branch protection on the status check, blocks early merges. Time baseline is `firstUpdatedAt` — the PR's first creation timestamp, preserved across updates. |
 | `minPackages` | (unset) | Minimum distinct packages with releasable changes before a standing PR is created. Below the threshold, an open PR is closed with an explanatory comment and no new PR is created until the threshold is met. |
@@ -592,6 +592,7 @@ jobs:
       github.event_name == 'pull_request' &&
       github.event.action == 'closed' &&
       github.event.pull_request.merged == true &&
+      !startsWith(github.event.pull_request.head.ref, 'release/') &&
       contains(github.event.pull_request.labels.*.name, 'release:immediate')
     runs-on: ubuntu-latest
     steps:

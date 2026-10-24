@@ -1,3 +1,5 @@
+# pnpm/action-setup reads the pnpm version from the `packageManager` field in package.json. Without
+# one, give the pnpm/action-setup step a `version`.
 name: Release Preview
 
 on:
@@ -33,7 +35,8 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      # Using npm? Drop pnpm/action-setup, set `cache: npm` and replace the line above with: npm ci
+      # Using npm? Drop pnpm/action-setup, set `cache: npm`, replace the line above with `npm ci`
+      # and `pnpm exec` with `npx`.
 
       - name: Release preview
         run: pnpm exec releasekit preview
