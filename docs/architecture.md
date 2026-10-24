@@ -24,7 +24,7 @@ A conceptual overview for contributors and users evaluating ReleaseKit.
 
 **notes** consumes `VersionOutput` and renders the `CHANGELOG.md` plus per-release notes (the GitHub release body, or optional per-version files) via Liquid/Handlebars/EJS templates. LLM enhancement is an optional pass inside this stage.
 
-**publish** consumes the same `VersionOutput` and runs: git commit, git tag, `npm publish`, `cargo publish`, post-publish verification, git push, and GitHub Release creation — in that order.
+**publish** consumes the same `VersionOutput`. It prepares files, creates the commit and tags locally, publishes to npm, crates.io, and pub.dev, then pushes and creates GitHub Releases. The order depends on the mode — see [Publish order and partial failure](#publish-order-and-partial-failure).
 
 ### The `VersionOutput` shape
 
@@ -147,19 +147,35 @@ npm and Rust packages can coexist in a single repo under a single config. The ve
 - `version.cargo.paths` lists directories containing `Cargo.toml` files (auto-detected by default).
 - `publish.npm.enabled` and `publish.cargo.enabled` both default to `true`; set either to `false` to version and tag without publishing ([ADR-0004](./adr/0004-ecosystem-enablement-detection-enables-config-opts-out.md)).
 
-Each Rust crate appears as a named entry in `VersionOutput.updates` alongside npm packages; the publish pipeline runs `cargo publish` per-crate after npm.
+Each Rust crate appears as a named entry in `VersionOutput.updates` alongside npm packages. Within a publish step the registries run in order: npm, then crates.io, then pub.dev.
 
 ---
 
-## Idempotency guarantees
+## Publish order and partial failure
 
-The publish stage is safe to retry after a partial failure:
+Direct `release` computes versions in memory, then runs the scope, skip-pattern, and minimum-change guards. It writes manifests, then changelogs, and only then starts publish.
 
-- Packages already at the target version on the registry are skipped.
-- Git tags that already exist are not recreated (the commit is still pushed if missing).
-- GitHub Releases that already exist for a tag are not duplicated.
+Publish always prepares first (copy files, rewrite `Cargo.toml`, sync `Cargo.lock`) and creates the release commit and **every tag locally, before any registry publish**. In standing-PR mode the squash merge already put that commit on the remote, so publish only creates tags.
 
-The pipeline is **fail-fast** within a single run: the first registry failure stops immediately and defers the git push, so the version commit and tag remain local until the issue is fixed and the command is retried.
+The run is **fail-fast**: the first registry failure stops the pipeline.
+
+**Batch mode** — no update carries its own `tag` (sync with one shared tag):
+
+1. Publish npm, then crates.io, then pub.dev.
+2. Verify. Verification only warns.
+3. Only if every publish succeeded: push the branch, then the tags, then create GitHub Releases.
+
+Nothing is pushed on failure. In direct mode the version bump is **not** on `main`. Packages that already published stay on the registry. Re-run; those versions are skipped. Do not delete a tag for a version that was published.
+
+**Per-package mode** — any update has a `tag` (single, async, groups, or sync with `packageSpecificTags`):
+
+For each update: publish that package (npm, then crates.io, then pub.dev) → verify → push the branch → push its tag. GitHub Releases are created only after every package succeeds.
+
+On failure, earlier packages' tags **and the release commit are already on the remote**, and no package has a GitHub Release. Do not delete those tags. Roll forward with the next release.
+
+**Standing-PR mode** uses the same batch or per-package publish, but the version commit is already on `main` from the merge. Recover with the `release:retry` label on the merged standing PR (or `standing-pr publish --pr`). Do not delete a tag whose version was published.
+
+Already-published versions are skipped on a later run. A local tag that points at the current commit is not recreated, and an existing GitHub Release for a tag is not duplicated. A retry never reverts a commit or deletes a tag.
 
 ---
 
@@ -170,7 +186,7 @@ Given the git tags, the commits since the last tag, and `releasekit.config.json`
 1. Computes the next semver for each package from conventional commits (or a forced `--bump`).
 2. Writes updated manifest files and emits `VersionOutput`.
 3. Renders changelogs and optional release notes from `VersionOutput`, optionally passing them through an LLM.
-4. Creates a git commit and tags, pushes to the remote, publishes each package to npm and/or crates.io, verifies the publish, and creates a GitHub Release.
+4. Publishes, then pushes and creates GitHub Releases, in the order in [Publish order and partial failure](#publish-order-and-partial-failure). Tags are created locally before publishing and pushed only after a clean publish (once, at the end, in batch mode; after each package in per-package mode).
 
 If the head commit message matches a skip pattern (default: `chore: release `), ReleaseKit exits early so that its own release commits do not trigger an infinite loop. If there are no releasable commits since the last tag, it exits with code 0 and skips all remaining steps.
 

@@ -54,6 +54,7 @@ export interface IssueChanges {
 export interface PullRequestDetails {
   body: string;
   labels: string[];
+  headSha?: string;
 }
 
 export interface CommentAuthor {

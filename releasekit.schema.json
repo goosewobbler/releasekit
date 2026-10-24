@@ -1181,7 +1181,7 @@
             },
             "title": {
               "type": "string",
-              "description": "PR title template. Variables: ${count} (publishable package count), ${version} (raw version), ${tag} (version with tag prefix). Must start with 'chore: release' to match the default skip pattern on squash merge. Default depends on the versioning strategy: 'chore: release ${tag}' in sync mode, 'chore: release ${count} package(s)' otherwise."
+              "description": "PR title template. Variables: ${count} (publishable package count), ${version} (raw version), ${tag} (version with tag prefix). Also the release commit's subject, so it must match a release.ci.skipPatterns entry and carry no CI-skip marker. A title with a CI-skip marker is replaced by 'chore: release preparation'. So is one the skip patterns miss, if they match 'chore: release preparation'. The run warns either way. Default depends on the versioning strategy: 'chore: release ${tag}' in sync mode, 'chore: release ${count} package(s)' otherwise."
             },
             "labels": {
               "type": "array",
@@ -1196,7 +1196,7 @@
             "deleteBranchOnMerge": {
               "type": "boolean",
               "default": true,
-              "description": "Whether to auto-delete the release branch after the PR is merged."
+              "description": "Whether to auto-delete the release branch after the PR is merged. Publish keeps it if an update has moved it since the merge, or if the merged PR's head commit can't be read."
             },
             "mergeMethod": {
               "type": "string",

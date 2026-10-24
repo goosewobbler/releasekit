@@ -8,7 +8,7 @@ export {
   type FakePushRecord,
   type FakeTagRecord,
 } from './fake.js';
-export { createGitCli, GitCli, type GitRunner } from './git.js';
+export { createGitCli, GitCli, type GitRunner, isCommitSha } from './git.js';
 export type {
   Git,
   GitCheckoutOptions,
@@ -19,6 +19,7 @@ export type {
   GitListTagsOptions,
   GitLogOptions,
   GitLsFilesOptions,
+  GitPushLease,
   GitPushOptions,
   GitStatusOptions,
   GitTagOptions,

@@ -1,7 +1,7 @@
 import type { VersionPackageUpdate } from '@releasekit/core';
 import { createFakeForge, type FakeForge, type FakeForgeSeed } from '@releasekit/forge';
 import { FakeGit, type FakeGitSeed, type GitLogOptions } from '@releasekit/git';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { renderFailureReport, renderResolvedReport } from '../../src/failure-report/failure-report.js';
 import { renderNotesRegion } from '../../src/standing-pr/notes-region.js';
 import type { StandingPRManifest } from '../../src/standing-pr/standing-pr.js';
@@ -51,11 +51,13 @@ function setupGit(
     subject?: string;
     remoteBranches?: Record<string, string[]>;
     ancestors?: FakeGitSeed['ancestors'];
+    status?: string;
   } = {},
 ) {
   fakeGit = new ControllableGit({
     headSha: seed.headSha ?? 'abc123',
     remoteBranches: seed.remoteBranches,
+    status: seed.status,
     // Default to "is an ancestor" so the manifest baseSha ancestry guard passes on the common publish path.
     ancestors: seed.ancestors ?? (() => true),
   });
@@ -67,6 +69,8 @@ function setupGit(
 function branchDeletePushes() {
   return fakeGit.pushed.filter((p) => p.ref?.startsWith(':'));
 }
+
+const MERGED_HEAD = 'a'.repeat(40);
 
 vi.mock('node:fs', () => ({
   default: {
@@ -121,6 +125,20 @@ function createMockVersionOutput(
     tags: updates.map((u) => `${u.packageName}@v${u.newVersion}`),
     commitMessage: `chore: release ${updates.map((u) => u.packageName).join(', ')}`,
     sharedEntries: [],
+  };
+}
+
+function withPackageChangelogs<T extends ReturnType<typeof createMockVersionOutput>>(versionOutput: T) {
+  return {
+    ...versionOutput,
+    changelogs: versionOutput.updates.map((u) => ({
+      packageName: u.packageName,
+      version: u.newVersion,
+      previousVersion: null,
+      revisionRange: 'HEAD',
+      repoUrl: null,
+      entries: [],
+    })),
   };
 }
 
@@ -219,6 +237,22 @@ describe('serializeManifest / parseManifest', () => {
     expect(parsed.versionOutput.updates).toHaveLength(1);
     expect(parsed.releaseNotes['@scope/core']).toBe('- added new feature');
     expect(parsed.baseSha).toBe('abc123');
+  });
+
+  it('should keep field order from the serialized manifest', () => {
+    const changelog = {
+      entries: [{ description: 'fix', type: 'fixed' }],
+      repoUrl: null,
+      revisionRange: 'HEAD',
+      previousVersion: null,
+      version: '1.2.3',
+      packageName: '@scope/core',
+    };
+    const manifest = { ...baseManifest, versionOutput: { ...baseManifest.versionOutput, changelogs: [changelog] } };
+
+    const parsed = parseManifest(serializeManifest(manifest));
+
+    expect(JSON.stringify(parsed.versionOutput.changelogs[0])).toBe(JSON.stringify(changelog));
   });
 
   it('should throw when manifest comment is missing', () => {
@@ -1184,6 +1218,119 @@ describe('runStandingPRUpdate', () => {
     await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
 
     expect(forge.createdPullRequests[0]).toEqual(expect.objectContaining({ title: 'chore: release v1.2.3' }));
+  });
+
+  describe('release commit and PR title', () => {
+    async function runWithTitle(
+      title: string | undefined,
+      skipPatterns: string[],
+      standingPR: ReturnType<typeof openStandingPR> | null = null,
+      git: Record<string, unknown> = {},
+    ) {
+      const { loadConfig } = await import('@releasekit/config');
+      vi.mocked(loadConfig).mockReturnValue({
+        ...defaultConfig,
+        git: { ...defaultConfig.git, ...git },
+        ci: { ...defaultConfig.ci, standingPr: { ...defaultConfig.ci.standingPr, title } },
+        release: { ci: { skipPatterns } },
+      } as unknown as ReturnType<typeof loadConfig>);
+      setupGit({ status: ' M package.json' });
+
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      const versionOutput = {
+        ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+        strategy: 'sync',
+        tags: ['v1.2.3'],
+      };
+      vi.mocked(runVersionStep).mockResolvedValue(
+        versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>,
+      );
+      vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+      const forge = await mockForge({ standingPR });
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+      onTestFinished(() => logged.mockRestore());
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const warnings = logged.mock.calls
+        .map(([line]) => String(line))
+        .filter((line) => line.includes('Standing PR') || line.includes('skipPatterns'));
+      return { forge, warnings };
+    }
+
+    it('should commit with the PR title when the skip patterns match it, without a warning', async () => {
+      const { warnings } = await runWithTitle(undefined, ['chore: release ']);
+
+      expect(fakeGit.committed.map((c) => c.message)).toEqual(['chore: release v1.2.3']);
+      expect(warnings).toEqual([]);
+    });
+
+    it.each([
+      [
+        'a fixed subject when the PR title matches no skip pattern',
+        'Next release',
+        ['chore: release '],
+        'chore: release preparation',
+        'matches no release.ci.skipPatterns entry',
+      ],
+      [
+        'a fixed subject when the PR title carries a CI-skip marker',
+        'chore: release v1.2.3 [skip ci]',
+        ['chore: release '],
+        'chore: release preparation',
+        'carries a CI-skip marker',
+      ],
+      [
+        'the PR title when the skip patterns match neither it nor the fixed subject',
+        undefined,
+        ['ci:'],
+        'chore: release v1.2.3',
+        'triggers another update',
+      ],
+      [
+        'the PR title when there are no skip patterns',
+        undefined,
+        [],
+        'chore: release v1.2.3',
+        'triggers another update',
+      ],
+      [
+        'a fixed subject when a custom title carries a CI-skip marker',
+        'Release v1.2.3 [skip ci]',
+        ['Release '],
+        'chore: release preparation',
+        'carries a CI-skip marker',
+      ],
+    ])('should title the release commit and PR with %s', async (_label, title, skipPatterns, expected, warning) => {
+      const { forge, warnings } = await runWithTitle(title, skipPatterns);
+
+      expect(fakeGit.committed.map((c) => c.message)).toEqual([expected]);
+      expect(forge.createdPullRequests[0]?.title).toBe(expected);
+      expect(warnings).toEqual(expect.arrayContaining([expect.stringContaining(warning)]));
+    });
+
+    it('should retitle an existing standing PR with the same subject as the commit', async () => {
+      const { forge } = await runWithTitle('Next release', ['chore: release '], openStandingPR(99));
+
+      expect(fakeGit.committed.map((c) => c.message)).toEqual(['chore: release preparation']);
+      expect(forge.updatedPullRequests).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            prNumber: 99,
+            changes: expect.objectContaining({ title: 'chore: release preparation' }),
+          }),
+        ]),
+      );
+    });
+
+    it.each([
+      [true, { skipHooks: true }],
+      [false, {}],
+    ])('should pass skipHooks %s from git config to the release commit', async (expected, git) => {
+      await runWithTitle(undefined, ['chore: release '], null, git);
+
+      expect(fakeGit.committed.map((c) => c.skipHooks)).toEqual([expected]);
+    });
   });
 
   it('should exclude the root lockstep bump from ${count} and the PR body publish table', async () => {
@@ -2247,7 +2394,9 @@ describe('runStandingPRUpdate', () => {
   describe('preview-notes editable region', () => {
     async function setupPreviewPR(opts: { labels: string[]; liveBody?: string; freshNotes?: Record<string, string> }) {
       const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
-      const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+      const versionOutput = withPackageChangelogs(
+        createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+      );
       vi.mocked(runVersionStep)
         .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
         .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
@@ -2296,6 +2445,44 @@ describe('runStandingPRUpdate', () => {
       expect(runNotesStepMock.mock.calls.at(-1)?.[1]).toMatchObject({ skipReleaseNotes: true });
       const body = forge.updatedPullRequests.at(-1)?.changes.body as string;
       expect(body).toContain('HUMAN EDITED notes');
+      expect(body).not.toContain('REGENERATED notes');
+    });
+
+    it('should preserve a sync monorepo notes region across an update', async () => {
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      const versionOutput = {
+        ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+        strategy: 'sync' as const,
+        tags: ['v1.2.3'],
+        changelogs: [
+          {
+            packageName: 'monorepo',
+            version: '1.2.3',
+            previousVersion: '1.2.2',
+            revisionRange: 'v1.2.2..v1.2.3',
+            repoUrl: null,
+            entries: [],
+          },
+        ],
+      };
+      vi.mocked(runVersionStep).mockResolvedValue(
+        versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>,
+      );
+      vi.mocked(runNotesStep).mockResolvedValue({
+        packageNotes: {},
+        releaseNotes: { monorepo: 'REGENERATED notes' },
+        files: [],
+      });
+      const forge = await mockForge({
+        standingPR: openStandingPR(99, ['release', 'release:preview-notes']),
+        pullRequests: { 99: { body: renderNotesRegion({ monorepo: 'HUMAN SYNC NOTES' }), labels: [] } },
+      });
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      expect(vi.mocked(runNotesStep).mock.calls.at(-1)?.[1]).toMatchObject({ skipReleaseNotes: true });
+      const body = forge.updatedPullRequests.at(-1)?.changes.body as string;
+      expect(body).toContain('HUMAN SYNC NOTES');
       expect(body).not.toContain('REGENERATED notes');
     });
 
@@ -2776,7 +2963,10 @@ describe('runStandingPRPublish', () => {
       }),
     );
 
-    await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+    await mockForge({
+      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+      pullRequests: { 42: { body: '', labels: [], headSha: MERGED_HEAD } },
+    });
 
     const { runPublishStep } = await import('../../src/steps.js');
     vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
@@ -2788,6 +2978,98 @@ describe('runStandingPRPublish', () => {
     const deleteCalls = branchDeletePushes();
     expect(deleteCalls).toHaveLength(1);
     expect(deleteCalls[0]?.ref).toBe(':release/next');
+  });
+
+  describe('release branch delete lease', () => {
+    async function publishWithMergedHead(headSha: string | undefined) {
+      const { readFileSync } = await import('node:fs');
+      vi.mocked(readFileSync).mockReturnValue(
+        JSON.stringify({
+          pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
+        }),
+      );
+      await mockForge({
+        comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+        pullRequests: { 42: { body: '', labels: [], headSha } },
+      });
+      const { runPublishStep } = await import('../../src/steps.js');
+      vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+        ReturnType<typeof runPublishStep>
+      >);
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+      onTestFinished(() => logged.mockRestore());
+      const result = await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
+      return { result, logs: logged.mock.calls.map(([line]) => String(line)) };
+    }
+
+    it("should delete the branch only while it is still at the merged PR's head", async () => {
+      await publishWithMergedHead(MERGED_HEAD);
+
+      expect(branchDeletePushes()).toEqual([
+        expect.objectContaining({ ref: ':release/next', forceWithLease: { ref: 'release/next', expect: MERGED_HEAD } }),
+      ]);
+    });
+
+    it.each([
+      ['git sees the move', ' ! [rejected]        (delete) -> release/next (stale info)'],
+      [
+        'the remote refuses it',
+        " ! [remote rejected] (delete) -> release/next (cannot lock ref 'refs/heads/release/next': is at 1111 but expected aaaa)",
+      ],
+      ['GitHub refuses it', ' ! [remote rejected] (delete) -> release/next (incorrect old value provided)'],
+    ])('should keep a branch an update has moved and still finish the publish when %s', async (_case, message) => {
+      const push = vi.spyOn(fakeGit, 'push').mockImplementation(async ({ ref }) => {
+        if (ref?.startsWith(':')) {
+          throw new Error(message);
+        }
+      });
+
+      const { result, logs } = await publishWithMergedHead(MERGED_HEAD);
+
+      expect(result).toMatchObject({ versionOutput: baseManifest.versionOutput });
+      expect(push).toHaveBeenCalledWith(
+        expect.objectContaining({ ref: ':release/next', forceWithLease: { ref: 'release/next', expect: MERGED_HEAD } }),
+      );
+      expect(logs.some((l) => l.includes("Kept release branch 'release/next': it has moved since the merge"))).toBe(
+        true,
+      );
+      expect(logs.some((l) => l.includes('Failed to delete release branch'))).toBe(false);
+    });
+
+    it("should keep the branch when the merged PR's head commit is unknown", async () => {
+      const { logs } = await publishWithMergedHead(undefined);
+
+      expect(branchDeletePushes()).toHaveLength(0);
+      expect(logs.some((l) => l.includes("couldn't read PR #42's head commit"))).toBe(true);
+    });
+
+    it("should fall back to the event's head commit when the PR can't be read", async () => {
+      const { readFileSync } = await import('node:fs');
+      vi.mocked(readFileSync).mockReturnValue(
+        JSON.stringify({
+          pull_request: { head: { ref: 'release/next', sha: MERGED_HEAD }, number: 42, merged: true },
+        }),
+      );
+      const forge = await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+      vi.spyOn(forge, 'getPullRequest').mockRejectedValue(new Error('502 Bad Gateway'));
+      const { runPublishStep } = await import('../../src/steps.js');
+      vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+        ReturnType<typeof runPublishStep>
+      >);
+
+      await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      expect(branchDeletePushes()).toEqual([
+        expect.objectContaining({ ref: ':release/next', forceWithLease: { ref: 'release/next', expect: MERGED_HEAD } }),
+      ]);
+    });
+
+    it('should keep the branch when the head commit is not a commit SHA', async () => {
+      const { logs } = await publishWithMergedHead('main');
+
+      expect(branchDeletePushes()).toHaveLength(0);
+      expect(logs.some((l) => l.includes("PR #42's head 'main' isn't a commit SHA"))).toBe(true);
+    });
   });
 
   it('should skip branch deletion when deleteBranchOnMerge is false', async () => {
@@ -2804,7 +3086,10 @@ describe('runStandingPRPublish', () => {
       }),
     );
 
-    await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+    await mockForge({
+      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+      pullRequests: { 42: { body: '', labels: [], headSha: MERGED_HEAD } },
+    });
 
     const { runPublishStep } = await import('../../src/steps.js');
     vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
@@ -2905,14 +3190,72 @@ describe('publishFromManifest', () => {
       git: { committed: true, tags: [], pushed: true },
     } as unknown as Awaited<ReturnType<typeof runPublishStep>>);
 
+    const manifest = { ...baseManifest, versionOutput: withPackageChangelogs(baseManifest.versionOutput) };
     await mockForge({
-      comments: [{ id: 77, body: serializeManifest(baseManifest) }],
+      comments: [{ id: 77, body: serializeManifest(manifest) }],
       pullRequests: { 99: { body: renderNotesRegion({ '@scope/core': 'EDITED AT MERGE' }), labels: [] } },
     });
 
     await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
 
     expect(vi.mocked(runPublishStep).mock.calls[0]?.[2]).toMatchObject({ '@scope/core': 'EDITED AT MERGE' });
+  });
+
+  it('should publish a sync monorepo notes edit from the PR body', async () => {
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({
+      packageNotes: {},
+      releaseNotes: { monorepo: 'REGENERATED at merge' },
+      files: [],
+    });
+    vi.mocked(runPublishStep).mockResolvedValue({
+      npm: [],
+      cargo: [],
+      githubReleases: [],
+      git: { committed: true, tags: [], pushed: true },
+    } as unknown as Awaited<ReturnType<typeof runPublishStep>>);
+
+    const manifest = {
+      ...baseManifest,
+      versionOutput: {
+        ...baseManifest.versionOutput,
+        strategy: 'sync' as const,
+        tags: ['v1.2.3'],
+        changelogs: [
+          {
+            packageName: 'monorepo',
+            version: '1.2.3',
+            previousVersion: '1.2.2',
+            revisionRange: 'v1.2.2..v1.2.3',
+            repoUrl: null,
+            entries: [],
+          },
+        ],
+      },
+    };
+    await mockForge({
+      comments: [{ id: 77, body: serializeManifest(manifest) }],
+      pullRequests: { 99: { body: renderNotesRegion({ monorepo: 'EDITED SYNC NOTES' }), labels: [] } },
+    });
+
+    await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(vi.mocked(runPublishStep).mock.calls[0]?.[2]).toEqual({ monorepo: 'EDITED SYNC NOTES' });
+  });
+
+  it('should refuse a manifest without changelogs before tagging or publishing anything', async () => {
+    const { runPublishStep } = await import('../../src/steps.js');
+    const { changelogs: _changelogs, ...versionOutput } = baseManifest.versionOutput;
+    await mockForge({
+      comments: [{ id: 77, body: serializeManifest({ ...baseManifest, versionOutput } as StandingPRManifest) }],
+      pullRequests: { 99: { body: renderNotesRegion({ '@scope/core': 'EDITED AT MERGE' }), labels: [] } },
+    });
+
+    await expect(
+      publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow('is invalid or incompatible');
+    expect(runPublishStep).not.toHaveBeenCalled();
+    expect(fakeGit.tagged).toHaveLength(0);
   });
 
   it('should refuse to publish when a forged manifest bumps a version beyond the merged source', async () => {
@@ -3130,16 +3473,13 @@ describe('runStandingPRMerge', () => {
     process.env = { ...originalEnv };
   });
 
-  it('should return null when no GitHub context available', async () => {
+  it('should throw when no GitHub context available', async () => {
     delete process.env.GITHUB_REPOSITORY;
     delete process.env.GITHUB_TOKEN;
 
-    const result = await runStandingPRMerge(
-      { projectDir: '/test', verbose: false, quiet: false, json: false },
-      { publish: false },
-    );
-
-    expect(result).toBeNull();
+    await expect(
+      runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false }),
+    ).rejects.toThrow(/No GitHub context/);
   });
 
   it('should return null when no open standing PR found', async () => {
@@ -3212,7 +3552,7 @@ describe('runStandingPRMerge', () => {
     ).rejects.toThrow('Network error');
   });
 
-  it('should return null without publishing when publish flag is false', async () => {
+  it('should return a merge result without publishing when publish flag is false', async () => {
     await mockForge({ standingPR: openStandingPR(42) });
 
     const result = await runStandingPRMerge(
@@ -3220,7 +3560,7 @@ describe('runStandingPRMerge', () => {
       { publish: false },
     );
 
-    expect(result).toBeNull();
+    expect(result).toEqual({ merged: true, prNumber: 42 });
   });
 
   it('should call publishFromManifest when publish flag is true and manifest exists', async () => {
@@ -3257,6 +3597,7 @@ describe('runStandingPRMerge', () => {
     await mockForge({
       standingPR: openStandingPR(42),
       comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+      pullRequests: { 42: { body: '', labels: [], headSha: MERGED_HEAD } },
     });
 
     const { runPublishStep } = await import('../../src/steps.js');
@@ -3281,6 +3622,7 @@ describe('runStandingPRMerge', () => {
     await mockForge({
       standingPR: openStandingPR(42),
       comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+      pullRequests: { 42: { body: '', labels: [], headSha: MERGED_HEAD } },
     });
 
     const { runPublishStep } = await import('../../src/steps.js');
@@ -3301,5 +3643,18 @@ describe('runStandingPRMerge', () => {
     const deleteCalls = branchDeletePushes();
     expect(deleteCalls).toHaveLength(1);
     expect(deleteCalls[0]?.ref).toBe(':release/next');
+  });
+
+  it('should skip branch deletion when publish flag is false and deleteBranchOnMerge is false', async () => {
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValue({
+      ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: false } },
+      git: { branch: 'main' },
+    } as ReturnType<typeof loadConfig>);
+    await mockForge({ standingPR: openStandingPR(42) });
+
+    await runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false });
+
+    expect(branchDeletePushes()).toHaveLength(0);
   });
 });

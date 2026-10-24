@@ -519,9 +519,10 @@ describe('Package Processor', () => {
       expect(calls[0][0]).toMatchObject({ previousVersion: 'v1.0.0' });
     });
 
-    it('should warn when a package has no prior tag (full-history changelog)', async () => {
-      // Manifest-only baseline (hasRealTag false); the warning heads off the opaque oversized-PR-body 422.
+    it('should warn about full git history when a package has no prior tag and no reachable baseline', async () => {
+      // Manifest-only baseline (hasRealTag false).
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
+      vi.spyOn(gitTags, 'getNearestReachableTag').mockResolvedValue('');
       vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
         version: '0.1.0',
         manifestFound: true,
@@ -539,12 +540,42 @@ describe('Package Processor', () => {
 
       await processor.processPackages([mockPackages[1]]);
 
-      expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('No prior tag found for package-b'), 'warning');
+      expect(logging.log).toHaveBeenCalledWith(
+        expect.stringContaining('No prior tag found for package-b — its changelog will include the full git history'),
+        'warning',
+      );
       // Not the shallow-clone warning: the synthetic manifest-fallback tag never existed as a git ref.
       expect(logging.log).not.toHaveBeenCalledWith(
         expect.stringContaining('could not be verified from HEAD'),
         'warning',
       );
+    });
+
+    it('should warn about the nearest reachable tag when a package has no prior tag but another tag is reachable', async () => {
+      vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
+      vi.spyOn(gitTags, 'getNearestReachableTag').mockResolvedValue('pkg-b@v1.0.0');
+      vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
+        version: '0.1.0',
+        manifestFound: true,
+        manifestPath: 'package.json',
+        manifestType: 'package.json',
+      });
+      vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('0.1.1');
+      vi.spyOn(versionCalculatorModule, 'calculateVersion').mockResolvedValue('0.1.1');
+
+      const processor = new PackageProcessor({
+        ...defaultOptions,
+        getLatestTag: vi.fn().mockResolvedValue(null),
+        fullConfig: { ...mockConfig, packageSpecificTags: true, writeChangelog: false },
+      });
+
+      await processor.processPackages([mockPackages[1]]);
+
+      expect(logging.log).toHaveBeenCalledWith(
+        expect.stringContaining('No prior tag found for package-b — its changelog will start from pkg-b@v1.0.0'),
+        'warning',
+      );
+      expect(logging.log).not.toHaveBeenCalledWith(expect.stringContaining('full git history'), 'warning');
     });
 
     it('should bound repo-level changelog by the nearest reachable tag, even when getLatestTag is prefix-blind', async () => {

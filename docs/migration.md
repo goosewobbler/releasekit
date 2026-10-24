@@ -190,7 +190,8 @@ Optional guardrails mirror changesets' workflow:
 
 5. **Enable Actions write access.** Go to your repository Settings > Actions > General and
    enable "Allow GitHub Actions to create and approve pull requests". This is required for
-   the bot to manage the release PR.
+   the bot to manage the release PR. It also lets workflow tokens approve pull requests: see
+   [Workflow token approvals](../packages/release/docs/ci-setup.md#workflow-token-approvals).
 
 6. **Remove changeset files.** Delete `.changeset/*.md` and `.changeset/config.json`.
    Existing changelog text should be retained — see the stumbling blocks section below.

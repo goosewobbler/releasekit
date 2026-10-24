@@ -395,9 +395,9 @@ When `releaseStrategy: "standing-pr"`, the `ci.standingPr` block tunes the bot-m
 | Key | Default | Purpose |
 |---|---|---|
 | `branch` | `release/next` | Bot-maintained release branch name. Force-reset to `main` on every update. |
-| `title` | `chore: release ${count} package(s)` | PR title template. Variables: `${count}`, `${version}`. Must start with a string matching `release.ci.skipPatterns` (default `chore: release `). |
+| `title` | `chore: release ${tag}` (sync), `chore: release ${count} package(s)` (otherwise) | PR title template, also used as the release commit's subject. Variables: `${count}`, `${version}`, `${tag}`. Must match `release.ci.skipPatterns` (default `chore: release `) and carry no CI-skip marker, or `chore: release preparation` is used instead. |
 | `labels` | `["release"]` | Labels applied to the PR. Maintainer-added `bump:*` / `scope:*` / `channel:*` labels on the standing PR are preserved across updates and drive the next release as overrides — see [Label semantics in standing-pr mode](./docs/ci-setup.md#label-semantics-in-standing-pr-mode). |
-| `deleteBranchOnMerge` | `true` | Delete the release branch after publish completes. |
+| `deleteBranchOnMerge` | `true` | Delete the release branch after publish completes, unless an update has moved it since the merge. |
 | `mergeMethod` | `merge` | `merge` \| `squash` \| `rebase`. |
 | `minAge` | (unset) | Duration string (`6h`, `30m`, `1d`). Until elapsed, `releasekit/standing-pr` status check reports `pending`. |
 | `minPackages` | (unset) | Minimum distinct packages with releasable changes before a standing PR is created. Below threshold, an existing PR is closed. |
@@ -448,9 +448,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: pnpm/action-setup@v6 # reads `packageManager` from package.json, or set `version`
+
       - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
+          cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

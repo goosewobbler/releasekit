@@ -3,10 +3,16 @@
 #     enable "Allow GitHub Actions to create and approve pull requests"
 #
 # Without it, the first `standing-pr update` run will fail with HTTP 403.
-# See packages/release/docs/ci-setup.md → Standing Release PR for the full guide.
+# See https://github.com/goosewobbler/releasekit/blob/main/packages/release/docs/ci-setup.md#standing-release-pr
+#
+# The same toggle lets any workflow token approve PRs. Before relying on a
+# "≥ 1 approval" ruleset, see https://github.com/goosewobbler/releasekit/blob/main/packages/release/docs/ci-setup.md#workflow-token-approvals
+#
+# pnpm/action-setup reads the pnpm version from the `packageManager` field in package.json. Without
+# one, give each pnpm/action-setup step a `version`.
 #
 # Tip: exempt this PR's branch (release/*) from your build/test CI, or every update
-# re-runs your whole matrix. See ci-setup.md → "Keeping CI off the standing PR".
+# re-runs your whole matrix. See https://github.com/goosewobbler/releasekit/blob/main/packages/release/docs/ci-setup.md#keeping-ci-off-the-standing-pr
 
 name: Standing Release PR
 
@@ -20,11 +26,16 @@ on:
     - cron: '0 * * * *' # re-evaluates the minAge status check as time passes
 
 concurrency:
-  # A maintainer's checkbox edits go to a per-PR cancelling group so a flurry of ticks collapses to one
-  # rebuild. Everything else, including the bot's own body edits, shares a non-cancelling group so a
-  # bot edit never cancels the run doing the work and a queued publish is never dropped.
-  group: ${{ (github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot') && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
+  # GitHub keeps one pending run per group and replaces it with any newer one. So the standing PR's
+  # publish on merge and its retry label get a group per PR that nothing else can replace or cancel.
+  # A merged `release:immediate` PR queues with the updates, so the two don't write release/next at
+  # once. Other events on a closed PR run no job, so each gets a group of its own. A maintainer's
+  # checkbox edits on the open PR get a per-PR cancelling group, so a flurry of ticks collapses to one
+  # rebuild. Everything else, including the bot's own body edits, shares a non-cancelling group. The
+  # label names and the `release/next` branch are hardcoded: update them here if you rename them in
+  # `ci.labels` or `ci.standingPr.branch`.
+  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (github.event.pull_request.head.ref == 'release/next' && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event.action == 'closed' && github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release:immediate') && 'standing-release-pr' || format('standing-release-pr-noop-{0}', github.run_id)) || github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'open' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
 
 permissions:
   contents: write
@@ -80,13 +91,17 @@ jobs:
           fetch-depth: 0
           token: ${{ github.token }}
 
+      - uses: pnpm/action-setup@v6
+
       - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
+          cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
-      # Using npm? Replace the line above with: npm ci
+      # Using npm? Drop pnpm/action-setup, set `cache: npm`, replace the line above with `npm ci`
+      # and `pnpm exec` with `npx`.
 
       - name: Configure git
         run: |
@@ -97,8 +112,7 @@ jobs:
         run: pnpm exec releasekit standing-pr update
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # Uncomment the env var matching your notes.releaseNotes.llm.provider.
-          # Without it, LLM enhancement falls back to ungrouped output.
+          # LLM key only needed when using the release:preview-notes label (optional).
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
@@ -124,6 +138,7 @@ jobs:
       github.event_name == 'pull_request' &&
       github.event.action == 'closed' &&
       github.event.pull_request.merged == true &&
+      github.event.pull_request.head.ref != 'release/next' &&
       contains(github.event.pull_request.labels.*.name, 'release:immediate')
     runs-on: ubuntu-latest
     steps:
@@ -132,13 +147,17 @@ jobs:
           fetch-depth: 0
           token: ${{ github.token }}
 
+      - uses: pnpm/action-setup@v6
+
       - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
+          cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
-      # Using npm? Replace the line above with: npm ci
+      # Using npm? Drop pnpm/action-setup, set `cache: npm`, replace the line above with `npm ci`
+      # and `pnpm exec` with `npx`.
 
       - name: Configure git
         run: |
@@ -182,13 +201,17 @@ jobs:
           fetch-depth: 0
           token: ${{ github.token }}
 
+      - uses: pnpm/action-setup@v6
+
       - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
+          cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
-      # Using npm? Replace the line above with: npm ci
+      # Using npm? Drop pnpm/action-setup, set `cache: npm`, replace the line above with `npm ci`
+      # and `pnpm exec` with `npx`.
 
       - name: Configure git
         run: |
@@ -202,3 +225,7 @@ jobs:
           # NODE_AUTH_TOKEN unnecessary with OIDC trusted publishing. With token-based
           # npm auth, uncomment the next line:
           # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # Provider key for LLM-enhanced release notes (uncomment your provider):
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}

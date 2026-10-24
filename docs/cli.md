@@ -33,11 +33,12 @@ Every command that produces a JSON result — `release`, `gate`, `standing-pr`, 
 }
 ```
 
-- **`data`** carries the command's payload verbatim — the envelope wraps it, never replaces it. `releasekit release --json` exposes its `VersionOutput` at `data.versionOutput`, and `releasekit version --json` at `data`. It is `null` on error, unless `publish` failed partway (see below).
+- **`data`** carries the command's payload verbatim — the envelope wraps it, never replaces it. `releasekit release --json` exposes its `VersionOutput` at `data.versionOutput`, and `releasekit version --json` at `data`. It is `null` on error, unless a publish failed partway (see below).
 - **`changed`** separates real work from a no-op:
   - A dry run is never `changed`.
   - `publish`: a registry publish or a new release commit.
   - `standing-pr publish`: registry publishes only, since the merge already made the commit. A re-run where every version was already published reports `false`.
+  - `standing-pr merge`: the merge, so `--publish` reports `true` even when every version was already published. No open standing PR reports `false`.
   - `gate` is read-only, so always `false`.
 - **`errors[]`** replaces prose-only failures in JSON mode. Each carries a stable machine `code`, a coarse `category` (its family in the table below), a `retryable` flag (only `true` for known-transient failures — a timeout, 429, or 5xx from a provider — so an agent never retries an unknown failure), and a human `message`.
 - **Stream discipline:** the envelope is the only thing on stdout; all diagnostics (progress, warnings, error text) go to stderr. Parsing stdout as JSON is always safe, and no command prompts interactively on a CI path.
@@ -57,7 +58,7 @@ releasekit publish --input version.json
 
 A bare `VersionOutput` is still accepted. Feeding a failed stage's envelope forward fails as an input error (exit 3) whose message names that stage's code, rather than a schema error about missing fields.
 
-When `publish` fails partway, its error envelope carries what already landed in `data`, reports `changed: true` if anything did, and names the failing stage in the error `message`. Re-running `publish` on the same tree resumes it: it reuses the release commit and tags already at HEAD, skips versions already on the registry, and retries the rest.
+When `publish` fails partway, its error envelope carries what already landed in `data`, reports `changed: true` if anything did, and names the failing stage in the error `message`. `release` and `standing-pr publish` report a failure in their publish stage the same way, so `data` then holds the publish output rather than their usual payload. Re-running `publish` on the same tree resumes it: it reuses the release commit and tags already at HEAD, skips versions already on the registry, and retries the rest.
 
 ### Error codes and exit codes
 
@@ -202,7 +203,7 @@ releasekit standing-pr publish --pr 123
 
 ### `releasekit standing-pr merge`
 
-Merge the open standing release PR, optionally publishing immediately.
+Merge the open standing release PR, optionally publishing immediately. Needs `GITHUB_REPOSITORY` and `GITHUB_TOKEN`, and fails without them. A merge made with a workflow's default `GITHUB_TOKEN` doesn't start other workflows, so the publish workflow won't run. Without `--publish`, set `GITHUB_TOKEN` to a personal access token or GitHub App token instead. With `--publish`, such a token also starts the publish workflow, so two runs publish the same release.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|

@@ -4,7 +4,7 @@ import { createGitCli } from '@releasekit/git';
 import { getGitHubContext } from '../git.js';
 import { forgeFor } from '../github.js';
 import { runRelease } from '../release.js';
-import { extractNotesRegions, renderNotesRegion } from '../standing-pr/notes-region.js';
+import { extractNotesRegions, renderedRegionText, renderNotesRegion } from '../standing-pr/notes-region.js';
 import {
   MANIFEST_MARKER,
   parseManifest,
@@ -161,12 +161,13 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
 
   const issue = await forge.getIssue(issueNumber);
   const draftedNotes = manifest.releaseNotes ?? {};
-  const extracted = extractNotesRegions(
-    issue.body,
-    publishableUpdates(manifest.versionOutput).map((u) => u.packageName),
+  const extracted = extractNotesRegions(issue.body, manifest.versionOutput);
+  // An untouched region may hold the truncated render, so the full drafted text wins unless the region was edited.
+  const edits = Object.fromEntries(
+    Object.entries(extracted).filter(([key, text]) => text !== renderedRegionText(key, draftedNotes[key] ?? '')),
   );
-  const editedNotes = { ...draftedNotes, ...extracted };
-  const droppedRegions = Object.keys(draftedNotes).filter((pkg) => !(pkg in extracted));
+  const editedNotes = { ...draftedNotes, ...edits };
+  const droppedRegions = Object.keys(draftedNotes).filter((pkg) => !Object.hasOwn(extracted, pkg));
   if (droppedRegions.length > 0) {
     warn(
       `Could not read the edited notes region for ${droppedRegions.join(', ')} on draft #${issueNumber} ` +

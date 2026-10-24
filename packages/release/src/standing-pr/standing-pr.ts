@@ -1,15 +1,7 @@
 import * as fs from 'node:fs';
 import { type CIConfig, DEFAULT_DEMOTE_SCOPES, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
-import {
-  deriveReleaseChannel,
-  error,
-  info,
-  markerData,
-  shouldMatchPackageTargets,
-  success,
-  warn,
-} from '@releasekit/core';
+import { deriveReleaseChannel, info, markerData, shouldMatchPackageTargets, success, warn } from '@releasekit/core';
 import {
   type Forge,
   type ForgeComment,
@@ -17,8 +9,8 @@ import {
   isBotComment,
   type PullRequestDetails,
 } from '@releasekit/forge';
-import { createGitCli } from '@releasekit/git';
-import { PipelineError } from '@releasekit/publish';
+import { createGitCli, isCommitSha } from '@releasekit/git';
+import { PipelineError, VersionPackageChangelogSchema } from '@releasekit/publish';
 import { z } from 'zod';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration, parseDuration } from '../duration.js';
@@ -34,7 +26,7 @@ import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
 import { type EventActor, getEventActor, isAuthorizedActor, type StandingPrAuthorization } from './authorization.js';
 import { makeRowChangelogRenderer, renderCombinedFooter } from './changelog-region.js';
-import { extractNotesRegions, mergeNotesRegions, renderNotesRegion } from './notes-region.js';
+import { extractNotesRegions, mergeNotesRegions, notesRegionKeys, renderNotesRegion } from './notes-region.js';
 import {
   type ChannelToggleConfig,
   cascadeDeselection,
@@ -82,6 +74,7 @@ const ManifestVersionOutputSchema = z
         })
         .passthrough(),
     ),
+    changelogs: z.array(VersionPackageChangelogSchema),
     tags: z.array(z.string()),
     baselineTags: z.array(z.string()).optional(),
   })
@@ -126,6 +119,13 @@ export interface StandingPRResult {
   prUrl?: string;
   versionOutput?: VersionOutput;
 }
+
+export interface StandingPRMergeOutput {
+  merged: true;
+  prNumber: number;
+}
+
+export type StandingPRMergeResult = ReleaseOutput | StandingPRMergeOutput | null;
 
 /** Old manifests live in open PRs: fields added after v1 must stay optional and be tolerated when absent. */
 export interface StandingPRManifest {
@@ -186,6 +186,22 @@ function isStandingPrEventRun(): boolean {
   }
 }
 
+/** The head commit in this run's event payload, when the event is about PR `prNumber`. */
+function eventPrHeadSha(prNumber: number): string | undefined {
+  const eventPath = process.env.GITHUB_EVENT_PATH;
+  if (!eventPath) {
+    return undefined;
+  }
+  try {
+    const event = JSON.parse(fs.readFileSync(eventPath, 'utf-8')) as {
+      pull_request?: { number?: number; head?: { sha?: string } };
+    };
+    return event.pull_request?.number === prNumber ? event.pull_request.head?.sha : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function resetReleaseBranch(branch: string, base: string, cwd: string): Promise<void> {
   const git = createGitCli();
   await git.fetch('origin', { cwd });
@@ -195,15 +211,36 @@ async function resetReleaseBranch(branch: string, base: string, cwd: string): Pr
   await git.resetHard(`origin/${base}`, cwd);
 }
 
-async function commitAndForcePush(branch: string, cwd: string): Promise<void> {
+const CI_SKIP_MARKER = /\[(?:skip ci|ci skip|no ci|skip actions|actions skip)\]/i;
+const FALLBACK_TITLE = 'chore: release preparation';
+
+// The squash merge on main takes the standing PR's title, from the PR or the commit depending on the repo's settings.
+function safeStandingPrTitle(rendered: string, skipPatterns: string[]): string {
+  let title = rendered;
+  if (CI_SKIP_MARKER.test(title)) {
+    warn(
+      `Standing PR title '${title}' carries a CI-skip marker, which would skip the publish; using '${FALLBACK_TITLE}'`,
+    );
+    title = FALLBACK_TITLE;
+  }
+  if (matchesSkipPattern(title, skipPatterns)) {
+    return title;
+  }
+  if (title !== FALLBACK_TITLE && matchesSkipPattern(FALLBACK_TITLE, skipPatterns)) {
+    warn(`Standing PR title '${title}' matches no release.ci.skipPatterns entry; using '${FALLBACK_TITLE}'`);
+    return FALLBACK_TITLE;
+  }
+  warn(`No release.ci.skipPatterns entry matches '${title}', so merging the standing PR triggers another update`);
+  return title;
+}
+
+async function commitAndForcePush(branch: string, subject: string, cwd: string, skipHooks: boolean): Promise<void> {
   const git = createGitCli();
   await git.addAll(cwd);
 
   const status = (await git.status({ porcelain: true, cwd })).trim();
   if (status) {
-    // Subject must match `release.ci.skipPatterns` so a later standing-pr update on this branch noops. No skip-ci
-    // token: a squash merge inherits this message, and on main it would suppress the publish workflow.
-    await git.commit('chore: release preparation', { cwd });
+    await git.commit(subject, { cwd, skipHooks });
   }
 
   await git.push({ remote: 'origin', ref: branch, forceWithLease: true, cwd });
@@ -297,14 +334,23 @@ export async function createReleaseTags(tags: string[], cwd: string): Promise<vo
   }
 }
 
-async function deleteReleaseBranch(releaseBranch: string, cwd: string): Promise<void> {
+async function deleteReleaseBranch(releaseBranch: string, cwd: string, expectedTipSha?: string): Promise<void> {
   try {
-    // The `:<branch>` delete refspec, since the git seam's leading-`-` option guard rejects `--delete`.
-    await createGitCli().push({ remote: 'origin', ref: `:${releaseBranch}`, cwd });
+    // The `:<branch>` delete refspec, since the git seam's leading-`-` option guard rejects `--delete`. The lease
+    // makes the remote refuse the delete if an update has force-pushed the branch since the merge.
+    await createGitCli().push({
+      remote: 'origin',
+      ref: `:${releaseBranch}`,
+      forceWithLease: expectedTipSha ? { ref: releaseBranch, expect: expectedTipSha } : undefined,
+      cwd,
+    });
     info(`Deleted release branch '${releaseBranch}'`);
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    if (errorMsg.includes('not found') || errorMsg.includes('does not exist')) {
+    // `stale info` when git sees the move before pushing; the others when the remote refuses it mid-update.
+    if (/stale info|cannot lock ref .*but expected|incorrect old value provided/.test(errorMsg)) {
+      info(`Kept release branch '${releaseBranch}': it has moved since the merge.`);
+    } else if (errorMsg.includes('not found') || errorMsg.includes('does not exist')) {
       info(`Release branch '${releaseBranch}' already deleted`);
     } else {
       warn(`Failed to delete release branch '${releaseBranch}': ${errorMsg}`);
@@ -517,8 +563,8 @@ export function parseManifest(commentBody: string): StandingPRManifest {
     throw new Error(`Release manifest failed validation: ${detail}. Re-run 'standing-pr update' to regenerate.`);
   }
 
-  // Passthrough keeps every field at runtime, so the cast back to the full manifest type is sound.
-  return result.data as unknown as StandingPRManifest;
+  // The validated input, not zod's copy: zod lists schema keys first, which breaks order-sensitive comparisons.
+  return parsed as StandingPRManifest;
 }
 
 export async function findManifestComment(forge: Forge, prNumber: number): Promise<ForgeComment | null> {
@@ -1159,21 +1205,34 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     return closeEmptyQueue(existingStandingPr, githubContext);
   }
 
-  const previewPackages = publishableUpdates(versionOutput).map((u) => u.packageName);
+  const notesKeys = notesRegionKeys(versionOutput);
   let editedNotes: Record<string, string> = {};
   if (previewNotesEnabled && liveBody) {
-    editedNotes = extractNotesRegions(liveBody, previewPackages);
+    editedNotes = extractNotesRegions(liveBody, versionOutput);
   }
 
-  // Notes are seeded once when the label is applied, then preserved, so skip the LLM when every package has a region.
+  // Notes are seeded once when the label is applied, then preserved, so skip the LLM when every notes key has a region.
   info('Generating changelog...');
-  const allPackagesHaveRegions = previewPackages.length > 0 && previewPackages.every((p) => p in editedNotes);
-  const generateReleaseNotes = previewNotesEnabled && !allPackagesHaveRegions;
+  const allNotesKeysHaveRegions = notesKeys.length > 0 && notesKeys.every((key) => Object.hasOwn(editedNotes, key));
+  const generateReleaseNotes = previewNotesEnabled && !allNotesKeysHaveRegions;
   const notesOptions = { ...writeOptions, skipNotes: false, skipReleaseNotes: !generateReleaseNotes };
   const notesResult = await runNotesStep(versionOutput, notesOptions);
 
+  const countableUpdates = publishableUpdates(versionOutput);
+  const count = countableUpdates.length;
+  const firstUpdate = countableUpdates[0];
+  const isSync = versionOutput.strategy === 'sync';
+  /* biome-ignore lint/suspicious/noTemplateCurlyInString: template string uses config variable */
+  const defaultTitle = isSync ? 'chore: release ${tag}' : 'chore: release ${count} package(s)';
+  const titleTemplate = standingPrConfig?.title ?? defaultTitle;
+  const renderedTitle = titleTemplate
+    .replace(/\$\{count\}/g, String(count))
+    .replace(/\$\{version\}/g, firstUpdate?.newVersion ?? '')
+    .replace(/\$\{tag\}/g, syncVersionDisplay(versionOutput));
+
+  const title = safeStandingPrTitle(renderedTitle, skipPatterns);
   info(`Committing and pushing '${branch}'...`);
-  await commitAndForcePush(branch, cwd);
+  await commitAndForcePush(branch, title, cwd, releaseKitConfig.git?.skipHooks ?? false);
 
   const releaseBranchSha = await getHeadSha(cwd);
 
@@ -1185,19 +1244,6 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   }
 
   const forge = forgeFor(githubContext);
-
-  // Both default titles start with `chore: release ` so their squash merge matches the default skip pattern.
-  const countableUpdates = publishableUpdates(versionOutput);
-  const count = countableUpdates.length;
-  const firstUpdate = countableUpdates[0];
-  const isSync = versionOutput.strategy === 'sync';
-  /* biome-ignore lint/suspicious/noTemplateCurlyInString: template string uses config variable */
-  const defaultTitle = isSync ? 'chore: release ${tag}' : 'chore: release ${count} package(s)';
-  const titleTemplate = standingPrConfig?.title ?? defaultTitle;
-  const title = titleTemplate
-    .replace(/\$\{count\}/g, String(count))
-    .replace(/\$\{version\}/g, firstUpdate?.newVersion ?? '')
-    .replace(/\$\{tag\}/g, syncVersionDisplay(versionOutput));
 
   const labels = standingPrConfig?.labels ?? ['release'];
 
@@ -1584,10 +1630,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   // From the body, not the manifest: the manifest holds machine state only.
   let editedNotes: Record<string, string> = {};
   if (livePr) {
-    editedNotes = extractNotesRegions(
-      livePr.body ?? '',
-      publishableUpdates(manifest.versionOutput).map((u) => u.packageName),
-    );
+    editedNotes = extractNotesRegions(livePr.body ?? '', manifest.versionOutput);
   }
 
   let releaseNotes: Record<string, string> = {};
@@ -1671,7 +1714,17 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   await refreshFeederPreviews({ config: options.config, projectDir: cwd });
 
   if (deleteBranchOnMerge) {
-    await deleteReleaseBranch(releaseBranch, cwd);
+    const mergedHead = livePr?.headSha ?? eventPrHeadSha(prNumber);
+    if (mergedHead && isCommitSha(mergedHead)) {
+      await deleteReleaseBranch(releaseBranch, cwd, mergedHead);
+    } else {
+      const problem = mergedHead
+        ? `PR #${prNumber}'s head '${mergedHead}' isn't a commit SHA`
+        : `couldn't read PR #${prNumber}'s head commit`;
+      warn(
+        `Kept release branch '${releaseBranch}': ${problem}, so can't tell whether an update has moved it since the merge.`,
+      );
+    }
   }
 
   return {
@@ -1777,7 +1830,7 @@ export async function runStandingPRPublish(
 export async function runStandingPRMerge(
   options: StandingPROptions,
   flags: { publish: boolean },
-): Promise<ReleaseOutput | null> {
+): Promise<StandingPRMergeResult> {
   const cwd = options.projectDir;
 
   const releaseKitConfig = loadReleaseKitConfig({ cwd, configPath: options.config });
@@ -1788,8 +1841,9 @@ export async function runStandingPRMerge(
 
   const githubContext = getGitHubContext();
   if (!githubContext?.token) {
-    error('No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available');
-    return null;
+    throw new Error(
+      'No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available, so the standing PR cannot be merged.',
+    );
   }
 
   const forge = forgeFor(githubContext);
@@ -1814,14 +1868,13 @@ export async function runStandingPRMerge(
   }
   success(`Standing PR #${pr.number} merged`);
 
-  // When publishing, publishFromManifest deletes it.
-  if (!flags.publish && deleteBranchOnMerge) {
-    await deleteReleaseBranch(branch, cwd);
-  }
-
   if (!flags.publish) {
-    return null;
+    if (deleteBranchOnMerge) {
+      await deleteReleaseBranch(branch, cwd);
+    }
+    return { merged: true, prNumber: pr.number };
   }
 
+  // publishFromManifest deletes the branch only after a clean publish.
   return publishFromManifest(pr.number, options);
 }

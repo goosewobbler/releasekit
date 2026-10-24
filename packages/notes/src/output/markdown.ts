@@ -367,23 +367,26 @@ export function renderMarkdown(contexts: TemplateContext[], options?: FormatVers
   return sections.join('\n');
 }
 
-export function prependVersion(existingPath: string, context: TemplateContext, options?: FormatVersionOptions): string {
-  let existing = '';
-
-  if (fs.existsSync(existingPath)) {
-    existing = fs.readFileSync(existingPath, 'utf-8');
-
-    const headerEnd = existing.indexOf('\n## ');
-    if (headerEnd >= 0) {
-      const header = existing.slice(0, headerEnd);
-      const body = existing.slice(headerEnd + 1);
-
-      const newVersion = formatVersion(context, options);
-      return `${header}\n\n${newVersion}\n${body}`;
-    }
+export function prependVersions(
+  existingPath: string,
+  contexts: TemplateContext[],
+  options?: FormatVersionOptions,
+): string {
+  const existing = fs.existsSync(existingPath) ? fs.readFileSync(existingPath, 'utf-8') : '';
+  if (existing.trim() === '') {
+    return renderMarkdown(contexts, options);
   }
 
-  return renderMarkdown([context]);
+  const sections = contexts.map((context) => formatVersion(context, options)).join('\n');
+  if (existing.startsWith('## ')) {
+    return `${sections}\n${existing}`;
+  }
+
+  const headerEnd = existing.indexOf('\n## ');
+  if (headerEnd === -1) {
+    return `${existing.trimEnd()}\n\n\n${sections}`;
+  }
+  return `${existing.slice(0, headerEnd)}\n\n${sections}\n${existing.slice(headerEnd + 1)}`;
 }
 
 export function writeMarkdown(
@@ -413,18 +416,8 @@ export function writeMarkdown(
     return;
   }
 
-  if (config.updateStrategy !== 'regenerate' && fs.existsSync(outputPath) && contexts.length === 1) {
-    const firstContext = contexts[0];
-    if (firstContext) {
-      const updated = prependVersion(outputPath, firstContext, options);
-      fs.writeFileSync(outputPath, updated, 'utf-8');
-    }
-  } else {
-    // A multi-package changelog 'root' release overwrites this file with just the current release's
-    // sections - prior history is lost. The aggregating-prepend path (writeMonorepoChangelogs 'root'
-    // branch) is unreachable from the pipeline.
-    fs.writeFileSync(outputPath, content, 'utf-8');
-  }
+  const updated = config.updateStrategy === 'regenerate' ? content : prependVersions(outputPath, contexts, options);
+  fs.writeFileSync(outputPath, updated, 'utf-8');
 
   success(`${label} written to ${outputPath}`);
 }
