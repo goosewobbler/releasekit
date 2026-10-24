@@ -152,7 +152,7 @@ releasekit release --draft
 releasekit release --from-draft 123
 ```
 
-Re-running `--draft` updates the same open draft issue in place (it never stacks). The draft is pinned to the commit it was computed at: if `main` moves before you dispatch, `--from-draft` refuses and asks you to re-run `--draft`. Both phases need a `GITHUB_TOKEN` with `issues: write`.
+Re-running `--draft` updates the same open draft issue in place (it never stacks). The draft is pinned to the commit it was computed at: if `main` moves before you dispatch, `--from-draft` refuses and asks you to re-run `--draft`. It also refuses a manifest comment the release bot didn't write, so run `--draft` with a bot token (the workflow's `GITHUB_TOKEN` or a GitHub App's), not a personal one. After a refusal, re-running `--draft` opens a fresh draft. Both phases need a `GITHUB_TOKEN` with `issues: write`.
 
 ---
 

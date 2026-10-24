@@ -1,5 +1,5 @@
 import type { VersionOutput } from '@releasekit/core';
-import { createFakeForge, type FakeForge } from '@releasekit/forge';
+import { type CommentAuthor, createFakeForge, type FakeForge } from '@releasekit/forge';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { serializeManifest } from '../../src/standing-pr/standing-pr.js';
 
@@ -56,6 +56,8 @@ const manifest = {
   baseSha: 'sha-draft',
 };
 const validManifestComment = serializeManifest(manifest);
+const botAuthor: CommentAuthor = { login: 'github-actions[bot]', type: 'Bot' };
+const humanAuthor: CommentAuthor = { login: 'attacker', type: 'User' };
 
 const baseOptions = {
   dryRun: false,
@@ -112,8 +114,8 @@ describe('runReleaseDraft', () => {
   it('should reuse the existing open draft issue (with a manifest comment) instead of stacking a new one', async () => {
     const seeded = createFakeForge({
       openIssues: [{ number: 7, url: 'u', labels: [DRAFT_LABEL] }],
-      // A real draft carries a decodable manifest comment - that's what marks it as ours to reuse.
-      comments: [{ id: 1, body: validManifestComment, prNumber: 7 }],
+      // A real draft carries a decodable, bot-authored manifest comment - that's what marks it as ours to reuse.
+      comments: [{ id: 1, body: validManifestComment, prNumber: 7, user: botAuthor }],
     });
     mockForgeFor.mockReturnValue(seeded);
 
@@ -148,6 +150,20 @@ describe('runReleaseDraft', () => {
     expect(seeded.updatedIssues.map((u) => u.issueNumber)).not.toContain(7);
   });
 
+  it('should NOT reuse an issue whose only manifest comment is human-authored', async () => {
+    const seeded = createFakeForge({
+      openIssues: [{ number: 7, url: 'u', labels: [DRAFT_LABEL] }],
+      comments: [{ id: 1, body: validManifestComment, prNumber: 7, user: humanAuthor }],
+    });
+    mockForgeFor.mockReturnValue(seeded);
+
+    await runReleaseDraft(baseOptions);
+
+    expect(seeded.createdIssues).toHaveLength(1);
+    expect(seeded.updatedIssues.map((u) => u.issueNumber)).not.toContain(7);
+    expect(seeded.upsertedComments.map((c) => c.prNumber)).not.toContain(7);
+  });
+
   it('should create no issue when there are no releasable changes', async () => {
     mockRunRelease.mockResolvedValue(null);
     const result = await runReleaseDraft(baseOptions);
@@ -173,10 +189,10 @@ describe('publishFromDraft', () => {
     publishFromDraft = mod.publishFromDraft;
   });
 
-  function forgeWithDraft(body: string): FakeForge {
+  function forgeWithDraft(body: string, user?: CommentAuthor): FakeForge {
     return createFakeForge({
       issues: { 9: { body, title: 'Release draft', labels: ['release:draft'], isPullRequest: false } },
-      comments: [{ id: 1, body: serializeManifest(manifest), prNumber: 9 }],
+      comments: [{ id: 1, body: serializeManifest(manifest), prNumber: 9, user }],
       openIssues: [{ number: 9, url: 'u', labels: ['release:draft'] }],
     });
   }
@@ -193,6 +209,27 @@ describe('publishFromDraft', () => {
       expect.objectContaining({ dryRun: false, editedNotes: { '@scope/core': '- EDITED BY HUMAN' } }),
     );
     expect(forge.updatedIssues).toContainEqual({ issueNumber: 9, changes: { state: 'closed' } });
+  });
+
+  it('should publish from a bot-authored manifest comment', async () => {
+    const forge = forgeWithDraft('## Release Notes', botAuthor);
+    mockForgeFor.mockReturnValue(forge);
+
+    await publishFromDraft(9, baseOptions);
+
+    expect(mockRunRelease).toHaveBeenCalledWith(expect.objectContaining({ dryRun: false }));
+    expect(forge.updatedIssues).toContainEqual({ issueNumber: 9, changes: { state: 'closed' } });
+  });
+
+  it('should refuse a manifest comment the bot did not write, before computing the release', async () => {
+    const forge = forgeWithDraft('## Release Notes', humanAuthor);
+    mockForgeFor.mockReturnValue(forge);
+
+    await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(
+      /authored by 'attacker', not the release bot.*Re-run 'releasekit release --draft'/,
+    );
+    expect(mockRunRelease).not.toHaveBeenCalled();
+    expect(forge.updatedIssues).toHaveLength(0);
   });
 
   it('should read a sync draft edit from the region keyed by the changelog', async () => {
