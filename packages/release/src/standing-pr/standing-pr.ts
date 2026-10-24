@@ -82,6 +82,7 @@ const ManifestVersionOutputSchema = z
         })
         .passthrough(),
     ),
+    changelogs: z.array(z.object({ packageName: z.string() }).passthrough()),
     tags: z.array(z.string()),
     baselineTags: z.array(z.string()).optional(),
   })
@@ -1162,7 +1163,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   const notesKeys = notesRegionKeys(versionOutput);
   let editedNotes: Record<string, string> = {};
   if (previewNotesEnabled && liveBody) {
-    editedNotes = extractNotesRegions(liveBody, notesKeys);
+    editedNotes = extractNotesRegions(liveBody, versionOutput);
   }
 
   // Notes are seeded once when the label is applied, then preserved, so skip the LLM when every notes key has a region.
@@ -1584,7 +1585,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   // From the body, not the manifest: the manifest holds machine state only.
   let editedNotes: Record<string, string> = {};
   if (livePr) {
-    editedNotes = extractNotesRegions(livePr.body ?? '', notesRegionKeys(manifest.versionOutput));
+    editedNotes = extractNotesRegions(livePr.body ?? '', manifest.versionOutput);
   }
 
   let releaseNotes: Record<string, string> = {};

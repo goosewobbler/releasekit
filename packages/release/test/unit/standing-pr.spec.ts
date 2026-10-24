@@ -2992,32 +2992,22 @@ describe('publishFromManifest', () => {
 
     await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
 
-    expect(vi.mocked(runPublishStep).mock.calls[0]?.[2]).toMatchObject({ monorepo: 'EDITED SYNC NOTES' });
+    expect(vi.mocked(runPublishStep).mock.calls[0]?.[2]).toEqual({ monorepo: 'EDITED SYNC NOTES' });
   });
 
-  it('should key notes by package name when the manifest carries no changelogs', async () => {
-    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
-    vi.mocked(runNotesStep).mockResolvedValue({
-      packageNotes: {},
-      releaseNotes: { '@scope/core': 'REGENERATED at merge' },
-      files: [],
-    });
-    vi.mocked(runPublishStep).mockResolvedValue({
-      npm: [],
-      cargo: [],
-      githubReleases: [],
-      git: { committed: true, tags: [], pushed: true },
-    } as unknown as Awaited<ReturnType<typeof runPublishStep>>);
-
+  it('should refuse a manifest without changelogs before tagging or publishing anything', async () => {
+    const { runPublishStep } = await import('../../src/steps.js');
     const { changelogs: _changelogs, ...versionOutput } = baseManifest.versionOutput;
     await mockForge({
       comments: [{ id: 77, body: serializeManifest({ ...baseManifest, versionOutput } as StandingPRManifest) }],
       pullRequests: { 99: { body: renderNotesRegion({ '@scope/core': 'EDITED AT MERGE' }), labels: [] } },
     });
 
-    await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
-
-    expect(vi.mocked(runPublishStep).mock.calls[0]?.[2]).toMatchObject({ '@scope/core': 'EDITED AT MERGE' });
+    await expect(
+      publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false }),
+    ).rejects.toThrow('is invalid or incompatible');
+    expect(runPublishStep).not.toHaveBeenCalled();
+    expect(fakeGit.tagged).toHaveLength(0);
   });
 
   it('should refuse to publish when a forged manifest bumps a version beyond the merged source', async () => {

@@ -4,7 +4,7 @@ import { createGitCli } from '@releasekit/git';
 import { getGitHubContext } from '../git.js';
 import { forgeFor } from '../github.js';
 import { runRelease } from '../release.js';
-import { extractNotesRegions, notesRegionKeys, renderNotesRegion } from '../standing-pr/notes-region.js';
+import { extractNotesRegions, renderNotesRegion } from '../standing-pr/notes-region.js';
 import {
   MANIFEST_MARKER,
   parseManifest,
@@ -161,7 +161,7 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
 
   const issue = await forge.getIssue(issueNumber);
   const draftedNotes = manifest.releaseNotes ?? {};
-  const extracted = extractNotesRegions(issue.body, notesRegionKeys(manifest.versionOutput));
+  const extracted = extractNotesRegions(issue.body, manifest.versionOutput);
   const editedNotes = { ...draftedNotes, ...extracted };
   const droppedRegions = Object.keys(draftedNotes).filter((pkg) => !Object.hasOwn(extracted, pkg));
   if (droppedRegions.length > 0) {

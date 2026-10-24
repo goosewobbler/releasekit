@@ -39,18 +39,18 @@ export function renderNotesRegion(notesByPackage: Record<string, string>): strin
 
 /** Notes are keyed by changelog packageName, which is `monorepo` for a sync release without `mainPackage`. */
 export function notesRegionKeys(versionOutput: VersionOutput): string[] {
-  const fromChangelogs = (versionOutput.changelogs ?? [])
+  const fromChangelogs = versionOutput.changelogs
     .map((changelog) => changelog.packageName)
-    .filter((name): name is string => typeof name === 'string' && name.length > 0);
+    .filter((name) => name.length > 0);
   if (fromChangelogs.length > 0) {
     return fromChangelogs;
   }
   return publishableUpdates(versionOutput).map((update) => update.packageName);
 }
 
-export function extractNotesRegions(body: string, packageNames: string[]): Record<string, string> {
+export function extractNotesRegions(body: string, versionOutput: VersionOutput): Record<string, string> {
   const result: Record<string, string> = {};
-  for (const pkg of packageNames) {
+  for (const pkg of notesRegionKeys(versionOutput)) {
     const region = extractNotesRegion(body, pkg);
     if (region !== undefined && region.length > 0) {
       result[pkg] = region;
