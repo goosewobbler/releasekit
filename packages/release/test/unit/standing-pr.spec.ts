@@ -3,7 +3,7 @@ import { createFakeForge, type FakeForge, type FakeForgeSeed } from '@releasekit
 import { FakeGit, type FakeGitSeed, type GitLogOptions } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderFailureReport, renderResolvedReport } from '../../src/failure-report/failure-report.js';
-import { renderNotesRegion } from '../../src/standing-pr/notes-region.js';
+import { MAX_NOTES_CHARS_PER_PACKAGE, renderNotesRegion } from '../../src/standing-pr/notes-region.js';
 import type { StandingPRManifest } from '../../src/standing-pr/standing-pr.js';
 import {
   createReleaseTags,
@@ -121,6 +121,20 @@ function createMockVersionOutput(
     tags: updates.map((u) => `${u.packageName}@v${u.newVersion}`),
     commitMessage: `chore: release ${updates.map((u) => u.packageName).join(', ')}`,
     sharedEntries: [],
+  };
+}
+
+function withPackageChangelogs<T extends ReturnType<typeof createMockVersionOutput>>(versionOutput: T) {
+  return {
+    ...versionOutput,
+    changelogs: versionOutput.updates.map((u) => ({
+      packageName: u.packageName,
+      version: u.newVersion,
+      previousVersion: null,
+      revisionRange: 'HEAD',
+      repoUrl: null,
+      entries: [],
+    })),
   };
 }
 
@@ -2247,7 +2261,9 @@ describe('runStandingPRUpdate', () => {
   describe('preview-notes editable region', () => {
     async function setupPreviewPR(opts: { labels: string[]; liveBody?: string; freshNotes?: Record<string, string> }) {
       const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
-      const versionOutput = createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]);
+      const versionOutput = withPackageChangelogs(
+        createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
+      );
       vi.mocked(runVersionStep)
         .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>)
         .mockResolvedValueOnce(versionOutput as unknown as Awaited<ReturnType<typeof runVersionStep>>);
@@ -2943,14 +2959,41 @@ describe('publishFromManifest', () => {
       git: { committed: true, tags: [], pushed: true },
     } as unknown as Awaited<ReturnType<typeof runPublishStep>>);
 
+    const manifest = { ...baseManifest, versionOutput: withPackageChangelogs(baseManifest.versionOutput) };
     await mockForge({
-      comments: [{ id: 77, body: serializeManifest(baseManifest) }],
+      comments: [{ id: 77, body: serializeManifest(manifest) }],
       pullRequests: { 99: { body: renderNotesRegion({ '@scope/core': 'EDITED AT MERGE' }), labels: [] } },
     });
 
     await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
 
     expect(vi.mocked(runPublishStep).mock.calls[0]?.[2]).toMatchObject({ '@scope/core': 'EDITED AT MERGE' });
+  });
+
+  it('should publish the full regenerated notes when the region still ends in the truncation note', async () => {
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({
+      packageNotes: {},
+      releaseNotes: { '@scope/core': 'FULL REGENERATED notes' },
+      files: [],
+    });
+    vi.mocked(runPublishStep).mockResolvedValue({
+      npm: [],
+      cargo: [],
+      githubReleases: [],
+      git: { committed: true, tags: [], pushed: true },
+    } as unknown as Awaited<ReturnType<typeof runPublishStep>>);
+
+    const manifest = { ...baseManifest, versionOutput: withPackageChangelogs(baseManifest.versionOutput) };
+    const oversized = 'x'.repeat(MAX_NOTES_CHARS_PER_PACKAGE + 100);
+    await mockForge({
+      comments: [{ id: 77, body: serializeManifest(manifest) }],
+      pullRequests: { 99: { body: renderNotesRegion({ '@scope/core': oversized }), labels: [] } },
+    });
+
+    await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(vi.mocked(runPublishStep).mock.calls[0]?.[2]).toEqual({ '@scope/core': 'FULL REGENERATED notes' });
   });
 
   it('should publish a sync monorepo notes edit from the PR body', async () => {

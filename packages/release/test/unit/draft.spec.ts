@@ -33,7 +33,16 @@ const context = { owner: 'o', repo: 'r', token: 'tok', sha: null };
 const versionOutput: VersionOutput = {
   dryRun: false,
   updates: [{ packageName: '@scope/core', newVersion: '1.2.0', filePath: 'packages/core/package.json' }],
-  changelogs: [],
+  changelogs: [
+    {
+      packageName: '@scope/core',
+      version: '1.2.0',
+      previousVersion: '1.1.0',
+      revisionRange: 'v1.1.0..HEAD',
+      repoUrl: null,
+      entries: [],
+    },
+  ],
   commitMessage: 'chore: release 1.2.0',
   tags: ['v1.2.0'],
 };

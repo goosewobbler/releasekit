@@ -82,7 +82,15 @@ const ManifestVersionOutputSchema = z
         })
         .passthrough(),
     ),
-    changelogs: z.array(z.object({ packageName: z.string() }).passthrough()),
+    changelogs: z.array(
+      z
+        .object({
+          packageName: z.string(),
+          version: z.string(),
+          entries: z.array(z.object({ type: z.string(), description: z.string() }).passthrough()),
+        })
+        .passthrough(),
+    ),
     tags: z.array(z.string()),
     baselineTags: z.array(z.string()).optional(),
   })

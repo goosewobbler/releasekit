@@ -84,6 +84,12 @@ describe('notes-region', () => {
       expect(extractNotesRegions('just a normal PR body', keyedBy('pkg'))).toEqual({});
     });
 
+    it('should skip a region that still ends in the truncation note', () => {
+      const body = renderNotesRegion({ pkg: 'x'.repeat(MAX_NOTES_CHARS_PER_PACKAGE + 100) });
+
+      expect(extractNotesRegions(body, keyedBy('pkg'))).toEqual({});
+    });
+
     it('should preserve human edits inside the markers', () => {
       const seeded = renderNotesRegion({ pkg: 'original' });
       const edited = seeded.replace('original', 'human edited this');

@@ -21,19 +21,35 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-/** Order-independent arrays are sorted so a reordering alone never reads as drift. */
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(canonical);
+  }
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, nested]) => [key, canonical(nested)]),
+    );
+  }
+  return value;
+}
+
+/** Order-independent arrays and object keys are sorted, since parsing the manifest can reorder fields. */
 function planFingerprint(v: VersionOutput): string {
   const byName = <T extends { packageName: string }>(arr: readonly T[]) =>
     [...arr].sort((a, b) => a.packageName.localeCompare(b.packageName));
-  return JSON.stringify({
-    strategy: v.strategy ?? null,
-    commitMessage: v.commitMessage ?? null,
-    tags: [...v.tags].sort(),
-    baselineTags: [...(v.baselineTags ?? [])].sort(),
-    updates: byName(v.updates),
-    changelogs: byName(v.changelogs),
-    sharedEntries: v.sharedEntries ?? [],
-  });
+  return JSON.stringify(
+    canonical({
+      strategy: v.strategy ?? null,
+      commitMessage: v.commitMessage ?? null,
+      tags: [...v.tags].sort(),
+      baselineTags: [...(v.baselineTags ?? [])].sort(),
+      updates: byName(v.updates),
+      changelogs: byName(v.changelogs),
+      sharedEntries: v.sharedEntries ?? [],
+    }),
+  );
 }
 
 /**

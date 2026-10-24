@@ -1,5 +1,4 @@
 import { extractNotesRegion, type VersionOutput, wrapNotesRegion } from '@releasekit/core';
-import { publishableUpdates } from '../version-display.js';
 
 /** Edits are read back by marker slicing, never by parsing prose, so they survive the body being regenerated. */
 const REGION_HEADING = '## Release Notes';
@@ -11,7 +10,8 @@ const REGION_HINT =
  * past GitHub's limit and wedge every update.
  */
 export const MAX_NOTES_CHARS_PER_PACKAGE = 8000;
-const NOTES_TRUNCATION_MARKER = '\n\n…(truncated)';
+const TRUNCATION_NOTE = '…(truncated)';
+const NOTES_TRUNCATION_MARKER = `\n\n${TRUNCATION_NOTE}`;
 
 export function truncatePackageNotes(notes: string): string {
   if (notes.length <= MAX_NOTES_CHARS_PER_PACKAGE) {
@@ -39,20 +39,15 @@ export function renderNotesRegion(notesByPackage: Record<string, string>): strin
 
 /** Notes are keyed by changelog packageName, which is `monorepo` for a sync release without `mainPackage`. */
 export function notesRegionKeys(versionOutput: VersionOutput): string[] {
-  const fromChangelogs = versionOutput.changelogs
-    .map((changelog) => changelog.packageName)
-    .filter((name) => name.length > 0);
-  if (fromChangelogs.length > 0) {
-    return fromChangelogs;
-  }
-  return publishableUpdates(versionOutput).map((update) => update.packageName);
+  return versionOutput.changelogs.map((changelog) => changelog.packageName).filter((name) => name.length > 0);
 }
 
 export function extractNotesRegions(body: string, versionOutput: VersionOutput): Record<string, string> {
   const result: Record<string, string> = {};
   for (const pkg of notesRegionKeys(versionOutput)) {
     const region = extractNotesRegion(body, pkg);
-    if (region !== undefined && region.length > 0) {
+    // Still ending in the truncation note means nobody edited it, so the full fresh notes should win.
+    if (region !== undefined && region.length > 0 && !region.trimEnd().endsWith(TRUNCATION_NOTE)) {
       result[pkg] = region;
     }
   }
