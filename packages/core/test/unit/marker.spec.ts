@@ -52,15 +52,21 @@ describe('marker region', () => {
 
   it('should wrap content and extract it back', () => {
     const wrapped = wrapMarkerRegion('edited notes', open, close);
-    expect(extractMarkerRegion(`before\n${wrapped}\nafter`, open, close)).toBe('edited notes');
+    expect(extractMarkerRegion(`before\n${wrapped}\nafter`, open, close)).toEqual({
+      content: 'edited notes',
+      closed: true,
+    });
   });
 
   it('should return undefined when the opener is absent', () => {
     expect(extractMarkerRegion('nothing here', open, close)).toBeUndefined();
   });
 
-  it('should fall back to everything after the opener when the closer is missing', () => {
-    expect(extractMarkerRegion(`${open}\n\nlegacy body content`, open, close)).toBe('legacy body content');
+  it('should flag a region whose closer is missing as unclosed', () => {
+    expect(extractMarkerRegion(`${open}\n\nrest of the body`, open, close)).toEqual({
+      content: 'rest of the body',
+      closed: false,
+    });
   });
 });
 

@@ -143,6 +143,22 @@ function withPackageChangelogs<T extends ReturnType<typeof createMockVersionOutp
 }
 
 const MANIFEST_MARKER = '<!-- releasekit-manifest -->';
+const MERGE_HINT = '> Merge this PR to publish. The release will be triggered automatically.';
+
+function twoPackageOutput() {
+  return withPackageChangelogs(
+    createMockVersionOutput([
+      { packageName: '@scope/a', newVersion: '1.0.0' },
+      { packageName: '@scope/b', newVersion: '2.0.0' },
+    ]),
+  );
+}
+
+/** `@scope/a`'s region has lost its end marker, so a lenient read would run on through `@scope/b` and the tail. */
+function bodyMissingEndMarker(): string {
+  const regions = renderNotesRegion({ '@scope/a': 'EDIT A', '@scope/b': 'EDIT B' });
+  return [regions.replace('<!-- releasekit-notes-end:@scope/a -->', ''), '---', MERGE_HINT].join('\n');
+}
 
 async function mockForge(seed: FakeForgeSeed = {}): Promise<FakeForge> {
   const { forgeFor } = await import('../../src/github.js');
@@ -2486,6 +2502,36 @@ describe('runStandingPRUpdate', () => {
       expect(body).not.toContain('REGENERATED notes');
     });
 
+    it('should regenerate a region whose end marker was deleted rather than swallow the rest of the body', async () => {
+      const { runVersionStep, runNotesStep } = await import('../../src/steps.js');
+      vi.mocked(runVersionStep).mockResolvedValue(
+        twoPackageOutput() as unknown as Awaited<ReturnType<typeof runVersionStep>>,
+      );
+      vi.mocked(runNotesStep).mockResolvedValue({
+        packageNotes: {},
+        releaseNotes: { '@scope/a': 'FRESH A', '@scope/b': 'FRESH B' },
+        files: [],
+      });
+      const forge = await mockForge({
+        standingPR: openStandingPR(99, ['release', 'release:preview-notes']),
+        pullRequests: { 99: { body: bodyMissingEndMarker(), labels: [] } },
+      });
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+      onTestFinished(() => logged.mockRestore());
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      expect(logged.mock.calls.map(([line]) => String(line))).toContainEqual(
+        expect.stringContaining('`@scope/a` is missing its end marker'),
+      );
+      expect(vi.mocked(runNotesStep).mock.calls.at(-1)?.[1]).toMatchObject({ skipReleaseNotes: false });
+      const body = forge.updatedPullRequests.at(-1)?.changes.body as string;
+      expect(body).toContain('<!-- releasekit-notes:@scope/a -->\n\nFRESH A\n\n<!-- releasekit-notes-end:@scope/a -->');
+      expect(body).toContain('<!-- releasekit-notes:@scope/b -->\n\nEDIT B\n\n<!-- releasekit-notes-end:@scope/b -->');
+      expect(body.split(MERGE_HINT)).toHaveLength(2);
+      expect(body).not.toContain('&lt;!-- releasekit-notes');
+    });
+
     it('should not add a notes region when the preview label is absent', async () => {
       const { forge } = await setupPreviewPR({ labels: ['release'], freshNotes: {} });
 
@@ -3241,6 +3287,36 @@ describe('publishFromManifest', () => {
     await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
 
     expect(vi.mocked(runPublishStep).mock.calls[0]?.[2]).toEqual({ monorepo: 'EDITED SYNC NOTES' });
+  });
+
+  it('should not publish other regions or the footer as notes when a region lost its end marker', async () => {
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({
+      packageNotes: {},
+      releaseNotes: { '@scope/a': 'REGENERATED A', '@scope/b': 'REGENERATED B' },
+      files: [],
+    });
+    vi.mocked(runPublishStep).mockResolvedValue({
+      npm: [],
+      cargo: [],
+      githubReleases: [],
+      git: { committed: true, tags: [], pushed: true },
+    } as unknown as Awaited<ReturnType<typeof runPublishStep>>);
+    mockGetWorkspacePackageVersions.mockResolvedValue({ '@scope/a': '1.0.0', '@scope/b': '2.0.0' });
+
+    await mockForge({
+      comments: [{ id: 77, body: serializeManifest({ ...baseManifest, versionOutput: twoPackageOutput() }) }],
+      pullRequests: { 99: { body: bodyMissingEndMarker(), labels: [] } },
+    });
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    onTestFinished(() => logged.mockRestore());
+
+    await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(vi.mocked(runPublishStep).mock.calls[0]?.[2]).toEqual({ '@scope/a': 'REGENERATED A', '@scope/b': 'EDIT B' });
+    expect(logged.mock.calls.map(([line]) => String(line))).toContainEqual(
+      expect.stringContaining('`@scope/a` is missing its end marker'),
+    );
   });
 
   it('should refuse a manifest without changelogs before tagging or publishing anything', async () => {
