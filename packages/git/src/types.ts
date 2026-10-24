@@ -12,10 +12,16 @@ export interface GitPushOptions {
   /** A ref or refspec, e.g. `HEAD:release/next`. */
   ref?: string;
   force?: boolean;
-  forceWithLease?: boolean;
+  /** With a lease, the push only succeeds while the remote `ref` is still at `expect`. */
+  forceWithLease?: boolean | GitPushLease;
   tags?: boolean;
   cwd?: string;
   timeoutMs?: number;
+}
+
+export interface GitPushLease {
+  ref: string;
+  expect: string;
 }
 
 export interface GitCommitOptions {
@@ -86,8 +92,6 @@ export interface Git {
   describeTags(cwd?: string): Promise<string | null>;
   /** Whether `ref` resolves to a commit. */
   refExists(ref: string, cwd?: string): Promise<boolean>;
-  /** Commit SHA for `ref` (throws {@link GitError} when the ref does not resolve). */
-  resolveRef(ref: string, cwd?: string): Promise<string>;
   isAncestor(ancestor: string, ref: string, cwd?: string): Promise<boolean>;
   countCommits(range: string, opts?: GitCountCommitsOptions): Promise<number>;
   log(opts: GitLogOptions): Promise<string>;

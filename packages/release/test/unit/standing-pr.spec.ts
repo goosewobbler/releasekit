@@ -48,8 +48,6 @@ vi.mock('@releasekit/git', async (importOriginal) => {
 function setupGit(
   seed: {
     headSha?: string;
-    existingRefs?: string[];
-    refShas?: Record<string, string>;
     subject?: string;
     remoteBranches?: Record<string, string[]>;
     ancestors?: FakeGitSeed['ancestors'];
@@ -62,8 +60,6 @@ function setupGit(
     status: seed.status,
     // Default to "is an ancestor" so the manifest baseSha ancestry guard passes on the common publish path.
     ancestors: seed.ancestors ?? (() => true),
-    existingRefs: seed.existingRefs,
-    refShas: seed.refShas,
   });
   fakeGit.subjects = [seed.subject ?? 'feat: some feature'];
   return fakeGit;
@@ -269,6 +265,11 @@ describe('serializeManifest / parseManifest', () => {
   it('should throw when schemaVersion is incompatible', () => {
     const wrongVersion = serializeManifest({ ...baseManifest, schemaVersion: 99 as unknown as 1 });
     expect(() => parseManifest(wrongVersion)).toThrow(/incompatible/);
+  });
+
+  it('should reject a releaseBranchSha that is not a string', () => {
+    const bad = serializeManifest({ ...baseManifest, releaseBranchSha: 42 as unknown as string });
+    expect(() => parseManifest(bad)).toThrow(/failed validation: releaseBranchSha/);
   });
 
   it('should accept a v1 manifest without firstUpdatedAt (backward compat)', () => {
@@ -2222,6 +2223,21 @@ describe('runStandingPRUpdate', () => {
       expect(manifest.baseSha).toBe('base-tip');
     });
 
+    it('should record the pushed release-branch commit as the manifest releaseBranchSha', async () => {
+      const { forge } = await setupWithStandingPRLabels(['release']);
+      const headSha = vi.spyOn(fakeGit, 'headSha').mockResolvedValue('base-tip');
+      vi.spyOn(fakeGit, 'status').mockResolvedValue(' M package.json\n');
+      vi.spyOn(fakeGit, 'commit').mockImplementation(async () => {
+        headSha.mockResolvedValue('release-commit');
+      });
+
+      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      const writes = [...forge.createdComments.map((c) => c.body), ...forge.updatedComments.map((c) => c.body)];
+      const manifest = parseManifest(writes.find((b) => b.includes(MANIFEST_MARKER)) as string);
+      expect(manifest.releaseBranchSha).toBe('release-commit');
+    });
+
     it('should drop the bump under release:graduate (graduation is bump-less, matching the SSOT)', async () => {
       const { runVersionStepMock } = await setupWithStandingPRLabels(['release', 'bump:major', 'release:graduate']);
 
@@ -2979,58 +2995,49 @@ describe('runStandingPRPublish', () => {
     expect(deleteCalls[0]?.ref).toBe(':release/next');
   });
 
-  it('should skip branch delete when releaseBranchSha no longer matches the remote tip', async () => {
-    setupGit({
-      headSha: 'abc123',
-      existingRefs: ['refs/remotes/origin/release/next'],
-      refShas: { 'refs/remotes/origin/release/next': 'def456' },
+  describe('release branch delete lease', () => {
+    async function publishWith(manifest: StandingPRManifest) {
+      const { readFileSync } = await import('node:fs');
+      vi.mocked(readFileSync).mockReturnValue(
+        JSON.stringify({
+          pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
+        }),
+      );
+      await mockForge({ comments: [{ id: 1, body: serializeManifest(manifest) }] });
+      const { runPublishStep } = await import('../../src/steps.js');
+      vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+        ReturnType<typeof runPublishStep>
+      >);
+      return runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
+    }
+
+    it("should delete the branch only while it is still at the manifest's tip", async () => {
+      await publishWith({ ...baseManifest, releaseBranchSha: 'abc123' });
+
+      expect(branchDeletePushes()).toEqual([
+        expect.objectContaining({ ref: ':release/next', forceWithLease: { ref: 'release/next', expect: 'abc123' } }),
+      ]);
     });
 
-    const { readFileSync } = await import('node:fs');
-    vi.mocked(readFileSync).mockReturnValue(
-      JSON.stringify({
-        pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
-      }),
-    );
+    it('should keep a branch an update has moved and still finish the publish', async () => {
+      vi.spyOn(fakeGit, 'push').mockImplementation(async ({ ref }) => {
+        if (ref?.startsWith(':')) {
+          throw new Error(' ! [rejected]        (delete) -> release/next (stale info)');
+        }
+      });
 
-    const manifest = { ...baseManifest, releaseBranchSha: 'abc123' };
-    await mockForge({ comments: [{ id: 1, body: serializeManifest(manifest) }] });
-
-    const { runPublishStep } = await import('../../src/steps.js');
-    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
-      ReturnType<typeof runPublishStep>
-    >);
-
-    await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
-
-    expect(branchDeletePushes()).toHaveLength(0);
-  });
-
-  it('should delete the branch when its remote tip still matches releaseBranchSha', async () => {
-    setupGit({
-      headSha: 'abc123',
-      existingRefs: ['refs/remotes/origin/release/next'],
-      refShas: { 'refs/remotes/origin/release/next': 'abc123' },
+      await expect(publishWith({ ...baseManifest, releaseBranchSha: 'abc123' })).resolves.toMatchObject({
+        notesGenerated: expect.any(Boolean),
+      });
     });
 
-    const { readFileSync } = await import('node:fs');
-    vi.mocked(readFileSync).mockReturnValue(
-      JSON.stringify({
-        pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
-      }),
-    );
+    it('should delete without a lease for a manifest written before releaseBranchSha existed', async () => {
+      await publishWith(baseManifest);
 
-    const manifest = { ...baseManifest, releaseBranchSha: 'abc123' };
-    await mockForge({ comments: [{ id: 1, body: serializeManifest(manifest) }] });
-
-    const { runPublishStep } = await import('../../src/steps.js');
-    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
-      ReturnType<typeof runPublishStep>
-    >);
-
-    await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
-
-    expect(branchDeletePushes()).toHaveLength(1);
+      expect(branchDeletePushes()).toEqual([
+        expect.objectContaining({ ref: ':release/next', forceWithLease: undefined }),
+      ]);
+    });
   });
 
   it('should skip branch deletion when deleteBranchOnMerge is false', async () => {

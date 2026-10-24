@@ -110,13 +110,6 @@ describe('GitCli queries', () => {
     expect(await new GitCli(run).refExists('missing')).toBe(false);
   });
 
-  it('should resolve a ref to its commit SHA via rev-parse', async () => {
-    const { run, calls } = makeRunner({ stdout: 'deadbeef\n' });
-    expect(await new GitCli(run).resolveRef('refs/remotes/origin/main', '/r')).toBe('deadbeef');
-    expect(calls[0].args).toEqual(['rev-parse', 'refs/remotes/origin/main^{commit}']);
-    expect(calls[0].options.cwd).toBe('/r');
-  });
-
   it('should answer isAncestor via merge-base --is-ancestor exit code', async () => {
     const ok = makeRunner();
     expect(await new GitCli(ok.run).isAncestor('a', 'b', '/r')).toBe(true);
@@ -324,6 +317,22 @@ describe('GitCli.push', () => {
     const { run, calls } = makeRunner();
     await new GitCli(run).push({ remote: 'origin', timeoutMs: 5_000 });
     expect(calls[0].options.timeout).toBe(5_000);
+  });
+
+  it('should pin --force-with-lease to an expected SHA when given a lease', async () => {
+    const { run, calls } = makeRunner();
+    await new GitCli(run).push({
+      remote: 'origin',
+      ref: ':release/next',
+      forceWithLease: { ref: 'release/next', expect: 'abc123' },
+    });
+    expect(calls[0].args).toEqual([
+      'push',
+      '--force-with-lease=release/next:abc123',
+      '--end-of-options',
+      'origin',
+      ':release/next',
+    ]);
   });
 
   it('should prefer --force-with-lease over --force and include --tags', async () => {

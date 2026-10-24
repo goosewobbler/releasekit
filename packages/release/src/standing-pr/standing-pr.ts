@@ -92,6 +92,7 @@ const ManifestSchema = z
     deselected: z.array(z.string()).optional(),
     graduated: z.array(z.string()).optional(),
     prereleased: z.array(z.string()).optional(),
+    releaseBranchSha: z.string().optional(),
   })
   .passthrough();
 
@@ -321,34 +322,21 @@ export async function createReleaseTags(tags: string[], cwd: string): Promise<vo
 }
 
 async function deleteReleaseBranch(releaseBranch: string, cwd: string, expectedTipSha?: string): Promise<void> {
-  const git = createGitCli();
-  if (expectedTipSha) {
-    const remoteRef = `refs/remotes/origin/${releaseBranch}`;
-    try {
-      await git.fetch('origin', { cwd });
-    } catch (err) {
-      warn(
-        `Could not fetch origin before deleting '${releaseBranch}': ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-    if (await git.refExists(remoteRef, cwd)) {
-      const tip = await git.resolveRef(remoteRef, cwd);
-      if (tip !== expectedTipSha) {
-        info(
-          `Skipping delete of '${releaseBranch}': remote tip (${tip}) no longer matches the manifest (${expectedTipSha}).`,
-        );
-        return;
-      }
-    }
-  }
-
   try {
-    // The `:<branch>` delete refspec, since the git seam's leading-`-` option guard rejects `--delete`.
-    await git.push({ remote: 'origin', ref: `:${releaseBranch}`, cwd });
+    // The `:<branch>` delete refspec, since the git seam's leading-`-` option guard rejects `--delete`. The lease
+    // makes the remote refuse the delete if an update has force-pushed the branch since this manifest was written.
+    await createGitCli().push({
+      remote: 'origin',
+      ref: `:${releaseBranch}`,
+      forceWithLease: expectedTipSha ? { ref: releaseBranch, expect: expectedTipSha } : undefined,
+      cwd,
+    });
     info(`Deleted release branch '${releaseBranch}'`);
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    if (errorMsg.includes('not found') || errorMsg.includes('does not exist')) {
+    if (errorMsg.includes('stale info')) {
+      info(`Kept release branch '${releaseBranch}': its remote tip no longer matches the manifest.`);
+    } else if (errorMsg.includes('not found') || errorMsg.includes('does not exist')) {
       info(`Release branch '${releaseBranch}' already deleted`);
     } else {
       warn(`Failed to delete release branch '${releaseBranch}': ${errorMsg}`);

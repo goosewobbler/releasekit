@@ -19,6 +19,7 @@ export type {
   GitListTagsOptions,
   GitLogOptions,
   GitLsFilesOptions,
+  GitPushLease,
   GitPushOptions,
   GitStatusOptions,
   GitTagOptions,

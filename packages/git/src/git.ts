@@ -165,12 +165,6 @@ export class GitCli implements Git {
     });
   }
 
-  async resolveRef(ref: string, cwd?: string): Promise<string> {
-    assertNotOption(ref, 'ref');
-    const { stdout } = await this.exec(['rev-parse', `${ref}^{commit}`], { cwd: this.cwd(cwd) });
-    return stdout.trim();
-  }
-
   async isAncestor(ancestor: string, ref: string, cwd?: string): Promise<boolean> {
     assertNotOption(ancestor, 'ancestor');
     assertNotOption(ref, 'ref');
@@ -326,7 +320,9 @@ export class GitCli implements Git {
       assertNotOption(opts.ref, 'ref');
     }
     const args = ['push'];
-    if (opts.forceWithLease) {
+    if (typeof opts.forceWithLease === 'object') {
+      args.push(`--force-with-lease=${opts.forceWithLease.ref}:${opts.forceWithLease.expect}`);
+    } else if (opts.forceWithLease) {
       args.push('--force-with-lease');
     } else if (opts.force) {
       args.push('--force');
