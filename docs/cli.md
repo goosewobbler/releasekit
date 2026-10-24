@@ -171,7 +171,7 @@ Manage the standing release PR (create/update or publish on merge). Pick a subco
 
 ### `releasekit standing-pr update`
 
-Calculate versions, commit to the release branch, and create/update the standing PR.
+Calculate versions, commit to the release branch, and create/update the standing PR. Needs `GITHUB_REPOSITORY` and `GITHUB_TOKEN`, and fails without them before touching the release branch.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
