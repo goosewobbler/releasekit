@@ -2304,6 +2304,7 @@ describe('runStandingPRUpdate', () => {
       const versionOutput = {
         ...createMockVersionOutput([{ packageName: '@scope/core', newVersion: '1.2.3' }]),
         strategy: 'sync' as const,
+        tags: ['v1.2.3'],
         changelogs: [
           {
             packageName: 'monorepo',
@@ -2971,6 +2972,7 @@ describe('publishFromManifest', () => {
       versionOutput: {
         ...baseManifest.versionOutput,
         strategy: 'sync' as const,
+        tags: ['v1.2.3'],
         changelogs: [
           {
             packageName: 'monorepo',
@@ -2991,6 +2993,31 @@ describe('publishFromManifest', () => {
     await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
 
     expect(vi.mocked(runPublishStep).mock.calls[0]?.[2]).toMatchObject({ monorepo: 'EDITED SYNC NOTES' });
+  });
+
+  it('should key notes by package name when the manifest carries no changelogs', async () => {
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({
+      packageNotes: {},
+      releaseNotes: { '@scope/core': 'REGENERATED at merge' },
+      files: [],
+    });
+    vi.mocked(runPublishStep).mockResolvedValue({
+      npm: [],
+      cargo: [],
+      githubReleases: [],
+      git: { committed: true, tags: [], pushed: true },
+    } as unknown as Awaited<ReturnType<typeof runPublishStep>>);
+
+    const { changelogs: _changelogs, ...versionOutput } = baseManifest.versionOutput;
+    await mockForge({
+      comments: [{ id: 77, body: serializeManifest({ ...baseManifest, versionOutput } as StandingPRManifest) }],
+      pullRequests: { 99: { body: renderNotesRegion({ '@scope/core': 'EDITED AT MERGE' }), labels: [] } },
+    });
+
+    await publishFromManifest(99, { projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    expect(vi.mocked(runPublishStep).mock.calls[0]?.[2]).toMatchObject({ '@scope/core': 'EDITED AT MERGE' });
   });
 
   it('should refuse to publish when a forged manifest bumps a version beyond the merged source', async () => {

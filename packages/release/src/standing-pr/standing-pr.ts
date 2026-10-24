@@ -34,7 +34,7 @@ import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
 import { type EventActor, getEventActor, isAuthorizedActor, type StandingPrAuthorization } from './authorization.js';
 import { makeRowChangelogRenderer, renderCombinedFooter } from './changelog-region.js';
-import { extractNotesRegions, mergeNotesRegions, renderNotesRegion } from './notes-region.js';
+import { extractNotesRegions, mergeNotesRegions, notesRegionKeys, renderNotesRegion } from './notes-region.js';
 import {
   type ChannelToggleConfig,
   cascadeDeselection,
@@ -154,17 +154,6 @@ export interface StandingPRManifest {
    * only - `versionOutput` already holds the prerelease versions.
    */
   prereleased?: string[];
-}
-
-/** Sync changelogs are keyed `monorepo` (or `mainPackage`), not a publishable package name. */
-function notesRegionPackageNames(versionOutput: VersionOutput): string[] {
-  const fromChangelogs = versionOutput.changelogs
-    .map((changelog) => changelog.packageName)
-    .filter((name) => name.length > 0);
-  if (fromChangelogs.length > 0) {
-    return fromChangelogs;
-  }
-  return publishableUpdates(versionOutput).map((update) => update.packageName);
 }
 
 async function getHeadSha(cwd: string): Promise<string> {
@@ -1170,16 +1159,16 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     return closeEmptyQueue(existingStandingPr, githubContext);
   }
 
-  const notesKeys = notesRegionPackageNames(versionOutput);
+  const notesKeys = notesRegionKeys(versionOutput);
   let editedNotes: Record<string, string> = {};
   if (previewNotesEnabled && liveBody) {
     editedNotes = extractNotesRegions(liveBody, notesKeys);
   }
 
-  // Notes are seeded once when the label is applied, then preserved, so skip the LLM when every package has a region.
+  // Notes are seeded once when the label is applied, then preserved, so skip the LLM when every notes key has a region.
   info('Generating changelog...');
-  const allPackagesHaveRegions = notesKeys.length > 0 && notesKeys.every((name) => name in editedNotes);
-  const generateReleaseNotes = previewNotesEnabled && !allPackagesHaveRegions;
+  const allNotesKeysHaveRegions = notesKeys.length > 0 && notesKeys.every((key) => Object.hasOwn(editedNotes, key));
+  const generateReleaseNotes = previewNotesEnabled && !allNotesKeysHaveRegions;
   const notesOptions = { ...writeOptions, skipNotes: false, skipReleaseNotes: !generateReleaseNotes };
   const notesResult = await runNotesStep(versionOutput, notesOptions);
 
@@ -1595,7 +1584,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   // From the body, not the manifest: the manifest holds machine state only.
   let editedNotes: Record<string, string> = {};
   if (livePr) {
-    editedNotes = extractNotesRegions(livePr.body ?? '', notesRegionPackageNames(manifest.versionOutput));
+    editedNotes = extractNotesRegions(livePr.body ?? '', notesRegionKeys(manifest.versionOutput));
   }
 
   let releaseNotes: Record<string, string> = {};

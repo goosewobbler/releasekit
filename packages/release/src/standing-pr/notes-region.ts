@@ -1,4 +1,5 @@
-import { extractNotesRegion, wrapNotesRegion } from '@releasekit/core';
+import { extractNotesRegion, type VersionOutput, wrapNotesRegion } from '@releasekit/core';
+import { publishableUpdates } from '../version-display.js';
 
 /** Edits are read back by marker slicing, never by parsing prose, so they survive the body being regenerated. */
 const REGION_HEADING = '## Release Notes';
@@ -34,6 +35,17 @@ export function renderNotesRegion(notesByPackage: Record<string, string>): strin
     lines.push(`### \`${pkg}\``, '', wrapNotesRegion(truncatePackageNotes(notesByPackage[pkg] ?? ''), pkg), '');
   }
   return lines.join('\n').trimEnd();
+}
+
+/** Notes are keyed by changelog packageName, which is `monorepo` for a sync release without `mainPackage`. */
+export function notesRegionKeys(versionOutput: VersionOutput): string[] {
+  const fromChangelogs = (versionOutput.changelogs ?? [])
+    .map((changelog) => changelog.packageName)
+    .filter((name): name is string => typeof name === 'string' && name.length > 0);
+  if (fromChangelogs.length > 0) {
+    return fromChangelogs;
+  }
+  return publishableUpdates(versionOutput).map((update) => update.packageName);
 }
 
 export function extractNotesRegions(body: string, packageNames: string[]): Record<string, string> {
