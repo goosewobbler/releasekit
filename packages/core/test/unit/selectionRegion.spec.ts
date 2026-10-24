@@ -38,5 +38,11 @@ describe('selectionRegion', () => {
     it('should not match the closer as if it were the opener', () => {
       expect(extractSelectionRegion(SELECTION_MARKER_END)).toBeUndefined();
     });
+
+    it('should still read the rows when the closer is missing', () => {
+      expect(extractSelectionRegion(`${SELECTION_MARKER}\n\n- [ ] \`a\`\n\nchangelog...`)).toBe(
+        '- [ ] `a`\n\nchangelog...',
+      );
+    });
   });
 });

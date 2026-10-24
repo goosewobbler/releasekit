@@ -1,5 +1,11 @@
+export interface MarkerRegion {
+  content: string;
+  /** False when no closer follows the opener; `content` is then everything after the opener. */
+  closed: boolean;
+}
+
 /** Bodies are untrusted, so this slices with `indexOf`: a backtracking regex would be a ReDoS risk. */
-function sliceBetween(body: string, open: string, close: string, restIfNoClose: boolean): string | undefined {
+export function extractMarkerRegion(body: string, open: string, close: string): MarkerRegion | undefined {
   const start = body.indexOf(open);
   if (start === -1) {
     return undefined;
@@ -7,9 +13,9 @@ function sliceBetween(body: string, open: string, close: string, restIfNoClose: 
   const from = start + open.length;
   const end = body.indexOf(close, from);
   if (end === -1) {
-    return restIfNoClose ? body.slice(from).trim() : undefined;
+    return { content: body.slice(from).trim(), closed: false };
   }
-  return body.slice(from, end).trim();
+  return { content: body.slice(from, end).trim(), closed: true };
 }
 
 export interface MarkerData<T> {
@@ -33,8 +39,8 @@ export function markerData<T>(opts: {
       return `${open}${opts.serialize(value)}${close}`;
     },
     decode(body) {
-      const payload = sliceBetween(body, open, close, false);
-      return payload === undefined ? null : opts.deserialize(payload);
+      const payload = extractMarkerRegion(body, open, close);
+      return payload?.closed ? opts.deserialize(payload.content) : null;
     },
   };
 }
@@ -51,9 +57,4 @@ export function neutralizeMarkers(content: string): string {
 
 export function wrapMarkerRegion(content: string, open: string, close: string): string {
   return `${open}\n\n${content.trim()}\n\n${close}`;
-}
-
-/** Legacy bodies carry only the opener, so a missing closer yields everything after it. */
-export function extractMarkerRegion(body: string, open: string, close: string): string | undefined {
-  return sliceBetween(body, open, close, true);
 }

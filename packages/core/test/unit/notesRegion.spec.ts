@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { extractNotesRegion, NOTES_MARKER, NOTES_MARKER_END, wrapNotesRegion } from '../../src/notesRegion.js';
+import {
+  extractNotesRegion,
+  hasUnterminatedNotesRegion,
+  NOTES_MARKER,
+  NOTES_MARKER_END,
+  wrapNotesRegion,
+} from '../../src/notesRegion.js';
 
 describe('notesRegion', () => {
   describe('wrapNotesRegion', () => {
@@ -37,9 +43,10 @@ describe('notesRegion', () => {
       expect(extractNotesRegion(body)).toBe('region body');
     });
 
-    it('should fall back to everything after a lone opener (legacy backfilled body)', () => {
-      const legacy = `${NOTES_MARKER}\n\nlegacy notes\n`;
-      expect(extractNotesRegion(legacy)).toBe('legacy notes');
+    it('should not read past an opener whose closer is missing', () => {
+      const body = `<!-- releasekit-notes:a -->\n\nA notes\n\n${wrapNotesRegion('B notes', 'b')}\n\n---\nfooter`;
+      expect(extractNotesRegion(body, 'a')).toBeUndefined();
+      expect(extractNotesRegion(body, 'b')).toBe('B notes');
     });
 
     it('should not confuse the bare opener with a keyed opener', () => {
@@ -49,6 +56,14 @@ describe('notesRegion', () => {
 
     it('should not match the closer as if it were the opener', () => {
       expect(extractNotesRegion(NOTES_MARKER_END)).toBeUndefined();
+    });
+  });
+
+  describe('hasUnterminatedNotesRegion', () => {
+    it('should be true only when the opener has no closer after it', () => {
+      expect(hasUnterminatedNotesRegion('<!-- releasekit-notes:pkg -->\n\nnotes', 'pkg')).toBe(true);
+      expect(hasUnterminatedNotesRegion(wrapNotesRegion('notes', 'pkg'), 'pkg')).toBe(false);
+      expect(hasUnterminatedNotesRegion('no markers here', 'pkg')).toBe(false);
     });
   });
 

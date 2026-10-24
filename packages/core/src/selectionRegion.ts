@@ -27,5 +27,6 @@ export function wrapSelectionRegion(content: string): string {
 }
 
 export function extractSelectionRegion(body: string): string | undefined {
-  return extractMarkerRegion(body, SELECTION_MARKER, SELECTION_MARKER_END);
+  // A deleted closer must not re-tick held-back rows, and only row markers are read, so the rest of the body is inert.
+  return extractMarkerRegion(body, SELECTION_MARKER, SELECTION_MARKER_END)?.content;
 }

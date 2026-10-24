@@ -1,4 +1,10 @@
-import { extractNotesRegion, type VersionOutput, wrapNotesRegion } from '@releasekit/core';
+import {
+  extractNotesRegion,
+  hasUnterminatedNotesRegion,
+  type VersionOutput,
+  warn,
+  wrapNotesRegion,
+} from '@releasekit/core';
 
 /** Edits are read back by marker slicing, never by parsing prose, so they survive the body being regenerated. */
 const REGION_HEADING = '## Release Notes';
@@ -49,6 +55,9 @@ export function renderedRegionText(key: string, notes: string): string | undefin
 export function extractNotesRegions(body: string, versionOutput: VersionOutput): Record<string, string> {
   const result: Record<string, string> = {};
   for (const pkg of notesRegionKeys(versionOutput)) {
+    if (hasUnterminatedNotesRegion(body, pkg)) {
+      warn(`The notes region for \`${pkg}\` is missing its end marker, so its edits are ignored.`);
+    }
     const region = extractNotesRegion(body, pkg);
     if (region !== undefined && region.length > 0) {
       result[pkg] = region;
