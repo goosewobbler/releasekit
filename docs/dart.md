@@ -12,8 +12,7 @@ See [configuration.md](./configuration.md) for the full config reference.
 - Per-package git tags (via `version.packageSpecificTags`)
 - Publishing to pub.dev with `dart pub publish` — or `flutter pub publish` for Flutter packages (auto-detected from a `flutter` SDK constraint in the pubspec's `environment`)
 - **OIDC automated publishing** from GitHub Actions (no secrets) **or** token auth via `PUB_TOKEN`
-- Custom/private registries via `publish_to` in `pubspec.yaml`
-- A pubspec with `publish_to: none` or no `version` (a Dart workspace root or app manifest) is never bumped or published
+- Custom/private registries via `publish_to` in `pubspec.yaml`; packages with `publish_to: none` are skipped automatically
 - Idempotent publish: versions already on pub.dev are skipped both before publish (via the pub.dev REST API) and after (via error pattern matching)
 - Pre-publish verification: polls pub.dev after each publish to confirm the version is visible
 - Explicit publish order override (`publish.pub.publishOrder`)
@@ -23,6 +22,7 @@ See [configuration.md](./configuration.md) for the full config reference.
 ## What's not supported
 
 - **Automatic dependency-graph ordering** — unlike the Cargo workspace topological sort, releasekit does not infer publish order from Dart path/workspace dependencies. If one package must publish before another, set `publish.pub.publishOrder` explicitly.
+- Automatic package discovery — pubspec directories must be listed in `version.pub.paths` or inferred from `version.packages`.
 
 ---
 
@@ -55,13 +55,17 @@ Configure authentication via OIDC or `PUB_TOKEN`. See [Auth](#auth) below.
 
 ## Quickstart — mixed npm + Dart monorepo
 
-List npm and Dart package directories together in `version.packages`:
+Use `version.packages` for npm packages and `version.pub.paths` for Dart packages. Both can coexist:
 
 ```json
 {
   "$schema": "https://goosewobbler.github.io/releasekit/schema.json",
   "version": {
-    "packages": ["packages/js-lib", "packages/cli", "packages/dart-core", "packages/flutter-widget"]
+    "packages": ["packages/js-lib", "packages/cli"],
+    "pub": {
+      "enabled": true,
+      "paths": ["packages/dart-core", "packages/flutter-widget"]
+    }
   },
   "publish": {
     "npm": {
@@ -74,36 +78,13 @@ List npm and Dart package directories together in `version.packages`:
 }
 ```
 
-releasekit discovers a Dart package from its `pubspec.yaml`, within your `pnpm-workspace.yaml` globs if you have one. A `pubspec.yaml` beside a `package.json` is versioned with that package.
+When `version.pub.paths` is omitted, releasekit looks for `pubspec.yaml` files alongside the directories listed in `version.packages`. If your Dart packages live in separate directories not listed there, use `version.pub.paths` to point at them explicitly.
 
 ---
 
 ## Config reference
 
-### `version.pub`
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Discover and bump `pubspec.yaml` files. When `false`, a `pubspec.yaml` beside a `package.json` isn't published either. |
-| `paths` | string[] | — | Directories, relative to each package, to bump a `pubspec.yaml` in instead of the package's own directory. Ignored in group mode. |
-
-### `publish.pub`
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Publish detected packages to pub.dev. Set `false` to version and tag only. |
-| `publishOrder` | string[] | `[]` | Explicit package publish order by package name. Packages not listed are appended at the end in discovery order. |
-
-### `publish.verify.pub`
-
-Controls how releasekit polls pub.dev after each publish to confirm the version is visible.
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Poll pub.dev after publish to verify the version appears. |
-| `maxAttempts` | integer | `10` | Maximum number of polling attempts. |
-| `initialDelay` | integer (ms) | `30000` | Delay before the first check (30 seconds). |
-| `backoffMultiplier` | number | `2` | Exponential backoff multiplier applied between attempts. |
+The Dart keys are [`version.pub`](./configuration.md#versionpub), [`publish.pub`](./configuration.md#publishpub) and [`publish.verify.pub`](./configuration.md#publishverifypub) in the configuration reference.
 
 ---
 

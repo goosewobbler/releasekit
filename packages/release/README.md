@@ -288,17 +288,6 @@ The `ci` section controls automation behavior:
     // Enable/disable PR preview comments
     "prPreview": true,
 
-    // Customise PR label names
-    "labels": {
-      "graduate": "release:graduate",
-      "prerelease": "channel:prerelease",
-      "skip": "release:skip",
-      "immediate": "release:immediate",
-      "major": "bump:major",
-      "minor": "bump:minor",
-      "patch": "bump:patch"
-    },
-
     // Map PR labels to package filters for scoped releases
     // Example: a PR with "scope:shared" label only releases matching packages
     "scopeLabels": {
@@ -308,6 +297,8 @@ The `ci` section controls automation behavior:
   }
 }
 ```
+
+Every `ci.*` key, including the label names under `ci.labels`, is in the [configuration reference](../../docs/configuration.md#ci).
 
 #### Release Trigger
 
@@ -339,24 +330,15 @@ When a PR has a matching scope label, only packages matching the pattern are inc
     "scopeLabels": {
       "scope:shared": "@myorg/shared-*",
       "scope:ui": "@myorg/ui-*"
-    },
-    "defaultScope": "scope:shared"
+    }
   }
 }
 ```
-
-**Options:**
-
-| Option | Description |
-|--------|-------------|
-| `scopeLabels` | Map of PR label names to package patterns |
-| `defaultScope` | Fallback scope to use when no scope label is found (must reference a key in `scopeLabels`) |
 
 **Usage:**
 - `scope:shared` + `bump:minor` → Release only `@myorg/shared-*` packages with minor bump
 - `scope:shared` + `scope:ui` → Release both matching scope groups
 - `scope:shared` (no release label) → Release only shared packages, bump determined by conventional commits
-- No scope label but `defaultScope` configured → Use default scope pattern
 
 Multiple scope labels are combined with OR logic. Without a `release:*` label, conventional commits determine the version bump.
 
@@ -390,17 +372,7 @@ With this setup, releasekit will use the specified packages as fallback. When a 
 
 #### Standing PR Configuration
 
-When `releaseStrategy: "standing-pr"`, the `ci.standingPr` block tunes the bot-maintained release PR. All keys are optional.
-
-| Key | Default | Purpose |
-|---|---|---|
-| `branch` | `release/next` | Bot-maintained release branch name. Force-reset to `main` on every update. |
-| `title` | `chore: release ${tag}` (sync), `chore: release ${count} package(s)` (otherwise) | PR title template, also used as the release commit's subject. Variables: `${count}`, `${version}`, `${tag}`. Must match `release.ci.skipPatterns` (default `chore: release `) and carry no CI-skip marker, or `chore: release preparation` is used instead. |
-| `labels` | `["release"]` | Labels applied to the PR. Maintainer-added `bump:*` / `scope:*` / `channel:*` labels on the standing PR are preserved across updates and drive the next release as overrides — see [Label semantics in standing-pr mode](./docs/ci-setup.md#label-semantics-in-standing-pr-mode). |
-| `deleteBranchOnMerge` | `true` | Delete the release branch after publish completes, unless an update has moved it since the merge. |
-| `mergeMethod` | `merge` | `merge` \| `squash` \| `rebase`. |
-| `minAge` | (unset) | Duration string (`6h`, `30m`, `1d`). Until elapsed, `releasekit/standing-pr` status check reports `pending`. |
-| `minPackages` | (unset) | Minimum distinct packages with releasable changes before a standing PR is created. Below threshold, an existing PR is closed. |
+When `releaseStrategy: "standing-pr"`, the `ci.standingPr` block tunes the bot-maintained release PR. All keys are optional; see [`ci.standingPr`](../../docs/configuration.md#cistandingpr) in the configuration reference.
 
 ```json
 {
