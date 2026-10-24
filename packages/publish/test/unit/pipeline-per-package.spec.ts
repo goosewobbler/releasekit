@@ -174,6 +174,21 @@ describe('per-package publish pipeline', () => {
     expect(publishedLabels()).toEqual(['cargo publish b-crate@0.2.0', 'cargo publish a-crate@0.2.0']);
   });
 
+  it('should follow a configured npm publishOrder over input order', async () => {
+    write('packages/a/package.json', packageJson('a'));
+    write('packages/b/package.json', packageJson('b'));
+    const config = getDefaultConfig();
+    config.npm.publishOrder = ['b', 'a'];
+
+    await runPipeline(
+      perPackageInput([update('a', 'packages/a/package.json'), update('b', 'packages/b/package.json')]),
+      config,
+      options,
+    );
+
+    expect(publishedLabels()).toEqual(['npm publish b@0.2.0', 'npm publish a@0.2.0']);
+  });
+
   it("should push the branch before a package's tag, so a rejected branch push leaves no tag on the remote", async () => {
     write('packages/lib/package.json', packageJson('lib'));
     const push = vi.spyOn(fakeGit, 'push').mockImplementation(async ({ ref }) => {
