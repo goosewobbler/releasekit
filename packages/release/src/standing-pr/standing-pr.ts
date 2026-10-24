@@ -9,7 +9,7 @@ import {
   isBotComment,
   type PullRequestDetails,
 } from '@releasekit/forge';
-import { createGitCli } from '@releasekit/git';
+import { createGitCli, isCommitSha } from '@releasekit/git';
 import { PipelineError, VersionPackageChangelogSchema } from '@releasekit/publish';
 import { z } from 'zod';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
@@ -195,8 +195,6 @@ async function resetReleaseBranch(branch: string, base: string, cwd: string): Pr
   await git.resetHard(`origin/${base}`, cwd);
 }
 
-const GIT_SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
-
 const CI_SKIP_MARKER = /\[(?:skip ci|ci skip|no ci|skip actions|actions skip)\]/i;
 const FALLBACK_TITLE = 'chore: release preparation';
 
@@ -333,7 +331,8 @@ async function deleteReleaseBranch(releaseBranch: string, cwd: string, expectedT
     info(`Deleted release branch '${releaseBranch}'`);
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    if (errorMsg.includes('stale info')) {
+    // `stale info` when git sees the move before pushing; `cannot lock ref` when the remote refuses it mid-update.
+    if (errorMsg.includes('stale info') || /cannot lock ref .*but expected/.test(errorMsg)) {
       info(`Kept release branch '${releaseBranch}': it has moved since the merge.`);
     } else if (errorMsg.includes('not found') || errorMsg.includes('does not exist')) {
       info(`Release branch '${releaseBranch}' already deleted`);
@@ -1700,11 +1699,14 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
 
   if (deleteBranchOnMerge) {
     const mergedHead = livePr?.headSha;
-    if (mergedHead && GIT_SHA.test(mergedHead)) {
+    if (mergedHead && isCommitSha(mergedHead)) {
       await deleteReleaseBranch(releaseBranch, cwd, mergedHead);
     } else {
+      const problem = mergedHead
+        ? `PR #${prNumber}'s head '${mergedHead}' isn't a commit SHA`
+        : `couldn't read PR #${prNumber}'s head commit`;
       warn(
-        `Kept release branch '${releaseBranch}': couldn't read PR #${prNumber}'s head commit, so can't tell whether an update has moved the branch since the merge.`,
+        `Kept release branch '${releaseBranch}': ${problem}, so can't tell whether an update has moved it since the merge.`,
       );
     }
   }

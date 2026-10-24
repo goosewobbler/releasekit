@@ -24,9 +24,10 @@ concurrency:
   # GitHub keeps one pending run per group and replaces it with any newer one. So the standing PR's
   # publish on merge and its retry label get a group per PR that nothing else can replace. A merged
   # `release:immediate` PR queues with the updates, so the two don't write release/next at once. Other
-  # events on a closed PR run no job, so each gets a group of its own. The label names are hardcoded:
-  # update them here if you rename them in `ci.labels`.
-  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (startsWith(github.event.pull_request.head.ref, 'release/') && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event.action == 'closed' && github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release:immediate') && 'standing-release-pr' || format('standing-release-pr-noop-{0}', github.run_id)) || 'standing-release-pr' }}
+  # events on a closed PR run no job, so each gets a group of its own. The label names and the
+  # `release/next` branch are hardcoded: update them here if you rename them in `ci.labels` or
+  # `ci.standingPr.branch`.
+  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (github.event.pull_request.head.ref == 'release/next' && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event.action == 'closed' && github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release:immediate') && 'standing-release-pr' || format('standing-release-pr-noop-{0}', github.run_id)) || 'standing-release-pr' }}
   cancel-in-progress: false
 
 permissions:
@@ -93,7 +94,7 @@ jobs:
       github.event_name == 'pull_request' &&
       github.event.action == 'closed' &&
       github.event.pull_request.merged == true &&
-      !startsWith(github.event.pull_request.head.ref, 'release/') &&
+      github.event.pull_request.head.ref != 'release/next' &&
       contains(github.event.pull_request.labels.*.name, 'release:immediate')
     runs-on: ubuntu-latest
     steps:

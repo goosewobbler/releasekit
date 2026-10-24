@@ -38,13 +38,18 @@ export type GitRunner = (args: string[], options: RunOptions) => Promise<RunResu
 
 const execFileAsync = promisify(execFile);
 
+const COMMIT_SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
+
+/** A full SHA-1 or SHA-256 commit hash, as git prints it. */
+export function isCommitSha(value: string): boolean {
+  return COMMIT_SHA.test(value);
+}
+
 /**
  * No shell is involved, but git still parses a leading-`-` positional as a flag, so a remote of `--upload-pack=evil`
  * is argument injection (RCE). No legitimate ref/remote/branch/tag starts with `-`; refusing it before it reaches the
  * argv also clears CodeQL's second-order alert.
  */
-const COMMIT_SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
-
 function assertNotOption(value: string, kind: string): void {
   if (value.startsWith('-')) {
     throw new GitError(
@@ -326,7 +331,7 @@ export class GitCli implements Git {
       const { ref, expect } = opts.forceWithLease;
       assertNotOption(ref, 'lease ref');
       // An empty or symbolic `expect` changes what git checks (an empty one means "only if absent").
-      if (!COMMIT_SHA.test(expect)) {
+      if (!isCommitSha(expect)) {
         throw new GitError(`Refusing to run git: lease expect '${expect}' is not a commit SHA`, [], undefined, '');
       }
       args.push(`--force-with-lease=${ref}:${expect}`);
