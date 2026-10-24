@@ -63,6 +63,21 @@ describe('npm env isolation', () => {
     iso.cleanup();
   });
 
+  it('should fall back to NODE_AUTH_TOKEN when NPM_TOKEN is empty', () => {
+    // The action sets NPM_TOKEN to '' when its npm-token input is unset.
+    process.env.NPM_TOKEN = '';
+    process.env.NODE_AUTH_TOKEN = 'node_auth_token';
+
+    const iso = createNpmSubprocessIsolation({ authMethod: 'token', registryUrl: 'https://registry.npmjs.org' });
+
+    const npmrcPath = iso.env.NPM_CONFIG_USERCONFIG as string;
+    createdPaths.push(npmrcPath);
+    expect(iso.env.NODE_AUTH_TOKEN).toBe('node_auth_token');
+    expect(fs.readFileSync(npmrcPath, 'utf-8')).toContain('//registry.npmjs.org/:_authToken=node_auth_token');
+
+    iso.cleanup();
+  });
+
   it('should write the token-bearing temp .npmrc with 0600 mode', () => {
     process.env.NPM_TOKEN = 'npm_test_token';
 
