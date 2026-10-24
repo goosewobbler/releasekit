@@ -198,8 +198,7 @@ async function resetReleaseBranch(branch: string, base: string, cwd: string): Pr
 const CI_SKIP_MARKER = /\[(?:skip ci|ci skip|no ci|skip actions|actions skip)\]/i;
 const FALLBACK_TITLE = 'chore: release preparation';
 
-// The squash merge on main takes this title, from the PR or the commit depending on the repo's settings.
-// Without a skip pattern the merge triggers another standing-PR update; with a CI-skip marker it skips the publish.
+// The squash merge on main takes the standing PR's title, from the PR or the commit depending on the repo's settings.
 function safeStandingPrTitle(rendered: string, skipPatterns: string[]): string {
   let title = rendered;
   if (CI_SKIP_MARKER.test(title)) {
