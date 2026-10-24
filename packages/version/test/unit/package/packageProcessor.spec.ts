@@ -551,7 +551,7 @@ describe('Package Processor', () => {
       );
     });
 
-    it('should warn about the nearest reachable tag when the package has no prior tag in a tagged repo', async () => {
+    it('should warn about the nearest reachable tag when a package has no prior tag but another tag is reachable', async () => {
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
       vi.spyOn(gitTags, 'getNearestReachableTag').mockResolvedValue('pkg-b@v1.0.0');
       vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
@@ -565,7 +565,7 @@ describe('Package Processor', () => {
 
       const processor = new PackageProcessor({
         ...defaultOptions,
-        getLatestTag: vi.fn().mockResolvedValue('v9.0.0'),
+        getLatestTag: vi.fn().mockResolvedValue(null),
         fullConfig: { ...mockConfig, packageSpecificTags: true, writeChangelog: false },
       });
 
