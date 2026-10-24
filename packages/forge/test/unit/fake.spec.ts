@@ -85,10 +85,10 @@ describe('FakeForge', () => {
   it('should return seeded issue/PR details and sensible defaults', async () => {
     const forge = createFakeForge({
       issues: { 7: { body: 'ib', title: 'it', labels: ['l'], isPullRequest: true } },
-      pullRequests: { 7: { body: 'pb', labels: ['p'] } },
+      pullRequests: { 7: { body: 'pb', labels: ['p'], headRef: 'release/next' } },
     });
     expect(await forge.getIssue(7)).toEqual({ body: 'ib', title: 'it', labels: ['l'], isPullRequest: true });
-    expect(await forge.getPullRequest(7)).toEqual({ body: 'pb', labels: ['p'] });
+    expect(await forge.getPullRequest(7)).toEqual({ body: 'pb', labels: ['p'], headRef: 'release/next' });
     expect(await forge.getIssue(404)).toEqual({ body: '', title: '', labels: [], isPullRequest: true });
     expect(await forge.getPullRequest(404)).toEqual({ body: '', labels: [] });
   });
