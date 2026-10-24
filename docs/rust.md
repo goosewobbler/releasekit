@@ -162,7 +162,7 @@ Only `[dependencies]` / `[dev-dependencies]` / `[build-dependencies]` entries wi
 }
 ```
 
-Crates listed in `publishOrder` are published in that order. Any crates not listed are appended after in auto-sorted order.
+Crates listed in `publishOrder` are published in that order. Crates not listed follow in discovery order: setting `publishOrder` turns off the path-dependency sort, so list every crate whose order matters.
 
 ---
 
