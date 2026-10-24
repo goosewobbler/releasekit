@@ -3299,4 +3299,17 @@ describe('runStandingPRMerge', () => {
     expect(deleteCalls).toHaveLength(1);
     expect(deleteCalls[0]?.ref).toBe(':release/next');
   });
+
+  it('should skip branch deletion when publish flag is false and deleteBranchOnMerge is false', async () => {
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValue({
+      ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: false } },
+      git: { branch: 'main' },
+    } as ReturnType<typeof loadConfig>);
+    await mockForge({ standingPR: openStandingPR(42) });
+
+    await runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false });
+
+    expect(branchDeletePushes()).toHaveLength(0);
+  });
 });

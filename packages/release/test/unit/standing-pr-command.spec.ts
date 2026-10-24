@@ -51,11 +51,20 @@ describe('createStandingPRCommand', () => {
       try {
         await parseCommand(['merge', '--project-dir', '/test', '--json']);
         const envelope = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
-        expect(envelope.changed).toBe(false);
+        expect(envelope).toMatchObject({ status: 'success', changed: false, data: null });
       } finally {
         logSpy.mockRestore();
       }
     });
+  });
+
+  it.each([
+    [['merge'], false],
+    [['merge', '--publish'], true],
+  ])('should pass %j to runStandingPRMerge with publish: %s', async (args, publish) => {
+    const { runStandingPRMerge } = await import('../../src/standing-pr/standing-pr.js');
+    await parseCommand([...args, '--project-dir', '/test']);
+    expect(runStandingPRMerge).toHaveBeenLastCalledWith(expect.objectContaining({ projectDir: '/test' }), { publish });
   });
 
   it('should call runStandingPRUpdate for update subcommand', async () => {
