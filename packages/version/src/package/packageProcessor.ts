@@ -201,7 +201,6 @@ export class PackageProcessor {
         revisionRange = baseline.revisionRange;
         previousVersion = baseline.previousVersion;
 
-        // A baseRef (as in PR previews) bounds the range itself, so a missing tag can't widen it.
         if (!hasRealTag && !this.fullConfig.baseRef) {
           const currentVersion = pkg.packageJson.version;
           const suggestedTag = currentVersion
