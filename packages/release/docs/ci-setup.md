@@ -345,7 +345,7 @@ permissions:
 |---|---|---|
 | `GITHUB_TOKEN` | all jobs | Always (auto-provided). |
 | `NPM_TOKEN` | `publish-release`, `immediate-release`, and `retry-publish` | Only if not using OIDC. With OIDC, omit it entirely. |
-| `OLLAMA_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | `publish-release`, `immediate-release`, and `retry-publish` | Required for LLM-enhanced notes at publish time. Also pass to `update-release-pr` only if you use the `release:preview-notes` label. Without a key, enhancement falls back to ungrouped output (warning, not a failure). |
+| `OLLAMA_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | `publish-release`, `immediate-release`, and `retry-publish` | Required for LLM-enhanced notes at publish time. Also pass to `update-release-pr` for an LLM-enhanced `CHANGELOG.md` and the `release:preview-notes` label. Without a key, enhancement falls back to ungrouped output (warning, not a failure). |
 
 **Branch protection:** if `release/next` is protected, the bot's force-push will fail. Either leave the release branch unprotected or grant the bot bypass permissions.
 
@@ -852,7 +852,7 @@ Applying the label to a non-standing or unmerged PR simply doesn't match the job
 
 #### Previewing and editing release notes
 
-By default the standing PR generates only changelogs — LLM release notes are produced at **publish** time, so the workflow never depends on LLM availability on every push. To review and **edit** the release notes *before* merging, label the standing PR **`release:preview-notes`** (configurable via `ci.labels.previewNotes`).
+By default the standing PR generates only changelogs — LLM release notes are produced at **publish** time. To review and **edit** the release notes *before* merging, label the standing PR **`release:preview-notes`** (configurable via `ci.labels.previewNotes`).
 
 1. Add the label to the standing PR (`gh pr edit <n> --add-label release:preview-notes`).
 2. On the next `standing-pr update` — the next push to `main`, the hourly `schedule`, or a manual re-run of the workflow — releasekit generates LLM release notes into an editable **`## Release Notes`** region in the PR body, with one block per package delimited by `<!-- releasekit-notes:<package> -->` markers.
@@ -870,7 +870,7 @@ This is a standing-pr-only feature — it needs a durable pre-publish artifact (
 | Symptom | Cause / fix |
 |---|---|
 | `403 — GitHub Actions is not permitted to create or approve pull requests` | Repo setting not enabled. See [Setup requirements](#setup-requirements). |
-| `OLLAMA_API_KEY is not set. … Returning entries ungrouped.` | LLM secret not passed to the job generating the notes: `publish-release`, `retry-publish` and `immediate-release`, or `update-release-pr` for `release:preview-notes`. Add it to the job's `env:` block (or the equivalent for your provider). |
+| `OLLAMA_API_KEY is not set. … Returning entries ungrouped.` | LLM secret not passed to the job generating the notes: `publish-release`, `retry-publish` and `immediate-release`, or `update-release-pr` for `CHANGELOG.md` and `release:preview-notes`. Add it to the job's `env:` block (or the equivalent for your provider). |
 | `error: too many arguments for 'preview'` | Pre-fix releasekit where `standing-pr` was missing from `cli.ts`. Upgrade `@releasekit/release`. |
 | Standing PR never appears despite merges | Check, in order: (1) the GitHub repo setting; (2) the head commit doesn't match `release.ci.skipPatterns`; (3) there are releasable conventional commits (`feat:`, `fix:`) since the last tag; (4) the `update-release-pr` job logs — they print the dry-run version output. |
 | Standing PR keeps closing immediately | `minPackages` is set higher than the current change count. Either lower the threshold or wait for more package changes to accumulate. |
