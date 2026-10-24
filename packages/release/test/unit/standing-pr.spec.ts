@@ -1193,10 +1193,12 @@ describe('runStandingPRUpdate', () => {
       title: string | undefined,
       skipPatterns: string[],
       standingPR: ReturnType<typeof openStandingPR> | null = null,
+      git: Record<string, unknown> = {},
     ) {
       const { loadConfig } = await import('@releasekit/config');
       vi.mocked(loadConfig).mockReturnValue({
         ...defaultConfig,
+        git: { ...defaultConfig.git, ...git },
         ci: { ...defaultConfig.ci, standingPr: { ...defaultConfig.ci.standingPr, title } },
         release: { ci: { skipPatterns } },
       } as unknown as ReturnType<typeof loadConfig>);
@@ -1287,6 +1289,15 @@ describe('runStandingPRUpdate', () => {
           }),
         ]),
       );
+    });
+
+    it.each([
+      [true, { skipHooks: true }],
+      [false, {}],
+    ])('should pass skipHooks %s from git config to the release commit', async (expected, git) => {
+      await runWithTitle(undefined, ['chore: release '], null, git);
+
+      expect(fakeGit.committed.map((c) => c.skipHooks)).toEqual([expected]);
     });
   });
 

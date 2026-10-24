@@ -219,13 +219,13 @@ function safeStandingPrTitle(rendered: string, skipPatterns: string[]): string {
   return title;
 }
 
-async function commitAndForcePush(branch: string, subject: string, cwd: string): Promise<void> {
+async function commitAndForcePush(branch: string, subject: string, cwd: string, skipHooks: boolean): Promise<void> {
   const git = createGitCli();
   await git.addAll(cwd);
 
   const status = (await git.status({ porcelain: true, cwd })).trim();
   if (status) {
-    await git.commit(subject, { cwd });
+    await git.commit(subject, { cwd, skipHooks });
   }
 
   await git.push({ remote: 'origin', ref: branch, forceWithLease: true, cwd });
@@ -1208,7 +1208,7 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
 
   const title = safeStandingPrTitle(renderedTitle, skipPatterns);
   info(`Committing and pushing '${branch}'...`);
-  await commitAndForcePush(branch, title, cwd);
+  await commitAndForcePush(branch, title, cwd, releaseKitConfig.git?.skipHooks ?? false);
 
   const releaseBranchSha = await getHeadSha(cwd);
 
