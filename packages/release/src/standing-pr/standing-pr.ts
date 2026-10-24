@@ -92,7 +92,6 @@ const ManifestSchema = z
     deselected: z.array(z.string()).optional(),
     graduated: z.array(z.string()).optional(),
     prereleased: z.array(z.string()).optional(),
-    releaseBranchSha: z.string().optional(),
   })
   .passthrough();
 
@@ -155,8 +154,6 @@ export interface StandingPRManifest {
    * only - `versionOutput` already holds the prerelease versions.
    */
   prereleased?: string[];
-  /** Tip of the release branch when this manifest was written; publish uses it to avoid deleting a newer branch. */
-  releaseBranchSha?: string;
 }
 
 async function getHeadSha(cwd: string): Promise<string> {
@@ -197,6 +194,8 @@ async function resetReleaseBranch(branch: string, base: string, cwd: string): Pr
   await git.checkout(branch, { create: true, cwd });
   await git.resetHard(`origin/${base}`, cwd);
 }
+
+const GIT_SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 
 const CI_SKIP_MARKER = /\[(?:skip ci|ci skip|no ci|skip actions|actions skip)\]/i;
 const FALLBACK_TITLE = 'chore: release preparation';
@@ -324,7 +323,7 @@ export async function createReleaseTags(tags: string[], cwd: string): Promise<vo
 async function deleteReleaseBranch(releaseBranch: string, cwd: string, expectedTipSha?: string): Promise<void> {
   try {
     // The `:<branch>` delete refspec, since the git seam's leading-`-` option guard rejects `--delete`. The lease
-    // makes the remote refuse the delete if an update has force-pushed the branch since this manifest was written.
+    // makes the remote refuse the delete if an update has force-pushed the branch since the merge.
     await createGitCli().push({
       remote: 'origin',
       ref: `:${releaseBranch}`,
@@ -335,7 +334,7 @@ async function deleteReleaseBranch(releaseBranch: string, cwd: string, expectedT
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     if (errorMsg.includes('stale info')) {
-      info(`Kept release branch '${releaseBranch}': its remote tip no longer matches the manifest.`);
+      info(`Kept release branch '${releaseBranch}': it has moved since the merge.`);
     } else if (errorMsg.includes('not found') || errorMsg.includes('does not exist')) {
       info(`Release branch '${releaseBranch}' already deleted`);
     } else {
@@ -1370,7 +1369,6 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
     notesFiles: notesResult.files,
     createdAt: new Date().toISOString(),
     baseSha,
-    releaseBranchSha,
     firstUpdatedAt,
     overrideLabels: extractOverrideLabels(effectiveLabels, ciConfig),
     deselected: effectiveDeselected.size > 0 ? [...effectiveDeselected].sort() : undefined,
@@ -1701,7 +1699,14 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   await refreshFeederPreviews({ config: options.config, projectDir: cwd });
 
   if (deleteBranchOnMerge) {
-    await deleteReleaseBranch(releaseBranch, cwd, manifest.releaseBranchSha);
+    const mergedHead = livePr?.headSha;
+    if (mergedHead && GIT_SHA.test(mergedHead)) {
+      await deleteReleaseBranch(releaseBranch, cwd, mergedHead);
+    } else {
+      warn(
+        `Kept release branch '${releaseBranch}': couldn't read PR #${prNumber}'s head commit, so can't tell whether an update has moved the branch since the merge.`,
+      );
+    }
   }
 
   return {

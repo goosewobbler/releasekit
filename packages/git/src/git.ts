@@ -320,7 +320,7 @@ export class GitCli implements Git {
       assertNotOption(opts.ref, 'ref');
     }
     const args = ['push'];
-    if (typeof opts.forceWithLease === 'object') {
+    if (opts.forceWithLease && typeof opts.forceWithLease === 'object') {
       args.push(`--force-with-lease=${opts.forceWithLease.ref}:${opts.forceWithLease.expect}`);
     } else if (opts.forceWithLease) {
       args.push('--force-with-lease');

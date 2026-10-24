@@ -70,6 +70,8 @@ function branchDeletePushes() {
   return fakeGit.pushed.filter((p) => p.ref?.startsWith(':'));
 }
 
+const MERGED_HEAD = 'a'.repeat(40);
+
 vi.mock('node:fs', () => ({
   default: {
     readFileSync: vi.fn(),
@@ -265,11 +267,6 @@ describe('serializeManifest / parseManifest', () => {
   it('should throw when schemaVersion is incompatible', () => {
     const wrongVersion = serializeManifest({ ...baseManifest, schemaVersion: 99 as unknown as 1 });
     expect(() => parseManifest(wrongVersion)).toThrow(/incompatible/);
-  });
-
-  it('should reject a releaseBranchSha that is not a string', () => {
-    const bad = serializeManifest({ ...baseManifest, releaseBranchSha: 42 as unknown as string });
-    expect(() => parseManifest(bad)).toThrow(/failed validation: releaseBranchSha/);
   });
 
   it('should accept a v1 manifest without firstUpdatedAt (backward compat)', () => {
@@ -2223,21 +2220,6 @@ describe('runStandingPRUpdate', () => {
       expect(manifest.baseSha).toBe('base-tip');
     });
 
-    it('should record the pushed release-branch commit as the manifest releaseBranchSha', async () => {
-      const { forge } = await setupWithStandingPRLabels(['release']);
-      const headSha = vi.spyOn(fakeGit, 'headSha').mockResolvedValue('base-tip');
-      vi.spyOn(fakeGit, 'status').mockResolvedValue(' M package.json\n');
-      vi.spyOn(fakeGit, 'commit').mockImplementation(async () => {
-        headSha.mockResolvedValue('release-commit');
-      });
-
-      await runStandingPRUpdate({ projectDir: '/test', verbose: false, quiet: false, json: false });
-
-      const writes = [...forge.createdComments.map((c) => c.body), ...forge.updatedComments.map((c) => c.body)];
-      const manifest = parseManifest(writes.find((b) => b.includes(MANIFEST_MARKER)) as string);
-      expect(manifest.releaseBranchSha).toBe('release-commit');
-    });
-
     it('should drop the bump under release:graduate (graduation is bump-less, matching the SSOT)', async () => {
       const { runVersionStepMock } = await setupWithStandingPRLabels(['release', 'bump:major', 'release:graduate']);
 
@@ -2981,7 +2963,10 @@ describe('runStandingPRPublish', () => {
       }),
     );
 
-    await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+    await mockForge({
+      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+      pullRequests: { 42: { body: '', labels: [], headSha: MERGED_HEAD } },
+    });
 
     const { runPublishStep } = await import('../../src/steps.js');
     vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
@@ -2996,26 +2981,32 @@ describe('runStandingPRPublish', () => {
   });
 
   describe('release branch delete lease', () => {
-    async function publishWith(manifest: StandingPRManifest) {
+    async function publishWithMergedHead(headSha: string | undefined) {
       const { readFileSync } = await import('node:fs');
       vi.mocked(readFileSync).mockReturnValue(
         JSON.stringify({
           pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
         }),
       );
-      await mockForge({ comments: [{ id: 1, body: serializeManifest(manifest) }] });
+      await mockForge({
+        comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+        pullRequests: { 42: { body: '', labels: [], headSha } },
+      });
       const { runPublishStep } = await import('../../src/steps.js');
       vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
         ReturnType<typeof runPublishStep>
       >);
-      return runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+      onTestFinished(() => logged.mockRestore());
+      await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
+      return logged.mock.calls.map(([line]) => String(line));
     }
 
-    it("should delete the branch only while it is still at the manifest's tip", async () => {
-      await publishWith({ ...baseManifest, releaseBranchSha: 'abc123' });
+    it("should delete the branch only while it is still at the merged PR's head", async () => {
+      await publishWithMergedHead(MERGED_HEAD);
 
       expect(branchDeletePushes()).toEqual([
-        expect.objectContaining({ ref: ':release/next', forceWithLease: { ref: 'release/next', expect: 'abc123' } }),
+        expect.objectContaining({ ref: ':release/next', forceWithLease: { ref: 'release/next', expect: MERGED_HEAD } }),
       ]);
     });
 
@@ -3026,17 +3017,25 @@ describe('runStandingPRPublish', () => {
         }
       });
 
-      await expect(publishWith({ ...baseManifest, releaseBranchSha: 'abc123' })).resolves.toMatchObject({
-        notesGenerated: expect.any(Boolean),
-      });
+      const logs = await publishWithMergedHead(MERGED_HEAD);
+
+      expect(logs.some((l) => l.includes("Kept release branch 'release/next': it has moved since the merge"))).toBe(
+        true,
+      );
+      expect(logs.some((l) => l.includes('Failed to delete release branch'))).toBe(false);
     });
 
-    it('should delete without a lease for a manifest written before releaseBranchSha existed', async () => {
-      await publishWith(baseManifest);
+    it("should keep the branch when the merged PR's head commit is unknown", async () => {
+      const logs = await publishWithMergedHead(undefined);
 
-      expect(branchDeletePushes()).toEqual([
-        expect.objectContaining({ ref: ':release/next', forceWithLease: undefined }),
-      ]);
+      expect(branchDeletePushes()).toHaveLength(0);
+      expect(logs.some((l) => l.includes("couldn't read PR #42's head commit"))).toBe(true);
+    });
+
+    it('should keep the branch when the head commit is not a commit SHA', async () => {
+      await publishWithMergedHead('main');
+
+      expect(branchDeletePushes()).toHaveLength(0);
     });
   });
 
@@ -3562,6 +3561,7 @@ describe('runStandingPRMerge', () => {
     await mockForge({
       standingPR: openStandingPR(42),
       comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+      pullRequests: { 42: { body: '', labels: [], headSha: MERGED_HEAD } },
     });
 
     const { runPublishStep } = await import('../../src/steps.js');
