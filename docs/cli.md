@@ -20,7 +20,7 @@ The `releasekit` dispatcher re-exports `version`, `notes`, and `publish`, so `re
 
 ## JSON output contract
 
-Every command that produces a JSON result — `release`, `gate`, `standing-pr`, `version`, and `publish` — emits it as a single **envelope**, one uniform shape shared by humans, CI, and agents. `--output <path>` writes the same envelope to a file instead of stdout (the reliable channel for the GitHub Action, since stdout can be polluted by subprocess or log noise, and a single stray byte breaks JSON parsing).
+Every command that produces a JSON result — `release`, `gate`, `standing-pr`, `version`, and `publish` — emits it as a single **envelope**, one uniform shape shared by humans, CI, and agents. `--output <path>` writes the same envelope to a file instead of stdout (the reliable channel for the GitHub Action, since stdout can be polluted by subprocess or log noise, and a single stray byte breaks JSON parsing). The path is resolved from the directory you run in, not `--project-dir`.
 
 ```jsonc
 {
@@ -123,10 +123,11 @@ Run the full release pipeline: version, changelog, publish, git, and GitHub Rele
 | `--from-draft <number>` | number | - | Manual mode: publish from a reviewed draft tracking issue (applies its edited notes), then close it |
 | `--skip-notes` | boolean | `false` | Skip changelog generation |
 | `--skip-publish` | boolean | `false` | Skip registry publishing and git operations |
-| `--skip-git` | boolean | `false` | Skip git commit/tag/push |
+| `--skip-git` | boolean | `false` | Skip git commit/tag/push, and with it the GitHub Release |
 | `--skip-github-release` | boolean | `false` | Skip GitHub release creation |
 | `--skip-verification` | boolean | `false` | Skip post-publish verification |
 | `-j, --json` | boolean | `false` | Output results as JSON |
+| `--output <path>` | string | stdout | Write the JSON result to a file instead of stdout |
 | `-v, --verbose` | boolean | `false` | Verbose logging |
 | `-q, --quiet` | boolean | `false` | Suppress non-error output |
 | `--project-dir <path>` | string | `cwd` | Project directory |
@@ -166,6 +167,7 @@ Manage the standing release PR (create/update or publish on merge). Pick a subco
 | `--project-dir <path>` | string | `cwd` | Project directory |
 | `--npm-auth <method>` | `auto` \| `oidc` \| `token` | `auto` | NPM auth method |
 | `-j, --json` | boolean | `false` | Output results as JSON |
+| `--output <path>` | string | stdout | Write the JSON result to a file instead of stdout |
 | `-v, --verbose` | boolean | `false` | Verbose logging |
 | `-q, --quiet` | boolean | `false` | Suppress non-error output |
 
@@ -267,7 +269,7 @@ releasekit labels sync --check   # CI guard: non-zero exit if labels are missing
 
 ## `releasekit init`
 
-Create a default `releasekit.config.json`. Detects whether the project is a monorepo to choose the changelog mode. After writing the config it prints a next-steps checklist (run `labels sync`, do a `--dry-run`, link the CI guide).
+Create a default `releasekit.config.json`. Detects whether the project is a monorepo to choose the changelog mode, and sets `publish.npm.access` to `public` when the root package is scoped. After writing the config it prints a next-steps checklist (run `labels sync`, do a `--dry-run`, link the CI guide).
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
@@ -328,11 +330,11 @@ Generate changelog from input data (a version-output JSON, read from a file or s
 | `--no-release-notes` | boolean | - | Disable release notes generation |
 | `-t, --template <path>` | string | config | Template file or directory |
 | `-e, --engine <engine>` | `handlebars` \| `liquid` \| `ejs` | config | Template engine |
-| `--monorepo <mode>` | `root` \| `packages` \| `both` | config | Monorepo mode |
+| `--monorepo <mode>` | `root` \| `packages` \| `both` | config | Shorthand for `--changelog-mode`, which wins when both are set |
 | `--llm-provider <provider>` | string | config | LLM provider |
 | `--llm-model <model>` | string | config | LLM model |
 | `--llm-base-url <url>` | string | config | LLM base URL (for `openai-compatible` provider) |
-| `--llm-tasks <tasks>` | string | config | Comma-separated LLM tasks (`enhance`, `summarize`, `categorize`, `release-notes`) |
+| `--llm-tasks <tasks>` | string | config | Comma-separated LLM tasks (`enhance`, `summarize`, `categorize`, `release-notes`). `release-notes` is `releaseNotes` in config |
 | `--no-llm` | boolean | - | Disable LLM processing |
 | `--target <package>` | string | all | Filter to a specific package name |
 | `--config <path>` | string | auto-discovered | Config file path |
@@ -347,7 +349,7 @@ releasekit version --json | releasekit notes generate --dry-run
 
 ### `releasekit notes auth <provider>`
 
-Configure the API key for an LLM provider.
+Configure the API key for an LLM provider. Keys are saved to `~/.config/releasekit/auth.json`.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
@@ -378,7 +380,7 @@ Publish packages to registries with git tagging and GitHub releases. Reads a ver
 | `--registry <type>` | `npm` \| `cargo` \| `pub` \| `all` | `all` | Registry to publish to |
 | `--npm-auth <method>` | `oidc` \| `token` \| `auto` | `auto` | NPM auth method |
 | `--dry-run` | boolean | `false` | Simulate all operations |
-| `--skip-git` | boolean | `false` | Skip git commit/tag/push |
+| `--skip-git` | boolean | `false` | Skip git commit/tag/push, and with it the GitHub Release |
 | `--skip-publish` | boolean | `false` | Skip registry publishing |
 | `--skip-github-release` | boolean | `false` | Skip GitHub Release creation |
 | `--skip-verification` | boolean | `false` | Skip post-publish verification |
@@ -401,9 +403,12 @@ The `gate` command — used by the GitHub Action's `gate` mode — checks whethe
 | `-c, --config <path>` | string | auto-discovered | Path to config file |
 | `--scope <name>` | string | - | Resolve scope name to target packages from `ci.scopeLabels` config |
 | `-j, --json` | boolean | `false` | Output results as JSON |
+| `--output <path>` | string | stdout | Write the JSON result to a file instead of stdout |
 | `-v, --verbose` | boolean | `false` | Verbose logging |
 | `-q, --quiet` | boolean | `false` | Suppress non-error output |
 | `--project-dir <path>` | string | `cwd` | Project directory |
+
+`gate` exits 0 whether or not a release should proceed; with `--json`, the decision is in `data.shouldRelease`.
 
 ```bash
 releasekit gate --json            # or, equivalently: releasekit-release gate --json
@@ -424,6 +429,8 @@ Regenerate release notes for **already-released** versions of one or more packag
 | `--to <version>` | string | - | Latest version to backfill (inclusive) |
 | `--update-releases` | boolean | `false` | Update matching GitHub release bodies via `gh release edit` |
 | `--only-missing` | boolean | `false` | With `--update-releases`, skip releases already carrying releasekit notes |
+| `--force` | boolean | `false` | With `--update-releases`, overwrite hand-edited release bodies |
+| `--no-llm` | boolean | - | Disable LLM processing for a deterministic, zero-cost run |
 | `--apply` | boolean | `false` | Apply changes (default: dry-run preview) |
 | `-c, --config <path>` | string | auto-discovered | Path to config file |
 
@@ -443,6 +450,6 @@ releasekit-release backfill --package @scope/pkg --update-releases --only-missin
 
 `--all` discovers every package a release would version — npm/JS workspaces, pure-Cargo crates, and pubspec-only Dart/Flutter packages, scoped by `version.packages` — using the version stage's own discovery, and backfills each; packages with no matching tags are skipped. It is mutually exclusive with `--package`. Tags are resolved per package (package-specific) or from the shared global series (sync/single), and each package's notes are scoped to its own directory's commits.
 
-`--update-releases` edits existing releases only (it never creates them) and skips any tag without a release. Backfilled bodies carry a `<!-- releasekit-notes -->` marker: `--only-missing` skips releases that already have it (so re-runs fill only new gaps), while the default run refreshes every targeted body, including auto-generated or previously backfilled ones.
+`--update-releases` edits existing releases only (it never creates them) and skips any tag without a release. Backfilled bodies carry a `<!-- releasekit-notes -->` marker. By default a run updates bodies that are empty or carry the marker, and skips any other body as hand-edited unless `--force` is passed. `--only-missing` instead updates only bodies without the marker, so re-runs fill only new gaps.
 
 > **Experimental (#293).** Backfills a single package or, with `--all`, every package a release would version — npm/JS workspaces, pure-Cargo crates, and pubspec-only Dart/Flutter packages. Works with both package-specific tags (`pkg@v1.2.0`, `version.packageSpecificTags: true`) and the global sync/single tag series (`v1.2.0`), and dates each version from its tag's commit date. LLM range caching and the Action surface are planned follow-ups.

@@ -108,7 +108,7 @@ releasekit release --skip-notes
 releasekit release --bump patch
 ```
 
-Each step is also a subcommand — `releasekit version`, `releasekit notes`, `releasekit publish` — and the underlying tools (`releasekit-version`, `releasekit-notes`, `releasekit-publish`) can be piped together. See the [package docs](#documentation) for the full CLI reference.
+Each step is also a subcommand — `releasekit version`, `releasekit notes`, `releasekit publish` — and the underlying tools (`releasekit-version`, `releasekit-notes`, `releasekit-publish`) can be piped together. See the [CLI reference](./docs/cli.md) for every command and flag.
 
 ### GitHub Action
 

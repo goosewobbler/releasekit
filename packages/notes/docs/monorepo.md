@@ -73,26 +73,11 @@ Custom file name applies to all packages:
 
 ## CLI Flags
 
-Use `--changelog-mode` to override the changelog location, and `--release-notes-dir` to write per-version release-notes files:
+`--changelog-mode` overrides the configured changelog location. Every flag is in the [CLI reference](../../../docs/cli.md#releasekit-notes-generate).
 
 ```bash
-# Root changelog only
-releasekit-notes --changelog-mode root
-
-# Per-package changelogs
 releasekit-notes --changelog-mode packages
-
-# Both
-releasekit-notes --changelog-mode both
-
-# Use --monorepo as a shorthand for the changelog mode
-releasekit-notes --monorepo packages
-
-# Per-version release-notes files
-releasekit-notes --release-notes-dir release-notes
 ```
-
-`--monorepo` sets the changelog mode (release notes use a per-version directory, not modes). An explicit `--changelog-mode` takes priority over `--monorepo` when both are present.
 
 ---
 
