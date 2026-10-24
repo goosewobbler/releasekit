@@ -1,4 +1,3 @@
-export { VersionPackageChangelogSchema } from '@releasekit/core/version-output-schema';
 export { createPublishCommand } from './command.js';
 export { getDefaultConfig, loadConfig } from './config.js';
 export { BasePublishError, createPublishError, PipelineError, PublishError, PublishErrorCode } from './errors/index.js';

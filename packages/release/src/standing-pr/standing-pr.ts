@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import { type CIConfig, DEFAULT_DEMOTE_SCOPES, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
 import { deriveReleaseChannel, info, markerData, shouldMatchPackageTargets, success, warn } from '@releasekit/core';
+import { VersionPackageChangelogSchema } from '@releasekit/core/version-output-schema';
 import {
   type Forge,
   type ForgeComment,
@@ -10,7 +11,7 @@ import {
   type PullRequestDetails,
 } from '@releasekit/forge';
 import { createGitCli, isCommitSha } from '@releasekit/git';
-import { PipelineError, VersionPackageChangelogSchema } from '@releasekit/publish';
+import { PipelineError } from '@releasekit/publish';
 import { z } from 'zod';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
 import { formatDuration, parseDuration } from '../duration.js';
