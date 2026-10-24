@@ -148,6 +148,14 @@ describe('filterPackagesByConfig', () => {
       expect(result[0].packageJson.name).toBe('root-pkg');
     });
 
+    it.each(['./packages/pkg-a', 'packages/pkg-a/'])('should match the directory "%s" as packages/pkg-a', (pattern) => {
+      vi.mocked(matchesPackageTarget).mockReturnValue(false);
+
+      const result = filterPackagesByConfig(mockPackages, [pattern], workspaceRoot);
+
+      expect(result.map((p) => p.packageJson.name)).toEqual(['@scope/pkg-a']);
+    });
+
     it('should combine directory and name pattern matches', () => {
       vi.mocked(matchesPackageTarget).mockImplementation((name, pattern) => {
         return pattern === '@scope/pkg-a' && name === '@scope/pkg-a';

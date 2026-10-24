@@ -874,23 +874,84 @@ describe('Version Engine', () => {
       expect(result.packages[0].packageJson.name).toBe('@test/private-pkg');
     });
 
-    it('should skip a private npm package matched only by a glob in version.packages', async () => {
+    it.each(['packages/private-pkg', './packages/private-pkg', 'packages/private-pkg/'])(
+      'should include a private npm package listed by its exact directory %s',
+      async (entry) => {
+        vi.mocked(getPackagesSync).mockReturnValue({
+          root: '/test/workspace',
+          packages: [
+            {
+              dir: '/test/workspace/packages/private-pkg',
+              relativeDir: 'packages/private-pkg',
+              packageJson: { name: '@test/private-pkg', version: '0.1.0', private: true },
+            },
+          ],
+        });
+
+        const engine = new VersionEngine({ ...defaultConfig, packages: [entry] } as Config);
+        const result = await engine.getWorkspacePackages();
+
+        expect(result.packages.map((p) => p.packageJson.name)).toEqual(['@test/private-pkg']);
+      },
+    );
+
+    it.each(['@test/*', 'packages/*'])(
+      'should skip a private npm package matched only by the glob %s in version.packages',
+      async (glob) => {
+        vi.mocked(getPackagesSync).mockReturnValue({
+          root: '/test/workspace',
+          packages: [
+            {
+              dir: '/test/workspace/packages/private-pkg',
+              relativeDir: 'packages/private-pkg',
+              packageJson: { name: '@test/private-pkg', version: '0.1.0', private: true },
+            },
+          ],
+        });
+
+        const engine = new VersionEngine({ ...defaultConfig, packages: [glob] } as Config);
+        const result = await engine.getWorkspacePackages();
+
+        expect(result.packages.find((p) => p.packageJson.name === '@test/private-pkg')).toBeUndefined();
+      },
+    );
+
+    it('should warn naming each private package that version.packages matched but the private filter skipped', async () => {
       vi.mocked(getPackagesSync).mockReturnValue({
         root: '/test/workspace',
         packages: [
           {
-            dir: '/test/workspace/packages/private-pkg',
-            relativeDir: 'packages/private-pkg',
-            packageJson: { name: '@test/private-pkg', version: '0.1.0', private: true },
+            dir: '/test/workspace/packages/public-pkg',
+            relativeDir: 'packages/public-pkg',
+            packageJson: { name: '@test/public-pkg', version: '0.1.0' },
+          },
+          {
+            dir: '/test/workspace/packages/private-a',
+            relativeDir: 'packages/private-a',
+            packageJson: { name: '@test/private-a', version: '0.1.0', private: true },
+          },
+          {
+            dir: '/test/workspace/packages/private-b',
+            relativeDir: 'packages/private-b',
+            packageJson: { name: '@test/private-b', version: '0.1.0', private: true },
           },
         ],
       });
 
-      // Only an exact name exempts a private package.
-      const engine = new VersionEngine({ ...defaultConfig, packages: ['@test/*'] } as Config);
+      const engine = new VersionEngine({ ...defaultConfig, packages: ['packages/*'] } as Config);
       const result = await engine.getWorkspacePackages();
 
-      expect(result.packages.find((p) => p.packageJson.name === '@test/private-pkg')).toBeUndefined();
+      expect(result.packages.map((p) => p.packageJson.name)).toEqual(['@test/public-pkg']);
+      expect(log).toHaveBeenCalledWith('Filtered 3 workspace packages to 3 based on packages config', 'info');
+      expect(log).toHaveBeenCalledWith(
+        'Skipping private packages matched by version.packages: @test/private-a, @test/private-b. ' +
+          'Set version.includePrivate: true, or list each one in version.packages by its exact name or directory path.',
+        'warning',
+      );
+      expect(log).not.toHaveBeenCalledWith(
+        'Warning: No packages matched the specified patterns in config.packages',
+        'warning',
+      );
     });
 
     it('should keep a private hybrid whose Cargo.toml is still publishable', async () => {
