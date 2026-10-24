@@ -140,48 +140,21 @@ In CI, both tokens are typically available as secrets or via OIDC — see the [C
 
 ## 5. Set up CI
 
-The most common setup triggers a release on every push to `main`. See the [CI setup guide](../packages/release/docs/ci-setup.md) for complete GitHub Actions workflows covering:
-
-- Push-to-main releases
-- Label-based triggers (release only when a PR has a `bump:patch/minor/major` label)
-- npm OIDC trusted publishing (no `NPM_TOKEN` secret required)
-- PR preview comments
-- Prerelease workflows
-
-### Minimal CI workflow
+The most common setup releases on every push to `main`. Copy [`release.yml`](../examples/ci/minimal/release.yml) from [`examples/ci/minimal`](../examples/ci/minimal) into `.github/workflows/`. Its job checks out the full history, sets up pnpm and Node, installs your dependencies, then runs:
 
 ```yaml
-# .github/workflows/release.yml
-name: Release
-
-on:
-  push:
-    branches: [main]
-
-permissions:
-  contents: write
-  id-token: write
-
-jobs:
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: pnpm
-          registry-url: 'https://registry.npmjs.org'
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm exec releasekit release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+- run: pnpm exec releasekit release
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-> **Using npm?** Drop the `pnpm/action-setup` step, set `cache: npm` on `setup-node`, and replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
+[`examples/`](../examples/README.md) has workflows for other setups, including npm instead of pnpm, and the [CI setup guide](../packages/release/docs/ci-setup.md) explains them:
+
+- Label-based triggers (release only when a PR has a `bump:patch/minor/major` label)
+- npm OIDC trusted publishing (no `NPM_TOKEN` secret required)
+- A standing release PR
+- PR preview comments
+- Prerelease workflows
 
 If you use the [label-based trigger](../packages/release/docs/ci-setup.md#label-based-trigger), create the required `bump:*`, `channel:*`, and `release:skip` labels with `releasekit labels sync` — see [Create the labels](../packages/release/docs/ci-setup.md#create-the-labels).
 
@@ -191,7 +164,7 @@ If you use the [label-based trigger](../packages/release/docs/ci-setup.md#label-
 
 - **[Architecture](./architecture.md)** — pipeline design, mental model, and how everything fits together
 - **[Release taxonomy](./release-taxonomy.md)** — groups vs prerequisites vs selection, for monorepos with coupled packages
-- **[CI setup guide](../packages/release/docs/ci-setup.md)** — complete workflow recipes
+- **[CI setup guide](../packages/release/docs/ci-setup.md)** — how each CI setup works; the workflows are in [`examples/`](../examples/README.md)
 - **[CLI reference](./cli.md)** — every command and flag
 - **[Configuration reference](./configuration.md)** — all `releasekit.config.json` options
 - **[Troubleshooting](./troubleshooting.md)** — symptom-indexed error guide

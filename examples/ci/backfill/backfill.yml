@@ -1,0 +1,63 @@
+# Copy to: .github/workflows/backfill.yml
+#
+# Regenerates release notes for versions you've already released and writes
+# them into their GitHub Release bodies. Dry run by default: check the run log,
+# then run again with `apply` ticked.
+name: Backfill Release Notes
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Package to backfill (blank = every workspace package)
+        required: false
+      from:
+        description: Earliest version to backfill (inclusive)
+        required: false
+      to:
+        description: Latest version to backfill (inclusive)
+        required: false
+      apply:
+        description: Apply changes (off = dry-run preview)
+        type: boolean
+        default: false
+
+permissions:
+  contents: write # gh release edit
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # backfill reads every tag
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Pass the dispatch inputs via env, not inline interpolation, so the shell
+      # never runs them as code.
+      - run: |
+          args=(--update-releases --only-missing)
+          if [ -n "$PACKAGE" ]; then args+=(--package "$PACKAGE"); else args+=(--all); fi
+          if [ -n "$FROM" ]; then args+=(--from "$FROM"); fi
+          if [ -n "$TO" ]; then args+=(--to "$TO"); fi
+          if [ "$APPLY" = 'true' ]; then args+=(--apply); fi
+          pnpm exec releasekit backfill "${args[@]}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGE: ${{ inputs.package }}
+          FROM: ${{ inputs.from }}
+          TO: ${{ inputs.to }}
+          APPLY: ${{ inputs.apply }}
+          # Provider key, if notes.releaseNotes.llm is set:
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}

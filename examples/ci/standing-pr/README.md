@@ -8,7 +8,7 @@ One workflow file (`standing-pr.yml`) carries four jobs:
 
 | Job | Fires on | Does |
 |-----|----------|------|
-| `update` | push to `main`, hourly `schedule` | rebuilds `release/next` and the standing PR from the queued changes |
+| `update` | push to `main`, hourly `schedule`, a label change or checkbox edit on the open standing PR | rebuilds `release/next` and the standing PR from the queued changes, after posting an in-progress banner on PR events |
 | `immediate-release` | a PR labelled `release:immediate` being **merged** | releases it directly, bypassing the standing PR, then reconciles the standing PR |
 | `publish` | the standing PR being **merged** | publishes the reviewed manifest, tags, GitHub Releases |
 | `retry-publish` | `release:retry` label on the **merged** standing PR | idempotently re-publishes whatever the failed run left unfinished |
@@ -47,3 +47,4 @@ Shared [correctness rules](../../README.md#cross-cutting-correctness-rules) appl
 
 - The `pull_request` trigger subscribes to **both** `closed` and `labeled`. The `publish` job guards on `action == 'closed'` so a label on an already-merged PR can't re-trigger a publish; only `retry-publish` reacts to `labeled`.
 - `retry-publish` checks out `ref: main` (since `release/next` is deleted on merge), then removes the `release:retry` label so each application is exactly one retry.
+- Checkbox edits on the open standing PR get a per-PR cancelling `concurrency` group, so rapid ticks collapse into one rebuild. The bot's own body edits stay in the shared group, so they never cancel the run doing the work. See [In-progress feedback](../../../packages/release/docs/ci-setup.md#in-progress-feedback).

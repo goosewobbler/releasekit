@@ -80,4 +80,25 @@ export const SCENARIOS: Scenario[] = [
     releaseArgs: ['release', '--dry-run'],
     proves: 'standing-pr update setup resolves; the PR-mutating API path stays out of scope.',
   },
+  {
+    id: 'release-preview',
+    workflow: 'release-preview.yml',
+    job: 'preview',
+    config: 'releasekit.config.json',
+    fixture: 'npm-single',
+    // --dry-run prints the comment instead of posting it, so no PR context is needed.
+    releaseArgs: ['preview', '--dry-run'],
+    proves: 'preview setup resolves; dry-run renders the comment without posting it.',
+  },
+  {
+    id: 'backfill',
+    workflow: 'backfill.yml',
+    job: 'backfill',
+    config: 'releasekit.config.json',
+    fixture: 'npm-single',
+    // --update-releases reads each tag's GitHub Release through `gh`, which needs a real repo, so probe the
+    // environment with a plain dry-run release instead.
+    releaseArgs: ['release', '--dry-run'],
+    proves: 'backfill setup resolves; the gh release reads and edits stay out of scope.',
+  },
 ];

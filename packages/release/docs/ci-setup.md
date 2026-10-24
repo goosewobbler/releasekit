@@ -16,52 +16,14 @@ All workflows require:
 
 Trigger a release on every push to `main`. If there are no releasable commits, the command exits cleanly with code 0 and does nothing.
 
+The workflow is [`examples/ci/minimal`](../../../examples/ci/minimal/release.yml). Its job checks out the full history, sets up pnpm and Node, installs, then runs:
+
 ```yaml
-# .github/workflows/release.yml
-name: Release
-
-on:
-  push:
-    branches: [main]
-
-permissions:
-  contents: write
-  id-token: write       # for npm OIDC trusted publishing
-  pull-requests: write  # only needed if you enable ci.prPreview.refreshAfterRelease (below)
-
-jobs:
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: pnpm
-          registry-url: 'https://registry.npmjs.org'
-
-      - run: pnpm install --frozen-lockfile
-
-      - run: pnpm exec releasekit release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # For OIDC trusted publishing (recommended) — no NPM_TOKEN needed.
-          # For token-based publishing: NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      # Optional: after the release moves `main`, refresh the "what would release" preview on still-open
-      # PRs (they otherwise stay frozen at the pre-release baseline). No-op unless you enable
-      # `ci.prPreview.refreshAfterRelease`. See "PR Preview Comments" below.
-      - run: pnpm exec releasekit refresh-after-release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+- run: pnpm exec releasekit release
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    # For token-based npm publishing instead of OIDC: NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 ```
-
-> **Using npm?** Drop the `pnpm/action-setup` step, set `cache: npm` on `setup-node`, and replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
 
 ---
 
@@ -140,49 +102,7 @@ In CI, add `--check`: it exits non-zero on a missing label, catching the silent 
 > modifiers on the next merge. (The `release:` namespace is deliberate — graduation is a release
 > *decision*, not a channel selection.)
 
-```yaml
-# .github/workflows/release.yml
-name: Release
-
-on:
-  push:
-    branches: [main]
-
-permissions:
-  contents: write
-  id-token: write
-  pull-requests: write  # `read` is enough for release alone; `write` is needed to refresh previews after release
-
-jobs:
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: pnpm
-          registry-url: 'https://registry.npmjs.org'
-
-      - run: pnpm install --frozen-lockfile
-
-      - run: pnpm exec releasekit release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # Optional: refresh open-PR previews against the post-release baseline.
-      # No-op unless ci.prPreview.refreshAfterRelease is enabled.
-      - run: pnpm exec releasekit refresh-after-release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
-
-> **Using npm?** Drop the `pnpm/action-setup` step, set `cache: npm` on `setup-node`, and replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
+The workflow is [`examples/ci/label-driven`](../../../examples/ci/label-driven/release.yml).
 
 Configure the trigger in `releasekit.config.json`:
 
@@ -238,48 +158,7 @@ pnpm exec releasekit release --scope core
 
 Post a comment on every PR showing what would be released if merged. Requires `pull-requests: write`.
 
-```yaml
-# .github/workflows/release-preview.yml
-name: Release Preview
-
-on:
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, labeled, unlabeled]
-
-concurrency:
-  group: release-preview-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
-
-permissions:
-  pull-requests: write
-  contents: read
-
-jobs:
-  preview:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - run: pnpm exec releasekit preview
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
-
-> **Using npm?** Drop the `pnpm/action-setup` step, set `cache: npm` on `setup-node`, and replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
-
-A ready-to-use template is available at [`templates/workflows/release-preview.yml`](../../../templates/workflows/release-preview.yml).
+The workflow is [`examples/ci/release-preview`](../../../examples/ci/release-preview/release-preview.yml). It runs `releasekit preview` on each PR event, so the comment follows new pushes and label changes.
 
 ### Keeping previews fresh after a release
 
@@ -295,8 +174,8 @@ baseline until it's pushed again. Enable a post-release refresh to fix this:
 }
 ```
 
-With `refreshAfterRelease` on, add a `refresh-after-release` step to your release job (see the
-[Minimal](#minimal-setup-push-to-main) and [Label-Based](#label-based-trigger) examples). After each
+With `refreshAfterRelease` on, add a `refresh-after-release` step to your release job and give the job
+`pull-requests: write`. After each
 release it replays the preview on still-open PRs that already have one — skipping drafts, the standing
 PR, and PRs without a preview, and bounded to 50 PRs per run. It's best-effort: a per-PR failure only
 warns. (`ci.prPreview: true` remains valid shorthand for `{ "enabled": true }`.)
@@ -344,8 +223,8 @@ permissions:
 | Secret | Used by | When required |
 |---|---|---|
 | `GITHUB_TOKEN` | all jobs | Always (auto-provided). |
-| `NPM_TOKEN` | `publish-release`, `immediate-release`, and `retry-publish` | Only if not using OIDC. With OIDC, omit it entirely. |
-| `OLLAMA_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | `publish-release`, `immediate-release`, and `retry-publish` | Required for LLM-enhanced notes at publish time. Also pass to `update-release-pr` only if you use the `release:preview-notes` label. Without a key, enhancement falls back to ungrouped output (warning, not a failure). |
+| `NPM_TOKEN` | `publish`, `immediate-release`, and `retry-publish` | Only if not using OIDC. With OIDC, omit it entirely. |
+| `OLLAMA_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | `publish`, `immediate-release`, and `retry-publish` | Required for LLM-enhanced notes at publish time. Also pass to `update` only if you use the `release:preview-notes` label. Without a key, enhancement falls back to ungrouped output (warning, not a failure). |
 
 **Branch protection:** if `release/next` is protected, the bot's force-push will fail. Either leave the release branch unprotected or grant the bot bypass permissions.
 
@@ -438,14 +317,14 @@ The in-code gates keep the *manifest* clean, but the merge itself is a GitHub ac
 
 #### Workflow token approvals
 
-The template creates the standing PR with `GITHUB_TOKEN`, which needs **Allow GitHub Actions to create and approve pull requests**, and that one toggle covers approving too. With it on, **any** workflow's `GITHUB_TOKEN` can approve a pull request, and that approval counts toward ruleset 2's "≥ 1 approval" for any PR that `github-actions[bot]` didn't author. A write collaborator could push a branch whose workflow approves their own feeder PR. Once it merges, it ships in the next standing release, whose diff shows only version and changelog updates, or straight away if it carries `release:immediate`.
+The [example workflow](../../../examples/ci/standing-pr/standing-pr.yml) creates the standing PR with `GITHUB_TOKEN`, which needs **Allow GitHub Actions to create and approve pull requests**, and that one toggle covers approving too. With it on, **any** workflow's `GITHUB_TOKEN` can approve a pull request, and that approval counts toward ruleset 2's "≥ 1 approval" for any PR that `github-actions[bot]` didn't author. A write collaborator could push a branch whose workflow approves their own feeder PR. Once it merges, it ships in the next standing release, whose diff shows only version and changelog updates, or straight away if it carries `release:immediate`.
 
 So in ruleset 2, also enable:
 
 - **Require review from Code Owners.** A workflow token isn't a code owner. The rule only covers paths in `CODEOWNERS`, so give it a `*` rule naming an owner with write access, such as `* @acme/maintainers`. A later pattern overrides `*` for its paths, so every pattern needs such an owner.
 - **Dismiss stale pull request approvals when new commits are pushed**, so a code owner's approval doesn't carry over to commits pushed after it. Each standing-PR update, including the hourly scheduled run, pushes a new commit and can dismiss the standing PR's approval too, so approve it just before merging.
 
-None of this applies to a ruleset's bypass actors. With the template's `GITHUB_TOKEN`, the release bot is the Actions bot, and a bypass for it is open to every workflow. Ruleset 1 needs one for the release branch. The template's `immediate-release` job pushes straight to `main`, so it needs one on ruleset 2 as well, which voids the settings above. Remove that job if you rely on them.
+None of this applies to a ruleset's bypass actors. With the example's `GITHUB_TOKEN`, the release bot is the Actions bot, and a bypass for it is open to every workflow. Ruleset 1 needs one for the release branch. The example's `immediate-release` job pushes straight to `main`, so it needs one on ruleset 2 as well, which voids the settings above. Remove that job if you rely on them.
 
 To keep registry credentials away from workflows on other branches, publish from a deployment environment restricted to the default branch. A merged PR's `closed` run has the branch it merged into as its ref, so the publish jobs it triggers pass the restriction. Name the environment on each of them, move registry tokens such as `NPM_TOKEN` to environment secrets, and require the environment in each registry's trusted-publisher settings. GitHub documents that ref only for the `closed` run, so a label-triggered job such as the example's `retry-publish` may be rejected.
 
@@ -456,277 +335,18 @@ To keep registry credentials away from workflows on other branches, publish from
 
 ### Workflow
 
-`standing-pr.yml` runs alongside any existing release workflow:
+`standing-pr.yml` runs alongside any existing release workflow. Copy it from [`examples/ci/standing-pr`](../../../examples/ci/standing-pr/standing-pr.yml); [its README](../../../examples/ci/standing-pr/README.md) lists the four jobs (`update`, `immediate-release`, `publish`, `retry-publish`) and what fires each. The triggers:
 
 ```yaml
-# .github/workflows/standing-pr.yml
-# Requires: "Allow GitHub Actions to create and approve pull requests"
-# enabled at Settings → Actions → General → Workflow permissions.
-name: Standing Release PR
-
 on:
   push:
     branches: [main]
   pull_request:
-    # closed: publish on merge. labeled/unlabeled: apply bump/scope/channel override labels to
-    # the OPEN standing PR immediately (#336); also the release:retry path on the merged PR.
-    # edited: a maintainer ticked/unticked packages in the PR's selection region — re-run so the
-    # held-back set applies (the bot's own body edits are filtered by the sender guard below).
     types: [closed, labeled, unlabeled, edited]
     branches: [main]
   schedule:
-    - cron: '0 * * * *'  # Hourly — re-evaluates minAge status check as time passes
-
-concurrency:
-  # GitHub keeps one pending run per group and replaces it with any newer one. So the standing PR's
-  # publish on merge and its retry label get a group per PR that nothing else can replace or cancel.
-  # A merged `release:immediate` PR queues with the updates, so the two don't write release/next at
-  # once. Other events on a closed PR run no job, so each gets a group of its own. A maintainer's
-  # checkbox edits on the open PR get a per-PR cancelling group, so a flurry of ticks collapses to one
-  # rebuild. Everything else, including the bot's own body edits, shares a non-cancelling group. The
-  # label names and the `release/next` branch are hardcoded: update them here if you rename them in
-  # `ci.labels` or `ci.standingPr.branch`.
-  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (github.event.pull_request.head.ref == 'release/next' && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event.action == 'closed' && github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release:immediate') && 'standing-release-pr' || format('standing-release-pr-noop-{0}', github.run_id)) || github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'open' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
-
-permissions:
-  contents: write
-  pull-requests: write
-  id-token: write
-  statuses: write
-
-jobs:
-  update-release-pr:
-    name: Update Release PR
-    # push/schedule rebuild the PR; a label change or selection-region edit on the OPEN standing PR
-    # re-runs the update so bump/scope/channel overrides and held-back packages take effect within
-    # seconds. `state == 'open'` keeps this off the merged-PR label events that drive publish/retry.
-    # The `sender.type != 'Bot'` guard is load-bearing for `edited`: the update rewrites the PR body
-    # (an `edited` event), so without it the bot would re-trigger forever. Match on type, not a
-    # hardcoded `github-actions[bot]` login, so a custom GitHub App token (its own `*[bot]` login) is
-    # filtered too. The `release/` prefix is hardcoded (workflow `if` can't read config) — in-step config is authoritative.
-    if: >-
-      github.event_name == 'push' ||
-      github.event_name == 'schedule' ||
-      (
-        github.event_name == 'pull_request' &&
-        (
-          github.event.action == 'labeled' ||
-          github.event.action == 'unlabeled' ||
-          github.event.action == 'edited'
-        ) &&
-        github.event.pull_request.state == 'open' &&
-        startsWith(github.event.pull_request.head.ref, 'release/') &&
-        github.event.sender.type != 'Bot'
-      )
-    runs-on: ubuntu-latest
-    steps:
-      # Post an instant "updating…" banner so a maintainer who just ticked a checkbox (or changed a
-      # label) knows the change was received while the slower rebuild runs. Reactive events only; runs
-      # BEFORE checkout so it lands within seconds. `standing-pr update` regenerates the body from
-      # scratch, so the banner self-clears on success; the failure step below strips it if the run dies
-      # first. Idempotent — skips if a banner is already present.
-      - name: Acknowledge the update in progress
-        if: github.event_name == 'pull_request'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          set -euo pipefail
-          BODY=$(gh api "repos/$REPO/pulls/$PR" --jq '.body // ""')
-          case "$BODY" in
-            *'<!-- releasekit-processing -->'*) echo "Banner already present — skipping"; exit 0 ;;
-          esac
-          BANNER=$'<!-- releasekit-processing -->\n> 🔄 **Updating the release PR** to reflect your change… ([run details]('"$RUN_URL"$'))\n<!-- releasekit-processing-end -->'
-          NEWBODY=$(printf '%s\n\n%s' "$BANNER" "$BODY")
-          gh api --method PATCH "repos/$REPO/pulls/$PR" -f body="$NEWBODY" >/dev/null
-
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.base.ref }}
-          fetch-depth: 0
-          token: ${{ github.token }}
-
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: pnpm
-          registry-url: 'https://registry.npmjs.org'
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - run: pnpm exec releasekit standing-pr update
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          # LLM key only needed when using the release:preview-notes label (optional).
-          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-
-      # On success the regenerated body already omits the banner; only a run that ended before the
-      # rebuild leaves it behind. Strip the marker region so it doesn't linger as a false "in progress".
-      # `cancelled()` too — a manual cancel (or a superseded reactive run) also skips the rebuild.
-      - name: Clear the in-progress banner if the update didn't finish
-        if: (failure() || cancelled()) && github.event_name == 'pull_request'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
-        run: |
-          set -euo pipefail
-          BODY=$(gh api "repos/$REPO/pulls/$PR" --jq '.body // ""')
-          CLEANED=$(printf '%s' "$BODY" | sed '/<!-- releasekit-processing -->/,/<!-- releasekit-processing-end -->/d')
-          gh api --method PATCH "repos/$REPO/pulls/$PR" -f body="$CLEANED" >/dev/null
-
-  immediate-release:
-    name: Immediate Release (bypass standing PR)
-    if: >
-      github.event_name == 'pull_request' &&
-      github.event.action == 'closed' &&
-      github.event.pull_request.merged == true &&
-      github.event.pull_request.head.ref != 'release/next' &&
-      contains(github.event.pull_request.labels.*.name, 'release:immediate')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          token: ${{ github.token }}
-
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: pnpm
-          registry-url: 'https://registry.npmjs.org'
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - run: pnpm exec releasekit release
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-
-      - run: pnpm exec releasekit refresh-after-release
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          # LLM key only needed when using the release:preview-notes label (optional).
-          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-
-  publish-release:
-    name: Publish Release
-    # action == 'closed' matters: with `labeled` subscribed above, a label added to the
-    # already-merged standing PR would otherwise re-match this job and publish unvalidated.
-    if: >
-      github.event_name == 'pull_request' &&
-      github.event.action == 'closed' &&
-      github.event.pull_request.merged == true &&
-      startsWith(github.event.pull_request.head.ref, 'release/')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          token: ${{ github.token }}
-
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: pnpm
-          registry-url: 'https://registry.npmjs.org'
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - run: pnpm exec releasekit standing-pr publish
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          # With OIDC trusted publishing (recommended) NODE_AUTH_TOKEN is
-          # unnecessary. With token-based npm auth, uncomment the next line:
-          # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-
-  # Maintainer-invoked retry after a partial-publish failure: apply `release:retry` to the
-  # MERGED standing PR (label events fire on closed PRs). Publishing is idempotent — versions
-  # already on the registry are skipped, and tags / GitHub releases are only created once the
-  # publish succeeds — so the retry completes exactly what the failed run left unfinished.
-  retry-publish:
-    name: Retry Publish
-    if: >
-      github.event_name == 'pull_request' &&
-      github.event.action == 'labeled' &&
-      github.event.label.name == 'release:retry' &&
-      github.event.pull_request.merged == true &&
-      startsWith(github.event.pull_request.head.ref, 'release/')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          token: ${{ github.token }}
-          ref: main  # the standing PR's branch is deleted on merge; publish from main
-
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: pnpm
-          registry-url: 'https://registry.npmjs.org'
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - run: pnpm exec releasekit standing-pr publish --pr ${{ github.event.pull_request.number }}
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          # Same auth note as publish-release above.
-          # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-
-      # Remove the label so each application is exactly one retry; re-apply to retry again.
-      - name: Remove retry label
-        if: always()
-        run: gh api -X DELETE "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/labels/release%3Aretry" || true
-        env:
-          GH_TOKEN: ${{ github.token }}
+    - cron: '0 * * * *' # advances the minAge status check as time passes
 ```
-
-> **Using npm?** Drop the `pnpm/action-setup` step, set `cache: npm` on `setup-node`, and replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
 
 ### How it works
 
@@ -775,7 +395,7 @@ Skipping entirely is the recommended default — the merge to `main` re-runs CI 
 
 ### In-progress feedback
 
-Ticking a checkbox or changing a label on the standing PR re-runs `standing-pr update`, which takes a minute or two (checkout → install → rebuild). To avoid a silent wait, the template posts an **in-progress banner** to the top of the PR body within seconds of the change:
+Ticking a checkbox or changing a label on the standing PR re-runs `standing-pr update`, which takes a minute or two (checkout → install → rebuild). To avoid a silent wait, the example workflow posts an **in-progress banner** to the top of the PR body within seconds of the change:
 
 > 🔄 **Updating the release PR** to reflect your change… ([run details](#))
 
@@ -842,7 +462,7 @@ The `immediate-release` job in `standing-pr.yml` handles this:
 
 #### Retrying a failed publish
 
-If a standing-PR publish fails partway through, add the **`release:retry`** label to the **merged** standing PR. The version commit is already on `main`. GitHub Releases are created only after every package succeeds. In per-package mode, tags for packages that published may already be on the remote — do not delete them. The `retry-publish` job in the workflow template above:
+If a standing-PR publish fails partway through, add the **`release:retry`** label to the **merged** standing PR. The version commit is already on `main`. GitHub Releases are created only after every package succeeds. In per-package mode, tags for packages that published may already be on the remote — do not delete them. The example's `retry-publish` job:
 
 1. Validates via its `if` guard that the PR is a merged standing PR and the label is `release:retry` — note the guard hardcodes the label name (workflow `if` expressions can't read releasekit config), so renaming the label via `ci.labels.retry` requires updating the guard and the `concurrency` group to match.
 2. Re-runs the manifest-driven publish for that PR (`standing-pr publish --pr <n>`) — idempotent, so it re-publishes only the packages that did not land, then pushes tags and creates GitHub releases.
@@ -859,7 +479,7 @@ By default the standing PR generates only changelogs — LLM release notes are p
 3. Edit the prose between the markers directly in the PR description. **Keep the marker comments** — they delimit the region that's read back.
 4. Merge as usual. The edited notes become the GitHub release body, winning per package over freshly generated notes.
 
-Your edits are **preserved across update runs**: notes are generated once when the label is first applied, then carried over (not regenerated) on later pushes — so a push to `main` while you're mid-edit won't clobber your text. A package added to the queue *after* you started gets fresh notes; existing blocks keep your edits. Requires `notes.releaseNotes.llm` configured and the provider secret available to the `update-release-pr` job (same as publish-time generation).
+Your edits are **preserved across update runs**: notes are generated once when the label is first applied, then carried over (not regenerated) on later pushes — so a push to `main` while you're mid-edit won't clobber your text. A package added to the queue *after* you started gets fresh notes; existing blocks keep your edits. Requires `notes.releaseNotes.llm` configured and the provider secret available to the `update` job (same as publish-time generation).
 
 This is a standing-pr-only feature — it needs a durable pre-publish artifact (the PR body) to edit. In `direct`/`manual` mode, edit the GitHub Release after it's published instead. (A manual-mode draft-then-dispatch flow is tracked in [#319](https://github.com/goosewobbler/releasekit/issues/319).)
 
@@ -870,14 +490,14 @@ This is a standing-pr-only feature — it needs a durable pre-publish artifact (
 | Symptom | Cause / fix |
 |---|---|
 | `403 — GitHub Actions is not permitted to create or approve pull requests` | Repo setting not enabled. See [Setup requirements](#setup-requirements). |
-| `OLLAMA_API_KEY is not set. … Returning entries ungrouped.` | LLM secret not passed to the job generating the notes: `publish-release`, `retry-publish` and `immediate-release`, or `update-release-pr` for `release:preview-notes`. Add it to the job's `env:` block (or the equivalent for your provider). |
+| `OLLAMA_API_KEY is not set. … Returning entries ungrouped.` | LLM secret not passed to the job generating the notes: `publish`, `retry-publish` and `immediate-release`, or `update` for `release:preview-notes`. Add it to the job's `env:` block (or the equivalent for your provider). |
 | `error: too many arguments for 'preview'` | Pre-fix releasekit where `standing-pr` was missing from `cli.ts`. Upgrade `@releasekit/release`. |
-| Standing PR never appears despite merges | Check, in order: (1) the GitHub repo setting; (2) the head commit doesn't match `release.ci.skipPatterns`; (3) there are releasable conventional commits (`feat:`, `fix:`) since the last tag; (4) the `update-release-pr` job logs — they print the dry-run version output. |
+| Standing PR never appears despite merges | Check, in order: (1) the GitHub repo setting; (2) the head commit doesn't match `release.ci.skipPatterns`; (3) there are releasable conventional commits (`feat:`, `fix:`) since the last tag; (4) the `update` job logs — they print the dry-run version output. |
 | Standing PR keeps closing immediately | `minPackages` is set higher than the current change count. Either lower the threshold or wait for more package changes to accumulate. |
 | Every standing-PR update re-runs my whole build matrix | Your CI triggers on `pull_request` and isn't exempting the release branch. Add a head-ref guard — see [Keeping CI off the standing PR](#keeping-ci-off-the-standing-pr). `[skip ci]` can't be used here (it would suppress publish on merge). |
 | Standing PR ignores my `bump:*` label on a feeder PR | By design — feeder labels are advisory in standing-pr mode. Add the label to the standing PR itself, or use `release:immediate` to bypass the queue. |
 | Standing PR shows `pending` status `Conflicting bump labels…` | Two conflicting labels on the standing PR (e.g. `bump:patch` + `bump:major`). Remove one and re-run `standing-pr update`. |
-| Added `release:preview-notes` but no notes appear | The region is written on the next `standing-pr update` (push to `main`, the hourly `schedule`, or a manual re-run) — not the instant the label is applied. Also confirm `notes.releaseNotes.llm` is set and the provider secret reaches the `update-release-pr` job. |
+| Added `release:preview-notes` but no notes appear | The region is written on the next `standing-pr update` (push to `main`, the hourly `schedule`, or a manual re-run) — not the instant the label is applied. Also confirm `notes.releaseNotes.llm` is set and the provider secret reaches the `update` job. |
 | Edited release notes didn't ship | Confirm you edited *inside* the `<!-- releasekit-notes:<package> -->` markers and left them intact — content outside the markers isn't read back. |
 | Force-push to `release/next` fails | Branch is protected. Remove protection on the release branch, or grant the bot bypass. |
 | `minAge` never advances | The hourly `schedule` trigger isn't running. Confirm the workflow has a `schedule:` block and that the repo isn't paused (GitHub disables `schedule` on inactive repos after 60 days). |
@@ -915,28 +535,12 @@ With OIDC, no `NPM_TOKEN` secret is required. The workflow exchanges a GitHub-is
 - npm `>=9.5.0`
 - Each package must have an **Automation policy** configured at npmjs.com (Settings → Automation policies → add a GitHub Actions OIDC publisher for your repo and workflow)
 
-**Important:** `actions/setup-node` with `registry-url` writes a project `.npmrc` that injects `_authToken=${NODE_AUTH_TOKEN}`. When `NODE_AUTH_TOKEN` is unset, npm resolves this to an empty token and fails with `ENEEDAUTH` instead of falling through to the OIDC exchange. Delete the file before publishing:
+**Important:** `actions/setup-node` with `registry-url` writes a project `.npmrc` that injects `_authToken=${NODE_AUTH_TOKEN}`. When `NODE_AUTH_TOKEN` is unset, npm resolves this to an empty token and fails with `ENEEDAUTH` instead of falling through to the OIDC exchange. Delete the file before publishing, as [`examples/ci/oidc`](../../../examples/ci/oidc/release.yml) does. The workflow also needs:
 
 ```yaml
 permissions:
   contents: write
   id-token: write    # grants the OIDC token
-
-steps:
-  - uses: pnpm/action-setup@v6
-
-  - uses: actions/setup-node@v6
-    with:
-      node-version: '24'
-      cache: pnpm
-      registry-url: 'https://registry.npmjs.org'
-
-  - run: pnpm install --frozen-lockfile
-
-  - run: pnpm exec releasekit release
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # No NPM_TOKEN needed with OIDC
 ```
 
 ReleaseKit detects OIDC availability automatically (`npm-auth: auto`). To force it:
@@ -1001,40 +605,14 @@ If OIDC is not configured, set the `PUB_TOKEN` environment variable. ReleaseKit 
 
 ## Prerelease Workflow
 
+The workflow is [`examples/ci/prerelease`](../../../examples/ci/prerelease/prerelease.yml): a manual `workflow_dispatch` with an `identifier` input. Pass the input through `env`, not inline, so the shell never runs it:
+
 ```yaml
-# Manual dispatch for prereleases
-on:
-  workflow_dispatch:
-    inputs:
-      prerelease:
-        description: 'Prerelease identifier (e.g. beta, rc)'
-        required: true
-        default: 'beta'
-
-jobs:
-  prerelease:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: pnpm
-          registry-url: 'https://registry.npmjs.org'
-
-      - run: pnpm install --frozen-lockfile
-
-      - run: pnpm exec releasekit release --prerelease ${{ inputs.prerelease }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+- run: pnpm exec releasekit release --prerelease "$PRERELEASE_IDENTIFIER"
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    PRERELEASE_IDENTIFIER: ${{ inputs.identifier }}
 ```
-
-> **Using npm?** Drop the `pnpm/action-setup` step, set `cache: npm` on `setup-node`, and replace `pnpm install --frozen-lockfile` with `npm ci` and `pnpm exec` with `npx`.
 
 ---
 
