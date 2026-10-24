@@ -70,6 +70,8 @@ function branchDeletePushes() {
   return fakeGit.pushed.filter((p) => p.ref?.startsWith(':'));
 }
 
+const MERGED_HEAD = 'a'.repeat(40);
+
 vi.mock('node:fs', () => ({
   default: {
     readFileSync: vi.fn(),
@@ -2961,7 +2963,10 @@ describe('runStandingPRPublish', () => {
       }),
     );
 
-    await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+    await mockForge({
+      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+      pullRequests: { 42: { body: '', labels: [], headSha: MERGED_HEAD } },
+    });
 
     const { runPublishStep } = await import('../../src/steps.js');
     vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
@@ -2973,6 +2978,98 @@ describe('runStandingPRPublish', () => {
     const deleteCalls = branchDeletePushes();
     expect(deleteCalls).toHaveLength(1);
     expect(deleteCalls[0]?.ref).toBe(':release/next');
+  });
+
+  describe('release branch delete lease', () => {
+    async function publishWithMergedHead(headSha: string | undefined) {
+      const { readFileSync } = await import('node:fs');
+      vi.mocked(readFileSync).mockReturnValue(
+        JSON.stringify({
+          pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
+        }),
+      );
+      await mockForge({
+        comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+        pullRequests: { 42: { body: '', labels: [], headSha } },
+      });
+      const { runPublishStep } = await import('../../src/steps.js');
+      vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+        ReturnType<typeof runPublishStep>
+      >);
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+      onTestFinished(() => logged.mockRestore());
+      const result = await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
+      return { result, logs: logged.mock.calls.map(([line]) => String(line)) };
+    }
+
+    it("should delete the branch only while it is still at the merged PR's head", async () => {
+      await publishWithMergedHead(MERGED_HEAD);
+
+      expect(branchDeletePushes()).toEqual([
+        expect.objectContaining({ ref: ':release/next', forceWithLease: { ref: 'release/next', expect: MERGED_HEAD } }),
+      ]);
+    });
+
+    it.each([
+      ['git sees the move', ' ! [rejected]        (delete) -> release/next (stale info)'],
+      [
+        'the remote refuses it',
+        " ! [remote rejected] (delete) -> release/next (cannot lock ref 'refs/heads/release/next': is at 1111 but expected aaaa)",
+      ],
+      ['GitHub refuses it', ' ! [remote rejected] (delete) -> release/next (incorrect old value provided)'],
+    ])('should keep a branch an update has moved and still finish the publish when %s', async (_case, message) => {
+      const push = vi.spyOn(fakeGit, 'push').mockImplementation(async ({ ref }) => {
+        if (ref?.startsWith(':')) {
+          throw new Error(message);
+        }
+      });
+
+      const { result, logs } = await publishWithMergedHead(MERGED_HEAD);
+
+      expect(result).toMatchObject({ versionOutput: baseManifest.versionOutput });
+      expect(push).toHaveBeenCalledWith(
+        expect.objectContaining({ ref: ':release/next', forceWithLease: { ref: 'release/next', expect: MERGED_HEAD } }),
+      );
+      expect(logs.some((l) => l.includes("Kept release branch 'release/next': it has moved since the merge"))).toBe(
+        true,
+      );
+      expect(logs.some((l) => l.includes('Failed to delete release branch'))).toBe(false);
+    });
+
+    it("should keep the branch when the merged PR's head commit is unknown", async () => {
+      const { logs } = await publishWithMergedHead(undefined);
+
+      expect(branchDeletePushes()).toHaveLength(0);
+      expect(logs.some((l) => l.includes("couldn't read PR #42's head commit"))).toBe(true);
+    });
+
+    it("should fall back to the event's head commit when the PR can't be read", async () => {
+      const { readFileSync } = await import('node:fs');
+      vi.mocked(readFileSync).mockReturnValue(
+        JSON.stringify({
+          pull_request: { head: { ref: 'release/next', sha: MERGED_HEAD }, number: 42, merged: true },
+        }),
+      );
+      const forge = await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+      vi.spyOn(forge, 'getPullRequest').mockRejectedValue(new Error('502 Bad Gateway'));
+      const { runPublishStep } = await import('../../src/steps.js');
+      vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+        ReturnType<typeof runPublishStep>
+      >);
+
+      await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+      expect(branchDeletePushes()).toEqual([
+        expect.objectContaining({ ref: ':release/next', forceWithLease: { ref: 'release/next', expect: MERGED_HEAD } }),
+      ]);
+    });
+
+    it('should keep the branch when the head commit is not a commit SHA', async () => {
+      const { logs } = await publishWithMergedHead('main');
+
+      expect(branchDeletePushes()).toHaveLength(0);
+      expect(logs.some((l) => l.includes("PR #42's head 'main' isn't a commit SHA"))).toBe(true);
+    });
   });
 
   it('should skip branch deletion when deleteBranchOnMerge is false', async () => {
@@ -2989,7 +3086,10 @@ describe('runStandingPRPublish', () => {
       }),
     );
 
-    await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+    await mockForge({
+      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+      pullRequests: { 42: { body: '', labels: [], headSha: MERGED_HEAD } },
+    });
 
     const { runPublishStep } = await import('../../src/steps.js');
     vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
@@ -3497,6 +3597,7 @@ describe('runStandingPRMerge', () => {
     await mockForge({
       standingPR: openStandingPR(42),
       comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+      pullRequests: { 42: { body: '', labels: [], headSha: MERGED_HEAD } },
     });
 
     const { runPublishStep } = await import('../../src/steps.js');
@@ -3521,6 +3622,7 @@ describe('runStandingPRMerge', () => {
     await mockForge({
       standingPR: openStandingPR(42),
       comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+      pullRequests: { 42: { body: '', labels: [], headSha: MERGED_HEAD } },
     });
 
     const { runPublishStep } = await import('../../src/steps.js');

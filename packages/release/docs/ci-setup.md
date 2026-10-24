@@ -343,9 +343,9 @@ permissions:
 
 | Secret | Used by | When required |
 |---|---|---|
-| `GITHUB_TOKEN` | both jobs | Always (auto-provided). |
-| `NPM_TOKEN` | `publish-release` | Only if not using OIDC. With OIDC, omit it entirely. |
-| `OLLAMA_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | `update-release-pr` | If `notes.releaseNotes.llm` is configured. Without it, LLM enhancement falls back to ungrouped output (logged as a warning, not a failure). |
+| `GITHUB_TOKEN` | all jobs | Always (auto-provided). |
+| `NPM_TOKEN` | `publish-release`, `immediate-release`, and `retry-publish` | Only if not using OIDC. With OIDC, omit it entirely. |
+| `OLLAMA_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | `publish-release`, `immediate-release`, and `retry-publish` | Required for LLM-enhanced notes at publish time. Also pass to `update-release-pr` only if you use the `release:preview-notes` label. Without a key, enhancement falls back to ungrouped output (warning, not a failure). |
 
 **Branch protection:** if `release/next` is protected, the bot's force-push will fail. Either leave the release branch unprotected or grant the bot bypass permissions.
 
@@ -370,7 +370,7 @@ All `ci.standingPr.*` options:
 | `branch` | `release/next` | Bot-maintained release branch name. Force-reset to main on every update. |
 | `title` | `chore: release ${tag}` (sync), `chore: release ${count} package(s)` (otherwise) | PR title template, also used as the release commit's subject. Variables: `${count}` (package count), `${version}` (first updated package version), `${tag}` (version with tag prefix). **Must match `release.ci.skipPatterns`** (default `chore: release `) and carry no CI-skip marker, or `chore: release preparation` is used instead. |
 | `labels` | `["release"]` | Labels applied to the standing PR. Do not overlap with `bump:*` or `release:*` labels — those would cause the label-driven release flow to fire on the standing PR's merge. |
-| `deleteBranchOnMerge` | `true` | Delete `release/next` after publish completes. |
+| `deleteBranchOnMerge` | `true` | Delete `release/next` after publish completes, unless an update has moved it since the merge. |
 | `mergeMethod` | `merge` | `merge` \| `squash` \| `rebase`. Squash recommended — produces a single `chore: release …` commit on main that the skip-pattern guard recognises. |
 | `minAge` | (unset) | Duration string (`6h`, `30m`, `1d`). Until elapsed, the `releasekit/standing-pr` status check reports `pending` with a countdown. Combined with branch protection on the status check, blocks early merges. Time baseline is `firstUpdatedAt` — the PR's first creation timestamp, preserved across updates. |
 | `minPackages` | (unset) | Minimum distinct packages with releasable changes before a standing PR is created. Below the threshold, an open PR is closed with an explanatory comment and no new PR is created until the threshold is met. |
@@ -478,14 +478,16 @@ on:
     - cron: '0 * * * *'  # Hourly — re-evaluates minAge status check as time passes
 
 concurrency:
-  # Rapid checkbox toggles each fire a separate `edited` event — route a maintainer's edits to a
-  # per-PR group that cancels in-progress runs, so a flurry of ticks collapses to one rebuild of the
-  # latest selection. Everything else — push / schedule / merge, AND the bot's own body edits (the
-  # processing banner + the rebuilt body, which are `edited` from a Bot sender) — stays on the stable
-  # shared group with cancelling OFF, so a bot edit never cancels the run doing the work and a queued
-  # publish dispatch is never dropped. The `sender.type != 'Bot'` guard is what keeps the two apart.
-  group: ${{ (github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot') && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
+  # GitHub keeps one pending run per group and replaces it with any newer one. So the standing PR's
+  # publish on merge and its retry label get a group per PR that nothing else can replace or cancel.
+  # A merged `release:immediate` PR queues with the updates, so the two don't write release/next at
+  # once. Other events on a closed PR run no job, so each gets a group of its own. A maintainer's
+  # checkbox edits on the open PR get a per-PR cancelling group, so a flurry of ticks collapses to one
+  # rebuild. Everything else, including the bot's own body edits, shares a non-cancelling group. The
+  # label names and the `release/next` branch are hardcoded: update them here if you rename them in
+  # `ci.labels` or `ci.standingPr.branch`.
+  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (github.event.pull_request.head.ref == 'release/next' && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event.action == 'closed' && github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release:immediate') && 'standing-release-pr' || format('standing-release-pr-noop-{0}', github.run_id)) || github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'open' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
 
 permissions:
   contents: write
@@ -565,8 +567,7 @@ jobs:
       - run: pnpm exec releasekit standing-pr update
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # Uncomment the env var matching your notes.releaseNotes.llm.provider.
-          # Without it, LLM enhancement falls back to ungrouped output.
+          # LLM key only needed when using the release:preview-notes label (optional).
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
@@ -585,6 +586,52 @@ jobs:
           BODY=$(gh api "repos/$REPO/pulls/$PR" --jq '.body // ""')
           CLEANED=$(printf '%s' "$BODY" | sed '/<!-- releasekit-processing -->/,/<!-- releasekit-processing-end -->/d')
           gh api --method PATCH "repos/$REPO/pulls/$PR" -f body="$CLEANED" >/dev/null
+
+  immediate-release:
+    name: Immediate Release (bypass standing PR)
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.ref != 'release/next' &&
+      contains(github.event.pull_request.labels.*.name, 'release:immediate')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - run: pnpm exec releasekit release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+
+      - run: pnpm exec releasekit refresh-after-release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          # LLM key only needed when using the release:preview-notes label (optional).
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
   publish-release:
     name: Publish Release
@@ -623,6 +670,9 @@ jobs:
           # With OIDC trusted publishing (recommended) NODE_AUTH_TOKEN is
           # unnecessary. With token-based npm auth, uncomment the next line:
           # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
   # Maintainer-invoked retry after a partial-publish failure: apply `release:retry` to the
   # MERGED standing PR (label events fire on closed PRs). Publishing is idempotent — versions
@@ -664,6 +714,9 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           # Same auth note as publish-release above.
           # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
       # Remove the label so each application is exactly one retry; re-apply to retry again.
       - name: Remove retry label
@@ -732,7 +785,7 @@ Mechanics (all in `standing-pr.yml`, no config):
 - **Self-clearing.** `standing-pr update` regenerates the PR body from scratch, so a successful update drops the banner automatically. A dedicated `if: failure()` step strips it if the run dies before the rebuild, so it never lingers as a false "in progress".
 - **Idempotent.** The step skips if a banner is already present, so rapid re-triggers don't stack it.
 
-Rapid checkbox toggles are also **collapsed**: the workflow's `concurrency` routes a maintainer's `edited` events to a per-PR group with `cancel-in-progress: true`, so ticking several packages in a row cancels the superseded rebuilds and only the latest selection is applied. The group is sender-aware — the bot's *own* body edits (the banner and the rebuilt body are `edited` events too) stay on the stable non-cancelling group, so they never cancel the run doing the work; push/schedule/merge events stay there too (a cancelled publish dispatch could drop a release).
+Rapid checkbox toggles are also **collapsed**: the workflow's `concurrency` routes a maintainer's `edited` events to a per-PR group with `cancel-in-progress: true`, so ticking several packages in a row cancels the superseded rebuilds and only the latest selection is applied. The group is sender-aware — the bot's *own* body edits (the banner and the rebuilt body are `edited` events too) stay on the stable non-cancelling group with push and schedule runs, so they never cancel the run doing the work. Events on a closed PR (the publish on merge, a retry label) get a group per PR, since GitHub replaces a group's pending run with any newer one and would drop a queued publish.
 
 ### Label semantics in standing-pr mode
 
@@ -785,15 +838,13 @@ To ship a single PR directly without queueing it, label it **`release:immediate`
 
 The `immediate-release` job in `standing-pr.yml` handles this:
 1. Runs `releasekit release` (versioning + notes + publish).
-2. Runs `releasekit standing-pr update` to reconcile the standing PR — released packages drop out of the queue, anything still queued stays.
-
-Result: the standing PR is up-to-date by the time the workflow exits — no staleness window.
+2. Runs `releasekit refresh-after-release` to reconcile the standing PR — released packages drop out of the queue, anything still queued stays. A plain `standing-pr update` would do nothing here, because HEAD is now a release commit.
 
 #### Retrying a failed publish
 
 If a standing-PR publish fails partway through, add the **`release:retry`** label to the **merged** standing PR. The version commit is already on `main`. GitHub Releases are created only after every package succeeds. In per-package mode, tags for packages that published may already be on the remote — do not delete them. The `retry-publish` job in the workflow template above:
 
-1. Validates via its `if` guard that the PR is a merged standing PR and the label is `release:retry` — note the guard hardcodes the label name (workflow `if` expressions can't read releasekit config), so renaming the label via `ci.labels.retry` requires updating the guard to match.
+1. Validates via its `if` guard that the PR is a merged standing PR and the label is `release:retry` — note the guard hardcodes the label name (workflow `if` expressions can't read releasekit config), so renaming the label via `ci.labels.retry` requires updating the guard and the `concurrency` group to match.
 2. Re-runs the manifest-driven publish for that PR (`standing-pr publish --pr <n>`) — idempotent, so it re-publishes only the packages that did not land, then pushes tags and creates GitHub releases.
 3. Removes the label, so each application is exactly one retry; re-apply it to retry again.
 
@@ -819,7 +870,7 @@ This is a standing-pr-only feature — it needs a durable pre-publish artifact (
 | Symptom | Cause / fix |
 |---|---|
 | `403 — GitHub Actions is not permitted to create or approve pull requests` | Repo setting not enabled. See [Setup requirements](#setup-requirements). |
-| `OLLAMA_API_KEY is not set. … Returning entries ungrouped.` | LLM secret not passed to the `update-release-pr` job. Add it to the job's `env:` block (or the equivalent for your provider). |
+| `OLLAMA_API_KEY is not set. … Returning entries ungrouped.` | LLM secret not passed to the job generating the notes: `publish-release`, `retry-publish` and `immediate-release`, or `update-release-pr` for `release:preview-notes`. Add it to the job's `env:` block (or the equivalent for your provider). |
 | `error: too many arguments for 'preview'` | Pre-fix releasekit where `standing-pr` was missing from `cli.ts`. Upgrade `@releasekit/release`. |
 | Standing PR never appears despite merges | Check, in order: (1) the GitHub repo setting; (2) the head commit doesn't match `release.ci.skipPatterns`; (3) there are releasable conventional commits (`feat:`, `fix:`) since the last tag; (4) the `update-release-pr` job logs — they print the dry-run version output. |
 | Standing PR keeps closing immediately | `minPackages` is set higher than the current change count. Either lower the threshold or wait for more package changes to accumulate. |
@@ -840,7 +891,7 @@ Standing-pr mode handles both batched and one-off releases through a single work
 **How it works:**
 
 - A PR merged **without** `release:immediate` → `standing-pr update` accumulates the change into the standing PR. Any `bump:*` / `scope:*` / `channel:*` labels on the feeder PR are advisory only (see [Label semantics](#label-semantics-in-standing-pr-mode) above).
-- A PR merged **with** `release:immediate` → the `immediate-release` job in `standing-pr.yml` runs `releasekit release` directly (honouring companion `bump:*` / `scope:*` / `channel:*` labels), then chains `standing-pr update` to reconcile the standing PR.
+- A PR merged **with** `release:immediate` → the `immediate-release` job in `standing-pr.yml` runs `releasekit release` directly (honouring companion `bump:*` / `scope:*` / `channel:*` labels), then `refresh-after-release` to reconcile the standing PR.
 - The standing PR itself only publishes when its own branch (`release/next`) is merged by a maintainer — there's no double-publish risk.
 
 **Decision guide:**

@@ -1196,7 +1196,7 @@
             "deleteBranchOnMerge": {
               "type": "boolean",
               "default": true,
-              "description": "Whether to auto-delete the release branch after the PR is merged."
+              "description": "Whether to auto-delete the release branch after the PR is merged. Publish keeps it if an update has moved it since the merge, or if the merged PR's head commit can't be read."
             },
             "mergeMethod": {
               "type": "string",

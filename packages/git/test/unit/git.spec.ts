@@ -319,6 +319,37 @@ describe('GitCli.push', () => {
     expect(calls[0].options.timeout).toBe(5_000);
   });
 
+  it('should pin --force-with-lease to an expected SHA when given a lease', async () => {
+    const { run, calls } = makeRunner();
+    await new GitCli(run).push({
+      remote: 'origin',
+      ref: ':release/next',
+      forceWithLease: { ref: 'release/next', expect: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+    });
+    expect(calls[0].args).toEqual([
+      'push',
+      '--force-with-lease=release/next:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      '--end-of-options',
+      'origin',
+      ':release/next',
+    ]);
+  });
+
+  it.each(['', 'main', 'abc123'])(
+    'should refuse a lease whose expect is %j rather than a commit SHA',
+    async (expect_) => {
+      const { run, calls } = makeRunner();
+      await expect(
+        new GitCli(run).push({
+          remote: 'origin',
+          ref: ':release/next',
+          forceWithLease: { ref: 'release/next', expect: expect_ },
+        }),
+      ).rejects.toBeInstanceOf(GitError);
+      expect(calls).toHaveLength(0);
+    },
+  );
+
   it('should prefer --force-with-lease over --force and include --tags', async () => {
     const { run, calls } = makeRunner();
     await new GitCli(run).push({ remote: 'origin', force: true, forceWithLease: true, tags: true });

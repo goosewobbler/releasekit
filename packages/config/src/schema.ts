@@ -620,7 +620,9 @@ export const StandingPrConfigSchema = z.object({
   deleteBranchOnMerge: z
     .boolean()
     .default(true)
-    .describe('Whether to auto-delete the release branch after the PR is merged.'),
+    .describe(
+      "Whether to auto-delete the release branch after the PR is merged. Publish keeps it if an update has moved it since the merge, or if the merged PR's head commit can't be read.",
+    ),
   mergeMethod: z
     .enum(['merge', 'squash', 'rebase'])
     .default('merge')

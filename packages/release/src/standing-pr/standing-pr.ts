@@ -9,7 +9,7 @@ import {
   isBotComment,
   type PullRequestDetails,
 } from '@releasekit/forge';
-import { createGitCli } from '@releasekit/git';
+import { createGitCli, isCommitSha } from '@releasekit/git';
 import { PipelineError, VersionPackageChangelogSchema } from '@releasekit/publish';
 import { z } from 'zod';
 import { ATTRIBUTION_FOOTER } from '../attribution.js';
@@ -186,6 +186,22 @@ function isStandingPrEventRun(): boolean {
   }
 }
 
+/** The head commit in this run's event payload, when the event is about PR `prNumber`. */
+function eventPrHeadSha(prNumber: number): string | undefined {
+  const eventPath = process.env.GITHUB_EVENT_PATH;
+  if (!eventPath) {
+    return undefined;
+  }
+  try {
+    const event = JSON.parse(fs.readFileSync(eventPath, 'utf-8')) as {
+      pull_request?: { number?: number; head?: { sha?: string } };
+    };
+    return event.pull_request?.number === prNumber ? event.pull_request.head?.sha : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function resetReleaseBranch(branch: string, base: string, cwd: string): Promise<void> {
   const git = createGitCli();
   await git.fetch('origin', { cwd });
@@ -318,14 +334,23 @@ export async function createReleaseTags(tags: string[], cwd: string): Promise<vo
   }
 }
 
-async function deleteReleaseBranch(releaseBranch: string, cwd: string): Promise<void> {
+async function deleteReleaseBranch(releaseBranch: string, cwd: string, expectedTipSha?: string): Promise<void> {
   try {
-    // The `:<branch>` delete refspec, since the git seam's leading-`-` option guard rejects `--delete`.
-    await createGitCli().push({ remote: 'origin', ref: `:${releaseBranch}`, cwd });
+    // The `:<branch>` delete refspec, since the git seam's leading-`-` option guard rejects `--delete`. The lease
+    // makes the remote refuse the delete if an update has force-pushed the branch since the merge.
+    await createGitCli().push({
+      remote: 'origin',
+      ref: `:${releaseBranch}`,
+      forceWithLease: expectedTipSha ? { ref: releaseBranch, expect: expectedTipSha } : undefined,
+      cwd,
+    });
     info(`Deleted release branch '${releaseBranch}'`);
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    if (errorMsg.includes('not found') || errorMsg.includes('does not exist')) {
+    // `stale info` when git sees the move before pushing; the others when the remote refuses it mid-update.
+    if (/stale info|cannot lock ref .*but expected|incorrect old value provided/.test(errorMsg)) {
+      info(`Kept release branch '${releaseBranch}': it has moved since the merge.`);
+    } else if (errorMsg.includes('not found') || errorMsg.includes('does not exist')) {
       info(`Release branch '${releaseBranch}' already deleted`);
     } else {
       warn(`Failed to delete release branch '${releaseBranch}': ${errorMsg}`);
@@ -1689,7 +1714,17 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   await refreshFeederPreviews({ config: options.config, projectDir: cwd });
 
   if (deleteBranchOnMerge) {
-    await deleteReleaseBranch(releaseBranch, cwd);
+    const mergedHead = livePr?.headSha ?? eventPrHeadSha(prNumber);
+    if (mergedHead && isCommitSha(mergedHead)) {
+      await deleteReleaseBranch(releaseBranch, cwd, mergedHead);
+    } else {
+      const problem = mergedHead
+        ? `PR #${prNumber}'s head '${mergedHead}' isn't a commit SHA`
+        : `couldn't read PR #${prNumber}'s head commit`;
+      warn(
+        `Kept release branch '${releaseBranch}': ${problem}, so can't tell whether an update has moved it since the merge.`,
+      );
+    }
   }
 
   return {

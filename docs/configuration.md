@@ -427,7 +427,7 @@ Configuration for the standing release PR feature (ci.releaseStrategy: 'standing
 | `branch` | string | `"release/next"` | Branch name for the standing release PR. |
 | `title` | string | — | PR title template. Variables: ${count} (publishable package count), ${version} (raw version), ${tag} (version with tag prefix). Also the release commit's subject, so it must match a release.ci.skipPatterns entry and carry no CI-skip marker. A title with a CI-skip marker is replaced by 'chore: release preparation'. So is one the skip patterns miss, if they match 'chore: release preparation'. The run warns either way. Default depends on the versioning strategy: 'chore: release ${tag}' in sync mode, 'chore: release ${count} package(s)' otherwise. |
 | `labels` | `string[]` | `["release"]` | Labels to apply to the standing release PR. |
-| `deleteBranchOnMerge` | boolean | `true` | Whether to auto-delete the release branch after the PR is merged. |
+| `deleteBranchOnMerge` | boolean | `true` | Whether to auto-delete the release branch after the PR is merged. Publish keeps it if an update has moved it since the merge, or if the merged PR's head commit can't be read. |
 | `mergeMethod` | `"merge"` \| `"squash"` \| `"rebase"` | `"merge"` | Merge method to use when merging the standing release PR via CLI. |
 | `minAge` | string | — | Minimum age of the standing PR before it can be merged. Duration string, e.g. '6h', '30m', '1d'. Gate enforced via the releasekit/standing-pr commit status check; configure it as a required status check in branch protection to block merges. |
 | `minPackages` | integer | — | Minimum number of packages with releasable changes required to create or maintain the standing PR. Below this threshold the PR is closed and no new PR is opened. |
