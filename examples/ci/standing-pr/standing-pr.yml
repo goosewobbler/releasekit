@@ -4,6 +4,9 @@
 # Workflow permissions -> enable "Allow GitHub Actions to create and approve
 # pull requests". Without it the first `standing-pr update` fails with HTTP 403;
 # the pull-requests: write permission below is necessary but not sufficient.
+# The toggle also lets any workflow token approve PRs. Before relying on a
+# "≥ 1 approval" ruleset, see
+# https://github.com/goosewobbler/releasekit/blob/main/packages/release/docs/ci-setup.md#workflow-token-approvals
 name: Standing Release PR
 
 on:

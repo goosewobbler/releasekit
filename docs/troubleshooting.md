@@ -162,16 +162,12 @@ env:
 
 **Symptom:** The publish stage fails with `error: tag vX.Y.Z already exists` when creating git tags.
 
-**Cause:** The tag was created locally during a previous partial run but the push failed (or was never attempted). The tag exists locally but not on the remote, or it exists on both after a prior partial publish.
+**Cause:** A previous run already created the tag. Tags are created locally before publishing. In batch mode a failed run leaves them local only. In per-package mode a package that published has already had its tag pushed.
 
-**Fix:** Delete the tag locally and on the remote, then re-run:
+**Fix:** Do not delete a tag whose version was published. Confirm with `git ls-remote --tags origin`.
 
-```bash
-git tag -d vX.Y.Z
-git push origin :refs/tags/vX.Y.Z
-```
-
-Confirm with `git ls-remote --tags origin` before re-running the release.
+- **Tag only exists locally** (batch failure before the push): delete that local tag (`git tag -d vX.Y.Z`) if it points at a different commit, then re-run **`publish`** with the original version output. Do not re-run `release` on that commit: its subject matches `release.ci.skipPatterns` (`chore: release `), so `release` exits before publishing. Re-running the failed workflow job checks out the pre-release commit and is the right direct-mode retry.
+- **Tag exists on the remote:** the version was published. Leave the tag. Re-run a batch publish (already-published versions are skipped) or roll forward — see [Recovering from a failed publish](#recovering-from-a-failed-publish).
 
 ---
 
@@ -224,17 +220,13 @@ There is no OIDC equivalent for crates.io at this time.
 
 ## Recovering from a failed publish
 
-A publish run can fail partway through: some packages reach the registry, the next one errors, and the run stops. ReleaseKit is built so this state is **recoverable by retrying** — you never have to revert version commits or hand-clean the registry.
+A publish run can fail partway through: some packages reach the registry, the next one errors, and the run stops. ReleaseKit never rewrites history to undo that. Already-published versions are skipped on a later run. Do not delete a tag for a version that was published.
 
-### The roll-forward model
+What was pushed depends on the mode. The order is in [Publish order and partial failure](./architecture.md#publish-order-and-partial-failure).
 
-Version bumps are committed to `main` (or squash-merged from the standing PR) **before** publishing begins. ReleaseKit never rewrites that history to "undo" a failed publish. Instead, the release rolls **forward**: you retry the same release, or you supersede it with the next one.
-
-Concretely, a partial-publish failure leaves the repository in this state:
-
-- **Versions are already on `main`** — the bumped `package.json` / `Cargo.toml` files and changelogs are committed.
-- **Some packages are on the registry** — every package the pipeline reached before the failure is published at its new version.
-- **No tags, no GitHub releases** — consumer tags and GitHub releases are only created **after** the publish succeeds, so a failed run leaves none of them behind. There is nothing half-created to clean up.
+- **Batch mode** (one shared tag): nothing is pushed. In a direct release the version commit is still local. Re-run; packages already on the registry are skipped, then the branch, tags, and GitHub Releases are pushed.
+- **Per-package mode** (each update has its own tag): the release commit and the tags of packages that published are already on the remote. No GitHub Release was created. Roll forward with the next release. Do not delete those tags.
+- **Standing-PR mode:** the merge already put the version commit on `main`. Add `release:retry` to the merged standing PR (below). Do not delete a tag whose version was published.
 
 ### The failure report
 
@@ -248,7 +240,7 @@ The report contains a per-package ledger (✅ published / ⏭ skipped / ❌ fail
 
 ### Recovery path 1 — retry (reconcile the same release)
 
-Re-run the publish for the failed release. Because the publish path **skips versions already on the registry** and only creates tags / GitHub releases after a clean publish, retrying simply re-publishes the packages that did not land the first time and then creates the tags and releases.
+Re-run when the failed run was batch mode or a standing-PR publish. The publish path skips versions already on the registry. In batch mode the retry then pushes the branch, tags, and GitHub Releases. In per-package mode the commit and earlier tags are already on the remote — roll forward instead of trying to undo them.
 
 - **Standing-pr mode:** add the **`release:retry`** label to the merged standing PR. A workflow validates that the PR is a merged standing PR, dispatches the manifest-driven publish for it, and removes the label — so each application is exactly one retry and you can re-apply the label to retry again. (Applying it to a non-standing or unmerged PR is a no-op: the workflow leaves a comment explaining why and removes the label.) Equivalently, dispatch the release workflow yourself targeting the merged standing PR (`standing-pr publish --pr <number>`). The label name is configurable via `ci.labels.retry`.
 - **Direct / label mode:** use GitHub's **"Re-run failed jobs"** on the failed workflow run.
@@ -260,15 +252,15 @@ A successful retry marks the failure report resolved and clears the supersede wa
 If you would rather move on, **merge the next standing PR**. In sync mode the release partially self-heals at the new version:
 
 - Every package — including the ones that failed before — publishes at the new version.
-- The failed release's baseline tag was never pushed, so the next changelog correctly spans both releases' commits.
+- In batch mode the failed release's tag was never pushed, so the next changelog spans both releases' commits. In per-package mode, tags for packages that did publish are already on the remote; leave them.
 
-The remaining gap is cosmetic: there is no tag or GitHub release for the **failed** version, and the registry has a version hole for the packages that didn't publish in the failed run. Nothing is broken; the history simply skips a version for those packages.
+The remaining gap is cosmetic: there may be no GitHub Release for the failed version, and the registry has a version hole for the packages that didn't publish. Nothing is broken; the history simply skips a version for those packages.
 
 ### The supersede warning on the next standing PR
 
 So a failed publish does not silently fade away, ReleaseKit warns while a partially-published release remains unresolved. The **next** standing PR's body and the release preview include a block such as:
 
-> ⚠️ **Previous release v0.24.0 is partially published** (2/4 packages on the registry; no tags/GitHub release created). Retry it via `release:retry` on the merged standing PR (#42), **or** merging this PR supersedes it — the next release re-publishes everything at the new version.
+> ⚠️ **Previous release v0.24.0 is partially published** (2/4 packages on the registry). Retry it via `release:retry` on the merged standing PR (#42), **or** merging this PR supersedes it — the next release publishes the rest at the new version. Do not delete tags for versions that were published.
 
 This gives you an honest choice between the two recovery paths. The warning is keyed off the failure report on the most recently merged standing PR and its resolved status, so it clears automatically once the failed release is retried successfully or superseded by the next release.
 
@@ -282,7 +274,7 @@ This gives you an honest choice between the two recovery paths. The warning is k
 
 **Cause:** The branch has protection rules that block direct pushes. This can affect both the version commit push and the tag push.
 
-**Fix:** Check whether the configured `publish.git.pushMethod` matches the protection ruleset. For GitHub Actions with a bot token, `pushMethod: "https"` is usually required (not SSH). If a bypass is needed, configure the `github-actions[bot]` app as a bypass actor in the branch protection settings rather than disabling protection. Note: `git.skipHooks: true` bypasses local git hooks but has no effect on remote branch protection — these are independent concerns.
+**Fix:** Check whether the configured `publish.git.pushMethod` matches the protection ruleset. For GitHub Actions with a bot token, `pushMethod: "https"` is usually required (not SSH). If a bypass is needed, configure the `github-actions[bot]` app as a bypass actor in the branch protection settings rather than disabling protection. That bypass applies to every workflow in the repo, not just the release job: see [Workflow token approvals](../packages/release/docs/ci-setup.md#workflow-token-approvals). Note: `git.skipHooks: true` bypasses local git hooks but has no effect on remote branch protection — these are independent concerns.
 
 ---
 

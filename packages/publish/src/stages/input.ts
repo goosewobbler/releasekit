@@ -11,7 +11,7 @@ const VersionChangelogEntrySchema = z.looseObject({
   originalType: z.string().optional(),
 });
 
-const VersionPackageChangelogSchema = z.looseObject({
+export const VersionPackageChangelogSchema = z.looseObject({
   packageName: z.string(),
   version: z.string(),
   previousVersion: z.string().nullable(),

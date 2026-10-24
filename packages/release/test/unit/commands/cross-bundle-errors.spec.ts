@@ -1,6 +1,6 @@
 import { EXIT_CODES, ReleaseKitError } from '@releasekit/core';
 import { LLMError } from '@releasekit/notes';
-import { BasePublishError, PublishErrorCode } from '@releasekit/publish';
+import { BasePublishError, PipelineError, PublishErrorCode, type PublishOutput } from '@releasekit/publish';
 import { BaseVersionError } from '@releasekit/version';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -57,5 +57,30 @@ describe('release --json when a stage fails', () => {
     const envelope = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
     expect(envelope.errors).toMatchObject([{ code, retryable, message: error.message }]);
     expect(exitSpy).toHaveBeenCalledWith(exit);
+  });
+
+  it('should keep a PipelineError partial output and name the failed stage', async () => {
+    const partialOutput = {
+      dryRun: false,
+      git: { committed: true, tags: ['v1.0.0'], pushed: false },
+      npm: [{ packageName: '@acme/a', version: '1.0.0', registry: 'npm', success: true, skipped: false }],
+      cargo: [],
+      pub: [],
+      verification: [],
+      githubReleases: [],
+      publishSucceeded: false,
+    } as PublishOutput;
+    vi.mocked(runRelease).mockRejectedValue(new PipelineError('registry rejected', 'npm', partialOutput));
+
+    await createReleaseCommand().parseAsync(['node', 'release', '--json']);
+
+    const envelope = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
+    expect(envelope.status).toBe('error');
+    expect(envelope.changed).toBe(true);
+    expect(envelope.data).toEqual(partialOutput);
+    expect(envelope.errors[0].code).toBe('PIPELINE_STAGE_ERROR');
+    expect(envelope.errors[0].message).toContain('npm');
+    expect(envelope.errors[0].message).toContain('registry rejected');
+    expect(exitSpy).toHaveBeenCalledWith(EXIT_CODES.PUBLISH_ERROR);
   });
 });

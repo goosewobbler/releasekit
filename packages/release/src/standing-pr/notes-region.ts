@@ -1,4 +1,4 @@
-import { extractNotesRegion, wrapNotesRegion } from '@releasekit/core';
+import { extractNotesRegion, type VersionOutput, wrapNotesRegion } from '@releasekit/core';
 
 /** Edits are read back by marker slicing, never by parsing prose, so they survive the body being regenerated. */
 const REGION_HEADING = '## Release Notes';
@@ -36,9 +36,19 @@ export function renderNotesRegion(notesByPackage: Record<string, string>): strin
   return lines.join('\n').trimEnd();
 }
 
-export function extractNotesRegions(body: string, packageNames: string[]): Record<string, string> {
+/** Notes are keyed by changelog packageName: `monorepo` for a sync release with neither `mainPackage` nor package-specific tags. */
+export function notesRegionKeys(versionOutput: VersionOutput): string[] {
+  return versionOutput.changelogs.map((changelog) => changelog.packageName).filter((name) => name.length > 0);
+}
+
+/** The text a region holds right after `notes` are rendered into it, to tell an untouched region from an edit. */
+export function renderedRegionText(key: string, notes: string): string | undefined {
+  return extractNotesRegion(renderNotesRegion({ [key]: notes }), key);
+}
+
+export function extractNotesRegions(body: string, versionOutput: VersionOutput): Record<string, string> {
   const result: Record<string, string> = {};
-  for (const pkg of packageNames) {
+  for (const pkg of notesRegionKeys(versionOutput)) {
     const region = extractNotesRegion(body, pkg);
     if (region !== undefined && region.length > 0) {
       result[pkg] = region;
