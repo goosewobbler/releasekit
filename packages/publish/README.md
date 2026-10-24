@@ -61,20 +61,7 @@ Before failing the stage, the npm and cargo publish steps automatically retry **
 
 ## CLI Reference
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--input <path>` | Path to version output JSON | stdin |
-| `--config <path>` | Path to releasekit config | `releasekit.config.json` |
-| `--registry <type>` | Registry to publish to: `npm`, `cargo`, `pub`, `all` | `all` |
-| `--npm-auth <method>` | NPM auth method: `oidc`, `token`, `auto` | `auto` |
-| `--dry-run` | Simulate all operations | `false` |
-| `--skip-git` | Skip git commit/tag/push (also skips GitHub release — no tag to release against) | `false` |
-| `--skip-publish` | Skip registry publishing | `false` |
-| `--skip-github-release` | Skip GitHub Release creation | `false` |
-| `--skip-verification` | Skip post-publish verification | `false` |
-| `--json` | Output results as a JSON [envelope](../../docs/cli.md#json-output-contract) | `false` |
-| `--output <path>` | Write the JSON envelope to a file instead of stdout | stdout |
-| `--verbose` | Verbose logging | `false` |
+Flags are in the [CLI reference](../../docs/cli.md#releasekit-publish).
 
 ## Integration with @releasekit/version
 

@@ -54,20 +54,7 @@ releasekit-version --prerelease beta
 
 ## CLI Reference
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `-c, --config <path>` | Path to config file | `releasekit.config.json` |
-| `-b, --bump <type>` | Force bump type: `patch`, `minor`, `major`, `prerelease` | auto |
-| `-p, --prerelease [id]` | Create prerelease version (e.g. `beta`) | — |
-| `--stable` | Graduate prerelease packages to stable without bumping | `false` |
-| `--allow-first-bump` | Acknowledge applying a bump on a first release with an already-stable manifest | `false` |
-| `-s, --sync` | Use synchronized versioning across all packages | config |
-| `-t, --target <packages>` | Target specific packages (comma-separated) | all |
-| `--include-prerequisites` | Also release the changed internal dependencies of `--target` packages (and the rest of their groups) | `false` |
-| `--project-dir <path>` | Project directory | cwd |
-| `-d, --dry-run` | Preview without file changes or git operations | `false` |
-| `-j, --json` | Output results as a JSON envelope (see below) | `false` |
-| `--output <path>` | Write the JSON envelope to a file instead of stdout (relative to where you run it, not `--project-dir`) | stdout |
+Flags are in the [CLI reference](../../docs/cli.md#releasekit-version).
 
 ## JSON Output
 

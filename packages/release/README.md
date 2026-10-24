@@ -63,70 +63,7 @@ If no releasable changes are found after step 1, the command exits with code 0 a
 
 ## CLI Reference
 
-### `releasekit release`
-
-| Flag | Description | Default |
-|------|-------------|---------|
-| `-c, --config <path>` | Path to config file | `releasekit.config.json` |
-| `-d, --dry-run` | Preview all steps without side effects | `false` |
-| `-b, --bump <type>` | Force bump type: `patch`, `minor`, `major`, `prerelease` | auto |
-| `-p, --prerelease [id]` | Create prerelease version | — |
-| `-s, --sync` | Synchronized versioning across all packages | `false` |
-| `-t, --target <packages>` | Target specific packages (comma-separated) | all |
-| `--scope <name>` | Resolve scope name to target packages from ci.scopeLabels config | — |
-| `--branch <name>` | Git branch to push to | current branch |
-| `--skip-notes` | Skip changelog generation | `false` |
-| `--skip-publish` | Skip registry publishing and git operations | `false` |
-| `--skip-git` | Skip git commit/tag/push | `false` |
-| `--skip-github-release` | Skip GitHub release creation | `false` |
-| `--skip-verification` | Skip post-publish verification | `false` |
-| `-j, --json` | Output results as JSON | `false` |
-| `-v, --verbose` | Verbose logging | `false` |
-| `-q, --quiet` | Suppress non-error output | `false` |
-| `--project-dir <path>` | Project directory | cwd |
-
-### `releasekit init`
-
-Create a default `releasekit.config.json` in the current directory.
-
-```bash
-releasekit init [--force]
-```
-
-Detects monorepo layout and sets `changelog.mode` accordingly. Adds `access: "public"` only for scoped packages (`@scope/name`), which npm defaults to restricted.
-
-Use `--force` to overwrite an existing config file.
-
-### `releasekit gate`
-
-Check whether a release should proceed based on PR labels and config. Outputs JSON for CI integration.
-
-| Flag | Description | Default |
-|------|-------------|---------|
-| `-c, --config <path>` | Path to config file | `releasekit.config.json` |
-| `--scope <name>` | Resolve scope name to target packages from ci.scopeLabels config | — |
-| `-j, --json` | Output results as JSON | `false` |
-| `-v, --verbose` | Verbose logging | `false` |
-| `-q, --quiet` | Suppress non-error output | `false` |
-| `--project-dir <path>` | Project directory | cwd |
-
-The gate command returns exit code 0 regardless of the decision — use the `should-release` output in your workflow.
-
-### `releasekit preview`
-
-Posts a release preview comment on a pull request showing what would be released if merged.
-
-| Flag | Description | Default |
-|------|-------------|---------|
-| `-c, --config <path>` | Path to config file | `releasekit.config.json` |
-| `-d, --dry-run` | Print comment markdown to stdout instead of posting | `false` |
-| `-p, --prerelease [id]` | Force prerelease preview (auto-detected by default) | — |
-| `--stable` | Force stable release preview (graduation from prerelease) | `false` |
-| `--pr <number>` | PR number (auto-detected from GitHub Actions) | — |
-| `--repo <owner/repo>` | Repository (auto-detected from `GITHUB_REPOSITORY`) | — |
-| `--project-dir <path>` | Project directory | cwd |
-
-The preview command reads PR labels to determine release behavior. See [CI Configuration](#ci-configuration) for label configuration.
+Flags for every command are in the [CLI reference](../../docs/cli.md): [`release`](../../docs/cli.md#releasekit-release), [`preview`](../../docs/cli.md#releasekit-preview), [`gate`](../../docs/cli.md#releasekit-release-gate), [`standing-pr`](../../docs/cli.md#releasekit-standing-pr), [`refresh-after-release`](../../docs/cli.md#releasekit-refresh-after-release), [`backfill`](../../docs/cli.md#releasekit-release-backfill), [`init`](../../docs/cli.md#releasekit-init) and [`labels`](../../docs/cli.md#releasekit-labels).
 
 ## Usage Examples
 
