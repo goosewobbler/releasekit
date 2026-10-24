@@ -203,7 +203,7 @@ releasekit standing-pr publish --pr 123
 
 ### `releasekit standing-pr merge`
 
-Merge the open standing release PR, optionally publishing immediately. Needs `GITHUB_REPOSITORY` and `GITHUB_TOKEN`, and fails without them.
+Merge the open standing release PR, optionally publishing immediately. Needs `GITHUB_REPOSITORY` and `GITHUB_TOKEN`, and fails without them. A merge made with a workflow's default `GITHUB_TOKEN` doesn't start other workflows, so the publish workflow won't run. In a workflow, use a personal access token or a GitHub App token.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
