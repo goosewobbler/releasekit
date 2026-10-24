@@ -276,8 +276,9 @@ describe('renderFailureReport', () => {
       recovery: { mode: 'direct' },
     });
     expect(body).toContain('Roll forward');
-    expect(body).toContain('Do not delete a tag');
+    expect(body).toContain('do not delete them');
     expect(body).not.toContain('Re-run failed jobs');
+    expect(body).not.toContain('Retrying is safe');
   });
 
   it('should say the branch may be on the remote after a direct push failure', () => {

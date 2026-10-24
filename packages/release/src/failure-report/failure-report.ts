@@ -137,6 +137,9 @@ export interface RecoveryContext {
   retryLabelAvailable?: boolean;
 }
 
+const SAFE_RETRY_NOTE =
+  '> **Retrying is safe.** Versions already on the registry are skipped. Do not delete a tag for a version that was published.';
+
 function pushesPerPackage(versionOutput: VersionOutput): boolean {
   return versionOutput.updates.some((update) => !!update.tag);
 }
@@ -190,6 +193,7 @@ function renderRecovery(
     lines.push(
       'Roll forward with the next release. The release commit and tags for packages that published are already on the remote — do not delete them.',
     );
+    return lines;
   } else if (ctx.mode === 'direct') {
     lines.push(
       'Use GitHub’s **"Re-run failed jobs"** on the failed workflow run. The re-run skips versions already on the registry.',
@@ -197,11 +201,9 @@ function renderRecovery(
   } else {
     lines.push('Re-run the release workflow (manual dispatch). The re-run skips versions already on the registry.');
   }
+  lines.push('', SAFE_RETRY_NOTE);
   return lines;
 }
-
-const SAFE_RETRY_NOTE =
-  '> **Retrying is safe.** Versions already on the registry are skipped. Do not delete a tag for a version that was published.';
 
 export interface FailureReportInput {
   versionOutput: VersionOutput;
@@ -249,8 +251,6 @@ export function renderFailureReport(input: FailureReportInput): string {
     '```',
     '',
     ...renderRecovery(recovery, versionOutput, publishOutput),
-    '',
-    SAFE_RETRY_NOTE,
     '',
     '---',
     ATTRIBUTION_FOOTER,
