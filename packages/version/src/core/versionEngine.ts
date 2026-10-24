@@ -3,7 +3,13 @@ import * as path from 'node:path';
 import { cwd } from 'node:process';
 import { inspect } from 'node:util';
 import { getPackagesSync, type Package, type Packages } from '@manypkg/get-packages';
-import { filterPackagesByConfig, isCratePublishable, parseCargoToml, parsePubspec } from '@releasekit/config';
+import {
+  filterPackagesByConfig,
+  isCratePublishable,
+  matchesDirectoryExactly,
+  parseCargoToml,
+  parsePubspec,
+} from '@releasekit/config';
 import { isPrivatePackageJson, shouldMatchPackageTargets } from '@releasekit/core';
 import { minimatch } from 'minimatch';
 import * as yaml from 'yaml';
@@ -418,29 +424,36 @@ export class VersionEngine {
         dir: p.dir,
       }));
 
+      const discoveredPackages = mergedPackages.packages;
+      const skippedPrivate = new Set<Package>();
+
       // npm refuses to publish `"private": true` packages. Filtered before prerequisite and group expansion
       // so a private package can't be pulled in transitively. Exemptions:
-      //  - a private package named EXACTLY in version.packages (a broad glob would silently disable the
-      //    skip for everything it matches); and
+      //  - a private package listed in version.packages by its EXACT name or directory (a broad glob would
+      //    silently disable the skip for everything it matches); and
       //  - a hybrid whose native sibling still publishes - npm `private` only suppresses the npm publish.
       if (!this.config.includePrivate) {
-        const namedExactly = new Set(this.config.packages ?? []);
-        const beforeCount = mergedPackages.packages.length;
+        const configEntries = this.config.packages ?? [];
+        const listedExactly = (pkg: Package) =>
+          configEntries.some(
+            (entry) => entry === pkg.packageJson.name || matchesDirectoryExactly(pkg, entry, mergedPackages.root),
+          );
         mergedPackages.packages = mergedPackages.packages.filter((pkg) => {
           if (!isPrivatePackageJson(pkg.packageJson, path.join(pkg.dir, 'package.json'))) {
             return true;
           }
-          if (namedExactly.has(pkg.packageJson.name)) {
+          if (listedExactly(pkg)) {
             return true;
           }
           if (this.isNativelyPublishable(pkg.dir)) {
             return true;
           }
           log(`Skipping private npm package ${pkg.packageJson.name}: package.json "private": true`, 'debug');
+          skippedPrivate.add(pkg);
           return false;
         });
-        if (mergedPackages.packages.length !== beforeCount) {
-          log(`Private filter: ${beforeCount} → ${mergedPackages.packages.length} packages`, 'debug');
+        if (skippedPrivate.size > 0) {
+          log(`Private filter: ${discoveredPackages.length} → ${mergedPackages.packages.length} packages`, 'debug');
         }
       }
 
@@ -472,24 +485,28 @@ export class VersionEngine {
       const deferTargetsToGroups = Object.keys(this.config.groups ?? {}).length > 0;
 
       if (this.config.packages && this.config.packages.length > 0) {
-        const originalCount = mergedPackages.packages.length;
-
-        const filteredPackages = filterPackagesByConfig(
-          mergedPackages.packages,
-          this.config.packages,
-          mergedPackages.root,
-        );
-
-        mergedPackages.packages = filteredPackages;
+        const matchedPackages = filterPackagesByConfig(discoveredPackages, this.config.packages, mergedPackages.root);
 
         log(
-          `Filtered ${originalCount} workspace packages to ${filteredPackages.length} based on packages config`,
+          `Filtered ${discoveredPackages.length} workspace packages to ${matchedPackages.length} based on packages config`,
           'info',
         );
 
-        if (filteredPackages.length === 0) {
+        if (matchedPackages.length === 0) {
           log('Warning: No packages matched the specified patterns in config.packages', 'warning');
         }
+
+        const matchedButPrivate = matchedPackages.filter((pkg) => skippedPrivate.has(pkg));
+        if (matchedButPrivate.length > 0) {
+          const names = matchedButPrivate.map((pkg) => pkg.packageJson.name).join(', ');
+          log(
+            `Skipping private packages matched by version.packages: ${names}. Set version.includePrivate: true, ` +
+              'or list each one in version.packages by its exact name or directory path.',
+            'warning',
+          );
+        }
+
+        mergedPackages.packages = matchedPackages.filter((pkg) => !skippedPrivate.has(pkg));
       } else if (this.runtimeTargets.length > 0 && !deferTargetsToGroups) {
         const originalCount = mergedPackages.packages.length;
         mergedPackages.packages = mergedPackages.packages.filter((pkg) =>

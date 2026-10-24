@@ -9,6 +9,7 @@ import { VersionEngine } from '../../src/core/versionEngine.js';
 import { createVersionError, VersionErrorCode } from '../../src/errors/versionError.js';
 import type { Config, VersionRunOptions } from '../../src/types.js';
 import * as jsonOutputModule from '../../src/utils/jsonOutput.js';
+import { log } from '../../src/utils/logging.js';
 
 vi.mock('../../src/config.js');
 vi.mock('../../src/core/versionEngine.js');
@@ -290,12 +291,18 @@ describe('createVersionCommand', () => {
       expect(mockSetStrategy).not.toHaveBeenCalledWith('async');
     });
 
-    it('should exit with code 1 when no packages are found', async () => {
+    it.each([
+      ['async', []],
+      ['sync', ['--sync']],
+    ])('should exit with code 1 before choosing a strategy when no packages resolve (%s)', async (_mode, flags) => {
       mockGetWorkspacePackages.mockResolvedValue({ packages: [], root: '/test' });
 
-      await createVersionCommand().parseAsync(['node', 'test']);
+      await createVersionCommand().parseAsync(['node', 'test', ...flags]);
 
+      expect(log).toHaveBeenCalledWith('Error: No packages found in workspace', 'error');
       expect(mockExit).toHaveBeenCalledWith(1);
+      expect(mockSetStrategy).not.toHaveBeenCalled();
+      expect(mockRun).not.toHaveBeenCalled();
     });
   });
 

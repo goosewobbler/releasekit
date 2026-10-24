@@ -12,7 +12,7 @@ export {
   loadVersionConfig,
 } from './load.js';
 export { deepMerge, mergeGitConfig } from './merge.js';
-export { filterPackagesByConfig } from './packageFiltering.js';
+export { filterPackagesByConfig, matchesDirectoryExactly } from './packageFiltering.js';
 export { parseJsonc } from './parse.js';
 export { isPubspecYaml, type PubspecManifest, parsePubspec } from './pubspec.js';
 export {
