@@ -1807,14 +1807,13 @@ export async function runStandingPRMerge(
   }
   success(`Standing PR #${pr.number} merged`);
 
-  // When publishing, publishFromManifest deletes it.
-  if (!flags.publish && deleteBranchOnMerge) {
-    await deleteReleaseBranch(branch, cwd);
-  }
-
   if (!flags.publish) {
+    if (deleteBranchOnMerge) {
+      await deleteReleaseBranch(branch, cwd);
+    }
     return { merged: true, prNumber: pr.number };
   }
 
+  // Deletes the branch itself.
   return publishFromManifest(pr.number, options);
 }
