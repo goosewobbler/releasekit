@@ -33,7 +33,7 @@ Every command that produces a JSON result — `release`, `gate`, `standing-pr`, 
 }
 ```
 
-- **`data`** carries the command's payload verbatim — the envelope wraps it, never replaces it. `releasekit release --json` exposes its `VersionOutput` at `data.versionOutput`, and `releasekit version --json` at `data`. It is `null` on error, unless `publish` failed partway (see below).
+- **`data`** carries the command's payload verbatim — the envelope wraps it, never replaces it. `releasekit release --json` exposes its `VersionOutput` at `data.versionOutput`, and `releasekit version --json` at `data`. It is `null` on error, unless a publish failed partway (see below).
 - **`changed`** separates real work from a no-op:
   - A dry run is never `changed`.
   - `publish`: a registry publish or a new release commit.
@@ -58,7 +58,7 @@ releasekit publish --input version.json
 
 A bare `VersionOutput` is still accepted. Feeding a failed stage's envelope forward fails as an input error (exit 3) whose message names that stage's code, rather than a schema error about missing fields.
 
-When `publish` fails partway, its error envelope carries what already landed in `data`, reports `changed: true` if anything did, and names the failing stage in the error `message`. Re-running `publish` on the same tree resumes it: it reuses the release commit and tags already at HEAD, skips versions already on the registry, and retries the rest.
+When `publish` fails partway, its error envelope carries what already landed in `data`, reports `changed: true` if anything did, and names the failing stage in the error `message`. `release` and `standing-pr publish` report a failure in their publish stage the same way, so `data` then holds the publish output rather than their usual payload. Re-running `publish` on the same tree resumes it: it reuses the release commit and tags already at HEAD, skips versions already on the registry, and retries the rest.
 
 ### Error codes and exit codes
 
