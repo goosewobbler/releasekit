@@ -71,8 +71,8 @@ first-class monorepo model without installing additional packages.
        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
    ```
 
-   See [CI setup](../packages/release/docs/ci-setup.md) for complete workflow examples
-   including OIDC publishing and label-based triggers.
+   [`examples/`](../examples/README.md) has complete workflows, including OIDC publishing
+   and label-based triggers.
 
 5. **Dry-run before committing.**
 
@@ -183,10 +183,11 @@ Optional guardrails mirror changesets' workflow:
    - `"releaseTrigger": "label"` — for the immediate-release path, the merged PR must
      also carry `bump:patch/minor/major` to specify the magnitude.
 
-4. **Add the standing-PR workflow.** Copy the template from
-   `templates/workflows/standing-pr.yml` into `.github/workflows/`. See
-   [CI setup](../packages/release/docs/ci-setup.md#standing-release-pr) for the full
-   workflow YAML, required secrets, and lifecycle details.
+4. **Add the standing-PR workflow.** Copy
+   [`examples/ci/standing-pr/standing-pr.yml`](../examples/ci/standing-pr/standing-pr.yml)
+   into `.github/workflows/`. See
+   [CI setup](../packages/release/docs/ci-setup.md#standing-release-pr) for required
+   secrets and lifecycle details.
 
 5. **Enable Actions write access.** Go to your repository Settings > Actions > General and
    enable "Allow GitHub Actions to create and approve pull requests". This is required for
@@ -251,5 +252,6 @@ diagnostic output.
 
 - [Getting started](./getting-started.md) — installation and first release
 - [Configuration reference](./configuration.md) — all `releasekit.config.json` keys
-- [CI setup](../packages/release/docs/ci-setup.md) — complete GitHub Actions workflow recipes
+- [CI setup](../packages/release/docs/ci-setup.md) — GitHub Actions setups and the standing PR
+- [CI examples](../examples/README.md) — complete workflows, validated in CI
 - [@releasekit/release README](../packages/release/README.md) — CLI flags and programmatic API

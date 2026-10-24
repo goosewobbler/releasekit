@@ -206,35 +206,18 @@ jobs:
 Run on demand to regenerate notes for past releases. Dry-run by default — flip `apply` to `true` when the preview looks right.
 
 ```yaml
-name: Backfill Release Notes
-
-on:
-  workflow_dispatch:
-    inputs:
-      apply:
-        description: Apply changes (off = dry-run preview)
-        type: boolean
-        default: false
-
-jobs:
-  backfill:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - uses: goosewobbler/releasekit@v0
-        with:
-          mode: backfill
-          all: "true"
-          update-releases: "true"
-          only-missing: "true"
-          apply: ${{ inputs.apply }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+- uses: goosewobbler/releasekit@v0
+  with:
+    mode: backfill
+    all: "true"
+    update-releases: "true"
+    only-missing: "true"
+    apply: ${{ inputs.apply }}
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+[`examples/ci/backfill`](../examples/ci/backfill/backfill.yml) has the full `workflow_dispatch` workflow, running the same backfill through the CLI.
 
 ## Versioning and distribution policy
 

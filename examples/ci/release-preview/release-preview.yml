@@ -1,0 +1,41 @@
+# Copy to: .github/workflows/release-preview.yml
+#
+# Comments on each PR with what would release if it merged, and updates that
+# comment in place as the PR changes.
+name: Release Preview
+
+on:
+  pull_request:
+    branches: [main]
+    # labeled/unlabeled: bump:* and other release labels change the prediction.
+    types: [opened, synchronize, labeled, unlabeled]
+
+concurrency:
+  group: release-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  pull-requests: write # post and update the preview comment
+  contents: read
+
+jobs:
+  preview:
+    name: Release Preview
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm exec releasekit preview
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

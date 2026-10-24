@@ -74,6 +74,13 @@ describe('examples smoke-test generator', () => {
     }
   });
 
+  it('should skip the standing-pr banner step instead of treating it as the releasekit step', () => {
+    // The banner's `gh api` call needs a real PR, and its `releasekit-processing` marker mentions releasekit.
+    const steps = stepsOf('smoke-standing-pr');
+    expect(steps.some((s) => /\bgh\s+api\b/.test(s.run ?? ''))).toBe(false);
+    expect(steps.some((s) => s.run === 'pnpm install --frozen-lockfile')).toBe(true);
+  });
+
   it('should always invoke releasekit with --dry-run so publish never fires', () => {
     for (const scenario of SCENARIOS) {
       const releaseStep = stepsOf(`smoke-${scenario.id}`).find((s) => /\breleasekit\b/.test(s.run ?? ''));

@@ -134,32 +134,14 @@ The preview command reads PR labels to determine release behavior. See [CI Confi
 
 ```yaml
 - name: Release
-  run: releasekit release
+  run: pnpm exec releasekit release
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     # For OIDC trusted publishing: no npm token needed (recommended).
     # For token-based publishing: set NPM_TOKEN (or NODE_AUTH_TOKEN).
 ```
 
-### Automated releases on push to main
-
-```yaml
-on:
-  push:
-    branches: [main]
-
-jobs:
-  release:
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v6
-      - run: pnpm add -g @releasekit/release
-      - run: releasekit release
-```
+[`examples/ci/minimal`](../../examples/ci/minimal/release.yml) runs this on every push to `main`. [`examples/`](../../examples/README.md) has the other workflows.
 
 ### Monorepo with targeted release
 
@@ -415,61 +397,25 @@ When `releaseStrategy: "standing-pr"`, the `ci.standingPr` block tunes the bot-m
 }
 ```
 
-See [CI setup — Standing Release PR](./docs/ci-setup.md#standing-release-pr) for prerequisites (required GitHub repo setting, secrets), the workflow YAML, lifecycle behaviour, and troubleshooting.
+See [CI setup — Standing Release PR](./docs/ci-setup.md#standing-release-pr) for prerequisites (required GitHub repo setting, secrets), lifecycle behaviour, and troubleshooting. The workflow is [`examples/ci/standing-pr`](../../examples/ci/standing-pr/standing-pr.yml).
 
 ### PR Preview
 
 The `releasekit preview` command posts a comment on pull requests showing what would be released. It reads PR labels from GitHub and adapts its messaging based on `releaseStrategy` and `releaseTrigger`.
 
-Add this workflow to `.github/workflows/release-preview.yml`:
+Copy [`examples/ci/release-preview/release-preview.yml`](../../examples/ci/release-preview/release-preview.yml) to `.github/workflows/release-preview.yml`. On each PR event it runs:
 
 ```yaml
-name: Release Preview
-
-on:
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, labeled, unlabeled]
-
-concurrency:
-  group: release-preview-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
-
-permissions:
-  pull-requests: write
-  contents: read
-
-jobs:
-  preview:
-    name: Release Preview
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - uses: pnpm/action-setup@v6 # reads `packageManager` from package.json, or set `version`
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Release preview
-        run: pnpm exec releasekit preview
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+- run: pnpm exec releasekit preview
+  env:
+    GITHUB_TOKEN: ${{ github.token }}
 ```
-
-A template is also available at [`templates/workflows/release-preview.yml`](../../templates/workflows/release-preview.yml).
 
 ## Documentation
 
 **Getting Started**
-- [CI Setup](./docs/ci-setup.md) — GitHub Actions workflows (push, label, OIDC, PR preview, prerelease)
+- [CI Setup](./docs/ci-setup.md) — GitHub Actions setups (push, label, OIDC, PR preview, prerelease)
+- [CI examples](../../examples/README.md) — the workflows, validated in CI
 
 ## License
 

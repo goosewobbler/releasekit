@@ -64,7 +64,7 @@ Set the appropriate strategy in `releasekit.config.json` under `version.mismatch
 
 **Cause:** The API key environment variable for the configured LLM provider is not present in the workflow environment. This is treated as a soft failure — notes are generated without LLM enhancement rather than aborting the release.
 
-**Fix:** Pass the secret to the job that runs the notes stage. In the standing-PR workflow that's the publishing jobs (`publish-release`, `retry-publish` and `immediate-release`), plus `update-release-pr` if you use the `release:preview-notes` label:
+**Fix:** Pass the secret to the job that runs the notes stage. In the standing-PR workflow that's the publishing jobs (`publish`, `retry-publish` and `immediate-release`), plus `update` if you use the `release:preview-notes` label:
 
 ```yaml
 - run: pnpm exec releasekit standing-pr publish
@@ -74,7 +74,7 @@ Set the appropriate strategy in `releasekit.config.json` under `version.mismatch
     # or ANTHROPIC_API_KEY / OLLAMA_API_KEY depending on notes.releaseNotes.llm.provider
 ```
 
-See [ci-setup.md — Standing Release PR](../packages/release/docs/ci-setup.md#standing-release-pr) for the full workflow snippet and the secrets table.
+See the [standing-PR example](../examples/ci/standing-pr/standing-pr.yml) for the full workflow, and [ci-setup.md — Standing Release PR](../packages/release/docs/ci-setup.md#standing-release-pr) for the secrets table.
 
 ---
 
