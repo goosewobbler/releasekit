@@ -78,9 +78,10 @@ export interface GitStatusOptions {
 /**
  * Methods take/return plain data, never `child_process` types, so the seam stays swappable.
  *
- * "Soft" lookups (`isRepository`, `remoteUrl`, `describeTags`, `refExists`, `isAncestor`, `remoteBranchExists`) treat a
- * non-zero git exit as the answer (false/null), not an error; they only throw a {@link GitError} when git itself is
- * missing or fails unexpectedly. Everything else throws a {@link GitError} on failure.
+ * "Soft" lookups (`isRepository`, `remoteUrl`, `describeTags`, `refExists`, `isAncestor`, `mergeBase`,
+ * `remoteBranchExists`) treat a non-zero git exit as the answer (false/null), not an error; they only throw a
+ * {@link GitError} when git itself is missing or fails unexpectedly. Everything else throws a {@link GitError} on
+ * failure.
  */
 export interface Git {
   isRepository(cwd?: string): Promise<boolean>;
@@ -93,6 +94,8 @@ export interface Git {
   /** Whether `ref` resolves to a commit. */
   refExists(ref: string, cwd?: string): Promise<boolean>;
   isAncestor(ancestor: string, ref: string, cwd?: string): Promise<boolean>;
+  /** Null when the two share no history or either doesn't resolve. */
+  mergeBase(a: string, b: string, cwd?: string): Promise<string | null>;
   countCommits(range: string, opts?: GitCountCommitsOptions): Promise<number>;
   log(opts: GitLogOptions): Promise<string>;
   /** File paths changed by `commitSha`. */

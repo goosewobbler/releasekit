@@ -1081,7 +1081,7 @@ describe('runPreview', () => {
         mockFsExistsSync.mockReturnValue(false);
       });
 
-      it('should pass prBaseSha as baseRef to runRelease in advisory mode', async () => {
+      it("should fall back to the event's base SHA as baseRef when there's no base ref to resolve", async () => {
         mockLoadCIConfig.mockReturnValue(ciWithLabels());
         mockFetchPRLabels.mockResolvedValue([]); // no bump label - advisory mode
 

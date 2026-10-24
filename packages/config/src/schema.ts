@@ -726,7 +726,7 @@ export const CIConfigSchema = z.object({
           .boolean()
           .default(false)
           .describe(
-            'After a release completes, replay the preview comment on still-open feeder PRs so their "what would release" estimate is not left stale against the moved baseline. Cosmetic and best-effort — a failure here never fails the release. Driven automatically in-process after a successful release (both the direct and standing-PR publish paths); the standalone `refresh-after-release` command also performs it for setups that run it as a separate step.',
+            "After a release completes, mark the preview comment on still-open feeder PRs as stale, since the release moved the base branch; each preview updates on its PR's next push. Cosmetic and best-effort — a failure here never fails the release. Driven automatically in-process after a successful release (both the direct and standing-PR publish paths); the standalone `refresh-after-release` command also performs it for setups that run it as a separate step.",
           ),
       }),
     ])
@@ -737,7 +737,7 @@ export const CIConfigSchema = z.object({
         : { enabled: v.enabled ?? true, refreshAfterRelease: v.refreshAfterRelease ?? false },
     )
     .describe(
-      'PR preview comments showing what would be released if the PR is merged. `true`/`false` toggles them; the object form additionally enables `refreshAfterRelease` to refresh feeder-PR previews after a release.',
+      'PR preview comments showing what would be released if the PR is merged. `true`/`false` toggles them; the object form additionally enables `refreshAfterRelease` to mark feeder-PR previews stale after a release.',
     ),
   labels: CILabelsConfigSchema.default({
     graduate: 'release:graduate',

@@ -285,7 +285,7 @@ A ready-to-use template is available at [`templates/workflows/release-preview.ym
 
 A preview is computed on `pull_request` events. When a release moves `main`, GitHub does **not**
 re-fire those events on other open PRs, so each one's prediction stays frozen at the *pre-release*
-baseline until it's pushed again. Enable a post-release refresh to fix this:
+baseline until it's pushed again. Enable a post-release refresh to flag this:
 
 ```jsonc
 {
@@ -297,9 +297,10 @@ baseline until it's pushed again. Enable a post-release refresh to fix this:
 
 With `refreshAfterRelease` on, add a `refresh-after-release` step to your release job (see the
 [Minimal](#minimal-setup-push-to-main) and [Label-Based](#label-based-trigger) examples). After each
-release it replays the preview on still-open PRs that already have one — skipping drafts, the standing
-PR, and PRs without a preview, and bounded to 50 PRs per run. It's best-effort: a per-PR failure only
-warns. (`ci.prPreview: true` remains valid shorthand for `{ "enabled": true }`.)
+release it marks the preview stale on still-open PRs that already have one, skipping drafts, the standing
+PR, and PRs without a preview, and bounded to 50 PRs per run. The release job doesn't have those PRs'
+trees, so each preview updates on its PR's next push. It's best-effort: a per-PR failure only warns.
+(`ci.prPreview: true` remains valid shorthand for `{ "enabled": true }`.)
 
 ---
 
