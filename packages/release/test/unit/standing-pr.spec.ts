@@ -3245,16 +3245,13 @@ describe('runStandingPRMerge', () => {
     process.env = { ...originalEnv };
   });
 
-  it('should return null when no GitHub context available', async () => {
+  it('should throw when no GitHub context available', async () => {
     delete process.env.GITHUB_REPOSITORY;
     delete process.env.GITHUB_TOKEN;
 
-    const result = await runStandingPRMerge(
-      { projectDir: '/test', verbose: false, quiet: false, json: false },
-      { publish: false },
-    );
-
-    expect(result).toBeNull();
+    await expect(
+      runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false }),
+    ).rejects.toThrow(/No GitHub context/);
   });
 
   it('should return null when no open standing PR found', async () => {
@@ -3327,7 +3324,7 @@ describe('runStandingPRMerge', () => {
     ).rejects.toThrow('Network error');
   });
 
-  it('should return null without publishing when publish flag is false', async () => {
+  it('should return a merge result without publishing when publish flag is false', async () => {
     await mockForge({ standingPR: openStandingPR(42) });
 
     const result = await runStandingPRMerge(
@@ -3335,7 +3332,7 @@ describe('runStandingPRMerge', () => {
       { publish: false },
     );
 
-    expect(result).toBeNull();
+    expect(result).toEqual({ merged: true, prNumber: 42 });
   });
 
   it('should call publishFromManifest when publish flag is true and manifest exists', async () => {
@@ -3416,5 +3413,18 @@ describe('runStandingPRMerge', () => {
     const deleteCalls = branchDeletePushes();
     expect(deleteCalls).toHaveLength(1);
     expect(deleteCalls[0]?.ref).toBe(':release/next');
+  });
+
+  it('should skip branch deletion when publish flag is false and deleteBranchOnMerge is false', async () => {
+    const { loadConfig } = await import('@releasekit/config');
+    vi.mocked(loadConfig).mockReturnValue({
+      ci: { standingPr: { branch: 'release/next', deleteBranchOnMerge: false } },
+      git: { branch: 'main' },
+    } as ReturnType<typeof loadConfig>);
+    await mockForge({ standingPR: openStandingPR(42) });
+
+    await runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false });
+
+    expect(branchDeletePushes()).toHaveLength(0);
   });
 });

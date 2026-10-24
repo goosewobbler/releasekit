@@ -4,6 +4,7 @@ import { createStandingPRCommand } from '../../src/commands/standing-pr-command.
 vi.mock('../../src/standing-pr/standing-pr.js', () => ({
   runStandingPRUpdate: vi.fn().mockResolvedValue({ action: 'noop' }),
   runStandingPRPublish: vi.fn().mockResolvedValue(null),
+  runStandingPRMerge: vi.fn().mockResolvedValue(null),
 }));
 
 async function parseCommand(argv: string[]) {
@@ -19,11 +20,34 @@ describe('createStandingPRCommand', () => {
     expect(cmd.name()).toBe('standing-pr');
   });
 
-  it('should have update and publish subcommands', () => {
+  it('should have update, publish and merge subcommands', () => {
     const cmd = createStandingPRCommand();
     const names = cmd.commands.map((c) => c.name());
     expect(names).toContain('update');
     expect(names).toContain('publish');
+    expect(names).toContain('merge');
+  });
+
+  it('should report merge as unchanged when there is no open standing PR', async () => {
+    const { runStandingPRMerge } = await import('../../src/standing-pr/standing-pr.js');
+    vi.mocked(runStandingPRMerge).mockResolvedValueOnce(null);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await parseCommand(['merge', '--project-dir', '/test', '--json']);
+      const envelope = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
+      expect(envelope).toMatchObject({ status: 'success', changed: false, data: null });
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it.each([
+    [['merge'], false],
+    [['merge', '--publish'], true],
+  ])('should pass %j to runStandingPRMerge with publish: %s', async (args, publish) => {
+    const { runStandingPRMerge } = await import('../../src/standing-pr/standing-pr.js');
+    await parseCommand([...args, '--project-dir', '/test']);
+    expect(runStandingPRMerge).toHaveBeenLastCalledWith(expect.objectContaining({ projectDir: '/test' }), { publish });
   });
 
   it('should call runStandingPRUpdate for update subcommand', async () => {

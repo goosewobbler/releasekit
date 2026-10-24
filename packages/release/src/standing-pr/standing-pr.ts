@@ -1,15 +1,7 @@
 import * as fs from 'node:fs';
 import { type CIConfig, DEFAULT_DEMOTE_SCOPES, loadConfig as loadReleaseKitConfig } from '@releasekit/config';
 import type { VersionOutput, VersionPackageUpdate } from '@releasekit/core';
-import {
-  deriveReleaseChannel,
-  error,
-  info,
-  markerData,
-  shouldMatchPackageTargets,
-  success,
-  warn,
-} from '@releasekit/core';
+import { deriveReleaseChannel, info, markerData, shouldMatchPackageTargets, success, warn } from '@releasekit/core';
 import {
   type Forge,
   type ForgeComment,
@@ -126,6 +118,13 @@ export interface StandingPRResult {
   prUrl?: string;
   versionOutput?: VersionOutput;
 }
+
+export interface StandingPRMergeOutput {
+  merged: true;
+  prNumber: number;
+}
+
+export type StandingPRMergeResult = ReleaseOutput | StandingPRMergeOutput | null;
 
 /** Old manifests live in open PRs: fields added after v1 must stay optional and be tolerated when absent. */
 export interface StandingPRManifest {
@@ -1798,7 +1797,7 @@ export async function runStandingPRPublish(
 export async function runStandingPRMerge(
   options: StandingPROptions,
   flags: { publish: boolean },
-): Promise<ReleaseOutput | null> {
+): Promise<StandingPRMergeResult> {
   const cwd = options.projectDir;
 
   const releaseKitConfig = loadReleaseKitConfig({ cwd, configPath: options.config });
@@ -1809,8 +1808,9 @@ export async function runStandingPRMerge(
 
   const githubContext = getGitHubContext();
   if (!githubContext?.token) {
-    error('No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available');
-    return null;
+    throw new Error(
+      'No GitHub context (GITHUB_REPOSITORY or GITHUB_TOKEN) available, so the standing PR cannot be merged.',
+    );
   }
 
   const forge = forgeFor(githubContext);
@@ -1835,14 +1835,13 @@ export async function runStandingPRMerge(
   }
   success(`Standing PR #${pr.number} merged`);
 
-  // When publishing, publishFromManifest deletes it.
-  if (!flags.publish && deleteBranchOnMerge) {
-    await deleteReleaseBranch(branch, cwd);
-  }
-
   if (!flags.publish) {
-    return null;
+    if (deleteBranchOnMerge) {
+      await deleteReleaseBranch(branch, cwd);
+    }
+    return { merged: true, prNumber: pr.number };
   }
 
+  // publishFromManifest deletes the branch only after a clean publish.
   return publishFromManifest(pr.number, options);
 }
