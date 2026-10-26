@@ -46,7 +46,7 @@
     "@biomejs/biome": "catalog:",
     "@types/node": "catalog:",
     "@typescript-eslint/parser": "^8.72.0",
-    "@vitest/eslint-plugin": "^1.6.27",
+    "@vitest/eslint-plugin": "^1.6.28",
     "eslint": "^10.13.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
