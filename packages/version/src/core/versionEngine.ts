@@ -146,7 +146,9 @@ export class VersionEngine {
       }
     };
 
-    findCargoToml(workspaceRoot);
+    if (this.config.cargo?.enabled !== false) {
+      findCargoToml(workspaceRoot);
+    }
 
     const rustPackages: Package[] = [];
 
@@ -371,7 +373,7 @@ export class VersionEngine {
 
   private isNativelyPublishable(packageDir: string): boolean {
     const cargoPath = path.join(packageDir, 'Cargo.toml');
-    if (fs.existsSync(cargoPath)) {
+    if (this.config.cargo?.enabled !== false && fs.existsSync(cargoPath)) {
       try {
         const pkg = parseCargoToml(cargoPath).package;
         const publish = pkg?.publish;
@@ -383,7 +385,14 @@ export class VersionEngine {
       }
     }
     const pubspecPath = path.join(packageDir, 'pubspec.yaml');
-    return this.config.pub?.enabled !== false && fs.existsSync(pubspecPath) && isReleasablePubspec(pubspecPath);
+    if (this.config.pub?.enabled === false || !fs.existsSync(pubspecPath)) {
+      return false;
+    }
+    try {
+      return isReleasablePubspec(pubspecPath);
+    } catch {
+      return false;
+    }
   }
 
   public async getWorkspacePackages(workspaceRoot: string = cwd()): Promise<PackagesWithRoot> {

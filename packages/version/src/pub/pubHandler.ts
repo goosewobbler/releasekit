@@ -49,8 +49,7 @@ export function isReleasablePubspec(pubspecPath: string): boolean {
   try {
     pubspec = parsePubspec(pubspecPath);
   } catch (error) {
-    log(`Skipping ${pubspecPath}: ${error instanceof Error ? error.message : String(error)}`, 'warning');
-    return false;
+    throw new Error(`Cannot parse ${pubspecPath}: ${error instanceof Error ? error.message : String(error)}`);
   }
   return !!pubspec.name && typeof pubspec.version === 'string' && pubspec.publish_to !== 'none';
 }

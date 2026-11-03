@@ -48,9 +48,6 @@ describe('pubspec.yaml versioning', () => {
     mkdirSync(join(tempDir, 'packages/app'), { recursive: true });
     createPackageJson(join(tempDir, 'packages/app'), 'app');
     write('packages/app/pubspec.yaml', 'name: app\nversion: 0.1.0+7\npublish_to: none\n');
-    mkdirSync(join(tempDir, 'packages/scaffold'), { recursive: true });
-    createPackageJson(join(tempDir, 'packages/scaffold'), 'scaffold');
-    write('packages/scaffold/pubspec.yaml', 'name: scaffold\nversion: [unclosed\n');
     symlinkNodeModules(tempDir);
     initGitRepo(tempDir);
   });
@@ -83,7 +80,6 @@ describe('pubspec.yaml versioning', () => {
     expect(output.tags).toContain('dart_core@v0.2.0');
     expect(bumpedFiles(output, 'hybrid')).toEqual(['packages/hybrid/package.json', 'packages/hybrid/pubspec.yaml']);
     expect(bumpedFiles(output, 'app')).toEqual(['packages/app/package.json']);
-    expect(bumpedFiles(output, 'scaffold')).toEqual(['packages/scaffold/package.json']);
     expect(bumpedFiles(output, 'monorepo')).toEqual(['package.json']);
   });
 
@@ -117,8 +113,8 @@ describe('pubspec.yaml versioning', () => {
     expect(dartCore.tag).toBe('dart_core@v1.0.0-next.1');
     expect(bumpedFiles(output, 'dart_core')).toEqual(['packages/dart_core/pubspec.yaml']);
   });
-  it('should keep a pub.paths manifest as its own update and not tag a package with nothing to bump', () => {
-    write('packages/hybrid/dart/pubspec.yaml', 'name: hybrid_dart_sub\nversion: 0.1.0\n');
+
+  function asyncConfig(extra: Record<string, unknown>) {
     write(
       'releasekit.config.json',
       JSON.stringify({
@@ -128,10 +124,15 @@ describe('pubspec.yaml versioning', () => {
           versionPrefix: 'v',
           packageSpecificTags: true,
           tagTemplate: '${packageName}@v${version}',
-          pub: { paths: ['dart'] },
+          ...extra,
         },
       }),
     );
+  }
+
+  it('should keep a pub.paths manifest as its own update and not tag a package with nothing to bump', () => {
+    write('packages/hybrid/dart/pubspec.yaml', 'name: hybrid_dart_sub\nversion: 0.1.0\n');
+    asyncConfig({ pub: { paths: ['dart'] } });
     write('packages/hybrid/index.js', '// hybrid feature\n');
     write('packages/dart_core/lib/dart_core.dart', '// core feature\n');
     createConventionalCommit(tempDir, 'feat', 'add features', undefined, false, [
@@ -150,5 +151,46 @@ describe('pubspec.yaml versioning', () => {
     // dart_core's own pubspec isn't at `dart/`, so it has nothing to bump and isn't tagged.
     expect(names).not.toContain('dart_core');
     expect(output.tags.some((tag) => tag.startsWith('dart_core@'))).toBe(false);
+  });
+
+  it('should record a pub.paths manifest under its package when npm versioning is off', () => {
+    write('packages/hybrid/dart/pubspec.yaml', 'name: hybrid_dart_sub\nversion: 0.1.0\n');
+    asyncConfig({ npm: { enabled: false }, pub: { paths: ['dart'] } });
+    write('packages/hybrid/index.js', '// hybrid feature\n');
+    createConventionalCommit(tempDir, 'feat', 'add hybrid feature', undefined, false, ['packages/hybrid']);
+
+    const result = executeCliCommand('--json', tempDir);
+
+    expect(result.status).toBe(0);
+    const output = readVersionOutput(result.stdout);
+    expect(bumpedFiles(output, 'hybrid')).toEqual(['packages/hybrid/dart/pubspec.yaml']);
+    expect(update(output, 'hybrid').tag).toBe('hybrid@v0.2.0');
+  });
+
+  it('should skip a member-relative pub.paths entry that leaves the repo from the root in sync mode', () => {
+    write('native/hybrid_dart/pubspec.yaml', 'name: native_hybrid\nversion: 0.1.0\n');
+    write(
+      'releasekit.config.json',
+      JSON.stringify({ version: { preset: 'angular', sync: true, pub: { paths: ['../../native/hybrid_dart'] } } }),
+    );
+    createConventionalCommit(tempDir, 'feat', 'add feature');
+
+    const result = executeCliCommand('--json', tempDir);
+
+    expect(result.status).toBe(0);
+    const output = readVersionOutput(result.stdout);
+    expect(bumpedFiles(output, 'native_hybrid')).toEqual(['native/hybrid_dart/pubspec.yaml']);
+  });
+
+  it('should fail on a pubspec beside a package.json that cannot be parsed', () => {
+    write('packages/hybrid/pubspec.yaml', 'name: hybrid_dart\nversion: [unclosed\n');
+    asyncConfig({});
+    write('packages/hybrid/index.js', '// hybrid feature\n');
+    createConventionalCommit(tempDir, 'feat', 'add hybrid feature', undefined, false, ['packages/hybrid']);
+
+    const result = executeCliCommand('--json', tempDir);
+
+    expect(result.status).not.toBe(0);
+    expect(`${result.stdout}${result.stderr}`).toContain('Cannot parse');
   });
 });

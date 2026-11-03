@@ -113,12 +113,13 @@ describe('Pub Handler', () => {
       expect(isReleasablePubspec(mockPubspecPath)).toBe(expected);
     });
 
-    it('should skip an unparseable pubspec with a warning rather than throw', () => {
+    it('should fail on an unparseable pubspec, naming the file', () => {
       vi.mocked(parsePubspec, { partial: true }).mockImplementation(() => {
         throw new Error('Nested mappings are not allowed');
       });
-      expect(isReleasablePubspec(mockPubspecPath)).toBe(false);
-      expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('Nested mappings'), 'warning');
+      expect(() => isReleasablePubspec(mockPubspecPath)).toThrow(
+        `Cannot parse ${mockPubspecPath}: Nested mappings are not allowed`,
+      );
     });
   });
 

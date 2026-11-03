@@ -25,7 +25,7 @@ import {
   setVersioningStrategy,
 } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
-import { updateNativeManifests } from '../utils/manifestUpdates.js';
+import { hasManifestToBump, updateNativeManifests } from '../utils/manifestUpdates.js';
 import { resolveVersionAction } from '../utils/versionAction.js';
 import { BaselineResolver } from './baselineResolver.js';
 import { hasExplicitGroups } from './groupResolution.js';
@@ -154,6 +154,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
           dryRun,
           repoRoot,
           isRoot: true,
+          skipPathsOutsideRepo: true,
         });
         // Track a native-only root bump: the loop skips this path in a single-package repo, so the early
         // return below would otherwise abandon the written file.
@@ -192,6 +193,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
           dryRun,
           repoRoot,
           recordAs: pkg.packageJson.name,
+          npmBumped,
         });
         // Track native-only updates, or the early return below abandons the written manifests.
         if (!npmBumped && nativeFiles.length > 0) {
@@ -438,6 +440,10 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         return;
       }
 
+      if (!hasManifestToBump(packageName, pkgPath, config, { repoRoot })) {
+        return;
+      }
+
       const baselineResolver = new BaselineResolver({
         versionPrefix: formattedPrefix,
         tagTemplate,
@@ -512,15 +518,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         log(`Skipping package.json update for ${packageName} - ${reason}`, 'debug');
       }
 
-      const nativeFiles = updateNativeManifests(pkgPath, nextVersion, config, {
-        dryRun,
-        repoRoot,
-        recordAs: packageName,
-      });
-      if (!npmBumped && nativeFiles.length === 0) {
-        log(`Not releasing ${packageName}: it has no manifest releasekit can bump`, 'warning');
-        return;
-      }
+      updateNativeManifests(pkgPath, nextVersion, config, { dryRun, repoRoot, recordAs: packageName, npmBumped });
 
       addChangelogData({
         packageName,

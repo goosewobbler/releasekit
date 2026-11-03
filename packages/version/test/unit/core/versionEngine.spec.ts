@@ -875,6 +875,24 @@ describe('Version Engine', () => {
       }
     });
 
+    it('should not discover crates when version.cargo.enabled is false', async () => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-cargo-disabled-'));
+      try {
+        const crateDir = path.join(tmp, 'crates', 'core');
+        fs.mkdirSync(crateDir, { recursive: true });
+        fs.writeFileSync(path.join(crateDir, 'Cargo.toml'), '[package]\nname = "core"\nversion = "0.1.0"\n');
+        vi.mocked(mockCwd, { partial: true }).mockReturnValue(tmp);
+        vi.mocked(getPackagesSync).mockReturnValue({ root: tmp, packages: [] });
+
+        const engine = new VersionEngine({ ...defaultConfig, sync: false, cargo: { enabled: false } } as Config);
+        const result = await engine.getWorkspacePackages();
+
+        expect(result.packages).toEqual([]);
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+
     it('should not discover Dart packages when version.pub.enabled is false', async () => {
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-pub-disabled-'));
       try {
@@ -992,6 +1010,7 @@ describe('Version Engine', () => {
     it.each([
       ['a releasable pubspec', 'name: x\nversion: 1.0.0\n', true],
       ['a versionless pubspec', 'name: x\npublish_to: https://pub.example.com\n', false],
+      ['an unparseable pubspec', 'name: x\nversion: [unclosed\n', false],
     ])('should keep a private hybrid with %s only if the pubspec is releasable', async (_label, pubspec, kept) => {
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-priv-hybrid-dart-'));
       try {

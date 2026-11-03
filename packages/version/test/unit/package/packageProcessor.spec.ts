@@ -248,6 +248,7 @@ describe('Package Processor', () => {
       vi.mocked(fs.existsSync, { partial: true }).mockImplementation((p) =>
         String(p).startsWith('/path/to/package-a/'),
       );
+      const extractEntries = vi.spyOn(commitParser, 'extractChangelogEntriesFromCommits');
       const processor = new PackageProcessor(defaultOptions);
 
       const result = await processor.processPackages(mockPackages);
@@ -257,6 +258,9 @@ describe('Package Processor', () => {
         expect.objectContaining({ packageName: 'package-b' }),
       );
       expect(jsonOutput.setPackageUpdateTag).not.toHaveBeenCalledWith('package-b', expect.anything());
+      // Checked before the changelog is built, so its repo-level entries don't reach sharedEntries.
+      expect(extractEntries).toHaveBeenCalledWith('/path/to/package-a', expect.anything());
+      expect(extractEntries).not.toHaveBeenCalledWith('/path/to/package-b', expect.anything());
       expect(logging.log).toHaveBeenCalledWith(
         'Not releasing package-b: it has no manifest releasekit can bump',
         'warning',

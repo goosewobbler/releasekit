@@ -21,7 +21,7 @@ import {
 } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { getVersionFromManifests } from '../utils/manifestHelpers.js';
-import { updateNativeManifests } from '../utils/manifestUpdates.js';
+import { hasManifestToBump, updateNativeManifests } from '../utils/manifestUpdates.js';
 import { resolveVersionAction } from '../utils/versionAction.js';
 import { updatePackageVersion } from './packageManagement.js';
 
@@ -181,6 +181,10 @@ export class PackageProcessor {
         continue;
       }
 
+      if (!hasManifestToBump(name, pkgPath, this.fullConfig, { repoRoot })) {
+        continue;
+      }
+
       const baselineTagPrefix = deriveBaselineTagPrefix(this.fullConfig.baselineTagTemplate, formattedPrefix, name);
 
       // An untagged package's changelog can push the standing-PR body past GitHub's 65,536-char limit (an
@@ -297,15 +301,12 @@ export class PackageProcessor {
       if (npmBumped) {
         updatePackageVersion(packageJsonPath, nextVersion, this.dryRun);
       }
-      const nativeFiles = updateNativeManifests(pkgPath, nextVersion, this.fullConfig, {
+      updateNativeManifests(pkgPath, nextVersion, this.fullConfig, {
         dryRun: this.dryRun,
         repoRoot,
         recordAs: name,
+        npmBumped,
       });
-      if (!npmBumped && nativeFiles.length === 0) {
-        log(`Not releasing ${name}: it has no manifest releasekit can bump`, 'warning');
-        continue;
-      }
 
       addChangelogData({
         packageName: name,

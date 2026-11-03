@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { isPathWithinRoot } from '@releasekit/core';
 import { isVersionedCrate } from '../cargo/cargoHandler.js';
 import { updatePackageVersion } from '../package/packageManagement.js';
 import { isReleasablePubspec } from '../pub/pubHandler.js';
@@ -16,57 +17,93 @@ interface ManifestKind {
 export interface NativeManifestOptions {
   dryRun?: boolean;
   repoRoot?: string;
-  /** The package a manifest in `packageDir` belongs to, so its update matches the package's tag and changelog. */
+  /** The package the manifests belong to, so their update matches its tag and changelog. */
   recordAs?: string;
+  /** The package's package.json was bumped, so a manifest outside `packageDir` keeps an update of its own. */
+  npmBumped?: boolean;
   /** Flags a manifest in `packageDir` as the workspace root's. */
   isRoot?: boolean;
   /** Group members are package-keyed, so `cargo.paths` and `pub.paths` don't apply to them. */
   ignorePaths?: boolean;
+  /** The sync root pass resolves member-relative `paths` from the root, where an entry like `../x` leaves the repo. */
+  skipPathsOutsideRepo?: boolean;
 }
 
-/** Bumps the Cargo.toml and pubspec.yaml beside a package, or at its configured `paths`. */
+function manifestKinds(config: Pick<Config, 'cargo' | 'pub'>): ManifestKind[] {
+  return [
+    { file: 'Cargo.toml', config: config.cargo, isVersionedPackage: isVersionedCrate },
+    { file: 'pubspec.yaml', config: config.pub, isVersionedPackage: isReleasablePubspec },
+  ];
+}
+
+export function nativeManifestsToBump(
+  packageDir: string,
+  config: Pick<Config, 'cargo' | 'pub'>,
+  options: NativeManifestOptions = {},
+): string[] {
+  return manifestKinds(config).flatMap((kind) => locateManifests(packageDir, kind, options));
+}
+
 export function updateNativeManifests(
   packageDir: string,
   version: string,
   config: Pick<Config, 'cargo' | 'pub'>,
   options: NativeManifestOptions = {},
 ): string[] {
-  const kinds: ManifestKind[] = [
-    { file: 'Cargo.toml', config: config.cargo, isVersionedPackage: isVersionedCrate },
-    { file: 'pubspec.yaml', config: config.pub, isVersionedPackage: isReleasablePubspec },
-  ];
-  return kinds.flatMap((kind) => updateManifests(packageDir, version, kind, options));
+  const { dryRun = false, recordAs, npmBumped = false, isRoot } = options;
+  const manifestPaths = nativeManifestsToBump(packageDir, config, options);
+  for (const manifestPath of manifestPaths) {
+    const inPackageDir = path.resolve(path.dirname(manifestPath)) === path.resolve(packageDir);
+    const record = inPackageDir ? { recordAs, isRoot } : npmBumped ? {} : { recordAs };
+    updatePackageVersion(manifestPath, version, dryRun, record);
+  }
+  return manifestPaths;
 }
 
-function updateManifests(
+/** Whether a release of the package would bump any manifest, warning when it wouldn't. */
+export function hasManifestToBump(
+  name: string,
   packageDir: string,
-  version: string,
+  config: Pick<Config, 'npm' | 'cargo' | 'pub'>,
+  options: NativeManifestOptions = {},
+): boolean {
+  const npmBumpable = config.npm?.enabled !== false && fs.existsSync(path.join(packageDir, 'package.json'));
+  if (npmBumpable || nativeManifestsToBump(packageDir, config, options).length > 0) {
+    return true;
+  }
+  log(`Not releasing ${name}: it has no manifest releasekit can bump`, 'warning');
+  return false;
+}
+
+function locateManifests(
+  packageDir: string,
   kind: ManifestKind,
-  { dryRun = false, repoRoot = process.cwd(), recordAs, isRoot, ignorePaths = false }: NativeManifestOptions,
+  { repoRoot = process.cwd(), ignorePaths = false, skipPathsOutsideRepo = false }: NativeManifestOptions,
 ): string[] {
   if (kind.config?.enabled === false) {
     return [];
   }
 
-  const configuredPaths = ignorePaths ? undefined : kind.config?.paths;
-  const manifestPaths =
-    configuredPaths && configuredPaths.length > 0
-      ? configuredPaths.map((p) => resolveConfinedManifestPath(repoRoot, packageDir, p, kind.file))
+  const configuredPaths = ignorePaths ? [] : (kind.config?.paths ?? []);
+  const candidates =
+    configuredPaths.length > 0
+      ? configuredPaths.flatMap((p) => {
+          if (skipPathsOutsideRepo && !isPathWithinRoot(repoRoot, path.resolve(packageDir, p, kind.file))) {
+            log(`Skipping ${kind.file} path ${p} for ${packageDir}: it resolves outside the repository`, 'debug');
+            return [];
+          }
+          return [resolveConfinedManifestPath(repoRoot, packageDir, p, kind.file)];
+        })
       : [path.join(packageDir, kind.file)];
 
-  const updatedFiles: string[] = [];
-  for (const manifestPath of manifestPaths) {
+  return candidates.filter((manifestPath) => {
     if (!fs.existsSync(manifestPath)) {
-      continue;
+      return false;
     }
     if (!kind.isVersionedPackage(manifestPath)) {
       log(`Skipping ${manifestPath}: not a package releasekit versions`, 'debug');
-      continue;
+      return false;
     }
-    // A manifest elsewhere (via `paths`) keeps its own update, so it mustn't share the package's name.
-    const inPackageDir = path.resolve(path.dirname(manifestPath)) === path.resolve(packageDir);
-    updatePackageVersion(manifestPath, version, dryRun, inPackageDir ? { recordAs, isRoot } : {});
-    updatedFiles.push(manifestPath);
-  }
-  return updatedFiles;
+    return true;
+  });
 }

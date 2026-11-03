@@ -1108,6 +1108,29 @@ describe('createGroupStrategy', () => {
       expect(jsonOutput.addTag).not.toHaveBeenCalled();
     });
 
+    it("should not let a fixed member with nothing to bump set the group's version", async () => {
+      const core = mkPackage('@wdio/native-core', '2.3.0');
+      const orphan = mkPackage('@wdio/native-orphan', '2.3.0');
+      vi.mocked(fs.existsSync, { partial: true }).mockImplementation(
+        (p) => p === '/ws/packages/wdio-native-core/package.json',
+      );
+      vi.mocked(calculator.calculateVersion).mockImplementation(async (_cfg, opts) =>
+        opts.name === '@wdio/native-orphan' ? '3.0.0' : '2.3.1',
+      );
+
+      const strategy = createGroupStrategy(
+        baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
+      );
+      await strategy(workspace([core, orphan]));
+
+      expect(jsonOutput.addTag).toHaveBeenCalledWith('@wdio/native-core@v2.3.1');
+      expect(jsonOutput.addTag).toHaveBeenCalledTimes(1);
+      expect(logging.log).toHaveBeenCalledWith(
+        expect.stringContaining('will release without: @wdio/native-orphan'),
+        'warning',
+      );
+    });
+
     it("should bump an ungrouped Dart package's pubspec.yaml", async () => {
       const strategy = createGroupStrategy(
         baseConfig({ pub: pubConfig, groups: { js: { packages: ['@wdio/flutter-service'], sync: 'fixed' } } }),
