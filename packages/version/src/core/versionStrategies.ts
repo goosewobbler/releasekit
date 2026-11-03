@@ -150,7 +150,11 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         // packages.root === packages[0].dir) - otherwise its native manifests are versioned twice.
         processedPaths.add(rootPkgPath);
 
-        const rootNativeFiles = updateNativeManifests(packages.root, nextVersion, config, { dryRun, repoRoot });
+        const rootNativeFiles = updateNativeManifests(packages.root, nextVersion, config, {
+          dryRun,
+          repoRoot,
+          isRoot: true,
+        });
         // Track a native-only root bump: the loop skips this path in a single-package repo, so the early
         // return below would otherwise abandon the written file.
         if (rootNativeFiles.length > 0 && !updatedPackages.includes('root')) {
@@ -497,6 +501,27 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         );
       }
 
+      const packageJsonPath = path.join(pkgPath, 'package.json');
+
+      const npmEnabled = config.npm?.enabled !== false;
+      const npmBumped = npmEnabled && fs.existsSync(packageJsonPath);
+      if (npmBumped) {
+        updatePackageVersion(packageJsonPath, nextVersion, dryRun);
+      } else {
+        const reason = !npmEnabled ? 'npm version handling disabled' : 'no package.json found (native-only package)';
+        log(`Skipping package.json update for ${packageName} - ${reason}`, 'debug');
+      }
+
+      const nativeFiles = updateNativeManifests(pkgPath, nextVersion, config, {
+        dryRun,
+        repoRoot,
+        recordAs: packageName,
+      });
+      if (!npmBumped && nativeFiles.length === 0) {
+        log(`Not releasing ${packageName}: it has no manifest releasekit can bump`, 'warning');
+        return;
+      }
+
       addChangelogData({
         packageName,
         version: nextVersion,
@@ -505,18 +530,6 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         repoUrl: repoUrl || null,
         entries: changelogEntries,
       });
-
-      const packageJsonPath = path.join(pkgPath, 'package.json');
-
-      const npmEnabled = config.npm?.enabled !== false;
-      if (npmEnabled && fs.existsSync(packageJsonPath)) {
-        updatePackageVersion(packageJsonPath, nextVersion, dryRun);
-      } else {
-        const reason = !npmEnabled ? 'npm version handling disabled' : 'no package.json found (native-only package)';
-        log(`Skipping package.json update for ${packageName} - ${reason}`, 'debug');
-      }
-
-      updateNativeManifests(pkgPath, nextVersion, config, { dryRun, repoRoot, recordAs: packageName });
 
       log(`Updated package ${packageName} to version ${nextVersion}`, 'success');
 

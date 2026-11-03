@@ -74,7 +74,7 @@ List npm and Dart package directories together in `version.packages`:
 }
 ```
 
-releasekit discovers a Dart package from its `pubspec.yaml`, within your pnpm, npm or yarn workspace globs when the repo declares them. A `pubspec.yaml` beside a `package.json` is versioned with that package.
+releasekit discovers a Dart package from its `pubspec.yaml`, within your `pnpm-workspace.yaml` globs if you have one. A `pubspec.yaml` beside a `package.json` is versioned with that package.
 
 ---
 
@@ -85,7 +85,7 @@ releasekit discovers a Dart package from its `pubspec.yaml`, within your pnpm, n
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `enabled` | boolean | `true` | Discover and bump `pubspec.yaml` files. When `false`, a `pubspec.yaml` beside a `package.json` isn't published either. |
-| `paths` | string[] | — | Directories, relative to each package, to bump a `pubspec.yaml` in instead of the package's own directory. Ignored for group members. |
+| `paths` | string[] | — | Directories, relative to each package, to bump a `pubspec.yaml` in instead of the package's own directory. Ignored in group mode. |
 
 ### `publish.pub`
 

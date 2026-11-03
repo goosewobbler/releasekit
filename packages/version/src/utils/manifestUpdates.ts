@@ -16,8 +16,10 @@ interface ManifestKind {
 export interface NativeManifestOptions {
   dryRun?: boolean;
   repoRoot?: string;
-  /** The package the manifests belong to, so their update matches its tag and changelog. */
+  /** The package a manifest in `packageDir` belongs to, so its update matches the package's tag and changelog. */
   recordAs?: string;
+  /** Flags a manifest in `packageDir` as the workspace root's. */
+  isRoot?: boolean;
   /** Group members are package-keyed, so `cargo.paths` and `pub.paths` don't apply to them. */
   ignorePaths?: boolean;
 }
@@ -40,7 +42,7 @@ function updateManifests(
   packageDir: string,
   version: string,
   kind: ManifestKind,
-  { dryRun = false, repoRoot = process.cwd(), recordAs, ignorePaths = false }: NativeManifestOptions,
+  { dryRun = false, repoRoot = process.cwd(), recordAs, isRoot, ignorePaths = false }: NativeManifestOptions,
 ): string[] {
   if (kind.config?.enabled === false) {
     return [];
@@ -61,7 +63,9 @@ function updateManifests(
       log(`Skipping ${manifestPath}: not a package releasekit versions`, 'debug');
       continue;
     }
-    updatePackageVersion(manifestPath, version, dryRun, { recordAs });
+    // A manifest elsewhere (via `paths`) keeps its own update, so it mustn't share the package's name.
+    const inPackageDir = path.resolve(path.dirname(manifestPath)) === path.resolve(packageDir);
+    updatePackageVersion(manifestPath, version, dryRun, inPackageDir ? { recordAs, isRoot } : {});
     updatedFiles.push(manifestPath);
   }
   return updatedFiles;

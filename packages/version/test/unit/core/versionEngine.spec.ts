@@ -825,27 +825,51 @@ describe('Version Engine', () => {
       }
     });
 
-    it.each([
-      ['npm', { workspaces: ['packages/*'] }],
-      ['yarn', { workspaces: { packages: ['packages/*'] } }],
-    ])('should exclude pub packages outside %s workspace globs', async (_tool, rootPackageJson) => {
+    it('should honour ./-prefixed and negated pnpm workspace globs for pub packages', async () => {
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-pub-workspace-'));
       try {
-        fs.writeFileSync(path.join(tmp, 'package.json'), JSON.stringify({ name: 'root', ...rootPackageJson }));
-        const memberDir = path.join(tmp, 'packages', 'flutter_member');
-        fs.mkdirSync(memberDir, { recursive: true });
-        fs.writeFileSync(path.join(memberDir, 'pubspec.yaml'), 'name: flutter_member\nversion: 1.0.0\n');
-        const fixtureDir = path.join(tmp, 'test', 'fixtures', 'flutter_fixture');
-        fs.mkdirSync(fixtureDir, { recursive: true });
-        fs.writeFileSync(path.join(fixtureDir, 'pubspec.yaml'), 'name: flutter_fixture\nversion: 0.0.1\n');
+        fs.writeFileSync(
+          path.join(tmp, 'pnpm-workspace.yaml'),
+          'packages:\n  - "./packages/*"\n  - "!packages/excluded"\n',
+        );
+        const pubspecs = {
+          'packages/flutter_member': 'flutter_member',
+          'packages/excluded': 'excluded',
+          'tools/dart_gen': 'outside_globs',
+        };
+        for (const [dir, name] of Object.entries(pubspecs)) {
+          fs.mkdirSync(path.join(tmp, dir), { recursive: true });
+          fs.writeFileSync(path.join(tmp, dir, 'pubspec.yaml'), `name: ${name}\nversion: 1.0.0\n`);
+        }
         vi.mocked(mockCwd, { partial: true }).mockReturnValue(tmp);
         vi.mocked(getPackagesSync).mockReturnValue({ root: tmp, packages: [] });
 
         const engine = new VersionEngine({ ...defaultConfig, sync: false } as Config);
         const result = await engine.getWorkspacePackages();
 
-        expect(result.packages.find((p) => p.packageJson.name === 'flutter_member')).toBeDefined();
-        expect(result.packages.find((p) => p.packageJson.name === 'flutter_fixture')).toBeUndefined();
+        expect(result.packages.map((p) => p.packageJson.name)).toEqual(['flutter_member']);
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+
+    it('should not scope pub discovery by npm workspaces, which list only JS packages', async () => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-pub-workspace-'));
+      try {
+        fs.writeFileSync(
+          path.join(tmp, 'package.json'),
+          JSON.stringify({ name: 'root', workspaces: ['packages/js-lib'] }),
+        );
+        const dartDir = path.join(tmp, 'packages', 'dart_core');
+        fs.mkdirSync(dartDir, { recursive: true });
+        fs.writeFileSync(path.join(dartDir, 'pubspec.yaml'), 'name: dart_core\nversion: 1.0.0\n');
+        vi.mocked(mockCwd, { partial: true }).mockReturnValue(tmp);
+        vi.mocked(getPackagesSync).mockReturnValue({ root: tmp, packages: [] });
+
+        const engine = new VersionEngine({ ...defaultConfig, sync: false } as Config);
+        const result = await engine.getWorkspacePackages();
+
+        expect(result.packages.find((p) => p.packageJson.name === 'dart_core')).toBeDefined();
       } finally {
         fs.rmSync(tmp, { recursive: true, force: true });
       }
@@ -960,6 +984,36 @@ describe('Version Engine', () => {
         const result = await engine.getWorkspacePackages();
 
         expect(result.packages.find((p) => p.packageJson.name === '@test/x')).toBeDefined();
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+
+    it.each([
+      ['a releasable pubspec', 'name: x\nversion: 1.0.0\n', true],
+      ['a versionless pubspec', 'name: x\npublish_to: https://pub.example.com\n', false],
+    ])('should keep a private hybrid with %s only if the pubspec is releasable', async (_label, pubspec, kept) => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-priv-hybrid-dart-'));
+      try {
+        const dir = path.join(tmp, 'packages', 'x');
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(
+          path.join(dir, 'package.json'),
+          JSON.stringify({ name: '@test/x', version: '1.0.0', private: true }),
+        );
+        fs.writeFileSync(path.join(dir, 'pubspec.yaml'), pubspec);
+        vi.mocked(mockCwd, { partial: true }).mockReturnValue(tmp);
+        vi.mocked(getPackagesSync).mockReturnValue({
+          root: tmp,
+          packages: [
+            { dir, relativeDir: 'packages/x', packageJson: { name: '@test/x', version: '1.0.0', private: true } },
+          ],
+        });
+
+        const engine = new VersionEngine(defaultConfig as Config);
+        const result = await engine.getWorkspacePackages();
+
+        expect(result.packages.some((p) => p.packageJson.name === '@test/x')).toBe(kept);
       } finally {
         fs.rmSync(tmp, { recursive: true, force: true });
       }

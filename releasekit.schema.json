@@ -259,7 +259,7 @@
               "items": {
                 "type": "string"
               },
-              "description": "Directories to search for pubspec.yaml files"
+              "description": "Directories, relative to each package, to bump a pubspec.yaml in instead of the package's own directory. Ignored in group mode."
             }
           },
           "description": "Dart/Flutter pub configuration"

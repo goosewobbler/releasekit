@@ -11,6 +11,7 @@ import { clearCargoBumps, syncCargoLockfiles } from '../cargo/cargoLock.js';
 import { GitError } from '../errors/gitError.js';
 import { createVersionError, VersionError, VersionErrorCode } from '../errors/versionError.js';
 import { getCommitsLength, getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js';
+import { isReleasablePubspec } from '../pub/pubHandler.js';
 import type { Config, VersionRunOptions } from '../types.js';
 import { formatVersionPrefix } from '../utils/formatting.js';
 import { tagPrerequisiteRoles } from '../utils/jsonOutput.js';
@@ -21,6 +22,14 @@ import { buildWorkspaceGraph } from './workspaceGraph.js';
 
 export interface PackagesWithRoot extends Packages {
   root: string;
+}
+
+/** pnpm globs may start with `./`, and a `!` entry excludes what the others include. */
+function matchesWorkspaceGlobs(relativePath: string, globs: string[]): boolean {
+  const target = relativePath.replace(/\\/g, '/');
+  const matches = (glob: string) => minimatch(target, glob.replace(/^\.\//, ''), { dot: true });
+  const included = globs.filter((glob) => !glob.startsWith('!')).some(matches);
+  return included && !globs.filter((glob) => glob.startsWith('!')).some((glob) => matches(glob.slice(1)));
 }
 
 export class VersionEngine {
@@ -204,41 +213,26 @@ export class VersionEngine {
     };
   }
 
-  private readWorkspaceGlobs(workspaceRoot: string): string[] | null {
+  private readPnpmWorkspaceGlobs(workspaceRoot: string): string[] | null {
     const pnpmWorkspacePath = path.join(workspaceRoot, 'pnpm-workspace.yaml');
-    if (fs.existsSync(pnpmWorkspacePath)) {
-      try {
-        const pnpmWorkspace = yaml.parse(fs.readFileSync(pnpmWorkspacePath, 'utf-8')) as { packages?: string[] };
-        if (Array.isArray(pnpmWorkspace?.packages) && pnpmWorkspace.packages.length > 0) {
-          return pnpmWorkspace.packages;
-        }
-      } catch (error) {
-        log(`Could not parse pnpm-workspace.yaml for pub discovery scoping: ${error}`, 'debug');
-      }
+    if (!fs.existsSync(pnpmWorkspacePath)) {
+      return null;
     }
-
-    const packageJsonPath = path.join(workspaceRoot, 'package.json');
-    if (fs.existsSync(packageJsonPath)) {
-      try {
-        const { workspaces } = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8')) as {
-          workspaces?: string[] | { packages?: string[] };
-        };
-        const globs = Array.isArray(workspaces) ? workspaces : workspaces?.packages;
-        if (Array.isArray(globs) && globs.length > 0) {
-          return globs;
-        }
-      } catch (error) {
-        log(`Could not parse package.json workspaces for pub discovery scoping: ${error}`, 'debug');
+    try {
+      const pnpmWorkspace = yaml.parse(fs.readFileSync(pnpmWorkspacePath, 'utf-8')) as { packages?: string[] };
+      if (Array.isArray(pnpmWorkspace?.packages) && pnpmWorkspace.packages.length > 0) {
+        return pnpmWorkspace.packages;
       }
+    } catch (error) {
+      log(`Could not parse pnpm-workspace.yaml for pub discovery scoping: ${error}`, 'debug');
     }
-
     return null;
   }
 
   private discoverPubspecPackages(workspaceRoot: string): PackagesWithRoot {
-    const workspaceGlobs = this.readWorkspaceGlobs(workspaceRoot);
-    if (workspaceGlobs) {
-      log(`Workspace globs detected for pub discovery scoping: ${workspaceGlobs.join(', ')}`, 'debug');
+    const pnpmWorkspaceGlobs = this.readPnpmWorkspaceGlobs(workspaceRoot);
+    if (pnpmWorkspaceGlobs) {
+      log(`pnpm workspace globs detected for pub discovery scoping: ${pnpmWorkspaceGlobs.join(', ')}`, 'debug');
     }
 
     const pubspecPaths: string[] = [];
@@ -297,13 +291,9 @@ export class VersionEngine {
         if (pubData.name && typeof pubData.version === 'string') {
           const relativePath = path.relative(workspaceRoot, packageDir);
 
-          if (workspaceGlobs !== null) {
-            const normalizedRelative = relativePath.replace(/\\/g, '/');
-            const matchesGlob = workspaceGlobs.some((glob) => minimatch(normalizedRelative, glob, { dot: true }));
-            if (!matchesGlob) {
-              log(`Skipping Dart package ${pubData.name} at ${relativePath}: not in workspace globs`, 'debug');
-              continue;
-            }
+          if (pnpmWorkspaceGlobs !== null && !matchesWorkspaceGlobs(relativePath, pnpmWorkspaceGlobs)) {
+            log(`Skipping Dart package ${pubData.name} at ${relativePath}: not in pnpm workspace globs`, 'debug');
+            continue;
           }
 
           dartPackages.push({
@@ -393,16 +383,7 @@ export class VersionEngine {
       }
     }
     const pubspecPath = path.join(packageDir, 'pubspec.yaml');
-    if (this.config.pub?.enabled !== false && fs.existsSync(pubspecPath)) {
-      try {
-        if (parsePubspec(pubspecPath).publish_to !== 'none') {
-          return true;
-        }
-      } catch {
-        // Unparseable pubspec - fall through.
-      }
-    }
-    return false;
+    return this.config.pub?.enabled !== false && fs.existsSync(pubspecPath) && isReleasablePubspec(pubspecPath);
   }
 
   public async getWorkspacePackages(workspaceRoot: string = cwd()): Promise<PackagesWithRoot> {

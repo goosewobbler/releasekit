@@ -55,7 +55,12 @@ export const VersionPubConfigSchema = z.object({
     .describe(
       'Version pubspec.yaml manifests. Detected Dart/Flutter packages are versioned by default; set false to opt out.',
     ),
-  paths: z.array(z.string()).optional().describe('Directories to search for pubspec.yaml files'),
+  paths: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Directories, relative to each package, to bump a pubspec.yaml in instead of the package's own directory. Ignored in group mode.",
+    ),
 });
 
 export const VersionGroupSchema = z.object({

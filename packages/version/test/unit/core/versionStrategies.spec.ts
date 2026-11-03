@@ -302,12 +302,13 @@ describe('Version Strategies', () => {
         false,
         { recordAs: 'package-a' },
       );
+      // Flagged like the root package.json, so the standing-PR source check doesn't look it up as a package.
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/test/workspace/Cargo.toml',
         '1.1.0',
         false,
         {
-          recordAs: undefined,
+          isRoot: true,
         },
       );
       // Tagging proves the run didn't early-return and abandon the written files.
@@ -828,6 +829,15 @@ describe('Version Strategies', () => {
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
       expect(jsonOutput.setPackageUpdateTag).toHaveBeenCalledWith('package-a', 'v1.1.0');
       expect(jsonOutput.setCommitMessage).toHaveBeenCalledWith('chore: release package-a v1.1.0');
+    });
+
+    it('should not tag a package with no manifest to bump', async () => {
+      vi.mocked(fs.existsSync, { partial: true }).mockReturnValue(false);
+      const config: Partial<Config> = { ...defaultConfig, mainPackage: 'package-a' };
+      await strategies.createSingleStrategy(config as Config)(mockPackages);
+
+      expect(jsonOutput.addTag).not.toHaveBeenCalled();
+      expect(jsonOutput.addChangelogData).not.toHaveBeenCalled();
     });
 
     it('should update pubspec.yaml in single mode', async () => {

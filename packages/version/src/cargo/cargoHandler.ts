@@ -57,7 +57,12 @@ export function isVersionedCrate(cargoPath: string): boolean {
  * Records the bump for the end-of-run Cargo.lock sync. Every version-step bump goes through here, so no
  * strategy can skip the sync.
  */
-export function updateCargoVersion(cargoPath: string, version: string, dryRun = false, recordAs?: string): void {
+export function updateCargoVersion(
+  cargoPath: string,
+  version: string,
+  dryRun = false,
+  { recordAs, isRoot }: { recordAs?: string; isRoot?: boolean } = {},
+): void {
   try {
     const cargo = parseCargoToml(cargoPath);
     const packageName = cargo.package?.name;
@@ -80,7 +85,7 @@ export function updateCargoVersion(cargoPath: string, version: string, dryRun = 
       fs.writeFileSync(cargoPath, updatedContent);
     }
 
-    addPackageUpdate(recordAs ?? packageName, version, cargoPath);
+    addPackageUpdate(recordAs ?? packageName, version, cargoPath, isRoot);
     recordCargoBump({ cargoTomlPath: cargoPath, name: packageName, version });
 
     log(`${dryRun ? '[DRY RUN] Would update' : 'Updated'} Cargo.toml at ${cargoPath} to version ${version}`, 'success');

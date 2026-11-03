@@ -292,6 +292,21 @@ export class PackageProcessor {
         );
       }
 
+      const packageJsonPath = path.join(pkgPath, 'package.json');
+      const npmBumped = this.fullConfig.npm?.enabled !== false && fs.existsSync(packageJsonPath);
+      if (npmBumped) {
+        updatePackageVersion(packageJsonPath, nextVersion, this.dryRun);
+      }
+      const nativeFiles = updateNativeManifests(pkgPath, nextVersion, this.fullConfig, {
+        dryRun: this.dryRun,
+        repoRoot,
+        recordAs: name,
+      });
+      if (!npmBumped && nativeFiles.length === 0) {
+        log(`Not releasing ${name}: it has no manifest releasekit can bump`, 'warning');
+        continue;
+      }
+
       addChangelogData({
         packageName: name,
         version: nextVersion,
@@ -300,15 +315,6 @@ export class PackageProcessor {
         repoUrl: repoUrl || null,
         entries: changelogEntries,
       });
-
-      const packageJsonPath = path.join(pkgPath, 'package.json');
-
-      const npmEnabled = this.fullConfig.npm?.enabled !== false;
-      if (npmEnabled && fs.existsSync(packageJsonPath)) {
-        updatePackageVersion(packageJsonPath, nextVersion, this.dryRun);
-      }
-
-      updateNativeManifests(pkgPath, nextVersion, this.fullConfig, { dryRun: this.dryRun, repoRoot, recordAs: name });
 
       const packageTag = formatTag(
         nextVersion,

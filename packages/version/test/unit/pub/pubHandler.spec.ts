@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getPubInfo, isPubspecYaml, updatePubVersion } from '../../../src/pub/pubHandler.js';
+import { getPubInfo, isPubspecYaml, isReleasablePubspec, updatePubVersion } from '../../../src/pub/pubHandler.js';
 import * as jsonOutput from '../../../src/utils/jsonOutput.js';
 import * as logging from '../../../src/utils/logging.js';
 
@@ -102,6 +102,26 @@ describe('Pub Handler', () => {
     });
   });
 
+  describe('isReleasablePubspec', () => {
+    it.each([
+      ['a named, versioned package', { name: 'pkg', version: '1.0.0' }, true],
+      ['a Dart workspace root', { name: 'workspace', workspace: ['packages/a'] }, false],
+      ['a publish_to: none package', { name: 'app', version: '1.0.0+7', publish_to: 'none' }, false],
+      ['a numeric version', { name: 'pkg', version: 1.0 }, false],
+    ])('should treat %s as releasable: %s', (_label, manifest, expected) => {
+      vi.mocked(parsePubspec, { partial: true }).mockReturnValue(manifest as ReturnType<typeof parsePubspec>);
+      expect(isReleasablePubspec(mockPubspecPath)).toBe(expected);
+    });
+
+    it('should skip an unparseable pubspec with a warning rather than throw', () => {
+      vi.mocked(parsePubspec, { partial: true }).mockImplementation(() => {
+        throw new Error('Nested mappings are not allowed');
+      });
+      expect(isReleasablePubspec(mockPubspecPath)).toBe(false);
+      expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('Nested mappings'), 'warning');
+    });
+  });
+
   describe('updatePubVersion', () => {
     it('should update the version in pubspec.yaml', () => {
       vi.mocked(jsonOutput.addPackageUpdate, { partial: true }).mockImplementation(() => {});
@@ -110,7 +130,7 @@ describe('Pub Handler', () => {
 
       expect(fs.readFileSync).toHaveBeenCalledWith(mockPubspecPath, 'utf-8');
       expect(fs.writeFileSync).toHaveBeenCalledWith(mockPubspecPath, expect.stringContaining('version: 2.0.0'));
-      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test_package', '2.0.0', mockPubspecPath);
+      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test_package', '2.0.0', mockPubspecPath, undefined);
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('Updated pubspec.yaml at'), 'success');
     });
 
@@ -135,8 +155,14 @@ describe('Pub Handler', () => {
         mockPubspecPath,
         expect.stringContaining('version: 2.0.0'),
       );
-      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test_package', '2.0.0', mockPubspecPath);
+      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test_package', '2.0.0', mockPubspecPath, undefined);
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('[DRY RUN] Would update'), 'success');
+    });
+
+    it('should record the update under recordAs and flag it as root', () => {
+      updatePubVersion(mockPubspecPath, '2.0.0', true, { recordAs: '@scope/pkg', isRoot: true });
+
+      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('@scope/pkg', '2.0.0', mockPubspecPath, true);
     });
 
     it('should write to disk when dryRun is false', () => {
@@ -145,7 +171,7 @@ describe('Pub Handler', () => {
       updatePubVersion(mockPubspecPath, '2.0.0', false);
 
       expect(fs.writeFileSync).toHaveBeenCalledWith(mockPubspecPath, expect.any(String));
-      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test_package', '2.0.0', mockPubspecPath);
+      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test_package', '2.0.0', mockPubspecPath, undefined);
     });
 
     it('should throw if package name is missing', () => {
@@ -198,7 +224,7 @@ describe('Pub Handler', () => {
       vi.mocked(jsonOutput.addPackageUpdate, { partial: true }).mockImplementation(() => {});
 
       expect(() => updatePubVersion(mockPubspecPath, '2.0.0')).not.toThrow();
-      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test_package', '2.0.0', mockPubspecPath);
+      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test_package', '2.0.0', mockPubspecPath, undefined);
     });
 
     it('should handle errors when updating pubspec.yaml', () => {

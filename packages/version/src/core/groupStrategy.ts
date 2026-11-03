@@ -348,14 +348,23 @@ async function releaseGroup(
     }
 
     const packageJsonPath = path.join(pkg.dir, 'package.json');
-    if (config.npm?.enabled === false) {
-      log(`Skipping package.json update for ${name} - npm version handling disabled`, 'debug');
-    } else if (fs.existsSync(packageJsonPath)) {
+    const npmBumped = config.npm?.enabled !== false && fs.existsSync(packageJsonPath);
+    if (npmBumped) {
       updatePackageVersion(packageJsonPath, version, config.dryRun);
     } else {
-      log(`Skipping package.json update for ${name} - no package.json found (native-only package)`, 'debug');
+      const reason =
+        config.npm?.enabled === false ? 'npm version handling disabled' : 'no package.json found (native-only package)';
+      log(`Skipping package.json update for ${name} - ${reason}`, 'debug');
     }
-    updateNativeManifests(pkg.dir, version, config, { dryRun: config.dryRun, recordAs: name, ignorePaths: true });
+    const nativeFiles = updateNativeManifests(pkg.dir, version, config, {
+      dryRun: config.dryRun,
+      recordAs: name,
+      ignorePaths: true,
+    });
+    if (!npmBumped && nativeFiles.length === 0) {
+      log(`Not releasing ${name}: it has no manifest releasekit can bump`, 'warning');
+      continue;
+    }
 
     // Always package-specific so each member's release is individually addressable.
     const tag = formatTag(version, formattedPrefix, name, config.tagTemplate, true);
@@ -494,14 +503,19 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
 
         const name = pkg.packageJson.name;
         const packageJsonPath = path.join(pkg.dir, 'package.json');
-        if (config.npm?.enabled !== false && fs.existsSync(packageJsonPath)) {
+        const npmBumped = config.npm?.enabled !== false && fs.existsSync(packageJsonPath);
+        if (npmBumped) {
           updatePackageVersion(packageJsonPath, plan.ownNext, config.dryRun);
         }
-        updateNativeManifests(pkg.dir, plan.ownNext, config, {
+        const nativeFiles = updateNativeManifests(pkg.dir, plan.ownNext, config, {
           dryRun: config.dryRun,
           recordAs: name,
           ignorePaths: true,
         });
+        if (!npmBumped && nativeFiles.length === 0) {
+          log(`Not releasing ${name}: it has no manifest releasekit can bump`, 'warning');
+          continue;
+        }
         const tag = formatTag(plan.ownNext, formattedPrefix, name, config.tagTemplate, config.packageSpecificTags);
         addTag(tag);
         setPackageUpdateTag(name, tag);

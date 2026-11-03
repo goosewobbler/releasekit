@@ -127,7 +127,7 @@ describe('Cargo Handler', () => {
 
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('Updated Cargo.toml at'), 'success');
 
-      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', '2.0.0', mockCargoPath);
+      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', '2.0.0', mockCargoPath, undefined);
     });
 
     it('should not write to disk when dryRun is true', () => {
@@ -139,7 +139,7 @@ describe('Cargo Handler', () => {
       expect(TOML.stringify).toHaveBeenCalled();
       expect(jsonOutput.recordPendingWrite).toHaveBeenCalledWith(mockCargoPath, 'mocked stringified TOML');
 
-      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', '2.0.0', mockCargoPath);
+      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', '2.0.0', mockCargoPath, undefined);
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('[DRY RUN] Would update'), 'success');
       expect(recordCargoBump).toHaveBeenCalledWith({
         cargoTomlPath: mockCargoPath,
@@ -155,7 +155,7 @@ describe('Cargo Handler', () => {
 
       expect(TOML.stringify).toHaveBeenCalled();
       expect(fs.writeFileSync).toHaveBeenCalledWith(mockCargoPath, 'mocked stringified TOML');
-      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', '2.0.0', mockCargoPath);
+      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', '2.0.0', mockCargoPath, undefined);
       expect(recordCargoBump).toHaveBeenCalledWith({
         cargoTomlPath: mockCargoPath,
         name: 'test-package',

@@ -1096,6 +1096,18 @@ describe('createGroupStrategy', () => {
       expect(jsonOutput.setPackageUpdateTag).toHaveBeenCalledWith('wdio_flutter', 'wdio_flutter@v1.0.0-next.1');
     });
 
+    it('should not tag a member with no manifest to bump', async () => {
+      vi.mocked(fs.existsSync, { partial: true }).mockReturnValue(false);
+      const strategy = createGroupStrategy(
+        baseConfig({
+          groups: { flutter: { packages: ['wdio_flutter', '@wdio/flutter-service'], sync: 'independent' } },
+        }),
+      );
+      await strategy(workspace([dart, service]));
+
+      expect(jsonOutput.addTag).not.toHaveBeenCalled();
+    });
+
     it("should bump an ungrouped Dart package's pubspec.yaml", async () => {
       const strategy = createGroupStrategy(
         baseConfig({ pub: pubConfig, groups: { js: { packages: ['@wdio/flutter-service'], sync: 'fixed' } } }),

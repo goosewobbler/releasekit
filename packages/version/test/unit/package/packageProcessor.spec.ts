@@ -244,6 +244,25 @@ describe('Package Processor', () => {
       expect(result.updatedPackages.some((p) => p.name === 'package-b')).toBe(true);
     });
 
+    it('should not tag or log a changelog for a package with no manifest to bump', async () => {
+      vi.mocked(fs.existsSync, { partial: true }).mockImplementation((p) =>
+        String(p).startsWith('/path/to/package-a/'),
+      );
+      const processor = new PackageProcessor(defaultOptions);
+
+      const result = await processor.processPackages(mockPackages);
+
+      expect(result.updatedPackages.map((p) => p.name)).toEqual(['package-a']);
+      expect(jsonOutput.addChangelogData).not.toHaveBeenCalledWith(
+        expect.objectContaining({ packageName: 'package-b' }),
+      );
+      expect(jsonOutput.setPackageUpdateTag).not.toHaveBeenCalledWith('package-b', expect.anything());
+      expect(logging.log).toHaveBeenCalledWith(
+        'Not releasing package-b: it has no manifest releasekit can bump',
+        'warning',
+      );
+    });
+
     it('should skip packages in the exclusion list', async () => {
       const processor = new PackageProcessor({
         ...defaultOptions,
