@@ -240,7 +240,7 @@
               "items": {
                 "type": "string"
               },
-              "description": "Directories to search for Cargo.toml files"
+              "description": "Directories, relative to each package, to bump a Cargo.toml in instead of the package's own directory. Ignored in group mode."
             }
           },
           "description": "Cargo/Rust configuration"
