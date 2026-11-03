@@ -259,6 +259,24 @@ describe('Version Strategies', () => {
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0', undefined);
     });
 
+    it("should not bump the root's native manifests when its package.json fails to update", async () => {
+      vi.mocked(packageManagement.updatePackageVersion).mockImplementation((file) => {
+        if (file === rootPackagePath) {
+          throw new Error('Unexpected token in JSON');
+        }
+      });
+      const config: Partial<Config> = { ...defaultConfig, sync: true };
+      await strategies.createSyncStrategy(config as Config)(mockPackages);
+
+      const rootNativeCalls = vi
+        .mocked(packageManagement.updatePackageVersion)
+        .mock.calls.filter(
+          ([file]) => file === '/test/workspace/Cargo.toml' || file === '/test/workspace/pubspec.yaml',
+        );
+      expect(rootNativeCalls).toEqual([]);
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0', undefined);
+    });
+
     it('should fail rather than swallow a root native manifest that cannot be bumped', async () => {
       vi.mocked(packageManagement.updatePackageVersion).mockImplementation((file) => {
         if (file === '/test/workspace/pubspec.yaml') {

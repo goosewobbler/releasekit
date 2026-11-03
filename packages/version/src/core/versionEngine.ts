@@ -146,9 +146,7 @@ export class VersionEngine {
       }
     };
 
-    if (this.config.cargo?.enabled !== false) {
-      findCargoToml(workspaceRoot);
-    }
+    findCargoToml(workspaceRoot);
 
     const rustPackages: Package[] = [];
 
@@ -267,9 +265,7 @@ export class VersionEngine {
       }
     };
 
-    if (this.config.pub?.enabled !== false) {
-      findPubspec(workspaceRoot);
-    }
+    findPubspec(workspaceRoot);
 
     const dartPackages: Package[] = [];
 
@@ -430,6 +426,16 @@ export class VersionEngine {
         name: p.packageJson.name,
         dir: p.dir,
       }));
+
+      const disabledDirs = new Set(
+        [
+          ...(this.config.cargo?.enabled === false ? rustPackages.packages : []),
+          ...(this.config.pub?.enabled === false ? dartPackages.packages : []),
+        ].map((p) => p.dir),
+      );
+      if (disabledDirs.size > 0) {
+        mergedPackages.packages = mergedPackages.packages.filter((p) => !disabledDirs.has(p.dir));
+      }
 
       // npm refuses to publish `"private": true` packages. Filtered before prerequisite and group expansion
       // so a private package can't be pulled in transitively. Exemptions:

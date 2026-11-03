@@ -21,7 +21,7 @@ import {
 } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { getVersionFromManifests } from '../utils/manifestHelpers.js';
-import { hasManifestToBump, updateNativeManifests } from '../utils/manifestUpdates.js';
+import { checkManifestToBump, updateNativeManifests } from '../utils/manifestUpdates.js';
 import { resolveVersionAction } from '../utils/versionAction.js';
 import { updatePackageVersion } from './packageManagement.js';
 
@@ -181,7 +181,7 @@ export class PackageProcessor {
         continue;
       }
 
-      if (!hasManifestToBump(name, pkgPath, this.fullConfig, { repoRoot })) {
+      if (!checkManifestToBump(name, pkgPath, this.fullConfig, { repoRoot })) {
         continue;
       }
 
@@ -305,7 +305,6 @@ export class PackageProcessor {
         dryRun: this.dryRun,
         repoRoot,
         recordAs: name,
-        npmBumped,
       });
 
       addChangelogData({

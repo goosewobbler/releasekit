@@ -22,15 +22,16 @@ function nowIso(): string {
 }
 
 /** Order-independent arrays are sorted so a reordering alone never reads as drift. */
-function planFingerprint(v: VersionOutput): string {
+function planFingerprint(v: VersionOutput, withFiles: boolean): string {
   const byName = <T extends { packageName: string }>(arr: readonly T[]) =>
     [...arr].sort((a, b) => a.packageName.localeCompare(b.packageName));
+  const updates = withFiles ? v.updates : v.updates.map(({ files: _files, ...update }) => update);
   return JSON.stringify({
     strategy: v.strategy ?? null,
     commitMessage: v.commitMessage ?? null,
     tags: [...v.tags].sort(),
     baselineTags: [...(v.baselineTags ?? [])].sort(),
-    updates: byName(v.updates),
+    updates: byName(updates),
     changelogs: byName(v.changelogs),
     sharedEntries: v.sharedEntries ?? [],
   });
@@ -40,11 +41,13 @@ function planFingerprint(v: VersionOutput): string {
  * The full plan, not just name@version: a recompute at the pinned baseSha can keep every version yet differ in tags,
  * commit message, the root update or changelogs (drifted flags or config).
  */
-function samePlan(a: VersionOutput | undefined, b: VersionOutput): boolean {
-  if (!a) {
+function samePlan(recomputed: VersionOutput | undefined, draft: VersionOutput): boolean {
+  if (!recomputed) {
     return false;
   }
-  return planFingerprint(a) === planFingerprint(b);
+  // A draft written before updates listed their `files` would otherwise never match.
+  const withFiles = draft.updates.some((u) => u.files !== undefined);
+  return planFingerprint(recomputed, withFiles) === planFingerprint(draft, withFiles);
 }
 
 function isReleaseManifestComment(body: string): boolean {

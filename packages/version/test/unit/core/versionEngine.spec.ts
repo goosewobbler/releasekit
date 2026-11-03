@@ -888,6 +888,10 @@ describe('Version Engine', () => {
         const result = await engine.getWorkspacePackages();
 
         expect(result.packages).toEqual([]);
+        // Still listed, so a commit in its directory isn't read as repo-level.
+        expect((engine as unknown as { config: Config }).config.allWorkspacePackages).toEqual([
+          { name: 'core', dir: crateDir },
+        ]);
       } finally {
         fs.rmSync(tmp, { recursive: true, force: true });
       }
@@ -906,6 +910,9 @@ describe('Version Engine', () => {
         const result = await engine.getWorkspacePackages();
 
         expect(result.packages).toEqual([]);
+        expect((engine as unknown as { config: Config }).config.allWorkspacePackages).toEqual([
+          { name: 'flutter_member', dir: memberDir },
+        ]);
       } finally {
         fs.rmSync(tmp, { recursive: true, force: true });
       }

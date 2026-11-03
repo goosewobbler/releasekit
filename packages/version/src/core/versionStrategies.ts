@@ -25,7 +25,7 @@ import {
   setVersioningStrategy,
 } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
-import { hasManifestToBump, updateNativeManifests } from '../utils/manifestUpdates.js';
+import { checkManifestToBump, hasManifestToBump, updateNativeManifests } from '../utils/manifestUpdates.js';
 import { resolveVersionAction } from '../utils/versionAction.js';
 import { BaselineResolver } from './baselineResolver.js';
 import { hasExplicitGroups } from './groupResolution.js';
@@ -136,6 +136,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
 
       if (packages.root) {
         const rootPkgPath = path.join(packages.root, 'package.json');
+        let rootPackageJsonFailed = false;
         try {
           if (config.npm?.enabled !== false && fs.existsSync(rootPkgPath)) {
             // Flag as root so consumers (preview, standing PR) exclude it from package counts - it isn't publishable.
@@ -145,21 +146,26 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         } catch (error) {
           const errMessage = error instanceof Error ? error.message : String(error);
           log(`Failed to update root package.json: ${errMessage}`, 'error');
+          rootPackageJsonFailed = true;
         }
         // Record even when npm is disabled so the loop skips it in a single-package repo (where
         // packages.root === packages[0].dir) - otherwise its native manifests are versioned twice.
         processedPaths.add(rootPkgPath);
 
-        const rootNativeFiles = updateNativeManifests(packages.root, nextVersion, config, {
-          dryRun,
-          repoRoot,
-          isRoot: true,
-          skipPathsOutsideRepo: true,
-        });
-        // Track a native-only root bump: the loop skips this path in a single-package repo, so the early
-        // return below would otherwise abandon the written file.
-        if (rootNativeFiles.length > 0 && !updatedPackages.includes('root')) {
-          updatedPackages.push('root');
+        if (!rootPackageJsonFailed) {
+          const rootIsPackage = packages.packages.some((p) => p.dir === packages.root);
+          const rootNativeFiles = updateNativeManifests(packages.root, nextVersion, config, {
+            dryRun,
+            repoRoot,
+            isRoot: true,
+            // Members still resolve their own `paths`; a root that is the only package must report a bad one.
+            skipPathsOutsideRepo: !rootIsPackage,
+          });
+          // Track a native-only root bump: the loop skips this path in a single-package repo, so the early
+          // return below would otherwise abandon the written file.
+          if (rootNativeFiles.length > 0 && !updatedPackages.includes('root')) {
+            updatedPackages.push('root');
+          }
         }
       } else {
         log('Root package path is undefined, skipping root package.json update', 'warning');
@@ -172,7 +178,7 @@ export function createSyncStrategy(config: Config): StrategyFunction {
 
         const packageJsonPath = path.join(pkg.dir, 'package.json');
 
-        if (processedPaths.has(packageJsonPath)) {
+        if (processedPaths.has(packageJsonPath) || !hasManifestToBump(pkg.dir, config, { repoRoot })) {
           continue;
         }
 
@@ -193,7 +199,6 @@ export function createSyncStrategy(config: Config): StrategyFunction {
           dryRun,
           repoRoot,
           recordAs: pkg.packageJson.name,
-          npmBumped,
         });
         // Track native-only updates, or the early return below abandons the written manifests.
         if (!npmBumped && nativeFiles.length > 0) {
@@ -440,7 +445,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         return;
       }
 
-      if (!hasManifestToBump(packageName, pkgPath, config, { repoRoot })) {
+      if (!checkManifestToBump(packageName, pkgPath, config, { repoRoot })) {
         return;
       }
 
@@ -518,7 +523,7 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         log(`Skipping package.json update for ${packageName} - ${reason}`, 'debug');
       }
 
-      updateNativeManifests(pkgPath, nextVersion, config, { dryRun, repoRoot, recordAs: packageName, npmBumped });
+      updateNativeManifests(pkgPath, nextVersion, config, { dryRun, repoRoot, recordAs: packageName });
 
       addChangelogData({
         packageName,

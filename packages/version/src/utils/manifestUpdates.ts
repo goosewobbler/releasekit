@@ -17,10 +17,8 @@ interface ManifestKind {
 export interface NativeManifestOptions {
   dryRun?: boolean;
   repoRoot?: string;
-  /** The package the manifests belong to, so their update matches its tag and changelog. */
+  /** The package a manifest in `packageDir` belongs to, so its update matches the package's tag and changelog. */
   recordAs?: string;
-  /** The package's package.json was bumped, so a manifest outside `packageDir` keeps an update of its own. */
-  npmBumped?: boolean;
   /** Flags a manifest in `packageDir` as the workspace root's. */
   isRoot?: boolean;
   /** Group members are package-keyed, so `cargo.paths` and `pub.paths` don't apply to them. */
@@ -50,25 +48,42 @@ export function updateNativeManifests(
   config: Pick<Config, 'cargo' | 'pub'>,
   options: NativeManifestOptions = {},
 ): string[] {
-  const { dryRun = false, recordAs, npmBumped = false, isRoot } = options;
+  const { dryRun = false, recordAs, isRoot } = options;
   const manifestPaths = nativeManifestsToBump(packageDir, config, options);
   for (const manifestPath of manifestPaths) {
-    const inPackageDir = path.resolve(path.dirname(manifestPath)) === path.resolve(packageDir);
-    const record = inPackageDir ? { recordAs, isRoot } : npmBumped ? {} : { recordAs };
+    // A manifest elsewhere (via `paths`) keeps an update of its own, so it mustn't share the package's name.
+    const record = isInPackageDir(manifestPath, packageDir) ? { recordAs, isRoot } : {};
     updatePackageVersion(manifestPath, version, dryRun, record);
   }
   return manifestPaths;
 }
 
-/** Whether a release of the package would bump any manifest, warning when it wouldn't. */
+export function isInPackageDir(manifestPath: string, packageDir: string): boolean {
+  return path.resolve(path.dirname(manifestPath)) === path.resolve(packageDir);
+}
+
+/** Only a manifest in the package's own directory counts: one reached through `paths` is another update. */
 export function hasManifestToBump(
+  packageDir: string,
+  config: Pick<Config, 'npm' | 'cargo' | 'pub'>,
+  options: NativeManifestOptions = {},
+): boolean {
+  if (config.npm?.enabled !== false && fs.existsSync(path.join(packageDir, 'package.json'))) {
+    return true;
+  }
+  return nativeManifestsToBump(packageDir, config, options).some((manifestPath) =>
+    isInPackageDir(manifestPath, packageDir),
+  );
+}
+
+/** {@link hasManifestToBump}, warning that a package about to release won't. */
+export function checkManifestToBump(
   name: string,
   packageDir: string,
   config: Pick<Config, 'npm' | 'cargo' | 'pub'>,
   options: NativeManifestOptions = {},
 ): boolean {
-  const npmBumpable = config.npm?.enabled !== false && fs.existsSync(path.join(packageDir, 'package.json'));
-  if (npmBumpable || nativeManifestsToBump(packageDir, config, options).length > 0) {
+  if (hasManifestToBump(packageDir, config, options)) {
     return true;
   }
   log(`Not releasing ${name}: it has no manifest releasekit can bump`, 'warning');

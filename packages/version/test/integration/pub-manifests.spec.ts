@@ -2,7 +2,7 @@
  * Runs the built CLI against a real temp git repo, so pubspec.yaml handling goes through real discovery and
  * parsing. Requires `pnpm build` in @releasekit/version first.
  */
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import type { VersionOutput } from '@releasekit/core';
@@ -153,7 +153,7 @@ describe('pubspec.yaml versioning', () => {
     expect(output.tags.some((tag) => tag.startsWith('dart_core@'))).toBe(false);
   });
 
-  it('should record a pub.paths manifest under its package when npm versioning is off', () => {
+  it('should not release a package whose only bumpable manifest is reached through pub.paths', () => {
     write('packages/hybrid/dart/pubspec.yaml', 'name: hybrid_dart_sub\nversion: 0.1.0\n');
     asyncConfig({ npm: { enabled: false }, pub: { paths: ['dart'] } });
     write('packages/hybrid/index.js', '// hybrid feature\n');
@@ -163,15 +163,23 @@ describe('pubspec.yaml versioning', () => {
 
     expect(result.status).toBe(0);
     const output = readVersionOutput(result.stdout);
-    expect(bumpedFiles(output, 'hybrid')).toEqual(['packages/hybrid/dart/pubspec.yaml']);
-    expect(update(output, 'hybrid').tag).toBe('hybrid@v0.2.0');
+    expect(output.updates).toEqual([]);
+    expect(output.tags).toEqual([]);
   });
 
   it('should skip a member-relative pub.paths entry that leaves the repo from the root in sync mode', () => {
     write('native/hybrid_dart/pubspec.yaml', 'name: native_hybrid\nversion: 0.1.0\n');
     write(
       'releasekit.config.json',
-      JSON.stringify({ version: { preset: 'angular', sync: true, pub: { paths: ['../../native/hybrid_dart'] } } }),
+      JSON.stringify({
+        version: {
+          preset: 'angular',
+          sync: true,
+          packageSpecificTags: true,
+          tagTemplate: '${packageName}@v${version}',
+          pub: { paths: ['../../native/hybrid_dart'] },
+        },
+      }),
     );
     createConventionalCommit(tempDir, 'feat', 'add feature');
 
@@ -180,6 +188,24 @@ describe('pubspec.yaml versioning', () => {
     expect(result.status).toBe(0);
     const output = readVersionOutput(result.stdout);
     expect(bumpedFiles(output, 'native_hybrid')).toEqual(['native/hybrid_dart/pubspec.yaml']);
+    // dart_core reaches the shared pubspec through `paths` too, but its own wasn't bumped, so it isn't tagged.
+    expect(output.tags.some((tag) => tag.startsWith('dart_core@'))).toBe(false);
+  });
+
+  it('should fail when a single-package repo points pub.paths outside the repository', () => {
+    rmSync(join(tempDir, 'packages'), { recursive: true, force: true });
+    rmSync(join(tempDir, 'pnpm-workspace.yaml'));
+    write('package.json', JSON.stringify({ name: 'single', version: '0.1.0' }));
+    write(
+      'releasekit.config.json',
+      JSON.stringify({ version: { preset: 'angular', sync: true, pub: { paths: ['../outside'] } } }),
+    );
+    createConventionalCommit(tempDir, 'feat', 'add feature');
+
+    const result = executeCliCommand('--json', tempDir);
+
+    expect(result.status).not.toBe(0);
+    expect(`${result.stdout}${result.stderr}`).toContain('is outside the repository root');
   });
 
   it('should fail on a pubspec beside a package.json that cannot be parsed', () => {
