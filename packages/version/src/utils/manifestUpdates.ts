@@ -58,11 +58,10 @@ export function updateNativeManifests(
   return manifestPaths;
 }
 
-export function isInPackageDir(manifestPath: string, packageDir: string): boolean {
+function isInPackageDir(manifestPath: string, packageDir: string): boolean {
   return path.resolve(path.dirname(manifestPath)) === path.resolve(packageDir);
 }
 
-/** Only a manifest in the package's own directory counts: one reached through `paths` is another update. */
 export function hasManifestToBump(
   packageDir: string,
   config: Pick<Config, 'npm' | 'cargo' | 'pub'>,
@@ -71,9 +70,7 @@ export function hasManifestToBump(
   if (config.npm?.enabled !== false && fs.existsSync(path.join(packageDir, 'package.json'))) {
     return true;
   }
-  return nativeManifestsToBump(packageDir, config, options).some((manifestPath) =>
-    isInPackageDir(manifestPath, packageDir),
-  );
+  return nativeManifestsToBump(packageDir, config, options).length > 0;
 }
 
 /** {@link hasManifestToBump}, warning that a package about to release won't. */

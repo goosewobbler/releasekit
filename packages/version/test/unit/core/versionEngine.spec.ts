@@ -897,6 +897,31 @@ describe('Version Engine', () => {
       }
     });
 
+    it.each([
+      ['pub', { pub: { enabled: false } }, 'native_crate'],
+      ['cargo', { cargo: { enabled: false } }, 'native_dart'],
+    ])(
+      'should still release the enabled half of a Cargo + Dart directory when %s is off',
+      async (_off, config, kept) => {
+        const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-cargo-dart-'));
+        try {
+          const dir = path.join(tmp, 'packages', 'native');
+          fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(path.join(dir, 'Cargo.toml'), '[package]\nname = "native_crate"\nversion = "0.1.0"\n');
+          fs.writeFileSync(path.join(dir, 'pubspec.yaml'), 'name: native_dart\nversion: 0.1.0\n');
+          vi.mocked(mockCwd, { partial: true }).mockReturnValue(tmp);
+          vi.mocked(getPackagesSync).mockReturnValue({ root: tmp, packages: [] });
+
+          const engine = new VersionEngine({ ...defaultConfig, sync: false, ...config } as Config);
+          const result = await engine.getWorkspacePackages();
+
+          expect(result.packages.map((p) => p.packageJson.name)).toEqual([kept]);
+        } finally {
+          fs.rmSync(tmp, { recursive: true, force: true });
+        }
+      },
+    );
+
     it('should not discover Dart packages when version.pub.enabled is false', async () => {
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-pub-disabled-'));
       try {

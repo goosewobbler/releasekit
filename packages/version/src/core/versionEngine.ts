@@ -405,7 +405,13 @@ export class VersionEngine {
       const rustPackages = this.discoverCargoTomlPackages(workspaceRoot);
       const dartPackages = this.discoverPubspecPackages(workspaceRoot);
 
-      const mergedPackages = this.mergePackageLists(this.mergePackageLists(npmPackages, rustPackages), dartPackages);
+      const workspacePackages = this.mergePackageLists(this.mergePackageLists(npmPackages, rustPackages), dartPackages);
+      const enabled = (discovered: PackagesWithRoot, ecosystem: { enabled?: boolean } | undefined) =>
+        ecosystem?.enabled === false ? { ...discovered, packages: [] } : discovered;
+      const mergedPackages = this.mergePackageLists(
+        this.mergePackageLists(npmPackages, enabled(rustPackages, this.config.cargo)),
+        enabled(dartPackages, this.config.pub),
+      );
 
       const rustCount = rustPackages.packages.length;
       const dartCount = dartPackages.packages.length;
@@ -422,20 +428,11 @@ export class VersionEngine {
 
       // Captured before release-set filtering so the repo-level changelog classifier can tell "touches a
       // non-releasing package" from "genuinely repo-level" and resolve shared-package globs against every package.
-      this.config.allWorkspacePackages = mergedPackages.packages.map((p) => ({
+      // Includes a disabled ecosystem's packages, which aren't released but still own their directories' commits.
+      this.config.allWorkspacePackages = workspacePackages.packages.map((p) => ({
         name: p.packageJson.name,
         dir: p.dir,
       }));
-
-      const disabledDirs = new Set(
-        [
-          ...(this.config.cargo?.enabled === false ? rustPackages.packages : []),
-          ...(this.config.pub?.enabled === false ? dartPackages.packages : []),
-        ].map((p) => p.dir),
-      );
-      if (disabledDirs.size > 0) {
-        mergedPackages.packages = mergedPackages.packages.filter((p) => !disabledDirs.has(p.dir));
-      }
 
       // npm refuses to publish `"private": true` packages. Filtered before prerequisite and group expansion
       // so a private package can't be pulled in transitively. Exemptions:

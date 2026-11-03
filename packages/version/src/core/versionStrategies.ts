@@ -148,18 +148,18 @@ export function createSyncStrategy(config: Config): StrategyFunction {
           log(`Failed to update root package.json: ${errMessage}`, 'error');
           rootPackageJsonFailed = true;
         }
-        // Record even when npm is disabled so the loop skips it in a single-package repo (where
-        // packages.root === packages[0].dir) - otherwise its native manifests are versioned twice.
-        processedPaths.add(rootPkgPath);
-
         if (!rootPackageJsonFailed) {
-          const rootIsPackage = packages.packages.some((p) => p.dir === packages.root);
+          // Record even when npm is disabled so the loop skips it in a single-package repo (where
+          // packages.root === packages[0].dir) - otherwise its native manifests are versioned twice. A failed
+          // write isn't recorded, so the loop retries it and the run fails.
+          processedPaths.add(rootPkgPath);
+
           const rootNativeFiles = updateNativeManifests(packages.root, nextVersion, config, {
             dryRun,
             repoRoot,
             isRoot: true,
-            // Members still resolve their own `paths`; a root that is the only package must report a bad one.
-            skipPathsOutsideRepo: !rootIsPackage,
+            // Members still resolve their own `paths`; with no other member, a bad one must be reported.
+            skipPathsOutsideRepo: packages.packages.some((p) => p.dir !== packages.root),
           });
           // Track a native-only root bump: the loop skips this path in a single-package repo, so the early
           // return below would otherwise abandon the written file.
