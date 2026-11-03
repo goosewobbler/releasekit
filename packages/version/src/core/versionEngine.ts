@@ -204,20 +204,41 @@ export class VersionEngine {
     };
   }
 
-  private discoverPubspecPackages(workspaceRoot: string): PackagesWithRoot {
-    let pnpmWorkspaceGlobs: string[] | null = null;
+  private readWorkspaceGlobs(workspaceRoot: string): string[] | null {
     const pnpmWorkspacePath = path.join(workspaceRoot, 'pnpm-workspace.yaml');
     if (fs.existsSync(pnpmWorkspacePath)) {
       try {
-        const pnpmWorkspaceContent = fs.readFileSync(pnpmWorkspacePath, 'utf-8');
-        const pnpmWorkspace = yaml.parse(pnpmWorkspaceContent) as { packages?: string[] };
+        const pnpmWorkspace = yaml.parse(fs.readFileSync(pnpmWorkspacePath, 'utf-8')) as { packages?: string[] };
         if (Array.isArray(pnpmWorkspace?.packages) && pnpmWorkspace.packages.length > 0) {
-          pnpmWorkspaceGlobs = pnpmWorkspace.packages;
-          log(`pnpm workspace globs detected for pub discovery scoping: ${pnpmWorkspaceGlobs.join(', ')}`, 'debug');
+          return pnpmWorkspace.packages;
         }
       } catch (error) {
         log(`Could not parse pnpm-workspace.yaml for pub discovery scoping: ${error}`, 'debug');
       }
+    }
+
+    const packageJsonPath = path.join(workspaceRoot, 'package.json');
+    if (fs.existsSync(packageJsonPath)) {
+      try {
+        const { workspaces } = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8')) as {
+          workspaces?: string[] | { packages?: string[] };
+        };
+        const globs = Array.isArray(workspaces) ? workspaces : workspaces?.packages;
+        if (Array.isArray(globs) && globs.length > 0) {
+          return globs;
+        }
+      } catch (error) {
+        log(`Could not parse package.json workspaces for pub discovery scoping: ${error}`, 'debug');
+      }
+    }
+
+    return null;
+  }
+
+  private discoverPubspecPackages(workspaceRoot: string): PackagesWithRoot {
+    const workspaceGlobs = this.readWorkspaceGlobs(workspaceRoot);
+    if (workspaceGlobs) {
+      log(`Workspace globs detected for pub discovery scoping: ${workspaceGlobs.join(', ')}`, 'debug');
     }
 
     const pubspecPaths: string[] = [];
@@ -250,7 +271,9 @@ export class VersionEngine {
       }
     };
 
-    findPubspec(workspaceRoot);
+    if (this.config.pub?.enabled !== false) {
+      findPubspec(workspaceRoot);
+    }
 
     const dartPackages: Package[] = [];
 
@@ -274,11 +297,11 @@ export class VersionEngine {
         if (pubData.name && typeof pubData.version === 'string') {
           const relativePath = path.relative(workspaceRoot, packageDir);
 
-          if (pnpmWorkspaceGlobs !== null) {
+          if (workspaceGlobs !== null) {
             const normalizedRelative = relativePath.replace(/\\/g, '/');
-            const matchesGlob = pnpmWorkspaceGlobs.some((glob) => minimatch(normalizedRelative, glob, { dot: true }));
+            const matchesGlob = workspaceGlobs.some((glob) => minimatch(normalizedRelative, glob, { dot: true }));
             if (!matchesGlob) {
-              log(`Skipping Dart package ${pubData.name} at ${relativePath}: not in pnpm workspace globs`, 'debug');
+              log(`Skipping Dart package ${pubData.name} at ${relativePath}: not in workspace globs`, 'debug');
               continue;
             }
           }
@@ -370,7 +393,7 @@ export class VersionEngine {
       }
     }
     const pubspecPath = path.join(packageDir, 'pubspec.yaml');
-    if (fs.existsSync(pubspecPath)) {
+    if (this.config.pub?.enabled !== false && fs.existsSync(pubspecPath)) {
       try {
         if (parsePubspec(pubspecPath).publish_to !== 'none') {
           return true;

@@ -57,7 +57,8 @@ export function getVersionFromManifests(packageDir: string): ManifestVersionResu
   if (fs.existsSync(pubspecPath)) {
     try {
       const pubspec = parsePubspec(pubspecPath);
-      if (pubspec.version) {
+      // YAML reads an unquoted `version: 1.0` as a number.
+      if (typeof pubspec.version === 'string') {
         log(`Found version ${pubspec.version} in pubspec.yaml`, 'debug');
         return {
           version: pubspec.version,

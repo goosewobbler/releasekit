@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Package, Tool } from '@manypkg/get-packages';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as cargoHandler from '../../../src/cargo/cargoHandler.js';
 import * as commitParser from '../../../src/changelog/commitParser.js';
 import { createGroupStrategy } from '../../../src/core/groupStrategy.js';
 import * as calculator from '../../../src/core/versionCalculator.js';
@@ -9,6 +10,7 @@ import type { PackagesWithRoot } from '../../../src/core/versionEngine.js';
 import * as gitTags from '../../../src/git/tagsAndBranches.js';
 import * as tagVerification from '../../../src/git/tagVerification.js';
 import * as packageManagement from '../../../src/package/packageManagement.js';
+import * as pubHandler from '../../../src/pub/pubHandler.js';
 import type { Config } from '../../../src/types.js';
 import * as formatting from '../../../src/utils/formatting.js';
 import * as jsonOutput from '../../../src/utils/jsonOutput.js';
@@ -21,6 +23,14 @@ vi.mock('../../../src/core/versionCalculator.js');
 vi.mock('../../../src/package/packageManagement.js');
 vi.mock('../../../src/utils/jsonOutput.js');
 vi.mock('../../../src/changelog/commitParser.js');
+vi.mock('../../../src/cargo/cargoHandler.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../src/cargo/cargoHandler.js')>()),
+  isVersionedCrate: vi.fn(),
+}));
+vi.mock('../../../src/pub/pubHandler.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../src/pub/pubHandler.js')>()),
+  isReleasablePubspec: vi.fn(),
+}));
 vi.mock('node:fs');
 vi.mock('node:path');
 
@@ -55,8 +65,12 @@ const baseConfig = (overrides: Partial<Config>): Config =>
 describe('createGroupStrategy', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    // No Cargo.toml, so each release writes exactly one manifest.
-    vi.mocked(fs.existsSync, { partial: true }).mockImplementation((p) => !String(p).endsWith('Cargo.toml'));
+    vi.mocked(cargoHandler.isVersionedCrate).mockReturnValue(true);
+    vi.mocked(pubHandler.isReleasablePubspec).mockReturnValue(true);
+    // No native manifests, so each release writes exactly one manifest.
+    vi.mocked(fs.existsSync, { partial: true }).mockImplementation(
+      (p) => !/(Cargo.toml|pubspec.yaml)$/.test(String(p)),
+    );
     vi.mocked(fs.readFileSync, { partial: true }).mockReturnValue('{}');
     vi.mocked(path.join, { partial: true }).mockImplementation((...args) => args.join('/'));
     vi.mocked(gitTags.getLatestTag).mockResolvedValue('');
@@ -1051,6 +1065,45 @@ describe('createGroupStrategy', () => {
       expect(call?.[0].entries[0]).toEqual({
         type: 'changed',
         description: expect.stringContaining('Update version to'),
+      });
+    });
+  });
+  describe('native manifests', () => {
+    const dart = mkPackage('wdio_flutter', '1.0.0-next.0');
+    const service = mkPackage('@wdio/flutter-service', '1.0.0-next.0');
+    const dartPubspec = '/ws/packages/wdio_flutter/pubspec.yaml';
+    const pubConfig = { enabled: true, paths: ['dart'] };
+
+    beforeEach(() => {
+      vi.mocked(fs.existsSync, { partial: true }).mockImplementation(
+        (p) => p === dartPubspec || p === '/ws/packages/wdio-flutter-service/package.json',
+      );
+      vi.mocked(calculator.calculateVersion).mockResolvedValue('1.0.0-next.1');
+    });
+
+    it("should bump a Dart-only member's pubspec.yaml under its name, ignoring pub.paths", async () => {
+      const strategy = createGroupStrategy(
+        baseConfig({
+          pub: pubConfig,
+          groups: { flutter: { packages: ['wdio_flutter', '@wdio/flutter-service'], sync: 'independent' } },
+        }),
+      );
+      await strategy(workspace([dart, service]));
+
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(dartPubspec, '1.0.0-next.1', false, {
+        recordAs: 'wdio_flutter',
+      });
+      expect(jsonOutput.setPackageUpdateTag).toHaveBeenCalledWith('wdio_flutter', 'wdio_flutter@v1.0.0-next.1');
+    });
+
+    it("should bump an ungrouped Dart package's pubspec.yaml", async () => {
+      const strategy = createGroupStrategy(
+        baseConfig({ pub: pubConfig, groups: { js: { packages: ['@wdio/flutter-service'], sync: 'fixed' } } }),
+      );
+      await strategy(workspace([dart, service]));
+
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(dartPubspec, '1.0.0-next.1', false, {
+        recordAs: 'wdio_flutter',
       });
     });
   });

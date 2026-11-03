@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Package, Tool } from '@manypkg/get-packages';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as cargoHandler from '../../../src/cargo/cargoHandler.js';
 import * as commitParser from '../../../src/changelog/commitParser.js';
 import * as calculator from '../../../src/core/versionCalculator.js';
 import type { PackagesWithRoot } from '../../../src/core/versionEngine.js';
@@ -11,6 +12,7 @@ import * as gitTags from '../../../src/git/tagsAndBranches.js';
 import * as tagVerification from '../../../src/git/tagVerification.js';
 import * as packageManagement from '../../../src/package/packageManagement.js';
 import { PackageProcessor } from '../../../src/package/packageProcessor.js';
+import * as pubHandler from '../../../src/pub/pubHandler.js';
 import type { Config } from '../../../src/types.js';
 import * as formatting from '../../../src/utils/formatting.js';
 import * as jsonOutput from '../../../src/utils/jsonOutput.js';
@@ -52,6 +54,14 @@ vi.mock('../../../src/utils/formatting.js', () => ({
   }),
 }));
 vi.mock('../../../src/package/packageProcessor.js');
+vi.mock('../../../src/cargo/cargoHandler.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../src/cargo/cargoHandler.js')>()),
+  isVersionedCrate: vi.fn(),
+}));
+vi.mock('../../../src/pub/pubHandler.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../src/pub/pubHandler.js')>()),
+  isReleasablePubspec: vi.fn(),
+}));
 vi.mock('node:fs');
 vi.mock('node:path');
 
@@ -91,6 +101,8 @@ describe('Version Strategies', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(cargoHandler.isVersionedCrate).mockReturnValue(true);
+    vi.mocked(pubHandler.isReleasablePubspec).mockReturnValue(true);
 
     vi.mocked(path.join, { partial: true }).mockImplementation((...args) => args.join('/'));
     vi.mocked(fs.existsSync, { partial: true }).mockReturnValue(true);
@@ -202,7 +214,9 @@ describe('Version Strategies', () => {
         }),
       );
 
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined, true);
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined, {
+        isRoot: true,
+      });
 
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0', undefined);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageBPath, '1.1.0', undefined);
@@ -221,23 +235,45 @@ describe('Version Strategies', () => {
     });
 
     it('should version a pub-only package and not abandon it', async () => {
-      vi.mocked(fs.existsSync, { partial: true }).mockImplementation((filePath) =>
-        String(filePath).endsWith('pubspec.yaml'),
-      );
+      // Only the member's pubspec exists, so its loop tracking is all that keeps the run from returning early.
+      const memberPubspec = '/test/workspace/packages/a/pubspec.yaml';
+      vi.mocked(fs.existsSync, { partial: true }).mockImplementation((filePath) => filePath === memberPubspec);
       const config: Partial<Config> = { ...defaultConfig, sync: true };
       await strategies.createSyncStrategy(config as Config)(mockPackages);
 
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
-        '/test/workspace/packages/a/pubspec.yaml',
-        '1.1.0',
-        false,
-      );
-      expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
-        packageAPath,
-        expect.anything(),
-        expect.anything(),
-      );
+      expect(vi.mocked(packageManagement.updatePackageVersion).mock.calls).toEqual([
+        [memberPubspec, '1.1.0', false, { recordAs: 'package-a' }],
+      ]);
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
+    });
+
+    it('should skip a pubspec that discovery would not treat as a package', async () => {
+      vi.mocked(pubHandler.isReleasablePubspec).mockReturnValue(false);
+      const config: Partial<Config> = { ...defaultConfig, sync: true };
+      await strategies.createSyncStrategy(config as Config)(mockPackages);
+
+      const pubspecCalls = vi
+        .mocked(packageManagement.updatePackageVersion)
+        .mock.calls.filter(([file]) => file.endsWith('pubspec.yaml'));
+      expect(pubspecCalls).toEqual([]);
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0', undefined);
+    });
+
+    it('should fail rather than swallow a root native manifest that cannot be bumped', async () => {
+      vi.mocked(packageManagement.updatePackageVersion).mockImplementation((file) => {
+        if (file === '/test/workspace/pubspec.yaml') {
+          throw new Error('No version field found in /test/workspace/pubspec.yaml');
+        }
+      });
+      const config: Partial<Config> = { ...defaultConfig, sync: true };
+
+      await expect(strategies.createSyncStrategy(config as Config)(mockPackages)).rejects.toThrow(
+        'No version field found',
+      );
+      expect(logging.log).not.toHaveBeenCalledWith(
+        expect.stringContaining('Failed to update root package.json'),
+        'error',
+      );
     });
 
     it('should still version Cargo.toml and not abandon it when npm handling is disabled on a hybrid repo', async () => {
@@ -247,7 +283,7 @@ describe('Version Strategies', () => {
 
       await syncStrategy(mockPackages);
 
-      // Root package.json calls take 4 args, members 3.
+      // Root package.json calls take 4 args, member package.json calls 3.
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(
         packageAPath,
         expect.anything(),
@@ -259,13 +295,21 @@ describe('Version Strategies', () => {
         expect.anything(),
         expect.anything(),
       );
-      // updateCargoFiles passes dryRun=false.
+      // Recorded under the package's name, so its tag and changelog find the update.
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/test/workspace/packages/a/Cargo.toml',
         '1.1.0',
         false,
+        { recordAs: 'package-a' },
       );
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith('/test/workspace/Cargo.toml', '1.1.0', false);
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
+        '/test/workspace/Cargo.toml',
+        '1.1.0',
+        false,
+        {
+          recordAs: undefined,
+        },
+      );
       // Tagging proves the run didn't early-return and abandon the written files.
       expect(jsonOutput.addTag).toHaveBeenCalledWith('v1.1.0');
     });
@@ -307,7 +351,9 @@ describe('Version Strategies', () => {
         }),
       );
 
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined, true);
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined, {
+        isRoot: true,
+      });
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0', undefined);
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageBPath, '1.1.0', undefined);
     });
@@ -513,7 +559,9 @@ describe('Version Strategies', () => {
 
       await syncStrategy(mockPackages);
 
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined, true);
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined, {
+        isRoot: true,
+      });
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(packageAPath, '1.1.0', undefined);
       expect(packageManagement.updatePackageVersion).not.toHaveBeenCalledWith(packageBPath, '1.1.0', undefined);
     });
@@ -790,6 +838,7 @@ describe('Version Strategies', () => {
         '/test/workspace/packages/a/pubspec.yaml',
         '1.1.0',
         false,
+        { recordAs: 'package-a' },
       );
     });
 
@@ -944,6 +993,7 @@ describe('Version Strategies', () => {
           '/test/workspace/hybrid-pkg/Cargo.toml',
           '1.1.0',
           false,
+          { recordAs: 'hybrid-package' },
         );
       });
 
@@ -966,6 +1016,7 @@ describe('Version Strategies', () => {
           '/test/workspace/hybrid-pkg/Cargo.toml',
           '1.1.0',
           false,
+          { recordAs: 'hybrid-package' },
         );
       });
 
@@ -1049,6 +1100,7 @@ describe('Version Strategies', () => {
           '/test/workspace/hybrid-pkg/Cargo.toml',
           '1.2.0-next.0',
           false,
+          { recordAs: 'hybrid-package' },
         );
       });
 
@@ -1304,7 +1356,9 @@ describe('Version Strategies', () => {
       const strategy = strategies.createStrategy(config as Config);
       // isRoot=true on the root package.json is a sync-strategy fingerprint the group strategy never produces.
       await strategy(mockPackages);
-      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined, true);
+      expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(rootPackagePath, '1.1.0', undefined, {
+        isRoot: true,
+      });
     });
   });
 });

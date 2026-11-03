@@ -30,6 +30,7 @@ import {
   setVersioningStrategy,
 } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
+import { updateNativeManifests } from '../utils/manifestUpdates.js';
 import { resolveVersionAction } from '../utils/versionAction.js';
 import { BaselineResolver } from './baselineResolver.js';
 import { expandTargetsForAtomicGroups, type ResolvedGroup, resolveGroups } from './groupResolution.js';
@@ -352,14 +353,9 @@ async function releaseGroup(
     } else if (fs.existsSync(packageJsonPath)) {
       updatePackageVersion(packageJsonPath, version, config.dryRun);
     } else {
-      log(`Skipping package.json update for ${name} - no package.json found (Rust-only package)`, 'debug');
+      log(`Skipping package.json update for ${name} - no package.json found (native-only package)`, 'debug');
     }
-
-    // Default path only - `cargo.paths` doesn't apply to group members.
-    const cargoTomlPath = path.join(pkg.dir, 'Cargo.toml');
-    if (config.cargo?.enabled !== false && fs.existsSync(cargoTomlPath)) {
-      updatePackageVersion(cargoTomlPath, version, config.dryRun);
-    }
+    updateNativeManifests(pkg.dir, version, config, { dryRun: config.dryRun, recordAs: name, ignorePaths: true });
 
     // Always package-specific so each member's release is individually addressable.
     const tag = formatTag(version, formattedPrefix, name, config.tagTemplate, true);
@@ -501,10 +497,11 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
         if (config.npm?.enabled !== false && fs.existsSync(packageJsonPath)) {
           updatePackageVersion(packageJsonPath, plan.ownNext, config.dryRun);
         }
-        const cargoTomlPath = path.join(pkg.dir, 'Cargo.toml');
-        if (config.cargo?.enabled !== false && fs.existsSync(cargoTomlPath)) {
-          updatePackageVersion(cargoTomlPath, plan.ownNext, config.dryRun);
-        }
+        updateNativeManifests(pkg.dir, plan.ownNext, config, {
+          dryRun: config.dryRun,
+          recordAs: name,
+          ignorePaths: true,
+        });
         const tag = formatTag(plan.ownNext, formattedPrefix, name, config.tagTemplate, config.packageSpecificTags);
         addTag(tag);
         setPackageUpdateTag(name, tag);

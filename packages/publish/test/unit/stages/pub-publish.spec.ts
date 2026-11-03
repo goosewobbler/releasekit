@@ -178,6 +178,32 @@ describe('pub-publish stage', () => {
     expect(ctx.output.pub[0]).toMatchObject({ packageName: 'my_package', updatePackageName: 'my-package' });
   });
 
+  it.each([
+    ['publish', ['packages/my-package/package.json', 'packages/my-package/pubspec.yaml'], 1],
+    ['skip', ['packages/my-package/package.json'], 0],
+  ])("should %s a hybrid's pubspec.yaml by whether the version step bumped it", async (_verb, files, expected) => {
+    const { execCommand } = await import('../../../src/utils/exec.js');
+    const dir = createTmpDir();
+    const pkgDir = path.join(dir, 'packages', 'my-package');
+    fs.mkdirSync(pkgDir, { recursive: true });
+    writePubspec(pkgDir, 'my_package', '0.4.0');
+
+    const ctx = createContext(dir, {
+      input: {
+        dryRun: false,
+        updates: [
+          { packageName: 'my-package', newVersion: '0.5.0', filePath: 'packages/my-package/package.json', files },
+        ],
+        changelogs: [],
+        tags: [],
+      },
+    });
+    await runPubPublishStage(ctx);
+
+    const publishCalls = vi.mocked(execCommand).mock.calls.filter((c) => (c[1] as string[]).includes('publish'));
+    expect(publishCalls).toHaveLength(expected);
+  });
+
   it('should publish a package only once when multiple updates share the same dir', async () => {
     const { execCommand } = await import('../../../src/utils/exec.js');
     const dir = createTmpDir();

@@ -825,6 +825,50 @@ describe('Version Engine', () => {
       }
     });
 
+    it.each([
+      ['npm', { workspaces: ['packages/*'] }],
+      ['yarn', { workspaces: { packages: ['packages/*'] } }],
+    ])('should exclude pub packages outside %s workspace globs', async (_tool, rootPackageJson) => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-pub-workspace-'));
+      try {
+        fs.writeFileSync(path.join(tmp, 'package.json'), JSON.stringify({ name: 'root', ...rootPackageJson }));
+        const memberDir = path.join(tmp, 'packages', 'flutter_member');
+        fs.mkdirSync(memberDir, { recursive: true });
+        fs.writeFileSync(path.join(memberDir, 'pubspec.yaml'), 'name: flutter_member\nversion: 1.0.0\n');
+        const fixtureDir = path.join(tmp, 'test', 'fixtures', 'flutter_fixture');
+        fs.mkdirSync(fixtureDir, { recursive: true });
+        fs.writeFileSync(path.join(fixtureDir, 'pubspec.yaml'), 'name: flutter_fixture\nversion: 0.0.1\n');
+        vi.mocked(mockCwd, { partial: true }).mockReturnValue(tmp);
+        vi.mocked(getPackagesSync).mockReturnValue({ root: tmp, packages: [] });
+
+        const engine = new VersionEngine({ ...defaultConfig, sync: false } as Config);
+        const result = await engine.getWorkspacePackages();
+
+        expect(result.packages.find((p) => p.packageJson.name === 'flutter_member')).toBeDefined();
+        expect(result.packages.find((p) => p.packageJson.name === 'flutter_fixture')).toBeUndefined();
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+
+    it('should not discover Dart packages when version.pub.enabled is false', async () => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-pub-disabled-'));
+      try {
+        const memberDir = path.join(tmp, 'packages', 'flutter_member');
+        fs.mkdirSync(memberDir, { recursive: true });
+        fs.writeFileSync(path.join(memberDir, 'pubspec.yaml'), 'name: flutter_member\nversion: 1.0.0\n');
+        vi.mocked(mockCwd, { partial: true }).mockReturnValue(tmp);
+        vi.mocked(getPackagesSync).mockReturnValue({ root: tmp, packages: [] });
+
+        const engine = new VersionEngine({ ...defaultConfig, sync: false, pub: { enabled: false } } as Config);
+        const result = await engine.getWorkspacePackages();
+
+        expect(result.packages).toEqual([]);
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+
     it('should include a pure Rust package when explicitly named in config.packages', async () => {
       const discoverSpy = vi.spyOn(VersionEngine.prototype as any, 'discoverCargoTomlPackages');
       discoverSpy.mockReturnValue({

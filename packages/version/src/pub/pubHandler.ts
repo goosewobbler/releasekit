@@ -43,7 +43,13 @@ export function getPubInfo(pubspecPath: string): PubInfo {
   }
 }
 
-export function updatePubVersion(pubspecPath: string, version: string, dryRun = false): void {
+/** As in discovery: a Dart workspace root, an app manifest or a `publish_to: none` package isn't released. */
+export function isReleasablePubspec(pubspecPath: string): boolean {
+  const pubspec = parsePubspec(pubspecPath);
+  return !!pubspec.name && typeof pubspec.version === 'string' && pubspec.publish_to !== 'none';
+}
+
+export function updatePubVersion(pubspecPath: string, version: string, dryRun = false, recordAs?: string): void {
   try {
     const content = fs.readFileSync(pubspecPath, 'utf-8');
     const pubspec = parsePubspec(pubspecPath, content);
@@ -71,7 +77,7 @@ export function updatePubVersion(pubspecPath: string, version: string, dryRun = 
       fs.writeFileSync(pubspecPath, updatedContent);
     }
 
-    addPackageUpdate(packageName, version, pubspecPath);
+    addPackageUpdate(recordAs ?? packageName, version, pubspecPath);
     log(
       `${dryRun ? '[DRY RUN] Would update' : 'Updated'} pubspec.yaml at ${pubspecPath} to version ${version}`,
       'success',

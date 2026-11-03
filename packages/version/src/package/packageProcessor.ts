@@ -21,7 +21,7 @@ import {
 } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { getVersionFromManifests } from '../utils/manifestHelpers.js';
-import { updateCargoFiles, updatePubFiles } from '../utils/manifestUpdates.js';
+import { updateNativeManifests } from '../utils/manifestUpdates.js';
 import { resolveVersionAction } from '../utils/versionAction.js';
 import { updatePackageVersion } from './packageManagement.js';
 
@@ -308,8 +308,7 @@ export class PackageProcessor {
         updatePackageVersion(packageJsonPath, nextVersion, this.dryRun);
       }
 
-      updateCargoFiles(pkgPath, nextVersion, this.fullConfig.cargo, this.dryRun, repoRoot);
-      updatePubFiles(pkgPath, nextVersion, this.fullConfig.pub, this.dryRun, repoRoot);
+      updateNativeManifests(pkgPath, nextVersion, this.fullConfig, { dryRun: this.dryRun, repoRoot, recordAs: name });
 
       const packageTag = formatTag(
         nextVersion,

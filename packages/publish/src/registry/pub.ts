@@ -1,5 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { isPubspecYaml } from '@releasekit/config';
+import { debug } from '@releasekit/core';
 import { createPublishError, PublishErrorCode } from '../errors/index.js';
 import type { PipelineContext } from '../types.js';
 import { hasPubTokenAuth } from '../utils/auth.js';
@@ -79,7 +81,7 @@ export const pubRegistry: Registry<PubTarget, void> = {
 };
 
 function findPubPackages(
-  updates: Array<{ packageName: string; newVersion: string; filePath: string; dir: string }>,
+  updates: Array<{ packageName: string; newVersion: string; filePath: string; files?: string[]; dir: string }>,
 ): PubTarget[] {
   const packages: PubTarget[] = [];
   const seen = new Set<string>();
@@ -87,6 +89,11 @@ function findPubPackages(
   for (const update of updates) {
     const pubspecPath = path.join(update.dir, 'pubspec.yaml');
     if (!fs.existsSync(pubspecPath) || seen.has(pubspecPath)) {
+      continue;
+    }
+    // Publishing a pubspec the version step left alone (e.g. `version.pub.enabled: false`) would ship a stale version.
+    if (update.files && !update.files.some(isPubspecYaml)) {
+      debug(`Skipping ${pubspecPath}: the version step didn't bump it`);
       continue;
     }
     seen.add(pubspecPath);

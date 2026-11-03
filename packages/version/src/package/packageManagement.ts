@@ -99,15 +99,26 @@ Then optionally use the "packages" config to target specific package names:
   }
 }
 
-/** @param isRoot The workspace-root package.json, bumped in lockstep (sync mode). */
-export function updatePackageVersion(packagePath: string, version: string, dryRun = false, isRoot = false): void {
+export interface UpdatePackageVersionOptions {
+  /** The workspace-root package.json, bumped in lockstep (sync mode). */
+  isRoot?: boolean;
+  /** Records a Cargo.toml or pubspec.yaml update under this name rather than the manifest's own. */
+  recordAs?: string;
+}
+
+export function updatePackageVersion(
+  packagePath: string,
+  version: string,
+  dryRun = false,
+  { isRoot = false, recordAs }: UpdatePackageVersionOptions = {},
+): void {
   if (isCargoToml(packagePath)) {
-    updateCargoVersion(packagePath, version, dryRun);
+    updateCargoVersion(packagePath, version, dryRun, recordAs);
     return;
   }
 
   if (isPubspecYaml(packagePath)) {
-    updatePubVersion(packagePath, version, dryRun);
+    updatePubVersion(packagePath, version, dryRun, recordAs);
     return;
   }
 

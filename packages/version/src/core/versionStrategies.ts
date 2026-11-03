@@ -25,7 +25,7 @@ import {
   setVersioningStrategy,
 } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
-import { updateCargoFiles, updatePubFiles } from '../utils/manifestUpdates.js';
+import { updateNativeManifests } from '../utils/manifestUpdates.js';
 import { resolveVersionAction } from '../utils/versionAction.js';
 import { BaselineResolver } from './baselineResolver.js';
 import { hasExplicitGroups } from './groupResolution.js';
@@ -131,38 +131,33 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         return;
       }
 
-      const files: string[] = [];
       const updatedPackages: string[] = [];
       const processedPaths = new Set<string>();
 
-      try {
-        if (packages.root) {
-          const rootPkgPath = path.join(packages.root, 'package.json');
+      if (packages.root) {
+        const rootPkgPath = path.join(packages.root, 'package.json');
+        try {
           if (config.npm?.enabled !== false && fs.existsSync(rootPkgPath)) {
             // Flag as root so consumers (preview, standing PR) exclude it from package counts - it isn't publishable.
-            updatePackageVersion(rootPkgPath, nextVersion, dryRun, true);
-            files.push(rootPkgPath);
+            updatePackageVersion(rootPkgPath, nextVersion, dryRun, { isRoot: true });
             updatedPackages.push('root');
           }
-          // Record even when npm is disabled so the loop skips it in a single-package repo (where
-          // packages.root === packages[0].dir) - otherwise its Cargo.toml is versioned twice.
-          processedPaths.add(rootPkgPath);
-
-          const rootCargoFiles = updateCargoFiles(packages.root, nextVersion, config.cargo, dryRun, repoRoot);
-          files.push(...rootCargoFiles);
-          const rootPubFiles = updatePubFiles(packages.root, nextVersion, config.pub, dryRun, repoRoot);
-          files.push(...rootPubFiles);
-          // Track a Cargo- or pub-only root bump: the loop skips this path in a single-package repo, so the early
-          // return below would otherwise abandon the written file.
-          if ((rootCargoFiles.length > 0 || rootPubFiles.length > 0) && !updatedPackages.includes('root')) {
-            updatedPackages.push('root');
-          }
-        } else {
-          log('Root package path is undefined, skipping root package.json update', 'warning');
+        } catch (error) {
+          const errMessage = error instanceof Error ? error.message : String(error);
+          log(`Failed to update root package.json: ${errMessage}`, 'error');
         }
-      } catch (error) {
-        const errMessage = error instanceof Error ? error.message : String(error);
-        log(`Failed to update root package.json: ${errMessage}`, 'error');
+        // Record even when npm is disabled so the loop skips it in a single-package repo (where
+        // packages.root === packages[0].dir) - otherwise its native manifests are versioned twice.
+        processedPaths.add(rootPkgPath);
+
+        const rootNativeFiles = updateNativeManifests(packages.root, nextVersion, config, { dryRun, repoRoot });
+        // Track a native-only root bump: the loop skips this path in a single-package repo, so the early
+        // return below would otherwise abandon the written file.
+        if (rootNativeFiles.length > 0 && !updatedPackages.includes('root')) {
+          updatedPackages.push('root');
+        }
+      } else {
+        log('Root package path is undefined, skipping root package.json update', 'warning');
       }
 
       for (const pkg of packages.packages) {
@@ -176,30 +171,26 @@ export function createSyncStrategy(config: Config): StrategyFunction {
           continue;
         }
 
-        if (config.npm?.enabled === false) {
-          log(`Skipping package.json update for ${pkg.packageJson.name} - npm version handling disabled`, 'debug');
-        } else if (!fs.existsSync(packageJsonPath)) {
-          log(
-            `Skipping package.json update for ${pkg.packageJson.name} - no package.json found (Cargo- or pub-only package)`,
-            'debug',
-          );
-        } else {
+        const npmBumped = config.npm?.enabled !== false && fs.existsSync(packageJsonPath);
+        if (npmBumped) {
           updatePackageVersion(packageJsonPath, nextVersion, dryRun);
-          files.push(packageJsonPath);
           updatedPackages.push(pkg.packageJson.name);
           processedPaths.add(packageJsonPath);
+        } else {
+          const reason =
+            config.npm?.enabled === false
+              ? 'npm version handling disabled'
+              : 'no package.json found (native-only package)';
+          log(`Skipping package.json update for ${pkg.packageJson.name} - ${reason}`, 'debug');
         }
 
-        const pkgCargoFiles = updateCargoFiles(pkg.dir, nextVersion, config.cargo, dryRun, repoRoot);
-        files.push(...pkgCargoFiles);
-        const pkgPubFiles = updatePubFiles(pkg.dir, nextVersion, config.pub, dryRun, repoRoot);
-        files.push(...pkgPubFiles);
-
-        // Track Cargo- or pub-only updates, or the early return below abandons the written manifests.
-        if (
-          (!fs.existsSync(packageJsonPath) || config.npm?.enabled === false) &&
-          (pkgCargoFiles.length > 0 || pkgPubFiles.length > 0)
-        ) {
+        const nativeFiles = updateNativeManifests(pkg.dir, nextVersion, config, {
+          dryRun,
+          repoRoot,
+          recordAs: pkg.packageJson.name,
+        });
+        // Track native-only updates, or the early return below abandons the written manifests.
+        if (!npmBumped && nativeFiles.length > 0) {
           updatedPackages.push(pkg.packageJson.name);
         }
       }
@@ -517,22 +508,15 @@ export function createSingleStrategy(config: Config): StrategyFunction {
 
       const packageJsonPath = path.join(pkgPath, 'package.json');
 
-      const filesToCommit: string[] = [];
-
       const npmEnabled = config.npm?.enabled !== false;
       if (npmEnabled && fs.existsSync(packageJsonPath)) {
         updatePackageVersion(packageJsonPath, nextVersion, dryRun);
-        filesToCommit.push(packageJsonPath);
       } else {
-        const reason = !npmEnabled
-          ? 'npm version handling disabled'
-          : 'no package.json found (Cargo- or pub-only package)';
+        const reason = !npmEnabled ? 'npm version handling disabled' : 'no package.json found (native-only package)';
         log(`Skipping package.json update for ${packageName} - ${reason}`, 'debug');
       }
 
-      const cargoFiles = updateCargoFiles(pkgPath, nextVersion, config.cargo, dryRun, repoRoot);
-      filesToCommit.push(...cargoFiles);
-      filesToCommit.push(...updatePubFiles(pkgPath, nextVersion, config.pub, dryRun, repoRoot));
+      updateNativeManifests(pkgPath, nextVersion, config, { dryRun, repoRoot, recordAs: packageName });
 
       log(`Updated package ${packageName} to version ${nextVersion}`, 'success');
 
