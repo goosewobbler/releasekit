@@ -22,7 +22,7 @@ See [configuration.md](./configuration.md) for the full config reference.
 ## What's not supported
 
 - OIDC / trusted publishing for crates.io — token-based auth only via `CARGO_REGISTRY_TOKEN`
-- Automatic workspace root discovery — crate directories must be listed in `version.cargo.paths` or inferred from `version.packages`
+- Nested Cargo workspaces — only the repo-root `Cargo.toml`'s `[workspace] members` scope crate discovery
 - `[patch]`, in `Cargo.toml` or `.cargo/config.toml`, when syncing `Cargo.lock` — a lock whose workspace reaches a bumped crate only through a patch keeps the old version, without an error, and `cargo build --locked` there fails until you run `cargo update --workspace` in that workspace and commit the lock
 - Comment and formatting preservation in `Cargo.toml` — the file is rewritten on version bump using `smol-toml`'s serialiser; whitespace, comments, and key order may change
 
@@ -57,17 +57,13 @@ Set `CARGO_REGISTRY_TOKEN` in your CI secrets. See [Auth](#auth) below.
 
 ## Quickstart — mixed npm + Rust monorepo
 
-Use `version.packages` for npm packages and `version.cargo.paths` for Rust crates. Both can coexist:
+List npm package and crate directories together in `version.packages`:
 
 ```json
 {
   "$schema": "https://goosewobbler.github.io/releasekit/schema.json",
   "version": {
-    "packages": ["packages/js-lib", "packages/cli"],
-    "cargo": {
-      "enabled": true,
-      "paths": ["crates/core", "crates/ffi"]
-    }
+    "packages": ["packages/js-lib", "packages/cli", "crates/core", "crates/ffi"]
   },
   "publish": {
     "npm": {
@@ -80,7 +76,7 @@ Use `version.packages` for npm packages and `version.cargo.paths` for Rust crate
 }
 ```
 
-When `version.cargo.paths` is omitted, releasekit looks for `Cargo.toml` files alongside the directories listed in `version.packages`. If your Rust crates live in separate directories not listed there, use `version.cargo.paths` to point at them explicitly.
+releasekit discovers a crate from its `Cargo.toml`, within the repo-root `Cargo.toml`'s `[workspace] members` if it has any. A `Cargo.toml` beside a `package.json` is versioned with that package.
 
 ---
 
@@ -91,7 +87,7 @@ When `version.cargo.paths` is omitted, releasekit looks for `Cargo.toml` files a
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `enabled` | boolean | `true` | Enable `Cargo.toml` version bumping |
-| `paths` | string[] | — | Directories to search for `Cargo.toml` files. When omitted, crate dirs are inferred from `version.packages` entries that contain a `Cargo.toml`. |
+| `paths` | string[] | — | Directories, relative to each package, to bump a `Cargo.toml` in instead of the package's own directory. Ignored in group mode. |
 
 ### `publish.cargo`
 
