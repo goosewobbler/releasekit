@@ -178,10 +178,6 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
       - uses: dart-lang/setup-dart@v1
 
       # No pnpm/Node setup needed: the action sets up its own.
@@ -193,8 +189,6 @@ jobs:
         # env:
         #   PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
 ```
-
-`fetch-depth: 0` is required so that releasekit can walk the full commit history to determine the version bump.
 
 For **Flutter** packages, swap (or add) `subosito/flutter-action@v2`, which provides both `flutter` and `dart` on the runner.
 

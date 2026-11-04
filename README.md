@@ -123,9 +123,6 @@ jobs:
       pull-requests: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
       - uses: goosewobbler/releasekit@v0
         with:
           mode: release

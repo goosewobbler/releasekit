@@ -24,9 +24,6 @@ jobs:
     permissions:
       contents: write # gh release edit (update-releases)
     steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0 # backfill reads every tag
       - uses: goosewobbler/releasekit@v0
         with:
           mode: backfill

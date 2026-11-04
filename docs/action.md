@@ -205,9 +205,6 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
       - uses: goosewobbler/releasekit@v0
         with:
           mode: preview
@@ -256,9 +253,6 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
       - uses: goosewobbler/releasekit@v0
         with:
           mode: backfill
