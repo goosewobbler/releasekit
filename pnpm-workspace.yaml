@@ -6,11 +6,11 @@ allowBuilds:
   esbuild: false
 
 catalog:
-  '@biomejs/biome': ^2.6.2
+  '@biomejs/biome': ^2.6.4
   '@manypkg/get-packages': ^3.1.0
   'minimatch': ^10.2.6
   '@octokit/rest': ^22.0.1
-  '@types/node': ^26.6.5
+  '@types/node': ^26.6.6
   '@types/semver': ^7.8.0
   '@vitest/coverage-v8': ^5.0.5
   chalk: ^6.0.1
