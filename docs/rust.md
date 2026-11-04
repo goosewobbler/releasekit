@@ -22,7 +22,7 @@ See [configuration.md](./configuration.md) for the full config reference.
 ## What's not supported
 
 - OIDC / trusted publishing for crates.io — token-based auth only via `CARGO_REGISTRY_TOKEN`
-- Nested Cargo workspaces — only the repo-root `Cargo.toml`'s `[workspace] members` scope crate discovery
+- Automatic workspace root discovery — crate directories must be listed in `version.cargo.paths` or inferred from `version.packages`
 - `[patch]`, in `Cargo.toml` or `.cargo/config.toml`, when syncing `Cargo.lock` — a lock whose workspace reaches a bumped crate only through a patch keeps the old version, without an error, and `cargo build --locked` there fails until you run `cargo update --workspace` in that workspace and commit the lock
 - Comment and formatting preservation in `Cargo.toml` — the file is rewritten on version bump using `smol-toml`'s serialiser; whitespace, comments, and key order may change
 
@@ -57,13 +57,17 @@ Set `CARGO_REGISTRY_TOKEN` in your CI secrets. See [Auth](#auth) below.
 
 ## Quickstart — mixed npm + Rust monorepo
 
-List npm package and crate directories together in `version.packages`:
+Use `version.packages` for npm packages and `version.cargo.paths` for Rust crates. Both can coexist:
 
 ```json
 {
   "$schema": "https://goosewobbler.github.io/releasekit/schema.json",
   "version": {
-    "packages": ["packages/js-lib", "packages/cli", "crates/core", "crates/ffi"]
+    "packages": ["packages/js-lib", "packages/cli"],
+    "cargo": {
+      "enabled": true,
+      "paths": ["crates/core", "crates/ffi"]
+    }
   },
   "publish": {
     "npm": {
@@ -76,38 +80,13 @@ List npm package and crate directories together in `version.packages`:
 }
 ```
 
-releasekit discovers a crate from its `Cargo.toml`, within the repo-root `Cargo.toml`'s `[workspace] members` if it has any. A `Cargo.toml` beside a `package.json` is versioned with that package.
+When `version.cargo.paths` is omitted, releasekit looks for `Cargo.toml` files alongside the directories listed in `version.packages`. If your Rust crates live in separate directories not listed there, use `version.cargo.paths` to point at them explicitly.
 
 ---
 
 ## Config reference
 
-### `version.cargo`
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Enable `Cargo.toml` version bumping |
-| `paths` | string[] | — | Directories, relative to each package, to bump a `Cargo.toml` in instead of the package's own directory. Ignored in group mode. |
-
-### `publish.cargo`
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Publish detected crates to crates.io. Set `false` to version and tag only. |
-| `noVerify` | boolean | `false` | Pass `--no-verify` to `cargo publish`, skipping pre-publish tarball verification. Use only as a workaround — see [Edge cases](#edge-cases-and-troubleshooting). |
-| `publishOrder` | string[] | `[]` | Explicit crate publish order by crate name. When set, this overrides the automatic topological sort. Crates not listed are appended at the end. |
-| `clean` | boolean | `false` | Run `cargo clean` in the crate directory before publishing. |
-
-### `publish.verify.cargo`
-
-Controls how releasekit polls crates.io after each publish to confirm the version is visible. crates.io index propagation is slower than npm, so the defaults are more conservative.
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Poll crates.io after publish to verify the version appears. |
-| `maxAttempts` | integer | `10` | Maximum number of polling attempts. |
-| `initialDelay` | integer (ms) | `30000` | Delay before the first check (30 seconds). |
-| `backoffMultiplier` | number | `2` | Exponential backoff multiplier applied between attempts. |
+The Rust keys are [`version.cargo`](./configuration.md#versioncargo), [`publish.cargo`](./configuration.md#publishcargo) and [`publish.verify.cargo`](./configuration.md#publishverifycargo) in the configuration reference.
 
 ---
 
