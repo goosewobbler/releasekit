@@ -21,7 +21,7 @@ interface NpmSession {
   isolation: NpmEnvIsolation;
 }
 
-function readNpmWorkspaceDeps(pkgJsonPath: string): string[] {
+export function readNpmWorkspaceDeps(pkgJsonPath: string): string[] {
   try {
     const json = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
     return [...Object.keys(json.dependencies ?? {}), ...Object.keys(json.peerDependencies ?? {})];

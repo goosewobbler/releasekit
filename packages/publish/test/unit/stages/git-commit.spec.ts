@@ -79,6 +79,29 @@ describe('git-commit stage', () => {
     expect(ctx.output.git.tags).toEqual(['foo@v1.0.0']);
   });
 
+  it('should stage every manifest an update bumped, not just the one it is named after', async () => {
+    const ctx = createContext();
+    ctx.input.updates = [
+      {
+        packageName: 'foo',
+        newVersion: '1.0.0',
+        filePath: 'packages/foo/package.json',
+        files: ['packages/foo/package.json', 'packages/foo/pubspec.yaml'],
+      },
+      { packageName: 'bar', newVersion: '1.0.0', filePath: 'packages/bar/package.json' },
+    ];
+
+    await runGitCommitStage(ctx);
+
+    expect(fakeGit.added).toEqual([
+      [
+        '/test/project/packages/foo/package.json',
+        '/test/project/packages/foo/pubspec.yaml',
+        '/test/project/packages/bar/package.json',
+      ],
+    ]);
+  });
+
   it('should skip when no commit message', async () => {
     const ctx = createContext({ input: { dryRun: false, updates: [], changelogs: [], tags: [] } });
 

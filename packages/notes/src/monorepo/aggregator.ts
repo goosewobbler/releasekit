@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { type ChangelogRefsMode, debug, info, success } from '@releasekit/core';
 import type { TemplateContext } from '../core/types.js';
-import { formatVersion, prependVersion, renderMarkdown } from '../output/markdown.js';
+import { prependVersions, renderMarkdown } from '../output/markdown.js';
 import { splitByPackage } from './splitter.js';
 
 export interface MonorepoOptions {
@@ -65,19 +65,10 @@ export function writeMonorepoChangelogs(
     const fmtOpts = { includePackageName: true, refs };
 
     info(`Writing root changelog to ${rootPath}`);
-    let rootContent: string;
-    if (config.updateStrategy !== 'regenerate' && fs.existsSync(rootPath)) {
-      const newSections = contexts.map((ctx) => formatVersion(ctx, fmtOpts)).join('\n');
-      const existing = fs.readFileSync(rootPath, 'utf-8');
-      const headerEnd = existing.indexOf('\n## ');
-      if (headerEnd >= 0) {
-        rootContent = `${existing.slice(0, headerEnd)}\n\n${newSections}\n${existing.slice(headerEnd + 1)}`;
-      } else {
-        rootContent = renderMarkdown(contexts, fmtOpts);
-      }
-    } else {
-      rootContent = renderMarkdown(contexts, fmtOpts);
-    }
+    const rootContent =
+      config.updateStrategy === 'regenerate'
+        ? renderMarkdown(contexts, fmtOpts)
+        : prependVersions(rootPath, contexts, fmtOpts);
     if (writeFile(rootPath, rootContent, dryRun)) {
       files.push(rootPath);
     }
@@ -96,9 +87,9 @@ export function writeMonorepoChangelogs(
         const changelogPath = path.join(packageDir, options.fileName ?? 'CHANGELOG.md');
         info(`Writing changelog for ${packageName} to ${changelogPath}`);
         const pkgContent =
-          config.updateStrategy !== 'regenerate' && fs.existsSync(changelogPath)
-            ? prependVersion(changelogPath, ctx, { refs })
-            : renderMarkdown([ctx], { refs });
+          config.updateStrategy === 'regenerate'
+            ? renderMarkdown([ctx], { refs })
+            : prependVersions(changelogPath, [ctx], { refs });
         if (writeFile(changelogPath, pkgContent, dryRun)) {
           files.push(changelogPath);
         }

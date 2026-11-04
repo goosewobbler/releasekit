@@ -53,7 +53,9 @@ export async function runGitCommitStage(ctx: PipelineContext): Promise<void> {
   }
 
   if (!skipCommit) {
-    const filePaths = input.updates.map((u) => path.resolve(cwd, u.filePath));
+    const filePaths = [...new Set(input.updates.flatMap((u) => u.files ?? [u.filePath]))].map((f) =>
+      path.resolve(cwd, f),
+    );
     if (ctx.additionalFiles) {
       filePaths.push(...ctx.additionalFiles.map((f) => path.resolve(cwd, f)));
     }

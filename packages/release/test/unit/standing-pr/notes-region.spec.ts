@@ -1,3 +1,4 @@
+import type { VersionOutput } from '@releasekit/core';
 import { describe, expect, it } from 'vitest';
 import {
   extractNotesRegions,
@@ -6,6 +7,22 @@ import {
   renderNotesRegion,
   truncatePackageNotes,
 } from '../../../src/standing-pr/notes-region.js';
+
+function keyedBy(...keys: string[]): VersionOutput {
+  return {
+    dryRun: false,
+    updates: [],
+    changelogs: keys.map((packageName) => ({
+      packageName,
+      version: '1.0.0',
+      previousVersion: null,
+      revisionRange: 'HEAD',
+      repoUrl: null,
+      entries: [],
+    })),
+    tags: [],
+  };
+}
 
 describe('notes-region', () => {
   describe('renderNotesRegion', () => {
@@ -52,7 +69,7 @@ describe('notes-region', () => {
       const notes = { '@scope/a': 'Notes A', pkg: 'Plain notes' };
       const rendered = renderNotesRegion(notes);
 
-      expect(extractNotesRegions(rendered, ['@scope/a', 'pkg'])).toEqual(notes);
+      expect(extractNotesRegions(rendered, keyedBy('@scope/a', 'pkg'))).toEqual(notes);
     });
   });
 
@@ -60,18 +77,18 @@ describe('notes-region', () => {
     it('should extract only the requested packages and omit missing ones', () => {
       const body = `prose\n${renderNotesRegion({ '@scope/a': 'Notes A' })}\nmore prose`;
 
-      expect(extractNotesRegions(body, ['@scope/a', '@scope/missing'])).toEqual({ '@scope/a': 'Notes A' });
+      expect(extractNotesRegions(body, keyedBy('@scope/a', '@scope/missing'))).toEqual({ '@scope/a': 'Notes A' });
     });
 
     it('should return an empty object when the body has no region', () => {
-      expect(extractNotesRegions('just a normal PR body', ['pkg'])).toEqual({});
+      expect(extractNotesRegions('just a normal PR body', keyedBy('pkg'))).toEqual({});
     });
 
     it('should preserve human edits inside the markers', () => {
       const seeded = renderNotesRegion({ pkg: 'original' });
       const edited = seeded.replace('original', 'human edited this');
 
-      expect(extractNotesRegions(edited, ['pkg'])).toEqual({ pkg: 'human edited this' });
+      expect(extractNotesRegions(edited, keyedBy('pkg'))).toEqual({ pkg: 'human edited this' });
     });
   });
 

@@ -9,7 +9,6 @@ import { calculateVersion } from '../core/versionCalculator.js';
 import { StrictReachableError } from '../errors/strictReachableError.js';
 import { getLatestTagForPackage } from '../git/tagsAndBranches.js';
 import type { Config, VersionConfigBase } from '../types.js';
-import { resolveConfinedManifestPath } from '../utils/confinedPath.js';
 import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
 import {
   addChangelogData,
@@ -22,6 +21,7 @@ import {
 } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 import { getVersionFromManifests } from '../utils/manifestHelpers.js';
+import { checkManifestToBump, updateNativeManifests } from '../utils/manifestUpdates.js';
 import { resolveVersionAction } from '../utils/versionAction.js';
 import { updatePackageVersion } from './packageManagement.js';
 
@@ -181,23 +181,11 @@ export class PackageProcessor {
         continue;
       }
 
-      const baselineTagPrefix = deriveBaselineTagPrefix(this.fullConfig.baselineTagTemplate, formattedPrefix, name);
-
-      // An untagged package's changelog can push the standing-PR body past GitHub's 65,536-char limit (an
-      // opaque 422). baseRef-scoped runs are bounded to the PR.
-      if (!hasRealTag && !this.fullConfig.baseRef) {
-        const currentVersion = pkg.packageJson.version;
-        const suggestedTag = currentVersion
-          ? formatTag(currentVersion, formattedPrefix, name, this.tagTemplate, this.fullConfig.packageSpecificTags)
-          : undefined;
-        log(
-          `No prior tag found for ${name} — its changelog will include the full git history.` +
-            (suggestedTag
-              ? ` Create a baseline tag to scope it: git tag ${suggestedTag} <release-sha> && git push origin ${suggestedTag}`
-              : ''),
-          'warning',
-        );
+      if (!checkManifestToBump(name, pkgPath, this.fullConfig, { repoRoot })) {
+        continue;
       }
+
+      const baselineTagPrefix = deriveBaselineTagPrefix(this.fullConfig.baselineTagTemplate, formattedPrefix, name);
 
       let changelogEntries: ChangelogEntry[] = [];
       let revisionRange = 'HEAD';
@@ -216,6 +204,24 @@ export class PackageProcessor {
         });
         revisionRange = baseline.revisionRange;
         previousVersion = baseline.previousVersion;
+
+        if (!hasRealTag && !this.fullConfig.baseRef) {
+          const currentVersion = pkg.packageJson.version;
+          const suggestedTag = currentVersion
+            ? formatTag(currentVersion, formattedPrefix, name, this.tagTemplate, this.fullConfig.packageSpecificTags)
+            : undefined;
+          const scope =
+            revisionRange === 'HEAD'
+              ? 'include the full git history'
+              : `start from ${revisionRange.replace(/\.\.HEAD$/, '')}`;
+          log(
+            `No prior tag found for ${name} — its changelog will ${scope}.` +
+              (suggestedTag
+                ? ` Create a baseline tag to scope it: git tag ${suggestedTag} <release-sha> && git push origin ${suggestedTag}`
+                : ''),
+            'warning',
+          );
+        }
 
         changelogEntries = await extractChangelogEntriesFromCommits(pkgPath, revisionRange);
 
@@ -292,6 +298,17 @@ export class PackageProcessor {
         );
       }
 
+      const packageJsonPath = path.join(pkgPath, 'package.json');
+      const npmBumped = this.fullConfig.npm?.enabled !== false && fs.existsSync(packageJsonPath);
+      if (npmBumped) {
+        updatePackageVersion(packageJsonPath, nextVersion, this.dryRun);
+      }
+      updateNativeManifests(pkgPath, nextVersion, this.fullConfig, {
+        dryRun: this.dryRun,
+        repoRoot,
+        recordAs: name,
+      });
+
       addChangelogData({
         packageName: name,
         version: nextVersion,
@@ -300,77 +317,6 @@ export class PackageProcessor {
         repoUrl: repoUrl || null,
         entries: changelogEntries,
       });
-
-      const packageJsonPath = path.join(pkgPath, 'package.json');
-
-      const npmEnabled = this.fullConfig.npm?.enabled !== false;
-      if (npmEnabled && fs.existsSync(packageJsonPath)) {
-        updatePackageVersion(packageJsonPath, nextVersion, this.dryRun);
-      }
-
-      const cargoEnabled = this.fullConfig.cargo?.enabled !== false;
-      log(`Cargo enabled for ${name}: ${cargoEnabled}, config: ${JSON.stringify(this.fullConfig.cargo)}`, 'debug');
-
-      if (cargoEnabled) {
-        const cargoPaths = this.fullConfig.cargo?.paths;
-        log(`Cargo paths config for ${name}: ${JSON.stringify(cargoPaths)}`, 'debug');
-
-        if (cargoPaths && cargoPaths.length > 0) {
-          for (const cargoPath of cargoPaths) {
-            const resolvedCargoPath = resolveConfinedManifestPath(repoRoot, pkgPath, cargoPath, 'Cargo.toml');
-            log(`Checking cargo path for ${name}: ${resolvedCargoPath}`, 'debug');
-            if (fs.existsSync(resolvedCargoPath)) {
-              log(`Found Cargo.toml for ${name} at ${resolvedCargoPath}, updating...`, 'debug');
-              updatePackageVersion(resolvedCargoPath, nextVersion, this.dryRun);
-            } else {
-              log(`Cargo.toml not found at ${resolvedCargoPath}`, 'debug');
-            }
-          }
-        } else {
-          const cargoTomlPath = path.join(pkgPath, 'Cargo.toml');
-          log(`Checking default cargo path for ${name}: ${cargoTomlPath}`, 'debug');
-          if (fs.existsSync(cargoTomlPath)) {
-            log(`Found Cargo.toml for ${name} at ${cargoTomlPath}, updating...`, 'debug');
-            updatePackageVersion(cargoTomlPath, nextVersion, this.dryRun);
-          } else {
-            log(`Cargo.toml not found for ${name} at ${cargoTomlPath}`, 'debug');
-          }
-        }
-      } else {
-        log(`Cargo disabled for ${name}`, 'debug');
-      }
-
-      const pubEnabled = this.fullConfig.pub?.enabled !== false;
-      log(`Pub enabled for ${name}: ${pubEnabled}, config: ${JSON.stringify(this.fullConfig.pub)}`, 'debug');
-
-      if (pubEnabled) {
-        const dartPaths = this.fullConfig.pub?.paths;
-        log(`Pub paths config for ${name}: ${JSON.stringify(dartPaths)}`, 'debug');
-
-        if (dartPaths && dartPaths.length > 0) {
-          for (const dartPath of dartPaths) {
-            const resolvedPubspecPath = resolveConfinedManifestPath(repoRoot, pkgPath, dartPath, 'pubspec.yaml');
-            log(`Checking pub path for ${name}: ${resolvedPubspecPath}`, 'debug');
-            if (fs.existsSync(resolvedPubspecPath)) {
-              log(`Found pubspec.yaml for ${name} at ${resolvedPubspecPath}, updating...`, 'debug');
-              updatePackageVersion(resolvedPubspecPath, nextVersion, this.dryRun);
-            } else {
-              log(`pubspec.yaml not found at ${resolvedPubspecPath}`, 'debug');
-            }
-          }
-        } else {
-          const pubspecPath = path.join(pkgPath, 'pubspec.yaml');
-          log(`Checking default pub path for ${name}: ${pubspecPath}`, 'debug');
-          if (fs.existsSync(pubspecPath)) {
-            log(`Found pubspec.yaml for ${name} at ${pubspecPath}, updating...`, 'debug');
-            updatePackageVersion(pubspecPath, nextVersion, this.dryRun);
-          } else {
-            log(`pubspec.yaml not found for ${name} at ${pubspecPath}`, 'debug');
-          }
-        }
-      } else {
-        log(`Pub disabled for ${name}`, 'debug');
-      }
 
       const packageTag = formatTag(
         nextVersion,

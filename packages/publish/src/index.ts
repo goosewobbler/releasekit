@@ -3,7 +3,8 @@ export { getDefaultConfig, loadConfig } from './config.js';
 export { BasePublishError, createPublishError, PipelineError, PublishError, PublishErrorCode } from './errors/index.js';
 export { publishDidChange } from './output.js';
 export { runPipeline } from './pipeline/index.js';
-export { parseInput } from './stages/input.js';
+export { pipelineErrorEnvelope } from './pipeline-error-envelope.js';
+export { parseInput, VersionPackageChangelogSchema } from './stages/input.js';
 export type {
   CargoConfig,
   GitConfig,

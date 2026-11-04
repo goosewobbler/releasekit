@@ -48,18 +48,19 @@ export function createVersionCommand(): Command {
 
       try {
         const originalCwd = process.cwd();
-        if (options.projectDir && options.projectDir !== originalCwd) {
+        const projectDir = path.resolve(options.projectDir ?? originalCwd);
+        if (projectDir !== originalCwd) {
           try {
-            process.chdir(options.projectDir);
-            log(`Changed working directory to: ${options.projectDir}`, 'debug');
+            process.chdir(projectDir);
+            log(`Changed working directory to: ${projectDir}`, 'debug');
           } catch (error) {
             throw new Error(
-              `Failed to change to directory "${options.projectDir}": ${error instanceof Error ? error.message : String(error)}`,
+              `Failed to change to directory "${projectDir}": ${error instanceof Error ? error.message : String(error)}`,
             );
           }
         }
 
-        const config: Config = loadConfig({ cwd: options.projectDir, configPath: options.config });
+        const config: Config = loadConfig({ cwd: projectDir, configPath: options.config });
         log(`Loaded configuration from ${options.config || 'releasekit.config.json'}`, 'info');
 
         const cliTargets: string[] = options.target ? options.target.split(',').map((t: string) => t.trim()) : [];

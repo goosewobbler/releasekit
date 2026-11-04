@@ -6,6 +6,7 @@ import {
   writeEnvelope,
   writeErrorEnvelope,
 } from '@releasekit/core';
+import { PipelineError, pipelineErrorEnvelope } from '@releasekit/publish';
 
 /** `data` goes into the envelope verbatim: the envelope wraps, never replaces. */
 export function emitResult(
@@ -16,6 +17,10 @@ export function emitResult(
 }
 
 export function emitError(error: unknown, opts: { json?: boolean; output?: string }): void {
+  if (error instanceof PipelineError) {
+    writeEnvelope(pipelineErrorEnvelope(error), opts);
+    return;
+  }
   writeErrorEnvelope(error, opts);
 }
 

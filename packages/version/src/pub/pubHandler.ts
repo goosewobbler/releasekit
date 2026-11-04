@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { isPubspecYaml, parsePubspec } from '@releasekit/config';
+import { isPubspecYaml, type PubspecManifest, parsePubspec } from '@releasekit/config';
 import { addPackageUpdate, recordPendingWrite } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
 
@@ -43,7 +43,23 @@ export function getPubInfo(pubspecPath: string): PubInfo {
   }
 }
 
-export function updatePubVersion(pubspecPath: string, version: string, dryRun = false): void {
+/** Mirrors discovery, which skips Dart workspace roots, versionless app manifests and `publish_to: none` packages. */
+export function isReleasablePubspec(pubspecPath: string): boolean {
+  let pubspec: PubspecManifest;
+  try {
+    pubspec = parsePubspec(pubspecPath);
+  } catch (error) {
+    throw new Error(`Cannot parse ${pubspecPath}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  return !!pubspec.name && typeof pubspec.version === 'string' && pubspec.publish_to !== 'none';
+}
+
+export function updatePubVersion(
+  pubspecPath: string,
+  version: string,
+  dryRun = false,
+  { recordAs, isRoot }: { recordAs?: string; isRoot?: boolean } = {},
+): void {
   try {
     const content = fs.readFileSync(pubspecPath, 'utf-8');
     const pubspec = parsePubspec(pubspecPath, content);
@@ -71,7 +87,7 @@ export function updatePubVersion(pubspecPath: string, version: string, dryRun = 
       fs.writeFileSync(pubspecPath, updatedContent);
     }
 
-    addPackageUpdate(packageName, version, pubspecPath);
+    addPackageUpdate(recordAs ?? packageName, version, pubspecPath, isRoot);
     log(
       `${dryRun ? '[DRY RUN] Would update' : 'Updated'} pubspec.yaml at ${pubspecPath} to version ${version}`,
       'success',

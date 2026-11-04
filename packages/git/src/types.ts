@@ -12,10 +12,16 @@ export interface GitPushOptions {
   /** A ref or refspec, e.g. `HEAD:release/next`. */
   ref?: string;
   force?: boolean;
-  forceWithLease?: boolean;
+  /** With a lease, the push only succeeds while the remote `ref` is still at `expect`. */
+  forceWithLease?: boolean | GitPushLease;
   tags?: boolean;
   cwd?: string;
   timeoutMs?: number;
+}
+
+export interface GitPushLease {
+  ref: string;
+  expect: string;
 }
 
 export interface GitCommitOptions {

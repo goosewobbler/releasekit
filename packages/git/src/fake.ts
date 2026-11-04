@@ -28,7 +28,7 @@ export interface FakePushRecord {
   remote: string;
   ref?: string;
   force?: boolean;
-  forceWithLease?: boolean;
+  forceWithLease?: GitPushOptions['forceWithLease'];
   tags?: boolean;
 }
 

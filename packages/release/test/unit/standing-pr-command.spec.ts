@@ -1,9 +1,11 @@
+import { PipelineError, type PublishOutput } from '@releasekit/publish';
 import { describe, expect, it, vi } from 'vitest';
 import { createStandingPRCommand } from '../../src/commands/standing-pr-command.js';
 
 vi.mock('../../src/standing-pr/standing-pr.js', () => ({
   runStandingPRUpdate: vi.fn().mockResolvedValue({ action: 'noop' }),
   runStandingPRPublish: vi.fn().mockResolvedValue(null),
+  runStandingPRMerge: vi.fn().mockResolvedValue(null),
 }));
 
 async function parseCommand(argv: string[]) {
@@ -19,11 +21,34 @@ describe('createStandingPRCommand', () => {
     expect(cmd.name()).toBe('standing-pr');
   });
 
-  it('should have update and publish subcommands', () => {
+  it('should have update, publish and merge subcommands', () => {
     const cmd = createStandingPRCommand();
     const names = cmd.commands.map((c) => c.name());
     expect(names).toContain('update');
     expect(names).toContain('publish');
+    expect(names).toContain('merge');
+  });
+
+  it('should report merge as unchanged when there is no open standing PR', async () => {
+    const { runStandingPRMerge } = await import('../../src/standing-pr/standing-pr.js');
+    vi.mocked(runStandingPRMerge).mockResolvedValueOnce(null);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await parseCommand(['merge', '--project-dir', '/test', '--json']);
+      const envelope = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
+      expect(envelope).toMatchObject({ status: 'success', changed: false, data: null });
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it.each([
+    [['merge'], false],
+    [['merge', '--publish'], true],
+  ])('should pass %j to runStandingPRMerge with publish: %s', async (args, publish) => {
+    const { runStandingPRMerge } = await import('../../src/standing-pr/standing-pr.js');
+    await parseCommand([...args, '--project-dir', '/test']);
+    expect(runStandingPRMerge).toHaveBeenLastCalledWith(expect.objectContaining({ projectDir: '/test' }), { publish });
   });
 
   it('should call runStandingPRUpdate for update subcommand', async () => {
@@ -144,6 +169,38 @@ describe('createStandingPRCommand', () => {
       expect(envelope.changed).toBe(false);
       expect(envelope.data.versionOutput.updates).toHaveLength(1);
     });
+  });
+
+  it('should keep a publish PipelineError partial output in the json envelope', async () => {
+    const { runStandingPRPublish } = await import('../../src/standing-pr/standing-pr.js');
+    const partialOutput = {
+      dryRun: false,
+      git: { committed: false, tags: ['v2.0.0'], pushed: false },
+      npm: [{ packageName: '@acme/widget', version: '2.0.0', registry: 'npm', success: true, skipped: false }],
+      cargo: [],
+      pub: [],
+      verification: [],
+      githubReleases: [],
+      publishSucceeded: false,
+    } as PublishOutput;
+    vi.mocked(runStandingPRPublish).mockRejectedValueOnce(
+      new PipelineError('push rejected', 'git-push', partialOutput),
+    );
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await parseCommand(['publish', '--project-dir', '/test', '--json', '--pr', '189']);
+      const envelope = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
+      expect(envelope.status).toBe('error');
+      expect(envelope.changed).toBe(true);
+      expect(envelope.data).toEqual(partialOutput);
+      expect(envelope.errors[0].message).toContain('git-push');
+    } finally {
+      exitSpy.mockRestore();
+      logSpy.mockRestore();
+      errSpy.mockRestore();
+    }
   });
 
   it('should pass --verbose, --quiet, --json flags through', async () => {

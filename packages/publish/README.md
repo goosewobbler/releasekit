@@ -51,19 +51,9 @@ releasekit-publish --input version-output.json
 
 ## Pipeline Stages
 
-The publish pipeline runs in order:
+Publish prepares files, creates the commit and tags locally, then publishes. What happens after a failure depends on the mode. The full order — batch, per-package, and standing-PR — is in [Publish order and partial failure](../../docs/architecture.md#publish-order-and-partial-failure).
 
-1. **Input** - Parse version JSON from stdin or file
-2. **Prepare** - Copy files (e.g., LICENSE), update Cargo.toml versions
-3. **Git Commit** - Create version bump commit
-4. **Git Tag** - Create git tags for each package
-5. **npm Publish** - Publish to npm registry
-6. **Cargo Publish** - Publish to crates.io
-7. **Verify** - Verify packages are available on registries
-8. **Git Push** - Push commits and tags to remote
-9. **GitHub Release** - Create GitHub releases
-
-The pipeline is **fail-fast**: the first package publish failure throws immediately. Git push and GitHub release are skipped, so the version commit and tag remain local until the issue is fixed and the release is retried.
+Registries run npm, then crates.io, then pub.dev. The first registry failure stops the run. Already-published versions are skipped on a re-run. Do not delete a tag for a version that was published.
 
 ### Auto-retry for transient registry errors
 
@@ -75,7 +65,7 @@ Before failing the stage, the npm and cargo publish steps automatically retry **
 |------|-------------|---------|
 | `--input <path>` | Path to version output JSON | stdin |
 | `--config <path>` | Path to releasekit config | `releasekit.config.json` |
-| `--registry <type>` | Registry to publish to: `npm`, `cargo`, `all` | `all` |
+| `--registry <type>` | Registry to publish to: `npm`, `cargo`, `pub`, `all` | `all` |
 | `--npm-auth <method>` | NPM auth method: `oidc`, `token`, `auto` | `auto` |
 | `--dry-run` | Simulate all operations | `false` |
 | `--skip-git` | Skip git commit/tag/push (also skips GitHub release — no tag to release against) | `false` |

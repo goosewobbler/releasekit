@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as TOML from 'smol-toml';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getCargoInfo, isCargoToml, updateCargoVersion } from '../../../src/cargo/cargoHandler.js';
+import { getCargoInfo, isCargoToml, isVersionedCrate, updateCargoVersion } from '../../../src/cargo/cargoHandler.js';
 import { recordCargoBump } from '../../../src/cargo/cargoLock.js';
 import * as jsonOutput from '../../../src/utils/jsonOutput.js';
 import * as logging from '../../../src/utils/logging.js';
@@ -109,6 +109,21 @@ describe('Cargo Handler', () => {
     });
   });
 
+  describe('isVersionedCrate', () => {
+    it('should treat a manifest with a [package] name as a crate and a virtual workspace as not', () => {
+      expect(isVersionedCrate(mockCargoPath)).toBe(true);
+      vi.mocked(parseCargoToml, { partial: true }).mockReturnValue({ workspace: { members: ['crates/*'] } });
+      expect(isVersionedCrate(mockCargoPath)).toBe(false);
+    });
+
+    it('should fail on an unparseable Cargo.toml, naming the file', () => {
+      vi.mocked(parseCargoToml, { partial: true }).mockImplementation(() => {
+        throw new Error('Invalid TOML document');
+      });
+      expect(() => isVersionedCrate(mockCargoPath)).toThrow(`Cannot parse ${mockCargoPath}: Invalid TOML document`);
+    });
+  });
+
   describe('updateCargoVersion', () => {
     it('should update the version in Cargo.toml', () => {
       vi.mocked(jsonOutput.addPackageUpdate, { partial: true }).mockImplementation(() => {});
@@ -127,7 +142,7 @@ describe('Cargo Handler', () => {
 
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('Updated Cargo.toml at'), 'success');
 
-      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', '2.0.0', mockCargoPath);
+      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', '2.0.0', mockCargoPath, undefined);
     });
 
     it('should not write to disk when dryRun is true', () => {
@@ -139,7 +154,7 @@ describe('Cargo Handler', () => {
       expect(TOML.stringify).toHaveBeenCalled();
       expect(jsonOutput.recordPendingWrite).toHaveBeenCalledWith(mockCargoPath, 'mocked stringified TOML');
 
-      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', '2.0.0', mockCargoPath);
+      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', '2.0.0', mockCargoPath, undefined);
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('[DRY RUN] Would update'), 'success');
       expect(recordCargoBump).toHaveBeenCalledWith({
         cargoTomlPath: mockCargoPath,
@@ -155,7 +170,7 @@ describe('Cargo Handler', () => {
 
       expect(TOML.stringify).toHaveBeenCalled();
       expect(fs.writeFileSync).toHaveBeenCalledWith(mockCargoPath, 'mocked stringified TOML');
-      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', '2.0.0', mockCargoPath);
+      expect(jsonOutput.addPackageUpdate).toHaveBeenCalledWith('test-package', '2.0.0', mockCargoPath, undefined);
       expect(recordCargoBump).toHaveBeenCalledWith({
         cargoTomlPath: mockCargoPath,
         name: 'test-package',

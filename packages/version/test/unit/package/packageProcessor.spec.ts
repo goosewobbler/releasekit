@@ -11,6 +11,7 @@ import * as gitTags from '../../../src/git/tagsAndBranches.js';
 import * as tagVerification from '../../../src/git/tagVerification.js';
 import * as packageManagement from '../../../src/package/packageManagement.js';
 import { PackageProcessor } from '../../../src/package/packageProcessor.js';
+import * as pubHandler from '../../../src/pub/pubHandler.js';
 import type { Config } from '../../../src/types.js';
 import * as formatting from '../../../src/utils/formatting.js';
 import * as jsonOutput from '../../../src/utils/jsonOutput.js';
@@ -82,6 +83,7 @@ vi.mock('../../../src/core/versionCalculator.js');
 vi.mock('../../../src/version/versionCalc.js');
 vi.mock('node:fs');
 vi.mock('../../../src/cargo/cargoHandler.js');
+vi.mock('../../../src/pub/pubHandler.js');
 
 interface MockPackage {
   dir: string;
@@ -133,6 +135,8 @@ describe('Package Processor', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(cargoHandler.isVersionedCrate).mockReturnValue(true);
+    vi.mocked(pubHandler.isReleasablePubspec).mockReturnValue(true);
 
     vi.spyOn(path, 'join').mockImplementation((...args) => args.join('/'));
 
@@ -238,6 +242,29 @@ describe('Package Processor', () => {
       expect(result.updatedPackages.length).toBe(2);
       expect(result.updatedPackages.some((p) => p.name === 'package-a')).toBe(true);
       expect(result.updatedPackages.some((p) => p.name === 'package-b')).toBe(true);
+    });
+
+    it('should not tag or log a changelog for a package with no manifest to bump', async () => {
+      vi.mocked(fs.existsSync, { partial: true }).mockImplementation((p) =>
+        String(p).startsWith('/path/to/package-a/'),
+      );
+      const extractEntries = vi.spyOn(commitParser, 'extractChangelogEntriesFromCommits');
+      const processor = new PackageProcessor(defaultOptions);
+
+      const result = await processor.processPackages(mockPackages);
+
+      expect(result.updatedPackages.map((p) => p.name)).toEqual(['package-a']);
+      expect(jsonOutput.addChangelogData).not.toHaveBeenCalledWith(
+        expect.objectContaining({ packageName: 'package-b' }),
+      );
+      expect(jsonOutput.setPackageUpdateTag).not.toHaveBeenCalledWith('package-b', expect.anything());
+      // Checked before the changelog is built, so its repo-level entries don't reach sharedEntries.
+      expect(extractEntries).toHaveBeenCalledWith('/path/to/package-a', expect.anything());
+      expect(extractEntries).not.toHaveBeenCalledWith('/path/to/package-b', expect.anything());
+      expect(logging.log).toHaveBeenCalledWith(
+        'Not releasing package-b: it has no manifest releasekit can bump',
+        'warning',
+      );
     });
 
     it('should skip packages in the exclusion list', async () => {
@@ -519,9 +546,10 @@ describe('Package Processor', () => {
       expect(calls[0][0]).toMatchObject({ previousVersion: 'v1.0.0' });
     });
 
-    it('should warn when a package has no prior tag (full-history changelog)', async () => {
-      // Manifest-only baseline (hasRealTag false); the warning heads off the opaque oversized-PR-body 422.
+    it('should warn about full git history when a package has no prior tag and no reachable baseline', async () => {
+      // Manifest-only baseline (hasRealTag false).
       vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
+      vi.spyOn(gitTags, 'getNearestReachableTag').mockResolvedValue('');
       vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
         version: '0.1.0',
         manifestFound: true,
@@ -539,12 +567,42 @@ describe('Package Processor', () => {
 
       await processor.processPackages([mockPackages[1]]);
 
-      expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('No prior tag found for package-b'), 'warning');
+      expect(logging.log).toHaveBeenCalledWith(
+        expect.stringContaining('No prior tag found for package-b — its changelog will include the full git history'),
+        'warning',
+      );
       // Not the shallow-clone warning: the synthetic manifest-fallback tag never existed as a git ref.
       expect(logging.log).not.toHaveBeenCalledWith(
         expect.stringContaining('could not be verified from HEAD'),
         'warning',
       );
+    });
+
+    it('should warn about the nearest reachable tag when a package has no prior tag but another tag is reachable', async () => {
+      vi.spyOn(gitTags, 'getLatestTagForPackage').mockResolvedValue('');
+      vi.spyOn(gitTags, 'getNearestReachableTag').mockResolvedValue('pkg-b@v1.0.0');
+      vi.spyOn(manifestHelpers, 'getVersionFromManifests').mockReturnValue({
+        version: '0.1.0',
+        manifestFound: true,
+        manifestPath: 'package.json',
+        manifestType: 'package.json',
+      });
+      vi.spyOn(calculator, 'calculateVersion').mockResolvedValue('0.1.1');
+      vi.spyOn(versionCalculatorModule, 'calculateVersion').mockResolvedValue('0.1.1');
+
+      const processor = new PackageProcessor({
+        ...defaultOptions,
+        getLatestTag: vi.fn().mockResolvedValue(null),
+        fullConfig: { ...mockConfig, packageSpecificTags: true, writeChangelog: false },
+      });
+
+      await processor.processPackages([mockPackages[1]]);
+
+      expect(logging.log).toHaveBeenCalledWith(
+        expect.stringContaining('No prior tag found for package-b — its changelog will start from pkg-b@v1.0.0'),
+        'warning',
+      );
+      expect(logging.log).not.toHaveBeenCalledWith(expect.stringContaining('full git history'), 'warning');
     });
 
     it('should bound repo-level changelog by the nearest reachable tag, even when getLatestTag is prefix-blind', async () => {
@@ -888,6 +946,7 @@ describe('Package Processor', () => {
         '/path/to/hybrid-package/Cargo.toml',
         '1.1.0',
         false,
+        { recordAs: 'hybrid-package' },
       );
     });
 
@@ -917,6 +976,7 @@ describe('Package Processor', () => {
         '/path/to/hybrid-package/Cargo.toml',
         '1.1.0',
         false,
+        { recordAs: 'hybrid-package' },
       );
     });
   });

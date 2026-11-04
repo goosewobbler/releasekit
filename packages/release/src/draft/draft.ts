@@ -4,7 +4,7 @@ import { createGitCli } from '@releasekit/git';
 import { getGitHubContext } from '../git.js';
 import { forgeFor } from '../github.js';
 import { runRelease } from '../release.js';
-import { extractNotesRegions, renderNotesRegion } from '../standing-pr/notes-region.js';
+import { extractNotesRegions, renderedRegionText, renderNotesRegion } from '../standing-pr/notes-region.js';
 import {
   MANIFEST_MARKER,
   parseManifest,
@@ -22,15 +22,16 @@ function nowIso(): string {
 }
 
 /** Order-independent arrays are sorted so a reordering alone never reads as drift. */
-function planFingerprint(v: VersionOutput): string {
+function planFingerprint(v: VersionOutput, withFiles: boolean): string {
   const byName = <T extends { packageName: string }>(arr: readonly T[]) =>
     [...arr].sort((a, b) => a.packageName.localeCompare(b.packageName));
+  const updates = withFiles ? v.updates : v.updates.map(({ files: _files, ...update }) => update);
   return JSON.stringify({
     strategy: v.strategy ?? null,
     commitMessage: v.commitMessage ?? null,
     tags: [...v.tags].sort(),
     baselineTags: [...(v.baselineTags ?? [])].sort(),
-    updates: byName(v.updates),
+    updates: byName(updates),
     changelogs: byName(v.changelogs),
     sharedEntries: v.sharedEntries ?? [],
   });
@@ -40,11 +41,13 @@ function planFingerprint(v: VersionOutput): string {
  * The full plan, not just name@version: a recompute at the pinned baseSha can keep every version yet differ in tags,
  * commit message, the root update or changelogs (drifted flags or config).
  */
-function samePlan(a: VersionOutput | undefined, b: VersionOutput): boolean {
-  if (!a) {
+function samePlan(recomputed: VersionOutput | undefined, draft: VersionOutput): boolean {
+  if (!recomputed) {
     return false;
   }
-  return planFingerprint(a) === planFingerprint(b);
+  // A draft written before updates listed their `files` would otherwise never match.
+  const withFiles = draft.updates.some((u) => u.files !== undefined);
+  return planFingerprint(recomputed, withFiles) === planFingerprint(draft, withFiles);
 }
 
 function isReleaseManifestComment(body: string): boolean {
@@ -161,12 +164,13 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
 
   const issue = await forge.getIssue(issueNumber);
   const draftedNotes = manifest.releaseNotes ?? {};
-  const extracted = extractNotesRegions(
-    issue.body,
-    publishableUpdates(manifest.versionOutput).map((u) => u.packageName),
+  const extracted = extractNotesRegions(issue.body, manifest.versionOutput);
+  // An untouched region may hold the truncated render, so the full drafted text wins unless the region was edited.
+  const edits = Object.fromEntries(
+    Object.entries(extracted).filter(([key, text]) => text !== renderedRegionText(key, draftedNotes[key] ?? '')),
   );
-  const editedNotes = { ...draftedNotes, ...extracted };
-  const droppedRegions = Object.keys(draftedNotes).filter((pkg) => !(pkg in extracted));
+  const editedNotes = { ...draftedNotes, ...edits };
+  const droppedRegions = Object.keys(draftedNotes).filter((pkg) => !Object.hasOwn(extracted, pkg));
   if (droppedRegions.length > 0) {
     warn(
       `Could not read the edited notes region for ${droppedRegions.join(', ')} on draft #${issueNumber} ` +

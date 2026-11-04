@@ -11,7 +11,6 @@ import { getLatestTag, getLatestTagForPackage } from '../git/tagsAndBranches.js'
 import { updatePackageVersion } from '../package/packageManagement.js';
 import { PackageProcessor } from '../package/packageProcessor.js';
 import type { Config } from '../types.js';
-import { resolveConfinedManifestPath } from '../utils/confinedPath.js';
 import { deriveBaselineTagPrefix, formatCommitMessage, formatTag, formatVersionPrefix } from '../utils/formatting.js';
 import {
   addBaselineTag,
@@ -26,6 +25,7 @@ import {
   setVersioningStrategy,
 } from '../utils/jsonOutput.js';
 import { log } from '../utils/logging.js';
+import { checkManifestToBump, hasManifestToBump, updateNativeManifests } from '../utils/manifestUpdates.js';
 import { resolveVersionAction } from '../utils/versionAction.js';
 import { BaselineResolver } from './baselineResolver.js';
 import { hasExplicitGroups } from './groupResolution.js';
@@ -43,42 +43,6 @@ export type StrategyFunction = (packages: PackagesWithRoot, targets?: string[]) 
 function shouldProcessPackage(pkg: Package, config: Config): boolean {
   const pkgName = pkg.packageJson.name;
   return shouldProcessPackageUtil(pkgName, config.skip);
-}
-
-function updateCargoFiles(
-  packageDir: string,
-  version: string,
-  cargoConfig: Config['cargo'],
-  dryRun = false,
-  repoRoot: string = process.cwd(),
-): string[] {
-  const updatedFiles: string[] = [];
-
-  const cargoEnabled = cargoConfig?.enabled !== false;
-
-  if (!cargoEnabled) {
-    return updatedFiles;
-  }
-
-  const cargoPaths = cargoConfig?.paths;
-
-  if (cargoPaths && cargoPaths.length > 0) {
-    for (const cargoPath of cargoPaths) {
-      const resolvedCargoPath = resolveConfinedManifestPath(repoRoot, packageDir, cargoPath, 'Cargo.toml');
-      if (fs.existsSync(resolvedCargoPath)) {
-        updatePackageVersion(resolvedCargoPath, version, dryRun);
-        updatedFiles.push(resolvedCargoPath);
-      }
-    }
-  } else {
-    const cargoTomlPath = path.join(packageDir, 'Cargo.toml');
-    if (fs.existsSync(cargoTomlPath)) {
-      updatePackageVersion(cargoTomlPath, version, dryRun);
-      updatedFiles.push(cargoTomlPath);
-    }
-  }
-
-  return updatedFiles;
 }
 
 export function createSyncStrategy(config: Config): StrategyFunction {
@@ -167,36 +131,37 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         return;
       }
 
-      const files: string[] = [];
       const updatedPackages: string[] = [];
       const processedPaths = new Set<string>();
 
-      try {
-        if (packages.root) {
-          const rootPkgPath = path.join(packages.root, 'package.json');
+      if (packages.root) {
+        const rootPkgPath = path.join(packages.root, 'package.json');
+        try {
           if (config.npm?.enabled !== false && fs.existsSync(rootPkgPath)) {
             // Flag as root so consumers (preview, standing PR) exclude it from package counts - it isn't publishable.
-            updatePackageVersion(rootPkgPath, nextVersion, dryRun, true);
-            files.push(rootPkgPath);
+            updatePackageVersion(rootPkgPath, nextVersion, dryRun, { isRoot: true });
             updatedPackages.push('root');
           }
-          // Record even when npm is disabled so the loop skips it in a single-package repo (where
-          // packages.root === packages[0].dir) - otherwise its Cargo.toml is versioned twice.
-          processedPaths.add(rootPkgPath);
-
-          const rootCargoFiles = updateCargoFiles(packages.root, nextVersion, config.cargo, dryRun, repoRoot);
-          files.push(...rootCargoFiles);
-          // Track a Cargo-only root bump: the loop skips this path in a single-package repo, so the early
-          // return below would otherwise abandon the written file.
-          if (rootCargoFiles.length > 0 && !updatedPackages.includes('root')) {
-            updatedPackages.push('root');
-          }
-        } else {
-          log('Root package path is undefined, skipping root package.json update', 'warning');
+        } catch (error) {
+          const errMessage = error instanceof Error ? error.message : String(error);
+          log(`Failed to update root package.json: ${errMessage}`, 'error');
         }
-      } catch (error) {
-        const errMessage = error instanceof Error ? error.message : String(error);
-        log(`Failed to update root package.json: ${errMessage}`, 'error');
+        // Record even when npm is disabled so the loop skips it in a single-package repo (where
+        // packages.root === packages[0].dir) - otherwise its native manifests are versioned twice.
+        processedPaths.add(rootPkgPath);
+
+        const rootNativeFiles = updateNativeManifests(packages.root, nextVersion, config, {
+          dryRun,
+          repoRoot,
+          isRoot: true,
+        });
+        // Track a native-only root bump: the loop skips this path in a single-package repo, so the early
+        // return below would otherwise abandon the written file.
+        if (rootNativeFiles.length > 0 && !updatedPackages.includes('root')) {
+          updatedPackages.push('root');
+        }
+      } else {
+        log('Root package path is undefined, skipping root package.json update', 'warning');
       }
 
       for (const pkg of packages.packages) {
@@ -206,29 +171,30 @@ export function createSyncStrategy(config: Config): StrategyFunction {
 
         const packageJsonPath = path.join(pkg.dir, 'package.json');
 
-        if (processedPaths.has(packageJsonPath)) {
+        if (processedPaths.has(packageJsonPath) || !hasManifestToBump(pkg.dir, config, { repoRoot })) {
           continue;
         }
 
-        if (config.npm?.enabled === false) {
-          log(`Skipping package.json update for ${pkg.packageJson.name} - npm version handling disabled`, 'debug');
-        } else if (!fs.existsSync(packageJsonPath)) {
-          log(
-            `Skipping package.json update for ${pkg.packageJson.name} - no package.json found (Rust-only package)`,
-            'debug',
-          );
-        } else {
+        const npmBumped = config.npm?.enabled !== false && fs.existsSync(packageJsonPath);
+        if (npmBumped) {
           updatePackageVersion(packageJsonPath, nextVersion, dryRun);
-          files.push(packageJsonPath);
           updatedPackages.push(pkg.packageJson.name);
           processedPaths.add(packageJsonPath);
+        } else {
+          const reason =
+            config.npm?.enabled === false
+              ? 'npm version handling disabled'
+              : 'no package.json found (native-only package)';
+          log(`Skipping package.json update for ${pkg.packageJson.name} - ${reason}`, 'debug');
         }
 
-        const pkgCargoFiles = updateCargoFiles(pkg.dir, nextVersion, config.cargo, dryRun, repoRoot);
-        files.push(...pkgCargoFiles);
-
-        // Track Cargo-only updates, or the early return below abandons the written Cargo.toml.
-        if ((!fs.existsSync(packageJsonPath) || config.npm?.enabled === false) && pkgCargoFiles.length > 0) {
+        const nativeFiles = updateNativeManifests(pkg.dir, nextVersion, config, {
+          dryRun,
+          repoRoot,
+          recordAs: pkg.packageJson.name,
+        });
+        // Track native-only updates, or the early return below abandons the written manifests.
+        if (!npmBumped && nativeFiles.length > 0) {
           updatedPackages.push(pkg.packageJson.name);
         }
       }
@@ -472,6 +438,10 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         return;
       }
 
+      if (!checkManifestToBump(packageName, pkgPath, config, { repoRoot })) {
+        return;
+      }
+
       const baselineResolver = new BaselineResolver({
         versionPrefix: formattedPrefix,
         tagTemplate,
@@ -535,6 +505,19 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         );
       }
 
+      const packageJsonPath = path.join(pkgPath, 'package.json');
+
+      const npmEnabled = config.npm?.enabled !== false;
+      const npmBumped = npmEnabled && fs.existsSync(packageJsonPath);
+      if (npmBumped) {
+        updatePackageVersion(packageJsonPath, nextVersion, dryRun);
+      } else {
+        const reason = !npmEnabled ? 'npm version handling disabled' : 'no package.json found (native-only package)';
+        log(`Skipping package.json update for ${packageName} - ${reason}`, 'debug');
+      }
+
+      updateNativeManifests(pkgPath, nextVersion, config, { dryRun, repoRoot, recordAs: packageName });
+
       addChangelogData({
         packageName,
         version: nextVersion,
@@ -543,22 +526,6 @@ export function createSingleStrategy(config: Config): StrategyFunction {
         repoUrl: repoUrl || null,
         entries: changelogEntries,
       });
-
-      const packageJsonPath = path.join(pkgPath, 'package.json');
-
-      const filesToCommit: string[] = [];
-
-      const npmEnabled = config.npm?.enabled !== false;
-      if (npmEnabled && fs.existsSync(packageJsonPath)) {
-        updatePackageVersion(packageJsonPath, nextVersion, dryRun);
-        filesToCommit.push(packageJsonPath);
-      } else {
-        const reason = !npmEnabled ? 'npm version handling disabled' : 'no package.json found (Rust-only package)';
-        log(`Skipping package.json update for ${packageName} - ${reason}`, 'debug');
-      }
-
-      const cargoFiles = updateCargoFiles(pkgPath, nextVersion, config.cargo, dryRun, repoRoot);
-      filesToCommit.push(...cargoFiles);
 
       log(`Updated package ${packageName} to version ${nextVersion}`, 'success');
 

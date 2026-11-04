@@ -12,7 +12,7 @@ import type { Registry, RegistryTarget } from './types.js';
 
 const ALREADY_PUBLISHED_PATTERN = /already exists on crates\.io index|already uploaded/i;
 
-interface CargoTarget extends RegistryTarget {
+export interface CargoTarget extends RegistryTarget {
   dir: string;
   manifestPath: string;
   pathDeps: string[];
@@ -173,18 +173,28 @@ function orderCrates(crates: CargoTarget[], explicitOrder: string[]): CargoTarge
   return topologicalSort(crates);
 }
 
-function topologicalSort(crates: CargoTarget[]): CargoTarget[] {
-  const byName = new Map(crates.map((c) => [c.packageName, c]));
+export function cratePathDeps(crates: CargoTarget[]): Map<string, string[]> {
   // `path` deps are directories, so map each crate's directory back to its name.
   const nameByDir = new Map(crates.map((c) => [path.resolve(c.dir), c.packageName]));
+  return new Map(
+    crates.map((c) => [
+      c.packageName,
+      c.pathDeps
+        .map((depPath) => nameByDir.get(path.resolve(c.dir, depPath)))
+        .filter((name): name is string => name !== undefined),
+    ]),
+  );
+}
+
+function topologicalSort(crates: CargoTarget[]): CargoTarget[] {
+  const byName = new Map(crates.map((c) => [c.packageName, c]));
+  const deps = cratePathDeps(crates);
 
   const graphPackages: GraphPackage[] = crates.map((c) => ({
     name: c.packageName,
     dir: c.dir,
     ecosystem: 'cargo',
-    deps: c.pathDeps
-      .map((depPath) => nameByDir.get(path.resolve(c.dir, depPath)))
-      .filter((name): name is string => name !== undefined),
+    deps: deps.get(c.packageName) ?? [],
   }));
 
   const graph = buildDependencyGraph(graphPackages);

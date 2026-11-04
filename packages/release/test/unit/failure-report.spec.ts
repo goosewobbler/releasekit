@@ -263,6 +263,51 @@ describe('renderFailureReport', () => {
     expect(body).toContain('Re-run failed jobs');
     expect(body).not.toContain('--pr');
   });
+
+  it('should tell a per-package direct failure to roll forward only after a push', () => {
+    const tagged = versionOutputFor([{ name: '@scope/a', version: '1.0.0' }]);
+    tagged.updates[0] = { ...tagged.updates[0], tag: '@scope/a@v1.0.0' };
+    const pushed = { ...publishOutput, git: { ...publishOutput.git, pushed: true } };
+    const body = renderFailureReport({
+      versionOutput: tagged,
+      publishOutput: pushed,
+      failedStage: 'npm-publish',
+      errorMessage: 'npm 403',
+      recovery: { mode: 'direct' },
+    });
+    expect(body).toContain('Roll forward');
+    expect(body).toContain('do not delete them');
+    expect(body).not.toContain('Re-run failed jobs');
+    expect(body).not.toContain('Retrying is safe');
+  });
+
+  it('should say the branch may be on the remote after a direct push failure', () => {
+    const committed = { ...publishOutput, git: { ...publishOutput.git, committed: true, pushed: false } };
+    const body = renderFailureReport({
+      versionOutput: versionOutputFor([{ name: '@scope/a', version: '1.0.0' }]),
+      publishOutput: committed,
+      failedStage: 'git-push',
+      errorMessage: 'push rejected',
+      recovery: { mode: 'direct' },
+    });
+    expect(body).toContain('The branch may already be on the remote');
+    expect(body).toContain('Re-run failed jobs');
+    expect(body).not.toContain('Nothing was pushed');
+  });
+
+  it('should keep retry instructions when a per-package run pushed nothing', () => {
+    const tagged = versionOutputFor([{ name: '@scope/a', version: '1.0.0' }]);
+    tagged.updates[0] = { ...tagged.updates[0], tag: '@scope/a@v1.0.0' };
+    const body = renderFailureReport({
+      versionOutput: tagged,
+      publishOutput,
+      failedStage: 'npm-publish',
+      errorMessage: 'npm 403',
+      recovery: { mode: 'direct' },
+    });
+    expect(body).toContain('Re-run failed jobs');
+    expect(body).not.toContain('Roll forward');
+  });
 });
 
 describe('renderResolvedReport', () => {

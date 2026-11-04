@@ -4,6 +4,9 @@
 # Workflow permissions -> enable "Allow GitHub Actions to create and approve
 # pull requests". Without it the first `standing-pr update` fails with HTTP 403;
 # the pull-requests: write permission below is necessary but not sufficient.
+# The toggle also lets any workflow token approve PRs. Before relying on a
+# "≥ 1 approval" ruleset, see
+# https://github.com/goosewobbler/releasekit/blob/main/packages/release/docs/ci-setup.md#workflow-token-approvals
 name: Standing Release PR
 
 on:
@@ -18,7 +21,13 @@ on:
     - cron: '0 * * * *' # advances the minAge status check as time passes
 
 concurrency:
-  group: standing-release-pr
+  # GitHub keeps one pending run per group and replaces it with any newer one. So the standing PR's
+  # publish on merge and its retry label get a group per PR that nothing else can replace. A merged
+  # `release:immediate` PR queues with the updates, so the two don't write release/next at once. Other
+  # events on a closed PR run no job, so each gets a group of its own. The label names and the
+  # `release/next` branch are hardcoded: update them here if you rename them in `ci.labels` or
+  # `ci.standingPr.branch`.
+  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (github.event.pull_request.head.ref == 'release/next' && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event.action == 'closed' && github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release:immediate') && 'standing-release-pr' || format('standing-release-pr-noop-{0}', github.run_id)) || 'standing-release-pr' }}
   cancel-in-progress: false
 
 permissions:
@@ -74,9 +83,57 @@ jobs:
       - run: pnpm exec releasekit standing-pr update
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # Uncomment the key matching notes.releaseNotes.llm.provider, if set.
-          # Without it, LLM enhancement falls back to ungrouped output (a warning,
-          # not a failure).
+          # LLM key only needed when using the release:preview-notes label (optional).
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+
+  immediate-release:
+    name: Immediate Release (bypass standing PR)
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.ref != 'release/next' &&
+      contains(github.event.pull_request.labels.*.name, 'release:immediate')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # See the publish job. (Drop this step if you publish with NODE_AUTH_TOKEN.)
+      - name: Remove token-based .npmrc so OIDC can take over
+        run: rm -f .npmrc
+
+      - run: pnpm exec releasekit release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # only if not using OIDC
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+
+      - run: pnpm exec releasekit refresh-after-release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          # LLM key only needed when using the release:preview-notes label (optional).
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
@@ -122,13 +179,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # only if not using OIDC
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
   retry-publish:
     name: Retry Publish
     # After a partial-publish failure, apply `release:retry` to the MERGED standing
     # PR (label events fire on closed PRs). Publishing is idempotent, so the retry
     # finishes whatever the failed run left undone. The label name is hardcoded
-    # (workflow `if` can't read config) - update it if you change ci.labels.retry.
+    # (workflow `if` can't read config) - update it, and the concurrency group, if you
+    # change ci.labels.retry.
     if: >
       github.event_name == 'pull_request' &&
       github.event.action == 'labeled' &&
@@ -166,6 +227,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # only if not using OIDC
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
       - name: Remove retry label
         # Each application is exactly one retry; re-apply the label to retry again.
