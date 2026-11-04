@@ -977,10 +977,10 @@ describe('runRelease', () => {
 
   describe('feeder-preview stale marking', () => {
     it('should mark feeder previews stale in-process after a successful release', async () => {
+      const ciConfig = { prPreview: { enabled: true, markStaleAfterRelease: true } };
+      mockLoadCIConfig.mockReturnValue(ciConfig);
       await runRelease(defaultOptions);
-      expect(mockMarkFeederPreviewsStale).toHaveBeenCalledWith(
-        expect.objectContaining({ projectDir: '/test/project', branch: 'main' }),
-      );
+      expect(mockMarkFeederPreviewsStale).toHaveBeenCalledWith({ ciConfig, branch: 'main' });
     });
 
     it('should not mark feeder previews stale when the release branch was not pushed', async () => {

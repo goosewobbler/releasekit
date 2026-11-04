@@ -93,12 +93,13 @@ export class GitHubForge implements Forge {
     return data.map((pr) => ({ number: pr.number, mergedAt: pr.merged_at }));
   }
 
-  async listOpenPullRequests(): Promise<OpenPullRequest[]> {
+  async listOpenPullRequests(base: string): Promise<OpenPullRequest[]> {
     const prs: OpenPullRequest[] = [];
     for (let page = 1; page <= MAX_OPEN_PR_PAGES; page++) {
       const { data } = await this.octokit.rest.pulls.list({
         ...this.base,
         state: 'open',
+        base,
         sort: 'updated',
         direction: 'desc',
         per_page: 100,
@@ -126,7 +127,7 @@ export class GitHubForge implements Forge {
 
   async getPullRequest(prNumber: number): Promise<PullRequestDetails> {
     const { data } = await this.octokit.rest.pulls.get({ ...this.base, pull_number: prNumber });
-    return { body: data.body ?? '', labels: labelNames(data.labels), headSha: data.head?.sha };
+    return { body: data.body ?? '', labels: labelNames(data.labels), headSha: data.head?.sha, baseRef: data.base?.ref };
   }
 
   async createPullRequest(pr: NewPullRequest): Promise<PullRequestRef> {

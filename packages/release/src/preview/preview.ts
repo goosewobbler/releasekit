@@ -2,13 +2,13 @@ import * as fs from 'node:fs';
 import type { CIConfig } from '@releasekit/config';
 import { loadCIConfig, loadConfig } from '@releasekit/config';
 import { type ChangelogRefsMode, info, success, warn } from '@releasekit/core';
-import { type Forge, isBotComment } from '@releasekit/forge';
+import type { Forge } from '@releasekit/forge';
 import { createGitCli } from '@releasekit/git';
 import { renderSupersedeWarning } from '../failure-report/failure-report.js';
 import { detectUnresolvedFailure } from '../failure-report/post.js';
 import { evaluatePR } from '../gate/evaluate-pr.js';
 import { getHeadParents } from '../git.js';
-import { fetchPRLabels, forgeFor, MARKER, postOrUpdateComment } from '../github.js';
+import { fetchPRLabels, forgeFor, postOrUpdateComment } from '../github.js';
 import { composeBumpFromLabels, DEFAULT_LABELS, detectLabelConflicts } from '../label-utils.js';
 import { runRelease } from '../release.js';
 import {
@@ -22,7 +22,6 @@ import { detectPrerelease } from './detect.js';
 import type { LabelContext } from './format.js';
 import { formatPreviewComment } from './format.js';
 import { type MergedRow, mergeForPreview } from './merge.js';
-import { markStale, staleReleaseSha } from './stale.js';
 
 export interface PreviewOptions {
   config?: string;
@@ -187,11 +186,7 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   }
 
   info(`Posting preview comment on PR #${context.prNumber}...`);
-  await postOrUpdateComment(
-    forge,
-    context.prNumber,
-    await keepStaleMark(forge, context.prNumber, commentBody, effectiveOptions.projectDir),
-  );
+  await postOrUpdateComment(forge, context.prNumber, commentBody);
   success(`Preview comment posted on PR #${context.prNumber}`);
 }
 
@@ -225,24 +220,10 @@ async function resolvePRBase(
   if (pr.base?.sha) {
     const tried = remotes.map((name) => `${name}/${pr.base?.ref ?? '<base>'}`).join(' or ');
     warn(
-      `Could not find this PR's base commit (HEAD isn't its merge ref and ${tried} isn't fetched), so the preview scopes from pull_request.base.sha. That can lag the base branch and count commits merged there as this PR's.`,
+      `Could not find this PR's base commit: HEAD isn't its merge ref, and has no merge base with ${tried} (not fetched, or the history is too shallow). The preview scopes from pull_request.base.sha, which can lag the base branch and count commits merged there as this PR's.`,
     );
   }
   return pr.base?.sha;
-}
-
-/** A release that landed after this run's checkout leaves the new preview as stale as the old one. */
-async function keepStaleMark(forge: Forge, prNumber: number, body: string, projectDir: string): Promise<string> {
-  try {
-    const existing = await forge.findComment(prNumber, MARKER);
-    const releaseSha = existing && isBotComment(existing) ? staleReleaseSha(existing.body) : undefined;
-    if (releaseSha && !(await createGitCli().isAncestor(releaseSha, 'HEAD', projectDir))) {
-      return markStale(body, releaseSha);
-    }
-  } catch {
-    // Best-effort: post the preview unmarked.
-  }
-  return body;
 }
 
 function resolvePrerelease(

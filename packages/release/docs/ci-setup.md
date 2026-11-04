@@ -284,8 +284,9 @@ baseline until it's pushed again. Turn on stale marking to flag this:
 
 With `markStaleAfterRelease` on, each publish marks the preview stale on still-open PRs into the released
 branch, checking the 50 most recently updated. Give the release job `pull-requests: write`. The job doesn't
-have those PRs' trees, so each preview updates on its PR's next push or label change. A preview job that
-started before the release keeps the mark. It's best-effort: a per-PR failure only warns.
+have those PRs' trees, so each preview updates on its PR's next push or label change. It's best-effort: a
+per-PR failure only warns, and a preview job already running when the release lands can replace the mark
+with its pre-release preview.
 (`ci.prPreview: true` remains valid shorthand for `{ "enabled": true }`.)
 
 ---

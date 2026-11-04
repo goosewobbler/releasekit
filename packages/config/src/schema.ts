@@ -730,7 +730,7 @@ export const CIConfigSchema = z.object({
   prPreview: z
     .union([
       z.boolean(),
-      z.strictObject({
+      z.object({
         enabled: z.boolean().default(true).describe('Whether PR preview comments are posted.'),
         markStaleAfterRelease: z
           .boolean()

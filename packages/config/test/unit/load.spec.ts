@@ -88,11 +88,11 @@ describe('loadConfig', () => {
     },
   );
 
-  it('should reject an unknown ci.prPreview key, such as the renamed refreshAfterRelease', () => {
+  it('should throw a migration error for the renamed ci.prPreview.refreshAfterRelease', () => {
     mockedFs.existsSync.mockReturnValue(true);
     mockedFs.readFileSync.mockReturnValue(JSON.stringify({ ci: { prPreview: { refreshAfterRelease: true } } }));
 
-    expect(() => loadConfig()).toThrow(/ci\.prPreview: Unrecognized key: "refreshAfterRelease"/);
+    expect(() => loadConfig()).toThrow(/ci\.prPreview\.refreshAfterRelease was renamed to markStaleAfterRelease/);
   });
 
   it('should throw a migration error for the removed notes.releaseNotes.mode', () => {

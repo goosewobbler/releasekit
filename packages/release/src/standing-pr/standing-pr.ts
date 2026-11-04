@@ -1713,9 +1713,8 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
 
   // The merge moved the base branch; this job pushes tags only.
   await markFeederPreviewsStale({
-    config: options.config,
-    projectDir: cwd,
-    branch: releaseKitConfig.git?.branch ?? 'main',
+    ciConfig: releaseKitConfig.ci,
+    branch: livePr?.baseRef ?? releaseKitConfig.git?.branch ?? 'main',
   });
 
   if (deleteBranchOnMerge) {

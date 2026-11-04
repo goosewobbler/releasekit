@@ -79,7 +79,7 @@ describe('runPreview commit scope in a standing-PR feeder', () => {
   }
 
   /** A PR fixing a bug while `main` gains a feature, checked out as GitHub's refs/pull/N/merge with no origin/main. */
-  function checkOutMergeRef(): string {
+  function checkOutMergeRef(): void {
     const branchPoint = git(dir, 'rev-parse', 'HEAD');
     git(dir, 'checkout', '-q', '-b', 'feat/own');
     commit(dir, 'own.txt', 'fix: correct the own bug');
@@ -91,20 +91,6 @@ describe('runPreview commit scope in a standing-PR feeder', () => {
       head: { ref: 'feat/own', sha: git(dir, 'rev-parse', 'feat/own') },
       base: { ref: 'main', sha: branchPoint },
     });
-    return branchPoint;
-  }
-
-  function seedStalePreview(releaseSha: string): void {
-    forge = createFakeForge({
-      comments: [
-        {
-          id: 1,
-          prNumber: 7,
-          body: `${MARKER}\n\n<!-- releasekit-preview-stale:${releaseSha} -->\n> **Stale:** notice\n\nold preview`,
-        },
-      ],
-    });
-    vi.mocked(forgeFor).mockReturnValue(forge);
   }
 
   it('should leave out commits merged to the base branch after the PR branched', async () => {
@@ -191,25 +177,23 @@ describe('runPreview commit scope in a standing-PR feeder', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('pull_request.base.sha'));
   });
 
-  it('should keep the stale mark when the release it names landed after this checkout', async () => {
+  it('should replace a preview marked stale with an unmarked one', async () => {
     checkOutMergeRef();
-    const unseenRelease = 'c0ffee0000000000000000000000000000000001';
-    seedStalePreview(unseenRelease);
-
-    await runPreview({ projectDir: dir, dryRun: false });
-
-    expect(previewBody().startsWith(`${MARKER}\n\n<!-- releasekit-preview-stale:${unseenRelease} -->`)).toBe(true);
-    expect(previewBody()).toContain('correct the own bug');
-    expect(previewBody()).not.toContain('old preview');
-  });
-
-  it('should drop the stale mark once the checkout includes the release it names', async () => {
-    const branchPoint = checkOutMergeRef();
-    seedStalePreview(branchPoint);
+    forge = createFakeForge({
+      comments: [
+        {
+          id: 1,
+          prNumber: 7,
+          body: `${MARKER}\n\n<!-- releasekit-preview-stale -->\n> **Stale:** notice\n\nold preview`,
+        },
+      ],
+    });
+    vi.mocked(forgeFor).mockReturnValue(forge);
 
     await runPreview({ projectDir: dir, dryRun: false });
 
     expect(previewBody()).not.toContain('releasekit-preview-stale');
+    expect(previewBody()).not.toContain('old preview');
     expect(previewBody()).toContain('correct the own bug');
   });
 });

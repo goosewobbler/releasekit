@@ -355,13 +355,25 @@ describe('GitHubForge', () => {
       );
     });
 
-    it('should map a pull request to {body,labels,headSha}', async () => {
+    it('should list open PRs into the base branch only', async () => {
       const { octokit, fns } = makeOctokit();
-      fns.pullsGet.mockResolvedValue({ data: { body: 'b', labels: [{ name: 'x' }], head: { sha: 'abc' } } });
+      fns.pullsList.mockResolvedValue({ data: [{ number: 9, head: { ref: 'feat/x' }, base: { ref: 'main' } }] });
+      expect(await new GitHubForge(octokit, 'o', 'r').listOpenPullRequests('main')).toEqual([
+        { number: 9, headRef: 'feat/x', baseRef: 'main' },
+      ]);
+      expect(fns.pullsList).toHaveBeenCalledWith(expect.objectContaining({ state: 'open', base: 'main' }));
+    });
+
+    it('should map a pull request to {body,labels,headSha,baseRef}', async () => {
+      const { octokit, fns } = makeOctokit();
+      fns.pullsGet.mockResolvedValue({
+        data: { body: 'b', labels: [{ name: 'x' }], head: { sha: 'abc' }, base: { ref: 'main' } },
+      });
       expect(await new GitHubForge(octokit, 'o', 'r').getPullRequest(4)).toEqual({
         body: 'b',
         labels: ['x'],
         headSha: 'abc',
+        baseRef: 'main',
       });
     });
 

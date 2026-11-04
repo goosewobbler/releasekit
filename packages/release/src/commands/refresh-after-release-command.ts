@@ -11,7 +11,6 @@ export function createRefreshAfterReleaseCommand(): Command {
       try {
         await runRefreshAfterRelease({ config: opts.config, projectDir: opts.projectDir });
       } catch (error) {
-        // Only the release-critical reconcile throws; the feeder-preview refresh swallows its own errors.
         console.error(error instanceof Error ? error.message : String(error));
         process.exit(EXIT_CODES.GENERAL_ERROR);
       }

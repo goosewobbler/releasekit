@@ -328,7 +328,7 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
 
       const branch = publishOutput?.git.branch;
       if (branch) {
-        await markFeederPreviewsStale({ config: options.config, projectDir: options.projectDir, branch });
+        await markFeederPreviewsStale({ ciConfig, branch });
       }
     }
   }

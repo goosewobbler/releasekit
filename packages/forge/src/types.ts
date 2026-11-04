@@ -54,6 +54,7 @@ export interface PullRequestDetails {
   body: string;
   labels: string[];
   headSha?: string;
+  baseRef?: string;
 }
 
 export interface CommentAuthor {
@@ -154,8 +155,8 @@ export interface Forge {
   findStandingPR(branch: string): Promise<StandingPullRequest | null>;
   /** PRs whose head is `branch`, most-recently-updated first. */
   listRecentlyClosedPullRequests(branch: string, limit: number): Promise<AssociatedPullRequest[]>;
-  /** Most-recently-updated first; page-capped. */
-  listOpenPullRequests(): Promise<OpenPullRequest[]>;
+  /** Open PRs into `base`, most-recently-updated first; page-capped. */
+  listOpenPullRequests(base: string): Promise<OpenPullRequest[]>;
   getIssue(issueNumber: number): Promise<IssueDetails>;
   getPullRequest(prNumber: number): Promise<PullRequestDetails>;
   createPullRequest(pr: NewPullRequest): Promise<PullRequestRef>;

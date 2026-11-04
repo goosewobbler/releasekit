@@ -1,16 +1,11 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { CIConfig } from '@releasekit/config';
 import { createFakeForge, type FakeForge, type OpenPullRequest } from '@releasekit/forge';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MARKER } from '../../src/github.js';
 import { markFeederPreviewsStale } from '../../src/preview/stale.js';
-
-const mockLoadCIConfig = vi.fn();
-
-vi.mock('@releasekit/config', () => ({
-  loadCIConfig: (...args: unknown[]) => mockLoadCIConfig(...args),
-}));
 
 vi.mock('@releasekit/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@releasekit/core')>();
@@ -30,15 +25,7 @@ vi.mock('../../src/github.js', async (importOriginal) => ({
   forgeFor: (...args: unknown[]) => mockForgeFor(...args),
 }));
 
-const RELEASE_SHA = 'c0ffee0000000000000000000000000000000001';
-const EARLIER_RELEASE_SHA = 'c0ffee0000000000000000000000000000000000';
-
-vi.mock('@releasekit/git', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@releasekit/git')>();
-  return { ...actual, createGitCli: () => new actual.FakeGit({ headSha: RELEASE_SHA }) };
-});
-
-const STALE_LINE = `<!-- releasekit-preview-stale:${RELEASE_SHA} -->`;
+const STALE_LINE = '<!-- releasekit-preview-stale -->';
 
 function pr(number: number, overrides: Partial<OpenPullRequest> = {}): OpenPullRequest {
   return { number, headRef: `feat/pr-${number}`, baseRef: 'main', ...overrides };
@@ -64,19 +51,23 @@ function bodyOf(forge: FakeForge, id: number): string {
   return forge.comments.find((c) => c.id === id)?.body ?? '';
 }
 
-const options = { projectDir: '/p', branch: 'main' };
+function ciConfig(overrides: Partial<CIConfig> = {}): CIConfig {
+  return {
+    releaseStrategy: 'direct',
+    prPreview: { enabled: true, markStaleAfterRelease: true },
+    ...overrides,
+  } as CIConfig;
+}
+
+const options = { ciConfig: ciConfig(), branch: 'main' };
 
 describe('markFeederPreviewsStale', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockLoadCIConfig.mockReturnValue({
-      releaseStrategy: 'direct',
-      prPreview: { enabled: true, markStaleAfterRelease: true },
-    });
     mockGetGitHubContext.mockReturnValue({ owner: 'owner', repo: 'repo', token: 'tok', sha: null });
   });
 
-  it('should mark each preview stale in place, naming the release commit, with the preview kept below', async () => {
+  it('should mark each preview stale in place, with the preview kept below', async () => {
     const forge = seedForge([pr(10), pr(11)]);
     mockForgeFor.mockReturnValue(forge);
 
@@ -128,7 +119,7 @@ describe('markFeederPreviewsStale', () => {
     expect(forge.updatedComments).toEqual([]);
   });
 
-  it('should leave a preview already marked stale for this release untouched', async () => {
+  it('should leave a preview already marked stale untouched', async () => {
     const forge = seedForge([pr(10)]);
     mockForgeFor.mockReturnValue(forge);
 
@@ -136,20 +127,6 @@ describe('markFeederPreviewsStale', () => {
     await markFeederPreviewsStale(options);
 
     expect(forge.updatedComments).toHaveLength(1);
-  });
-
-  it('should replace the mark on a preview marked stale for an earlier release', async () => {
-    const earlier = `${MARKER}\n\n<!-- releasekit-preview-stale:${EARLIER_RELEASE_SHA} -->\n> **Stale:** old notice${previewBody(10).slice(MARKER.length)}`;
-    const forge = createFakeForge({ openPullRequests: [pr(10)], comments: [{ id: 10, prNumber: 10, body: earlier }] });
-    mockForgeFor.mockReturnValue(forge);
-
-    await markFeederPreviewsStale(options);
-
-    const body = bodyOf(forge, 10);
-    expect(body.startsWith(`${MARKER}\n\n${STALE_LINE}\n> **Stale:**`)).toBe(true);
-    expect(body.endsWith(previewBody(10).slice(MARKER.length))).toBe(true);
-    expect(body.match(/releasekit-preview-stale/g)).toHaveLength(1);
-    expect(body).not.toContain('old notice');
   });
 
   it('should still mark a preview whose changelog quotes the stale marker line', async () => {
@@ -253,25 +230,27 @@ describe('markFeederPreviewsStale', () => {
   });
 
   it('should never throw, so the orchestrator can call it without a guard', async () => {
-    mockLoadCIConfig.mockImplementation(() => {
-      throw new Error('config parse error');
+    mockForgeFor.mockImplementation(() => {
+      throw new Error('bad repository slug');
     });
 
     await expect(markFeederPreviewsStale(options)).resolves.toBeUndefined();
   });
 
   it('should do nothing when markStaleAfterRelease is off', async () => {
-    mockLoadCIConfig.mockReturnValue({ prPreview: { enabled: true, markStaleAfterRelease: false } });
-
-    await markFeederPreviewsStale(options);
+    await markFeederPreviewsStale({
+      branch: 'main',
+      ciConfig: ciConfig({ prPreview: { enabled: true, markStaleAfterRelease: false } }),
+    });
 
     expect(mockForgeFor).not.toHaveBeenCalled();
   });
 
   it('should do nothing when previews are disabled', async () => {
-    mockLoadCIConfig.mockReturnValue({ prPreview: { enabled: false, markStaleAfterRelease: true } });
-
-    await markFeederPreviewsStale(options);
+    await markFeederPreviewsStale({
+      branch: 'main',
+      ciConfig: ciConfig({ prPreview: { enabled: false, markStaleAfterRelease: true } }),
+    });
 
     expect(mockForgeFor).not.toHaveBeenCalled();
   });
@@ -309,14 +288,10 @@ describe('markFeederPreviewsStale', () => {
       );
       vi.stubEnv('GITHUB_EVENT_NAME', 'pull_request');
       vi.stubEnv('GITHUB_EVENT_PATH', eventPath);
-      mockLoadCIConfig.mockReturnValue({
-        releaseStrategy: 'standing-pr',
-        prPreview: { enabled: true, markStaleAfterRelease: true },
-      });
       const forge = seedForge([pr(99, { headRef: 'release/next' }), pr(10)], [10]);
       mockForgeFor.mockReturnValue(forge);
 
-      await markFeederPreviewsStale({ projectDir: dir, branch: 'main' });
+      await markFeederPreviewsStale({ ciConfig: ciConfig({ releaseStrategy: 'standing-pr' }), branch: 'main' });
 
       expect(markedStale(forge)).toEqual([10]);
     });

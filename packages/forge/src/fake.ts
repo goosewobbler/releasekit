@@ -135,8 +135,8 @@ export class FakeForge implements Forge {
     return this.recentlyClosedPRs.slice(0, limit);
   }
 
-  async listOpenPullRequests(): Promise<OpenPullRequest[]> {
-    return [...this.openPullRequests];
+  async listOpenPullRequests(base: string): Promise<OpenPullRequest[]> {
+    return this.openPullRequests.filter((pr) => pr.baseRef === base);
   }
 
   async getIssue(issueNumber: number): Promise<IssueDetails> {

@@ -2723,9 +2723,30 @@ describe('runStandingPRPublish', () => {
       expect.arrayContaining(['RELEASE_NOTES.md', ...baseManifest.notesFiles]),
     );
     const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
-    expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(
-      expect.objectContaining({ projectDir: '/test', branch: 'main' }),
+    expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ branch: 'main' }));
+  });
+
+  it("should mark previews stale on the merged PR's base branch, not the configured one", async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({
+        pull_request: { head: { ref: 'release/next' }, number: 42, merged: true },
+      }),
     );
+    await mockForge({
+      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+      pullRequests: { 42: { body: '', labels: [], baseRef: 'develop' } },
+    });
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+      ReturnType<typeof runPublishStep>
+    >);
+
+    await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false });
+
+    const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
+    expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ branch: 'develop' }));
   });
 
   it('should refuse to publish when override labels diverge from the manifest', async () => {
