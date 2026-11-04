@@ -140,7 +140,7 @@ In CI, both tokens are typically available as secrets or via OIDC — see the [C
 
 ## 5. Set up CI
 
-The most common setup releases on every push to `main`. Copy [`release.yml`](../examples/ci/minimal/release.yml) from [`examples/ci/minimal`](../examples/ci/minimal) into `.github/workflows/`. Its job checks out the full history, sets up pnpm and Node, installs your dependencies, removes the `.npmrc` that `setup-node` writes (it blocks npm's OIDC exchange), then runs:
+The most common setup releases on every push to `main`. Copy [`release.yml`](../examples/ci/minimal/release.yml) from [`examples/ci/minimal`](../examples/ci/minimal) into `.github/workflows/`. Its job checks out the full history, sets up pnpm and Node, installs your dependencies, removes the `.npmrc` that `setup-node` writes (it blocks npm's OIDC exchange; drop that step if you publish with a token), then runs:
 
 ```yaml
 - run: pnpm exec releasekit release

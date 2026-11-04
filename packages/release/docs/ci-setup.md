@@ -22,7 +22,8 @@ The workflow is [`examples/ci/minimal`](../../../examples/ci/minimal/release.yml
 - run: pnpm exec releasekit release
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    # For token-based npm publishing instead of OIDC: NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    # Token-based npm publishing instead of OIDC? Drop the `rm -f .npmrc` step and add:
+    # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 ```
 
 ---
