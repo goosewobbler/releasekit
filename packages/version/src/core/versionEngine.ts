@@ -426,9 +426,9 @@ export class VersionEngine {
         mergedPackages.root = workspaceRoot;
       }
 
-      // Captured before release-set filtering so the repo-level changelog classifier can tell "touches a
-      // non-releasing package" from "genuinely repo-level" and resolve shared-package globs against every package.
-      // Includes a disabled ecosystem's packages, which aren't released but still own their directories' commits.
+      // Every discovered package, disabled ecosystems included, so the repo-level changelog classifier can tell
+      // "touches a non-releasing package" from "genuinely repo-level" and resolve shared-package globs against every
+      // package.
       this.config.allWorkspacePackages = workspacePackages.packages.map((p) => ({
         name: p.packageJson.name,
         dir: p.dir,

@@ -16,11 +16,10 @@ interface ManifestKind {
 export interface NativeManifestOptions {
   dryRun?: boolean;
   repoRoot?: string;
-  /** The package a manifest in `packageDir` belongs to, so its update matches the package's tag and changelog. */
+  /** Package name for its own manifests, so their update matches its tag and changelog. */
   recordAs?: string;
-  /** Flags a manifest in `packageDir` as the workspace root's. */
   isRoot?: boolean;
-  /** Group members are package-keyed, so `cargo.paths` and `pub.paths` don't apply to them. */
+  /** Group mode bumps only a package's own manifests, ignoring `cargo.paths` and `pub.paths`. */
   ignorePaths?: boolean;
 }
 
@@ -48,7 +47,7 @@ export function updateNativeManifests(
   const { dryRun = false, recordAs, isRoot } = options;
   const manifestPaths = nativeManifestsToBump(packageDir, config, options);
   for (const manifestPath of manifestPaths) {
-    // A manifest elsewhere (via `paths`) keeps an update of its own, so it mustn't share the package's name.
+    // A manifest reached through `paths` is its own update, so it keeps its own name.
     const record = isInPackageDir(manifestPath, packageDir) ? { recordAs, isRoot } : {};
     updatePackageVersion(manifestPath, version, dryRun, record);
   }
@@ -70,7 +69,7 @@ export function hasManifestToBump(
   return nativeManifestsToBump(packageDir, config, options).length > 0;
 }
 
-/** {@link hasManifestToBump}, warning that a package about to release won't. */
+/** {@link hasManifestToBump}, plus a warning when the package won't release. */
 export function checkManifestToBump(
   name: string,
   packageDir: string,

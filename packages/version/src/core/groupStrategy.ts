@@ -437,10 +437,10 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
       const allVersions = new Map<string, string>();
 
       for (const group of resolution.groups) {
-        // Dropped before planning, so a member with nothing to bump can't set the group's version.
         const members = group.members
           .filter(targetFilter)
           .filter((p) => shouldProcess(p, config))
+          // Dropped before planning, so a member with nothing to bump can't set the group's version.
           .filter((p) => hasManifestToBump(p.dir, config, { ignorePaths: true }));
         if (members.length === 0) {
           continue;

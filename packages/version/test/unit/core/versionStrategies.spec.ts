@@ -235,7 +235,7 @@ describe('Version Strategies', () => {
     });
 
     it('should version a pub-only package and not abandon it', async () => {
-      // Only the member's pubspec exists, so its loop tracking is all that keeps the run from returning early.
+      // Only the member's pubspec exists, so the run returns early unless the loop tracks it.
       const memberPubspec = '/test/workspace/packages/a/pubspec.yaml';
       vi.mocked(fs.existsSync, { partial: true }).mockImplementation((filePath) => filePath === memberPubspec);
       const config: Partial<Config> = { ...defaultConfig, sync: true };
@@ -295,7 +295,6 @@ describe('Version Strategies', () => {
         expect.anything(),
         expect.anything(),
       );
-      // Recorded under the package's name, so its tag and changelog find the update.
       expect(packageManagement.updatePackageVersion).toHaveBeenCalledWith(
         '/test/workspace/packages/a/Cargo.toml',
         '1.1.0',

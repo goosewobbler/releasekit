@@ -1,6 +1,6 @@
 /**
- * Runs the built CLI against a real temp git repo, so pubspec.yaml handling goes through real discovery and
- * parsing. Requires `pnpm build` in @releasekit/version first.
+ * Runs the built CLI against a temp git repo, so pubspec handling goes through real discovery and parsing.
+ * Requires `pnpm build` in @releasekit/version first.
  */
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -148,7 +148,7 @@ describe('pubspec.yaml versioning', () => {
     expect(new Set(names).size).toBe(names.length);
     expect(bumpedFiles(output, 'hybrid')).toEqual(['packages/hybrid/package.json']);
     expect(bumpedFiles(output, 'hybrid_dart_sub')).toEqual(['packages/hybrid/dart/pubspec.yaml']);
-    // dart_core's own pubspec isn't at `dart/`, so it has nothing to bump and isn't tagged.
+    // `pub.paths` replaces dart_core's own pubspec location, and it has no `dart/`.
     expect(names).not.toContain('dart_core');
     expect(output.tags.some((tag) => tag.startsWith('dart_core@'))).toBe(false);
   });

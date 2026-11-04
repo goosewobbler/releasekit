@@ -48,7 +48,7 @@ export function getCargoInfo(cargoPath: string): CargoInfo {
   }
 }
 
-/** A virtual workspace manifest has no [package]. */
+/** False for a virtual workspace manifest, which has no [package]. */
 export function isVersionedCrate(cargoPath: string): boolean {
   let cargo: CargoManifest;
   try {

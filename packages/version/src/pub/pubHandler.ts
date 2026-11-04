@@ -43,7 +43,7 @@ export function getPubInfo(pubspecPath: string): PubInfo {
   }
 }
 
-/** As in discovery: a Dart workspace root, an app manifest or a `publish_to: none` package isn't released. */
+/** Mirrors discovery, which skips Dart workspace roots, versionless app manifests and `publish_to: none` packages. */
 export function isReleasablePubspec(pubspecPath: string): boolean {
   let pubspec: PubspecManifest;
   try {
