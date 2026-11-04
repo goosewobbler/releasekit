@@ -16,7 +16,7 @@ All workflows require:
 
 Trigger a release on every push to `main`. If there are no releasable commits, the command exits cleanly with code 0 and does nothing.
 
-The workflow is [`examples/ci/minimal`](../../../examples/ci/minimal/release.yml). Its job checks out the full history, sets up pnpm and Node, installs, removes the `.npmrc` that `setup-node` writes (it blocks npm's OIDC exchange), then runs:
+The workflow is [`examples/ci/minimal`](../../../examples/ci/minimal/release.yml). Its release step:
 
 ```yaml
 - run: pnpm exec releasekit release
@@ -159,7 +159,7 @@ pnpm exec releasekit release --scope core
 
 Post a comment on each PR showing what would be released if merged. Requires `pull-requests: write`.
 
-The workflow is [`examples/ci/release-preview`](../../../examples/ci/release-preview/release-preview.yml). It runs `releasekit preview` on each PR event, so the comment follows new pushes and label changes. It skips fork PRs, whose read-only token can't post the comment, and the standing PR.
+The workflow is [`examples/ci/release-preview`](../../../examples/ci/release-preview/release-preview.yml). It runs `releasekit preview` on each PR event, so the comment follows new pushes and label changes. It skips fork PRs and the standing PR.
 
 ### Flagging stale previews after a release
 
@@ -338,7 +338,7 @@ To keep registry credentials away from workflows on other branches, publish from
 
 ### Workflow
 
-`standing-pr.yml` runs alongside any existing release workflow. Copy it from [`examples/ci/standing-pr`](../../../examples/ci/standing-pr/standing-pr.yml); [its README](../../../examples/ci/standing-pr/README.md) lists the four jobs (`update`, `immediate-release`, `publish`, `retry-publish`) and what fires each. The triggers:
+Copy `standing-pr.yml` from [`examples/ci/standing-pr`](../../../examples/ci/standing-pr/standing-pr.yml); [its README](../../../examples/ci/standing-pr/README.md) lists the four jobs and what fires each. The triggers:
 
 ```yaml
 on:
@@ -405,10 +405,10 @@ Ticking a checkbox or changing a label on the standing PR re-runs `standing-pr u
 Mechanics (all in `standing-pr.yml`, no config):
 
 - **Fast.** The banner is a plain `gh api` step that runs *before* checkout/install, so it lands ~10–15s after the runner starts (the spin-up floor — an Actions job can't react instantly the way a native GitHub App can). It's on reactive events only; push/schedule updates aren't interactive.
-- **Self-clearing.** `standing-pr update` regenerates the PR body from scratch, which drops the banner. A final `if: always()` step strips it from any run that didn't rewrite the body (a failure, a cancel, or an update that exited early), so it doesn't linger as a false "in progress". Both banner steps are `continue-on-error`, so a GitHub API error can't block the update.
+- **Self-clearing.** A successful rebuild regenerates the body, which drops the banner. A final `if: always()` step strips it from any run that didn't rewrite the body (a failure, a cancel or an early exit).
 - **Idempotent.** The step skips if a banner is already present, so rapid re-triggers don't stack it.
 
-Rapid checkbox toggles are also **collapsed**: the workflow's `concurrency` routes a maintainer's `edited` events to a per-PR group with `cancel-in-progress: true`, so ticking several packages in a row cancels the superseded rebuilds and only the latest selection is applied. The group is sender-aware — the bot's *own* body edits (the banner and the rebuilt body are `edited` events too) run no job, so like label or edit events on feeder PRs from branches outside `release/` they get a group of their own and can't cancel or replace the run doing the work. Events on a closed PR (the publish on merge, a retry label) get a group per PR, since GitHub replaces a group's pending run with any newer one and would drop a queued publish.
+Rapid checkbox toggles are also **collapsed**: a maintainer's edits share a per-PR `concurrency` group with `cancel-in-progress: true`, so only the latest selection is rebuilt.
 
 ### Label semantics in standing-pr mode
 

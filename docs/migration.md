@@ -252,6 +252,6 @@ diagnostic output.
 
 - [Getting started](./getting-started.md) — installation and first release
 - [Configuration reference](./configuration.md) — all `releasekit.config.json` keys
-- [CI setup](../packages/release/docs/ci-setup.md) — GitHub Actions setups and the standing PR
-- [CI examples](../examples/README.md) — complete workflows, validated in CI
+- [CI setup](../packages/release/docs/ci-setup.md) — how each CI setup works, including the standing PR
+- [CI examples](../examples/README.md) — the workflows, validated in CI
 - [@releasekit/release README](../packages/release/README.md) — CLI flags and programmatic API

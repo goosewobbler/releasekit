@@ -1,9 +1,9 @@
 # backfill — regenerate notes for past releases
 
-A maintainer dispatches this workflow to rebuild release notes for versions
-that already have tags, from git history, and write them into the matching
-GitHub Release bodies. Each run is a dry run unless `apply` is ticked, so you can
-read what it would change in the log first.
+A maintainer dispatches this workflow to rebuild release notes for
+already-tagged versions from git history and write them into their GitHub
+Release bodies. Runs are dry runs unless `apply` is ticked, so you can check the
+log first.
 
 ## Files
 
@@ -27,16 +27,14 @@ CLI: `gh workflow run backfill.yml -f from=1.0.0 -f apply=true`.
   the workflow for LLM-written ones.
 - Tags look like `v1.2.3`. Backfill finds them through `version.versionPrefix`,
   so the config sets it to `v`; match it to your tags.
-- A blank `path` backfills every workspace package. With package-specific
-  tags (`pkg@v1.2.0`) each package writes to its own releases. With one shared
-  tag series, every package writes to the same releases and the last one wins,
-  so give a `path` there.
-- Each version already has a GitHub Release. Backfill only edits releases; it
-  skips a tag without one.
-- Backfill fills empty release bodies and rewrites the ones it wrote before.
-  It skips every other body, including the notes releasekit published, unless
-  you tick `force`. Read the dry run before you tick `apply`. The other modes
-  are in [`releasekit backfill`](../../../docs/cli.md#releasekit-release-backfill).
+- With one shared tag series (no package-specific tags), a blank `path` makes
+  every package write to the same releases and the last one wins, so give a
+  `path`.
+- Each version already has a GitHub Release; backfill skips a tag without one.
+- Backfill fills empty release bodies and rewrites the ones it wrote before. It
+  leaves every other body, including notes releasekit published, unless you
+  tick `force`. Flags are in
+  [`releasekit backfill`](../../../docs/cli.md#releasekit-release-backfill).
 
 ## Correctness notes
 

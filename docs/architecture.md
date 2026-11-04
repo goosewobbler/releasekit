@@ -195,7 +195,7 @@ If the head commit message matches a skip pattern (default: `chore: release `), 
 ## Further reading
 
 - [docs/configuration.md](./configuration.md) — full config reference
-- [CI setup](../packages/release/docs/ci-setup.md) — label setup, OIDC, standing PR
+- [CI setup](../packages/release/docs/ci-setup.md) — how each CI setup works, including the standing PR
 - [CI examples](../examples/README.md) — the workflows, validated in CI
 - [@releasekit/version README](../packages/version/README.md) — versioning strategies, JSON output schema
 - [@releasekit/notes README](../packages/notes/README.md) — changelog modes, templates, LLM tasks

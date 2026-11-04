@@ -140,7 +140,7 @@ In CI, both tokens are typically available as secrets or via OIDC — see the [C
 
 ## 5. Set up CI
 
-The most common setup releases on every push to `main`. Copy [`release.yml`](../examples/ci/minimal/release.yml) from [`examples/ci/minimal`](../examples/ci/minimal) into `.github/workflows/`. Its job checks out the full history, sets up pnpm and Node, installs your dependencies, removes the `.npmrc` that `setup-node` writes (it blocks npm's OIDC exchange; drop that step if you publish with a token), then runs:
+The most common setup releases on every push to `main`. Copy [`release.yml`](../examples/ci/minimal/release.yml) from [`examples/ci/minimal`](../examples/ci/minimal) into `.github/workflows/`. Its release step:
 
 ```yaml
 - run: pnpm exec releasekit release
@@ -148,7 +148,9 @@ The most common setup releases on every push to `main`. Copy [`release.yml`](../
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-[`examples/`](../examples/README.md) has workflows for other setups and a note on using npm instead of pnpm, and the [CI setup guide](../packages/release/docs/ci-setup.md) explains them:
+If you publish with an npm token rather than OIDC, drop its `rm -f .npmrc` step.
+
+For other setups, see [`examples/`](../examples/README.md) (which also covers npm instead of pnpm) and the [CI setup guide](../packages/release/docs/ci-setup.md):
 
 - Label-based triggers (release only when a PR has a `bump:patch/minor/major` label)
 - npm OIDC trusted publishing (no `NPM_TOKEN` secret required)
@@ -164,7 +166,7 @@ If you use the [label-based trigger](../packages/release/docs/ci-setup.md#label-
 
 - **[Architecture](./architecture.md)** — pipeline design, mental model, and how everything fits together
 - **[Release taxonomy](./release-taxonomy.md)** — groups vs prerequisites vs selection, for monorepos with coupled packages
-- **[CI setup guide](../packages/release/docs/ci-setup.md)** — how each CI setup works; the workflows are in [`examples/`](../examples/README.md)
+- **[CI setup guide](../packages/release/docs/ci-setup.md)** — how each CI setup works, including the standing PR; the workflows are in [`examples/`](../examples/README.md)
 - **[CLI reference](./cli.md)** — every command and flag
 - **[Configuration reference](./configuration.md)** — all `releasekit.config.json` options
 - **[Troubleshooting](./troubleshooting.md)** — symptom-indexed error guide

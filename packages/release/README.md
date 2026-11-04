@@ -401,7 +401,7 @@ See [CI setup — Standing Release PR](./docs/ci-setup.md#standing-release-pr) f
 
 The `releasekit preview` command posts a comment on pull requests showing what would be released. It reads PR labels from GitHub and adapts its messaging based on `releaseStrategy` and `releaseTrigger`.
 
-Copy [`examples/ci/release-preview/release-preview.yml`](../../examples/ci/release-preview/release-preview.yml) to `.github/workflows/release-preview.yml`. On each PR event, except on fork PRs and the standing PR, it runs:
+Copy [`examples/ci/release-preview/release-preview.yml`](../../examples/ci/release-preview/release-preview.yml) to `.github/workflows/release-preview.yml`. Its preview step:
 
 ```yaml
 - run: pnpm exec releasekit preview
@@ -412,7 +412,7 @@ Copy [`examples/ci/release-preview/release-preview.yml`](../../examples/ci/relea
 ## Documentation
 
 **Getting Started**
-- [CI Setup](./docs/ci-setup.md) — GitHub Actions setups (push, label, OIDC, PR preview, prerelease)
+- [CI Setup](./docs/ci-setup.md) — how each CI setup works, including the standing PR
 - [CI examples](../../examples/README.md) — the workflows, validated in CI
 
 ## License
