@@ -389,7 +389,7 @@ runs:
         INPUT_ONLY_MISSING: ${{ inputs.only-missing }}
         INPUT_APPLY: ${{ inputs.apply }}
         GITHUB_TOKEN: ${{ inputs.github-token || github.token }}
-        # gh, which backfill uses, prefers GH_TOKEN over GITHUB_TOKEN.
+        # gh prefers GH_TOKEN over GITHUB_TOKEN.
         GH_TOKEN: ${{ inputs.github-token || github.token }}
         VERBOSE: ${{ inputs.verbose }}
         OLLAMA_API_KEY: ${{ env.OLLAMA_API_KEY }}
