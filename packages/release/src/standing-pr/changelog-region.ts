@@ -128,10 +128,13 @@ function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions, demot
   const attribution = distinct.size > 1;
 
   const demote = demoteScopes.length > 0;
+  const breaking: DedupedEntry[] = [];
   const promoted: DedupedEntry[] = [];
   const demoted: DedupedEntry[] = [];
   for (const d of deduped) {
-    if (demote && d.entry.scope !== undefined && demoteScopes.includes(d.entry.scope)) {
+    if (d.entry.breaking) {
+      breaking.push(d);
+    } else if (demote && d.entry.scope !== undefined && demoteScopes.includes(d.entry.scope)) {
       demoted.push(d);
     } else {
       promoted.push(d);
@@ -162,6 +165,14 @@ function renderGrouped(deduped: DedupedEntry[], refOpts: RefRenderOptions, demot
     }
     lines.push('');
   };
+  // First and apart from their commit type, as in the published changelog and release notes.
+  if (breaking.length > 0) {
+    lines.push('#### Breaking', '');
+    for (const d of breaking) {
+      lines.push(entryLine(d, attribution, refOpts));
+    }
+    lines.push('');
+  }
   const rendered = new Set<string>();
   for (const label of LABEL_ORDER) {
     emit(label);

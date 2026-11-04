@@ -213,7 +213,7 @@ describe('formatPreviewComment', () => {
     expect(result).toContain('- Migrate to Vitest');
   });
 
-  it('should mark a breaking change', () => {
+  it('should list a breaking change under a leading Breaking heading', () => {
     const output = structuredClone(releaseOutput);
     const entry = output.versionOutput.changelogs
       .flatMap((c) => c.entries)
@@ -222,7 +222,9 @@ describe('formatPreviewComment', () => {
       entry.breaking = true;
     }
 
-    expect(formatPreviewComment(output)).toContain('- **BREAKING** New dry-run flag (`cli`)');
+    const comment = formatPreviewComment(output);
+    expect(comment).toContain('> #### Breaking\n>\n> - **BREAKING** New dry-run flag (`cli`)');
+    expect(comment.split('New dry-run flag').length - 1).toBe(1);
   });
 
   it('should render bare #NNN refs per the refs mode', () => {
