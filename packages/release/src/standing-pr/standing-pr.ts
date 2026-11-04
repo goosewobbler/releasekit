@@ -909,9 +909,11 @@ export async function runStandingPRUpdate(options: StandingPROptions): Promise<S
   let existingManifest: StandingPRManifest | undefined;
   if (existingStandingPr && githubContext?.token) {
     try {
-      existingManifestComment = await findManifestComment(forgeFor(githubContext), existingStandingPr.number);
-      if (existingManifestComment) {
-        existingManifest = parseManifest(existingManifestComment.body);
+      const comment = await findManifestComment(forgeFor(githubContext), existingStandingPr.number);
+      // As at publish, a human-authored (possibly forged) manifest is neither read nor written over.
+      if (comment && isBotComment(comment)) {
+        existingManifestComment = comment;
+        existingManifest = parseManifest(comment.body);
       }
     } catch {
       // Treated as absent: an empty authoritative selection, and firstUpdatedAt restarts.
