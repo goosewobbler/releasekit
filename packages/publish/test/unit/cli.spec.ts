@@ -191,7 +191,7 @@ describe('createPublishCommand', () => {
     it('should run even when the --output write fails', async () => {
       const afterRun = vi.fn().mockResolvedValue(undefined);
       const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-      const missingDir = join(mkdtempSync(join(tmpdir(), 'rk-publish-out-')), 'missing', 'out.json');
+      const missingDir = join(createTmpDir(), 'missing', 'out.json');
 
       await createPublishCommand({ afterRun }).parseAsync(['node', 'test', '--output', missingDir]);
 

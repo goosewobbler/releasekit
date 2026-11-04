@@ -2843,6 +2843,78 @@ describe('runStandingPRPublish', () => {
     expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledTimes(calls);
   });
 
+  it("should mark previews stale after a successful dispatch publish, even when the PR can't be read", async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ inputs: { pr: '42' } }));
+    const forge = await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+    vi.spyOn(forge, 'getPullRequest').mockRejectedValue(new Error('502 Bad Gateway'));
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    vi.mocked(runPublishStep).mockResolvedValue({ publishSucceeded: true } as unknown as Awaited<
+      ReturnType<typeof runPublishStep>
+    >);
+
+    await runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }, 42);
+
+    const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
+    expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ branch: 'main' }));
+  });
+
+  it("should warn, not mark, when a failed dispatch publish can't confirm the PR merged", async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ inputs: { pr: '42' } }));
+    const forge = await mockForge({ comments: [{ id: 1, body: serializeManifest(baseManifest) }] });
+    vi.spyOn(forge, 'getPullRequest').mockRejectedValue(new Error('502 Bad Gateway'));
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    onTestFinished(() => logged.mockRestore());
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    vi.mocked(runPublishStep).mockRejectedValue(new Error('registry rejected'));
+
+    await expect(
+      runStandingPRPublish({ projectDir: '/test', verbose: false, quiet: false, json: false }, 42),
+    ).rejects.toThrow();
+
+    const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
+    expect(vi.mocked(markFeederPreviewsStale)).not.toHaveBeenCalled();
+    expect(logged.mock.calls.some(([line]) => String(line).includes('Could not confirm PR #42 merged'))).toBe(true);
+  });
+
+  it('should mark previews stale for `merge --publish` started by a non-retry label, despite the pre-merge event', async () => {
+    const { readFileSync } = await import('node:fs');
+    vi.mocked(readFileSync).mockReturnValue(
+      JSON.stringify({
+        action: 'labeled',
+        label: { name: 'release:ship' },
+        pull_request: { head: { ref: 'release/next' }, base: { ref: 'main' }, number: 42, merged: false },
+      }),
+    );
+    await mockForge({
+      standingPR: openStandingPR(42),
+      comments: [{ id: 1, body: serializeManifest(baseManifest) }],
+      pullRequests: { 42: { body: '', labels: [], baseRef: 'main', merged: true } },
+    });
+    const { runNotesStep, runPublishStep } = await import('../../src/steps.js');
+    vi.mocked(runNotesStep).mockResolvedValue({ packageNotes: {}, releaseNotes: {}, files: [] });
+    vi.mocked(runPublishStep).mockRejectedValue(new Error('registry rejected'));
+
+    await expect(
+      runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: true }),
+    ).rejects.toThrow('registry rejected');
+
+    const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
+    expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ branch: 'main' }));
+  });
+
+  it('should mark previews stale on `standing-pr merge` without --publish', async () => {
+    await mockForge({ standingPR: openStandingPR(42) });
+
+    await runStandingPRMerge({ projectDir: '/test', verbose: false, quiet: false, json: false }, { publish: false });
+
+    const { markFeederPreviewsStale } = await import('../../src/preview/stale.js');
+    expect(vi.mocked(markFeederPreviewsStale)).toHaveBeenCalledWith(expect.objectContaining({ branch: 'main' }));
+  });
+
   it('should not mark previews stale again on a retry-label run', async () => {
     const { readFileSync } = await import('node:fs');
     vi.mocked(readFileSync).mockReturnValue(
