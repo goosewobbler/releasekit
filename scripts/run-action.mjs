@@ -664,13 +664,7 @@ export function buildGateSummary(_input, parsed, success) {
 }
 
 async function main() {
-  let input;
-  try {
-    input = parseInputs();
-  } catch (err) {
-    writeCoreOutputs(normalizeString(process.env.INPUT_MODE) ?? 'preview', false);
-    setFailure(err instanceof Error ? err.message : String(err));
-  }
+  const input = parseInputs();
   const result = await runAction(input);
   const success = result.status === 0;
   const verbose = normalizeBoolean(input.verbose);
@@ -716,6 +710,7 @@ async function main() {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   main().catch((err) => {
+    writeCoreOutputs(normalizeString(process.env.INPUT_MODE) ?? 'preview', false);
     process.stderr.write(`[run-action] uncaught error: ${err instanceof Error ? err.message : String(err)}\n`);
     process.exit(1);
   });

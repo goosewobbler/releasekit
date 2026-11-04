@@ -51,9 +51,16 @@ describe('action runner', () => {
     const outputFile = path.join(dir, 'github-output');
     const script = fileURLToPath(new URL('../../scripts/run-action.mjs', import.meta.url));
 
+    // A minimal env and a timeout, so a broken guard can't reach a real publish.
     const result = spawnSync(process.execPath, [script], {
-      env: { ...process.env, INPUT_MODE: 'standing-pr-publish', INPUT_DRY_RUN: 'true', GITHUB_OUTPUT: outputFile },
+      env: {
+        PATH: process.env.PATH,
+        INPUT_MODE: 'standing-pr-publish',
+        INPUT_DRY_RUN: 'true',
+        GITHUB_OUTPUT: outputFile,
+      },
       encoding: 'utf-8',
+      timeout: 10_000,
     });
 
     expect(result.status).toBe(1);

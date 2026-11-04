@@ -27,7 +27,7 @@ uses: goosewobbler/releasekit@v0
 
 ## Required permissions and env
 
-The action passes `github-token` (default: the workflow token) to ReleaseKit as `GITHUB_TOKEN`, so a `GITHUB_TOKEN` in the step's `env` is ignored. Pass a PAT or App token as `github-token`. The action's checkout also persists it for git pushes, unless you set `ssh-key` or `skip-checkout`.
+The action passes `github-token` (default: the workflow token) to ReleaseKit as `GITHUB_TOKEN`, so a `GITHUB_TOKEN` in the step's `env` is ignored. Pass a PAT or App token as `github-token`. In `release`, the standing-PR modes and `refresh-after-release`, the action's checkout also persists it for git pushes, unless you set `ssh-key` or `skip-checkout`. Unlike the workflow token's, those pushes start `on: push` workflows.
 
 ### Release mode
 
@@ -160,13 +160,15 @@ jobs:
     permissions:
       id-token: write
       contents: write
+      pull-requests: read
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      # Only for registry-url: the action sets up its own Node version.
+      # Node for the build, and registry-url for npm auth.
       - uses: actions/setup-node@v6
         with:
+          node-version: 24
           registry-url: https://registry.npmjs.org
       # Install and build here.
       - id: rk

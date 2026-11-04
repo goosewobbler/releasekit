@@ -120,6 +120,7 @@ jobs:
     permissions:
       id-token: write
       contents: write
+      pull-requests: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

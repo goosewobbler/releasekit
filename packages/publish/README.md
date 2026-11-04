@@ -34,7 +34,7 @@ npm install -g @releasekit/publish
 pnpm add -g @releasekit/publish
 ```
 
-> **Note:** This package is ESM only and requires Node.js 20+.
+> **Note:** This package is ESM only and requires Node.js 22.12+.
 
 ## Quick Start
 

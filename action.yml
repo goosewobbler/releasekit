@@ -225,8 +225,9 @@ runs:
       uses: actions/checkout@v7
       with:
         fetch-depth: 0
-        # Persisted for git pushes. An empty input (a secret unset on a fork run) falls back to the workflow token.
-        token: ${{ inputs.github-token != '' && inputs.github-token || github.token }}
+        # Persisted for git pushes, so only a mode that pushes gets github-token: a PR preview's later steps can't
+        # read a PAT. An empty input (a secret unset on a fork run) falls back to the workflow token.
+        token: ${{ (inputs.mode == 'release' || inputs.mode == 'standing-pr-update' || inputs.mode == 'standing-pr-publish' || inputs.mode == 'refresh-after-release') && inputs.dry-run != 'true' && (inputs.github-token || github.token) || github.token }}
 
     # A repo without a pnpm packageManager (npm, Dart or Rust) gets the action's own pnpm, and only a pnpm
     # lockfile can key setup-node's cache.
@@ -234,14 +235,12 @@ runs:
       id: pnpm-setup
       shell: bash
       run: |
-        if ! grep -qs '"packageManager": *"pnpm@' "$GITHUB_WORKSPACE/package.json"; then
-          echo "version=$(sed -n 's/.*"packageManager": *"pnpm@\([^"+]*\).*/\1/p' "$ACTION_PATH/package.json")" >> "$GITHUB_OUTPUT"
+        if ! grep -Eqs '"packageManager"[[:space:]]*:[[:space:]]*"pnpm@' "$GITHUB_WORKSPACE/package.json"; then
+          echo "version=$(sed -nE 's/.*"packageManager"[[:space:]]*:[[:space:]]*"pnpm@([^"+]*).*/\1/p' "$GITHUB_ACTION_PATH/package.json")" >> "$GITHUB_OUTPUT"
         fi
         if [ -f "$GITHUB_WORKSPACE/pnpm-lock.yaml" ]; then
           echo "cache=pnpm" >> "$GITHUB_OUTPUT"
         fi
-      env:
-        ACTION_PATH: ${{ github.action_path }}
 
     - name: Setup pnpm
       uses: pnpm/action-setup@v6
@@ -358,7 +357,9 @@ runs:
         INPUT_UPDATE_RELEASES: ${{ inputs.update-releases }}
         INPUT_ONLY_MISSING: ${{ inputs.only-missing }}
         INPUT_APPLY: ${{ inputs.apply }}
-        GITHUB_TOKEN: ${{ inputs.github-token != '' && inputs.github-token || github.token }}
-        NPM_TOKEN: ${{ inputs.npm-token != '' && inputs.npm-token || env.NPM_TOKEN }}
+        GITHUB_TOKEN: ${{ inputs.github-token || github.token }}
+        # gh, which backfill uses, prefers GH_TOKEN over GITHUB_TOKEN.
+        GH_TOKEN: ${{ inputs.github-token || github.token }}
+        NPM_TOKEN: ${{ inputs.npm-token || env.NPM_TOKEN }}
         VERBOSE: ${{ inputs.verbose }}
         OLLAMA_API_KEY: ${{ env.OLLAMA_API_KEY }}
