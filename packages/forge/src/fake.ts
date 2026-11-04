@@ -48,8 +48,6 @@ export interface FakeForgeSeed {
   actorPermissions?: Record<string, RepoPermission>;
   /** Keyed by `org/team-slug`. */
   teamMemberships?: Record<string, string[]>;
-  /** Author of the comments this forge creates. Left undefined, they read as bot-authored. */
-  commentAuthor?: CommentAuthor;
 }
 
 export class FakeForge implements Forge {
@@ -66,7 +64,6 @@ export class FakeForge implements Forge {
   private readonly releasesByTag: Record<string, ReleaseRef>;
   private readonly actorPermissions: Record<string, RepoPermission>;
   private readonly teamMemberships: Record<string, string[]>;
-  private readonly commentAuthor?: CommentAuthor;
 
   // Recorded writes, for assertions.
   readonly createdComments: Array<{ prNumber: number; body: string }> = [];
@@ -109,7 +106,6 @@ export class FakeForge implements Forge {
     this.releasesByTag = seed.releasesByTag ?? {};
     this.actorPermissions = seed.actorPermissions ?? {};
     this.teamMemberships = seed.teamMemberships ?? {};
-    this.commentAuthor = seed.commentAuthor;
     this.nextCommentId = Math.max(0, ...this.comments.map((c) => c.id)) + 1;
   }
 
@@ -207,7 +203,7 @@ export class FakeForge implements Forge {
 
   async createComment(prNumber: number, body: string): Promise<void> {
     this.createdComments.push({ prNumber, body });
-    this.comments.push({ id: this.nextCommentId++, body, prNumber, user: this.commentAuthor });
+    this.comments.push({ id: this.nextCommentId++, body, prNumber });
   }
 
   async updateComment(commentId: number, body: string): Promise<void> {

@@ -165,13 +165,12 @@ describe('runReleaseDraft', () => {
     expect(seeded.upsertedComments.map((c) => c.prNumber)).not.toContain(7);
   });
 
-  it('should close a fresh draft and fail when its manifest comment is not bot-authored', async () => {
-    const seeded = createFakeForge({ commentAuthor: humanAuthor });
-    mockForgeFor.mockReturnValue(seeded);
+  it('should refuse a personal token before computing the release', async () => {
+    mockGetGitHubContext.mockReturnValue({ ...context, token: 'ghp_personal' });
 
-    await expect(runReleaseDraft(baseOptions)).rejects.toThrow(/written by 'attacker', not a bot account/);
-    expect(seeded.createdIssues).toHaveLength(1);
-    expect(seeded.updatedIssues).toEqual([expect.objectContaining({ changes: { state: 'closed' } })]);
+    await expect(runReleaseDraft(baseOptions)).rejects.toThrow(/personal token/);
+    expect(mockRunRelease).not.toHaveBeenCalled();
+    expect(forge.createdIssues).toHaveLength(0);
   });
 
   it('should create no issue when there are no releasable changes', async () => {
@@ -435,6 +434,18 @@ describe('publishFromDraft', () => {
     expect(vi.mocked(warn)).toHaveBeenCalledWith(expect.stringContaining('markers may have been removed'));
     expect(mockRunRelease).toHaveBeenCalledWith(
       expect.objectContaining({ editedNotes: { '@scope/core': '- reviewed in the draft' } }),
+    );
+  });
+
+  it('should refuse an unreadable draft manifest with the draft remedy', async () => {
+    const forge = createFakeForge({
+      issues: { 9: { body: 'x', title: 't', labels: ['release:draft'], isPullRequest: false } },
+      comments: [{ id: 1, body: `${draftMarker}\nnot-a-real-manifest`, prNumber: 9, user: botAuthor }],
+    });
+    mockForgeFor.mockReturnValue(forge);
+
+    await expect(publishFromDraft(9, baseOptions)).rejects.toThrow(
+      /Release manifest on draft #9 is invalid or incompatible\. Re-run 'releasekit release --draft'/,
     );
   });
 

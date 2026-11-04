@@ -86,6 +86,14 @@ export async function runReleaseDraft(options: ReleaseOptions): Promise<ReleaseO
   if (!context?.token) {
     throw new Error('Cannot create a release draft: no GitHub token in the environment.');
   }
+  // User-token prefixes. The workflow's GITHUB_TOKEN and App installation tokens are ghs_; an unknown format passes,
+  // and --from-draft still checks who wrote the manifest.
+  if (/^(ghp|github_pat|gho|ghu)_/.test(context.token)) {
+    throw new Error(
+      "Cannot create a release draft with a personal token: '--from-draft' refuses a manifest a bot didn't write. " +
+        "Run 'releasekit release --draft' with the workflow's GITHUB_TOKEN or a GitHub App installation token.",
+    );
+  }
 
   const result = await runRelease({ ...options, dryRun: true });
   if (!result) {
@@ -127,17 +135,6 @@ export async function runReleaseDraft(options: ReleaseOptions): Promise<ReleaseO
     issueNumber = ref.number;
   }
   await forge.upsertMarkerComment(issueNumber, DRAFT_MANIFEST_MARKER, manifestComment);
-  if (!reusable) {
-    const written = await forge.findComment(issueNumber, DRAFT_MANIFEST_MARKER);
-    if (written && !isBotComment(written)) {
-      await forge.updateIssue(issueNumber, { state: 'closed' });
-      throw new Error(
-        `Closed release draft #${issueNumber}: its manifest comment was written by ` +
-          `'${written.user?.login ?? 'an unknown user'}', not a bot account, so '--from-draft' would refuse it. ` +
-          "Re-run 'releasekit release --draft' with the workflow's GITHUB_TOKEN or a GitHub App installation token.",
-      );
-    }
-  }
 
   success(`Release draft ready for review: issue #${issueNumber}. Edit the notes, then dispatch --from-draft.`);
   return result;
@@ -152,7 +149,10 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
   const forge = forgeFor(context);
   const manifestComment = await forge.findComment(issueNumber, DRAFT_MANIFEST_MARKER);
   if (!manifestComment) {
-    throw new Error(`No release-draft manifest found on issue #${issueNumber}.`);
+    throw new Error(
+      `No release-draft manifest found on issue #${issueNumber}. Pass the issue number 'releasekit release --draft' ` +
+        'reported, or re-run it.',
+    );
   }
   if (!isBotComment(manifestComment)) {
     throw new Error(
@@ -162,7 +162,15 @@ export async function publishFromDraft(issueNumber: number, options: ReleaseOpti
         'dispatch the draft issue it reports.',
     );
   }
-  const manifest = parseManifest(manifestComment.body);
+  let manifest: StandingPRManifest;
+  try {
+    manifest = parseManifest(manifestComment.body);
+  } catch (err) {
+    throw new Error(
+      `Release manifest on draft #${issueNumber} is invalid or incompatible. Re-run 'releasekit release --draft'. ` +
+        `Details: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
 
   // A different HEAD could publish something other than what was reviewed.
   const currentSha = await createGitCli().headSha(options.projectDir);
