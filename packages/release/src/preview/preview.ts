@@ -213,7 +213,7 @@ async function resolvePRBase(
     for (const name of remotes) {
       const base = await createGitCli().mergeBase('HEAD', `refs/remotes/${name}/${pr.base.ref}`, projectDir);
       if (base) {
-        return base;
+        return newerBase(base, pr.base.sha, projectDir);
       }
     }
   }
@@ -228,6 +228,17 @@ async function resolvePRBase(
     );
   }
   return pr.base?.sha;
+}
+
+/** A fork's or out-of-date `origin/<base>` gives a merge base older than the event's base commit. */
+async function newerBase(mergeBase: string, eventBase: string | undefined, projectDir: string): Promise<string> {
+  if (!eventBase || eventBase === mergeBase) {
+    return mergeBase;
+  }
+  const git = createGitCli();
+  const eventBaseIsNewer =
+    (await git.isAncestor(mergeBase, eventBase, projectDir)) && (await git.isAncestor(eventBase, 'HEAD', projectDir));
+  return eventBaseIsNewer ? eventBase : mergeBase;
 }
 
 function resolvePrerelease(

@@ -129,6 +129,24 @@ describe('runPreview commit scope in a standing-PR feeder', () => {
     expect(previewBody()).toContain('1.0.1');
   });
 
+  it("should prefer the event's base when origin's base branch is behind it, as in a fork", async () => {
+    git(dir, 'update-ref', 'refs/remotes/origin/main', 'main');
+    commit(dir, 'upstream.txt', 'feat: add the upstream feature');
+    const branchPoint = git(dir, 'rev-parse', 'HEAD');
+    git(dir, 'checkout', '-q', '-b', 'feat/own');
+    commit(dir, 'own.txt', 'fix: correct the own bug');
+    writeEvent(dir, {
+      head: { ref: 'feat/own', sha: git(dir, 'rev-parse', 'HEAD') },
+      base: { ref: 'main', sha: branchPoint },
+    });
+
+    await runPreview({ projectDir: dir, dryRun: false });
+
+    expect(previewBody()).toContain('correct the own bug');
+    expect(previewBody()).not.toContain('add the upstream feature');
+    expect(previewBody()).toContain('1.0.1');
+  });
+
   it('should look for the base branch under the configured git.remote', async () => {
     writeFileSync(
       join(dir, 'releasekit.config.json'),

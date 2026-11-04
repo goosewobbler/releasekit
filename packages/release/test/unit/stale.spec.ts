@@ -243,6 +243,31 @@ describe('markFeederPreviewsStale', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('pull-requests: write'));
   });
 
+  it("should stop at a secondary rate limit without blaming the token's permissions", async () => {
+    const { warn } = await import('@releasekit/core');
+    const forge = seedForge([pr(10), pr(11)]);
+    const update = vi
+      .spyOn(forge, 'updateComment')
+      .mockRejectedValue(Object.assign(new Error('You have exceeded a secondary rate limit'), { status: 403 }));
+    mockForgeFor.mockReturnValue(forge);
+
+    await markFeederPreviewsStale(options);
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('secondary rate limit'));
+    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('pull-requests: write'));
+  });
+
+  it('should recognise a stale mark after a web-UI edit turned its line endings into CRLF', async () => {
+    const body = `${MARKER}\r\n\r\n${STALE_LINE}\r\n> **Stale:** notice\r\n\r\nedited preview`;
+    const forge = createFakeForge({ openPullRequests: [pr(10)], comments: [{ id: 10, prNumber: 10, body }] });
+    mockForgeFor.mockReturnValue(forge);
+
+    await markFeederPreviewsStale(options);
+
+    expect(forge.updatedComments).toEqual([]);
+  });
+
   it('should not throw when listing open PRs fails', async () => {
     const forge = seedForge([pr(10)]);
     vi.spyOn(forge, 'listOpenPullRequests').mockRejectedValue(new Error('rate limited'));

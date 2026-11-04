@@ -19,8 +19,8 @@ const STALE_NOTICE =
   "> **Stale:** a release has moved the base branch since this preview was posted. It updates on this PR's next push or label change.";
 
 /**
- * Never throws, so the orchestrator can run it in-process after any successful publish. Forge-only (no git push), so
- * a `pull-requests: write` token suffices.
+ * Never throws, so a publish path can run it in-process without a guard. Forge-only (no git push), so a
+ * `pull-requests: write` token suffices.
  */
 export async function markFeederPreviewsStale(options: MarkPreviewsStaleOptions): Promise<void> {
   const prPreview = options.ciConfig?.prPreview;
@@ -57,11 +57,10 @@ export async function markFeederPreviewsStale(options: MarkPreviewsStaleOptions)
         marked++;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        // A refusal applies to every PR, so stop rather than repeat it; any other failure is this PR's alone.
+        // A refusal or rate limit hits every PR, so stop rather than repeat it; other failures are this PR's alone.
         if (forgeErrorStatus(err) === 403) {
-          warn(
-            `Stopped marking feeder-PR previews stale: GitHub refused PR #${pr.number} (${message}). The release job needs \`pull-requests: write\`.`,
-          );
+          const hint = /rate limit/i.test(message) ? '' : ' The release job needs `pull-requests: write`.';
+          warn(`Stopped marking feeder-PR previews stale: GitHub refused PR #${pr.number} (${message}).${hint}`);
           break;
         }
         warn(`Could not mark the preview on PR #${pr.number} stale: ${message}`);
@@ -74,7 +73,8 @@ export async function markFeederPreviewsStale(options: MarkPreviewsStaleOptions)
 }
 
 function isMarkedStale(body: string): boolean {
-  return body.startsWith(`${MARKER}\n\n${STALE_MARKER}\n`);
+  // Editing a comment in GitHub's web UI saves it with CRLF line endings.
+  return body.replace(/\r\n/g, '\n').startsWith(`${MARKER}\n\n${STALE_MARKER}\n`);
 }
 
 function markStale(body: string): string {
