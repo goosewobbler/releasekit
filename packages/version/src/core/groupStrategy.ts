@@ -437,9 +437,11 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
       const allVersions = new Map<string, string>();
 
       for (const group of resolution.groups) {
-        const selected = group.members.filter(targetFilter).filter((p) => shouldProcess(p, config));
         // Dropped before planning, so a member with nothing to bump can't set the group's version.
-        const members = selected.filter((p) => hasManifestToBump(p.dir, config, { ignorePaths: true }));
+        const members = group.members
+          .filter(targetFilter)
+          .filter((p) => shouldProcess(p, config))
+          .filter((p) => hasManifestToBump(p.dir, config, { ignorePaths: true }));
         if (members.length === 0) {
           continue;
         }
@@ -456,28 +458,26 @@ export function createGroupStrategy(config: Config): (packages: PackagesWithRoot
         // missing; independent only if a *changed* one is, so excluded members are planned to avoid a false
         // alarm. Linked groups release partially by design.
         if (group.sync !== 'linked') {
-          const warnDropped = async (candidates: Package[], reason: string): Promise<void> => {
-            const dropped =
-              group.sync === 'fixed'
-                ? candidates
-                : (await Promise.all(candidates.map((m) => planMember(config, m, formattedPrefix, globalTag))))
-                    .filter((p) => p.changed)
-                    .map((p) => p.pkg);
-            if (dropped.length > 0) {
-              const names = dropped.map((m) => m.packageJson.name).join(', ');
-              log(`Group "${group.name}" (${group.sync}) will release without: ${names}. ${reason}`, 'warning');
-            }
-          };
-          const inSelection = new Set(selected.map((m) => m.packageJson.name));
-          await warnDropped(
-            group.members.filter((m) => !inSelection.has(m.packageJson.name)),
-            'They were excluded by config.skip or --target, so the group will not ship as a single atomic unit. ' +
-              'Include them (remove from config.skip or add via --target) to keep the group atomic.',
-          );
-          await warnDropped(
-            selected.filter((m) => !members.includes(m)),
-            'They have no manifest releasekit can bump, so the group will not ship as a single atomic unit.',
-          );
+          const inRelease = new Set(members.map((m) => m.packageJson.name));
+          const excludedMembers = group.members.filter((m) => !inRelease.has(m.packageJson.name));
+          let droppedNames: string[];
+          if (group.sync === 'fixed') {
+            droppedNames = excludedMembers.map((m) => m.packageJson.name);
+          } else {
+            const excludedPlans = await Promise.all(
+              excludedMembers.map((m) => planMember(config, m, formattedPrefix, globalTag)),
+            );
+            droppedNames = excludedPlans.filter((p) => p.changed).map((p) => p.pkg.packageJson.name);
+          }
+          if (droppedNames.length > 0) {
+            log(
+              `Group "${group.name}" (${group.sync}) will release without: ${droppedNames.join(', ')}. ` +
+                'They were excluded by config.skip or --target, or have no manifest releasekit can bump, so the ' +
+                'group will not ship as a single atomic unit. Include them (remove from config.skip or add via ' +
+                '--target) to keep the group atomic.',
+              'warning',
+            );
+          }
         }
 
         log(

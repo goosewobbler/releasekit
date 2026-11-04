@@ -50,7 +50,13 @@ export function getCargoInfo(cargoPath: string): CargoInfo {
 
 /** A virtual workspace manifest has no [package]. */
 export function isVersionedCrate(cargoPath: string): boolean {
-  return !!parseCargoToml(cargoPath).package?.name;
+  let cargo: CargoManifest;
+  try {
+    cargo = parseCargoToml(cargoPath);
+  } catch (error) {
+    throw new Error(`Cannot parse ${cargoPath}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  return !!cargo.package?.name;
 }
 
 /**

@@ -136,7 +136,6 @@ export function createSyncStrategy(config: Config): StrategyFunction {
 
       if (packages.root) {
         const rootPkgPath = path.join(packages.root, 'package.json');
-        let rootPackageJsonFailed = false;
         try {
           if (config.npm?.enabled !== false && fs.existsSync(rootPkgPath)) {
             // Flag as root so consumers (preview, standing PR) exclude it from package counts - it isn't publishable.
@@ -146,26 +145,20 @@ export function createSyncStrategy(config: Config): StrategyFunction {
         } catch (error) {
           const errMessage = error instanceof Error ? error.message : String(error);
           log(`Failed to update root package.json: ${errMessage}`, 'error');
-          rootPackageJsonFailed = true;
         }
-        if (!rootPackageJsonFailed) {
-          // Record even when npm is disabled so the loop skips it in a single-package repo (where
-          // packages.root === packages[0].dir) - otherwise its native manifests are versioned twice. A failed
-          // write isn't recorded, so the loop retries it and the run fails.
-          processedPaths.add(rootPkgPath);
+        // Record even when npm is disabled so the loop skips it in a single-package repo (where
+        // packages.root === packages[0].dir) - otherwise its native manifests are versioned twice.
+        processedPaths.add(rootPkgPath);
 
-          const rootNativeFiles = updateNativeManifests(packages.root, nextVersion, config, {
-            dryRun,
-            repoRoot,
-            isRoot: true,
-            // Members still resolve their own `paths`; with no other member, a bad one must be reported.
-            skipPathsOutsideRepo: packages.packages.some((p) => p.dir !== packages.root),
-          });
-          // Track a native-only root bump: the loop skips this path in a single-package repo, so the early
-          // return below would otherwise abandon the written file.
-          if (rootNativeFiles.length > 0 && !updatedPackages.includes('root')) {
-            updatedPackages.push('root');
-          }
+        const rootNativeFiles = updateNativeManifests(packages.root, nextVersion, config, {
+          dryRun,
+          repoRoot,
+          isRoot: true,
+        });
+        // Track a native-only root bump: the loop skips this path in a single-package repo, so the early
+        // return below would otherwise abandon the written file.
+        if (rootNativeFiles.length > 0 && !updatedPackages.includes('root')) {
+          updatedPackages.push('root');
         }
       } else {
         log('Root package path is undefined, skipping root package.json update', 'warning');

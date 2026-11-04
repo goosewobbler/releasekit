@@ -1,6 +1,5 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { isPathWithinRoot } from '@releasekit/core';
 import { isVersionedCrate } from '../cargo/cargoHandler.js';
 import { updatePackageVersion } from '../package/packageManagement.js';
 import { isReleasablePubspec } from '../pub/pubHandler.js';
@@ -23,8 +22,6 @@ export interface NativeManifestOptions {
   isRoot?: boolean;
   /** Group members are package-keyed, so `cargo.paths` and `pub.paths` don't apply to them. */
   ignorePaths?: boolean;
-  /** The sync root pass resolves member-relative `paths` from the root, where an entry like `../x` leaves the repo. */
-  skipPathsOutsideRepo?: boolean;
 }
 
 function manifestKinds(config: Pick<Config, 'cargo' | 'pub'>): ManifestKind[] {
@@ -90,7 +87,7 @@ export function checkManifestToBump(
 function locateManifests(
   packageDir: string,
   kind: ManifestKind,
-  { repoRoot = process.cwd(), ignorePaths = false, skipPathsOutsideRepo = false }: NativeManifestOptions,
+  { repoRoot = process.cwd(), ignorePaths = false }: NativeManifestOptions,
 ): string[] {
   if (kind.config?.enabled === false) {
     return [];
@@ -99,13 +96,7 @@ function locateManifests(
   const configuredPaths = ignorePaths ? [] : (kind.config?.paths ?? []);
   const candidates =
     configuredPaths.length > 0
-      ? configuredPaths.flatMap((p) => {
-          if (skipPathsOutsideRepo && !isPathWithinRoot(repoRoot, path.resolve(packageDir, p, kind.file))) {
-            log(`Skipping ${kind.file} path ${p} for ${packageDir}: it resolves outside the repository`, 'debug');
-            return [];
-          }
-          return [resolveConfinedManifestPath(repoRoot, packageDir, p, kind.file)];
-        })
+      ? configuredPaths.map((p) => resolveConfinedManifestPath(repoRoot, packageDir, p, kind.file))
       : [path.join(packageDir, kind.file)];
 
   return candidates.filter((manifestPath) => {

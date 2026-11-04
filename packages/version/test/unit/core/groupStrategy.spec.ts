@@ -1126,26 +1126,9 @@ describe('createGroupStrategy', () => {
       expect(jsonOutput.addTag).toHaveBeenCalledWith('@wdio/native-core@v2.3.1');
       expect(jsonOutput.addTag).toHaveBeenCalledTimes(1);
       expect(logging.log).toHaveBeenCalledWith(
-        'Group "native" (fixed) will release without: @wdio/native-orphan. They have no manifest releasekit can ' +
-          'bump, so the group will not ship as a single atomic unit.',
+        expect.stringContaining('will release without: @wdio/native-orphan'),
         'warning',
       );
-    });
-
-    it('should not warn about a member with nothing to bump when the group has no changes', async () => {
-      const core = mkPackage('@wdio/native-core', '2.3.0');
-      const orphan = mkPackage('@wdio/native-orphan', '2.3.0');
-      vi.mocked(fs.existsSync, { partial: true }).mockImplementation(
-        (p) => p === '/ws/packages/wdio-native-core/package.json',
-      );
-      vi.mocked(calculator.calculateVersion).mockResolvedValue('');
-
-      const strategy = createGroupStrategy(
-        baseConfig({ groups: { native: { packages: ['@wdio/native-*'], sync: 'fixed' } } }),
-      );
-      await strategy(workspace([core, orphan]));
-
-      expect(logging.log).not.toHaveBeenCalledWith(expect.stringContaining('native-orphan'), 'warning');
     });
 
     it("should bump an ungrouped Dart package's pubspec.yaml", async () => {

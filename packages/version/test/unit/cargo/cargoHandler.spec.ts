@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as TOML from 'smol-toml';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getCargoInfo, isCargoToml, updateCargoVersion } from '../../../src/cargo/cargoHandler.js';
+import { getCargoInfo, isCargoToml, isVersionedCrate, updateCargoVersion } from '../../../src/cargo/cargoHandler.js';
 import { recordCargoBump } from '../../../src/cargo/cargoLock.js';
 import * as jsonOutput from '../../../src/utils/jsonOutput.js';
 import * as logging from '../../../src/utils/logging.js';
@@ -106,6 +106,21 @@ describe('Cargo Handler', () => {
 
       expect(logging.log).toHaveBeenCalledWith(expect.stringContaining('Error reading Cargo.toml:'), 'error');
       expect(logging.log).toHaveBeenCalledWith(mockError.message, 'error');
+    });
+  });
+
+  describe('isVersionedCrate', () => {
+    it('should treat a manifest with a [package] name as a crate and a virtual workspace as not', () => {
+      expect(isVersionedCrate(mockCargoPath)).toBe(true);
+      vi.mocked(parseCargoToml, { partial: true }).mockReturnValue({ workspace: { members: ['crates/*'] } });
+      expect(isVersionedCrate(mockCargoPath)).toBe(false);
+    });
+
+    it('should fail on an unparseable Cargo.toml, naming the file', () => {
+      vi.mocked(parseCargoToml, { partial: true }).mockImplementation(() => {
+        throw new Error('Invalid TOML document');
+      });
+      expect(() => isVersionedCrate(mockCargoPath)).toThrow(`Cannot parse ${mockCargoPath}: Invalid TOML document`);
     });
   });
 
