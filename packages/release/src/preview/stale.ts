@@ -90,7 +90,7 @@ export async function markPreviewsStaleIfPushed(
 }
 
 export async function markPreviewsStaleAfterPublish(output: PublishOutput, options: PublishCliOptions): Promise<void> {
-  if (!options.dryRun) {
+  if (!options.dryRun && output.git.branch) {
     await markPreviewsStaleIfPushed(output, loadCIConfig({ configPath: options.config }));
   }
 }

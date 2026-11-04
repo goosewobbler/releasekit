@@ -1507,16 +1507,17 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
 async function publishAndMarkPreviews(
   prNumber: number,
   options: StandingPROptions,
-  mergedThisRun: boolean,
+  knownMerged: boolean,
 ): Promise<ReleaseOutput> {
   let published = false;
+  const seen: { pr?: PullRequestDetails } = {};
   try {
-    const result = await publishManifest(prNumber, options);
+    const result = await publishManifest(prNumber, options, seen);
     published = true;
     return result;
   } finally {
     // A publish only succeeds for a merged PR.
-    await markPreviewsStaleAfterMerge(prNumber, options, published || mergedThisRun);
+    await markPreviewsStaleAfterMerge(prNumber, options, published || knownMerged, seen.pr);
   }
 }
 
@@ -1528,18 +1529,25 @@ async function markPreviewsStaleAfterMerge(
   prNumber: number,
   options: StandingPROptions,
   knownMerged: boolean,
+  livePr?: PullRequestDetails,
 ): Promise<void> {
+  let releaseKitConfig: ReturnType<typeof loadReleaseKitConfig>;
   try {
-    const releaseKitConfig = loadReleaseKitConfig({ cwd: options.projectDir, configPath: options.config });
-    if (!marksPreviewsStale(releaseKitConfig.ci)) {
-      return;
-    }
+    releaseKitConfig = loadReleaseKitConfig({ cwd: options.projectDir, configPath: options.config });
+  } catch {
+    // The publish has already reported a config it can't load.
+    return;
+  }
+  if (!marksPreviewsStale(releaseKitConfig.ci)) {
+    return;
+  }
+  try {
     const event = pullRequestEvent(prNumber);
     const eventBase = event?.pull_request.base?.ref;
     // Only a `closed` event's snapshot is current: a job started by another event may merge before it publishes.
     const eventMerged = event?.action === 'closed' ? event.pull_request.merged : undefined;
     const needPr = eventBase === undefined || (!knownMerged && eventMerged === undefined);
-    const pr = needPr ? await readPullRequest(prNumber) : undefined;
+    const pr = livePr ?? (needPr ? await readPullRequest(prNumber) : undefined);
     // A dispatch can name a PR that never merged, and then nothing moved the base branch.
     if (!(knownMerged || (eventMerged ?? pr?.merged))) {
       if (eventMerged === undefined && pr === undefined) {
@@ -1549,7 +1557,7 @@ async function markPreviewsStaleAfterMerge(
     }
     await markFeederPreviewsStale({
       ciConfig: releaseKitConfig.ci,
-      branch: eventBase ?? pr?.baseRef ?? releaseKitConfig.git?.branch ?? 'main',
+      branch: pr?.baseRef ?? eventBase ?? releaseKitConfig.git?.branch ?? 'main',
     });
   } catch (err) {
     warn(`Marking feeder-PR previews stale failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -1568,7 +1576,11 @@ async function readPullRequest(prNumber: number): Promise<PullRequestDetails | u
   }
 }
 
-async function publishManifest(prNumber: number, options: StandingPROptions): Promise<ReleaseOutput> {
+async function publishManifest(
+  prNumber: number,
+  options: StandingPROptions,
+  seen: { pr?: PullRequestDetails },
+): Promise<ReleaseOutput> {
   const cwd = options.projectDir;
 
   const githubContext = getGitHubContext();
@@ -1672,6 +1684,7 @@ async function publishManifest(prNumber: number, options: StandingPROptions): Pr
   let livePr: PullRequestDetails | undefined;
   try {
     livePr = await forge.getPullRequest(prNumber);
+    seen.pr = livePr;
   } catch (err) {
     warn(`Could not read PR #${prNumber}: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -1875,7 +1888,7 @@ export async function runStandingPRPublish(
       );
     }
 
-    return publishFromManifest(prNumber, options);
+    return publishAndMarkPreviews(prNumber, options, true);
   }
 
   const githubContext = getGitHubContext();
@@ -1894,7 +1907,7 @@ export async function runStandingPRPublish(
   info(
     `Inferred standing PR #${inferred} (most recently merged '${releaseBranch}' PR) — pass --pr to target a specific PR`,
   );
-  return publishFromManifest(inferred, options);
+  return publishAndMarkPreviews(inferred, options, true);
 }
 
 export async function runStandingPRMerge(

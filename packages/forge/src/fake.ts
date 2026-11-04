@@ -159,6 +159,10 @@ export class FakeForge implements Forge {
 
   async mergePullRequest(prNumber: number, method: MergeMethod): Promise<void> {
     this.mergedPullRequests.push({ prNumber, method });
+    this.pullRequestDetails[prNumber] = {
+      ...(this.pullRequestDetails[prNumber] ?? { body: '', labels: [] }),
+      merged: true,
+    };
   }
 
   async createIssue(issue: NewIssue): Promise<IssueRef> {
