@@ -229,14 +229,18 @@ runs:
         # read a PAT. An empty input (a secret unset on a fork run) falls back to the workflow token.
         token: ${{ (inputs.mode == 'release' || inputs.mode == 'standing-pr-update' || inputs.mode == 'standing-pr-publish' || inputs.mode == 'refresh-after-release') && inputs.dry-run != 'true' && (inputs.github-token || github.token) || github.token }}
 
-    # A repo without a pnpm packageManager (npm, Dart or Rust) gets the action's own pnpm, and only a pnpm
-    # lockfile can key setup-node's cache.
+    # A repo that doesn't pin pnpm (npm, Dart or Rust) gets the action's own pnpm, and only a pnpm lockfile can
+    # key setup-node's cache. The pin check mirrors pnpm/action-setup's: devEngines.packageManager or packageManager.
     - name: Resolve pnpm setup
       id: pnpm-setup
       shell: bash
       run: |
-        if ! grep -Eqs '"packageManager"[[:space:]]*:[[:space:]]*"pnpm@' "$GITHUB_WORKSPACE/package.json"; then
-          echo "version=$(sed -nE 's/.*"packageManager"[[:space:]]*:[[:space:]]*"pnpm@([^"+]*).*/\1/p' "$GITHUB_ACTION_PATH/package.json")" >> "$GITHUB_OUTPUT"
+        if ! node -e '
+          const m = require(process.argv[1]);
+          const d = m.devEngines?.packageManager;
+          process.exit(String(m.packageManager).startsWith("pnpm@") || (d?.name === "pnpm" && d.version) ? 0 : 1);
+        ' "$GITHUB_WORKSPACE/package.json" 2>/dev/null; then
+          echo "version=$(node -p 'require(process.argv[1]).packageManager.split("@")[1].split("+")[0]' "$GITHUB_ACTION_PATH/package.json")" >> "$GITHUB_OUTPUT"
         fi
         if [ -f "$GITHUB_WORKSPACE/pnpm-lock.yaml" ]; then
           echo "cache=pnpm" >> "$GITHUB_OUTPUT"
@@ -252,6 +256,7 @@ runs:
       with:
         node-version: ${{ inputs.node-version }}
         cache: ${{ steps.pnpm-setup.outputs.cache }}
+        package-manager-cache: false
 
     - name: Install action runtime deps
       run: pnpm install --frozen-lockfile

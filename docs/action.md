@@ -27,14 +27,16 @@ uses: goosewobbler/releasekit@v0
 
 ## Required permissions and env
 
-The action passes `github-token` (default: the workflow token) to ReleaseKit as `GITHUB_TOKEN`, so a `GITHUB_TOKEN` in the step's `env` is ignored. Pass a PAT or App token as `github-token`. In `release`, the standing-PR modes and `refresh-after-release`, the action's checkout also persists it for git pushes, unless you set `ssh-key` or `skip-checkout`. Unlike the workflow token's, those pushes start `on: push` workflows.
+The action passes `github-token` (default: the workflow token) to ReleaseKit as `GITHUB_TOKEN` and `GH_TOKEN`, so either in the step's `env` is ignored. In `release`, the standing-PR modes and `refresh-after-release`, the action's checkout also persists it for git pushes, unless you set `ssh-key` or `skip-checkout`.
+
+To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a GitHub App token. Not a PAT: ReleaseKit recognises its own comments by bot authorship, so with a PAT `standing-pr-publish` refuses the release manifest, marker comments are posted again on every run, and the standing-PR workflow's bot-sender check stops filtering its own edits.
 
 ### Release mode
 
 - Recommended job permissions:
   - `id-token: write` (OIDC trusted publishing)
   - `contents: write` (checkout, git push & GitHub Releases)
-  - `pull-requests: read` (merged-PR labels such as bump and scope)
+  - `pull-requests: write` (merged-PR labels, publish-failure reports and feeder-PR previews)
 
 ### Preview mode
 
@@ -46,7 +48,7 @@ The action passes `github-token` (default: the workflow token) to ReleaseKit as 
 
 - Recommended job permissions:
   - `contents: read`
-  - `pull-requests: read` (reading the merged PR's labels)
+  - `pull-requests: write` (reading the merged PR's labels and posting label notices)
 
 ### Standing-PR modes
 
@@ -61,8 +63,8 @@ The action passes `github-token` (default: the workflow token) to ReleaseKit as 
 | `mode` | `preview` | `release`, `preview`, `gate`, `standing-pr-update`, `standing-pr-publish`, `backfill`, or `refresh-after-release` |
 | `config` | - | Path to `releasekit.config.json` |
 | `project-dir` | `.` | Project directory |
-| `dry-run` | `false` | Dry-run for `release`, `preview` and `backfill`. `gate` is read-only; other modes fail if it's set |
-| `github-token` | workflow token | Token for GitHub API calls and the action's checkout, which git pushes use (override with a PAT/App token when rulesets require it) |
+| `dry-run` | `false` | Dry-run for `release`, `preview` and `backfill`; other modes fail if it's set |
+| `github-token` | workflow token | Token for GitHub API calls and the action's checkout, which git pushes use (override with a GitHub App token when rulesets require it) |
 | `node-version` | `24` | Node.js version for the action's setup-node step |
 | `npm-token` | - | NPM token when not using OIDC; when unset, the job's `NPM_TOKEN` env is preserved |
 | `summary` | `true` | Write a job summary for `release` and `gate` |
@@ -160,7 +162,7 @@ jobs:
     permissions:
       id-token: write
       contents: write
-      pull-requests: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v6
         with:

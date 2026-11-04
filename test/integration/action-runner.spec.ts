@@ -30,7 +30,7 @@ describe('action runner', () => {
     tempDirs.length = 0;
   });
 
-  it.each(['standing-pr-update', 'standing-pr-publish', 'refresh-after-release'])(
+  it.each(['gate', 'standing-pr-update', 'standing-pr-publish', 'refresh-after-release'])(
     'should reject dry-run for %s, which would otherwise run for real',
     (mode) => {
       expect(() => parseInputs({ INPUT_MODE: mode, INPUT_DRY_RUN: 'true' })).toThrow(
@@ -68,10 +68,6 @@ describe('action runner', () => {
     const outputs = fs.readFileSync(outputFile, 'utf-8');
     expect(outputs).toMatch(/^mode<<\S+\nstanding-pr-publish\n/m);
     expect(outputs).toMatch(/^success<<\S+\nfalse\n/m);
-  });
-
-  it('should accept dry-run for read-only gate mode', () => {
-    expect(parseInputs({ INPUT_MODE: 'gate', INPUT_DRY_RUN: 'true' }).mode).toBe('gate');
   });
 
   it('should drop --apply from backfill args on a dry run', () => {

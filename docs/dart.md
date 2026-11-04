@@ -171,7 +171,7 @@ on:
 
 permissions:
   contents: write
-  pull-requests: read
+  pull-requests: write
   id-token: write # required for pub.dev OIDC automated publishing
 
 jobs:

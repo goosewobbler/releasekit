@@ -232,7 +232,7 @@ function assertDryRunSupported(mode, dryRun) {
     return;
   }
   // An allowlist, so a new mode that drops dry-run fails rather than running for real.
-  const dryRunModes = new Set(['release', 'preview', 'backfill', 'gate']);
+  const dryRunModes = new Set(['release', 'preview', 'backfill']);
   if (!dryRunModes.has(mode)) {
     throw new Error(`dry-run is not supported for mode "${mode}"`);
   }
@@ -710,8 +710,12 @@ async function main() {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   main().catch((err) => {
-    writeCoreOutputs(normalizeString(process.env.INPUT_MODE) ?? 'preview', false);
     process.stderr.write(`[run-action] uncaught error: ${err instanceof Error ? err.message : String(err)}\n`);
+    try {
+      writeCoreOutputs(normalizeString(process.env.INPUT_MODE) ?? 'preview', false);
+    } catch {
+      // The error above is the one that matters.
+    }
     process.exit(1);
   });
 }
