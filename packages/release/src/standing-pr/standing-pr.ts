@@ -1730,7 +1730,7 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
     }
   }
 
-  // The merge moved the base branch; this job pushes tags only. Runs after the cleanup, which its API calls would delay.
+  // The merge, not this job, moved the base branch. Last, so its API calls don't delay the branch cleanup.
   await markFeederPreviewsStale({
     ciConfig: releaseKitConfig.ci,
     branch: livePr?.baseRef ?? eventPr?.base?.ref ?? releaseKitConfig.git?.branch ?? 'main',

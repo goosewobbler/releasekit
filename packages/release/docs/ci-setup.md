@@ -283,12 +283,10 @@ baseline until it's pushed again. Turn on stale marking to flag this:
 ```
 
 With `markStaleAfterRelease` on, each standing-PR publish, and each `releasekit release` that pushes the
-release branch, marks the preview stale on still-open PRs into that branch, checking the 50 most recently
-updated. Running `releasekit publish` on its own doesn't. Give the release job `pull-requests: write`.
-The job doesn't have those PRs' trees, so each preview updates on its PR's next push or label change.
-It's best-effort: a failure on one PR only warns, a refusal or rate limit stops the sweep with one
-warning, and a preview job already running when the release lands can replace the mark with its
-pre-release preview.
+release branch, marks the previews on open PRs into that branch as stale; `releasekit publish` on its own
+doesn't. Each preview updates on its PR's next push or label change. Only the 50 most recently updated
+PRs are checked, and the release job needs `pull-requests: write`. It's best-effort: failures only warn,
+and a preview job already running when the release lands can replace the mark with a pre-release preview.
 (`ci.prPreview: true` remains valid shorthand for `{ "enabled": true }`.)
 
 ---

@@ -19,8 +19,8 @@ const STALE_NOTICE =
   "> **Stale:** a release has moved the base branch since this preview was posted. It updates on this PR's next push or label change.";
 
 /**
- * Never throws, so a publish path can run it in-process without a guard. Forge-only (no git push), so a
- * `pull-requests: write` token suffices.
+ * Never throws, so a publish path can run it in-process without a guard. Forge-only, so a `pull-requests: write`
+ * token suffices.
  */
 export async function markFeederPreviewsStale(options: MarkPreviewsStaleOptions): Promise<void> {
   const prPreview = options.ciConfig?.prPreview;
@@ -52,7 +52,7 @@ export async function markFeederPreviewsStale(options: MarkPreviewsStaleOptions)
         if (!comment || !isBotComment(comment) || isMarkedStale(comment.body)) {
           continue;
         }
-        // Straight after the read: GitHub has no conditional comment edit, so a preview re-posted in between is lost.
+        // Straight after the read, since GitHub has no conditional edit: a preview re-posted in between is overwritten.
         await forge.updateComment(comment.id, markStale(comment.body));
         marked++;
       } catch (err) {

@@ -118,7 +118,7 @@ export interface GitResult {
   committed: boolean;
   tags: string[];
   pushed: boolean;
-  /** The release branch pushed, or that a dry run would push. Unset when only tags are pushed, as in standing-PR mode. */
+  /** The release branch pushed, dry runs included. Unset when only tags are pushed, as in standing-PR mode. */
   branch?: string;
 }
 

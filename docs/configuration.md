@@ -397,7 +397,7 @@ Set to `false` to disable.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `enabled` | boolean | `true` | Whether PR preview comments are posted. |
-| `markStaleAfterRelease` | boolean | `false` | After a successful standing-PR publish, or a `releasekit release` that pushes the release branch, mark the preview comment on still-open feeder PRs into that branch as stale, since the release moved it; each preview updates on its PR's next push or label change. `releasekit publish` on its own doesn't mark them. Cosmetic and best-effort — a failure here never fails the release. |
+| `markStaleAfterRelease` | boolean | `false` | After a standing-PR publish, or a `releasekit release` that pushes the release branch, mark the preview on open PRs into that branch as stale until the PR's next push or label change. `releasekit publish` on its own doesn't. Best-effort: a failure never fails the release. |
 
 
 ### `ci.labels`

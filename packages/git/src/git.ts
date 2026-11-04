@@ -93,7 +93,7 @@ export class GitCli implements Git {
     }
   }
 
-  /** Null on a non-zero exit. A missing `git` binary still throws: that's a configuration failure, not a "no". */
+  /** Null on a non-zero exit. */
   private async runSoft(args: string[], options: RunOptions): Promise<RunResult | null> {
     try {
       return await this.run(args, options);

@@ -217,10 +217,9 @@ releasekit standing-pr merge --publish
 
 ## `releasekit refresh-after-release`
 
-Run as the final step of a standing-pr mode job that releases outside the standing PR. It re-runs the
-standing-PR update with `--reconcile`, so a manual/direct release that bypassed the standing PR doesn't
-leave its manifest stating already-published versions. A failure here fails the job. In other release
-strategies there's no standing PR, so it does nothing.
+In standing-pr mode, run it as the last step of a job that releases outside the standing PR. It re-runs
+the standing-PR update with `--reconcile`, so the standing PR's manifest doesn't keep listing versions
+that were just published. A failure fails the job. Outside standing-pr mode it does nothing.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|

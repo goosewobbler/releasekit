@@ -16,7 +16,6 @@ export interface AssociatedPullRequest {
   mergedAt: string | null;
 }
 
-/** Enough to mark a PR's preview stale without its event payload. */
 export interface OpenPullRequest {
   number: number;
   headRef: string;

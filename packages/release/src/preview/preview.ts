@@ -41,7 +41,7 @@ interface LabelOverrideResult {
 }
 
 interface PullRequestEvent {
-  pull_request?: { head?: { ref?: string; sha?: string }; base?: { ref?: string; sha?: string } };
+  pull_request?: { number?: number; head?: { ref?: string; sha?: string }; base?: { ref?: string; sha?: string } };
 }
 
 function readEventPayload(): PullRequestEvent | undefined {
@@ -124,7 +124,12 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
     const releaseConfig = loadConfig({ cwd: effectiveOptions.projectDir, configPath: effectiveOptions.config });
     // Advisory mode scopes the analysis to this PR's commits.
     const prBaseSha = labelContext.advisoryInStandingPr
-      ? await resolvePRBase(event, effectiveOptions.projectDir, releaseConfig.git?.remote ?? 'origin')
+      ? await resolvePRBase(
+          event,
+          context?.prNumber,
+          effectiveOptions.projectDir,
+          releaseConfig.git?.remote ?? 'origin',
+        )
       : undefined;
     const changelogConfig = releaseConfig.notes?.changelog;
     refs = (changelogConfig ? changelogConfig.refs : undefined) ?? 'link';
@@ -190,14 +195,19 @@ export async function runPreview(options: PreviewOptions): Promise<void> {
   success(`Preview comment posted on PR #${context.prNumber}`);
 }
 
-/** `pull_request.base.sha` can lag the base branch, which would count commits merged there since as this PR's. */
+/** `pull_request.base.sha` can lag the base branch, so commits merged there after it would count as this PR's. */
 async function resolvePRBase(
   event: PullRequestEvent | undefined,
+  prNumber: number | undefined,
   projectDir: string,
   remote: string,
 ): Promise<string | undefined> {
   const pr = event?.pull_request;
-  if (!pr) {
+  // With `--pr`, the run's event may be another PR's, or not a PR event at all.
+  if (!pr || (pr.number !== undefined && prNumber !== undefined && pr.number !== prNumber)) {
+    warn(
+      `This run has no pull_request event for ${prNumber ? `PR #${prNumber}` : 'the PR'}, so the preview counts every unreleased commit on the base branch, not just the PR's own.`,
+    );
     return undefined;
   }
   if (pr.head?.sha) {
@@ -228,12 +238,12 @@ async function resolvePRBase(
   warn(
     `Could not find this PR's base commit: ${mergeRef}, and ${mergeBase}. The preview scopes from where HEAD meets pull_request.base.sha, which can lag the base branch and count commits merged there as this PR's.`,
   );
-  // On a PR-head checkout base.sha can be newer than the fork point; outside HEAD's history, the version engine would
-  // scope from all history.
+  // On a PR-head checkout base.sha can be newer than where the PR branched, and the version engine reads a base
+  // outside HEAD's history as "all history".
   return (await createGitCli().mergeBase('HEAD', pr.base.sha, projectDir)) ?? pr.base.sha;
 }
 
-/** A fork's or out-of-date `origin/<base>` gives a merge base older than the event's base commit. */
+/** A fork's or out-of-date `origin/<base>` gives a merge base older than `base.sha`. */
 async function newerBase(mergeBase: string, eventBase: string | undefined, projectDir: string): Promise<string> {
   if (!eventBase || eventBase === mergeBase) {
     return mergeBase;
