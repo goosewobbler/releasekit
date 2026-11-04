@@ -1,0 +1,13 @@
+{
+  "$schema": "https://goosewobbler.github.io/releasekit/schema.json",
+  "git": {
+    "branch": "main"
+  },
+  "version": {
+    "preset": "angular",
+    "versionPrefix": "v"
+  },
+  "notes": {
+    "releaseNotes": {}
+  }
+}

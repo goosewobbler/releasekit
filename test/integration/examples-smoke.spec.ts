@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
-import { buildWorkflow, render } from '../../scripts/examples-smoke/generate-smoke-workflow.js';
+import { buildWorkflow, RELEASEKIT_INVOCATION, render } from '../../scripts/examples-smoke/generate-smoke-workflow.js';
 import { SCENARIOS } from '../../scripts/examples-smoke/scenarios.js';
 
 interface Step {
@@ -74,11 +74,37 @@ describe('examples smoke-test generator', () => {
     }
   });
 
+  it('should skip the standing-pr banner step instead of treating it as the releasekit step', () => {
+    const steps = stepsOf('smoke-standing-pr');
+    expect(steps.some((s) => /\bgh\s+api\b/.test(s.run ?? ''))).toBe(false);
+    expect(steps.some((s) => s.run === 'pnpm install --frozen-lockfile')).toBe(true);
+  });
+
+  it('should match a releasekit command but not a mention of one', () => {
+    for (const run of [
+      'pnpm exec releasekit release',
+      'releasekit-release backfill --all',
+      'gh api x && releasekit preview',
+    ]) {
+      expect(RELEASEKIT_INVOCATION.test(run), run).toBe(true);
+    }
+    for (const run of [
+      "echo '<!-- releasekit-processing -->'",
+      'grep releasekit-notes body.md',
+      'git config user.name releasekit-bot',
+    ]) {
+      expect(RELEASEKIT_INVOCATION.test(run), run).toBe(false);
+    }
+  });
+
   it('should always invoke releasekit with --dry-run so publish never fires', () => {
     for (const scenario of SCENARIOS) {
-      const releaseStep = stepsOf(`smoke-${scenario.id}`).find((s) => /\breleasekit\b/.test(s.run ?? ''));
-      expect(releaseStep, `${scenario.id} must run releasekit`).toBeDefined();
-      expect(releaseStep?.run).toContain('--dry-run');
+      // Deliberately broader than RELEASEKIT_INVOCATION, so a form the generator misses still fails here.
+      const releasekitSteps = stepsOf(`smoke-${scenario.id}`).filter((s) => /\breleasekit\b/.test(s.run ?? ''));
+      expect(releasekitSteps.length, `${scenario.id} must run releasekit`).toBeGreaterThan(0);
+      for (const step of releasekitSteps) {
+        expect(step.run, scenario.id).toContain('--dry-run');
+      }
     }
   });
 
