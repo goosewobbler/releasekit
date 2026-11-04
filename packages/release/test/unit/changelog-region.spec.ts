@@ -83,13 +83,20 @@ describe('changelog-region', () => {
       expect(footer).toContain('_(a, b)_');
     });
 
-    it('should mark a breaking change', () => {
+    it('should list a breaking change under a leading Breaking heading, not its commit type', () => {
       const footer = renderCombinedFooter(
         output({
-          changelogs: [cl('@scope/a', [{ type: 'fix', description: 'Reject the old preset', breaking: true }])],
+          changelogs: [
+            cl('@scope/a', [
+              { type: 'fix', description: 'Patch serializer' },
+              { type: 'fix', description: 'Reject the old preset', breaking: true },
+            ]),
+          ],
         }),
       );
-      expect(footer).toContain('- **BREAKING** Reject the old preset');
+      expect(footer).toContain(
+        '> #### Breaking\n>\n> - **BREAKING** Reject the old preset\n>\n> #### Fixed\n>\n> - Patch serializer',
+      );
     });
 
     it('should keep a breaking change apart from a non-breaking one with the same subject', () => {

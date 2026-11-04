@@ -460,8 +460,16 @@ function renderMergeTable(rows: MergedRow[]): string[] {
 
 function renderEntries(entries: VersionChangelogEntry[], refs: ChangelogRefsMode, repoUrl: string | null): string[] {
   const lines: string[] = [];
+  const breaking = entries.filter((e) => e.breaking);
+  // First and apart from their commit type, as in the published changelog and release notes.
+  if (breaking.length > 0) {
+    lines.push(...formatEntryGroup('Breaking', breaking, refs, repoUrl));
+  }
   const grouped = new Map<string, VersionChangelogEntry[]>();
   for (const entry of entries) {
+    if (entry.breaking) {
+      continue;
+    }
     if (!grouped.has(entry.type)) {
       grouped.set(entry.type, []);
     }
@@ -471,13 +479,13 @@ function renderEntries(entries: VersionChangelogEntry[], refs: ChangelogRefsMode
   for (const type of Object.keys(TYPE_LABELS)) {
     const group = grouped.get(type);
     if (group && group.length > 0) {
-      lines.push(...formatEntryGroup(type, group, refs, repoUrl));
+      lines.push(...formatEntryGroup(labelForType(type), group, refs, repoUrl));
       renderedTypes.add(type);
     }
   }
   for (const [type, group] of grouped) {
     if (!renderedTypes.has(type) && group.length > 0) {
-      lines.push(...formatEntryGroup(type, group, refs, repoUrl));
+      lines.push(...formatEntryGroup(labelForType(type), group, refs, repoUrl));
     }
   }
   return lines;
@@ -494,13 +502,16 @@ function formatPackageChangelog(changelog: VersionPackageChangelog, refs: Change
   return lines;
 }
 
+function labelForType(type: string): string {
+  return TYPE_LABELS[type] ?? capitalize(type);
+}
+
 function formatEntryGroup(
-  type: string,
+  label: string,
   entries: { description: string; scope?: string; issueIds?: string[]; prNumber?: string; breaking?: boolean }[],
   refs: ChangelogRefsMode,
   repoUrl: string | null,
 ): string[] {
-  const label = TYPE_LABELS[type] ?? capitalize(type);
   const lines: string[] = [`#### ${label}`, ''];
 
   for (const entry of entries) {
