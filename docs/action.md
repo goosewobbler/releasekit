@@ -261,6 +261,6 @@ jobs:
           apply: ${{ inputs.apply }}
 ```
 
-This fills empty release bodies and rewrites the ones backfill wrote before, and skips every other body. The Action has no `force` input. To replace notes releasekit published, add `only-missing: "true"`: it rewrites every body backfill didn't write, hand edits included, and skips the ones it did.
+Backfill finds tags through `version.versionPrefix`, so set it to match them (`v` for `v1.2.3`). It fills empty release bodies and rewrites the ones backfill wrote before, and skips every other body. The Action has no `force` input. To replace notes releasekit published, add `only-missing: "true"`: it rewrites every body backfill didn't write, hand edits included, and skips the ones it did.
 
 [`examples/ci/backfill`](../examples/ci/backfill/backfill.yml) has a full `workflow_dispatch` workflow that runs backfill through the CLI, with a `force` input.

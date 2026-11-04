@@ -156,9 +156,9 @@ pnpm exec releasekit release --scope core
 
 ## PR Preview Comments
 
-Post a comment on every PR showing what would be released if merged. Requires `pull-requests: write`.
+Post a comment on each PR showing what would be released if merged. Requires `pull-requests: write`.
 
-The workflow is [`examples/ci/release-preview`](../../../examples/ci/release-preview/release-preview.yml). It runs `releasekit preview` on each PR event, so the comment follows new pushes and label changes.
+The workflow is [`examples/ci/release-preview`](../../../examples/ci/release-preview/release-preview.yml). It runs `releasekit preview` on each PR event, so the comment follows new pushes and label changes. It skips fork PRs, whose read-only token can't post the comment, and the standing PR.
 
 ### Flagging stale previews after a release
 

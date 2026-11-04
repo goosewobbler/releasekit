@@ -130,7 +130,7 @@ jobs:
             *'<!-- releasekit-processing -->'*'<!-- releasekit-processing-end -->'*) ;;
             *) exit 0 ;;
           esac
-          CLEANED=$(printf '%s' "$BODY" | perl -0777 -pe 's/<!-- releasekit-processing -->.*?<!-- releasekit-processing-end -->\n*//s')
+          CLEANED=$(printf '%s' "$BODY" | perl -0777 -pe 's/<!-- releasekit-processing -->.*?<!-- releasekit-processing-end -->[\r\n]*//s')
           gh api --method PATCH "repos/$REPO/pulls/$PR" -f body="$CLEANED" >/dev/null
 
   immediate-release:
