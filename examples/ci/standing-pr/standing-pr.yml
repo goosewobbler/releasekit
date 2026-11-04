@@ -28,12 +28,12 @@ concurrency:
   # GitHub keeps one pending run per group and replaces it with any newer one. So the standing PR's
   # publish on merge and its retry label get a group per PR that nothing else can replace or cancel.
   # A merged `release:immediate` PR queues with the updates, so the two don't write release/next at
-  # once. Other events on a closed PR run no job, so each gets a group of its own. A maintainer's
-  # checkbox edits on the open PR get a per-PR cancelling group, so a flurry of ticks collapses to one
-  # rebuild. Everything else, including the bot's own body edits, shares a non-cancelling group. The
-  # label names and the `release/next` branch are hardcoded: update them here if you rename them in
-  # `ci.labels` or `ci.standingPr.branch`.
-  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (github.event.pull_request.head.ref == 'release/next' && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event.action == 'closed' && github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release:immediate') && 'standing-release-pr' || format('standing-release-pr-noop-{0}', github.run_id)) || github.event_name == 'pull_request' && github.event.action == 'edited' && github.event.sender.type != 'Bot' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
+  # once. Events that run no job (on a closed PR or a feeder PR, or sent by a bot) each get a group of
+  # their own, so they can't replace a queued run. A maintainer's checkbox edits on the open PR get a
+  # per-PR cancelling group, so a flurry of ticks collapses to one rebuild. Push, schedule and label
+  # runs share a non-cancelling group. The label names and the `release/next` branch are hardcoded:
+  # update them here if you rename them in `ci.labels` or `ci.standingPr.branch`.
+  group: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'closed' && (github.event.pull_request.head.ref == 'release/next' && (github.event.action == 'closed' || github.event.action == 'labeled' && github.event.label.name == 'release:retry') && format('standing-release-pr-closed-{0}', github.event.pull_request.number) || github.event.action == 'closed' && github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release:immediate') && 'standing-release-pr' || format('standing-release-pr-noop-{0}', github.run_id)) || github.event_name == 'pull_request' && !(startsWith(github.event.pull_request.head.ref, 'release/') && github.event.sender.type != 'Bot') && format('standing-release-pr-noop-{0}', github.run_id) || github.event_name == 'pull_request' && github.event.action == 'edited' && format('standing-release-pr-edit-{0}', github.event.pull_request.number) || 'standing-release-pr' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.pull_request.state == 'open' && github.event.action == 'edited' && github.event.sender.type != 'Bot' }}
 
 permissions:
@@ -116,8 +116,7 @@ jobs:
           # OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
       - name: Clear the in-progress banner
-        # Also after a success: update can exit without rewriting the body, e.g. when main's tip is a
-        # release commit.
+        # Also after a success: update can exit without rewriting the body.
         if: always() && github.event_name == 'pull_request'
         continue-on-error: true
         env:

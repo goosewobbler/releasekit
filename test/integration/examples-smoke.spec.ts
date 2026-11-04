@@ -100,9 +100,12 @@ describe('examples smoke-test generator', () => {
 
   it('should always invoke releasekit with --dry-run so publish never fires', () => {
     for (const scenario of SCENARIOS) {
-      const releaseStep = stepsOf(`smoke-${scenario.id}`).find((s) => RELEASEKIT_INVOCATION.test(s.run ?? ''));
-      expect(releaseStep, `${scenario.id} must run releasekit`).toBeDefined();
-      expect(releaseStep?.run).toContain('--dry-run');
+      // Deliberately broader than RELEASEKIT_INVOCATION, so a form the generator misses still fails here.
+      const releasekitSteps = stepsOf(`smoke-${scenario.id}`).filter((s) => /\breleasekit\b/.test(s.run ?? ''));
+      expect(releasekitSteps.length, `${scenario.id} must run releasekit`).toBeGreaterThan(0);
+      for (const step of releasekitSteps) {
+        expect(step.run, scenario.id).toContain('--dry-run');
+      }
     }
   });
 
