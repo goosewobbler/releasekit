@@ -3,6 +3,13 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@releasekit/notes/cli');
 vi.mock('@releasekit/publish/cli');
 vi.mock('@releasekit/version/cli');
+vi.mock('@releasekit/publish', async (importOriginal) => {
+  const { Command } = await import('commander');
+  return {
+    ...(await importOriginal<typeof import('@releasekit/publish')>()),
+    createPublishCommand: vi.fn(() => new Command('publish').description('publish')),
+  };
+});
 vi.mock('../../src/commands/preview-command.js');
 vi.mock('../../src/commands/refresh-after-release-command.js');
 
@@ -14,6 +21,7 @@ import { createReleaseProgram } from '../../src/cli.js';
 import { createPreviewCommand } from '../../src/commands/preview-command.js';
 import { createRefreshAfterReleaseCommand } from '../../src/commands/refresh-after-release-command.js';
 import { createDispatcherProgram } from '../../src/dispatcher.js';
+import { markPreviewsStaleAfterPublish } from '../../src/preview/stale.js';
 
 vi.mocked(createNotesCommand).mockReturnValue(new Command('notes').description('notes'));
 vi.mocked(createPublishCommand).mockReturnValue(new Command('publish').description('publish'));
@@ -53,6 +61,13 @@ describe('createDispatcherProgram', () => {
     const program = createDispatcherProgram();
     const cmd = program.commands.find((c) => c.name() === 'publish');
     expect(cmd).toBeDefined();
+  });
+
+  it('should give publish the hook that marks feeder previews stale', async () => {
+    const publish = await import('@releasekit/publish');
+    vi.mocked(publish.createPublishCommand).mockClear();
+    createDispatcherProgram();
+    expect(publish.createPublishCommand).toHaveBeenCalledWith({ afterRun: markPreviewsStaleAfterPublish });
   });
 
   it('should register the preview command', () => {

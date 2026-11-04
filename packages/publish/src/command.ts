@@ -3,6 +3,7 @@ import {
   setJsonMode,
   setLogLevel,
   successEnvelope,
+  warn,
   writeEnvelope,
   writeErrorEnvelope,
 } from '@releasekit/core';
@@ -13,9 +14,14 @@ import { publishDidChange } from './output.js';
 import { runPipeline } from './pipeline/index.js';
 import { pipelineErrorEnvelope } from './pipeline-error-envelope.js';
 import { parseInput } from './stages/input.js';
-import type { PublishCliOptions } from './types.js';
+import type { PublishCliOptions, PublishOutput } from './types.js';
 
-export function createPublishCommand(): Command {
+export interface PublishCommandHooks {
+  /** Runs after the pipeline, with its output or a failure's partial output. Its errors only warn. */
+  afterRun?: (output: PublishOutput, options: PublishCliOptions) => Promise<void>;
+}
+
+export function createPublishCommand(hooks: PublishCommandHooks = {}): Command {
   return new Command('publish')
     .description('Publish packages to registries with git tagging and GitHub releases')
     .option('--input <path>', 'Path to version output JSON (default: stdin)')
@@ -40,6 +46,20 @@ export function createPublishCommand(): Command {
         setJsonMode(true);
       }
 
+      const cliOptions: PublishCliOptions = {
+        input: options.input,
+        config: options.config,
+        registry: options.registry,
+        npmAuth: options.npmAuth,
+        dryRun: options.dryRun,
+        skipGit: options.skipGit,
+        skipPublish: options.skipPublish,
+        skipGithubRelease: options.skipGithubRelease,
+        skipVerification: options.skipVerification,
+        json: options.json,
+        verbose: options.verbose,
+      };
+
       try {
         const config = loadConfig({ configPath: options.config });
         const input = await parseInput(options.input);
@@ -48,27 +68,15 @@ export function createPublishCommand(): Command {
           config.npm.auth = options.npmAuth;
         }
 
-        const cliOptions: PublishCliOptions = {
-          input: options.input,
-          config: options.config,
-          registry: options.registry,
-          npmAuth: options.npmAuth,
-          dryRun: options.dryRun,
-          skipGit: options.skipGit,
-          skipPublish: options.skipPublish,
-          skipGithubRelease: options.skipGithubRelease,
-          skipVerification: options.skipVerification,
-          json: options.json,
-          verbose: options.verbose,
-        };
-
         const output = await runPipeline(input, config, cliOptions);
 
         writeEnvelope(successEnvelope(output, { changed: publishDidChange(output) }), io);
+        await runAfterRun(hooks, output, cliOptions);
       } catch (err) {
         if (err instanceof PipelineError) {
           writeEnvelope(pipelineErrorEnvelope(err), io);
           err.logError();
+          await runAfterRun(hooks, err.partialOutput, cliOptions);
         } else {
           writeErrorEnvelope(err, io);
           if (BasePublishError.isPublishError(err)) {
@@ -80,4 +88,16 @@ export function createPublishCommand(): Command {
         process.exit(exitCodeForError(err));
       }
     });
+}
+
+async function runAfterRun(
+  hooks: PublishCommandHooks,
+  output: PublishOutput,
+  options: PublishCliOptions,
+): Promise<void> {
+  try {
+    await hooks.afterRun?.(output, options);
+  } catch (err) {
+    warn(`The post-publish step failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }

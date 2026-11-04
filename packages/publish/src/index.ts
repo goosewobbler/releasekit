@@ -1,4 +1,4 @@
-export { createPublishCommand } from './command.js';
+export { createPublishCommand, type PublishCommandHooks } from './command.js';
 export { getDefaultConfig, loadConfig } from './config.js';
 export { BasePublishError, createPublishError, PipelineError, PublishError, PublishErrorCode } from './errors/index.js';
 export { publishDidChange } from './output.js';

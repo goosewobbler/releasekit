@@ -1,8 +1,16 @@
 import type { CIConfig } from '@releasekit/config';
 import { createFakeForge, type FakeForge, type OpenPullRequest } from '@releasekit/forge';
+import type { PublishCliOptions, PublishOutput } from '@releasekit/publish';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MARKER } from '../../src/github.js';
-import { markFeederPreviewsStale } from '../../src/preview/stale.js';
+import { markFeederPreviewsStale, markPreviewsStaleAfterPublish } from '../../src/preview/stale.js';
+
+const mockLoadCIConfig = vi.fn();
+
+vi.mock('@releasekit/config', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@releasekit/config')>()),
+  loadCIConfig: (...args: unknown[]) => mockLoadCIConfig(...args),
+}));
 
 vi.mock('@releasekit/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@releasekit/core')>();
@@ -325,5 +333,32 @@ describe('markFeederPreviewsStale', () => {
 
     expect(mockForgeFor).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('no GitHub token'));
+  });
+
+  describe("as `releasekit publish`'s after-run hook", () => {
+    const publishOutput = (branch: string | undefined) =>
+      ({ dryRun: false, git: { committed: true, tags: ['v1.1.0'], pushed: true, branch } }) as PublishOutput;
+    const publishOptions = (dryRun: boolean) => ({ config: 'releasekit.config.json', dryRun }) as PublishCliOptions;
+
+    beforeEach(() => {
+      mockLoadCIConfig.mockReturnValue(ciConfig());
+    });
+
+    it('should mark previews on the branch the publish pushed, reading the config it was given', async () => {
+      const forge = seedForge([pr(10)]);
+      mockForgeFor.mockReturnValue(forge);
+
+      await markPreviewsStaleAfterPublish(publishOutput('main'), publishOptions(false));
+
+      expect(markedStale(forge)).toEqual([10]);
+      expect(mockLoadCIConfig).toHaveBeenCalledWith({ configPath: 'releasekit.config.json' });
+    });
+
+    it('should do nothing on a dry run, or when the branch was not pushed', async () => {
+      await markPreviewsStaleAfterPublish(publishOutput('main'), publishOptions(true));
+      await markPreviewsStaleAfterPublish(publishOutput(undefined), publishOptions(false));
+
+      expect(mockForgeFor).not.toHaveBeenCalled();
+    });
   });
 });

@@ -21,7 +21,7 @@ import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from '../g
 import { forgeFor } from '../github.js';
 import { deriveLabelDefinitions, syncLabels } from '../label-definitions.js';
 import { DEFAULT_LABELS, graduatedPackageFromLabel, isGraduatePackageLabel } from '../label-utils.js';
-import { markFeederPreviewsStale } from '../preview/stale.js';
+import { markFeederPreviewsStale, marksPreviewsStale } from '../preview/stale.js';
 import { runNotesStep, runPublishStep, runVersionStep } from '../steps.js';
 import type { ReleaseOptions, ReleaseOutput } from '../types.js';
 import { publishableUpdates, syncVersionDisplay } from '../version-display.js';
@@ -188,21 +188,20 @@ function isStandingPrEventRun(): boolean {
   }
 }
 
-interface EventPullRequest {
-  number?: number;
-  head?: { sha?: string };
-  base?: { ref?: string };
+interface PullRequestEvent {
+  action?: string;
+  pull_request: { number?: number; head?: { sha?: string }; base?: { ref?: string } };
 }
 
-/** This run's event payload PR, when the event is about PR `prNumber`. */
-function eventPullRequest(prNumber: number): EventPullRequest | undefined {
+/** This run's event payload, when it is about PR `prNumber`. */
+function pullRequestEvent(prNumber: number): PullRequestEvent | undefined {
   const eventPath = process.env.GITHUB_EVENT_PATH;
   if (!eventPath) {
     return undefined;
   }
   try {
-    const event = JSON.parse(fs.readFileSync(eventPath, 'utf-8')) as { pull_request?: EventPullRequest };
-    return event.pull_request?.number === prNumber ? event.pull_request : undefined;
+    const event = JSON.parse(fs.readFileSync(eventPath, 'utf-8')) as Partial<PullRequestEvent>;
+    return event.pull_request?.number === prNumber ? (event as PullRequestEvent) : undefined;
   } catch {
     return undefined;
   }
@@ -1502,6 +1501,47 @@ async function assertManifestMatchesSource(
  * publish ran.
  */
 export async function publishFromManifest(prNumber: number, options: StandingPROptions): Promise<ReleaseOutput> {
+  try {
+    return await publishManifest(prNumber, options);
+  } finally {
+    await markPreviewsStaleAfterMerge(prNumber, options);
+  }
+}
+
+/** The merge moved the base branch whatever the publish's outcome. A retry-label run follows one that marked. */
+async function markPreviewsStaleAfterMerge(prNumber: number, options: StandingPROptions): Promise<void> {
+  const event = pullRequestEvent(prNumber);
+  if (event?.action === 'labeled') {
+    return;
+  }
+  try {
+    const releaseKitConfig = loadReleaseKitConfig({ cwd: options.projectDir, configPath: options.config });
+    if (!marksPreviewsStale(releaseKitConfig.ci)) {
+      return;
+    }
+    const baseRef = event?.pull_request.base?.ref ?? (await readBaseRef(prNumber));
+    await markFeederPreviewsStale({
+      ciConfig: releaseKitConfig.ci,
+      branch: baseRef ?? releaseKitConfig.git?.branch ?? 'main',
+    });
+  } catch (err) {
+    warn(`Marking feeder-PR previews stale failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+async function readBaseRef(prNumber: number): Promise<string | undefined> {
+  const context = getGitHubContext();
+  if (!context?.token) {
+    return undefined;
+  }
+  try {
+    return (await forgeFor(context).getPullRequest(prNumber)).baseRef;
+  } catch {
+    return undefined;
+  }
+}
+
+async function publishManifest(prNumber: number, options: StandingPROptions): Promise<ReleaseOutput> {
   const cwd = options.projectDir;
 
   const githubContext = getGitHubContext();
@@ -1716,9 +1756,8 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
   // Also clears the supersede warning the next standing PR would otherwise show.
   await resolveFailureReportIfPresent(forge, prNumber, manifest.versionOutput);
 
-  const eventPr = eventPullRequest(prNumber);
   if (deleteBranchOnMerge) {
-    const mergedHead = livePr?.headSha ?? eventPr?.head?.sha;
+    const mergedHead = livePr?.headSha ?? pullRequestEvent(prNumber)?.pull_request.head?.sha;
     if (mergedHead && isCommitSha(mergedHead)) {
       await deleteReleaseBranch(releaseBranch, cwd, mergedHead);
     } else {
@@ -1730,12 +1769,6 @@ export async function publishFromManifest(prNumber: number, options: StandingPRO
       );
     }
   }
-
-  // The merge, not this job, moved the base branch. Last, so its API calls don't delay the branch cleanup.
-  await markFeederPreviewsStale({
-    ciConfig: releaseKitConfig.ci,
-    branch: livePr?.baseRef ?? eventPr?.base?.ref ?? releaseKitConfig.git?.branch ?? 'main',
-  });
 
   return {
     versionOutput: manifest.versionOutput,

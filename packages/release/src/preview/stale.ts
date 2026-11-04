@@ -1,6 +1,7 @@
-import type { CIConfig } from '@releasekit/config';
+import { type CIConfig, loadCIConfig } from '@releasekit/config';
 import { info, warn } from '@releasekit/core';
 import { forgeErrorStatus, isBotComment } from '@releasekit/forge';
+import type { PublishCliOptions, PublishOutput } from '@releasekit/publish';
 import { getGitHubContext } from '../git.js';
 import { forgeFor, MARKER } from '../github.js';
 
@@ -23,8 +24,7 @@ const STALE_NOTICE =
  * token suffices.
  */
 export async function markFeederPreviewsStale(options: MarkPreviewsStaleOptions): Promise<void> {
-  const prPreview = options.ciConfig?.prPreview;
-  if (!prPreview?.enabled || !prPreview.markStaleAfterRelease) {
+  if (!marksPreviewsStale(options.ciConfig)) {
     return;
   }
   try {
@@ -71,6 +71,27 @@ export async function markFeederPreviewsStale(options: MarkPreviewsStaleOptions)
     info(`Marked ${marked} feeder-PR preview(s) stale.`);
   } catch (err) {
     warn(`Marking feeder-PR previews stale failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+export function marksPreviewsStale(ciConfig: CIConfig | undefined): boolean {
+  return Boolean(ciConfig?.prPreview?.enabled && ciConfig.prPreview.markStaleAfterRelease);
+}
+
+/** A publish has moved the branch once it pushed it, even if a later stage failed. */
+export async function markPreviewsStaleIfPushed(
+  output: PublishOutput | undefined,
+  ciConfig: CIConfig | undefined,
+): Promise<void> {
+  const branch = output?.git.branch;
+  if (branch) {
+    await markFeederPreviewsStale({ ciConfig, branch });
+  }
+}
+
+export async function markPreviewsStaleAfterPublish(output: PublishOutput, options: PublishCliOptions): Promise<void> {
+  if (!options.dryRun) {
+    await markPreviewsStaleIfPushed(output, loadCIConfig({ configPath: options.config }));
   }
 }
 
