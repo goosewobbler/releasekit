@@ -1,7 +1,7 @@
 # release-preview — PR comment showing what would release
 
-Every PR into `main` gets a comment listing the packages and versions that
-would release if it merged. The comment is updated in place on each push or
+Every PR into `main` from a branch in the repo gets a comment listing the
+packages and versions that would release if it merged. The comment is updated in place on each push or
 label change, so a PR carries one preview comment however many times it runs.
 
 ## Files
@@ -9,7 +9,7 @@ label change, so a PR carries one preview comment however many times it runs.
 | File | Copy to |
 |------|---------|
 | [`release-preview.yml`](./release-preview.yml) | `.github/workflows/release-preview.yml` |
-| [`releasekit.config.json`](./releasekit.config.json) | repo root |
+| [`releasekit.config.json`](./releasekit.config.json) | not needed: the preview uses your release workflow's config |
 
 ## Assumptions
 
@@ -26,4 +26,4 @@ Shared [correctness rules](../../README.md#cross-cutting-correctness-rules) appl
 
 - `concurrency` is per PR with `cancel-in-progress: true`: a newer push or label change supersedes the running preview.
 - `pull-requests: write` is the only write scope the preview needs; it never pushes, tags or publishes.
-- In standing-PR mode the preview skips the standing PR itself, whose manifest comment already shows the release.
+- The job skips fork PRs, whose read-only token can't post the comment, and the standing PR, whose manifest comment already shows the release. The `release/next` name is hardcoded: update it if you change `ci.standingPr.branch`.

@@ -10,7 +10,7 @@ read what it would change in the log first.
 | File | Copy to |
 |------|---------|
 | [`backfill.yml`](./backfill.yml) | `.github/workflows/backfill.yml` |
-| [`releasekit.config.json`](./releasekit.config.json) | repo root |
+| [`releasekit.config.json`](./releasekit.config.json) | merge `version.versionPrefix` and `notes.releaseNotes` into yours |
 
 ## Running it
 

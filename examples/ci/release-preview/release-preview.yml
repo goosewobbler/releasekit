@@ -21,6 +21,9 @@ permissions:
 jobs:
   preview:
     name: Release Preview
+    # A fork PR's token is read-only, so the comment post would fail. `preview` skips the standing PR
+    # itself, but only after a full checkout and install.
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref != 'release/next'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
