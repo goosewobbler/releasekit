@@ -190,7 +190,7 @@ function isStandingPrEventRun(): boolean {
 
 interface PullRequestEvent {
   action?: string;
-  pull_request: { number?: number; head?: { sha?: string }; base?: { ref?: string } };
+  pull_request: { number?: number; merged?: boolean; head?: { sha?: string }; base?: { ref?: string } };
 }
 
 /** This run's event payload, when it is about PR `prNumber`. */
@@ -1519,23 +1519,29 @@ async function markPreviewsStaleAfterMerge(prNumber: number, options: StandingPR
     if (!marksPreviewsStale(releaseKitConfig.ci)) {
       return;
     }
-    const baseRef = event?.pull_request.base?.ref ?? (await readBaseRef(prNumber));
+    const eventMerged = event?.pull_request.merged;
+    const eventBase = event?.pull_request.base?.ref;
+    const pr = eventMerged === undefined || eventBase === undefined ? await readPullRequest(prNumber) : undefined;
+    // A dispatch can name a PR that never merged, and then nothing moved the base branch.
+    if (!(eventMerged ?? pr?.merged)) {
+      return;
+    }
     await markFeederPreviewsStale({
       ciConfig: releaseKitConfig.ci,
-      branch: baseRef ?? releaseKitConfig.git?.branch ?? 'main',
+      branch: eventBase ?? pr?.baseRef ?? releaseKitConfig.git?.branch ?? 'main',
     });
   } catch (err) {
     warn(`Marking feeder-PR previews stale failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
-async function readBaseRef(prNumber: number): Promise<string | undefined> {
+async function readPullRequest(prNumber: number): Promise<PullRequestDetails | undefined> {
   const context = getGitHubContext();
   if (!context?.token) {
     return undefined;
   }
   try {
-    return (await forgeFor(context).getPullRequest(prNumber)).baseRef;
+    return await forgeFor(context).getPullRequest(prNumber);
   } catch {
     return undefined;
   }

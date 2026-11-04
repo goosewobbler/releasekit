@@ -54,6 +54,7 @@ export interface PullRequestDetails {
   labels: string[];
   headSha?: string;
   baseRef?: string;
+  merged?: boolean;
 }
 
 export interface CommentAuthor {
