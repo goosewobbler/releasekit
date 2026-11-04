@@ -55,6 +55,7 @@ export interface PullRequestDetails {
   body: string;
   labels: string[];
   headSha?: string;
+  headRef?: string;
 }
 
 export interface CommentAuthor {

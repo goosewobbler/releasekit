@@ -5,6 +5,7 @@ import { error, info, setJsonMode, setLogLevel, setQuietMode, success, warn } fr
 import type { Forge } from '@releasekit/forge';
 import { PipelineError } from '@releasekit/publish';
 import { postFailureReport, resolveFailureReportIfPresent } from './failure-report/post.js';
+import { standingPRImmediateRefusal } from './gate/evaluate-pr.js';
 import { getGitHubContext, getHeadCommitMessage, matchesSkipPattern } from './git.js';
 import { fetchPRLabels, findMergedPRsForCommit, forgeFor } from './github.js';
 import { DEFAULT_LABELS, detectLabelConflicts } from './label-utils.js';
@@ -79,6 +80,7 @@ interface PRLabelsResult {
   labels: string[];
   blocked?: boolean;
   skipped?: boolean;
+  refusal?: string;
 }
 
 async function applyScopeLabelsFromPR(
@@ -118,7 +120,16 @@ async function applyScopeLabelsFromPR(
 
   // Per PR: labels from different PRs don't conflict.
   const labels = ciConfig?.labels ?? DEFAULT_LABELS;
+  const inStandingPr = (ciConfig?.releaseStrategy ?? 'direct') === 'standing-pr';
   for (const [prNumber, prLabels] of perPRLabels) {
+    if (inStandingPr && prLabels.includes(labels.immediate)) {
+      const { headRef } = await forge.getPullRequest(prNumber);
+      const refusal = standingPRImmediateRefusal(prNumber, headRef, labels, ciConfig);
+      if (refusal) {
+        return { target: options.target, scopeLabels: [], labels: [], refusal };
+      }
+    }
+
     const conflict = detectLabelConflicts(prLabels, labels);
 
     if ((ciConfig?.releaseTrigger ?? 'label') === 'commit' && prLabels.includes(labels.skip)) {
@@ -230,6 +241,10 @@ export async function runRelease(inputOptions: ReleaseOptions): Promise<ReleaseO
   }
   if (scopeResult.skipped) {
     info('Release skipped due to release:skip label');
+    return null;
+  }
+  if (scopeResult.refusal) {
+    info(`Release skipped: ${scopeResult.refusal}`);
     return null;
   }
   if (!options.dryRun && scopeResult.target !== options.target) {

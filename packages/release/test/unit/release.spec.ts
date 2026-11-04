@@ -1,4 +1,5 @@
 import type { VersionOutput } from '@releasekit/core';
+import { createFakeForge } from '@releasekit/forge';
 import { FakeGit } from '@releasekit/git';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReleaseOptions } from '../../src/types.js';
@@ -935,6 +936,48 @@ describe('runRelease', () => {
 
       const runOptions = MockVersionEngine.mock.calls[0]?.[1];
       expect(runOptions.targets).toEqual(['@wdio/electron-*']);
+    });
+
+    describe('standing-pr: a merged PR carrying the immediate label', () => {
+      function mergedPR(headRef: string, standingPr?: { branch: string }) {
+        mockLoadCIConfig.mockReturnValue({ releaseStrategy: 'standing-pr', standingPr });
+        mockFindMergedPRsForCommit.mockResolvedValue([42]);
+        mockFetchPRLabels.mockResolvedValue(['release:immediate', 'bump:minor']);
+        mockForgeFor.mockReturnValue(
+          createFakeForge({ pullRequests: { 42: { body: '', labels: ['release:immediate', 'bump:minor'], headRef } } }),
+        );
+      }
+
+      it('should refuse to re-release the standing PR', async () => {
+        mergedPR('release/next');
+
+        const { runRelease } = await import('../../src/release.js');
+        const result = await runRelease(defaultOptions);
+
+        expect(result).toBeNull();
+        expect(mockVersionEngineRun).not.toHaveBeenCalled();
+        expect(mockPublishRunPipeline).not.toHaveBeenCalled();
+      });
+
+      it('should recognise the standing PR by ci.standingPr.branch', async () => {
+        mergedPR('releases/queue', { branch: 'releases/queue' });
+
+        const { runRelease } = await import('../../src/release.js');
+        const result = await runRelease(defaultOptions);
+
+        expect(result).toBeNull();
+        expect(mockPublishRunPipeline).not.toHaveBeenCalled();
+      });
+
+      it('should still release a feeder PR', async () => {
+        mergedPR('fix/urgent');
+
+        const { runRelease } = await import('../../src/release.js');
+        const result = await runRelease(defaultOptions);
+
+        expect(result).not.toBeNull();
+        expect(mockPublishRunPipeline).toHaveBeenCalled();
+      });
     });
   });
 

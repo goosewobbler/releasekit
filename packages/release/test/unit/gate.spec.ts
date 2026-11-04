@@ -1,3 +1,4 @@
+import { createFakeForge, type PullRequestDetails } from '@releasekit/forge';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockLoadReleaseKitConfig = vi.fn();
@@ -66,6 +67,7 @@ describe('Gate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
+    mockForgeFor.mockReturnValue(createFakeForge());
     mockLoadReleaseKitConfig.mockReturnValue({
       ci: {
         releaseTrigger: 'label',
@@ -431,6 +433,54 @@ describe('Gate', () => {
       const result = await runGate();
 
       expect(result.shouldRelease).toBe(true);
+    });
+
+    describe('the merged standing PR carrying the immediate label', () => {
+      function seedPRs(prs: Record<number, PullRequestDetails>) {
+        mockForgeFor.mockReturnValue(createFakeForge({ pullRequests: prs }));
+        mockFetchPRLabels.mockImplementation(async (_forge: unknown, prNumber: number) => prs[prNumber]?.labels ?? []);
+      }
+
+      it('should refuse to release it, without a notify comment', async () => {
+        mockLoadReleaseKitConfig.mockReturnValue(standingPrConfig());
+        mockFindMergedPRsSinceLastRelease.mockResolvedValue([42]);
+        seedPRs({ 42: { body: '', labels: ['release:immediate', 'bump:minor'], headRef: 'release/next' } });
+
+        const result = await runGate();
+
+        expect(result.shouldRelease).toBe(false);
+        expect(result.blocked).toBeUndefined();
+        expect(result.reason).toBe(
+          "PR #42 is the standing release PR, which publishes from its manifest; release:immediate doesn't apply to it",
+        );
+        expect(mockPostOrUpdateComment).not.toHaveBeenCalled();
+      });
+
+      it('should recognise the standing PR by ci.standingPr.branch', async () => {
+        mockLoadReleaseKitConfig.mockReturnValue(standingPrConfig({ standingPr: { branch: 'releases/queue' } }));
+        mockFindMergedPRsSinceLastRelease.mockResolvedValue([42]);
+        seedPRs({ 42: { body: '', labels: ['release:immediate', 'bump:minor'], headRef: 'releases/queue' } });
+
+        const result = await runGate();
+
+        expect(result.shouldRelease).toBe(false);
+        expect(result.reason).toContain('is the standing release PR');
+      });
+
+      it('should still release a feeder PR carrying the immediate label in the same window', async () => {
+        mockLoadReleaseKitConfig.mockReturnValue(standingPrConfig());
+        mockFindMergedPRsSinceLastRelease.mockResolvedValue([43, 42]);
+        seedPRs({
+          42: { body: '', labels: ['release:immediate', 'bump:minor'], headRef: 'release/next' },
+          43: { body: '', labels: ['release:immediate', 'bump:patch'], headRef: 'fix/urgent' },
+        });
+
+        const result = await runGate();
+
+        expect(result.shouldRelease).toBe(true);
+        expect(result.bump).toBe('patch');
+        expect(result.evaluations.find((e) => e.prNumber === 42)?.shouldRelease).toBe(false);
+      });
     });
   });
 
