@@ -13,7 +13,7 @@ export class InputParseError extends NotesError {
 
 export class InputValidationError extends NotesError {
   readonly code = 'INPUT_VALIDATION_ERROR';
-  readonly suggestions = ['Pipe the JSON from `releasekit version --json`, not a hand-trimmed fragment'];
+  readonly suggestions = ['Pass `releasekit version --json` output unchanged'];
 }
 
 export class TemplateError extends NotesError {
