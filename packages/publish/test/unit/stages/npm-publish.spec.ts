@@ -127,7 +127,7 @@ describe('npm-publish stage', () => {
     // An unset secret in `env: NPM_TOKEN: ${{ secrets.NPM_TOKEN }}` arrives as ''.
     process.env.NPM_TOKEN = '';
     process.env.NODE_AUTH_TOKEN = 'node_auth_token';
-    // The isolated .npmrc is what npm reads, and it's removed once the stage ends.
+    // Read the .npmrc during publish: the stage deletes it afterwards.
     let npmrc = '';
     vi.mocked(execCommand).mockImplementation(async (_cmd, args, options) => {
       if ((args as string[]).includes('publish')) {

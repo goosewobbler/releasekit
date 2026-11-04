@@ -231,7 +231,7 @@ function assertDryRunSupported(mode, dryRun) {
   if (!normalizeBoolean(dryRun)) {
     return;
   }
-  // An allowlist, so a new mode that drops dry-run fails rather than running for real.
+  // An allowlist, so a new mode fails on dry-run until it supports it.
   const dryRunModes = new Set(['release', 'preview', 'backfill']);
   if (!dryRunModes.has(mode)) {
     throw new Error(`dry-run is not supported for mode "${mode}"`);
@@ -428,7 +428,7 @@ export async function runAction(input, options = {}) {
   for (const k of Object.keys(spawnEnv).filter((k) => k.startsWith('INPUT_'))) {
     delete spawnEnv[k];
   }
-  // Only when given, so an unset input keeps the job's NPM_TOKEN rather than blanking it.
+  // Only when set, so an unset input doesn't blank the job's NPM_TOKEN.
   if (input.npmToken) {
     spawnEnv.NPM_TOKEN = input.npmToken;
   }

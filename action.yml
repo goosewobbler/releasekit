@@ -75,7 +75,7 @@ inputs:
     required: false
     default: auto
   npm-token:
-    description: NPM token for publishing without OIDC (defaults to the job's NPM_TOKEN env)
+    description: npm token for publishing without OIDC (defaults to the job's NPM_TOKEN)
     required: false
   skip-notes:
     description: Skip changelog generation
@@ -98,7 +98,7 @@ inputs:
     required: false
     default: 'false'
   ssh-key:
-    description: SSH deploy key for git push (the checkout uses it in a run that pushes)
+    description: SSH deploy key for git pushes, used instead of github-token
     required: false
 
   reconcile:
@@ -247,8 +247,8 @@ runs:
         # An empty input (a secret unset on a fork run) falls back to the workflow token.
         token: ${{ steps.access.outputs.pushes == 'true' && inputs.github-token || github.token }}
 
-    # A repo that doesn't pin pnpm (npm, Dart or Rust) gets the action's own. The pin check follows
-    # pnpm/action-setup's, falling back to a packageManager grep when the job has no Node yet.
+    # pnpm/action-setup fails if given a version that differs from the repo's pin, so only a repo with no pin
+    # (npm, Dart or Rust) gets the action's own. Without Node yet, a packageManager grep stands in for the check.
     - name: Resolve pnpm setup
       id: pnpm-setup
       shell: bash

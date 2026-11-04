@@ -22,15 +22,15 @@ uses: goosewobbler/releasekit@v0
 
 ## Requirements
 
-- The action checks out the repo (unless `skip-checkout`), then sets up its own Node with `actions/setup-node`: `node-version`, default `24`, whose npm supports OIDC trusted publishing (ReleaseKit needs Node 22.12+). This replaces any Node version an earlier step set up.
-- It sets up pnpm with `pnpm/action-setup`, at the version your `package.json` pins in `devEngines.packageManager` or `packageManager`, else its own, so npm, Dart and Rust repos need no pnpm setup.
+- The action checks out the repo (unless `skip-checkout`) and sets up Node with `actions/setup-node`, replacing any Node an earlier step set up. `node-version` defaults to `24`, whose npm supports OIDC trusted publishing; ReleaseKit needs 22.12+.
+- It sets up pnpm with `pnpm/action-setup`: the version your `package.json` pins (`packageManager` or `devEngines.packageManager`), or the action's own if there's no pin. npm, Dart and Rust repos need no pnpm setup.
 - For npm publishing, run `actions/setup-node` with `registry-url: https://registry.npmjs.org` before this action so that `NODE_AUTH_TOKEN` is wired up correctly.
 
 ## Required permissions and env
 
-The action passes `github-token` (default: the workflow token) to ReleaseKit as `GITHUB_TOKEN` and `GH_TOKEN`, so either in the job or step `env` is ignored. In a run that pushes, the action's checkout also persists it for git pushes, unless you set `ssh-key` or `skip-checkout`. Runs that push are `release`, the standing-PR modes, `refresh-after-release` and an applied `backfill`, never a dry run.
+The action passes `github-token` (default: the workflow token) to ReleaseKit as `GITHUB_TOKEN` and `GH_TOKEN`, overriding either in your `env`. In a run that pushes, the action's checkout also persists it for git pushes, unless you set `ssh-key` or `skip-checkout`. Runs that push are `release`, the standing-PR modes, `refresh-after-release` and an applied `backfill`, never a dry run.
 
-To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a GitHub App token. It expires after an hour, so a release that publishes for longer can fail at its final push. Not a PAT: ReleaseKit recognises its own comments by bot authorship, so with a PAT `standing-pr-publish` refuses the release manifest, comments are re-posted on every run, and the standing-PR workflow can retrigger itself.
+To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a GitHub App token. It expires after an hour, so a release that runs longer can fail at its final push. Don't use a PAT: ReleaseKit recognises its own comments by bot authorship, so with a PAT `standing-pr-publish` refuses the release manifest, comments are re-posted on every run, and the standing-PR workflow can retrigger itself.
 
 ### Release mode
 
@@ -48,8 +48,8 @@ To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a 
 ### Gate mode
 
 - Recommended job permissions:
-  - `contents: read`
-  - `pull-requests: write` (reading the merged PR's labels and posting label notices)
+  - `contents: read` (checkout)
+  - `pull-requests: write` (label notices on the merged PR)
 
 ### Standing-PR and refresh modes
 
@@ -65,12 +65,12 @@ To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a 
 | `config` | - | Path to `releasekit.config.json` |
 | `project-dir` | `.` | Project directory |
 | `dry-run` | `false` | Dry-run for `release`, `preview` and `backfill`; other modes fail if it's set |
-| `github-token` | workflow token | Token for GitHub API calls and git pushes; use a GitHub App token to bypass rulesets |
+| `github-token` | workflow token | Token for GitHub API calls and git pushes |
 | `node-version` | `24` | Node.js version for the action's setup-node step |
-| `npm-token` | - | NPM token when not using OIDC; when unset, the job's `NPM_TOKEN` env is preserved |
+| `npm-token` | - | npm token when not using OIDC (default: the job's `NPM_TOKEN`) |
 | `summary` | `true` | Write a job summary for `release` and `gate` |
 | `skip-checkout` | `false` | Skip the action's checkout. Check out a branch (not a detached HEAD) with `fetch-depth: 0`; the action rebases it onto `origin/<branch>`, or resets to it if the rebase fails. Pushes then use your checkout's credentials. |
-| `json` | `false` | JSON output (release mode). Without it, `has-changes` is always `false` and the other release outputs are empty |
+| `json` | `false` | JSON output (release mode) |
 | `verbose` | `false` | Verbose logs |
 | `quiet` | `false` | Suppress non-error logs |
 
@@ -81,8 +81,8 @@ To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a 
 | `bump` | - | Force bump (`patch\|minor\|major\|prerelease`) |
 | `prerelease` | - | Prerelease identifier (e.g. `alpha`, `beta`) |
 | `stable` | `false` | Graduate prerelease packages to stable without bumping |
-| `scope` | - | Scope name resolved to target packages from `ci.scopeLabels` (also `gate`) |
-| `ssh-key` | - | SSH deploy key; in a run that pushes, the action checks out over SSH so the push uses it |
+| `scope` | - | Scope name resolved to target packages from `ci.scopeLabels`; also used by `gate` |
+| `ssh-key` | - | SSH deploy key for git pushes, used instead of `github-token` |
 | `sync` | `false` | Synchronized versioning |
 | `target` | - | Comma-separated package targets |
 | `branch` | - | Override push branch |
@@ -132,10 +132,10 @@ To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a 
 |---|---|
 | `success` | Whether action completed successfully |
 | `mode` | Executed mode |
-| `has-changes` | Whether release detected updates (release mode, needs `json: "true"`) |
-| `version-output` | `versionOutput` JSON string (release mode, needs `json: "true"`) |
-| `tags` | Comma-separated tags (release mode, needs `json: "true"`) |
-| `release-output` | Full release JSON output (release mode, needs `json: "true"`) |
+| `has-changes` | Whether release detected updates (release mode) |
+| `version-output` | `versionOutput` JSON string (release mode) |
+| `tags` | Comma-separated tags (release mode) |
+| `release-output` | Full release JSON output (release mode) |
 | `preview-markdown` | Preview markdown (preview mode + dry-run) |
 | `preview-posted` | `true` when preview mode posted comment |
 | `should-release` | Whether a release should proceed (gate mode) |
@@ -146,6 +146,8 @@ To bypass a ruleset, or to make those pushes start `on: push` workflows, pass a 
 | `standing-pr-action` | `created`, `updated`, `closed` or `noop` (standing-pr-update mode) |
 | `standing-pr-number` | Standing PR number (standing-pr-update mode) |
 | `standing-pr-url` | Standing PR URL (standing-pr-update mode) |
+
+Release-mode outputs need `json: "true"`; without it, `has-changes` is always `false` and the others are empty.
 
 ## Examples
 
@@ -179,7 +181,7 @@ jobs:
         with:
           mode: release
           json: "true"
-          # The action's own checkout would clean away the build.
+          # The action's own checkout would delete the build output.
           skip-checkout: "true"
       - name: Print tags
         env:
@@ -227,7 +229,7 @@ jobs:
           mode: preview
           preview-dry-run: "true"
 
-      # Through env, not inline: the markdown carries PR text, which inline would run as shell.
+      # Through env: the markdown includes PR text, which `${{ }}` would splice into the script.
       - env:
           PREVIEW_MARKDOWN: ${{ steps.rk.outputs.preview-markdown }}
         run: echo "$PREVIEW_MARKDOWN"
