@@ -334,8 +334,12 @@ async function calculateVersionInner(config: Config, options: VersionOptions): P
       // unresolvable tag falls back to the unbounded default rather than throwing.
       const latestTagReachable = !!latestTag && (await refExists(latestTag, pkgPath));
       const bumpFrom = config.baseRef ?? (latestTagReachable ? latestTag : undefined);
-      if (bumpFrom) {
-        bumper.commits({ from: bumpFrom });
+      // Scoped like the commit count below: the repo in sync mode, else this package's directory, so another
+      // package's commits don't bump it.
+      const scanPath = commitCheckPath || pkgPath;
+      if (bumpFrom || scanPath) {
+        // Omitted, not undefined: an undefined `from` would replace the bumper's own tag lookup and scan all history.
+        bumper.commits({ ...(bumpFrom ? { from: bumpFrom } : {}), ...(scanPath ? { path: scanPath } : {}) });
       }
       const recommendedBump = await bumper.bump(presetConfig.whatBump);
       const releaseTypeFromCommits =
